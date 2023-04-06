@@ -12,6 +12,7 @@
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
 #ifndef UA_SUBSCRIPTION_H_
@@ -22,7 +23,7 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "ua_timer.h"
+#include "common/ua_timer.h"
 #include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS
@@ -115,7 +116,7 @@ typedef enum {
 } UA_MonitoredItemSamplingType;
 
 struct UA_MonitoredItem {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
     UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
     UA_UInt32 monitoredItemId;
@@ -215,23 +216,6 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server,
                                               UA_MonitoredItem *mon,
                                               const UA_DataValue *value);
 
-UA_StatusCode
-UA_Event_addEventToMonitoredItem(UA_Server *server, const UA_NodeId *event,
-                                 UA_MonitoredItem *mon);
-
-UA_StatusCode
-UA_Event_generateEventId(UA_ByteString *generatedId);
-
-void
-UA_Event_staticSelectClauseValidation(UA_Server *server,
-                                      const UA_EventFilter *eventFilter,
-                                      UA_StatusCode *result);
-
-UA_StatusCode
-UA_Event_staticWhereClauseValidation(UA_Server *server,
-                                     const UA_ContentFilter *filter,
-                                     UA_ContentFilterResult *);
-
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
 void
@@ -256,7 +240,7 @@ typedef enum {
  * may keep Subscriptions intact beyond the Session lifetime. They can then be
  * re-bound to a new Session with the TransferSubscription Service. */
 struct UA_Subscription {
-    UA_TimerEntry delayedFreePointers;
+    UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_Subscription) serverListEntry;
     /* Ordered according to the priority byte and round-robin scheduling for
      * late subscriptions. See ua_session.h. Only set if session != NULL. */
@@ -283,6 +267,10 @@ struct UA_Subscription {
 
     /* Publish Callback. Registered if id > 0. */
     UA_UInt64 publishCallbackId;
+
+    /* Delayed callback to schedule publication of more notifications */
+    UA_Boolean delayedCallbackRegistered;
+    UA_DelayedCallback delayedMoreNotifications;
 
     /* MonitoredItems */
     UA_UInt32 lastMonitoredItemId; /* increase the identifiers */
@@ -345,9 +333,6 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
 void
 UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub);
 
-UA_Boolean
-UA_Subscription_publishOnce(UA_Server *server, UA_Subscription *sub);
-
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 
@@ -362,19 +347,43 @@ UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
 struct UA_ConditionSource;
 typedef struct UA_ConditionSource UA_ConditionSource;
 
+/* Event Handling */
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+#define UA_EVENTFILTER_MAXELEMENTS 64 /* Max operator elements */
+#define UA_EVENTFILTER_MAXOPERANDS 64 /* Max operands per operator */
+#define UA_EVENTFILTER_MAXSELECT   64 /* Max select clauses */
+
+UA_StatusCode
+UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
+                          const UA_NodeId *event);
+
+UA_StatusCode
+generateEventId(UA_ByteString *generatedId);
+
+/* Static validation when the filter is registered */
+UA_StatusCode
+UA_SimpleAttributeOperandValidation(UA_Server *server,
+                                    UA_SimpleAttributeOperand *sao);
+
+/* Static validation when the filter is registered */
+UA_StatusCode
+UA_ContentFilterValidation(UA_Server *server,
+                           const UA_ContentFilter *filter,
+                           UA_ContentFilterResult *result);
+
+/* Evaluate content filter, exported only for unit testing */
+UA_StatusCode
+evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
+                    const UA_ContentFilter *contentFilter,
+                    UA_ContentFilterResult *contentFilterResult);
+
+#endif
+
 /***********/
 /* Helpers */
 /***********/
 
-/* Evaluate content filter, Only for unit testing */
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-UA_StatusCode
-UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *session,
-                                           const UA_NodeId *eventNode,
-                                           const UA_ContentFilter *contentFilter,
-                                           UA_ContentFilterResult *contentFilterResult);
-#endif
- 
 /* Setting an integer value within bounds */
 #define UA_BOUNDEDVALUE_SETWBOUNDS(BOUNDS, SRC, DST) { \
         if(SRC > BOUNDS.max) DST = BOUNDS.max;         \

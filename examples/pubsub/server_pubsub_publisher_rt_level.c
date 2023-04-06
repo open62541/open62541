@@ -33,7 +33,7 @@
 
 
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
-UA_UInt32 *valueStore[PUBSUB_CONFIG_FIELD_COUNT];
+UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
 
 UA_Boolean running = true;
 static void stopHandler(int sign) {
@@ -52,7 +52,8 @@ addMinimalPubSubConfiguration(UA_Server * server){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = 2234;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     /* Add one PublishedDataSet */
     UA_PublishedDataSetConfig publishedDataSetConfig;
@@ -66,9 +67,9 @@ addMinimalPubSubConfiguration(UA_Server * server){
 static void
 valueUpdateCallback(UA_Server *server, void *data) {
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
-    for (int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i)
-        *valueStore[i] = *valueStore[i] + 1;
-    if(*valueStore[0] > PUBSUB_CONFIG_PUBLISH_CYCLES)
+    for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i)
+        valueStore[i] = valueStore[i] + 1;
+    if(valueStore[0] > PUBSUB_CONFIG_PUBLISH_CYCLES)
         running = false;
 #endif
 #if defined PUBSUB_CONFIG_FASTPATH_NONE
@@ -154,13 +155,12 @@ int main(void) {
     /* Add one DataSetField with static value source to PDS */
     UA_DataValue *staticValueSource = UA_DataValue_new();
     UA_DataSetFieldConfig dsfConfig;
-    for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
+    for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         /* Create Variant and configure as DataSetField source */
-        UA_UInt32 *intValue = UA_UInt32_new();
-        *intValue = (UA_UInt32) i * 1000;
-        valueStore[i] = intValue;
-        UA_Variant_setScalar(&staticValueSource->value, intValue, &UA_TYPES[UA_TYPES_UINT32]);
+        valueStore[i] = (UA_UInt32) i * 1000;
+        UA_Variant_setScalar(&staticValueSource->value, &valueStore[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
         dsfConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
         dsfConfig.field.variable.rtValueSource.staticValueSource = &staticValueSource;
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
@@ -207,6 +207,7 @@ int main(void) {
     /* Remove the source after deleting the server.
      * It might be accessed during shutdown. */
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
+    UA_DataValue_init(staticValueSource);
     UA_DataValue_delete(staticValueSource);
 #endif
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;

@@ -205,7 +205,7 @@ channelContext_newContext_sp_pubsub_aes128ctr(void *policyContext,
        (encryptingKey && encryptingKey->length != UA_AES128CTR_KEY_LENGTH) ||
        (keyNonce && keyNonce->length != UA_AES128CTR_KEYNONCE_LENGTH))
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-       
+
     /* Allocate the channel context */
     PUBSUB_AES128CTR_ChannelContext *cc = (PUBSUB_AES128CTR_ChannelContext *)
         UA_calloc(1, sizeof(PUBSUB_AES128CTR_ChannelContext));

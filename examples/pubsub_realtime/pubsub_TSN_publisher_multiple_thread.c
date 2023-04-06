@@ -57,7 +57,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/types.h>
-#include <sys/io.h>
 #include <getopt.h>
 
 /* For thread operations */
@@ -361,7 +360,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_String *transportProfile,
 
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = UA_UInt32_random();
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = (UA_UInt16) UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -584,7 +584,7 @@ addDataSetReader(UA_Server *server) {
  * Create connection, writergroup, datasetwriter and publisheddataset for Publisher thread.
  */
 static void
-addPubSubConnection(UA_Server *server, UA_String *transportProfile, 
+addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrlPub){
     /* Details about the connection configuration and handling are located
      * in the pubsub connection tutorial */
@@ -596,7 +596,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.transportProfileUri                    = *transportProfile;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = PUBLISHER_ID;
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
@@ -609,11 +610,11 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
-    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionProperties.map = connectionOptions;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.mapSize = 2;
 #else
-    connectionConfig.connectionPropertiesSize = 1;
+    connectionConfig.connectionProperties.mapSize = 1;
 #endif
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
@@ -630,7 +631,7 @@ addPublishedDataSet(UA_Server *server) {
 
 /* DataSetField handling */
 static void
-addDataSetField(UA_Server *server) {
+_addDataSetField(UA_Server *server) {
     /* Add a field to the previous created PublishedDataSet */
     UA_NodeId dataSetFieldIdent1;
     UA_DataSetFieldConfig dataSetFieldConfig;
@@ -832,7 +833,7 @@ void userApplicationPublisher(UA_UInt64 monotonicOffsetValue) {
             updateMeasurementsPublisher(dataModificationTime, *pubCounterData, monotonicOffsetValue);
     }
 
-    /* *runningPub variable made false and send to the publisher application which is running in another node 
+    /* *runningPub variable made false and send to the publisher application which is running in another node
        which will close the application during blocking socket condition */
     if (signalTerm == UA_TRUE) {
         *runningPub = UA_FALSE;
@@ -866,7 +867,7 @@ updateMeasurementsSubscriber(struct timespec receive_time, UA_UInt64 counterValu
 }
 
 /**
- * userApplicationSubscriber function is used to read the data from Information Model for the Subscriber and 
+ * userApplicationSubscriber function is used to read the data from Information Model for the Subscriber and
  * writes the updated counterdata in distinct csv files
  **/
 void userApplicationSubscriber(UA_UInt64 monotonicOffsetValue) {
@@ -1416,7 +1417,7 @@ int main(int argc, char **argv) {
 
     addPubSubConnection(server, &transportProfile, &networkAddressUrlPub);
     addPublishedDataSet(server);
-    addDataSetField(server);
+    _addDataSetField(server);
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
@@ -1484,7 +1485,7 @@ int main(int argc, char **argv) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nTotal Packet Loss Count of publisher application :%"PRIu64"\n", \
                 threadArgPubSub1->packetLossCount);
     UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
-#endif  
+#endif
     returnValue = pthread_join(pubAppThreadID, NULL);
     if (returnValue != 0)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,"\nPthread Join Failed for pubApp thread:%d\n", returnValue);

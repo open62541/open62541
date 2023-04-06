@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -125,7 +125,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
         return context->verifyX509.
-            verifyCertificate(context->verifyX509.context,
+            verifyCertificate(&context->verifyX509,
                               &userToken->certificateData);
     }
 
@@ -281,7 +281,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
 
     if(ac->clear)
         clear_default(ac);
-    
+
     ac->clear = clear_default;
     ac->activateSession = activateSession_default;
     ac->closeSession = closeSession_default;
@@ -319,12 +319,19 @@ UA_AccessControl_default(UA_ServerConfig *config,
                     "AccessControl: Anonymous login is enabled");
     }
 
+    if(config->logging == NULL) {
+        config->logging = &config->logger;
+    }
     /* Allow x509 certificates? Move the plugin over. */
     if(verifyX509) {
         context->verifyX509 = *verifyX509;
         memset(verifyX509, 0, sizeof(UA_CertificateVerification));
+        if(context->verifyX509.logging == NULL) {
+            context->verifyX509.logging = &config->logging;
+        }
     } else {
         memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
+        context->verifyX509.logging = &config->logging;
         UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
                     "AccessControl: x509 certificate user authentication is enabled");
     }

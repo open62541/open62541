@@ -39,7 +39,11 @@ struct UA_AccessControl {
     /* Authenticate a session. The session context is attached to the session
      * and later passed into the node-based access control callbacks. The new
      * session is rejected if a StatusCode other than UA_STATUSCODE_GOOD is
-     * returned. */
+     * returned.
+     *
+     * Note that this callback can be called several times for a Session. For
+     * example when a Session is recovered (activated) on a new
+     * SecureChannel. */
     UA_StatusCode (*activateSession)(UA_Server *server, UA_AccessControl *ac,
                                      const UA_EndpointDescription *endpointDescription,
                                      const UA_ByteString *secureChannelRemoteCertificate,

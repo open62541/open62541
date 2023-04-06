@@ -17,7 +17,6 @@ Code Quality:
 
 [![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
 [![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
-[![Coverage Status](https://img.shields.io/coveralls/open62541/open62541/master.svg)](https://coveralls.io/r/open62541/open62541?branch=master)
 [![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 
@@ -75,7 +74,7 @@ See the page on [open62541 Features](FEATURES.md) for an in-depth look at the su
   
 ### Dependencies
 
-On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
+On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://www.open62541.org/doc/master/building.html) for details.
 
 - Core Library: The core library has no dependencies besides the C99 standard headers.
 - Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
@@ -123,7 +122,7 @@ Jointly with the overall open62541 community, the core maintainers steer the lon
 
 Official docker container builds are available on [Docker Cloud](https://cloud.docker.com/u/open62541/repository/registry-1.docker.io/open62541/open62541)
 
-More information can be found in the [Docker README](docker/README.md)
+More information can be found in the [Docker README](tools/docker/README.md)
 
 ## Support & Development
 
@@ -138,7 +137,7 @@ For custom development that shall eventually become part of the open62541 librar
 
 ### Development
 
-As an open source project, new contributors are encouraged to help improve open62541. The following are good starting points for new contributors:
+As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
 
 - [Report bugs](https://github.com/open62541/open62541/issues)
 - Improve the [documentation](http://open62541.org/doc/current)
@@ -156,7 +155,7 @@ For every release, we provide some pre-packed release packages which you can dir
 
 Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
 
-A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://open62541.org/doc/current/installing.html).
+A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://www.open62541.org/doc/master/building.html#building-the-library).
 
 You can not directly download a .zip package from the main branches using the Github UI, since then some of the submodules and version strings are missing.
 Therefore you have three options to install and use this stack:
@@ -182,28 +181,19 @@ To build the examples, we recommend to install the open62541 project as mentione
 
 The following simple server example can be built using gcc, after you installed open62541 on your system.
 
-Using the GCC compiler, just run ```gcc -std=c99 -lopen62541 -DUA_ARCHITECTURE_POSIX <server.c> -o server``` (under Windows you may need to add ``` -lws2_32``` 
+Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> -lopen62541 -o server``` (under Windows you may need to add ``` -lws2_32``` 
 and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
-#include <signal.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-UA_Boolean running = true;
-void signalHandler(int sig) {
-    running = false;
-}
 
 int main(int argc, char** argv)
 {
-    signal(SIGINT, signalHandler); /* catch ctrl-c */
-
-    /* Create a server listening on port 4840 */
+    /* Create a server listening on port 4840 (default) */
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    /* Add a variable node */
-    /* 1) Define the node attributes */
+    /* Add a variable node to the server */
+
+    /* 1) Define the variable attributes */
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
     UA_Int32 myInteger = 42;
@@ -217,14 +207,16 @@ int main(int argc, char** argv)
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 
     /* 3) Add the node */
-    UA_Server_addVariableNode(server, newNodeId, parentNodeId, parentReferenceNodeId,
-                              browseName, variableType, attr, NULL, NULL);
+    UA_Server_addVariableNode(server, newNodeId, parentNodeId,
+                              parentReferenceNodeId, browseName,
+                              variableType, attr, NULL, NULL);
 
-    /* Run the server loop */
-    UA_StatusCode status = UA_Server_run(server, &running);
+    /* Run the server (until ctrl-c interrupt) */
+    UA_StatusCode status = UA_Server_runUntilInterrupt(server);
 
+    /* Clean up */
     UA_Server_delete(server);
-    return status;
+    return status == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 ```
 
@@ -232,7 +224,6 @@ int main(int argc, char** argv)
 ```c
 #include <stdio.h>
 #include <open62541/client.h>
-#include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 
 int main(int argc, char *argv[])
@@ -259,6 +250,6 @@ int main(int argc, char *argv[])
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */
-    return status;
+    return status == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 ```

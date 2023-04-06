@@ -6,21 +6,17 @@
  * Copyright (c) 2020 Thomas Fischer, Siemens AG
  */
 
-#include <open62541/plugin/log_stdout.h>
+#include <open62541/server_pubsub.h>
 
-#ifdef UA_ENABLE_PUBSUB
+#if defined(UA_ENABLE_PUBSUB) && defined(UA_ENABLE_PUBSUB_FILE_CONFIG)
+
+#include <open62541/plugin/pubsub_udp.h>
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <open62541/plugin/pubsub_ethernet.h>
 #endif
-#include <open62541/plugin/pubsub_udp.h>
-#endif
 
-#include "pubsub/ua_pubsub_config.h"
 #include "pubsub/ua_pubsub.h"
-#include "pubsub/ua_pubsub_manager.h"
 #include "server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 
 static UA_StatusCode
 createPubSubConnection(UA_Server *server,
@@ -51,7 +47,7 @@ createDataSetReader(UA_Server *server,
 
 static UA_StatusCode
 createPublishedDataSet(UA_Server *server,
-                       const UA_PublishedDataSetDataType *publishedDataSetParameters, 
+                       const UA_PublishedDataSetDataType *publishedDataSetParameters,
                        UA_NodeId *publishedDataSetIdent);
 
 static UA_StatusCode
@@ -60,16 +56,17 @@ createDataSetFields(UA_Server *server,
                     const UA_PublishedDataSetDataType *publishedDataSetParameters);
 
 static UA_StatusCode
-generatePubSubConfigurationDataType(const UA_Server *server,
+generatePubSubConfigurationDataType(UA_Server *server,
                                     UA_PubSubConfigurationDataType *pubSubConfiguration);
 
 /* Gets PubSub Configuration from an ExtensionObject */
 static UA_StatusCode
-extractPubSubConfigFromExtensionObject(const UA_ExtensionObject *src,
+extractPubSubConfigFromExtensionObject(UA_Server *server,
+                                       const UA_ExtensionObject *src,
                                        UA_PubSubConfigurationDataType **dst) {
     if(src->encoding != UA_EXTENSIONOBJECT_DECODED ||
        src->content.decoded.type != &UA_TYPES[UA_TYPES_UABINARYFILEDATATYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_extractPubSubConfigFromDecodedObject] "
                      "Reading extensionObject failed");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -78,14 +75,14 @@ extractPubSubConfigFromExtensionObject(const UA_ExtensionObject *src,
     UA_UABinaryFileDataType *binFile = (UA_UABinaryFileDataType*)src->content.decoded.data;
 
     if(binFile->body.arrayLength != 0 || binFile->body.arrayDimensionsSize != 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_extractPubSubConfigFromDecodedObject] "
                      "Loading multiple configurations is not supported");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
     if(binFile->body.type != &UA_TYPES[UA_TYPES_PUBSUBCONFIGURATIONDATATYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_extractPubSubConfigFromDecodedObject] "
                      "Invalid datatype encoded in the binary file");
         return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -99,8 +96,10 @@ extractPubSubConfigFromExtensionObject(const UA_ExtensionObject *src,
 static UA_StatusCode
 updatePubSubConfig(UA_Server *server,
                    const UA_PubSubConfigurationDataType *configurationParameters) {
-    if(server == NULL || configurationParameters == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(configurationParameters == NULL) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_updatePubSubConfig] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -114,12 +113,13 @@ updatePubSubConfig(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+
     for(UA_UInt32 i = 0; i < pdsCount; i++) {
         res = createPublishedDataSet(server,
-                                     &configurationParameters->publishedDataSets[i], 
+                                     &configurationParameters->publishedDataSets[i],
                                      &publishedDataSetIdent[i]);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_updatePubSubConfig] PDS creation failed");
             UA_free(publishedDataSetIdent);
             return res;
@@ -128,7 +128,7 @@ updatePubSubConfig(UA_Server *server,
 
     /* Configuration of PubSub Connections: */
     if(configurationParameters->connectionsSize < 1) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "[UA_PubSubManager_updatePubSubConfig] no connection in "
                        "UA_PubSubConfigurationDataType");
         UA_free(publishedDataSetIdent);
@@ -144,29 +144,33 @@ updatePubSubConfig(UA_Server *server,
     }
 
     UA_free(publishedDataSetIdent);
+
     return res;
 }
 
 /* Function called by UA_PubSubManager_createPubSubConnection to set the
  * PublisherId of a certain connection. */
 static UA_StatusCode
-setConnectionPublisherId(const UA_PubSubConnectionDataType *src,
+setConnectionPublisherId(UA_Server *server,
+                         const UA_PubSubConnectionDataType *src,
                          UA_PubSubConnectionConfig *dst) {
     if(src->publisherId.type == &UA_TYPES[UA_TYPES_STRING]) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_STRING;
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
         dst->publisherId.string = *(UA_String*)src->publisherId.data;
-    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_BYTE] ||
-              src->publisherId.type == &UA_TYPES[UA_TYPES_UINT16] ||
-              src->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
-        dst->publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-        dst->publisherId.numeric =  *(UA_UInt32*)src->publisherId.data;
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_BYTE]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
+        dst->publisherId.byte = *((UA_Byte*)src->publisherId.data);
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+        dst->publisherId.uint16 = *((UA_UInt16*)src->publisherId.data);
+    } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+        dst->publisherId.uint32 = *(UA_UInt32*)src->publisherId.data;
     } else if(src->publisherId.type == &UA_TYPES[UA_TYPES_UINT64]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_setConnectionPublisherId] PublisherId is UInt64 "
-                     "(not implemented); Recommended dataType for PublisherId: UInt32");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+        dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
+        dst->publisherId.uint64 = *(UA_UInt64*)src->publisherId.data;
     } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setConnectionPublisherId] PublisherId is not valid.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -180,13 +184,15 @@ createComponentsForConnection(UA_Server *server,
                               const UA_PubSubConnectionDataType *connParams,
                               UA_NodeId connectionIdent, UA_UInt32 pdsCount,
                               const UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* WriterGroups configuration */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < connParams->writerGroupsSize; i++) {
         res = createWriterGroup(server, &connParams->writerGroups[i],
                                 connectionIdent, pdsCount, pdsIdent);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createComponentsForConnection] "
                          "Error occured during %d. WriterGroup Creation", (UA_UInt32)i+1);
             return res;
@@ -197,9 +203,9 @@ createComponentsForConnection(UA_Server *server,
     for(size_t j = 0; j < connParams->readerGroupsSize; j++) {
         res = createReaderGroup(server, &connParams->readerGroups[j], connectionIdent);
         if(res == UA_STATUSCODE_GOOD)
-            res |= UA_PubSubConnection_regist(server, &connectionIdent);
+            res |= UA_PubSubConnection_regist(server, &connectionIdent, NULL);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createComponentsForConnection] "
                          "Error occured during %d. ReaderGroup Creation", (UA_UInt32)j+1);
             return res;
@@ -210,7 +216,7 @@ createComponentsForConnection(UA_Server *server,
 }
 
 /* Checks if transportLayer for the specified transportProfileUri exists.
- * 
+ *
  * @param server Server object that shall be configured
  * @param transportProfileUri String that specifies the transport protocol */
 static UA_Boolean
@@ -227,10 +233,12 @@ transportLayerExists(UA_Server *server, UA_String transportProfileUri) {
 /* Creates transportlayer for specified transport protocol if this layer doesn't exist yet */
 static UA_StatusCode
 createTransportLayer(UA_Server *server, const UA_String transportProfileUri) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(transportLayerExists(server, transportProfileUri))
         return UA_STATUSCODE_GOOD;
 
-    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_ServerConfig *config = &server->config;
     UA_PubSubTransportLayer tl;
 
     do {
@@ -250,54 +258,54 @@ createTransportLayer(UA_Server *server, const UA_String transportProfileUri) {
         }
 #endif
 
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createTransportLayer] "
                      "invalid transportProfileUri");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     } while(0);
 
+    UA_PubSubTransportLayer *newLayer;
     if(config->pubSubConfig.transportLayersSize > 0) {
-        config->pubSubConfig.transportLayers = (UA_PubSubTransportLayer *)
+        newLayer = (UA_PubSubTransportLayer *)
             UA_realloc(config->pubSubConfig.transportLayers,
                        (config->pubSubConfig.transportLayersSize + 1) *
                        sizeof(UA_PubSubTransportLayer));
     } else {
-        config->pubSubConfig.transportLayers = (UA_PubSubTransportLayer *)
+        newLayer = (UA_PubSubTransportLayer *)
             UA_calloc(1, sizeof(UA_PubSubTransportLayer));
     }
-
-    if(config->pubSubConfig.transportLayers == NULL) {
-        UA_Server_delete(server);
+    if(!newLayer)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+    config->pubSubConfig.transportLayers = newLayer;
+
     config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = tl;
     config->pubSubConfig.transportLayersSize++;
     return UA_STATUSCODE_GOOD;
 }
 
 /* Creates PubSubConnection configuration from PubSubConnectionDataType object
- * 
+ *
  * @param server Server object that shall be configured
  * @param connParams PubSub connection configuration
  * @param pdsCount Number of published DataSets
  * @param pdsIdent Array of NodeIds of the published DataSets */
 static UA_StatusCode
-createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *connParams, 
+createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *connParams,
                        UA_UInt32 pdsCount, UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PubSubConnectionConfig config;
     memset(&config, 0, sizeof(UA_PubSubConnectionConfig));
 
     config.name =                       connParams->name;
     config.enabled =                    connParams->enabled;
     config.transportProfileUri =        connParams->transportProfileUri;
-    config.connectionPropertiesSize =   connParams->connectionPropertiesSize;
-    if(config.connectionPropertiesSize > 0) {
-        config.connectionProperties = connParams->connectionProperties;
-    }
+    config.connectionProperties.map =   connParams->connectionProperties;
+    config.connectionProperties.mapSize = connParams->connectionPropertiesSize;
 
-    UA_StatusCode res = setConnectionPublisherId(connParams, &config);
+    UA_StatusCode res = setConnectionPublisherId(server, connParams, &config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Setting PublisherId failed");
         return res;
@@ -308,7 +316,7 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
                              connParams->address.content.decoded.data,
                              connParams->address.content.decoded.type);
     } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Reading connection address failed");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -316,17 +324,17 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
 
     if(connParams->transportSettings.encoding == UA_EXTENSIONOBJECT_DECODED) {
         UA_Variant_setScalar(&(config.connectionTransportSettings),
-                             connParams->transportSettings.content.decoded.data, 
+                             connParams->transportSettings.content.decoded.data,
                              connParams->transportSettings.content.decoded.type);
     } else {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "[UA_PubSubManager_createPubSubConnection] "
                        "TransportSettings can not be read");
     }
 
     res = createTransportLayer(server, connParams->transportProfileUri);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Creating transportLayer failed");
         return res;
@@ -334,13 +342,13 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
 
     /* Load connection config into server: */
     UA_NodeId connectionIdent;
-    res = UA_Server_addPubSubConnection(server, &config, &connectionIdent);
+    res = UA_PubSubConnection_create(server, &config, &connectionIdent);
     if(res == UA_STATUSCODE_GOOD) {
         /* Configuration of all Components that belong to this connection: */
         res = createComponentsForConnection(server, connParams, connectionIdent,
                                             pdsCount, pdsIdent);
     } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Connection creation failed");
     }
@@ -351,10 +359,11 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
 /* Function called by UA_PubSubManager_createWriterGroup to configure the messageSettings
  * of a writerGroup */
 static UA_StatusCode
-setWriterGroupEncodingType(const UA_WriterGroupDataType *writerGroupParameters,
+setWriterGroupEncodingType(UA_Server *server,
+                           const UA_WriterGroupDataType *writerGroupParameters,
                            UA_WriterGroupConfig *config) {
     if(writerGroupParameters->messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setWriterGroupEncodingType] "
                      "getting message type information failed");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -365,12 +374,12 @@ setWriterGroupEncodingType(const UA_WriterGroupDataType *writerGroupParameters,
         config->encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     } else if(writerGroupParameters->messageSettings.content.decoded.type ==
               &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setWriterGroupEncodingType] "
                      "encoding type: JSON (not implemented!)");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     } else {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setWriterGroupEncodingType] "
                      "invalid message encoding type");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -391,6 +400,8 @@ createWriterGroup(UA_Server *server,
                   const UA_WriterGroupDataType *writerGroupParameters,
                   UA_NodeId connectionIdent, UA_UInt32 pdsCount,
                   const UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_WriterGroupConfig config;
     memset(&config, 0, sizeof(UA_WriterGroupConfig));
     config.name =                  writerGroupParameters->name;
@@ -402,15 +413,13 @@ createWriterGroup(UA_Server *server,
     config.securityMode =          writerGroupParameters->securityMode;
     config.transportSettings =     writerGroupParameters->transportSettings;
     config.messageSettings =       writerGroupParameters->messageSettings;
-    config.groupPropertiesSize =   writerGroupParameters->groupPropertiesSize;
-    if(config.groupPropertiesSize > 0)
-        config.groupProperties = writerGroupParameters->groupProperties;
-
+    config.groupProperties.mapSize =   writerGroupParameters->groupPropertiesSize;
+    config.groupProperties.map =   writerGroupParameters->groupProperties;
     config.maxEncapsulatedDataSetMessageCount = 255; /* non std parameter */
 
-    UA_StatusCode res = setWriterGroupEncodingType(writerGroupParameters, &config);
+    UA_StatusCode res = setWriterGroupEncodingType(server, writerGroupParameters, &config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createWriterGroup] "
                      "Setting message settings failed");
         return res;
@@ -418,10 +427,12 @@ createWriterGroup(UA_Server *server,
 
     /* Load config into server: */
     UA_NodeId writerGroupIdent;
-    res = UA_Server_addWriterGroup(server, connectionIdent, &config, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    res = UA_WriterGroup_create(server, connectionIdent, &config, &writerGroupIdent);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
+    if(wg)
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createWriterGroup] "
                      "Adding WriterGroup to server failed: 0x%x", res);
         return res;
@@ -432,7 +443,7 @@ createWriterGroup(UA_Server *server,
         res = createDataSetWriter(server, &writerGroupParameters->dataSetWriters[dsw],
                                   writerGroupIdent, pdsCount, pdsIdent);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createWriterGroup] "
                          "DataSetWriter Creation failed.");
             break;
@@ -444,7 +455,7 @@ createWriterGroup(UA_Server *server,
 /* Function called by UA_PubSubManager_createDataSetWriter. It searches for a
  * PublishedDataSet that is referenced by the DataSetWriter. If a related PDS is found,
  * the DSWriter will be added to the server, otherwise, no DSWriter will be added.
- * 
+ *
  * @param server UA_Server object that shall be configured
  * @param writerGroupIdent NodeId of writerGroup, the DataSetWriter belongs to
  * @param dsWriterConfig WriterGroup configuration
@@ -454,16 +465,18 @@ static UA_StatusCode
 addDataSetWriterWithPdsReference(UA_Server *server, UA_NodeId writerGroupIdent,
                                  const UA_DataSetWriterConfig *dsWriterConfig,
                                  UA_UInt32 pdsCount, const UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_NodeId dataSetWriterIdent;
     UA_PublishedDataSetConfig pdsConfig;
     UA_Boolean pdsFound = false;
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t pds = 0; pds < pdsCount && res == UA_STATUSCODE_GOOD; pds++) {
-        res = UA_Server_getPublishedDataSetConfig(server, pdsIdent[pds], &pdsConfig);
+        res = getPublishedDataSetConfig(server, pdsIdent[pds], &pdsConfig);
         /* members of pdsConfig must be deleted manually */
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addDataSetWriterWithPdsReference] "
                          "Getting pdsConfig from NodeId failed.");
             return res;
@@ -471,13 +484,13 @@ addDataSetWriterWithPdsReference(UA_Server *server, UA_NodeId writerGroupIdent,
 
         if(dsWriterConfig->dataSetName.length == pdsConfig.name.length &&
            0 == strncmp((const char *)dsWriterConfig->dataSetName.data,
-                        (const char *)pdsConfig.name.data, 
+                        (const char *)pdsConfig.name.data,
                         dsWriterConfig->dataSetName.length)) {
             /* DSWriter will only be created, if a matching PDS is found: */
-            res = UA_Server_addDataSetWriter(server, writerGroupIdent, pdsIdent[pds], 
-                                             dsWriterConfig, &dataSetWriterIdent);
+            res = UA_DataSetWriter_create(server, writerGroupIdent, pdsIdent[pds],
+                                          dsWriterConfig, &dataSetWriterIdent);
             if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                              "[UA_PubSubManager_addDataSetWriterWithPdsReference] "
                              "Adding DataSetWriter failed");
             } else {
@@ -491,7 +504,7 @@ addDataSetWriterWithPdsReference(UA_Server *server, UA_NodeId writerGroupIdent,
     }
 
     if(!pdsFound) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_addDataSetWriterWithPdsReference] "
                      "No matching DataSet found; no DataSetWriter created");
     }
@@ -508,9 +521,11 @@ addDataSetWriterWithPdsReference(UA_Server *server, UA_NodeId writerGroupIdent,
  * @param pdsIdent Array of NodeIds of the published DataSets */
 static UA_StatusCode
 createDataSetWriter(UA_Server *server,
-                    const UA_DataSetWriterDataType *dataSetWriterParameters, 
+                    const UA_DataSetWriterDataType *dataSetWriterParameters,
                     UA_NodeId writerGroupIdent, UA_UInt32 pdsCount,
                     const UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_DataSetWriterConfig config;
     memset(&config, 0, sizeof(UA_DataSetWriterConfig));
     config.name = dataSetWriterParameters->name;
@@ -519,14 +534,13 @@ createDataSetWriter(UA_Server *server,
     config.dataSetFieldContentMask = dataSetWriterParameters->dataSetFieldContentMask;
     config.messageSettings = dataSetWriterParameters->messageSettings;
     config.dataSetName = dataSetWriterParameters->dataSetName;
-    config.dataSetWriterPropertiesSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
-    if(config.dataSetWriterPropertiesSize > 0)
-        config.dataSetWriterProperties = dataSetWriterParameters->dataSetWriterProperties;
+    config.dataSetWriterProperties.mapSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
+    config.dataSetWriterProperties.map = dataSetWriterParameters->dataSetWriterProperties;
 
     UA_StatusCode res = addDataSetWriterWithPdsReference(server, writerGroupIdent,
                                                          &config, pdsCount, pdsIdent);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createDataSetWriter] "
                      "Referencing related PDS failed");
     }
@@ -541,38 +555,42 @@ createDataSetWriter(UA_Server *server,
  * @param connectionIdent NodeId of the PubSub connection, the ReaderGroup belongs to */
 static UA_StatusCode
 createReaderGroup(UA_Server *server,
-                  const UA_ReaderGroupDataType *readerGroupParameters, 
+                  const UA_ReaderGroupDataType *readerGroupParameters,
                   UA_NodeId connectionIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_ReaderGroupConfig config;
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
 
     config.name = readerGroupParameters->name;
-    config.securityParameters.securityMode = readerGroupParameters->securityMode;
+    config.securityMode = readerGroupParameters->securityMode;
 
     UA_NodeId readerGroupIdent;
     UA_StatusCode res =
-        UA_Server_addReaderGroup(server, connectionIdent, &config, &readerGroupIdent);
+        UA_ReaderGroup_create(server, connectionIdent, &config, &readerGroupIdent);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createReaderGroup] Adding ReaderGroup "
                      "to server failed: 0x%x", res);
         return res;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "[UA_PubSubManager_createReaderGroup] ReaderGroup successfully added.");
     for(UA_UInt32 i = 0; i < readerGroupParameters->dataSetReadersSize; i++) {
         res = createDataSetReader(server, &readerGroupParameters->dataSetReaders[i],
                                   readerGroupIdent);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createReaderGroup] Creating DataSetReader failed");
             break;
         }
     }
 
-    if(res == UA_STATUSCODE_GOOD)
-        UA_Server_setReaderGroupOperational(server, readerGroupIdent);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
+    if(res == UA_STATUSCODE_GOOD && rg)
+        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
+                                      UA_STATUSCODE_GOOD);
 
     return res;
 }
@@ -583,8 +601,10 @@ createReaderGroup(UA_Server *server,
  * @param dsReaderIdent NodeId of the DataSetReader the SubscribedDataSet belongs to
  * @param dataSetReaderParameters Configuration Parameters of the DataSetReader */
 static UA_StatusCode
-addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent, 
+addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
                      const UA_ExtensionObject *subscribedDataSet) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]) {
         UA_TargetVariablesDataType *tmpTargetVars = (UA_TargetVariablesDataType*)
@@ -597,12 +617,14 @@ addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
                                         &targetVars[index].targetVariable);
         }
 
-        UA_StatusCode res =
-            UA_Server_DataSetReader_createTargetVariables(server, dsReaderIdent,
-                                                          tmpTargetVars->targetVariablesSize,
-                                                          targetVars);
+        UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+        UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsReaderIdent);
+        if(dsr)
+            res = DataSetReader_createTargetVariables(server, dsr,
+                                                      tmpTargetVars->targetVariablesSize,
+                                                      targetVars);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addSubscribedDataSet] "
                          "create TargetVariables failed");
         }
@@ -617,13 +639,13 @@ addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
 
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_SUBSCRIBEDDATASETMIRRORDATATYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_addSubscribedDataSet] "
                      "DataSetMirror is currently not supported");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "[UA_PubSubManager_addSubscribedDataSet] "
                  "Invalid Type of SubscribedDataSet");
     return UA_STATUSCODE_BADINTERNALERROR;
@@ -635,8 +657,10 @@ addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
  * @param dataSetReaderParameters DataSetReader configuration
  * @param writerGroupIdent NodeId of readerGroupParameters, the DataSetReader belongs to */
 static UA_StatusCode
-createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams, 
+createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams,
                     UA_NodeId readerGroupIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_DataSetReaderConfig config;
     memset(&config, 0, sizeof(UA_DataSetReaderConfig));
 
@@ -650,13 +674,13 @@ createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams
     config.messageSettings = dsrParams->messageSettings;
 
     UA_NodeId dsReaderIdent;
-    UA_StatusCode res = UA_Server_addDataSetReader(server, readerGroupIdent,
-                                                   &config, &dsReaderIdent);
+    UA_StatusCode res = UA_DataSetReader_create(server, readerGroupIdent,
+                                                &config, &dsReaderIdent);
     if(res == UA_STATUSCODE_GOOD)
         res = addSubscribedDataSet(server, dsReaderIdent,
                                    &dsrParams->subscribedDataSet);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createDataSetReader] "
                      "create subscribedDataSet failed");
     }
@@ -670,7 +694,8 @@ createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams
  * @param publishedDataSetParameters PublishedDataSet parameters
  * @param config PublishedDataSet configuration object */
 static UA_StatusCode
-setPublishedDataSetType(const UA_PublishedDataSetDataType *pdsParams,
+setPublishedDataSetType(UA_Server *server,
+                        const UA_PublishedDataSetDataType *pdsParams,
                         UA_PublishedDataSetConfig *config) {
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -681,12 +706,12 @@ setPublishedDataSetType(const UA_PublishedDataSetDataType *pdsParams,
         return UA_STATUSCODE_GOOD;
     } else if(sourceType == &UA_TYPES[UA_TYPES_PUBLISHEDEVENTSDATATYPE]) {
         /* config.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDEVENTS; */
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_setPublishedDataSetType] Published events not supported.");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "[UA_PubSubManager_setPublishedDataSetType] Invalid DataSetSourceDataType.");
     return UA_STATUSCODE_BADINTERNALERROR;
 }
@@ -698,19 +723,21 @@ setPublishedDataSetType(const UA_PublishedDataSetDataType *pdsParams,
  * @param pdsIdent NodeId of the publishedDataSet */
 static UA_StatusCode
 createPublishedDataSet(UA_Server *server,
-                       const UA_PublishedDataSetDataType *pdsParams, 
+                       const UA_PublishedDataSetDataType *pdsParams,
                        UA_NodeId *pdsIdent) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PublishedDataSetConfig config;
     memset(&config, 0, sizeof(UA_PublishedDataSetConfig));
 
     config.name = pdsParams->name;
-    UA_StatusCode res = setPublishedDataSetType(pdsParams, &config);
+    UA_StatusCode res = setPublishedDataSetType(server, pdsParams, &config);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    res = UA_Server_addPublishedDataSet(server, &config, pdsIdent).addResult;
+    res = UA_PublishedDataSet_create(server, &config, pdsIdent).addResult;
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPublishedDataSet] "
                      "Adding PublishedDataSet failed.");
         return res;
@@ -719,7 +746,7 @@ createPublishedDataSet(UA_Server *server,
     /* DataSetField configuration for this publishedDataSet: */
     res = createDataSetFields(server, pdsIdent, pdsParams);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPublishedDataSet] "
                      "Creating DataSetFieldConfig failed.");
     }
@@ -736,6 +763,8 @@ createPublishedDataSet(UA_Server *server,
 static UA_StatusCode
 addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
                          const UA_PublishedDataSetDataType *pdsParams) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PublishedDataItemsDataType *pdItems = (UA_PublishedDataItemsDataType *)
         pdsParams->dataSetSource.content.decoded.data;
     if(pdItems->publishedDataSize != pdsParams->dataSetMetaData.fieldsSize)
@@ -745,16 +774,17 @@ addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
         UA_DataSetFieldConfig fc;
         memset(&fc, 0, sizeof(UA_DataSetFieldConfig));
         fc.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-        fc.field.variable.configurationVersion = pdsParams->dataSetMetaData.configurationVersion;
+        fc.field.variable.configurationVersion =
+            pdsParams->dataSetMetaData.configurationVersion;
         fc.field.variable.fieldNameAlias = pdsParams->dataSetMetaData.fields[i].name;
         fc.field.variable.promotedField = pdsParams->dataSetMetaData.
             fields[i].fieldFlags & 0x0001;
         fc.field.variable.publishParameters = pdItems->publishedData[i];
 
         UA_NodeId fieldIdent;
-        UA_StatusCode res = UA_Server_addDataSetField(server, *pdsIdent, &fc, &fieldIdent).result;
+        UA_StatusCode res = UA_DataSetField_create(server, *pdsIdent, &fc, &fieldIdent).result;
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addDataSetFieldVariables] "
                          "Adding DataSetField Variable failed.");
             return res;
@@ -773,6 +803,8 @@ addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
 static UA_StatusCode
 createDataSetFields(UA_Server *server, const UA_NodeId *pdsIdent,
                     const UA_PublishedDataSetDataType *pdsParams) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -783,13 +815,13 @@ createDataSetFields(UA_Server *server, const UA_NodeId *pdsIdent,
     /* TODO: Implement Routine for adding Event DataSetFields */
     if(pdsParams->dataSetSource.content.decoded.type ==
        &UA_TYPES[UA_TYPES_PUBLISHEDEVENTSDATATYPE]) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createDataSetFields] "
                      "Published events not supported.");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "[UA_PubSubManager_createDataSetFields] "
                  "Invalid DataSetSourceDataType.");
     return UA_STATUSCODE_BADINTERNALERROR;
@@ -800,17 +832,27 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
                                                 const UA_ByteString buffer) {
     size_t offset = 0;
     UA_ExtensionObject decodedFile;
-    UA_StatusCode res = UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
+    UA_StatusCode res;
+
+    if(server == NULL) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "[UA_PubSubManager_loadPubSubConfigFromByteString] Invalid argument");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    res = UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_decodeBinFile] decoding UA_Binary failed");
         goto cleanup;
     }
 
     UA_PubSubConfigurationDataType *pubSubConfig = NULL;
-    res = extractPubSubConfigFromExtensionObject(&decodedFile, &pubSubConfig);
+    res = extractPubSubConfigFromExtensionObject(server, &decodedFile, &pubSubConfig);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_loadPubSubConfigFromByteString] "
                      "Extracting PubSub Configuration failed");
         goto cleanup;
@@ -818,7 +860,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
 
     res = updatePubSubConfig(server, pubSubConfig);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_loadPubSubConfigFromByteString] "
                      "Loading PubSub configuration into server failed");
         goto cleanup;
@@ -832,7 +874,8 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
 /* Encodes a PubSubConfigurationDataType object as ByteString using the UA Binary Data
  * Encoding */
 static UA_StatusCode
-encodePubSubConfiguration(UA_PubSubConfigurationDataType *configurationParameters,
+encodePubSubConfiguration(UA_Server *server,
+                          UA_PubSubConfigurationDataType *configurationParameters,
                           UA_ByteString *buffer) {
     UA_UABinaryFileDataType binFile;
     memset(&binFile, 0, sizeof(UA_UABinaryFileDataType));
@@ -850,7 +893,7 @@ encodePubSubConfiguration(UA_PubSubConfigurationDataType *configurationParameter
     size_t fileSize = UA_ExtensionObject_calcSizeBinary(&container);
     buffer->data = (UA_Byte*)UA_calloc(fileSize, sizeof(UA_Byte));
     if(buffer->data == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_encodePubSubConfiguration] Allocating buffer failed");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -861,14 +904,15 @@ encodePubSubConfiguration(UA_PubSubConfigurationDataType *configurationParameter
     UA_StatusCode res =
         UA_ExtensionObject_encodeBinary(&container, &bufferPos, bufferPos + fileSize);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_encodePubSubConfiguration] Encoding failed");
     }
     return res;
 }
 
 static UA_StatusCode
-generatePublishedDataSetDataType(const UA_PublishedDataSet *src,
+generatePublishedDataSetDataType(UA_Server* server,
+                                 const UA_PublishedDataSet *src,
                                  UA_PublishedDataSetDataType *dst) {
     if(src->config.publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -884,7 +928,7 @@ generatePublishedDataSetDataType(const UA_PublishedDataSet *src,
     tmp->publishedData = (UA_PublishedVariableDataType*)
         UA_Array_new(tmp->publishedDataSize, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
     if(tmp->publishedData == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Allocation memory failed");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Allocation memory failed");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -892,7 +936,7 @@ generatePublishedDataSetDataType(const UA_PublishedDataSet *src,
         UA_Array_new(dst->dataSetMetaData.fieldsSize, &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     if(dst->dataSetMetaData.fields == NULL) {
         UA_free(tmp->publishedData);
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Allocation memory failed");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Allocation memory failed");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -917,22 +961,29 @@ generatePublishedDataSetDataType(const UA_PublishedDataSet *src,
 static UA_StatusCode
 generateDataSetWriterDataType(const UA_DataSetWriter *src,
                               UA_DataSetWriterDataType *dst) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     memset(dst, 0, sizeof(UA_DataSetWriterDataType));
-
-    UA_String_copy(&src->config.name, &dst->name);
+    res |= UA_String_copy(&src->config.name, &dst->name);
     dst->dataSetWriterId = src->config.dataSetWriterId;
     dst->keyFrameCount = src->config.keyFrameCount;
     dst->dataSetFieldContentMask = src->config.dataSetFieldContentMask;
-    UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
-    UA_String_copy(&src->config.dataSetName, &dst->dataSetName);
-
-    dst->dataSetWriterPropertiesSize = src->config.dataSetWriterPropertiesSize;
-    for(size_t i = 0; i < src->config.dataSetWriterPropertiesSize; i++) {
-        UA_KeyValuePair_copy(&src->config.dataSetWriterProperties[i],
-                             &dst->dataSetWriterProperties[i]);
+    res |= UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
+    res |= UA_String_copy(&src->config.dataSetName, &dst->dataSetName);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_DataSetWriterDataType_clear(dst);
+        return res;
     }
 
-    return UA_STATUSCODE_GOOD;
+    res = UA_Array_copy(src->config.dataSetWriterProperties.map,
+                        src->config.dataSetWriterProperties.mapSize,
+                        (void**)&dst->dataSetWriterProperties,
+                        &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->dataSetWriterPropertiesSize = src->config.dataSetWriterProperties.mapSize;
+    else
+        UA_DataSetWriterDataType_clear(dst);
+
+    return res;
 }
 
 static UA_StatusCode
@@ -951,32 +1002,35 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
     UA_ExtensionObject_copy(&src->config.transportSettings, &dst->transportSettings);
     UA_ExtensionObject_copy(&src->config.messageSettings, &dst->messageSettings);
 
-    dst->groupPropertiesSize = src->config.groupPropertiesSize;
-    dst->groupProperties = (UA_KeyValuePair*)
-        UA_Array_new(dst->groupPropertiesSize, &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    for(size_t index = 0; index < dst->groupPropertiesSize; index++) {
-        UA_KeyValuePair_copy(&src->config.groupProperties[index],
-                             &dst->groupProperties[index]);
+    UA_StatusCode res =
+        UA_Array_copy(src->config.groupProperties.map,
+                      src->config.groupProperties.mapSize,
+                      (void**)&dst->groupProperties,
+                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_WriterGroupDataType_clear(dst);
+        return res;
     }
+    dst->groupPropertiesSize = src->config.groupProperties.mapSize,
 
     dst->dataSetWriters = (UA_DataSetWriterDataType*)
         UA_calloc(src->writersCount, sizeof(UA_DataSetWriterDataType));
-    if(!dst->dataSetWriters)
+    if(!dst->dataSetWriters) {
+        UA_WriterGroupDataType_clear(dst);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     dst->dataSetWritersSize = src->writersCount;
 
     UA_DataSetWriter *dsw;
     size_t dsWriterIndex = 0;
     LIST_FOREACH(dsw, &src->writers, listEntry) {
-        UA_StatusCode res =
-            generateDataSetWriterDataType(dsw, &dst->dataSetWriters[dsWriterIndex]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+        res |= generateDataSetWriterDataType(dsw, &dst->dataSetWriters[dsWriterIndex]);
         dsWriterIndex++;
     }
-
-    return UA_STATUSCODE_GOOD;
+    if(res != UA_STATUSCODE_GOOD)
+        UA_WriterGroupDataType_clear(dst);
+    return res;
 }
 
 static UA_StatusCode
@@ -1043,71 +1097,102 @@ generateReaderGroupDataType(const UA_ReaderGroup *src,
 
 /* Generates a PubSubConnectionDataType object from a PubSubConnection. */
 static UA_StatusCode
-generatePubSubConnectionDataType(const UA_PubSubConnection *src,
+generatePubSubConnectionDataType(UA_Server* server,
+                                 const UA_PubSubConnection *src,
                                  UA_PubSubConnectionDataType *dst) {
+    const UA_DataType *publisherIdType;
     memset(dst, 0, sizeof(UA_PubSubConnectionDataType));
 
-    UA_String_copy(&src->config->name, &dst->name);
-    UA_String_copy(&src->config->transportProfileUri, &dst->transportProfileUri);
-    dst->enabled = src->config->enabled;
+    UA_String_copy(&src->config.name, &dst->name);
+    UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
+    dst->enabled = src->config.enabled;
 
-    dst->connectionPropertiesSize = src->config->connectionPropertiesSize;
-    for(size_t i = 0; i < src->config->connectionPropertiesSize; i++) {
-        UA_KeyValuePair_copy(&src->config->connectionProperties[i],
-                             &dst->connectionProperties[i]);
+    UA_StatusCode res =
+        UA_Array_copy(src->config.connectionProperties.map,
+                      src->config.connectionProperties.mapSize,
+                      (void**)&dst->connectionProperties,
+                      &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubConnectionDataType_clear(dst);
+        return res;
     }
+    dst->connectionPropertiesSize = src->config.connectionProperties.mapSize;
 
-    if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_NUMERIC) {
-        UA_Variant_setScalarCopy(&dst->publisherId,
-                                 &src->config->publisherId.numeric,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(src->config->publisherIdType == UA_PUBSUB_PUBLISHERID_STRING) {
-        UA_Variant_setScalarCopy(&dst->publisherId,
-                                 &src->config->publisherId.string,
-                                 &UA_TYPES[UA_TYPES_STRING]);
+    switch (src->config.publisherIdType) {
+        case UA_PUBLISHERIDTYPE_BYTE:
+            publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
+            break;
+        case UA_PUBLISHERIDTYPE_UINT16:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT16];
+            break;
+        case UA_PUBLISHERIDTYPE_UINT32:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT32];
+            break;
+        case UA_PUBLISHERIDTYPE_UINT64:
+            publisherIdType = &UA_TYPES[UA_TYPES_UINT64];
+            break;
+        case UA_PUBLISHERIDTYPE_STRING:
+            publisherIdType = &UA_TYPES[UA_TYPES_STRING];
+            break;
+        default:
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                         "generatePubSubConnectionDataType(): publisher Id type is not supported");
+            return UA_STATUSCODE_BADINTERNALERROR;
+            break;
     }
+    UA_Variant_setScalarCopy(&dst->publisherId,
+                             &src->config.publisherId,
+                             publisherIdType);
 
     /* Possibly, array size and dimensions of src->config->address and
      * src->config->connectionTransportSettings should be checked beforehand. */
     dst->address.encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->address.content.decoded.type = src->config->address.type;
-    UA_StatusCode res =
-        UA_Array_copy(src->config->address.data, 1,
-                      &dst->address.content.decoded.data, src->config->address.type);
-    if(res != UA_STATUSCODE_GOOD)
+    dst->address.content.decoded.type = src->config.address.type;
+    res = UA_Array_copy(src->config.address.data, 1,
+                        &dst->address.content.decoded.data,
+                        src->config.address.type);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubConnectionDataType_clear(dst);
         return res;
+    }
 
-    if(src->config->connectionTransportSettings.data) {
+    if(src->config.connectionTransportSettings.data) {
         dst->transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         dst->transportSettings.content.decoded.type =
-            src->config->connectionTransportSettings.type;
-        res = UA_Array_copy(src->config->connectionTransportSettings.data, 1, 
+            src->config.connectionTransportSettings.type;
+        res = UA_Array_copy(src->config.connectionTransportSettings.data, 1,
                             &dst->transportSettings.content.decoded.data,
-                            src->config->connectionTransportSettings.type);
+                            src->config.connectionTransportSettings.type);
 
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnectionDataType_clear(dst);
             return res;
+        }
     }
 
     dst->writerGroups = (UA_WriterGroupDataType*)
         UA_calloc(src->writerGroupsSize, sizeof(UA_WriterGroupDataType));
-    if(dst->writerGroups == NULL) {
+    if(!dst->writerGroups) {
+        UA_PubSubConnectionDataType_clear(dst);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     dst->writerGroupsSize = src->writerGroupsSize;
     UA_WriterGroup *wg, *wg_tmp = NULL;
     size_t wgIndex = 0;
-    LIST_FOREACH_SAFE(wg ,&src->writerGroups, listEntry, wg_tmp) {
+    LIST_FOREACH_SAFE(wg, &src->writerGroups, listEntry, wg_tmp) {
         res = generateWriterGroupDataType(wg, &dst->writerGroups[wgIndex]);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnectionDataType_clear(dst);
             return res;
+        }
         wgIndex++;
     }
 
     dst->readerGroups = (UA_ReaderGroupDataType*)
         UA_calloc(src->readerGroupsSize, sizeof(UA_ReaderGroupDataType));
     if(dst->readerGroups == NULL) {
+        UA_PubSubConnectionDataType_clear(dst);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1116,17 +1201,21 @@ generatePubSubConnectionDataType(const UA_PubSubConnection *src,
     size_t rgIndex = 0;
     LIST_FOREACH(rg, &src->readerGroups, listEntry) {
         res = generateReaderGroupDataType(rg, &dst->readerGroups[rgIndex]);
-        if(res != UA_STATUSCODE_GOOD)
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_PubSubConnectionDataType_clear(dst);
             return res;
+        }
         rgIndex++;
     }
 
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-generatePubSubConfigurationDataType(const UA_Server* server,
+static UA_StatusCode
+generatePubSubConfigurationDataType(UA_Server* server,
                                     UA_PubSubConfigurationDataType *configDT) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_PubSubManager *manager = &server->pubSubManager;
     memset(configDT, 0, sizeof(UA_PubSubConfigurationDataType));
@@ -1142,9 +1231,9 @@ generatePubSubConfigurationDataType(const UA_Server* server,
     UA_UInt32 pdsIndex = 0;
     TAILQ_FOREACH(pds, &manager->publishedDataSets, listEntry) {
         UA_PublishedDataSetDataType *dst = &configDT->publishedDataSets[pdsIndex];
-        res = generatePublishedDataSetDataType(pds, dst);
+        res = generatePublishedDataSetDataType(server, pds, dst);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_generatePubSubConfigurationDataType] "
                          "retrieving PublishedDataSet configuration failed");
             return res;
@@ -1162,14 +1251,14 @@ generatePubSubConfigurationDataType(const UA_Server* server,
     UA_PubSubConnection *connection;
     TAILQ_FOREACH(connection, &manager->connections, listEntry) {
         UA_PubSubConnectionDataType *cdt = &configDT->connections[connectionIndex];
-        res = generatePubSubConnectionDataType(connection, cdt);
+        res = generatePubSubConnectionDataType(server, connection, cdt);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_generatePubSubConfigurationDataType] "
                          "retrieving PubSubConnection configuration failed");
             return res;
         }
-        connectionIndex++;                                                         
+        connectionIndex++;
     }
 
     return UA_STATUSCODE_GOOD;
@@ -1181,21 +1270,29 @@ UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
     UA_PubSubConfigurationDataType config;
     memset(&config, 0, sizeof(UA_PubSubConfigurationDataType));
 
+    if(server == NULL) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "[UA_PubSubManager_getEncodedPubSubConfiguration] Invalid argument");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_StatusCode res = generatePubSubConfigurationDataType(server, &config);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "retrieving PubSub configuration from server failed");
         goto cleanup;
     }
 
-    res = encodePubSubConfiguration(&config, buffer);
+    res = encodePubSubConfiguration(server, &config, buffer);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "encoding PubSub configuration failed");
         goto cleanup;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                 "Saving PubSub config was successful");
 
  cleanup:
@@ -1203,4 +1300,4 @@ UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
     return res;
 }
 
-#endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
+#endif /* UA_ENABLE_PUBSUB && UA_ENABLE_PUBSUB_FILE_CONFIG */

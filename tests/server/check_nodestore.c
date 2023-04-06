@@ -5,6 +5,8 @@
 #include <open62541/types.h>
 #include <open62541/util.h>
 #include <open62541/plugin/nodestore_default.h>
+#include "open62541/plugin/nodestore.h"
+#include "open62541/types_generated.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +81,8 @@ START_TEST(findNodeInUA_NodeStoreWithSingleEntry) {
     UA_Node* n1 = createNode(0,2253);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(0,2253);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)n1, (uintptr_t)nr);
     ns.releaseNode(ns.context, nr);
 }
@@ -89,7 +92,8 @@ START_TEST(failToFindNodeInOtherUA_NodeStore) {
     UA_Node* n1 = createNode(0,2255);
     ns.insertNode(ns.context, n1, NULL);
     UA_NodeId in1 = UA_NODEID_NUMERIC(1, 2255);
-    const UA_Node* nr = ns.getNode(ns.context, &in1);
+    const UA_Node* nr = ns.getNode(ns.context, &in1, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
@@ -109,7 +113,8 @@ START_TEST(findNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n6, NULL);
 
     UA_NodeId in3 = UA_NODEID_NUMERIC(0, 2257);
-    const UA_Node* nr = ns.getNode(ns.context, &in3);
+    const UA_Node* nr = ns.getNode(ns.context, &in3, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, (uintptr_t)n3);
     ns.releaseNode(ns.context, nr);
 }
@@ -144,7 +149,8 @@ START_TEST(findNodeInExpandedNamespace) {
     }
     // when
     UA_Node *n2 = createNode(0,25);
-    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId);
+    const UA_Node* nr = ns.getNode(ns.context, &n2->head.nodeId, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_int_eq(nr->head.nodeId.identifier.numeric, n2->head.nodeId.identifier.numeric);
     ns.releaseNode(ns.context, nr);
     ns.deleteNode(ns.context, n2);
@@ -179,7 +185,8 @@ START_TEST(failToFindNonExistentNodeInUA_NodeStoreWithSeveralEntries) {
     ns.insertNode(ns.context, n5, NULL);
 
     UA_NodeId id = UA_NODEID_NUMERIC(0, 12);
-    const UA_Node* nr = ns.getNode(ns.context, &id);
+    const UA_Node* nr = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                   UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     ck_assert_uint_eq((uintptr_t)nr, 0);
 }
 END_TEST
@@ -202,8 +209,9 @@ static void *profileGetThread(void *arg) {
     UA_Int32 max_val = test->max_val;
     for(UA_Int32 x = 0; x<test->rounds; x++) {
         for(UA_Int32 i=test->min_val; i<max_val; i++) {
-            id.identifier.numeric = i+1;
-            const UA_Node *n = ns.getNode(ns.context, &id);
+            id.identifier.numeric = (UA_UInt32)(i+1);
+            const UA_Node* n = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                          UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
             ns.releaseNode(ns.context, n);
         }
     }
@@ -238,7 +246,8 @@ START_TEST(profileGetDelete) {
     UA_NodeId id = UA_NODEID_NULL;
     for(size_t i = 0; i < N; i++) {
         id.identifier.numeric = (UA_UInt32)i+1;
-        const UA_Node *node = ns.getNode(ns.context, &id);
+        const UA_Node *node = ns.getNode(ns.context, &id, ~(UA_UInt32)0,
+                                         UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
         ns.releaseNode(ns.context, node);
     }
     end = clock();
@@ -271,7 +280,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate);
-    
+
     TCase* tc_profile = tcase_create ("Profile-ZipTree");
     tcase_add_checked_fixture(tc_profile, setupZipTree, teardown);
     tcase_add_test (tc_profile, profileGetDelete);
@@ -297,7 +306,7 @@ static Suite * namespace_suite (void) {
     tcase_add_test (tc_iterate_hm, iterateOverUA_NodeStoreShallNotVisitEmptyNodes);
     tcase_add_test (tc_iterate_hm, iterateOverExpandedNamespaceShallNotVisitEmptyNodes);
     suite_add_tcase (s, tc_iterate_hm);
-    
+
     TCase* tc_profile_hm = tcase_create ("Profile-HashMap");
     tcase_add_checked_fixture(tc_profile_hm, setupHashMap, teardown);
     tcase_add_test (tc_profile_hm, profileGetDelete);

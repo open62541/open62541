@@ -5,7 +5,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "ua_pubsub_manager.h"
+#include "ua_pubsub.h"
 #include "ua_util_internal.h"
 
 static
@@ -21,9 +21,9 @@ needsDecryption(const UA_Logger *logger,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(isEncrypted && requiresEncryption) {
-        *doDecrypt = UA_TRUE;
+        *doDecrypt = true;
     } else if(!isEncrypted && !requiresEncryption) {
-        *doDecrypt = UA_FALSE;
+        *doDecrypt = false;
     } else {
         if(isEncrypted) {
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -40,23 +40,20 @@ needsDecryption(const UA_Logger *logger,
     return retval;
 }
 
-static
-UA_StatusCode
+static UA_StatusCode
 needsValidation(const UA_Logger *logger,
-                    const UA_NetworkMessage *networkMessage,
-                    const UA_MessageSecurityMode securityMode,
-                    UA_Boolean *doValidate) {
-
+                const UA_NetworkMessage *networkMessage,
+                const UA_MessageSecurityMode securityMode,
+                UA_Boolean *doValidate) {
     UA_Boolean isSigned = networkMessage->securityHeader.networkMessageSigned;
     UA_Boolean requiresSignature = securityMode > UA_MESSAGESECURITYMODE_NONE;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     if(isSigned &&
        requiresSignature) {
-        *doValidate = UA_TRUE;
+        *doValidate = true;
     } else if(!isSigned && !requiresSignature) {
-        *doValidate = UA_FALSE;
+        *doValidate = false;
     } else {
 
         if(isSigned) {
@@ -98,8 +95,11 @@ verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
     }
 
     if(doDecrypt) {
-        rv = securityPolicy->setMessageNonce(channelContext,
-                                             &nm->securityHeader.messageNonce);
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                              "PubSub receive. Faulty Nonce set");
 

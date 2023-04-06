@@ -15,57 +15,6 @@
 
 #include "check.h"
 
-/* Define types to a dummy value if they are not available (e.g. not built with
- * NS0 full) */
-#ifndef UA_TYPES_UNION
-#define UA_TYPES_UNION UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_HISTORYREADDETAILS
-#define UA_TYPES_HISTORYREADDETAILS UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_NOTIFICATIONDATA
-#define UA_TYPES_NOTIFICATIONDATA UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_MONITORINGFILTER
-#define UA_TYPES_MONITORINGFILTER UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_MONITORINGFILTERRESULT
-#define UA_TYPES_MONITORINGFILTERRESULT UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETREADERMESSAGEDATATYPE
-#define UA_TYPES_DATASETREADERMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_WRITERGROUPTRANSPORTDATATYPE
-#define UA_TYPES_WRITERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_CONNECTIONTRANSPORTDATATYPE
-#define UA_TYPES_CONNECTIONTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_WRITERGROUPMESSAGEDATATYPE
-#define UA_TYPES_WRITERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_READERGROUPTRANSPORTDATATYPE
-#define UA_TYPES_READERGROUPTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE
-#define UA_TYPES_PUBLISHEDDATASETSOURCEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETREADERTRANSPORTDATATYPE
-#define UA_TYPES_DATASETREADERTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETWRITERTRANSPORTDATATYPE
-#define UA_TYPES_DATASETWRITERTRANSPORTDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_SUBSCRIBEDDATASETDATATYPE
-#define UA_TYPES_SUBSCRIBEDDATASETDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_READERGROUPMESSAGEDATATYPE
-#define UA_TYPES_READERGROUPMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-#ifndef UA_TYPES_DATASETWRITERMESSAGEDATATYPE
-#define UA_TYPES_DATASETWRITERMESSAGEDATATYPE UA_TYPES_COUNT
-#endif
-
 START_TEST(newAndEmptyObjectShallBeDeleted) {
     // given
     void *obj = UA_new(&UA_TYPES[_i]);
@@ -106,18 +55,6 @@ START_TEST(arrayCopyShallMakeADeepCopy) {
 END_TEST
 
 START_TEST(encodeShallYieldDecode) {
-    /* floating point types may change the representaton due to several possible NaN values. */
-    if(_i != UA_TYPES_FLOAT || _i != UA_TYPES_DOUBLE ||
-       _i != UA_TYPES_CREATESESSIONREQUEST || _i != UA_TYPES_CREATESESSIONRESPONSE ||
-       _i != UA_TYPES_VARIABLEATTRIBUTES || _i != UA_TYPES_READREQUEST
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-       ||
-       _i != UA_TYPES_MONITORINGPARAMETERS || _i != UA_TYPES_MONITOREDITEMCREATERESULT ||
-       _i != UA_TYPES_CREATESUBSCRIPTIONREQUEST || _i != UA_TYPES_CREATESUBSCRIPTIONRESPONSE
-#endif
-       )
-        return;
-
     // given
     UA_ByteString msg1, msg2;
     void *obj1 = UA_new(&UA_TYPES[_i]);
@@ -153,6 +90,16 @@ START_TEST(encodeShallYieldDecode) {
                   "messages differ idx=%d,nodeid=%i", _i,
                   UA_TYPES[_i].typeId.identifier.numeric);
     ck_assert(UA_order(obj1, obj2, &UA_TYPES[_i]) == UA_ORDER_EQ);
+
+    // pretty-print the value
+#ifdef UA_ENABLE_JSON_ENCODING
+    UA_Byte staticBuf[4096];
+    UA_String buf;
+    buf.data = staticBuf;
+    buf.length = 4096;
+    retval = UA_print(obj2, &UA_TYPES[_i], &buf);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+#endif
 
     // finally
     UA_delete(obj1, &UA_TYPES[_i]);

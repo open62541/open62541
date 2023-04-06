@@ -90,12 +90,10 @@ To port to a new architecture you should follow these steps:
     //#define UA_IPV6 1 //or 0
     //#define UA_SOCKET
     //#define UA_INVALID_SOCKET
-    //#define UA_ERRNO  
+    //#define UA_ERRNO
     //#define UA_INTERRUPTED
     //#define UA_AGAIN
-    //#define UA_EAGAIN
     //#define UA_WOULDBLOCK
-    //#define UA_ERR_CONNECTION_PROGRESS
     //#define UA_INTERRUPTED
     
     /*

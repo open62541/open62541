@@ -31,9 +31,7 @@ UA_SecureChannel testChannel;
 UA_ByteString dummyCertificate =
     UA_BYTESTRING_STATIC("DUMMY CERTIFICATE DUMMY CERTIFICATE DUMMY CERTIFICATE");
 UA_SecurityPolicy dummyPolicy;
-UA_Connection testingConnection;
 UA_ByteString sentData;
-
 
 static funcs_called fCalled;
 static key_sizes keySizes;
@@ -41,22 +39,20 @@ static key_sizes keySizes;
 static void
 setup_secureChannel(void) {
     TestingPolicy(&dummyPolicy, dummyCertificate, &fCalled, &keySizes);
-    UA_SecureChannel_init(&testChannel, &UA_ConnectionConfig_default);
+    UA_SecureChannel_init(&testChannel);
+    testChannel.config = UA_ConnectionConfig_default;
     UA_SecureChannel_setSecurityPolicy(&testChannel, &dummyPolicy, &dummyCertificate);
 
-    testingConnection =
-        createDummyConnection(UA_ConnectionConfig_default.sendBufferSize, &sentData);
-    UA_Connection_attachSecureChannel(&testingConnection, &testChannel);
-    testChannel.connection = &testingConnection;
-
+    testChannel.connectionManager = &testConnectionManagerTCP;
     testChannel.state = UA_SECURECHANNELSTATE_OPEN;
+    testConnectionLastSentBuf = &sentData;
 }
 
 static void
 teardown_secureChannel(void) {
-    UA_SecureChannel_close(&testChannel);
+    UA_SecureChannel_clear(&testChannel);
     dummyPolicy.clear(&dummyPolicy);
-    testingConnection.close(&testingConnection);
+    UA_ByteString_clear(&sentData);
 }
 
 static void
@@ -97,7 +93,8 @@ START_TEST(SecureChannel_initAndDelete) {
     UA_StatusCode retval;
 
     UA_SecureChannel channel;
-    UA_SecureChannel_init(&channel, &UA_ConnectionConfig_default);
+    UA_SecureChannel_init(&channel);
+    channel.config = UA_ConnectionConfig_default;
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
@@ -107,7 +104,7 @@ START_TEST(SecureChannel_initAndDelete) {
                   "Expected makeCertificateThumbprint to have been called");
     ck_assert_msg(channel.securityPolicy == &dummyPolicy, "SecurityPolicy not set correctly");
 
-    UA_SecureChannel_close(&channel);
+    UA_SecureChannel_clear(&channel);
     ck_assert_msg(fCalled.deleteContext, "Expected deleteContext to have been called");
 
     dummyPolicy.clear(&dummyPolicy);
@@ -118,22 +115,6 @@ createDummyResponse(UA_OpenSecureChannelResponse *response) {
     UA_OpenSecureChannelResponse_init(response);
     memset(response, 0, sizeof(UA_OpenSecureChannelResponse));
 }
-
-START_TEST(SecureChannel_sendAsymmetricOPNMessage_withoutConnection) {
-    UA_OpenSecureChannelResponse dummyResponse;
-    createDummyResponse(&dummyResponse);
-    testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
-
-    // Remove connection to provoke error
-    UA_Connection_detachSecureChannel(testChannel.connection);
-    testChannel.connection = NULL;
-
-    UA_StatusCode retval =
-        UA_SecureChannel_sendAsymmetricOPNMessage(&testChannel, 42, &dummyResponse,
-                                                  &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
-
-    ck_assert_msg(retval != UA_STATUSCODE_GOOD, "Expected failure without a connection");
-}END_TEST
 
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_invalidParameters) {
     UA_OpenSecureChannelResponse dummyResponse;
@@ -568,7 +549,6 @@ testSuite_SecureChannel(void) {
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_funcs_called, teardown_funcs_called);
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_key_sizes, teardown_key_sizes);
     tcase_add_checked_fixture(tc_sendAsymmetricOPNMessage, setup_secureChannel, teardown_secureChannel);
-    tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_withoutConnection);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_invalidParameters);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone);

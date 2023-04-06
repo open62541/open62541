@@ -12,13 +12,9 @@
 #define METADATA_SOURCE_SERVER "opc.tcp://localhost:4840"
 #define METADATA_DATASET_NAME "Demo PDS"
 
-
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-#include <open62541/types_generated.h>
-#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
 #include <open62541/plugin/pubsub_ethernet.h>
@@ -27,20 +23,16 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 
-#include <server/ua_server_internal.h>
+#include "server/ua_server_internal.h"
 
-#include <signal.h>
 #include <stdio.h>
-#include <stdlib.h>
 
-#include <custom_datatype/custom_datatype.h>
+#include "custom_datatype/custom_datatype.h"
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
-
 UA_DataSetReaderConfig readerConfig;
-
 
 static void collectDataSetMetaDataFromServer(UA_Server *server, UA_DataSetMetaDataType *pMetaData);
 
@@ -62,12 +54,15 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random ();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    if (retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier);
+    UA_LOCK(&server->serviceMutex);
+    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
+    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -176,7 +171,8 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
     }
 
     retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                           readerConfig.dataSetMetaData.fieldsSize, targetVars);
+                                                           readerConfig.dataSetMetaData.fieldsSize,
+                                                           targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
     UA_free(targetVars);
     return retval;
@@ -189,18 +185,16 @@ static void printDataSetMetaDataType(const UA_DataSetMetaDataType *pMetaData){
         UA_NodeId_print(&pMetaData->fields[i].dataType, typeName);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "FieldNumber: %i, Name: %s, DataTypeId: %s, InternalTypeid: %i", (int) i,
-                    pMetaData->fields[i].name.data, (char *) typeName->data, (int) pMetaData->fields[i].builtInType);
+                    pMetaData->fields[i].name.data, (char *) typeName->data,
+                    (int) pMetaData->fields[i].builtInType);
     }
 }
 
 /* Collect MetaData from remote server */
-UA_StatusCode
+static UA_StatusCode
 UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remoteServer,
-                                              UA_QualifiedName pdsName, UA_DataSetMetaDataType *dsMetaData);
-
-UA_StatusCode
-UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remoteServer,
-                                              UA_QualifiedName pdsName, UA_DataSetMetaDataType *dsMetaData){
+                                              UA_QualifiedName pdsName,
+                                              UA_DataSetMetaDataType *dsMetaData) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     char remoteServer_ar[512];
@@ -228,8 +222,12 @@ UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remot
     browseRequest.requestedMaxReferencesPerNode = 1000;
 
     UA_BrowseResponse browseResponse = UA_Client_Service_browse(client, browseRequest);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"Result size: %i result: %s, ref size: %i ",
-                (int) browseResponse.resultsSize, UA_StatusCode_name(browseResponse.responseHeader.serviceResult), (int) browseResponse.results->referencesSize);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "Result size: %i result: %s, ref size: %i ",
+                (int) browseResponse.resultsSize,
+                UA_StatusCode_name(browseResponse.responseHeader.serviceResult),
+                (int) browseResponse.results->referencesSize);
+
     for(size_t i = 0; i < browseResponse.resultsSize; ++i) {
         for(size_t j = 0; j < browseResponse.results[i].referencesSize; ++j) {
             UA_ReferenceDescription *ref = &(browseResponse.results[i].references[j]);
@@ -263,7 +261,8 @@ UA_Server_DataSetReader_getMetaDataFromRemote(UA_Server *server, UA_String remot
     UA_BrowseRequest_clear(&browseRequest);
 
     if(UA_NodeId_isNull(&resultMetaDataNodeId)){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to request metadata from remote server!");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Unable to request metadata from remote server!");
     } else {
         UA_Variant value;
         retval = UA_Client_readValueAttribute(client, resultMetaDataNodeId, &value);
@@ -287,37 +286,31 @@ collectDataSetMetaDataFromServer(UA_Server *server, UA_DataSetMetaDataType *pMet
                                                   UA_QUALIFIEDNAME(0, METADATA_DATASET_NAME),
                                                   pMetaData);
     if(getMetaDataResult != UA_STATUSCODE_GOOD){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Unable to get metadata from remote server");
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Unable to get metadata from remote server");
         return;
     }
     printDataSetMetaDataType(pMetaData);
 }
 
-static void add3DPointDataType(UA_Server* server)
-{
+static void
+add3DPointDataType(UA_Server* server) {
     UA_DataTypeAttributes attr = UA_DataTypeAttributes_default;
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "3D Point Type");
 
-    UA_Server_addDataTypeNode(
-        server, PointType.typeId, UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE), UA_QUALIFIEDNAME(1, "3D.Point"), attr, NULL, NULL);
-}
-
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
+    UA_Server_addDataTypeNode(server, PointType.typeId,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                              UA_QUALIFIEDNAME(1, "3D.Point"),
+                              attr, NULL, NULL);
 }
 
 static int
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
 
     /* Add custom Datatypes */
     UA_DataType *types = (UA_DataType*)UA_malloc(sizeof(UA_DataType));
@@ -328,7 +321,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     types[0] = PointType;
     types[0].members = pointMembers;
 
-    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types};
+    UA_DataTypeArray customDataTypes = {config->customDataTypes, 1, types, UA_FALSE};
     config->customDataTypes = &customDataTypes;
 
     add3DPointDataType(server);
@@ -345,25 +338,26 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     /* API calls */
     /* Add PubSubConnection */
     retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
     /* Add ReaderGroup to the created PubSubConnection */
     retval |= addReaderGroup(server);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
     /* Add DataSetReader to the created ReaderGroup */
     retval |= addDataSetReader(server);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
     /* Add SubscribedVariables to the created DataSetReader */
     retval |= addSubscribedVariables(server, readerIdentifier);
-    if (retval != UA_STATUSCODE_GOOD)
+    if(retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
-    retval = UA_Server_run(server, &running);
+    retval = UA_Server_runUntilInterrupt(server);
+
     UA_Server_delete(server);
     UA_free(pointMembers);
     UA_free(types);
@@ -376,8 +370,10 @@ usage(char *progname) {
 }
 
 int main(int argc, char **argv) {
-    UA_String transportProfile = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
+    UA_String transportProfile =
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+    UA_NetworkAddressUrlDataType networkAddressUrl =
+        {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     if(argc > 1) {
         if(strcmp(argv[1], "-h") == 0) {
             usage(argv[0]);

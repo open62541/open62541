@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2014-2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
@@ -254,13 +254,27 @@ UA_NodeMap_deleteNode(void *context, UA_Node *node) {
 }
 
 static const UA_Node *
-UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid) {
+UA_NodeMap_getNode(void *context, const UA_NodeId *nodeid,
+                   UA_UInt32 attributeMask,
+                   UA_ReferenceTypeSet references,
+                   UA_BrowseDirection referenceDirections) {
     UA_NodeMap *ns = (UA_NodeMap*)context;
     UA_NodeMapSlot *slot = findOccupiedSlot(ns, nodeid);
     if(!slot)
         return NULL;
     ++slot->entry->refCount;
     return &slot->entry->node;
+}
+
+static const UA_Node *
+UA_NodeMap_getNodeFromPtr(void *context, UA_NodePointer ptr,
+                          UA_UInt32 attributeMask,
+                          UA_ReferenceTypeSet references,
+                          UA_BrowseDirection referenceDirections) {
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    return UA_NodeMap_getNode(context, &id, attributeMask, references, referenceDirections);
 }
 
 static void
@@ -304,8 +318,6 @@ UA_NodeMap_removeNode(void *context, const UA_NodeId *nodeid) {
 
     UA_NodeMapEntry *entry = slot->entry;
     slot->entry = UA_NODEMAP_TOMBSTONE;
-    UA_atomic_sync(); /* Set the tombstone before cleaning up. E.g. if the
-                       * nodestore is accessed from an interrupt. */
     entry->deleted = true;
     cleanupNodeMapEntry(entry);
     --ns->count;
@@ -406,7 +418,6 @@ UA_NodeMap_insertNode(void *context, UA_Node *node,
     /* Insert the node */
     UA_NodeMapEntry *newEntry = container_of(node, UA_NodeMapEntry, node);
     slot->nodeIdHash = UA_NodeId_hash(&node->head.nodeId);
-    UA_atomic_sync(); /* Set the hash first */
     slot->entry = newEntry;
     ++ns->count;
     return retval;
@@ -433,7 +444,6 @@ UA_NodeMap_replaceNode(void *context, UA_Node *node) {
 
     /* Replace the entry */
     slot->entry = newEntry;
-    UA_atomic_sync();
     oldEntry->deleted = true;
     cleanupNodeMapEntry(oldEntry);
     return UA_STATUSCODE_GOOD;
@@ -513,6 +523,7 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
     ns->newNode = UA_NodeMap_newNode;
     ns->deleteNode = UA_NodeMap_deleteNode;
     ns->getNode = UA_NodeMap_getNode;
+    ns->getNodeFromPtr = UA_NodeMap_getNodeFromPtr;
     ns->releaseNode = UA_NodeMap_releaseNode;
     ns->getNodeCopy = UA_NodeMap_getNodeCopy;
     ns->insertNode = UA_NodeMap_insertNode;

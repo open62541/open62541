@@ -276,7 +276,9 @@ addPubSubConfiguration(UA_Server* server) {
         {UA_STRING(ETH_INTERFACE), UA_STRING(ETH_PUBLISH_ADDRESS)};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric = UA_UInt32_random();
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
     UA_PublishedDataSetConfig publishedDataSetConfig;

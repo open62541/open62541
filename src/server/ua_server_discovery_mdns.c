@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -68,7 +68,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (entry) {
         if (addedEntry != NULL)
             *addedEntry = entry;
@@ -96,7 +96,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fq
     }
     listEntry->serverOnNetwork.serverName.length = serverNameLen;
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
-    UA_atomic_addUInt32(&server->discoveryManager.serverOnNetworkRecordIdCounter, 1);
+    server->discoveryManager.serverOnNetworkRecordIdCounter++;
     if(server->discoveryManager.serverOnNetworkRecordIdCounter == 0)
         server->discoveryManager.serverOnNetworkRecordIdLastReset = UA_DateTime_now();
     listEntry->lastSeen = UA_DateTime_nowMonotonic();
@@ -179,7 +179,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const cha
 
     struct serverOnNetwork_list_entry *entry =
             mdns_record_add_or_get(server, fqdnMdnsRecord, serverName,
-                                   serverNameLen, UA_FALSE);
+                                   serverNameLen, false);
     if (!entry)
         return UA_STATUSCODE_BADNOTFOUND;
 

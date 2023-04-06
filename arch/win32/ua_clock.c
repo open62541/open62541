@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2016-2017 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
@@ -50,7 +50,7 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void) {
     gmtime_s(&rawtime, &ptm);
 #else
     gmtime_s(&ptm, &rawtime);
-#endif    
+#endif
     // Request that mktime() looksup dst in timezone database
     ptm.tm_isdst = -1;
     gmt = mktime(&ptm);

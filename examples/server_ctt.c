@@ -1253,9 +1253,15 @@ int main(int argc, char **argv) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
     config.certificateVerification.clear(&config.certificateVerification);
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
+                                                 trustlistFolder, issuerlistFolder,
+                                                 revocationlistFolder, NULL);
+#else
     res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
                                                  trustlistFolder, issuerlistFolder,
                                                  revocationlistFolder);
+#endif
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* __linux__ */

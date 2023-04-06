@@ -48,9 +48,11 @@ UA_NodeId publishedDataSetTest;
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
+    retVal |= UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -59,8 +61,8 @@ static void setup(void) {
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_Server_run_startup(server);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_Server_run_startup(server);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
@@ -70,8 +72,10 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherId.numeric = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -81,126 +85,127 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-// START_TEST(SinglePublishSubscribeDateTime) {
-//         /* To check status after running both publisher and subscriber */
-//         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-//         UA_PublishedDataSetConfig pdsConfig;
-//         UA_NodeId dataSetWriter;
-//         UA_NodeId readerIdentifier;
-//         UA_NodeId writerGroup;
-//         UA_DataSetReaderConfig readerConfig;
-//         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
-//         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
-//         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-//         UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetTest);
-//         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-//         /* Data Set Field */
-//         UA_NodeId dataSetFieldId;
-//         UA_DataSetFieldConfig dataSetFieldConfig;
-//         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
-//         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
-//         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
-//         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-//         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
-//         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-//         UA_Server_addDataSetField(server, publishedDataSetTest, &dataSetFieldConfig, &dataSetFieldId);
-//         /* Writer group */
-//         UA_WriterGroupConfig writerGroupConfig;
-//         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
-//         writerGroupConfig.name = UA_STRING("WriterGroup Test");
-//         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-//         writerGroupConfig.enabled = UA_FALSE;
-//         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
-//         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-//         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
-//         UA_Server_setWriterGroupOperational(server, writerGroup);
-//         /* DataSetWriter */
-//         UA_DataSetWriterConfig dataSetWriterConfig;
-//         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-//         dataSetWriterConfig.name = UA_STRING("DataSetWriter Test");
-//         dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
-//         dataSetWriterConfig.keyFrameCount = 10;
-//         retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetTest, &dataSetWriterConfig, &dataSetWriter);
-//         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-//         /* Reader Group */
-//         UA_ReaderGroupConfig readerGroupConfig;
-//         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
-//         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
-//         retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
-//         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-//         UA_Server_setReaderGroupOperational(server, readerGroupTest);
-//         /* Data Set Reader */
-//         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
-//         readerConfig.name = UA_STRING ("DataSetReader Test");
-//         readerConfig.dataSetWriterId = DATASET_WRITER_ID;
-//         /* Setting up Meta data configuration in DataSetReader for DateTime DataType */
-//         UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
-//         /* FilltestMetadata function in subscriber implementation */
-//         UA_DataSetMetaDataType_init (pMetaData);
-//         pMetaData->name = UA_STRING ("DataSet Test");
-//         /* Static definition of number of fields size to 1 to create one
-//         targetVariable */
-//         pMetaData->fieldsSize = 1;
-//         pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-//                              &UA_TYPES[UA_TYPES_FIELDMETADATA]);
-//         /* DateTime DataType */
-//         UA_FieldMetaData_init (&pMetaData->fields[0]);
-//         UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
-//                         &pMetaData->fields[0].dataType);
-//         pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
-//         pMetaData->fields[0].valueRank = -1; /* scalar */
-//
-//         /* Add Subscribed Variables */
-//         UA_NodeId folderId;
-//         UA_NodeId newnodeId;
-//         UA_String folderName = readerConfig.dataSetMetaData.name;
-//         UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-//         UA_QualifiedName folderBrowseName;
-//         if (folderName.length > 0) {
-//             oAttr.displayName.locale = UA_STRING ("en-US");
-//             oAttr.displayName.text = folderName;
-//             folderBrowseName.namespaceIndex = 1;
-//             folderBrowseName.name = folderName;
-//           }
-//         else {
-//             oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
-//             folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
-//         }
-//
-//         UA_Server_addObjectNode (server, UA_NODEID_NULL,
-//                                  UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-//                                  UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-//                                  folderBrowseName, UA_NODEID_NUMERIC (0,
-//                                  UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
-//
-//         /* Variable to subscribe data */
-//         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
-//         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "DateTime");
-//         vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "DateTime");
-//         vAttr.dataType    = UA_TYPES[UA_TYPES_DATETIME].typeId;
-//         retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-//                                            folderId,
-//                                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "DateTime"),
-//                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
-//         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-//
-//         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
-//         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
-//             UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
-//
-//         /* For creating Targetvariable */
-//         UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
-//         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-//         readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = newnodeId;
-//         retVal |= UA_Server_addDataSetReader(server, readerGroupTest, &readerConfig,
-//                                              &readerIdentifier);
-//         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-//         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
-//         /* run server - publisher and subscriber */
-//         UA_Server_run_iterate(server,true);
-//         UA_Server_run_iterate(server,true);
-//         UA_free(pMetaData->fields);
-// }END_TEST
+START_TEST(SinglePublishSubscribeDateTime) {
+        /* To check status after running both publisher and subscriber */
+        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+        UA_PublishedDataSetConfig pdsConfig;
+        UA_NodeId dataSetWriter;
+        UA_NodeId readerIdentifier;
+        UA_NodeId writerGroup;
+        UA_DataSetReaderConfig readerConfig;
+        memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
+        pdsConfig.name = UA_STRING("PublishedDataSet Test");
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetTest).addResult;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Data Set Field */
+        UA_NodeId dataSetFieldId;
+        UA_DataSetFieldConfig dataSetFieldConfig;
+        memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+        dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+        dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+        dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField(server, publishedDataSetTest, &dataSetFieldConfig, &dataSetFieldId);
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
+        /* Writer group */
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+        writerGroupConfig.name = UA_STRING("WriterGroup Test");
+        writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
+        writerGroupConfig.enabled = UA_FALSE;
+        writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
+        writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
+        retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
+        UA_Server_setWriterGroupOperational(server, writerGroup);
+        /* DataSetWriter */
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("DataSetWriter Test");
+        dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
+        dataSetWriterConfig.keyFrameCount = 10;
+        retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetTest, &dataSetWriterConfig, &dataSetWriter);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Reader Group */
+        UA_ReaderGroupConfig readerGroupConfig;
+        memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
+        readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
+        retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Server_setReaderGroupOperational(server, readerGroupTest);
+        /* Data Set Reader */
+        memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
+        readerConfig.name = UA_STRING ("DataSetReader Test");
+        readerConfig.dataSetWriterId = DATASET_WRITER_ID;
+        /* Setting up Meta data configuration in DataSetReader for DateTime DataType */
+        UA_DataSetMetaDataType *pMetaData = &readerConfig.dataSetMetaData;
+        /* FilltestMetadata function in subscriber implementation */
+        UA_DataSetMetaDataType_init (pMetaData);
+        pMetaData->name = UA_STRING ("DataSet Test");
+        /* Static definition of number of fields size to 1 to create one
+        targetVariable */
+        pMetaData->fieldsSize = 1;
+        pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
+                             &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+        /* DateTime DataType */
+        UA_FieldMetaData_init (&pMetaData->fields[0]);
+        UA_NodeId_copy (&UA_TYPES[UA_TYPES_DATETIME].typeId,
+                        &pMetaData->fields[0].dataType);
+        pMetaData->fields[0].builtInType = UA_NS0ID_DATETIME;
+        pMetaData->fields[0].valueRank = -1; /* scalar */
+
+        /* Add Subscribed Variables */
+        UA_NodeId folderId;
+        UA_NodeId newnodeId;
+        UA_String folderName = readerConfig.dataSetMetaData.name;
+        UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
+        UA_QualifiedName folderBrowseName;
+        if (folderName.length > 0) {
+            oAttr.displayName.locale = UA_STRING ("en-US");
+            oAttr.displayName.text = folderName;
+            folderBrowseName.namespaceIndex = 1;
+            folderBrowseName.name = folderName;
+          }
+        else {
+            oAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "Subscribed Variables");
+            folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
+        }
+
+        retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
+                                 UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
+                                 UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
+                                 folderBrowseName, UA_NODEID_NUMERIC (0,
+                                 UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Variable to subscribe data */
+        UA_VariableAttributes vAttr = UA_VariableAttributes_default;
+        vAttr.description = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+        vAttr.displayName = UA_LOCALIZEDTEXT ("en-US", "DateTime");
+        vAttr.dataType    = UA_TYPES[UA_TYPES_DATETIME].typeId;
+        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                           folderId,
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "DateTime"),
+                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newnodeId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
+            UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+
+        /* For creating Targetvariable */
+        UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
+        readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = newnodeId;
+        retVal |= UA_Server_addDataSetReader(server, readerGroupTest, &readerConfig,
+                                             &readerIdentifier);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
+        /* run server - publisher and subscriber */
+        UA_Server_run_iterate(server,true);
+        UA_Server_run_iterate(server,true);
+        UA_free(pMetaData->fields);
+}END_TEST
 
 
 START_TEST(SinglePublishSubscribeInt32) {
@@ -222,7 +227,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetTest);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetTest).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -250,8 +255,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetTest, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        retVal = UA_Server_addDataSetField (server, publishedDataSetTest, &dataSetFieldConfig, &dataSetFieldIdent).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -407,7 +412,7 @@ int main(void) {
     /*Test case to run both publisher and subscriber */
     TCase *tc_pubsub_publish_subscribe = tcase_create("Publisher publishing and Subscriber subscribing");
     tcase_add_checked_fixture(tc_pubsub_publish_subscribe, setup, teardown);
-    // tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
+    tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeDateTime);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishSubscribeInt32);
 
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");

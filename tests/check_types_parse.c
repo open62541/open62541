@@ -56,6 +56,16 @@ START_TEST(parseGuid) {
     ck_assert_int_eq(guid.data4[5], 0x7d);
     ck_assert_int_eq(guid.data4[6], 0xaf);
     ck_assert_int_eq(guid.data4[7], 0x63);
+
+#ifdef UA_ENABLE_PARSING
+    /* Encoding decoding roundtrip */
+    UA_String encoded = UA_STRING_NULL;
+    UA_Guid_print(&guid, &encoded);
+    UA_Guid guid2;
+    UA_Guid_parse(&guid2, encoded);
+    ck_assert(UA_Guid_equal(&guid, &guid2));
+    UA_String_clear(&encoded);
+#endif
 } END_TEST
 
 START_TEST(parseNodeIdNumeric) {

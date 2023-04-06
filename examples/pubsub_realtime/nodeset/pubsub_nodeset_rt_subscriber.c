@@ -199,9 +199,9 @@ changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt
 /* Remove the callback added for cyclic repetition */
 static void
 removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join(callbackId, NULL) != 0))
+    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %ld\n", callbackId);
+                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
 }
 
 /**
@@ -245,7 +245,8 @@ addPubSubConnectionSubscriber(UA_Server *server, UA_NetworkAddressUrlDataType *n
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
     connectionConfig.transportProfileUri                    = UA_STRING(ETH_TRANSPORT_PROFILE);
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrlsubscribe, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.numeric                    = UA_UInt32_random();
+    connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32                     = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentSubscriber);
     if (retval == UA_STATUSCODE_GOOD)
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,"The PubSub Connection was created successfully!");
@@ -670,8 +671,8 @@ int main(int argc, char **argv) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-             fprintf(fpSubscriber, "%ld,%ld.%09ld,%lf\n",
-                     subscribeCounterValue[subLoopVariable],
+             fprintf(fpSubscriber, "%lu,%ld.%09ld,%lf\n",
+                     (long unsigned)subscribeCounterValue[subLoopVariable],
                      subscribeTimestamp[subLoopVariable].tv_sec,
                      subscribeTimestamp[subLoopVariable].tv_nsec,
                      pressureValues[subLoopVariable]);
@@ -682,8 +683,8 @@ int main(int argc, char **argv) {
         size_t subLoopVariable               = 0;
         for (subLoopVariable = 0; subLoopVariable < measurementsSubscriber;
              subLoopVariable++) {
-             fprintf(fpSubscriber, "%ld,%ld.%09ld,%lf\n",
-                     subscribeCounterValue[subLoopVariable],
+             fprintf(fpSubscriber, "%lu,%ld.%09ld,%lf\n",
+                     (long unsigned)subscribeCounterValue[subLoopVariable],
                      subscribeTimestamp[subLoopVariable].tv_sec,
                      subscribeTimestamp[subLoopVariable].tv_nsec,
                      pressureValues[subLoopVariable]);

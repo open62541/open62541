@@ -123,7 +123,7 @@ static int
 callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in,
                size_t len) {
     struct SessionData *pss = (struct SessionData *)user;
-    struct VHostData *vhd = 
+    struct VHostData *vhd =
         (struct VHostData *)lws_protocol_vh_priv_get(lws_get_vhost(wsi),
                                                                    lws_get_protocol(wsi));
 
@@ -155,7 +155,6 @@ callback_opcua(struct lws *wsi, enum lws_callback_reasons reason, void *user, vo
             c->releaseRecvBuffer = connection_ws_releaserecvbuffer;
             // stack sets the connection to established
             c->state = UA_CONNECTIONSTATE_OPENING;
-            c->openingDate = UA_DateTime_nowMonotonic();
             pss->connection = c;
             break;
 
@@ -302,7 +301,7 @@ ServerNetworkLayerWS_start(UA_ServerNetworkLayer *nl, const UA_Logger *logger,
         info.server_ssl_cert_mem_len = (unsigned int)layer->certificate.length;
         info.server_ssl_private_key_mem = layer->privateKey.data;
         info.server_ssl_private_key_mem_len = (unsigned int)layer->privateKey.length;
-        
+
         info.options |= LWS_SERVER_OPTION_DO_SSL_GLOBAL_INIT;
           UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
                 "Websocket network layer listening using WSS");

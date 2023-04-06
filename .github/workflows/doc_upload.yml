@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y -qq python3-sphinx graphviz python-six texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk
+          sudo apt-get install -y -qq python3-sphinx graphviz python-six texlive-fonts-recommended texlive-latex-extra texlive-plain-generic texlive-latex-recommended latexmk texlive-fonts-extra
           pip install sphinx-rtd-theme
       - name: Build Documentation
         run: source tools/ci.sh && build_docs_pdf
@@ -29,6 +29,7 @@ jobs:
         with:
           repository: open62541/open62541-www
           path: open62541-www
+          ref: main
           persist-credentials: false
       - name: Get the current branch name
         shell: bash

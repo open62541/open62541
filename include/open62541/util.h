@@ -15,76 +15,95 @@
 _UA_BEGIN_DECLS
 
 /**
- * Forward Declarations
- * --------------------
- * Opaque pointers used by the plugins. */
+ * Random Number Generator
+ * -----------------------
+ * If UA_MULTITHREADING is defined, then the seed is stored in thread
+ * local storage. The seed is initialized for every thread in the
+ * server/client. */
 
-struct UA_Server;
-typedef struct UA_Server UA_Server;
+void UA_EXPORT
+UA_random_seed(UA_UInt64 seed);
 
-struct UA_ServerConfig;
-typedef struct UA_ServerConfig UA_ServerConfig;
+UA_UInt32 UA_EXPORT
+UA_UInt32_random(void); /* no cryptographic entropy */
 
-typedef void (*UA_ServerCallback)(UA_Server *server, void *data);
-
-struct UA_Client;
-typedef struct UA_Client UA_Client;
-
-/* Timer policy to handle cycle misses */
-typedef enum {
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
-} UA_TimerPolicy;
+UA_Guid UA_EXPORT
+UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of
- * UA_KeyValuePair. Lookup is linear. So this is for small numbers of
- * keys. */
+ * UA_KeyValuePair. Lookup is linear. So this is for small numbers of keys. The
+ * methods below that accept a `const UA_KeyValueMap` as an argument also accept
+ * NULL for that argument and treat it as an empty map. */
 
-/* Makes a copy of the value. Can reallocate the underlying array. This
+typedef struct {
+    size_t mapSize;
+    UA_KeyValuePair *map;
+} UA_KeyValueMap;
+
+UA_EXPORT extern const UA_KeyValueMap UA_KEYVALUEMAP_NULL;
+
+UA_EXPORT UA_KeyValueMap *
+UA_KeyValueMap_new(void);
+
+UA_EXPORT void
+UA_KeyValueMap_clear(UA_KeyValueMap *map);
+
+UA_EXPORT void
+UA_KeyValueMap_delete(UA_KeyValueMap *map);
+
+/* Is the map empty (or NULL)? */
+UA_EXPORT UA_Boolean
+UA_KeyValueMap_isEmpty(const UA_KeyValueMap *map);
+
+/* Does the map contain an entry for the key? */
+UA_EXPORT UA_Boolean
+UA_KeyValueMap_contains(const UA_KeyValueMap *map, const UA_QualifiedName key);
+
+/* Insert a copy of the value. Can reallocate the underlying array. This
  * invalidates pointers into the previous array. If the key exists already, the
- * value is overwritten. */
+ * value is overwritten (upsert semantics). */
 UA_EXPORT UA_StatusCode
-UA_KeyValueMap_setQualified(UA_KeyValuePair **map, size_t *mapSize,
-                            const UA_QualifiedName *key,
-                            const UA_Variant *value);
+UA_KeyValueMap_set(UA_KeyValueMap *map,
+                   const UA_QualifiedName key,
+                   const UA_Variant *value);
 
-/* Simplified version that assumes the key is in namespace 0 */
+/* Helper function for scalar insertion that internally calls
+ * `UA_KeyValueMap_set` */
 UA_EXPORT UA_StatusCode
-UA_KeyValueMap_set(UA_KeyValuePair **map, size_t *mapSize,
-                   const char *key, const UA_Variant *value);
+UA_KeyValueMap_setScalar(UA_KeyValueMap *map,
+                         const UA_QualifiedName key,
+                         void * UA_RESTRICT p,
+                         const UA_DataType *type);
 
-/* Returns a pointer into underlying array or NULL if the key is not found.*/
+/* Returns a pointer to the value or NULL if the key is not found */
 UA_EXPORT const UA_Variant *
-UA_KeyValueMap_getQualified(UA_KeyValuePair *map, size_t mapSize,
-                            const UA_QualifiedName *key);
+UA_KeyValueMap_get(const UA_KeyValueMap *map,
+                   const UA_QualifiedName key);
 
-/* Simplified version that assumes the key is in namespace 0 */
-UA_EXPORT const UA_Variant *
-UA_KeyValueMap_get(UA_KeyValuePair *map, size_t mapSize,
-                   const char *key);
+/* Returns NULL if the value for the key is not defined, not of the right
+ * datatype or not a scalar */
+UA_EXPORT const void *
+UA_KeyValueMap_getScalar(const UA_KeyValueMap *map,
+                         const UA_QualifiedName key,
+                         const UA_DataType *type);
 
-/* Returns NULL if the value for the key is not defined or not of the right
- * datatype and scalar/array */
-UA_EXPORT const UA_Variant *
-UA_KeyValueMap_getScalar(UA_KeyValuePair *map, size_t mapSize,
-                         const char *key, const UA_DataType *type);
+/* Remove a single entry. To delete the entire map, use `UA_KeyValueMap_clear`. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_remove(UA_KeyValueMap *map,
+                      const UA_QualifiedName key);
 
-UA_EXPORT const UA_Variant *
-UA_KeyValueMap_getArray(UA_KeyValuePair *map, size_t mapSize,
-                        const char *key, const UA_DataType *type);
+/* Create a deep copy of the given KeyValueMap */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_copy(const UA_KeyValueMap *src, UA_KeyValueMap *dst);
 
-/* Remove a single entry. To delete the entire map, use UA_Array_delete. */
-UA_EXPORT void
-UA_KeyValueMap_deleteQualified(UA_KeyValuePair **map, size_t *mapSize,
-                               const UA_QualifiedName *key);
-
-/* Simplified version that assumes the key is in namespace 0 */
-UA_EXPORT void
-UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
-                      const char *key);
+/* Copy entries from the right-hand-side into the left-hand-size. Reallocates
+ * previous memory in the left-hand-side. If the operation fails, both maps are
+ * left untouched. */
+UA_EXPORT UA_StatusCode
+UA_KeyValueMap_merge(UA_KeyValueMap *lhs, const UA_KeyValueMap *rhs);
 
 /**
  * Endpoint URL Parser
@@ -101,9 +120,10 @@ UA_KeyValueMap_delete(UA_KeyValuePair **map, size_t *mapSize,
  *        original endpointUrl, so no memory is allocated. If an IPv6 address is
  *        given, hostname contains e.g. '[2001:0db8:85a3::8a2e:0370:7334]'
  * @param outPort Set to the port of the url or left unchanged.
- * @param outPath Set to the path if one is present in the endpointUrl.
- *        Starting or trailing '/' are NOT included in the path. The string
- *        points into the original endpointUrl, so no memory is allocated.
+ * @param outPath Set to the path if one is present in the endpointUrl. Can be
+ *        NULL. Then not path is returned. Starting or trailing '/' are NOT
+ *        included in the path. The string points into the original endpointUrl,
+ *        so no memory is allocated.
  * @return Returns UA_STATUSCODE_BADTCPENDPOINTURLINVALID if parsing failed. */
 UA_StatusCode UA_EXPORT
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,

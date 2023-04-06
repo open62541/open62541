@@ -12,7 +12,6 @@
 
 #include "check.h"
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
@@ -37,6 +36,7 @@ static void pauseServer(void) {
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     runServer();
@@ -118,7 +118,7 @@ START_TEST(SecureChannel_timeout_fail) {
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
+    UA_realSleep(200 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
     UA_Variant val;
     UA_Variant_init(&val);
@@ -150,17 +150,19 @@ START_TEST(SecureChannel_networkfail) {
     rq.nodesToRead = &rvi;
     rq.nodesToReadSize = 1;
 
-    /* Forward the clock after recv in the client */
-    UA_ClientConfig *cconfig = UA_Client_getConfig(client);
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    UA_Client_recvSleepDuration = cconfig->secureChannelLifeTime + 1;
+    /* Manually close the TCP connection */
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    cm->closeConnection(cm, client->channel.connectionId);
+    UA_EventLoop *el = client->config.eventLoop;
+    el->run(el, 0);
 
+    /* The connection is re-established automatically */
     UA_Variant val;
     UA_Variant_init(&val);
     UA_NodeId nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert(retval == UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    UA_Variant_clear(&val);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -173,7 +175,7 @@ START_TEST(SecureChannel_reconnect) {
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    
+
     UA_Client_disconnectSecureChannel(client);
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
@@ -201,21 +203,17 @@ START_TEST(SecureChannel_cableunplugged) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
-    /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADINTERNALERROR;
+    /* Manually close the connection. The connection is internally closed at the
+     * next iteration of the EventLoop. Hence the next request is sent out. But
+     * the connection "actually closes" before receiving the response. */
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    uintptr_t connId = client->channel.connectionId;
+    cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
-    UA_SecureChannelState scs;
-    UA_Client_getState(client, &scs, NULL, NULL);
-    ck_assert_int_eq(scs, UA_SECURECHANNELSTATE_CLOSED);
-
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     UA_Client_delete(client);
 }
 END_TEST

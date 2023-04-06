@@ -4,6 +4,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "ua_pubsub.h"
+#include "ua_server_internal.h"
 #include <check.h>
 #include <assert.h>
 
@@ -15,10 +16,10 @@ static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
 
     server = UA_Server_new();
-    assert(server != 0);
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     UA_Server_run_startup(server);
 }
 
@@ -37,7 +38,7 @@ static void teardown(void) {
 
 /***************************************************************************************************/
 static void AddConnection(
-    char *pName, 
+    char *pName,
     UA_UInt32 PublisherId,
     UA_NodeId *opConnectionId) {
 
@@ -53,17 +54,19 @@ static void AddConnection(
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    connectionConfig.publisherIdType = UA_PUBSUB_PUBLISHERID_NUMERIC;
-    connectionConfig.publisherId.numeric = PublisherId;
+    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_PubSubConnection_regist(server, opConnectionId) == UA_STATUSCODE_GOOD);
+    UA_LOCK(&server->serviceMutex);
+    ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
 static void AddWriterGroup(
     UA_NodeId *pConnectionId,
-    char *pName, 
+    char *pName,
     UA_UInt32 WriterGroupId,
     UA_Duration PublishingInterval,
     UA_NodeId *opWriterGroupId) {
@@ -94,10 +97,10 @@ static void AddWriterGroup(
 /***************************************************************************************************/
 static void AddPublishedDataSet(
     UA_NodeId *pWriterGroupId,
-    char *pPublishedDataSetName, 
+    char *pPublishedDataSetName,
     char *pDataSetWriterName,
     UA_UInt32 DataSetWriterId,
-    UA_NodeId *opPublishedDataSetId, 
+    UA_NodeId *opPublishedDataSetId,
     UA_NodeId *opPublishedVarId,
     UA_NodeId *opDataSetWriterId) {
 
@@ -152,7 +155,7 @@ static void AddPublishedDataSet(
 /***************************************************************************************************/
 static void AddReaderGroup(
     UA_NodeId *pConnectionId,
-    char *pName, 
+    char *pName,
     UA_NodeId *opReaderGroupId) {
 
     assert(pConnectionId != 0);
@@ -169,7 +172,7 @@ static void AddReaderGroup(
 /***************************************************************************************************/
 static void AddDataSetReader(
     UA_NodeId *pReaderGroupId,
-    char *pName, 
+    char *pName,
     UA_UInt32 PublisherId,
     UA_UInt32 WriterGroupId,
     UA_UInt32 DataSetWriterId,
@@ -221,7 +224,7 @@ static void AddDataSetReader(
     UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)
         UA_calloc(readerConfig.dataSetMetaData.fieldsSize, sizeof(UA_FieldTargetVariable));
     assert(pTargetVariables != 0);
-    
+
     UA_FieldTargetDataType_init(&pTargetVariables[0].targetVariable);
 
     pTargetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
@@ -229,7 +232,7 @@ static void AddDataSetReader(
 
     ck_assert(UA_Server_DataSetReader_createTargetVariables(server, *opDataSetReaderId,
         readerConfig.dataSetMetaData.fieldsSize, pTargetVariables) == UA_STATUSCODE_GOOD);
-    
+
     UA_FieldTargetDataType_clear(&pTargetVariables[0].targetVariable);
     UA_free(pTargetVariables);
     pTargetVariables = 0;
@@ -264,7 +267,7 @@ START_TEST(Test_normal_operation) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     UA_UInt32 DSWNo_Conn1_WG1_DS1 = 1;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
     /* setup Connection 1: reader */
@@ -277,7 +280,7 @@ START_TEST(Test_normal_operation) {
     UA_NodeId VarId_Conn1_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn1_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 350.0;
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1, 
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
 
@@ -362,7 +365,7 @@ START_TEST(Test_corner_cases) {
     UA_NodeId PDSId_Conn1_WG1_PDS1;
     UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
     UA_UInt32 DSWNo_Conn1_WG1_DS1 = 1;
-    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1, 
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
@@ -383,14 +386,14 @@ START_TEST(Test_corner_cases) {
     UA_NodeId VarId_Conn1_RG1_DSR1;
     UA_NodeId_init(&VarId_Conn1_RG1_DSR1);
     UA_Duration MessageReceiveTimeout_Conn1_RG1_DSR1 = 350.0;
-    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1, 
+    AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
     /* DataSetReader should be operational as well */
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
 
     /* test wrong nodeIds */
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_DataSetReader_getState(server, RGId_Conn1_RG1, &state));

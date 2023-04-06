@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
@@ -51,8 +51,7 @@ typedef struct {
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
 
-    size_t paramsSize;
-    UA_KeyValuePair *params;
+    UA_KeyValueMap *attributes;
 
     /* Localization information */
     size_t localeIdsSize;
@@ -131,58 +130,31 @@ UA_Session_dequeuePublishReq(UA_Session *session);
  * string of length zero). */
 
 #define UA_LOG_SESSION_INTERNAL(LOGGER, LEVEL, SESSION, MSG, ...)       \
-    do {                                                                \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                           \
         int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
         const char *nameStr = (SESSION) ?                               \
-            (const char*)(SESSION)->sessionName.data : NULL;            \
+            (const char*)(SESSION)->sessionName.data : "";              \
+        unsigned long sockId = ((SESSION) && (SESSION)->header.channel) ? \
+            (unsigned long)(SESSION)->header.channel->connectionId : 0; \
         UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
             (SESSION)->header.channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
-                       "SecureChannel %" PRIu32 " | Session \"%.*s\" | " MSG "%.0s", \
-                       chanId, nameLen, nameStr, __VA_ARGS__);          \
-    } while(0)
+                       "TCP %lu\t| SC %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
+                       sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \
+    }
 
-#if UA_LOGLEVEL <= 100
-# define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                     \
+#define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, TRACE, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_TRACE_SESSION(LOGGER, SESSION, ...)
-#endif
-
-#if UA_LOGLEVEL <= 200
-# define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                     \
+#define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, DEBUG, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_DEBUG_SESSION(LOGGER, SESSION, ...)
-#endif
-
-#if UA_LOGLEVEL <= 300
-# define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                      \
+#define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)                       \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, INFO, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_INFO_SESSION(LOGGER, SESSION, ...)
-#endif
-
-#if UA_LOGLEVEL <= 400
-# define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                    \
+#define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)                    \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, WARNING, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_WARNING_SESSION(LOGGER, SESSION, ...)
-#endif
-
-#if UA_LOGLEVEL <= 500
-# define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
+#define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, ERROR, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_ERROR_SESSION(LOGGER, SESSION, ...)
-#endif
-
-#if UA_LOGLEVEL <= 600
-# define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
+#define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)                      \
     UA_MACRO_EXPAND(UA_LOG_SESSION_INTERNAL(LOGGER, FATAL, SESSION, __VA_ARGS__, ""))
-#else
-# define UA_LOG_FATAL_SESSION(LOGGER, SESSION, ...)
-#endif
 
 _UA_END_DECLS
 

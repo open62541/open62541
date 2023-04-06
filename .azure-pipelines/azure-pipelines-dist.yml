@@ -5,7 +5,7 @@ jobs:
 - job: 'dist_debian'
   displayName: 'Dist (debian)'
   pool:
-    vmImage: 'ubuntu-18.04'
+    vmImage: 'ubuntu-20.04'
   steps:
   - checkout: self
     submodules: recursive

@@ -1,5 +1,5 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. 
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
@@ -139,7 +139,10 @@ zipNsDeleteNode(void *nsCtx, UA_Node *node) {
 }
 
 static const UA_Node *
-zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
+zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId,
+             UA_UInt32 attributeMask,
+             UA_ReferenceTypeSet references,
+             UA_BrowseDirection referenceDirections) {
     ZipContext *ns = (ZipContext*)nsCtx;
     NodeEntry dummy;
     dummy.nodeIdHash = UA_NodeId_hash(nodeId);
@@ -149,6 +152,18 @@ zipNsGetNode(void *nsCtx, const UA_NodeId *nodeId) {
         return NULL;
     ++entry->refCount;
     return (const UA_Node*)&entry->nodeId;
+}
+
+static const UA_Node *
+zipNsGetNodeFromPtr(void *nsCtx, UA_NodePointer ptr,
+                    UA_UInt32 attributeMask,
+                    UA_ReferenceTypeSet references,
+                    UA_BrowseDirection referenceDirections) {
+    if(!UA_NodePointer_isLocal(ptr))
+        return NULL;
+    UA_NodeId id = UA_NodePointer_toNodeId(ptr);
+    return zipNsGetNode(nsCtx, &id, attributeMask,
+                        references, referenceDirections);
 }
 
 static void
@@ -163,9 +178,12 @@ zipNsReleaseNode(void *nsCtx, const UA_Node *node) {
 
 static UA_StatusCode
 zipNsGetNodeCopy(void *nsCtx, const UA_NodeId *nodeId,
-                         UA_Node **outNode) {
-    /* Find the node */
-    const UA_Node *node = zipNsGetNode(nsCtx, nodeId);
+                 UA_Node **outNode) {
+    /* Get the node (with all attributes and references, the mask and refs are
+       currently noy evaluated within the plugin.) */
+    const UA_Node *node =
+        zipNsGetNode(nsCtx, nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
 
@@ -255,14 +273,16 @@ zipNsInsertNode(void *nsCtx, UA_Node *node, UA_NodeId *addedNodeId) {
 
     /* Insert the node */
     entry->nodeIdHash = dummy.nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, UA_UInt32_random());
+    ZIP_INSERT(NodeTree, &ns->root, entry);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 zipNsReplaceNode(void *nsCtx, UA_Node *node) {
-    /* Find the node */
-    const UA_Node *oldNode = zipNsGetNode(nsCtx, &node->head.nodeId);
+    /* Find the node (the mask and refs are not evaluated yet by the plugin)*/
+    const UA_Node *oldNode =
+        zipNsGetNode(nsCtx, &node->head.nodeId, UA_NODEATTRIBUTESMASK_ALL,
+                     UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
     if(!oldNode) {
         deleteEntry(container_of(node, NodeEntry, nodeId));
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -282,7 +302,7 @@ zipNsReplaceNode(void *nsCtx, UA_Node *node) {
     ZipContext *ns = (ZipContext*)nsCtx;
     ZIP_REMOVE(NodeTree, &ns->root, oldEntry);
     entry->nodeIdHash = oldEntry->nodeIdHash;
-    ZIP_INSERT(NodeTree, &ns->root, entry, ZIP_RANK(entry, zipfields));
+    ZIP_INSERT(NodeTree, &ns->root, entry);
     oldEntry->deleted = true;
 
     zipNsReleaseNode(nsCtx, oldNode);
@@ -317,10 +337,11 @@ struct VisitorData {
     void *visitorContext;
 };
 
-static void
-nodeVisitor(NodeEntry *entry, void *data) {
+static void *
+nodeVisitor(void *data, NodeEntry *entry) {
     struct VisitorData *d = (struct VisitorData*)data;
     d->visitor(d->visitorContext, (UA_Node*)&entry->nodeId);
+    return NULL;
 }
 
 static void
@@ -333,9 +354,10 @@ zipNsIterate(void *nsCtx, UA_NodestoreVisitor visitor,
     ZIP_ITER(NodeTree, &ns->root, nodeVisitor, &d);
 }
 
-static void
-deleteNodeVisitor(NodeEntry *entry, void *data) {
+static void *
+deleteNodeVisitor(void *data, NodeEntry *entry) {
     deleteEntry(entry);
+    return NULL;
 }
 
 /***********************/
@@ -372,6 +394,7 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->newNode = zipNsNewNode;
     ns->deleteNode = zipNsDeleteNode;
     ns->getNode = zipNsGetNode;
+    ns->getNodeFromPtr = zipNsGetNodeFromPtr;
     ns->releaseNode = zipNsReleaseNode;
     ns->getNodeCopy = zipNsGetNodeCopy;
     ns->insertNode = zipNsInsertNode;
@@ -379,6 +402,6 @@ UA_Nodestore_ZipTree(UA_Nodestore *ns) {
     ns->removeNode = zipNsRemoveNode;
     ns->getReferenceTypeId = zipNsGetReferenceTypeId;
     ns->iterate = zipNsIterate;
-    
+
     return UA_STATUSCODE_GOOD;
 }

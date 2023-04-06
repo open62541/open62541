@@ -2,11 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-prefix=@CMAKE_INSTALL_PREFIX@
-exec_prefix=${prefix}
-libdir=${prefix}/@CMAKE_INSTALL_LIBDIR@
+libdir=@CMAKE_INSTALL_FULL_LIBDIR@
 sharedlibdir=${libdir}
-includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+includedir=@CMAKE_INSTALL_FULL_INCLUDEDIR@
 
 Name: open62541
 Description: open62541 is an open source C (C99) implementation of OPC UA

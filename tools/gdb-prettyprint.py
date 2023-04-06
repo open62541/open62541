@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # Load into gdb with 'source <path-to>/tools/gdb-prettyprint.py'
 # Make sure to have 'set print pretty on' to get nice structure printouts

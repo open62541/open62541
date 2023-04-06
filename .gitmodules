@@ -4,8 +4,12 @@
 [submodule "deps/ua-nodeset"]
 	path = deps/ua-nodeset
 	url = https://github.com/OPCFoundation/UA-Nodeset
-	branch = v1.04
+	branch = latest
 [submodule "deps/mqtt-c"]
 	path = deps/mqtt-c
 	url = https://github.com/LiamBindle/MQTT-C.git
+	branch = master
+[submodule "deps/nodesetLoader"]
+	path = deps/nodesetLoader
+	url = https://github.com/open62541/nodesetLoader
 	branch = master

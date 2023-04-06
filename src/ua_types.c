@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
@@ -20,8 +20,9 @@
 #include <open62541/types_generated_handling.h>
 
 #include "ua_util_internal.h"
+#include "../deps/itoa.h"
+#include "../deps/base64.h"
 #include "libc_time.h"
-#include "pcg_basic.h"
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
@@ -34,11 +35,11 @@
 
 /* Global definition of NULL type instances. These are always zeroed out, as
  * mandated by the C/C++ standard for global values with no initializer. */
-const UA_String UA_STRING_NULL = {0};
-const UA_ByteString UA_BYTESTRING_NULL = {0};
-const UA_Guid UA_GUID_NULL = {0};
-const UA_NodeId UA_NODEID_NULL = {0};
-const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {0};
+const UA_String UA_STRING_NULL = {0, NULL};
+const UA_ByteString UA_BYTESTRING_NULL = {0, NULL};
+const UA_Guid UA_GUID_NULL = {0, 0, 0, {0,0,0,0,0,0,0,0}};
+const UA_NodeId UA_NODEID_NULL = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+const UA_ExpandedNodeId UA_EXPANDEDNODEID_NULL = {{0, UA_NODEIDTYPE_NUMERIC, {0}}, {0, NULL}, 0};
 
 typedef UA_StatusCode
 (*UA_copySignature)(const void *src, void *dst, const UA_DataType *type);
@@ -81,21 +82,25 @@ UA_findDataType(const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, NULL);
 }
 
-/***************************/
-/* Random Number Generator */
-/***************************/
-
-//TODO is this safe for multithreading?
-static pcg32_random_t UA_rng = PCG32_INITIALIZER;
-
 void
-UA_random_seed(u64 seed) {
-    pcg32_srandom_r(&UA_rng, seed, (u64)UA_DateTime_now());
-}
-
-u32
-UA_UInt32_random(void) {
-    return (u32)pcg32_random_r(&UA_rng);
+UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
+    while (customTypes) {
+        const UA_DataTypeArray *next = customTypes->next;
+        if (customTypes->cleanup) {
+            for(size_t i = 0; i < customTypes->typesSize; ++i) {
+                const UA_DataType *type = &customTypes->types[i];
+                UA_free((void*)(uintptr_t)type->typeName);
+                for(size_t j = 0; j < type->membersSize; ++j) {
+                    const UA_DataTypeMember *m = &type->members[j];
+                    UA_free((void*)(uintptr_t)m->memberName);
+                }
+                UA_free((void*)type->members);
+            }
+            UA_free((void*)(uintptr_t)customTypes->types);
+            UA_free((void*)(uintptr_t)customTypes);
+        }
+        customTypes = next;
+    }
 }
 
 /*****************/
@@ -132,6 +137,11 @@ qualifiedNameOrder(const UA_QualifiedName *p1, const UA_QualifiedName *p2,
 UA_Boolean
 UA_String_equal(const UA_String *s1, const UA_String *s2) {
     return (stringOrder(s1, s2, NULL) == UA_ORDER_EQ);
+}
+
+UA_Boolean
+UA_String_isEmpty(const UA_String *s) {
+    return (s->length == 0 || s->data == NULL);
 }
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
@@ -249,24 +259,49 @@ UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2) {
     return (guidOrder(g1, g2, NULL) == UA_ORDER_EQ);
 }
 
-UA_Guid
-UA_Guid_random(void) {
-    UA_Guid result;
-    result.data1 = (u32)pcg32_random_r(&UA_rng);
-    u32 r = (u32)pcg32_random_r(&UA_rng);
-    result.data2 = (u16) r;
-    result.data3 = (u16) (r >> 16);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[0] = (u8)r;
-    result.data4[1] = (u8)(r >> 4);
-    result.data4[2] = (u8)(r >> 8);
-    result.data4[3] = (u8)(r >> 12);
-    r = (u32)pcg32_random_r(&UA_rng);
-    result.data4[4] = (u8)r;
-    result.data4[5] = (u8)(r >> 4);
-    result.data4[6] = (u8)(r >> 8);
-    result.data4[7] = (u8)(r >> 12);
-    return result;
+static const u8 hexmapLower[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+static const u8 hexmapUpper[16] =
+    {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+void
+UA_Guid_to_hex(const UA_Guid *guid, u8* out, UA_Boolean lower) {
+    const u8 *hexmap = (lower) ? hexmapLower : hexmapUpper;
+    size_t i = 0, j = 28;
+    for(; i<8;i++,j-=4)         /* pos 0-7, 4byte, (a) */
+        out[i] = hexmap[(guid->data1 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 8 */
+    for(j=12; i<13;i++,j-=4)    /* pos 9-12, 2byte, (b) */
+        out[i] = hexmap[(uint16_t)(guid->data2 >> j) & 0x0Fu];
+    out[i++] = '-';             /* pos 13 */
+    for(j=12; i<18;i++,j-=4)    /* pos 14-17, 2byte (c) */
+        out[i] = hexmap[(uint16_t)(guid->data3 >> j) & 0x0Fu];
+    out[i++] = '-';              /* pos 18 */
+    for(j=0;i<23;i+=2,j++) {     /* pos 19-22, 2byte (d) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+    out[i++] = '-';              /* pos 23 */
+    for(j=2; i<36;i+=2,j++) {    /* pos 24-35, 6byte (e) */
+        out[i] = hexmap[(guid->data4[j] & 0xF0u) >> 4u];
+        out[i+1] = hexmap[guid->data4[j] & 0x0Fu];
+    }
+}
+
+UA_StatusCode
+UA_Guid_print(const UA_Guid *guid, UA_String *output) {
+    if(output->length == 0) {
+        UA_StatusCode res =
+            UA_ByteString_allocBuffer((UA_ByteString*)output, 36);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < 36)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = 36;
+    }
+    UA_Guid_to_hex(guid, output->data, true);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ByteString */
@@ -389,6 +424,111 @@ UA_NodeId_hash(const UA_NodeId *n) {
     }
 }
 
+/* Computes length for the encoding size and pre-encodes the numeric values */
+static size_t
+nodeIdSize(const UA_NodeId *id,
+           char *nsStr, size_t *nsStrSize,
+           char *numIdStr, size_t *numIdStrSize) {
+    /* Namespace length */
+    size_t len = 0;
+    if(id->namespaceIndex != 0) {
+        len += 4; /* ns=; */
+        *nsStrSize = itoaUnsigned(id->namespaceIndex, nsStr, 10);
+        len += *nsStrSize;
+    }
+
+    switch (id->identifierType) {
+    case UA_NODEIDTYPE_NUMERIC:
+        *numIdStrSize = itoaUnsigned(id->identifier.numeric, numIdStr, 10);
+        len += 2 + *numIdStrSize;
+        break;
+    case UA_NODEIDTYPE_STRING:
+        len += 2 + id->identifier.string.length;
+        break;
+    case UA_NODEIDTYPE_GUID:
+        len += 2 + 36;
+        break;
+    case UA_NODEIDTYPE_BYTESTRING:
+        len += 2 + (4*((id->identifier.byteString.length + 2) / 3));
+        break;
+    default:
+        len = 0;
+    }
+    return len;
+}
+
+#define PRINT_NODEID                                           \
+    /* Encode the namespace */                                 \
+    if(id->namespaceIndex != 0) {                              \
+        memcpy(pos, "ns=", 3);                                 \
+        pos += 3;                                              \
+        memcpy(pos, nsStr, nsStrSize);                         \
+        pos += nsStrSize;                                      \
+        *pos++ = ';';                                          \
+    }                                                          \
+                                                               \
+    /* Encode the identifier */                                \
+    switch(id->identifierType) {                               \
+    case UA_NODEIDTYPE_NUMERIC:                                \
+        memcpy(pos, "i=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, numIdStr, numIdStrSize);                   \
+        pos += numIdStrSize;                                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_STRING:                                 \
+        memcpy(pos, "s=", 2);                                  \
+        pos += 2;                                              \
+        memcpy(pos, id->identifier.string.data,                \
+               id->identifier.string.length);                  \
+        pos += id->identifier.string.length;                   \
+        break;                                                 \
+    case UA_NODEIDTYPE_GUID:                                   \
+        memcpy(pos, "g=", 2);                                  \
+        pos += 2;                                              \
+        UA_Guid_to_hex(&id->identifier.guid,                   \
+                       (unsigned char*)pos, true);             \
+        pos += 36;                                             \
+        break;                                                 \
+    case UA_NODEIDTYPE_BYTESTRING:                             \
+        memcpy(pos, "b=", 2);                                  \
+        pos += 2;                                              \
+        pos += UA_base64_buf(id->identifier.byteString.data,   \
+                             id->identifier.byteString.length, \
+                             (unsigned char*)pos);             \
+        break;                                                 \
+    }                                                          \
+    do { } while(false)
+
+UA_StatusCode
+UA_NodeId_print(const UA_NodeId *id, UA_String *output) {
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Print the NodeId */
+    char *pos = (char*)output->data;
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
+}
+
 /* ExpandedNodeId */
 static void
 ExpandedNodeId_clear(UA_ExpandedNodeId *p, const UA_DataType *_) {
@@ -429,6 +569,73 @@ UA_ExpandedNodeId_hash(const UA_ExpandedNodeId *n) {
     if(n->namespaceUri.length != 0)
         h = UA_ByteString_hash(h, n->namespaceUri.data, n->namespaceUri.length);
     return h;
+}
+
+UA_StatusCode
+UA_ExpandedNodeId_print(const UA_ExpandedNodeId *eid, UA_String *output) {
+    /* Don't print the namespace-index if a NamespaceUri is set */
+    UA_NodeId stackid = eid->nodeId;
+    UA_NodeId *id = &stackid; /* for the print-macro below */
+    if(eid->namespaceUri.data != NULL)
+        id->namespaceIndex = 0;
+
+    /* Compute the string length */
+    char nsStr[6];
+    size_t nsStrSize = 0;
+    char numIdStr[11];
+    size_t numIdStrSize = 0;
+    size_t idLen = nodeIdSize(id, nsStr, &nsStrSize, numIdStr, &numIdStrSize);
+    if(idLen == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    char srvIdxStr[11];
+    size_t srvIdxSize = 0;
+    if(eid->serverIndex != 0) {
+        idLen += 5; /* svr=; */
+        srvIdxSize = itoaUnsigned(eid->serverIndex, srvIdxStr, 10);
+        idLen += srvIdxSize;
+    }
+
+    if(eid->namespaceUri.data != NULL) {
+        idLen += 5; /* nsu=; */
+        idLen += eid->namespaceUri.length;
+    }
+
+    /* Allocate memory if required */
+    if(output->length == 0) {
+        UA_StatusCode res = UA_ByteString_allocBuffer((UA_ByteString*)output, idLen);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        if(output->length < idLen)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        output->length = idLen;
+    }
+
+    /* Encode the ServerIndex */
+    char *pos = (char*)output->data;
+    if(eid->serverIndex != 0) {
+        memcpy(pos, "svr=", 4);
+        pos += 4;
+        memcpy(pos, srvIdxStr, srvIdxSize);
+        pos += srvIdxSize;
+        *pos++ = ';';
+    }
+
+    /* Encode the NamespaceUri */
+    if(eid->namespaceUri.data != NULL) {
+        memcpy(pos, "nsu=", 4);
+        pos += 4;
+        memcpy(pos, eid->namespaceUri.data, eid->namespaceUri.length);
+        pos += eid->namespaceUri.length;
+        *pos++ = ';';
+    }
+
+    /* Print the NodeId */
+    PRINT_NODEID;
+
+    UA_assert(output->length == (size_t)((UA_Byte*)pos - output->data));
+    return UA_STATUSCODE_GOOD;
 }
 
 /* ExtensionObject */
@@ -1432,7 +1639,7 @@ extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
                                 (const UA_String*)&p2->content.encoded.body, NULL);
             return o;
         }
-        
+
     case UA_EXTENSIONOBJECT_DECODED:
     default: {
             const UA_DataType *type1 = p1->content.decoded.type;
@@ -1939,51 +2146,6 @@ UA_DataType_isNumeric(const UA_DataType *type) {
         return true;
     default:
         return false;
-    }
-}
-
-UA_Int16
-UA_DataType_getPrecedence(const UA_DataType *type){
-    //Defined in Part 4 Table 123 "Data Precedence Rules"
-    switch(type->typeKind) {
-        case UA_DATATYPEKIND_DOUBLE:
-            return 1;
-        case UA_DATATYPEKIND_FLOAT:
-            return 2;
-        case UA_DATATYPEKIND_INT64:
-            return 3;
-        case UA_DATATYPEKIND_UINT64:
-            return 4;
-        case UA_DATATYPEKIND_INT32:
-            return 5;
-        case UA_DATATYPEKIND_UINT32:
-            return 6;
-        case UA_DATATYPEKIND_STATUSCODE:
-            return 7;
-        case UA_DATATYPEKIND_INT16:
-            return 8;
-        case UA_DATATYPEKIND_UINT16:
-            return 9;
-        case UA_DATATYPEKIND_SBYTE:
-            return 10;
-        case UA_DATATYPEKIND_BYTE:
-            return 11;
-        case UA_DATATYPEKIND_BOOLEAN:
-            return 12;
-        case UA_DATATYPEKIND_GUID:
-            return 13;
-        case UA_DATATYPEKIND_STRING:
-            return 14;
-        case UA_DATATYPEKIND_EXPANDEDNODEID:
-            return 15;
-        case UA_DATATYPEKIND_NODEID:
-            return 16;
-        case UA_DATATYPEKIND_LOCALIZEDTEXT:
-            return 17;
-        case UA_DATATYPEKIND_QUALIFIEDNAME:
-            return 18;
-        default:
-            return -1;
     }
 }
 

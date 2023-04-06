@@ -7,10 +7,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: 
+        include:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
+          - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
+            cmd_deps: |
+                sudo dpkg --add-architecture i386
+                sudo apt-get update
+                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+            cmd_action: unit_tests_32
           - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_nosub
@@ -35,15 +41,18 @@ jobs:
           - build_name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
+          - build_name: "PubSub SKS Build & Unit Tests (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+            cmd_action: unit_tests_pubsub_sks
           - build_name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
           - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
                 sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.4.2.tar.gz --output libressl.tar.gz
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.0.tar.gz --output libressl.tar.gz
                 tar -xvz -f libressl.tar.gz
-                cd libressl-3.4.2
+                cd libressl-3.7.0
                 ./configure
                 sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
@@ -82,11 +91,11 @@ jobs:
           - build_name: Amalgamation Build with Multithreading
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
-          - build_name: "Valgrind Unit Tests with MbedTLS (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
+          - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: unit_tests_valgrind MBEDTLS
-          - build_name: "Valgrind Unit Tests with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl
+          - build_name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
           - build_name: "Valgrind Examples with MbedTLS (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
@@ -95,7 +104,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind openssl
             cmd_action: examples_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
-            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev
+            cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
             cmd_action: build_clang_analyzer
     name: ${{matrix.build_name}}
     runs-on: ubuntu-20.04
@@ -112,4 +121,3 @@ jobs:
       run: source tools/ci.sh && ${{matrix.cmd_action}}
       env:
         ETHERNET_INTERFACE: eth0
-

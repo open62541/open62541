@@ -12,12 +12,10 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
-UA_ServerNetworkLayer nl;
 THREAD_HANDLE server_thread;
 
 static void
@@ -58,6 +56,7 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
@@ -70,6 +69,25 @@ static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
+
+START_TEST(ClientConfig_Copy){
+    UA_ClientConfig dstConfig;
+    memset(&dstConfig, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig srcConfig;
+    memset(&srcConfig, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&srcConfig);
+
+    UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client *dstConfigClient = UA_Client_newWithConfig(&dstConfig);
+    retval = UA_Client_connect(dstConfigClient, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    UA_Client_disconnect(dstConfigClient);
+    UA_Client_delete(dstConfigClient);
+    UA_ApplicationDescription_clear(&srcConfig.clientDescription);
+}
+END_TEST
 
 START_TEST(Client_connect) {
     UA_Client *client = UA_Client_new();
@@ -180,7 +198,7 @@ START_TEST(Client_renewSecureChannel) {
     UA_fakeSleep((UA_UInt32)((UA_Double)cc->secureChannelLifeTime * 0.8));
 
     /* Make the client renew the channel */
-    retval = UA_Client_run_iterate(client, 0);
+    retval = UA_Client_run_iterate(client, 1);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Now read */
@@ -200,7 +218,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    cc->secureChannelLifeTime = 10000;
+    cc->secureChannelLifeTime = 60000;
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -224,7 +242,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     for(int i = 0; i < 15; ++i) {
         UA_fakeSleep(1000);
         UA_Server_run_iterate(server, true);
-        retval = UA_Client_run_iterate(client, 0);
+        retval = UA_Client_run_iterate(client, 1);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 
@@ -349,17 +367,17 @@ START_TEST(Client_activateSessionTimeout) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-
-    /* Simulate network cable unplugged (no response from server) */
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOODNONCRITICALTIMEOUT;
+    /* Manually close the connection. The connection is internally closed at the
+     * next iteration of the EventLoop. Hence the next request is sent out. But
+     * the connection "actually closes" before receiving the response. */
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    uintptr_t connId = client->channel.connectionId;
+    cm->closeConnection(cm, connId);
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
 
-    UA_Client_recvTesting_result = UA_STATUSCODE_GOOD;
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
@@ -384,14 +402,25 @@ START_TEST(Client_activateSessionLocaleIds) {
     UA_ClientConfig *config = UA_Client_getConfig(client);
     UA_ClientConfig_setDefault(config);
 
-    config->sessionLocaleIdsSize = 1;
-    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");
+    config->sessionLocaleIds[1] = UA_STRING_ALLOC("fr");
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(server->sessionCount, 1);
+
+    UA_QualifiedName key = {0, UA_STRING_STATIC("localeIds")};
+    UA_Variant locales;
+    UA_Server_getSessionAttribute(server, &server->sessions.lh_first->session.sessionId,
+                                  key, &locales);
+
+    ck_assert_uint_eq(locales.arrayLength, 2);
+    UA_String *localeIds = (UA_String*)locales.data;
+    ck_assert(UA_String_equal(&localeIds[0], &config->sessionLocaleIds[0]));
+    ck_assert(UA_String_equal(&localeIds[1], &config->sessionLocaleIds[1]));
 
     UA_Client_delete(client);
 
@@ -403,6 +432,7 @@ static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
+    tcase_add_test(tc_client, ClientConfig_Copy);
     tcase_add_test(tc_client, Client_connect);
     tcase_add_test(tc_client, Client_connect_username);
     tcase_add_test(tc_client, Client_delete_without_connect);

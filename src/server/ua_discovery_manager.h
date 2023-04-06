@@ -85,7 +85,8 @@ typedef struct {
     UA_SOCKET mdnsSocket;
     UA_Boolean mdnsMainSrvAdded;
 
-    /* Full Domain Name of server itself. Used to detect if received mDNS message was from itself */
+    /* Full Domain Name of server itself. Used to detect if received mDNS
+     * message was from itself */
     UA_String selfFqdnMdnsRecord;
 
     LIST_HEAD(, serverOnNetwork_list_entry) serverOnNetwork;
@@ -97,37 +98,37 @@ typedef struct {
     struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
 
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
-    void* serverOnNetworkCallbackData;
+    void *serverOnNetworkCallbackData;
 
-#if UA_MULTITHREADING >= 100
-    pthread_t mdnsThread;
-    UA_Boolean mdnsRunning;
-#  endif
+    UA_UInt64 mdnsCallbackId;
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 } UA_DiscoveryManager;
 
-void UA_DiscoveryManager_init(UA_DiscoveryManager *dm, UA_Server *server);
-void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm, UA_Server *server);
+void UA_DiscoveryManager_init(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_start(UA_Server *server);
+void UA_DiscoveryManager_stop(UA_Server *server);
 
 /* Checks if a registration timed out and removes that registration.
  * Should be called periodically in main loop */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic);
+void UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
+                                         UA_DateTime nowMonotonic);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
-/**
- * Sends out a new mDNS package for the given server data.
- * This Method is normally called when another server calls the RegisterServer Service on this server.
- * Then this server is responsible to send out a new mDNS package to announce it.
+/* Sends out a new mDNS package for the given server data. This Method is
+ * normally called when another server calls the RegisterServer Service on this
+ * server. Then this server is responsible to send out a new mDNS package to
+ * announce it.
  *
- * Additionally this method also adds the given server to the internal serversOnNetwork list so that
- * a client finds it when calling FindServersOnNetwork.
- */
+ * Additionally this method also adds the given server to the internal
+ * serversOnNetwork list so that a client finds it when calling
+ * FindServersOnNetwork. */
 void
 UA_Server_updateMdnsForDiscoveryUrl(UA_Server *server, const UA_String *serverName,
                                     const UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                    const UA_String *discoveryUrl,
-                                    UA_Boolean isOnline, UA_Boolean updateTxt);
+                                    const UA_String *discoveryUrl, UA_Boolean isOnline,
+                                    UA_Boolean updateTxt);
 
 void mdns_record_received(const struct resource *r, void *data);
 
@@ -136,8 +137,7 @@ void mdns_create_txt(UA_Server *server, const char *fullServiceDomain,
                      const size_t capabilitiesSize,
                      void (*conflict)(char *host, int type, void *arg));
 
-void mdns_set_address_record(UA_Server *server,
-                             const char *fullServiceDomain,
+void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
                              const char *localDomain);
 
 mdns_record_t *
@@ -148,57 +148,16 @@ UA_StatusCode
 initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server);
 
 void startMulticastDiscoveryServer(UA_Server *server);
-
 void stopMulticastDiscoveryServer(UA_Server *server);
 
 UA_StatusCode
-iterateMulticastDiscoveryServer(UA_Server* server, UA_DateTime *nextRepeat,
-                                UA_Boolean processIn);
-
-typedef enum {
-    UA_DISCOVERY_TCP,     /* OPC UA TCP mapping */
-    UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */
-} UA_DiscoveryProtocol;
-
-/* Send a multicast probe to find any other OPC UA server on the network through mDNS. */
-UA_StatusCode
-UA_Discovery_multicastQuery(UA_Server* server);
-
-/**
- * Create a mDNS Record for the given server info and adds it to the mDNS output queue.
- *
- * Additionally this method also adds the given server to the internal serversOnNetwork list so that
- * a client finds it when calling FindServersOnNetwork.
- */
-UA_StatusCode
-UA_Discovery_addRecord(UA_Server *server, const UA_String *servername,
-                       const UA_String *hostname, UA_UInt16 port,
-                       const UA_String *path, const UA_DiscoveryProtocol protocol,
-                       UA_Boolean createTxt, const UA_String* capabilites,
-                       const size_t capabilitiesSize,
-                       UA_Boolean isSelf);
-
+UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord,
+                                               const char *serverName, size_t serverNameLen,
+                                               struct serverOnNetwork_list_entry **addedEntry);
 
 UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
-                                               size_t serverNameLen, struct serverOnNetwork_list_entry **addedEntry);
-
-/**
- * Create a mDNS Record for the given server info with TTL=0 and adds it to the mDNS output queue.
- *
- * Additionally this method also removes the given server from the internal serversOnNetwork list so that
- * a client gets the updated data when calling FindServersOnNetwork.
- */
-UA_StatusCode
-UA_Discovery_removeRecord(UA_Server *server, const UA_String *servername,
-                          const UA_String *hostname, UA_UInt16 port,
-                          UA_Boolean removeTxt);
-
-
-UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord, const char *serverName,
-                                                    size_t serverNameLen);
-
+UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord,
+                                                    const char *serverName, size_t serverNameLen);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 

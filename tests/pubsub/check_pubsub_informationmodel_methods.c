@@ -32,10 +32,13 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    UA_Server_run_startup(server);
+    retVal |= UA_ServerConfig_setDefault(config);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -104,7 +107,7 @@ static UA_NodeId addPubSubConnection(void){
     UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
     UA_Boolean loopback = UA_FALSE;
-    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
     pubSubConnection.connectionProperties = connectionOptions;
 
     UA_Variant inputArguments;
@@ -122,7 +125,7 @@ static UA_NodeId addPubSubConnection(void){
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(1, result.outputArgumentsSize);
+    ck_assert_uint_eq(1, result.outputArgumentsSize);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
     if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
         connectionId =  *((UA_NodeId *) result.outputArguments->data);
@@ -167,13 +170,52 @@ static void addPublishedDataSets(void){
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(3, result.outputArgumentsSize);
+    ck_assert_uint_eq(3, result.outputArgumentsSize);
     ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
     UA_CallMethodResult_clear(&result);
     UA_free(inputArguments);
     UA_free(fieldNameAliases);
     UA_free(dataSetFieldFlags);
     UA_free(variablesToAdd);
+}
+
+static UA_StatusCode CallReserveIds(UA_Client *client, UA_String *transportProfileUri,
+    UA_UInt16 numRegWriterGroupIds, UA_UInt16 numRegDataSetWriterIds,
+    UA_Variant* defaultPublisherId, UA_Variant* regWriterGroupIds, UA_Variant *regDataSetWriterIds)
+{
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+
+    UA_Variant *inputArguments = (UA_Variant *) UA_calloc(3, (sizeof(UA_Variant)));
+    UA_Variant_setScalar(&inputArguments[0], transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
+    UA_Variant_setScalar(&inputArguments[1], &numRegWriterGroupIds, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&inputArguments[2], &numRegDataSetWriterIds, &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_CallMethodRequest callMethodRequest;
+    UA_CallMethodRequest_init(&callMethodRequest);
+    callMethodRequest.inputArgumentsSize = 3;
+    callMethodRequest.inputArguments = inputArguments;
+    callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION);
+    callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION_RESERVEIDS);
+
+    UA_CallRequest callReserveIds;
+    UA_CallRequest_init(&callReserveIds);
+    callReserveIds.methodsToCallSize = 1;
+    callReserveIds.methodsToCall = &callMethodRequest;
+
+    UA_CallResponse response = UA_Client_Service_call(client, callReserveIds);
+    ck_assert_uint_eq(1, response.resultsSize);
+    ck_assert_int_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(3, response.results[0].outputArgumentsSize);
+    ret = response.results->statusCode;
+
+    UA_Variant_copy(&response.results[0].outputArguments[0], defaultPublisherId);
+    UA_Variant_copy(&response.results[0].outputArguments[1], regWriterGroupIds);
+    UA_Variant_copy(&response.results[0].outputArguments[2], regDataSetWriterIds);
+
+    UA_free(inputArguments);
+    UA_CallResponse_clear(&response);
+
+    return ret;
 }
 
 START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
@@ -214,14 +256,14 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
 
         pubSubConnection.writerGroupsSize = 1;
         pubSubConnection.writerGroups = (UA_WriterGroupDataType *)UA_calloc(pubSubConnection.writerGroupsSize, sizeof(UA_WriterGroupDataType));
         UA_UadpWriterGroupMessageDataType *writerGroupMessage = \
             (UA_UadpWriterGroupMessageDataType *)UA_calloc(pubSubConnection.writerGroupsSize, sizeof(UA_UadpWriterGroupMessageDataType));
-        UA_ExtensionObject extensionObjectWG; 
+        UA_ExtensionObject extensionObjectWG;
         pubSubConnection.writerGroups->name = UA_STRING("WriterGroup 1");
         pubSubConnection.writerGroups->publishingInterval = 5;
         pubSubConnection.writerGroups->enabled = UA_FALSE;
@@ -235,7 +277,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
                                                         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         extensionObjectWG.encoding = UA_EXTENSIONOBJECT_DECODED;
         extensionObjectWG.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        extensionObjectWG.content.decoded.data = &writerGroupMessage;
+        extensionObjectWG.content.decoded.data = writerGroupMessage;
         pubSubConnection.writerGroups->messageSettings = extensionObjectWG;
 
         UA_Variant inputArguments;
@@ -258,7 +300,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_NodeId connectionId = UA_NODEID_NULL;
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             connectionId =  *((UA_NodeId *) response.results->outputArguments->data);
@@ -277,7 +319,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_ExtensionObject_clear(&eo);
@@ -327,7 +369,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
 
         pubSubConnection.writerGroupsSize = 1;
@@ -349,7 +391,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
                                                         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
         extensionObjectWG.encoding = UA_EXTENSIONOBJECT_DECODED;
         extensionObjectWG.content.decoded.type = &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
-        extensionObjectWG.content.decoded.data = &writerGroupMessage;
+        extensionObjectWG.content.decoded.data = writerGroupMessage;
         pubSubConnection.writerGroups->messageSettings = extensionObjectWG;
 
         pubSubConnection.writerGroups->dataSetWriters = \
@@ -379,7 +421,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(pubSubConnection.writerGroups->dataSetWriters);
@@ -449,7 +491,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         UA_CallMethodResult result;
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder = UA_NODEID_NULL;
@@ -477,7 +519,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_ADDDATASETFOLDER);
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
         UA_NodeId createdFolder2 = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
@@ -501,7 +543,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETFOLDERTYPE_REMOVEDATASETFOLDER);
 
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(0, result.outputArgumentsSize);
+        ck_assert_uint_eq(0, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
         //check if the node is deleted
         retVal = UA_Server_readNodeId(server, createdFolder, NULL);
@@ -543,7 +585,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder = UA_NODEID_NULL;
@@ -576,7 +618,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdFolder2 = UA_NODEID_NULL;
@@ -607,7 +649,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         item.inputArgumentsSize = 1;
 
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         //check if the node is deleted
@@ -662,7 +704,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingServer){
         UA_CallMethodResult result;
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
-        ck_assert_int_eq(3, result.outputArgumentsSize);
+        ck_assert_uint_eq(3, result.outputArgumentsSize);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
 
         //TODO checked correctness of created items
@@ -723,7 +765,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         UA_NodeId dataSetItemsNodeId;
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(3, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(3, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         if(response.results->outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
             dataSetItemsNodeId = *((UA_NodeId *) response.results->outputArguments->data);
@@ -742,7 +784,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         item.inputArguments = (UA_Variant*)&inputArgument;
         item.inputArgumentsSize = 1;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(0, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(0, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_CallResponse_clear(&response);
@@ -785,7 +827,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingServer){
         UA_CallMethodResult_init(&result);
         result = UA_Server_call(server, &callMethodRequest);
         ck_assert_int_eq(result.statusCode, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(1, result.outputArgumentsSize);
+        ck_assert_uint_eq(1, result.outputArgumentsSize);
 
         UA_NodeId createdWriterGroup = UA_NODEID_NULL;
         if(result.outputArguments->type == &UA_TYPES[UA_TYPES_NODEID])
@@ -838,7 +880,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdWriterGroup = UA_NODEID_NULL;
@@ -911,7 +953,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
         pubSubConnection.readerGroupsSize = 1;
         pubSubConnection.readerGroups = \
@@ -937,7 +979,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(pubSubConnection.readerGroups);
@@ -984,7 +1026,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_Variant_setScalar(&connectionOptions[0].value, &ttl, &UA_TYPES[UA_TYPES_UINT32]);
         connectionOptions[1].key = UA_QUALIFIEDNAME(0, "loopback");
         UA_Boolean loopback = UA_FALSE;
-        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_UINT32]);
+        UA_Variant_setScalar(&connectionOptions[1].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
         pubSubConnection.connectionProperties = connectionOptions;
         pubSubConnection.readerGroupsSize = 1;
         pubSubConnection.readerGroups = \
@@ -1006,9 +1048,9 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         /* Static definition of number of fields size to 4 to create four different
         * targetVariables of distinct datatype
         * Currently the publisher sends only DateTime data type */
+        UA_FieldMetaData fields[4] = {0};
         pMetaData->fieldsSize = 4;
-        pMetaData->fields = (UA_FieldMetaData*)UA_Array_new (pMetaData->fieldsSize,
-                            &UA_TYPES[UA_TYPES_FIELDMETADATA]);
+        pMetaData->fields = fields;
 
         /* DateTime DataType */
         UA_FieldMetaData_init (&pMetaData->fields[0]);
@@ -1044,7 +1086,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         targetVars.targetVariablesSize = 4;
         targetVars.targetVariables = (UA_FieldTargetDataType *)
             UA_calloc(targetVars.targetVariablesSize, sizeof(UA_FieldTargetDataType));
-        UA_ExtensionObject extensionObjectTargetVars; 
+        UA_ExtensionObject extensionObjectTargetVars;
         for(size_t i = 0; i < targetVars.targetVariablesSize; i++) {
             /* For creating Targetvariables */
             UA_FieldTargetDataType_init(&targetVars.targetVariables[i]);
@@ -1074,11 +1116,10 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
         UA_ExtensionObject_clear(&eo);
         UA_free(targetVars.targetVariables);
-        UA_free(pMetaData->fields);
         UA_free(pubSubConnection.readerGroups->dataSetReaders);
         UA_free(pubSubConnection.readerGroups);
         UA_CallResponse_clear(&response);
@@ -1118,7 +1159,7 @@ START_TEST(AddandRemoveReaderGroup){
 
         UA_CallResponse response;
         response = UA_Client_Service_call(client, callMethodRequestFromClient);
-        ck_assert_int_eq(1, response.results->outputArgumentsSize);
+        ck_assert_uint_eq(1, response.results->outputArgumentsSize);
         ck_assert_int_eq(response.results->statusCode, UA_STATUSCODE_GOOD);
 
         UA_NodeId createdReaderGroup = UA_NODEID_NULL;
@@ -1153,6 +1194,173 @@ START_TEST(AddandRemoveReaderGroup){
         UA_LocalizedText_clear(&readerGroupDisplayName);
 } END_TEST
 
+START_TEST(ReserveIdsMultipleTimes){
+        UA_StatusCode retVal;
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_Client_delete(client);
+        }
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_Variant defaultPublisherId;
+        const UA_UInt16 numRegWriterGroupIds = 3;
+        const UA_UInt16 numRegDataSetWriterIds = 3;
+        const UA_UInt16 firstId = 0x8000;
+#ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING        
+        const UA_UInt16 lastId = 0x8000 + 10;
+#else
+        const UA_UInt16 lastId = UA_UINT16_MAX;
+        #pragma message "Running this test without enabling UA_ENABLE_REDUCED_ITERATIONS takes very long time."
+#endif
+
+        UA_Variant regWriterGroupIds;
+        UA_Variant regDataSetWriterIds;
+        UA_String transportProfileUri =
+            UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
+
+        /* Call ReserveIds 1st time - reserve some IDs. */
+        retVal = CallReserveIds(client, &transportProfileUri, numRegWriterGroupIds, numRegDataSetWriterIds,
+            &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
+        ck_assert(UA_StatusCode_isGood(retVal));
+
+        /* Create PubSubConfiguration using some of the reserved IDs. */
+        UA_PubSubConnectionConfig connectionConfig;
+        memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
+        connectionConfig.name = UA_STRING("TestConnection");
+        connectionConfig.transportProfileUri = transportProfileUri;
+        UA_NetworkAddressUrlDataType networkAddressUrl;
+        UA_NetworkAddressUrlDataType_init(&networkAddressUrl);
+        networkAddressUrl.url = UA_STRING("opc.udp://224.0.0.1:4840");
+        UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
+                            &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
+        UA_NodeId connectionNodeId, writerGroupNodeId, dataSetWriterNodeId, publishedDataSetNodeId;
+        retVal |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionNodeId);
+
+        UA_WriterGroupConfig writerGroupConfig;
+        memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
+        writerGroupConfig.name = UA_STRING("TestWriterGroup");
+        writerGroupConfig.writerGroupId = ((UA_UInt16 *)regWriterGroupIds.data)[0]; // Here use the reserved WriterGroupId
+
+        retVal |= UA_Server_addWriterGroup(server, connectionNodeId, &writerGroupConfig, &writerGroupNodeId);
+
+        UA_PublishedDataSetConfig publishedDataSetConfig;
+        memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
+        publishedDataSetConfig.name = UA_STRING("TestPublishedDataSet");
+        retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetNodeId).addResult;
+
+        UA_DataSetWriterConfig dataSetWriterConfig;
+        memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
+        dataSetWriterConfig.name = UA_STRING("TestDataSetWriter");
+        dataSetWriterConfig.dataSetWriterId = ((UA_UInt16 *)regDataSetWriterIds.data)[0]; // Here use the reserved DataSetWriterId
+        retVal |= UA_Server_addDataSetWriter(server, writerGroupNodeId, publishedDataSetNodeId, &dataSetWriterConfig, &dataSetWriterNodeId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_Variant_clear(&defaultPublisherId);
+        UA_Variant_clear(&regWriterGroupIds);
+        UA_Variant_clear(&regDataSetWriterIds);
+
+        /* Call ReserveIds 2nd time within the same session and try to reserve
+         * as many IDs as needed to consume the whole pool (and roll over the ID counter). */
+        retVal = CallReserveIds(client, &transportProfileUri,
+            (UA_UInt16)(lastId - firstId - numRegWriterGroupIds + 1),
+            (UA_UInt16)(lastId - firstId - numRegDataSetWriterIds + 1),
+            &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
+        ck_assert(UA_StatusCode_isGood(retVal));
+
+        UA_Variant_clear(&defaultPublisherId);
+        UA_Variant_clear(&regWriterGroupIds);
+        UA_Variant_clear(&regDataSetWriterIds);
+
+        /* Call ReserveIds 3rd time within the same session and try to reserve one more ID from each category -
+         * check if the already reserved IDs are blocked. */
+        retVal = CallReserveIds(client, &transportProfileUri, 1, 1,
+            &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
+        /* TODO: Currently Part 14 doesn't define what should happen if the ID cannot be reserved.
+         * There is an open Mantis issue #8415. */
+        // ck_assert(UA_StatusCode_isBad(retVal));
+        ck_assert_uint_eq(regWriterGroupIds.arrayLength, 1);
+        ck_assert_uint_eq(((UA_UInt16 *)regWriterGroupIds.data)[0], 0);
+        ck_assert_uint_eq(regDataSetWriterIds.arrayLength, 1);
+        ck_assert_uint_eq(((UA_UInt16 *)regDataSetWriterIds.data)[0], 0);
+
+        UA_Variant_clear(&defaultPublisherId);
+        UA_Variant_clear(&regWriterGroupIds);
+        UA_Variant_clear(&regDataSetWriterIds);
+
+        /* Reconnect client - previous reservations shall be cancelled. */
+        UA_Client_disconnect(client);
+        retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_Client_delete(client);
+        }
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        /* Call ReserveIds again - check if the new reservation takes into account
+         * the IDs alrady being used by PubSub configuration. */
+        retVal = CallReserveIds(client, &transportProfileUri, numRegWriterGroupIds, numRegDataSetWriterIds,
+            &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
+        ck_assert(UA_StatusCode_isGood(retVal));
+
+        /* Check reserved WriterGroupIds */
+        ck_assert_str_eq("UInt16", regWriterGroupIds.type->typeName);
+        ck_assert_uint_eq(numRegWriterGroupIds, regWriterGroupIds.arrayLength);
+        for(size_t i = 0; i < regWriterGroupIds.arrayLength; i++) {
+            ck_assert_uint_eq(firstId + i + 1, ((UA_UInt16 *)regWriterGroupIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
+        }
+
+        /* Check reserved DataSetWriterIds */
+        ck_assert_str_eq("UInt16", regDataSetWriterIds.type->typeName);
+        ck_assert_uint_eq(numRegDataSetWriterIds, regDataSetWriterIds.arrayLength);
+        for(size_t i = 0; i < regDataSetWriterIds.arrayLength; i++) {
+            ck_assert_uint_eq(firstId + i + 1, ((UA_UInt16 *)regDataSetWriterIds.data)[i]); // Here check if the reservations started from 0x8000 + 1
+        }
+
+        UA_Variant_clear(&defaultPublisherId);
+        UA_Variant_clear(&regWriterGroupIds);
+        UA_Variant_clear(&regDataSetWriterIds);
+
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+} END_TEST
+
+START_TEST(ReserveIdsInvalidTransportUri){
+        UA_StatusCode retVal;
+        UA_Client *client = UA_Client_new();
+        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_Client_delete(client);
+        }
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_Variant *inputArguments = (UA_Variant *) UA_calloc(3, (sizeof(UA_Variant)));
+        UA_String transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/mqtt");
+        UA_Variant_setScalar(&inputArguments[0], &transportProfileUri, &UA_TYPES[UA_TYPES_STRING]);
+        UA_UInt16 numRegWriterGroupIds = 6;
+        UA_Variant_setScalar(&inputArguments[1], &numRegWriterGroupIds, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_UInt16 numRegDataSetWriterIds = 5;
+        UA_Variant_setScalar(&inputArguments[2], &numRegDataSetWriterIds, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_CallMethodRequest callMethodRequest;
+        UA_CallMethodRequest_init(&callMethodRequest);
+        callMethodRequest.inputArgumentsSize = 3;
+        callMethodRequest.inputArguments = inputArguments;
+        callMethodRequest.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION);
+        callMethodRequest.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_PUBSUBCONFIGURATION_RESERVEIDS);
+
+        UA_CallMethodResult result;
+        UA_CallMethodResult_init(&result);
+        result = UA_Server_call(server, &callMethodRequest);
+        ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADINVALIDARGUMENT);
+
+        UA_free(inputArguments);
+
+        UA_CallMethodResult_clear(&result);
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
+    } END_TEST
+
 int main(void) {
     TCase *tc_add_pubsub_informationmodel_methods_connection = tcase_create("PubSub connection delete and creation using the information model methods");
     tcase_add_checked_fixture(tc_add_pubsub_informationmodel_methods_connection, setup, teardown);
@@ -1168,6 +1376,8 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroupandDataSetReader);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddNewPubSubConnectionWithReaderGroup);
     tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, AddandRemoveReaderGroup);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, ReserveIdsMultipleTimes);
+    tcase_add_test(tc_add_pubsub_informationmodel_methods_connection, ReserveIdsInvalidTransportUri);
 
     Suite *s = suite_create("PubSub CRUD configuration by the information model functions");
     suite_add_tcase(s, tc_add_pubsub_informationmodel_methods_connection);

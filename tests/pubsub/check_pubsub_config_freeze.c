@@ -19,9 +19,10 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     UA_Server_run_startup(server);
 }
 
@@ -34,13 +35,14 @@ START_TEST(CreateAndLockConfiguration) {
     //create config
     UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1, dataSetField1;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
     &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -48,13 +50,13 @@ START_TEST(CreateAndLockConfiguration) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
 
     UA_DataSetFieldConfig fieldConfig;
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -62,7 +64,7 @@ START_TEST(CreateAndLockConfiguration) {
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
     fieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-    UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
+    retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
     UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
@@ -71,7 +73,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
     ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
 
-    UA_DataSetMetaDataType dataSetMetaDataType; 
+    UA_DataSetMetaDataType dataSetMetaDataType;
     UA_DataSetMetaDataType_init(&dataSetMetaDataType);
     ck_assert(UA_Server_getPublishedDataSetMetaData(server, publishedDataSet1, &dataSetMetaDataType) == UA_STATUSCODE_GOOD);
     UA_DataSetMetaDataType_clear(&dataSetMetaDataType);
@@ -79,7 +81,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_PublishedDataSetConfig publishedDataSetConfig;
     memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
     publishedDataSetConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS_TEMPLATE;
-    UA_DataSetMetaDataType metaDataType; 
+    UA_DataSetMetaDataType metaDataType;
     UA_DataSetMetaDataType_init(&metaDataType);
     publishedDataSetConfig.config.itemsTemplate.metaData = metaDataType;
     publishedDataSetConfig.config.itemsTemplate.variablesToAddSize = 1;
@@ -89,7 +91,7 @@ START_TEST(CreateAndLockConfiguration) {
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
@@ -102,28 +104,30 @@ START_TEST(CreateAndLockConfiguration) {
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
         ck_assert(dsf->configurationFrozen == UA_TRUE);
     }
     //set state to disabled and implicit unlock the configuration
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         //create config
         UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1, dataSetField1;
         UA_PubSubConnectionConfig connectionConfig;
+        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
         connectionConfig.name = UA_STRING("UADP Connection");
         UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                              &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-        UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+        retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -131,13 +135,13 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-        UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+        retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
         UA_PublishedDataSetConfig pdsConfig;
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet 1");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+        retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
 
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -145,7 +149,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         fieldConfig.field.variable.publishParameters.publishedVariable =
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-        UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
+        retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
         UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
         ck_assert(dataSetField->configurationFrozen == UA_FALSE);
@@ -157,7 +161,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-        UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
         UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
         ck_assert(dataSetWriter != NULL);
 
@@ -169,28 +173,30 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
         ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+        ck_assert(pubSubConnection->configurationFreezeCounter > 0);
         UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+        ck_assert(publishedDataSet->configurationFreezeCounter > 0);
         UA_DataSetField *dsf;
         TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
             ck_assert(dsf->configurationFrozen == UA_TRUE);
         }
         //set state to disabled and implicit unlock the configuration
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+        retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
 START_TEST(CreateAndReleaseMultiplePDSLocks) {
     //create config
     UA_NodeId connection1, writerGroup1, writerGroup2, publishedDataSet1, dataSetWriter1, dataSetWriter2, dataSetWriter3, dataSetField1;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     //Add two writer groups
     UA_WriterGroupConfig writerGroupConfig;
@@ -199,15 +205,15 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup2);
+    retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup2);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
 
     UA_DataSetFieldConfig fieldConfig;
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -215,18 +221,18 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
     fieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
-    UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1);
+    retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
     UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 2");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter2);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter2);
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 3");
-    UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
 
     UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
     UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
@@ -235,36 +241,37 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
+    ck_assert(publishedDataSet->configurationFreezeCounter == 0);
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
+    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
     ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
+    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->configurationFrozen == UA_TRUE);
+    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
-    ck_assert(publishedDataSet->configurationFrozen == UA_FALSE);
+    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
+    ck_assert(publishedDataSet->configurationFreezeCounter == 0);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFrozen == UA_FALSE);
-
+    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
 START_TEST(CreateLockAndEditConfiguration) {
     UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -272,13 +279,13 @@ START_TEST(CreateLockAndEditConfiguration) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
 
     UA_DataSetFieldConfig fieldConfig;
     memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -287,7 +294,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     fieldConfig.field.variable.publishParameters.publishedVariable =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     UA_NodeId localDataSetField;
-    UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField);
+    retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
 
     //get internal WG Pointer
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
@@ -296,7 +303,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
@@ -307,21 +314,23 @@ START_TEST(CreateLockAndEditConfiguration) {
     UA_DataSetFieldResult fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_BADCONFIGURATIONERROR);
     ck_assert(UA_Server_removePublishedDataSet(server, publishedDataSet1) == UA_STATUSCODE_BADCONFIGURATIONERROR);
-        UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
     fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
 START_TEST(CreateConfigWithStaticFieldSource) {
     UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
     UA_PubSubConnectionConfig connectionConfig;
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -329,13 +338,13 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
+    retVal |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
 
     UA_UInt32 *intValue = UA_UInt32_new();
     UA_DataValue *dataValue = UA_DataValue_new();
@@ -348,13 +357,14 @@ START_TEST(CreateConfigWithStaticFieldSource) {
     fieldConfig.field.variable.rtValueSource.rtFieldSourceEnabled = UA_TRUE;
     fieldConfig.field.variable.rtValueSource.staticValueSource = &dataValue;
     UA_NodeId localDataSetField;
-    UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField);
+    retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
     UA_DataValue_delete(dataValue);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
 int main(void) {

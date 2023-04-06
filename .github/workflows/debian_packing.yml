@@ -4,7 +4,8 @@ on:
   push:
     branches: [ main, master ]
     tags:
-      - v1.*
+      - 'v1.*'
+      - 'v1.*.*'
 
 jobs:
   Debian-Package-Branch-Preperation:

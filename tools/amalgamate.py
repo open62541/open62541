@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # coding: UTF-8
 # This Source Code Form is subject to the terms of the Mozilla Public
@@ -52,6 +52,8 @@ if is_c:
 # define UA_DYNAMIC_LINKING_EXPORT
 # define MDNSD_DYNAMIC_LINKING
 #endif
+
+#define UA_INLINABLE_IMPL 1
 
 /* Disable security warnings for BSD sockets on MSVC */
 #if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)

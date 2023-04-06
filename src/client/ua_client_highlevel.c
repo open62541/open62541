@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2015-2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015 (c) Oleksiy Vasylyev
@@ -259,7 +259,7 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
         else
             retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
     }
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(UA_StatusCode_isBad(retval)) {
         UA_CallResponse_clear(&response);
         return retval;
     }
@@ -1058,7 +1058,7 @@ UA_Client_readUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId no
                                      userdata, requestId);
 }
 
-UA_StatusCode 
+UA_StatusCode
 UA_Client_readIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadIsAbstractAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId) {

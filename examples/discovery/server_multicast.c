@@ -1,5 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ */
 
 /*
  * A simple server instance which registers with the discovery server.
@@ -222,8 +225,7 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    // use port 0 to dynamically assign port
-    UA_ServerConfig_setMinimal(config, 0, NULL);
+    UA_ServerConfig_setMinimal(config, 4841, NULL);
 
     // An LDS server normally has the application type to DISCOVERYSERVER.
     // Since this instance implements LDS and other OPC UA services, we set the type to SERVER.
@@ -276,6 +278,7 @@ int main(int argc, char **argv) {
     while (running && discovery_url == NULL)
         UA_Server_run_iterate(server, true);
     if(!running) {
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         UA_free(discovery_url);
         return EXIT_SUCCESS;
@@ -290,6 +293,7 @@ int main(int argc, char **argv) {
     if(endpointRegister == NULL || endpointRegister->securityMode == UA_MESSAGESECURITYMODE_INVALID) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not find any suitable endpoints on discovery server");
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
@@ -298,6 +302,7 @@ int main(int argc, char **argv) {
     if(!clientRegister) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the client for remote registering");
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
@@ -316,6 +321,7 @@ int main(int argc, char **argv) {
         UA_free(endpointUrl);
         UA_Client_disconnect(clientRegister);
         UA_Client_delete(clientRegister);
+        UA_Server_run_shutdown(server);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }

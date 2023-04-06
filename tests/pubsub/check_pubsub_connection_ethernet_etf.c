@@ -25,6 +25,7 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
@@ -53,16 +54,16 @@ START_TEST(AddConnectionsWithMinimalValidConfiguration){
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 2);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 2);
 } END_TEST
 
 START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
@@ -82,18 +83,18 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidConfiguration){
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map     = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_NodeId connectionIdent;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
     retVal |= UA_Server_removePubSubConnection(server, connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert(&server->pubSubManager.connections.tqh_first->listEntry.tqe_next != NULL);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
@@ -115,14 +116,14 @@ START_TEST(AddConnectionWithInvalidAddress){
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map     = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithInvalidInterface){
@@ -142,14 +143,14 @@ START_TEST(AddConnectionWithInvalidInterface){
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Boolean enableTxTime  = UA_TRUE;
     UA_Variant_setScalar(&connectionOptions[1].value, &enableTxTime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties     = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, NULL);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
 } END_TEST
 
 START_TEST(AddConnectionWithUnknownTransportURL){
@@ -163,14 +164,14 @@ START_TEST(AddConnectionWithUnknownTransportURL){
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/unknown-eth-uadp");
     UA_NodeId connectionIdent;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
     ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(AddConnectionWithNullConfig){
         UA_StatusCode retVal;
         retVal = UA_Server_addPubSubConnection(server, NULL, NULL);
-        ck_assert_int_eq(server->pubSubManager.connectionsSize, 0);
+        ck_assert_uint_eq(server->pubSubManager.connectionsSize, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -201,13 +202,14 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
-    connectionConf.connectionPropertiesSize = 5;
-    connectionConf.connectionProperties = connectionOptions;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.connectionProperties.map = connectionOptions;
+    connectionConf.connectionProperties.mapSize = 5;
     connectionConf.address = address;
     UA_NodeId connection;
     UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConf, &connection);
-    ck_assert_int_eq(server->pubSubManager.connectionsSize, 1);
+    ck_assert_uint_eq(server->pubSubManager.connectionsSize, 1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     ck_assert(! TAILQ_EMPTY(&server->pubSubManager.connections));
 } END_TEST
@@ -239,9 +241,10 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherId.numeric = 223344;
-    connectionConf.connectionPropertiesSize = 5;
-    connectionConf.connectionProperties = connectionOptions;
+    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.connectionProperties.map = connectionOptions;
+    connectionConf.connectionProperties.mapSize = 5;
     connectionConf.address = address;
 
     UA_NodeId connection;
@@ -251,15 +254,15 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     retVal |= UA_Server_getPubSubConnectionConfig(server, connection, &connectionConfig);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ck_assert(connectionConfig.connectionPropertiesSize == connectionConf.connectionPropertiesSize);
+    ck_assert(connectionConfig.connectionProperties.mapSize == connectionConf.connectionProperties.mapSize);
     ck_assert(UA_String_equal(&connectionConfig.name, &connectionConf.name) == UA_TRUE);
     ck_assert(UA_String_equal(&connectionConfig.transportProfileUri, &connectionConf.transportProfileUri) == UA_TRUE);
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy = *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
     ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
               UA_calcSizeBinary(&networkAddressUrlData, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
-    for(size_t i = 0; i < connectionConfig.connectionPropertiesSize; i++){
-        ck_assert(UA_String_equal(&connectionConfig.connectionProperties[i].key.name, &connectionConf.connectionProperties[i].key.name) == UA_TRUE);
-        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties[i].value));
+    for(size_t i = 0; i < connectionConfig.connectionProperties.mapSize; i++){
+        ck_assert(UA_String_equal(&connectionConfig.connectionProperties.map[i].key.name, &connectionConf.connectionProperties.map[i].key.name) == UA_TRUE);
+        ck_assert(UA_Variant_calcSizeBinary(&connectionConfig.connectionProperties.map[i].value) == UA_Variant_calcSizeBinary(&connectionConf.connectionProperties.map[i].value));
     }
     UA_PubSubConnectionConfig_clear(&connectionConfig);
 } END_TEST

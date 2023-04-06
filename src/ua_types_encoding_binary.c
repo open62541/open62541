@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2020 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  *    Copyright 2020 (c) Grigory Friedman
@@ -979,8 +979,13 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean hasDimensions = isArray && src->arrayDimensionsSize > 0;
     if(isArray) {
         encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_ARRAY;
-        if(hasDimensions)
+        if(hasDimensions) {
             encoding |= (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS;
+            size_t totalRequiredSize = 1;
+            for(size_t i = 0; i < src->arrayDimensionsSize; ++i)
+                totalRequiredSize *= src->arrayDimensions[i];
+            if(totalRequiredSize != src->arrayLength) return UA_STATUSCODE_BADENCODINGERROR;
+        }
     }
 
     /* Encode the encoding byte */
@@ -1188,7 +1193,7 @@ ENCODE_BINARY(DiagnosticInfo) {
     encodingMask |= (u8)(src->hasAdditionalInfo << 4u);
     encodingMask |= (u8)(src->hasInnerStatusCode << 5u);
     encodingMask |= (u8)(src->hasInnerDiagnosticInfo << 6u);
-    
+
     /* Encode the numeric content */
     status ret = ENCODE_DIRECT(&encodingMask, Byte);
     if(src->hasSymbolicId)

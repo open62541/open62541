@@ -4,8 +4,6 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${PROJECT_SOURCE_DIR}/tests/testing-plugins")
 
-add_definitions(-DUA_sleep_ms=UA_comboSleep)
-
 if(NOT MSVC)
     add_definitions(-Wno-deprecated-declarations)
 endif()
@@ -30,7 +28,7 @@ remove_definitions(-std=c99 -Wmissing-prototypes -Wstrict-prototypes)
 set(CMAKE_CXX_STANDARD 11)
 
 if(NOT UA_BUILD_OSS_FUZZ)
-    if(NOT "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
+    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
         MESSAGE(FATAL_ERROR "To build fuzzing, you need to use Clang as the compiler")
     endif()
 
@@ -61,7 +59,14 @@ list(APPEND LIBS "${open62541_LIBRARIES}")
 link_libraries("-fsanitize=fuzzer")
 
 # Use different plugins for testing
-set(fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/network_tcp.c
+set(fuzzing_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c

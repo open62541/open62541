@@ -51,7 +51,7 @@ writeVariable(UA_Server *server, UA_Int32 myInteger ) {
     UA_VariableAttributes Attr;
     UA_Variant_init(&Attr.value);
     UA_Variant_setScalar(&Attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
-    
+
     // Use a more detailed write function than UA_Server_writeValue
     UA_WriteValue wv;
     UA_WriteValue_init(&wv);

@@ -19,6 +19,7 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_pubsub_networkmessage.h"
 #include "ua_util_internal.h"
+#include "ua_pubsub.h"
 
 #include <signal.h>
 
@@ -60,7 +61,7 @@ customDecodeAndProcessCallback(UA_PubSubChannel *psc, void *ctx, const UA_ByteSt
     UA_NetworkMessage networkMessage;
     memset(&networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, &networkMessage);
+    UA_NetworkMessage_decodeBinary(buffer, &currentPosition, &networkMessage, NULL);
 
     /* Is this the correct message type? */
     if(networkMessage.networkMessageType != UA_NETWORKMESSAGE_DATASET)
@@ -136,8 +137,10 @@ int main(int argc, char **argv) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
+    UA_TransportLayerContext ctx;
+    ctx.connectionConfig = &connectionConfig;
     UA_PubSubChannel *psc =
-        udpLayer.createPubSubChannel(&connectionConfig);
+        udpLayer.createPubSubChannel(&udpLayer, &ctx);
     psc->regist(psc, NULL, NULL);
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -145,6 +148,6 @@ int main(int argc, char **argv) {
         retval = subscriberListen(psc);
 
     psc->close(psc);
-        
+
     return 0;
 }

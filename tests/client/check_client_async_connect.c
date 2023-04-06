@@ -15,12 +15,9 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
-#include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
 UA_Server *server;
-UA_ServerNetworkLayer nl;
-
 UA_Boolean connected = false;
 
 static void
@@ -34,6 +31,7 @@ currentState(UA_Client *client, UA_SecureChannelState channelState,
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -77,6 +75,8 @@ START_TEST(Client_connect_async) {
             UA_Client_sendAsyncBrowseRequest(client, &bReq, asyncBrowseCallback,
                                              &asyncCounter, &reqId);
         }
+        /* Give network a chance to process packet */
+        sleep(0);
         /* Manual clock for unit tests */
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
@@ -104,7 +104,7 @@ static void
 abortSecureChannelConnect(UA_Client *client, UA_SecureChannelState channelState,
                           UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     if(channelState >= abortState)
-        UA_Client_disconnect(client);
+        UA_Client_disconnectAsync(client);
 }
 
 /* Abort the connection by calling disconnect */
@@ -114,8 +114,7 @@ START_TEST(Client_connect_async_abort) {
     UA_ClientConfig_setDefault(cc);
     cc->stateCallback = abortSecureChannelConnect;
 
-    for(int i = UA_SECURECHANNELSTATE_HEL_SENT;
-        i < UA_SECURECHANNELSTATE_CLOSING; i++) {
+    for(int i = 0; i < UA_SECURECHANNELSTATE_CLOSING; i++) {
         abortState = (UA_SecureChannelState)i;
         UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -125,8 +124,8 @@ START_TEST(Client_connect_async_abort) {
             UA_Server_run_iterate(server, false);
             UA_Client_run_iterate(client, 5);
             UA_Client_getState(client, &currentState, NULL, &retval);
-        } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        } while(currentState != UA_SECURECHANNELSTATE_CLOSED &&
+                currentState != UA_SECURECHANNELSTATE_FRESH);
     }
 
     UA_Client_delete(client);
@@ -142,17 +141,24 @@ START_TEST(Client_no_connection) {
     UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_recv = client->connection.recv;
-    client->connection.recv = UA_Client_recvTesting;
-    //simulating unconnected server
-    UA_Client_recvTesting_result = UA_STATUSCODE_BADCONNECTIONCLOSED;
-    UA_Server_run_iterate(server, false);
-    retval = UA_Client_run_iterate(client, 0);  /* Open connection */
-    UA_Server_run_iterate(server, false);
-    retval |= UA_Client_run_iterate(client, 0); /* Send HEL */
-    UA_Server_run_iterate(server, false);
-    retval |= UA_Client_run_iterate(client, 0); /* Receive ACK */
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
+    /* Wait for the initial socket */
+    //UA_EventLoop *el = client->config.eventLoop;
+    while(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
+        //el->run(el, 0);
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 1);
+    }
+
+    /* Manually close the TCP connection */
+    UA_ConnectionManager *cm = client->channel.connectionManager;
+    cm->closeConnection(cm, client->channel.connectionId);
+
+    do {
+        UA_Server_run_iterate(server, false);
+        retval |= UA_Client_run_iterate(client, 0);
+        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    } while(client->channel.state != UA_SECURECHANNELSTATE_OPEN);
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -183,6 +189,12 @@ START_TEST(Client_run_iterate) {
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         sleep(0);
+    }
+
+    UA_Client_disconnectAsync(client);
+    while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+        UA_Server_run_iterate(server, false);
+        UA_Client_run_iterate(client, 0);
     }
     UA_Client_delete(client);
 }

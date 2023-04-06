@@ -28,10 +28,13 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    UA_Server_run_startup(server);
+    retVal |= UA_ServerConfig_setDefault(config);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
@@ -44,7 +47,22 @@ static void addPublishedDataSet(UA_String pdsName, UA_NodeId *assignedId){
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = pdsName;
-    UA_Server_addPublishedDataSet(server, &pdsConfig, assignedId);
+    ck_assert_int_eq(UA_Server_addPublishedDataSet(server, &pdsConfig, assignedId).addResult, UA_STATUSCODE_GOOD);
+}
+
+static void addDataSetField(UA_NodeId publishedDataSetIdent) {
+    /* Add a field to the previous created PublishedDataSet */
+    UA_NodeId dataSetFieldIdent;
+    UA_DataSetFieldConfig dataSetFieldConfig;
+    memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
+    dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
+    dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
+    dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
+    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+    ck_assert_int_eq(UA_Server_addDataSetField(server, publishedDataSetIdent,
+                              &dataSetFieldConfig, &dataSetFieldIdent).result, UA_STATUSCODE_GOOD);
 }
 
 static void addPubSubConnection(UA_String connectionName, UA_String addressUrl, UA_NodeId *assignedId){
@@ -55,7 +73,7 @@ static void addPubSubConnection(UA_String connectionName, UA_String addressUrl, 
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, assignedId);
+    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig, assignedId), UA_STATUSCODE_GOOD);
 }
 
 static void addWriterGroup(UA_NodeId parentConnection, UA_String name, UA_Duration interval, UA_NodeId *assignedId){
@@ -64,29 +82,29 @@ static void addWriterGroup(UA_NodeId parentConnection, UA_String name, UA_Durati
     writerGroupConfig.name = name;
     writerGroupConfig.publishingInterval = interval;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    UA_Server_addWriterGroup(server, parentConnection, &writerGroupConfig, assignedId);
-    UA_Server_setWriterGroupOperational(server, *assignedId);
+    ck_assert_int_eq(UA_Server_addWriterGroup(server, parentConnection, &writerGroupConfig, assignedId), UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_Server_setWriterGroupOperational(server, *assignedId), UA_STATUSCODE_GOOD);
 }
 
 static void addDataSetWriter(UA_NodeId parentWriterGroup, UA_NodeId connectedPDS, UA_String name, UA_NodeId *assignedId){
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = name;
-    UA_Server_addDataSetWriter(server, parentWriterGroup, connectedPDS, &dataSetWriterConfig, assignedId);
+    ck_assert_int_eq(UA_Server_addDataSetWriter(server, parentWriterGroup, connectedPDS, &dataSetWriterConfig, assignedId), UA_STATUSCODE_GOOD);
 }
 
 static void addReaderGroup(UA_NodeId parentConnection, UA_String name, UA_NodeId *assignedId){
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
     readerGroupConfig.name = name;
-    UA_Server_addReaderGroup(server, parentConnection, &readerGroupConfig, assignedId);
+    ck_assert_int_eq(UA_Server_addReaderGroup(server, parentConnection, &readerGroupConfig, assignedId), UA_STATUSCODE_GOOD);
 }
 
 static void addDataSetReader(UA_NodeId parentReaderGroup, UA_String name, UA_NodeId *assignedId){
     UA_DataSetReaderConfig readerConfig;
     memset(&readerConfig, 0, sizeof(readerConfig));
     readerConfig.name = name;
-    UA_Server_addDataSetReader(server, parentReaderGroup, &readerConfig, assignedId);
+    ck_assert_int_eq(UA_Server_addDataSetReader(server, parentReaderGroup, &readerConfig, assignedId), UA_STATUSCODE_GOOD);
 }
 
 static UA_Boolean doubleEqual(UA_Double a, UA_Double b, UA_Double maxAbsDelta){
@@ -135,8 +153,8 @@ static void setupBasicPubSubConfiguration(void){
     memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("Demo DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet2,
-                               &dataSetWriterConfig, &dataSetWriter4);
+    ck_assert_int_eq(UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet2,
+                               &dataSetWriterConfig, &dataSetWriter4), UA_STATUSCODE_GOOD);
     addReaderGroup(connection1, UA_STRING("ReaderGroup 1"), &readerGroup1);
     addDataSetReader(readerGroup1, UA_STRING("DataSetReader 1"), &dataSetReader1);
 }
@@ -170,7 +188,32 @@ START_TEST(AddRemoveAddSignlePubSubConnectionAndCheckInformationModelRepresentat
 START_TEST(AddSinglePublishedDataSetAndCheckInformationModelRepresentation){
     UA_String pdsName = UA_STRING("PDS 1");
     addPublishedDataSet(pdsName, &publishedDataSet1);
+    addDataSetField(publishedDataSet1);
     UA_QualifiedName browseName;
+    UA_NodeId publishedDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId dataSetMetaDataNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_NodeId configurationVersionNodeId = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
+                                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), publishedDataSet1);
+    UA_Variant value;
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, publishedDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasArrayType(&value, &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]));
+    UA_NodeId dsf1 = ((UA_PublishedVariableDataType *)value.data)[0].publishedVariable;
+    UA_NodeId serverCurrentTimeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    ck_assert(UA_NodeId_equal(&dsf1, &serverCurrentTimeId));
+    ck_assert_uint_eq(value.arrayLength, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, dataSetMetaDataNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]));
+    ck_assert_uint_eq(((UA_DataSetMetaDataType *)value.data)->fieldsSize, 1);
+    UA_Variant_clear(&value);
+    UA_Variant_init(&value);
+    ck_assert_int_eq(UA_Server_readValue(server, configurationVersionNodeId, &value), UA_STATUSCODE_GOOD);
+    ck_assert(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]));
+    UA_Variant_clear(&value);
     ck_assert_int_eq(UA_Server_readBrowseName(server, publishedDataSet1, &browseName), UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_String_equal(&browseName.name, &pdsName), UA_TRUE);
     UA_QualifiedName_clear(&browseName);

@@ -11,28 +11,24 @@
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
- *    Copyright 2020-2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  */
 
 #ifndef UA_SERVER_H_
 #define UA_SERVER_H_
 
-#include <open62541/util.h>
 #include <open62541/types.h>
 #include <open62541/common.h>
-#include <open62541/nodeids.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
-#include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/accesscontrol.h>
-#include <open62541/plugin/nodestore.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
+#include <open62541/plugin/network.h>
+#include <open62541/plugin/nodestore.h>
+#include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/accesscontrol.h>
+#include <open62541/plugin/securitypolicy.h>
 
 #ifdef UA_ENABLE_PUBSUB
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server_pubsub.h>
 #endif
 
@@ -85,7 +81,9 @@ typedef struct {
  * The :ref:`tutorials` provide a good starting point for this. */
 
 struct UA_ServerConfig {
-    UA_Logger logger;
+    UA_Logger logger;   /* logger is deprecated but still supported at this time.
+                           Use logging pointer instead. */
+    UA_Logger *logging; /* If NULL and "logger" is set, make this point to "logger" */
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
                     * pointer to the server. */
@@ -145,11 +143,41 @@ struct UA_ServerConfig {
     const UA_DataTypeArray *customDataTypes;
 
     /**
+     * .. note:: See the section on :ref:`generic-types`. Examples for working
+     *    with custom data types are provided in
+     *    ``/examples/custom_datatype/``. */
+
+    /**
+     * EventLoop
+     * ^^^^^^^^^
+     * The sever can be plugged into an external EventLoop. Otherwise the
+     * EventLoop is considered to be attached to the server's lifecycle and will
+     * be destroyed when the config is cleaned up. */
+    UA_EventLoop *eventLoop;
+    UA_Boolean externalEventLoop; /* The EventLoop is not deleted with the config */
+
+    /**
      * Networking
-     * ^^^^^^^^^^ */
-    size_t networkLayersSize;
-    UA_ServerNetworkLayer *networkLayers;
-    UA_String customHostname;
+     * ^^^^^^^^^^
+     * The `severUrls` array contains the server URLs like
+     * `opc.tcp://my-server:4840` or `opc.wss://localhost:443`. The URLs are
+     * used both for discovery and to set up the server sockets based on the
+     * defined hostnames (and ports).
+     *
+     * - If the list is empty: Listen on all network interfaces with TCP port 4840.
+     * - If the hostname of a URL is empty: Use the define protocol and port and
+     *   listen on all interfaces. */
+    UA_String *serverUrls;
+    size_t serverUrlsSize;
+
+    /**
+     * The following settings are specific to OPC UA with TCP transport. */
+    UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
+                              * (default: 64kB) */
+    UA_UInt32 tcpMaxMsgSize; /* Max length of messages
+                              * (default: 0 -> unbounded) */
+    UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
+                              * (default: 0 -> unbounded) */
 
     /**
      * Security and Encryption
@@ -332,6 +360,11 @@ struct UA_ServerConfig {
     UA_Boolean deleteEventCapability;
     UA_Boolean deleteAtTimeDataCapability;
 #endif
+
+    /**
+     * Reverse Connect
+     * ^^^^^^^^^^^^^^^ */
+    UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
 };
 
 void UA_EXPORT
@@ -343,36 +376,66 @@ UA_ServerConfig_clean(UA_ServerConfig *config);
  * Server Lifecycle
  * ---------------- */
 
-/* The method UA_Server_new is defined in server_config_default.h. So default
- * plugins outside of the core library (for logging, etc) are already available
- * during the initialization.
+/* Create a new server with a default configuration that adds plugins for
+ * networking, security, logging and so on. See `server_config_default.h` for
+ * more detailed options.
  *
- * UA_Server UA_EXPORT * UA_Server_new(void);
- */
+ * The default configuration can be used as the starting point to adjust the
+ * server configuration to individual needs. UA_Server_new is implemented in the
+ * /plugins folder under the CC0 license. Furthermore the server confiugration
+ * only uses the public server API.
+ *
+ * @return Returns the configured server or NULL if an error occurs. */
+UA_EXPORT UA_Server * UA_Server_new(void);
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
-UA_Server UA_EXPORT *
+UA_EXPORT UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config);
 
-void UA_EXPORT UA_Server_delete(UA_Server *server);
+/* Delete the server. */
+UA_EXPORT void UA_Server_delete(UA_Server *server);
 
-UA_ServerConfig UA_EXPORT *
+/* Get the configuration. Always succeeds as this simplfy resolves a pointer.
+ * Attention! Do not adjust the configuration while the server is running! */
+UA_EXPORT UA_ServerConfig *
 UA_Server_getConfig(UA_Server *server);
 
-/* Runs the main loop of the server. In each iteration, this calls into the
- * networklayers to see if messages have arrived.
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt. The logical sequence is as follows:
+ *
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
  *
  * @param server The server object.
- * @param running The loop is run as long as *running is true.
- *        Otherwise, the server shuts down.
- * @return Returns the statuscode of the UA_Server_run_shutdown method */
-UA_StatusCode UA_EXPORT
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_EXPORT UA_StatusCode
 UA_Server_run(UA_Server *server, const volatile UA_Boolean *running);
 
+/* Runs the server until interrupted. On Unix/Windows this registers an
+ * interrupt for SIGINT (ctrl-c). The method only returns after having received
+ * the interrupt or upon an error condition. The logical sequence is as follows:
+ *
+ * - Register the interrupt
+ * - UA_Server_run_startup
+ * - Loop until interrupt: UA_Server_run_iterate
+ * - UA_Server_run_shutdown
+ * - Deregister the interrupt
+ *
+ * Attention! This method is implemented individually for the different
+ * platforms (POSIX/Win32/etc.). The default implementation is in
+ * /plugins/ua_config_default.c under the CC0 license. Adjust as needed.
+ *
+ * @param server The server object.
+ * @return Returns a bad statuscode if an error occurred internally. */
+UA_EXPORT UA_StatusCode
+UA_Server_runUntilInterrupt(UA_Server *server);
+
 /* The prologue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_startup(UA_Server *server);
 
 /* Executes a single iteration of the server's main loop.
@@ -380,15 +443,15 @@ UA_Server_run_startup(UA_Server *server);
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
  *        Otherwise, the timouts for the networklayers are set to zero.
- *        The default max wait time is 50millisec.
+ *        The default max wait time is 200ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
-UA_UInt16 UA_EXPORT
+UA_EXPORT UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal);
 
 /* The epilogue part of UA_Server_run (no need to use if you call
- * UA_Server_run) */
-UA_StatusCode UA_EXPORT
+ * UA_Server_run or UA_Server_runUntilInterrupt) */
+UA_EXPORT UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server);
 
 /**
@@ -457,35 +520,52 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
 
-/* Session Parameters: Besides the user-definable session context pointer,
- * so-called session parameters are a way to attach key-value parameters to a
- * session. This enables "plugins" to attach data to a session without impacting
- * the user-definedable session context pointer. */
+/**
+ * Session attributes: Besides the user-definable session context pointer (set
+ * by the AccessControl plugin when the Session is created), a session carries
+ * attributes in a key-value list. Some attributes are present in every session
+ * and shown in the list below. Additional attributes can be manually set as
+ * meta-data.
+ *
+ * Always present as session attributes are:
+ *
+ * - 0:localeIds [UA_String]: List of preferred languages (read-only)
+ * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
+ * - 0:sessionName [String] Client-defined name of the session (read-only)
+ */
+
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value once the Session could be already closed in the
+ * background or the attribute of the session replaced. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
+                                  const UA_QualifiedName key, UA_Variant *outValue);
+
+/* Returns NULL if the parameter is not defined or not a scalar or not of the
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Server_getSessionAttribute_scalar(UA_Server *server,
+                                     const UA_NodeId *sessionId,
+                                     const UA_QualifiedName key,
+                                     const UA_DataType *type,
+                                     void *outValue);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const char *name, const UA_Variant *parameter);
-
-UA_EXPORT void UA_THREADSAFE
-UA_Server_deleteSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                 const char *name);
-
-/* Returns NULL if the session or the parameter are not defined. Returns a deep
- * copy otherwise */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionParameter(UA_Server *server, const UA_NodeId *sessionId,
-                              const char *name, UA_Variant *outParameter);
-
-/* Returns NULL if the parameter is not defined or not of the right datatype */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionScalarParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                    const char *name, const UA_DataType *type,
-                                    UA_Variant *outParameter);
+UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                              const UA_QualifiedName key,
+                              const UA_Variant *value);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_getSessionArrayParameter(UA_Server *server, const UA_NodeId *sessionId,
-                                   const char *name, const UA_DataType *type,
-                                   UA_Variant *outParameter);
+UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
+                                 const UA_QualifiedName key);
 
 /**
  * Reading and Writing Node Attributes
@@ -1547,6 +1627,57 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
 
+/**
+ * The method pair UA_Server_addCondition_begin and _finish splits the
+ * UA_Server_createCondtion in two parts similiar to the
+ * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
+ * modified before finish the instantiation. For example to add children with
+ * specific NodeIds.
+ * For details refer to the UA_Server_addNode_begin / _finish methods.
+ *
+ * Additionally to UA_Server_addNode_begin UA_Server_addCondition_begin checks
+ * if the passed condition type is a subtype of the OPC UA ConditionType.
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the requested Condition Object. When passing
+ *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
+ *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
+ * @param conditionType The NodeId of the node representation of the ConditionType
+ * @param conditionName The name of the condition to be added
+ * @param outConditionId The NodeId of the added Condition
+ * @return The StatusCode of the UA_Server_addCondition_begin method */
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_begin(UA_Server *server,
+                             const UA_NodeId conditionId,
+                             const UA_NodeId conditionType,
+                             const UA_QualifiedName conditionName,
+                             UA_NodeId *outConditionId);
+
+/**
+ * Second call of the UA_Server_addCondition_begin and _finish pair.
+ *
+ * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
+ *  - checks whether the condition source has HasEventSource reference to its
+ *    parent. If not, a HasEventSource reference will be created between
+ *    condition source and server object
+ *  - exposes the condition in the address space if hierarchialReferenceType is
+ *    not UA_NODEID_NULL by adding a reference of this type from the condition
+ *    source to the condition instance
+ *  - initializes the standard condition fields and callbacks
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the unfinished Condition Object
+ * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
+ * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
+ *                                 between Condition and its source
+ * @return The StatusCode of the UA_Server_addCondition_finish method */
+
+UA_StatusCode UA_EXPORT
+UA_Server_addCondition_finish(UA_Server *server,
+                              const UA_NodeId conditionId,
+                              const UA_NodeId conditionSource,
+                              const UA_NodeId hierarchialReferenceType);
+
 /* Set the value of condition field.
  *
  * @param server The server object
@@ -1554,7 +1685,7 @@ UA_Server_createCondition(UA_Server *server,
  * @param value Variant Value to be written to the Field
  * @param fieldName Name of the Field in which the value should be written
  * @return The StatusCode of the UA_Server_setConditionField method*/
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setConditionField(UA_Server *server,
                             const UA_NodeId condition,
                             const UA_Variant *value,
@@ -1629,7 +1760,7 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
                                                UA_TwoStateVariableCallbackType callbackType);
 
 /* Delete a condition from the address space and the internal lists.
- * 
+ *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
  * @param conditionSource The NodeId of the node representation of the Condition Source
@@ -1638,6 +1769,28 @@ UA_StatusCode UA_EXPORT
 UA_Server_deleteCondition(UA_Server *server,
                           const UA_NodeId condition,
                           const UA_NodeId conditionSource);
+
+/*
+ * Set the LimitState of the LimitAlarmType
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param limitValue The value from the trigger node
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
+                        UA_Double limitValue);
+
+/*
+ * Parse the certifcate and set Expiration date
+ *
+ * @param server The server object
+ * @param conditionId The NodeId of the node representation of the Condition Instance
+ * @param cert The certificate for parsing
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
+                            UA_ByteString  cert);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
@@ -1751,20 +1904,69 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 #endif /* !UA_MULTITHREADING >= 100 */
 
 /**
-* Statistics
-* ----------
-*
-* Statistic counters keeping track of the current state of the stack. Counters
-* are structured per OPC UA communication layer. */
+ * Statistics
+ * ----------
+ *
+ * Statistic counters keeping track of the current state of the stack. Counters
+ * are structured per OPC UA communication layer. */
 
 typedef struct {
-   UA_NetworkStatistics ns;
    UA_SecureChannelStatistics scs;
    UA_SessionStatistics ss;
 } UA_ServerStatistics;
 
 UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
+
+/**
+  * Reverse Connect
+  * ---------------
+  *
+  * The reverse connect feature of OPC UA permits the server instead of the client to
+  * establish the connection.
+  * The client must expose the listening port so the server is able to reach it.
+  */
+
+/**
+ * The reverse connect state change callback is called whenever the state of a reverse
+ * connect is changed by a connection attempt, a successful connection or a connection
+ * loss.
+ *
+ * The reverse connect states reflect the state of the secure channel currently associated
+ * with a reverse connect. The state will remain UA_SECURECHANNELSTATE_CONNECTING while
+ * the server attempts repeatedly to establish a connection.
+ */
+typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
+                                                      UA_SecureChannelState state,
+                                                      void *context);
+
+/**
+ * Registers a reverse connect in the server.
+ * The server periodically attempts to establish a connection if the initial connect fails
+ * or if the connection breaks.
+ *
+ * @param server The server object
+ * @param url The URL of the remote client
+ * @param stateCallback The callback which will be called on state changes
+ * @param callbackContext The context for the state callback
+ * @param handle Is set to the handle of the reverse connect if not NULL
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                                          UA_Server_ReverseConnectStateCallback stateCallback,
+                                          void *callbackContext, UA_UInt64 *handle);
+
+/**
+ * Removes a reverse connect from the server and closes the connection if it is currently
+ * open.
+ *
+ * @param server The server object
+ * @param handle The handle of the reverse connect to remove
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been successfully removed
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle);
 
 _UA_END_DECLS
 

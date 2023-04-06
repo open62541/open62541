@@ -20,7 +20,7 @@ int main(void) {
 
     /* Attention! Here the custom datatypes are allocated on the stack. So they
      * cannot be accessed from parallel (worker) threads. */
-    UA_DataTypeArray customDataTypes = {NULL, 4, types};
+    UA_DataTypeArray customDataTypes = {NULL, 4, types, UA_FALSE};
 
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -32,15 +32,15 @@ int main(void) {
         UA_Client_delete(client);
         return (int)retval;
     }
-    
+
     UA_Variant value; /* Variants can hold scalar values and arrays of any type */
     UA_Variant_init(&value);
-    
+
      UA_NodeId nodeId =
         UA_NODEID_STRING(1, "3D.Point");
 
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
-            
+
     if(retval == UA_STATUSCODE_GOOD) {
         Point *p = (Point *)value.data;
         printf("Point = %f, %f, %f \n", p->x, p->y, p->z);

@@ -9,7 +9,7 @@
 
 /* The testing clock is used for reproducible unit tests that require precise
  * timings. It implements the following functions from ua_types.h. They return a
- * deterministic time that can be advanced manually with UA_sleep.
+ * deterministic time that can be advanced manually with UA_fakeSleep.
  *
  * UA_DateTime UA_EXPORT UA_DateTime_now(void);
  * UA_DateTime UA_EXPORT UA_DateTime_nowMonotonic(void); */

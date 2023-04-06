@@ -4,26 +4,25 @@
  *
  * Copyright (c) 2017-2018 Fraunhofer IOSB (Author: Andreas Ebner)
  * Copyright (c) 2019 Kalycito Infotech Private Limited
+ * Copyright (c) 2022 Siemens AG (Author: Thomas Fischer)
+ * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_PUBSUB_NS0_H_
 #define UA_PUBSUB_NS0_H_
 
-#include "server/ua_server_internal.h"
 #include "ua_pubsub.h"
+#include "server/ua_server_internal.h"
 
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 UA_StatusCode
-UA_Server_initPubSubNS0(UA_Server *server);
+initPubSubNS0(UA_Server *server);
 
 UA_StatusCode
 addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
-
-UA_StatusCode
-removePubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
 
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
@@ -32,28 +31,24 @@ UA_StatusCode
 addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
 
 UA_StatusCode
-removeGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
-
-UA_StatusCode
 addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
-
-UA_StatusCode
-removeDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
 
 UA_StatusCode
-removePublishedDataSetRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
 UA_StatusCode
 addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
 
 UA_StatusCode
-removeDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId);
 
+#ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
-removeReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
+addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
+#endif /* UA_ENABLE_PUBSUB_SKS */
 
 #endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 

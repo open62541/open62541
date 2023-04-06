@@ -8,8 +8,8 @@
 
 /**
  * This uses the mqtt/ua_mqtt_adapter.h to call mqtt functions.
- * Currently only ua_mqtt_adapter.c implements this 
- * interface and maps them to the specific "MQTT-C" library functions. 
+ * Currently only ua_mqtt_adapter.c implements this
+ * interface and maps them to the specific "MQTT-C" library functions.
  * Another mqtt lib could be used.
  * "mqtt_pal.c" forwards the network calls (send/recv) to UA_Connection (TCP).
  */
@@ -41,7 +41,7 @@ UA_uaQos_toMqttQos(UA_BrokerTransportQualityOfService uaQos, UA_Byte *qos){
 
 /**
  * Open mqtt connection based on the connectionConfig.
- * 
+ *
  *
  * @return ref to created channel, NULL on error
  */
@@ -55,7 +55,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation failed. Invalid Address.");
         return NULL;
     }
-    
+
     /* allocate and init memory for the Mqtt specific internal data */
     UA_PubSubChannelDataMQTT * channelDataMQTT =
             (UA_PubSubChannelDataMQTT *) UA_calloc(1, (sizeof(UA_PubSubChannelDataMQTT)));
@@ -83,52 +83,53 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             username = UA_STRING("mqttUsername"), password = UA_STRING("mqttPassword"), caFilePath = UA_STRING("mqttCaFilePath"),
             caPath = UA_STRING("mqttCaPath"), useTLS = UA_STRING("mqttUseTLS"), clientCertPath = UA_STRING("mqttClientCertPath"),
             clientKeyPath = UA_STRING("mqttClientKeyPath");
-    for(size_t i = 0; i < connectionConfig->connectionPropertiesSize; i++){
-        if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &sendBuffer)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                channelDataMQTT->mqttSendBufferSize = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+    for(size_t i = 0; i < connectionConfig->connectionProperties.mapSize; i++){
+        UA_KeyValuePair *prop = &connectionConfig->connectionProperties.map[i];
+        if(UA_String_equal(&prop->key.name, &sendBuffer)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                channelDataMQTT->mqttSendBufferSize = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &recvBuffer)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_UINT32])){
-                channelDataMQTT->mqttRecvBufferSize = *(UA_UInt32 *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &recvBuffer)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_UINT32])){
+                channelDataMQTT->mqttRecvBufferSize = *(UA_UInt32 *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientId)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                channelDataMQTT->mqttClientId = (UA_String *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &clientId)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                channelDataMQTT->mqttClientId = (UA_String *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &username)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttUsername);
+        } else if(UA_String_equal(&prop->key.name, &username)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttUsername);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &password)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttPassword);
+        } else if(UA_String_equal(&prop->key.name, &password)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttPassword);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caFilePath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCaFilePath);
+        } else if(UA_String_equal(&prop->key.name, &caFilePath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttCaFilePath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &caPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttCaPath);
+        } else if(UA_String_equal(&prop->key.name, &caPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttCaPath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &useTLS)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_BOOLEAN])){
-                channelDataMQTT->mqttUseTLS = *(UA_Boolean *) connectionConfig->connectionProperties[i].value.data;
+        } else if(UA_String_equal(&prop->key.name, &useTLS)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_BOOLEAN])){
+                channelDataMQTT->mqttUseTLS = *(UA_Boolean *) prop->value.data;
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientCertPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttClientCertPath);
+        } else if(UA_String_equal(&prop->key.name, &clientCertPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttClientCertPath);
             }
-        } else if(UA_String_equal(&connectionConfig->connectionProperties[i].key.name, &clientKeyPath)){
-            if(UA_Variant_hasScalarType(&connectionConfig->connectionProperties[i].value, &UA_TYPES[UA_TYPES_STRING])){
-                UA_String_copy((UA_String *) connectionConfig->connectionProperties[i].value.data, &channelDataMQTT->mqttClientKeyPath);
+        } else if(UA_String_equal(&prop->key.name, &clientKeyPath)){
+            if(UA_Variant_hasScalarType(&prop->value, &UA_TYPES[UA_TYPES_STRING])){
+                UA_String_copy((UA_String *) prop->value.data, &channelDataMQTT->mqttClientKeyPath);
             }
         }  else {
             UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT Connection creation. Unknown connection parameter.");
         }
     }
-    
+
     /* Create a new channel */
     UA_PubSubChannel *newChannel = (UA_PubSubChannel *) UA_calloc(1, sizeof(UA_PubSubChannel));
     if(!newChannel){
@@ -158,7 +159,7 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             return NULL;
         }
     }
-    
+
     /* Allocate memory for mqtt send buffer */
     if(channelDataMQTT->mqttSendBufferSize > 0){
         channelDataMQTT->mqttSendBuffer = (uint8_t*)UA_calloc(channelDataMQTT->mqttSendBufferSize, sizeof(uint8_t));
@@ -177,13 +178,13 @@ UA_PubSubChannelMQTT_open(const UA_PubSubConnectionConfig *connectionConfig) {
             return NULL;
         }
     }
-    
+
     /*link channel and internal channel data*/
     newChannel->handle = channelDataMQTT;
-    
+
     /* MQTT Client connect call. */
     UA_StatusCode ret = connectMqtt(channelDataMQTT);
-    
+
     if(ret != UA_STATUSCODE_GOOD){
         /* try to disconnect tcp */
         disconnectMqtt(channelDataMQTT);
@@ -219,7 +220,7 @@ UA_PubSubChannelMQTT_regist(UA_PubSubChannel *channel, UA_ExtensionObject *trans
 
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     channelDataMQTT->callback = callback;
-    
+
     if(transportSettings == NULL ||
        transportSettings->encoding != UA_EXTENSIONOBJECT_DECODED ||
        transportSettings->content.decoded.type != &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
@@ -269,7 +270,7 @@ UA_PubSubChannelMQTT_unregist(UA_PubSubChannel *channel, UA_ExtensionObject *tra
  * @return UA_STATUSCODE_GOOD if success
  */
 static UA_StatusCode
-UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, const UA_ByteString *buf) {
+UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_ByteString *buf) {
     if(channel->state != UA_PUBSUB_CHANNEL_RDY){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: sending failed. Invalid state.");
         return UA_STATUSCODE_BADCONNECTIONCLOSED;
@@ -295,7 +296,7 @@ UA_PubSubChannelMQTT_send(UA_PubSubChannel *channel, UA_ExtensionObject *transpo
         return ret;
     }
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
+    UA_LOG_TRACE(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Publish");
     return ret;
 }
 
@@ -350,14 +351,45 @@ UA_PubSubChannelMQTT_yield(UA_PubSubChannel *channel, UA_UInt16 timeout){
 }
 
 /**
+ * Receive a message. The regist function should be called before.
+ *
+ * @param timeout in msec
+ * @param Buffer to recieve messages
+ *
+ * @return UA_STATUSCODE_GOOD if success
+ */
+static UA_StatusCode
+UA_PubSubChannelMQTT_receive(UA_PubSubChannel *channel, UA_ExtensionObject *transportSettings, UA_PubSubReceiveCallback receiveCallback,
+                              void *receiveCallbackContext, UA_UInt32 timeout){
+
+    /* Nothing to do */
+    return UA_STATUSCODE_GOOD;
+}
+static UA_StatusCode
+UA_PubSubChannelMQTT_allocNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf, size_t bufSize) {
+
+    UA_StatusCode rv = UA_ByteString_allocBuffer(buf, bufSize);
+    return rv;
+}
+
+static UA_StatusCode
+UA_PubSubChannelMQTT_freeNetworkBuffer(UA_PubSubChannel *channel, UA_ByteString *buf) {
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
  * Generate a new MQTT channel. Based on the given configuration. Uses yield and no recv call.
  *
  * @param connectionConfig connection configuration
  * @return  ref to created channel, NULL on error
  */
 static UA_PubSubChannel *
-TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
+TransportLayerMQTT_addChannel(UA_PubSubTransportLayer *tl, void *ctx) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSub MQTT: channel requested.");
+    UA_TransportLayerContext *tctx  = (UA_TransportLayerContext *) ctx;
+    UA_PubSubConnectionConfig *connectionConfig = tctx->connectionConfig;
+
     UA_PubSubChannel * pubSubChannel = UA_PubSubChannelMQTT_open(connectionConfig);
     if(pubSubChannel){
         pubSubChannel->regist = UA_PubSubChannelMQTT_regist;
@@ -365,18 +397,35 @@ TransportLayerMQTT_addChannel(UA_PubSubConnectionConfig *connectionConfig) {
         pubSubChannel->send = UA_PubSubChannelMQTT_send;
         pubSubChannel->close = UA_PubSubChannelMQTT_close;
         pubSubChannel->yield = UA_PubSubChannelMQTT_yield;
-        
+        pubSubChannel->openPublisher = NULL;
+        pubSubChannel->openSubscriber = NULL;
+        pubSubChannel->closePublisher = NULL;
+        pubSubChannel->closeSubscriber = NULL;
+        pubSubChannel->allocNetworkBuffer = UA_PubSubChannelMQTT_allocNetworkBuffer;
+        pubSubChannel->freeNetworkBuffer = UA_PubSubChannelMQTT_freeNetworkBuffer;
+
+        pubSubChannel->receive = UA_PubSubChannelMQTT_receive;
+
         pubSubChannel->connectionConfig = connectionConfig;
     }
     return pubSubChannel;
 }
 
+static UA_StatusCode
+TransportLayerMQTT_addWritergroupChannel(UA_PubSubChannel **out, UA_PubSubTransportLayer *tl, const UA_ExtensionObject *writerGroupTransportSettings, void* ctx)  {
+    *out = NULL;
+    return UA_STATUSCODE_GOOD;
+}
+
 //MQTT channel factory
 UA_PubSubTransportLayer
-UA_PubSubTransportLayerMQTT(){
+UA_PubSubTransportLayerMQTT(void){
     UA_PubSubTransportLayer pubSubTransportLayer;
+
     pubSubTransportLayer.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
     pubSubTransportLayer.createPubSubChannel = &TransportLayerMQTT_addChannel;
+    pubSubTransportLayer.createWriterGroupPubSubChannel= &TransportLayerMQTT_addWritergroupChannel;
+    pubSubTransportLayer.connectionManager = NULL;
     return pubSubTransportLayer;
 }
 
