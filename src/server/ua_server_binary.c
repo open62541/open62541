@@ -1001,30 +1001,32 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 #define UA_MINMESSAGESIZE 8192
 
 static UA_StatusCode
-sendRHEMessage(UA_Server *server, uintptr_t connectionId, UA_ConnectionManager *cm) {
+sendRHEMessage(UA_Server *server, uintptr_t connectionId,
+               UA_ConnectionManager *cm) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
     /* Get a buffer */
     UA_ByteString message;
-    UA_StatusCode retval = cm->allocNetworkBuffer(cm, connectionId,
-                                                  &message, UA_MINMESSAGESIZE);
-
+    UA_StatusCode retval =
+        cm->allocNetworkBuffer(cm, connectionId, &message, UA_MINMESSAGESIZE);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Prepare the RHE message and encode at offset 8 */
     UA_TcpReverseHelloMessage reverseHello;
     UA_TcpReverseHelloMessage_init(&reverseHello);
-
-    UA_ServerConfig *config = UA_Server_getConfig(server);
     reverseHello.serverUri = config->applicationDescription.applicationUri;
-    if (config->applicationDescription.discoveryUrlsSize)
+    if(config->applicationDescription.discoveryUrlsSize)
         reverseHello.endpointUrl = config->applicationDescription.discoveryUrls[0];
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
-    UA_StatusCode result = UA_encodeBinaryInternal(&reverseHello, &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE],
-                                                    &bufPos, &bufEnd, NULL, NULL);
+    UA_StatusCode result =
+        UA_encodeBinaryInternal(&reverseHello,
+                                &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE],
+                                &bufPos, &bufEnd, NULL, NULL);
 
-    if (result != UA_STATUSCODE_GOOD) {
+    if(result != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, connectionId, &message);
         return result;
     }
@@ -1037,7 +1039,6 @@ sendRHEMessage(UA_Server *server, uintptr_t connectionId, UA_ConnectionManager *
     retval = UA_encodeBinaryInternal(&messageHeader,
                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
                                      &bufPos, &bufEnd, NULL, NULL);
-
     if(retval != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, connectionId, &message);
         return retval;
