@@ -224,7 +224,6 @@ setup(void) {
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_Server_run_startup(server);
     // add 2 connections
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));

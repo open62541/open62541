@@ -21,13 +21,12 @@ UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
-    UA_StatusCode retVal = UA_Server_run_startup(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
 
+    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
     retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
-
     retVal |= UA_Server_run_startup(server);
+
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
