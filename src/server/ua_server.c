@@ -889,10 +889,22 @@ UA_Server_run_startup(UA_Server *server) {
                                      &hostname, &port, &path);
         if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
             continue;
-        retVal = UA_Array_appendCopy((void**)&config->applicationDescription.discoveryUrls,
-                                     &config->applicationDescription.discoveryUrlsSize,
-                                     &config->serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
-        (void)retVal;
+
+        /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+         * Add if not already there. */
+        size_t j = 0;
+        for(; j < config->applicationDescription.discoveryUrlsSize; j++) {
+            if(UA_String_equal(&config->serverUrls[i],
+                               &config->applicationDescription.discoveryUrls[j]))
+                break;
+        }
+        if(j == config->applicationDescription.discoveryUrlsSize) {
+            retVal =
+                UA_Array_appendCopy((void**)&config->applicationDescription.discoveryUrls,
+                                    &config->applicationDescription.discoveryUrlsSize,
+                                    &config->serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
+            (void)retVal;
+        }
     }
 
     /* Ensure that the uri for ns1 is set up from the app description */
