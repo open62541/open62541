@@ -35,9 +35,8 @@ UA_DataSetReaderConfig readerConfig;
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
-    UA_StatusCode retVal = UA_Server_run_startup(server);
     config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
+    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
     retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     retVal |= UA_Server_run_startup(server);
 

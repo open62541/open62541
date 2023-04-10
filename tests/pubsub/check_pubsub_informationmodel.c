@@ -29,9 +29,8 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
-    UA_StatusCode retVal = UA_Server_run_startup(server);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
+    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
     retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     retVal |= UA_Server_run_startup(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

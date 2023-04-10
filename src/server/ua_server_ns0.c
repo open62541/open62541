@@ -647,12 +647,20 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
-UA_StatusCode
+static UA_StatusCode
 writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
+    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
+}
+
+static UA_StatusCode
+writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
+    UA_Variant var;
+    UA_Variant_init(&var);
+    UA_Variant_setScalar(&var, v, type);
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
 
@@ -739,14 +747,6 @@ minimalServerObject(UA_Server *server) {
 }
 
 #else
-
-static UA_StatusCode
-writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
-    UA_Variant var;
-    UA_Variant_init(&var);
-    UA_Variant_setScalar(&var, v, type);
-    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
-}
 
 static void
 addModellingRules(UA_Server *server) {
