@@ -777,6 +777,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
         check_add_cc_flag("-pthread" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
     endif()
 
     # Force 32bit build
@@ -785,6 +786,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
         message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
       endif()
       check_add_cc_flag("-m32" "Debug;Release;RelWithDebInfo;MinSizeRel")
+      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -m32")
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
@@ -833,6 +835,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
         foreach(flag ${SANITIZER_FLAGS})
             check_add_cc_flag(${flag} "Debug")
         endforeach()
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined")
     endif()
 
     if(NOT MINGW AND UA_ENABLE_HARDENING)
