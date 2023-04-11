@@ -354,9 +354,8 @@ if(UA_ENABLE_COVERAGE)
   # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
   set(ENABLE_COVERAGE ON)
   find_package(codecov REQUIRED)
-  check_add_cc_flag("-fprofile-arcs" "Debug")
-  check_add_cc_flag("-ftest-coverage" "Debug")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lgcov")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
 endif()
 
 if(UA_ENABLE_CLANG_COV)
@@ -785,8 +784,7 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
       if(MSVC)
         message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
       endif()
-      check_add_cc_flag("-m32" "Debug;Release;RelWithDebInfo;MinSizeRel")
-      set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -m32")
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
