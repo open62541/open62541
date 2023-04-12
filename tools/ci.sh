@@ -411,7 +411,7 @@ function examples_valgrind {
 	    wait $!; EXIT_CODE=$?
 	    if [[ $EXIT_CODE -ne 0 ]]; then
 		   echo "Processing $f failed with exit code $EXIT_CODE "
-		   exit $EXIT_CODE	
+		   exit $EXIT_CODE
 	    fi
     done
 }
@@ -423,6 +423,8 @@ function examples_valgrind {
 function build_clang_analyzer {
     mkdir -p build; cd build; rm -rf *
     scan-build-11 cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_DEBUG=ON \
+          -DUA_DEBUG_FILE_LINE_INFO=ON \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
