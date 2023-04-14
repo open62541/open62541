@@ -511,9 +511,9 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "test node");
         UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
         UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+        ck_assert_int_eq(UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId);
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId), UA_STATUSCODE_GOOD);
         ck_assert(!UA_NodeId_isNull(&variableNodeId));
         UA_Variant variant;
         UA_Variant_init(&variant);

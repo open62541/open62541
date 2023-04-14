@@ -171,10 +171,6 @@ isTrue(uint8_t expr) {
  * Utility Functions
  * ----------------- */
 
-const UA_DataType *
-UA_findDataTypeWithCustom(const UA_NodeId *typeId,
-                          const UA_DataTypeArray *customTypes);
-
 void
 UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
 

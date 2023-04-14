@@ -202,6 +202,8 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -214,7 +216,7 @@ setup(void) {
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -222,7 +224,6 @@ setup(void) {
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_Server_run_startup(server);
     // add 2 connections
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -233,14 +234,15 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
 
     securityGroupId = UA_STRING("TestSecurityGroup");
 
     addTestReaderGroup(securityGroupId);
     addTestWriterGroup(securityGroupId);
 
-    UA_Server_run_startup(server);
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 

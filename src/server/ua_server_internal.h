@@ -74,8 +74,7 @@ typedef struct session_list_entry {
 } session_list_entry;
 
 typedef enum {
-    UA_SERVERLIFECYCLE_FRESH,
-    UA_SERVERLIFECYCLE_STOPPED,
+    UA_SERVERLIFECYCLE_STOPPED = 0,
     UA_SERVERLIFECYCLE_STARTED,
     UA_SERVERLIFECYCLE_STOPPING
 } UA_ServerLifecycle;
@@ -98,12 +97,14 @@ typedef struct reverse_connect_context {
     UA_Server_ReverseConnectStateCallback stateCallback;
     void *callbackContext;
 
-     /* If this is set to true, the state won't change to connecting on disconnect */
+     /* If this is set to true, the reverse connection is removed/freed when the
+      * connection closes. Otherwise we try to reconnect when the connection
+      * closes. */
     UA_Boolean destruction;
 
     UA_ServerConnection currentConnection;
     UA_SecureChannel *channel;
-    SLIST_ENTRY(reverse_connect_context) next;
+    LIST_ENTRY(reverse_connect_context) next;
 } reverse_connect_context;
 
 struct UA_Server {
@@ -190,7 +191,7 @@ struct UA_Server {
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 
-    SLIST_HEAD(, reverse_connect_context) reverseConnects;
+    LIST_HEAD(, reverse_connect_context) reverseConnects;
     UA_UInt64 reverseConnectsCheckHandle;
     UA_UInt64 lastReverseConnectHandle;
 };
@@ -745,9 +746,6 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId);
 /**********************/
 
 UA_StatusCode initNS0(UA_Server *server);
-
-UA_StatusCode writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
-                      size_t length, const UA_DataType *type);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
 void createSessionObject(UA_Server *server, UA_Session *session);

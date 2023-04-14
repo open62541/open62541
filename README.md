@@ -74,7 +74,7 @@ See the page on [open62541 Features](FEATURES.md) for an in-depth look at the su
   
 ### Dependencies
 
-On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://open62541.org/doc/current/building.html) for details.
+On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://www.open62541.org/doc/master/building.html) for details.
 
 - Core Library: The core library has no dependencies besides the C99 standard headers.
 - Default Plugins: The default plugins use the POSIX interfaces for networking and accessing the system clock. Ports to different (embedded) architectures are achieved by customizing the plugins.
@@ -155,7 +155,7 @@ For every release, we provide some pre-packed release packages which you can dir
 
 Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
 
-A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://open62541.org/doc/current/installing.html).
+A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://www.open62541.org/doc/master/building.html#building-the-library).
 
 You can not directly download a .zip package from the main branches using the Github UI, since then some of the submodules and version strings are missing.
 Therefore you have three options to install and use this stack:

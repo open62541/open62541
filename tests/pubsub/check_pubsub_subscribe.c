@@ -93,10 +93,11 @@ static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     server = UA_Server_new();
     ck_assert(server != NULL);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
-    UA_Server_run_startup(server);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retval |= UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
+    retval |= UA_Server_run_startup(server);
+    retval |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     addVariables();
 
@@ -112,7 +113,8 @@ static void setup(void) {
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16 = PUBLISHER_ID;
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -612,7 +614,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Data Set Field */
         UA_NodeId dataSetFieldId;
@@ -621,9 +623,10 @@ START_TEST(SinglePublishSubscribeDateTime) {
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
+        retVal = UA_Server_addDataSetField(server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldId).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -700,7 +703,7 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Data Set Field */
         UA_NodeId dataSetFieldId;
@@ -709,9 +712,10 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
         dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+        dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
+        retVal = UA_Server_addDataSetField(server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldId).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -791,7 +795,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -819,8 +823,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        retVal = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -932,7 +936,7 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -960,8 +964,8 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1099,7 +1103,7 @@ START_TEST(SinglePublishSubscribeInt64) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -1127,8 +1131,8 @@ START_TEST(SinglePublishSubscribeInt64) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1244,7 +1248,7 @@ START_TEST(SinglePublishSubscribeBool) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish boolean data */
@@ -1272,8 +1276,8 @@ START_TEST(SinglePublishSubscribeBool) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1389,7 +1393,7 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -1418,9 +1422,9 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField(server, publishedDataSetId,
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField(server, publishedDataSetId,
                                   &dataSetFieldConfig, &dataSetFieldIdent);
-
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1619,7 +1623,7 @@ START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -1647,8 +1651,8 @@ START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+        ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1759,7 +1763,7 @@ START_TEST(MultiPublishSubscribeInt32) {
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet Test");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+    retVal =UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Create variable to publish integer data */
@@ -1787,8 +1791,8 @@ START_TEST(MultiPublishSubscribeInt32) {
     dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
     dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+    UA_DataSetFieldResult retval = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
+    ck_assert_int_eq(retval.result, UA_STATUSCODE_GOOD);
     /* Writer group */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -1932,6 +1936,7 @@ START_TEST(MultiPublishSubscribeInt32) {
 
 static void
 addTargetVariable(void) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_VariableAttributes attr = UA_VariableAttributes_default;
     UA_DateTime dateTime = 0;
     UA_Variant_setScalar(&attr.value, &dateTime, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -1945,9 +1950,10 @@ addTargetVariable(void) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "subscribedTargetVar");
     UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(
+    retVal = UA_Server_addVariableNode(
         server, myIntegerNodeId, parentNodeId, parentReferenceNodeId, myIntegerName,
         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
@@ -2084,7 +2090,7 @@ START_TEST(SinglePublishOnDemand) {
         memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
         pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
         pdsConfig.name = UA_STRING("PublishedDataSet Test");
-        UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId);
+        retVal = UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSetId).addResult;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         /* Create variable to publish integer data */
@@ -2112,8 +2118,8 @@ START_TEST(SinglePublishOnDemand) {
         dataSetFieldConfig.field.variable.promotedField  = UA_FALSE;
         dataSetFieldConfig.field.variable.publishParameters.publishedVariable = publisherNode;
         dataSetFieldConfig.field.variable.publishParameters.attributeId       = UA_ATTRIBUTEID_VALUE;
-        UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent);
-
+        retVal = UA_Server_addDataSetField (server, publishedDataSetId, &dataSetFieldConfig, &dataSetFieldIdent).result;
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Writer group */
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));

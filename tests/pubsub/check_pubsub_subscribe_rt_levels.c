@@ -254,11 +254,12 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
@@ -419,11 +420,12 @@ START_TEST(SetupInvalidPubSubConfigReader) {
             folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
         }
 
-        UA_Server_addObjectNode (server, UA_NODEID_NULL,
+        retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                                  UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                                  UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                                  folderBrowseName, UA_NODEID_NUMERIC (0,
                                                                       UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         /* Variable to subscribe data */
         UA_VariableAttributes vAttr = UA_VariableAttributes_default;
         vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed DateTime");
@@ -504,10 +506,10 @@ START_TEST(SetupInvalidPubSubConfig) {
     memset(&variant, 0, sizeof(UA_Variant));
     UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
     attributes.value = variant;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1,  1000),
+    ck_assert_int_eq(UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1,  1000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                               UA_QUALIFIEDNAME(1, "variable"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              attributes, NULL, NULL);
+                              attributes, NULL, NULL), UA_STATUSCODE_GOOD);
     dsfConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, 1000);
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     /* Not using static value source */
@@ -568,8 +570,8 @@ static void PublishSubscribeWithWriteCallback_Helper(
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable  = publisherNode;
     dataSetFieldConfig.field.variable.publishParameters.attributeId        = UA_ATTRIBUTEID_VALUE;
     dataSetFieldConfig.field.variable.rtValueSource.rtInformationModelNode = UA_TRUE;
-    UA_Server_addDataSetField (server, publishedDataSetIdent, &dataSetFieldConfig, &dataSetFieldIdent);
-
+    retVal = UA_Server_addDataSetField (server, publishedDataSetIdent, &dataSetFieldConfig, &dataSetFieldIdent).result;
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
     /* Writer group */
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
@@ -763,11 +765,12 @@ START_TEST(PublishSubscribeWithWriteCallback) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
