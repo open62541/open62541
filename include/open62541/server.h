@@ -99,8 +99,8 @@ struct UA_ServerConfig {
     UA_ByteString serverCertificate;
 
     /**
-     * Timeouts and Delays
-     * ^^^^^^^^^^^^^^^^^^^ */
+     * Server Lifecycle
+     * ^^^^^^^^^^^^^^^^ */
     /* Delay in ms from the shutdown signal (ctrl-c) until the actual shutdown.
      * Clients need to be able to get a notification ahead of time. */
     UA_Double shutdownDelay;
@@ -386,7 +386,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config);
  * only uses the public server API.
  *
  * @return Returns the configured server or NULL if an error occurs. */
-UA_EXPORT UA_Server * UA_Server_new(void);
+UA_EXPORT UA_Server *
+UA_Server_new(void);
 
 /* Creates a new server. Moves the config into the server with a shallow copy.
  * The config content is cleared together with the server. */
@@ -394,7 +395,8 @@ UA_EXPORT UA_Server *
 UA_Server_newWithConfig(UA_ServerConfig *config);
 
 /* Delete the server. */
-UA_EXPORT void UA_Server_delete(UA_Server *server);
+UA_EXPORT UA_StatusCode
+UA_Server_delete(UA_Server *server);
 
 /* Get the configuration. Always succeeds as this simplfy resolves a pointer.
  * Attention! Do not adjust the configuration while the server is running! */
