@@ -1354,6 +1354,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
             } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
             }
+
             UA_CHECK_STATUS(rv, return rv);
         }
     } else if(src->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
@@ -1385,6 +1386,14 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
+    /* if the configuredSize is set -> padd the message with 0. */
+    if(src->configuredSize > 0 && src->header.dataSetMessageValid) {
+        size_t padding = (size_t)(bufEnd - *bufPos);
+        /* Set the bytes to 0*/
+        memset(*bufPos, 0, padding);
+        /* move the bufpos accordingly*/
+        *bufPos += padding;
+    }
     /* Keep-Alive Message contains no Payload Data */
     return UA_STATUSCODE_GOOD;
 }
@@ -1623,6 +1632,15 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         return 0;
     }
 
+    if(p->configuredSize > 0) {
+        /* If the message is larger than the configuredSize, it shall be set to not valid */
+        if(p->configuredSize < size) 
+            p->header.dataSetMessageValid = UA_FALSE;
+        
+        size = p->configuredSize;
+    }
+    
+    /* KeepAlive-Message contains no Payload Data */
     return size;
 }
 
