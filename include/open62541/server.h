@@ -105,6 +105,11 @@ struct UA_ServerConfig {
      * Clients need to be able to get a notification ahead of time. */
     UA_Double shutdownDelay;
 
+    /* If an asynchronous server shutdown is used, this callback notifies about
+     * the current lifecycle state (notably the STOPPING -> STOPPED
+     * transition). */
+    void (*notifyLifecycleState)(UA_Server *server, UA_LifecycleState state);
+
     /**
      * Rule Handling
      * ^^^^^^^^^^^^^
@@ -402,6 +407,10 @@ UA_Server_delete(UA_Server *server);
  * Attention! Do not adjust the configuration while the server is running! */
 UA_EXPORT UA_ServerConfig *
 UA_Server_getConfig(UA_Server *server);
+
+/* Get the current server lifecycle state */
+UA_EXPORT UA_LifecycleState
+UA_Server_getLifecycleState(UA_Server *server);
 
 /* Runs the server until interrupted. On Unix/Windows this registers an
  * interrupt for SIGINT (ctrl-c). The method only returns after having received

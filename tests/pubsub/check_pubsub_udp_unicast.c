@@ -302,13 +302,11 @@ static void setup(void) {
 
 /* teardown() is to delete the environment set for test cases */
 static void teardown(void) {
-    /*Call server delete functions */
     UA_Server_run_shutdown(serverSubscriber);
-    UA_Server_delete(serverSubscriber);
-
-    /* Call server delete functions (this deletes the eventloop also used in the
-     * other server) */
     UA_Server_run_shutdown(serverPublisher);
+
+    /*Call server delete functions */
+    UA_Server_delete(serverSubscriber);
     UA_Server_delete(serverPublisher);
 }
 

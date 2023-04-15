@@ -73,12 +73,6 @@ typedef struct session_list_entry {
     UA_Session session;
 } session_list_entry;
 
-typedef enum {
-    UA_SERVERLIFECYCLE_STOPPED = 0,
-    UA_SERVERLIFECYCLE_STARTED,
-    UA_SERVERLIFECYCLE_STOPPING
-} UA_ServerLifecycle;
-
 /* Maximum numbers of sockets to listen on */
 #define UA_MAXSERVERCONNECTIONS 16
 
@@ -116,7 +110,7 @@ struct UA_Server {
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
-    UA_ServerLifecycle state;
+    UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
     UA_UInt64 pollingCallbackId; /* TODO: Move all subsystems that poll on the
                                   * network to a true EventLoop
@@ -309,6 +303,8 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 /*********************/
 /* Utility Functions */
 /*********************/
+
+void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
