@@ -173,6 +173,59 @@ cleanup:
     return res;
 }
 
+/*********************/
+/* Server Components */
+/*********************/
+
+enum ZIP_CMP
+cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b) {
+    if(*a == *b)
+        return ZIP_CMP_EQ;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
+}
+
+void
+addServerComponent(UA_Server *server, UA_ServerComponent *sc,
+                   UA_UInt64 *identifier) {
+    if(!sc)
+        return;
+
+    sc->identifier = ++server->serverComponentIds;
+    ZIP_INSERT(UA_ServerComponentTree, &server->serverComponents, sc);
+
+    /* Start the component if the server is started */
+    if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
+        sc->start(server, sc);
+
+    if(identifier)
+        *identifier = sc->identifier;
+}
+
+static void *
+removeServerComponent(void *application, UA_ServerComponent *sc) {
+    UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
+    sc->free((UA_Server*)application, sc);
+    return NULL;
+}
+
+static void *
+startServerComponent(void *application, UA_ServerComponent *sc) {
+    sc->start((UA_Server*)application, sc);
+    return NULL;
+}
+
+static void *
+stopServerComponent(void *application, UA_ServerComponent *sc) {
+    sc->stop((UA_Server*)application, sc);
+    return NULL;
+}
+
+/* ZIP_ITER returns NULL only if all components are stopped */
+static void *
+checkServerComponent(void *application, UA_ServerComponent *sc) {
+    return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -234,6 +287,10 @@ UA_Server_delete(UA_Server *server) {
 
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
+
+    /* Remove all remaining server components (must be all stopped) */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             removeServerComponent, server);
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
@@ -962,6 +1019,10 @@ UA_Server_run_startup(UA_Server *server) {
     UA_DiscoveryManager_start(server);
 #endif
 
+    /* Start all ServerComponents */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             startServerComponent, server);
+
     /* Set the server to STARTED. From here on, only use
      * UA_Server_run_shutdown(server) to stop the server. */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
@@ -999,6 +1060,10 @@ testShutdownCondition(UA_Server *server) {
 
 static UA_Boolean
 testStoppedCondition(UA_Server *server) {
+    /* Check if there are remaining server components that did not fully stop */
+    if(ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                checkServerComponent, server) != NULL)
+        return false;
     return true;
 }
 
@@ -1052,6 +1117,10 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);
+
+    /* Stop all ServerComponents */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             stopServerComponent, server);
 
     /* Stop all server sockets */
     for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {

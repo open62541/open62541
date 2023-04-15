@@ -52,6 +52,50 @@ typedef struct {
 
 #endif
 
+/* Server Component
+ * ----------------
+ *
+ * ServerComponents have an explicit lifecycle. But they can only be started
+ * when the underlying server is started. The starting/stopping of
+ * ServerComponents is asynchronous. That is, they might require several
+ * iterations of the EventLoop to finish starting/stopping.
+ *
+ * ServerComponents can only be deleted when they are STOPPED. The server will
+ * not fully shut down as long as there is a component remaining. */
+
+typedef struct UA_ServerComponent {
+    UA_UInt64 identifier;
+    ZIP_ENTRY(UA_ServerComponent) treeEntry;
+    UA_LifecycleState state;
+
+    /* Starting fails if the server is not also already started */
+    UA_StatusCode (*start)(UA_Server *server,
+                           struct UA_ServerComponent *sc);
+
+    /* Stopping is asynchronous and might need a few iterations of the main-loop
+     * to succeed. */
+    void (*stop)(UA_Server *server,
+                 struct UA_ServerComponent *sc);
+
+    /* Clean up the ServerComponent. Can fail if it is not stopped. */
+    UA_StatusCode (*free)(UA_Server *server,
+                          struct UA_ServerComponent *sc);
+} UA_ServerComponent;
+
+enum ZIP_CMP
+cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b);
+
+typedef ZIP_HEAD(UA_ServerComponentTree, UA_ServerComponent) UA_ServerComponentTree;
+
+ZIP_FUNCTIONS(UA_ServerComponentTree, UA_ServerComponent, treeEntry,
+              UA_UInt64, identifier, cmpServerComponent)
+
+/* Assigns the identifier if the pointer is non-NULL.
+ * Starts the component if the server is started. */
+void
+addServerComponent(UA_Server *server, UA_ServerComponent *sc,
+                   UA_UInt64 *identifier);
+
 typedef enum {
     UA_DIAGNOSTICEVENT_CLOSE,
     UA_DIAGNOSTICEVENT_REJECT,
@@ -115,6 +159,9 @@ struct UA_Server {
     UA_UInt64 pollingCallbackId; /* TODO: Move all subsystems that poll on the
                                   * network to a true EventLoop
                                   * implementation */
+
+    UA_UInt64 serverComponentIds; /* Counter to assign ids from */
+    UA_ServerComponentTree serverComponents;
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
