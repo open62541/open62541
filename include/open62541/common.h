@@ -229,6 +229,20 @@ typedef struct {
 } UA_SessionStatistics;
 
 /**
+ * Lifecycle States
+ * ----------------
+ *
+ * Generic lifecycle states. The STOPPING state indicates that the lifecycle is
+ * being terminated. But it might take time to (asynchronously) perform a
+ * graceful shutdown. */
+
+typedef enum {
+    UA_LIFECYCLESTATE_STOPPED = 0,
+    UA_LIFECYCLESTATE_STARTED,
+    UA_LIFECYCLESTATE_STOPPING
+} UA_LifecycleState;
+
+/**
  * Forward Declarations
  * --------------------
  * Opaque pointers used in Client, Server and PubSub. */
