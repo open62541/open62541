@@ -1290,7 +1290,7 @@ int main(int argc, char **argv) {
 
     /* Limit the number of SecureChannels and Sessions */
     config.maxSecureChannels = 10;
-    config.maxSessions = 20;
+    config.maxSessions = 50;
 
     /* Revolve the SecureChannel token every 300 seconds */
     config.maxSecurityTokenLifetime = 300000;
@@ -1307,7 +1307,7 @@ int main(int argc, char **argv) {
 
     /* Set Subscription limits */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    config.maxSubscriptions = 20;
+    config.maxSubscriptions = 100;
 #endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */
