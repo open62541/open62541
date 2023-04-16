@@ -14,9 +14,7 @@
 #ifndef UA_DISCOVERY_MANAGER_H_
 #define UA_DISCOVERY_MANAGER_H_
 
-#include <open62541/server.h>
-
-#include "open62541_queue.h"
+#include "ua_server_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -73,7 +71,11 @@ typedef struct serverOnNetwork_hash_entry {
 
 #endif
 
-typedef struct {
+struct UA_DiscoveryManager {
+    UA_ServerComponent sc;
+
+    UA_UInt64 discoveryCallbackId;
+
     LIST_HEAD(, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks;
     LIST_HEAD(, registeredServer_list_entry) registeredServers;
     size_t registeredServersSize;
@@ -102,17 +104,7 @@ typedef struct {
 
     UA_UInt64 mdnsCallbackId;
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-} UA_DiscoveryManager;
-
-void UA_DiscoveryManager_init(UA_DiscoveryManager *dm);
-void UA_DiscoveryManager_clear(UA_DiscoveryManager *dm);
-void UA_DiscoveryManager_start(UA_Server *server);
-void UA_DiscoveryManager_stop(UA_Server *server);
-
-/* Checks if a registration timed out and removes that registration.
- * Should be called periodically in main loop */
-void UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
-                                         UA_DateTime nowMonotonic);
+};
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 

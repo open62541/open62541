@@ -277,10 +277,6 @@ UA_Server_delete(UA_Server *server) {
     UA_PubSubManager_delete(server, &server->pubSubManager);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_clear(&server->discoveryManager);
-#endif
-
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
@@ -314,9 +310,6 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_cleanupTimedOut(server, nowMonotonic);
-#endif
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -400,7 +393,7 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager);
+    addServerComponent(server, UA_DiscoveryManager_new(server), NULL);
 #endif
 
     /* Initialize namespace 0*/
@@ -1014,11 +1007,6 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start the multicast discovery server */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_start(server);
-#endif
-
     /* Start all ServerComponents */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
              startServerComponent, server);
@@ -1129,10 +1117,6 @@ UA_Server_run_shutdown(UA_Server *server) {
         if(sc->connectionId > 0)
             cm->closeConnection(cm, sc->connectionId);
     }
-
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_stop(server);
-#endif
 
     /* Are we already stopped? */
     if(testStoppedCondition(server)) {
