@@ -18,11 +18,13 @@
 #include <open62541/transport_generated.h>
 #include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated_handling.h>
-#include "open62541/plugin/network.h"
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
+
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 // store the authentication token and session ID so we can help fuzzing by setting
@@ -35,9 +37,150 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
                                 UA_ByteString *messageBuffer);
 #endif
 
+/************************************/
+/* Binary Protocol Server Component */
+/************************************/
+
+/* Maximum numbers of sockets to listen on */
+#define UA_MAXSERVERCONNECTIONS 16
+
+/* SecureChannel Linked List */
+typedef struct channel_entry {
+    TAILQ_ENTRY(channel_entry) pointers;
+    UA_SecureChannel channel;
+    UA_DiagnosticEvent closeEvent;
+} channel_entry;
+
+typedef struct {
+    UA_ConnectionState state;
+    uintptr_t connectionId;
+    UA_ConnectionManager *connectionManager;
+} UA_ServerConnection;
+
+/* Reverse connect */
+typedef struct reverse_connect_context {
+    UA_String hostname;
+    UA_UInt16 port;
+    UA_UInt64 handle;
+
+    UA_SecureChannelState state;
+    UA_Server_ReverseConnectStateCallback stateCallback;
+    void *callbackContext;
+
+     /* If this is set to true, the reverse connection is removed/freed when the
+      * connection closes. Otherwise we try to reconnect when the connection
+      * closes. */
+    UA_Boolean destruction;
+
+    UA_ServerConnection currentConnection;
+    UA_SecureChannel *channel;
+    LIST_ENTRY(reverse_connect_context) next;
+} reverse_connect_context;
+
+/* Binary Protocol Manager */
+typedef struct {
+    UA_ServerComponent sc;
+    UA_Server *server;  /* remember the pointer so we don't need an additional
+                           context pointer for connections */
+    UA_Logger *logging; /* shortcut */
+    UA_UInt64 houseKeepingCallbackId;
+
+    UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
+    size_t serverConnectionsSize;
+
+    UA_ConnectionConfig tcpConnectionConfig; /* Extracted from the server config
+                                              * parameters */
+
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
+    /* Reverse Connections */
+    LIST_HEAD(, reverse_connect_context) reverseConnects;
+    UA_UInt64 reverseConnectsCheckHandle;
+    UA_UInt64 lastReverseConnectHandle;
+} UA_BinaryProtocolManager;
+
+void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
+                            UA_SecureChannelState newState);
+UA_StatusCode attemptReverseConnect(UA_BinaryProtocolManager *bpm,
+                                    reverse_connect_context *context);
+UA_StatusCode setReverseConnectRetryCallback(UA_BinaryProtocolManager *bpm,
+                                             UA_Boolean enabled);
+
 /********************/
 /* Helper Functions */
 /********************/
+
+UA_UInt32
+generateSecureChannelTokenId(UA_Server *server) {
+    UA_BinaryProtocolManager *bpm =
+        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
+    if(!bpm) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot generate a SecureChannel Token Id. "
+                     "No BinaryProtocolManager configured.");
+        return 0;
+    }
+    return bpm->lastTokenId++;
+}
+
+static void
+setBinaryProtocolManagerState(UA_Server *server,
+                              UA_BinaryProtocolManager *bpm,
+                              UA_LifecycleState state) {
+    if(state == bpm->sc.state)
+        return;
+    bpm->sc.state = state;
+    if(bpm->sc.notifyState)
+        bpm->sc.notifyState(server, &bpm->sc, state);
+}
+ 
+#ifndef container_of
+#define container_of(ptr, type, member) \
+    (type *)((uintptr_t)ptr - offsetof(type,member))
+#endif
+
+static void
+deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
+                          UA_SecureChannel *channel) {
+    UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed");
+
+    /* Clean up the SecureChannel. This is the only place where
+     * UA_SecureChannel_clear must be called within the server code-base. */
+    UA_SecureChannel_clear(channel);
+
+    /* Detach the channel from the server list */
+    struct channel_entry *entry = container_of(channel, channel_entry, channel);
+    TAILQ_REMOVE(&bpm->channels, entry, pointers);
+
+    /* Update the statistics */
+    UA_SecureChannelStatistics *scs = &bpm->server->secureChannelStatistics;
+    scs->currentChannelCount--;
+    switch(entry->closeEvent) {
+    case UA_DIAGNOSTICEVENT_CLOSE:
+        break;
+    case UA_DIAGNOSTICEVENT_TIMEOUT:
+        scs->channelTimeoutCount++;
+        break;
+    case UA_DIAGNOSTICEVENT_PURGE:
+        scs->channelPurgeCount++;
+        break;
+    case UA_DIAGNOSTICEVENT_REJECT:
+    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+        scs->rejectedChannelCount++;
+        break;
+    case UA_DIAGNOSTICEVENT_ABORT:
+        scs->channelAbortCount++;
+        break;
+    default:
+        UA_assert(false);
+        break;
+    }
+
+    UA_free(entry);
+}
 
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
@@ -889,18 +1032,135 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     return retval;
 }
 
+/* remove the first channel that has no session attached */
+static UA_Boolean
+purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
+    channel_entry *entry;
+    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+        if(SLIST_FIRST(&entry->channel.sessions))
+            continue;
+        UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
+                            "Channel was purged since maxSecureChannels was "
+                            "reached and channel had no session attached");
+        entry->closeEvent = UA_DIAGNOSTICEVENT_PURGE;
+        UA_SecureChannel_shutdown(&entry->channel);
+        return true;
+    }
+    return false;
+}
+
+static UA_StatusCode
+configServerSecureChannel(void *application, UA_SecureChannel *channel,
+                          const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    /* Iterate over available endpoints and choose the correct one */
+    UA_SecurityPolicy *securityPolicy = NULL;
+    UA_Server *const server = (UA_Server *const) application;
+    for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
+        UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
+        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+            continue;
+
+        UA_StatusCode res = policy->asymmetricModule.
+            compareCertificateThumbprint(policy, &asymHeader->receiverCertificateThumbprint);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* We found the correct policy (except for security mode). The endpoint
+         * needs to be selected by the client / server to match the security
+         * mode in the endpoint for the session. */
+        securityPolicy = policy;
+        break;
+    }
+
+    if(!securityPolicy)
+        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+
+    /* Create the channel context and parse the sender (remote) certificate used
+     * for the secureChannel. */
+    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
+                                              &asymHeader->senderCertificate);
+}
+
+static UA_StatusCode
+createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *cm,
+                          uintptr_t connectionId, UA_SecureChannel **outChannel) {
+    UA_Server *server = bpm->server;
+    UA_ServerConfig *config = &server->config;
+
+    /* Check if we have space for another SC, otherwise try to find an SC
+     * without a session and purge it */
+    UA_SecureChannelStatistics *scs = &server->secureChannelStatistics;
+    if(scs->currentChannelCount >= config->maxSecureChannels &&
+       !purgeFirstChannelWithoutSession(bpm))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Allocate memory for the SecureChannel */
+    channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
+    if(!entry)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Set up the initial connection config */
+    UA_ConnectionConfig connConfig;
+    connConfig.protocolVersion = 0;
+    connConfig.recvBufferSize = config->tcpBufSize;
+    connConfig.sendBufferSize = config->tcpBufSize;
+    connConfig.localMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.remoteMaxMessageSize = config->tcpMaxMsgSize;
+    connConfig.localMaxChunkCount = config->tcpMaxChunks;
+    connConfig.remoteMaxChunkCount = config->tcpMaxChunks;
+
+    if(connConfig.recvBufferSize == 0)
+        connConfig.recvBufferSize = 1 << 16; /* 64kB */
+    if(connConfig.sendBufferSize == 0)
+        connConfig.sendBufferSize = 1 << 16; /* 64kB */
+
+    /* Set up the new SecureChannel */
+    UA_SecureChannel_init(&entry->channel);
+    entry->channel.config = connConfig;
+    entry->channel.certificateVerification = &config->certificateVerification;
+    entry->channel.processOPNHeader = configServerSecureChannel;
+    entry->channel.connectionManager = cm;
+    entry->channel.connectionId = connectionId;
+    entry->closeEvent = UA_DIAGNOSTICEVENT_CLOSE; /* Used if the eventloop closes */
+
+    /* Set the SecureChannel identifier already here. So we get the right
+     * identifier for logging right away. The rest of the SecurityToken is set
+     * in UA_SecureChannelManager_open. Set the ChannelId also in the
+     * alternative security token, we don't touch this value during the token
+     * rollover. */
+    entry->channel.securityToken.channelId = bpm->lastChannelId++;
+    entry->channel.altSecurityToken.channelId = entry->channel.securityToken.channelId;
+
+    /* Set an initial timeout before the negotiation handshake. So the channel
+     * is caught if the client is unresponsive.
+     *
+     * TODO: Make this a configuration option */
+    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
+    entry->channel.securityToken.revisedLifetime = 10000; /* 10s should be enough */
+
+    /* Add to the server's list */
+    TAILQ_INSERT_TAIL(&bpm->channels, entry, pointers);
+
+    /* Update the statistics */
+    server->secureChannelStatistics.currentChannelCount++;
+    server->secureChannelStatistics.cumulatedChannelCount++;
+
+    *outChannel = &entry->channel;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* Callback of a TCP socket (server socket or an active connection) */
-void
-UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void *application, void **connectionContext,
-                          UA_ConnectionState state,
-                          const UA_KeyValueMap *params,
-                          UA_ByteString msg) {
-    UA_Server *server = (UA_Server*)application;
+static void
+serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                      void *application, void **connectionContext,
+                      UA_ConnectionState state,
+                      const UA_KeyValueMap *params,
+                      UA_ByteString msg) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)application;
 
     /* A server socket that is not yet registered in the server. Register it and
      * set the connection context to the pointer in the
-     * server->serverConnections list. New connections on that server socket
+     * bpm->serverConnections list. New connections on that server socket
      * inherit the context (and on the first callback we set the context of
      * client-connections to a SecureChannel). */
     if(*connectionContext == NULL) {
@@ -910,16 +1170,16 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             return;
 
         /* Cannot register */
-        if(server->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        if(bpm->serverConnectionsSize >= UA_MAXSERVERCONNECTIONS) {
+            UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "Cannot register server socket - too many already open");
             cm->closeConnection(cm, connectionId);
             return;
         }
 
         /* Find and use a free connection slot */
-        server->serverConnectionsSize++;
-        UA_ServerConnection *sc = server->serverConnections;
+        bpm->serverConnectionsSize++;
+        UA_ServerConnection *sc = bpm->serverConnections;
         while(sc->connectionId != 0)
             sc++;
         sc->state = state;
@@ -931,8 +1191,8 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_ServerConnection *sc = (UA_ServerConnection*)*connectionContext;
     UA_SecureChannel *channel = (UA_SecureChannel*)*connectionContext;
-    UA_Boolean serverSocket = (sc >= server->serverConnections &&
-                               sc < &server->serverConnections[UA_MAXSERVERCONNECTIONS]);
+    UA_Boolean serverSocket = (sc >= bpm->serverConnections &&
+                               sc < &bpm->serverConnections[UA_MAXSERVERCONNECTIONS]);
 
     /* The connection is closing. This is the last callback for it. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
@@ -940,11 +1200,21 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             /* Server socket is closed */
             sc->state = UA_CONNECTIONSTATE_CLOSED;
             sc->connectionId = 0;
-            server->serverConnectionsSize--;
+            bpm->serverConnectionsSize--;
         } else {
             /* A connection attached to a SecureChannel is closing. This is the
              * only place where deleteSecureChannel must be used. */
-            deleteServerSecureChannel(server, channel);
+            deleteServerSecureChannel(bpm, channel);
+        }
+
+        /* Set BinaryProtocolManager to STOPPED if it is STOPPING and the last
+         * socket just closed */
+        if(bpm->sc.state == UA_LIFECYCLESTATE_STOPPING &&
+           bpm->serverConnectionsSize == 0 &&
+           LIST_EMPTY(&bpm->reverseConnects) &&
+           TAILQ_EMPTY(&bpm->channels)) {
+           setBinaryProtocolManagerState(bpm->server, bpm,
+                                         UA_LIFECYCLESTATE_STOPPED);
         }
         return;
     }
@@ -953,9 +1223,9 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(serverSocket) {
         /* A new connection is opening. This is the only place where
          * createSecureChannel is used. */
-        retval = createServerSecureChannel(server, cm, connectionId, &channel);
+        retval = createServerSecureChannel(bpm, cm, connectionId, &channel);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the connection with status %s",
                            (unsigned long)sc->connectionId, UA_StatusCode_name(retval));
             *connectionContext = NULL;
@@ -963,7 +1233,7 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             return;
         }
 
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel created");
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel created");
 
         /* Set the new channel as the new context for the connection */
         *connectionContext = (void*)channel;
@@ -982,10 +1252,10 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
-    retval = UA_SecureChannel_processBuffer(channel, server,
+    retval = UA_SecureChannel_processBuffer(channel, bpm->server,
                                             processSecureChannelMessage, &msg);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
                                UA_StatusCode_name(retval));
 
@@ -997,6 +1267,132 @@ UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_SecureChannel_shutdown(channel);
     }
 }
+
+static UA_StatusCode
+createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl) {
+    UA_Server *server = bpm->server;
+    UA_ServerConfig *config = &server->config;
+
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Extract the protocol, hostname and port from the url */
+    UA_String hostname = UA_STRING_NULL;
+    UA_String path = UA_STRING_NULL;
+    UA_UInt16 port = 4840; /* default */
+    UA_StatusCode res = UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    UA_String tcpString = UA_STRING("tcp");
+    for(UA_EventSource *es = config->eventLoop->eventSources;
+        es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        /* Set up the parameters */
+        UA_KeyValuePair params[3];
+        size_t paramsSize = 2;
+
+        params[0].key = UA_QUALIFIEDNAME(0, "port");
+        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+
+        UA_Boolean listen = true;
+        params[1].key = UA_QUALIFIEDNAME(0, "listen");
+        UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+        if(hostname.length > 0) {
+            /* The hostname is non-empty */
+            params[2].key = UA_QUALIFIEDNAME(0, "address");
+            UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+            paramsSize = 3;
+        }
+
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = paramsSize;
+
+        /* Open the server connection */
+        res = cm->openConnection(cm, &paramsMap, bpm, NULL, serverNetworkCallback);
+        if(res == UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+/* Trigger the closing of the SecureChannel. This needs one iteration of the
+ * eventloop to take effect. */
+void
+shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                            UA_DiagnosticEvent event) {
+    /* Does the channel have an open socket? */
+    if(!UA_SecureChannel_isConnected(channel))
+        return;
+
+    UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "Closing the channel");
+
+    /* Set the event for diagnostics. The shutdown event is used in the
+     * deleteServerSecureChannel callback. */
+    struct channel_entry *entry = container_of(channel, channel_entry, channel);
+    entry->closeEvent = event;
+
+    /* Close the connection in the event-loop, which in the next iteration of
+     * the eventloop triggers the final deletion. This also sets the state to
+     * "closing". */
+    UA_SecureChannel_shutdown(channel);
+}
+
+/* Remove timed out SecureChannels */
+static void
+secureChannelHouseKeeping(UA_Server *server, void *context) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
+    UA_LOCK(&server->serviceMutex);
+
+    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
+    channel_entry *entry;
+    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+        /* Compute the timeout date of the SecurityToken */
+        UA_DateTime timeout =
+            entry->channel.securityToken.createdAt +
+            (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
+
+        /* The token has timed out. Try to do the token revolving now instead of
+         * shutting the channel down.
+         *
+         * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
+         * secure outgoing Messages until the SecurityToken expires or the
+         * Server receives a Message secured with a new SecurityToken.*/
+        if(timeout < nowMonotonic &&
+           entry->channel.renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+            /* Revolve the token manually. This is otherwise done in checkSymHeader. */
+            entry->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+            entry->channel.securityToken = entry->channel.altSecurityToken;
+            UA_ChannelSecurityToken_init(&entry->channel.altSecurityToken);
+            UA_SecureChannel_generateLocalKeys(&entry->channel);
+            generateRemoteKeys(&entry->channel);
+
+            /* Use the timeout of the new SecurityToken */
+            timeout = entry->channel.securityToken.createdAt +
+                (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
+        }
+
+        if(timeout < nowMonotonic) {
+            UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
+                                "SecureChannel has timed out");
+            entry->closeEvent = UA_DIAGNOSTICEVENT_TIMEOUT;
+            UA_SecureChannel_shutdown(&entry->channel);
+        }
+    }
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+/**********************/
+/* Reverse Connection */
+/**********************/
 
 #define UA_MINMESSAGESIZE 8192
 
@@ -1051,32 +1447,36 @@ sendRHEMessage(UA_Server *server, uintptr_t connectionId,
 
 static void
 retryReverseConnectCallback(UA_Server *server, void *context) {
-    (void)context;
     UA_LOCK(&server->serviceMutex);
 
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
+
     reverse_connect_context *rc = NULL;
-    LIST_FOREACH(rc, &server->reverseConnects, next) {
+    LIST_FOREACH(rc, &bpm->reverseConnects, next) {
         if(rc->currentConnection.connectionId)
             continue;
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                     "Attempt to reverse reconnect to %.*s:%d",
                     (int)rc->hostname.length, rc->hostname.data, rc->port);
-        attemptReverseConnect(server, rc);
+        attemptReverseConnect(bpm, rc);
     }
 
     UA_UNLOCK(&server->serviceMutex);
 }
 
 UA_StatusCode
-setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled) {
-    if(enabled && !server->reverseConnectsCheckHandle) {
-        UA_UInt32 reconnectInterval = server->config.reverseReconnectInterval ?
-            server->config.reverseReconnectInterval : 15000;
-        return addRepeatedCallback(server, retryReverseConnectCallback, NULL,
-                                   reconnectInterval, &server->reverseConnectsCheckHandle);
-    } else if(!enabled && server->reverseConnectsCheckHandle) {
-        removeCallback(server, server->reverseConnectsCheckHandle);
-        server->reverseConnectsCheckHandle = 0;
+setReverseConnectRetryCallback(UA_BinaryProtocolManager *bpm, UA_Boolean enabled) {
+    UA_Server *server = bpm->server;
+    UA_ServerConfig *config = &server->config;
+
+    if(enabled && !bpm->reverseConnectsCheckHandle) {
+        UA_UInt32 reconnectInterval = config->reverseReconnectInterval ?
+            config->reverseReconnectInterval : 15000;
+        return addRepeatedCallback(server, retryReverseConnectCallback, bpm,
+                                   reconnectInterval, &bpm->reverseConnectsCheckHandle);
+    } else if(!enabled && bpm->reverseConnectsCheckHandle) {
+        removeCallback(server, bpm->reverseConnectsCheckHandle);
+        bpm->reverseConnectsCheckHandle = 0;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -1094,16 +1494,165 @@ setReverseConnectState(UA_Server *server, reverse_connect_context *context,
                                context->callbackContext);
 }
 
+static void
+serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                             void *application, void **connectionContext,
+                             UA_ConnectionState state, const UA_KeyValueMap *params,
+                             UA_ByteString msg);
+
+UA_StatusCode
+attemptReverseConnect(UA_BinaryProtocolManager *bpm, reverse_connect_context *context) {
+    UA_Server *server = bpm->server;
+    UA_ServerConfig *config = &server->config;
+    UA_EventLoop *el = config->eventLoop;
+
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Find a TCP ConnectionManager */
+    UA_String tcpString = UA_STRING_STATIC("tcp");
+    for(UA_EventSource *es = el->eventSources; es != NULL; es = es->next) {
+        /* Is this a usable connection manager? */
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(!UA_String_equal(&tcpString, &cm->protocol))
+            continue;
+
+        if(es->state != UA_EVENTSOURCESTATE_STARTED)
+            continue;
+
+        /* Set up the parameters */
+        UA_KeyValuePair params[2];
+        params[0].key = UA_QUALIFIEDNAME(0, "address");
+        UA_Variant_setScalar(&params[0].value, &context->hostname,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        params[1].key = UA_QUALIFIEDNAME(0, "port");
+        UA_Variant_setScalar(&params[1].value, &context->port,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+        UA_KeyValueMap kvm = {2, params};
+
+        /* Open the connection */
+        UA_StatusCode res = cm->openConnection(cm, &kvm, bpm, context,
+                                               serverReverseConnectCallback);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Failed to create connection for reverse connect: %s\n",
+                           UA_StatusCode_name(res));
+        }
+        return res;
+    }
+
+    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                   "No ConnectionManager found for reverse connect");
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
+UA_StatusCode
+UA_Server_addReverseConnect(UA_Server *server, UA_String url,
+                            UA_Server_ReverseConnectStateCallback stateCallback,
+                            void *callbackContext, UA_UInt64 *handle) {
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_BinaryProtocolManager *bpm =
+        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
+    if(!bpm) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
+                     "No BinaryProtocolManager configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Parse the reverse connect URL */
+    UA_String hostname = UA_STRING_NULL;
+    UA_UInt16 port = 0;
+    UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "OPC UA URL is invalid: %.*s",
+                       (int)url.length, url.data);
+        return res;
+    }
+
+    /* Set up the reverse connection */
+    reverse_connect_context *newContext =
+        (reverse_connect_context *)calloc(1, sizeof(reverse_connect_context));
+    if(!newContext)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UA_String_copy(&hostname, &newContext->hostname);
+    newContext->port = port;
+    newContext->handle = ++bpm->lastReverseConnectHandle;
+    newContext->stateCallback = stateCallback;
+    newContext->callbackContext = callbackContext;
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* Register the retry callback */
+    setReverseConnectRetryCallback(bpm, true);
+
+    /* Register the new reverse connection */
+    LIST_INSERT_HEAD(&bpm->reverseConnects, newContext, next);
+
+    if(handle)
+        *handle = newContext->handle;
+
+    /* Attempt to connect right away */
+    res = attemptReverseConnect(bpm, newContext);
+
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
+    UA_StatusCode result = UA_STATUSCODE_BADNOTFOUND;
+
+    UA_LOCK(&server->serviceMutex);
+
+    UA_BinaryProtocolManager *bpm =
+        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
+    if(!bpm) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "No BinaryProtocolManager configured");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    reverse_connect_context *rev, *temp;
+    LIST_FOREACH_SAFE(rev, &bpm->reverseConnects, next, temp) {
+        if(rev->handle != handle)
+            continue;
+
+        LIST_REMOVE(rev, next);
+
+        /* Connected -> disconnect, otherwise free immediately */
+        if(rev->currentConnection.connectionId) {
+            UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
+            rev->destruction = true;
+            cm->closeConnection(cm, rev->currentConnection.connectionId);
+        } else {
+            setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
+            UA_String_clear(&rev->hostname);
+            free(rev);
+        }
+        result = UA_STATUSCODE_GOOD;
+        break;
+    }
+
+    if(LIST_EMPTY(&bpm->reverseConnects))
+        setReverseConnectRetryCallback(bpm, false);
+
+    UA_UNLOCK(&server->serviceMutex);
+
+    return result;
+}
+
 void
-UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                                 void *application, void **connectionContext,
-                                 UA_ConnectionState state, const UA_KeyValueMap *params,
-                                 UA_ByteString msg) {
+serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                             void *application, void **connectionContext,
+                             UA_ConnectionState state, const UA_KeyValueMap *params,
+                             UA_ByteString msg) {
     (void)params;
-
-    UA_Server *server = (UA_Server*)application;
-
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)application;
+    UA_LOG_DEBUG(bpm->logging, UA_LOGCATEGORY_SERVER,
                  "Activity for reverse connect %lu with state %d",
                  (long unsigned)connectionId, state);
 
@@ -1114,29 +1663,38 @@ UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionI
     if(context->currentConnection.connectionId == 0) {
         context->currentConnection.connectionId = connectionId;
         context->currentConnection.connectionManager = cm;
-        setReverseConnectState(server, context, UA_SECURECHANNELSTATE_CONNECTING);
+        setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CONNECTING);
         /* Fall through -- e.g. if state == ESTABLISHED already */
     }
 
     /* The connection is closing. This is the last callback for it. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         if(context->channel) {
-            deleteServerSecureChannel(server, context->channel);
+            deleteServerSecureChannel(bpm, context->channel);
             context->channel = NULL;
         }
 
         /* Delete the ReverseConnect entry */
         if(context->destruction) {
-            setReverseConnectState(server, context, UA_SECURECHANNELSTATE_CLOSED);
+            setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CLOSED);
             LIST_REMOVE(context, next);
             UA_String_clear(&context->hostname);
             free(context);
+
+            /* Check if the Binary Protocol Manager is stopped */
+            if(bpm->sc.state == UA_LIFECYCLESTATE_STOPPING &&
+               bpm->serverConnectionsSize == 0 &&
+               LIST_EMPTY(&bpm->reverseConnects) &&
+               TAILQ_EMPTY(&bpm->channels)) {
+                setBinaryProtocolManagerState(bpm->server, bpm,
+                                              UA_LIFECYCLESTATE_STOPPED);
+            }
             return;
         }
 
         /* Reset. Will be picked up in the regular retry callback. */
         context->currentConnection.connectionId = 0;
-        setReverseConnectState(server, context, UA_SECURECHANNELSTATE_CONNECTING);
+        setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CONNECTING);
         return;
     }
 
@@ -1147,9 +1705,9 @@ UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionI
      * createSecureChannel is used. */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!context->channel) {
-        retval = createServerSecureChannel(server, cm, connectionId, &context->channel);
+        retval = createServerSecureChannel(bpm, cm, connectionId, &context->channel);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not accept the reverse "
                            "connection with status %s",
                            (unsigned long)context->currentConnection.connectionId,
@@ -1159,9 +1717,9 @@ UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionI
         }
 
         /* Send the RHE message */
-        retval = sendRHEMessage(server, connectionId, cm);
+        retval = sendRHEMessage(bpm->server, connectionId, cm);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(bpm->logging, UA_LOGCATEGORY_SERVER,
                            "TCP %lu\t| Could not send the RHE message "
                            "with status %s",
                            (unsigned long)context->currentConnection.connectionId,
@@ -1171,16 +1729,16 @@ UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionI
         }
 
         context->channel->state = UA_SECURECHANNELSTATE_RHE_SENT;
-        setReverseConnectState(server, context, UA_SECURECHANNELSTATE_RHE_SENT);
+        setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_RHE_SENT);
         return;
     }
 
     /* The connection is fully opened and we have a SecureChannel.
      * Process the received buffer */
-    retval = UA_SecureChannel_processBuffer(context->channel, server,
+    retval = UA_SecureChannel_processBuffer(context->channel, bpm->server,
                                             processSecureChannelMessage, &msg);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, context->channel,
+        UA_LOG_WARNING_CHANNEL(bpm->logging, context->channel,
                                "Processing the message failed with error %s",
                                UA_StatusCode_name(retval));
 
@@ -1192,10 +1750,179 @@ UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionI
         UA_SecureChannel_sendError(context->channel, &error);
         UA_SecureChannel_shutdown(context->channel);
 
-        setReverseConnectState(server, context, UA_SECURECHANNELSTATE_CLOSING);
+        setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CLOSING);
         return;
     }
 
     /* Update the state with the current SecureChannel state */
-    setReverseConnectState(server, context, context->channel->state);
+    setReverseConnectState(bpm->server, context, context->channel->state);
+}
+
+/***************************/
+/* Binary Protocol Manager */
+/***************************/
+
+static UA_StatusCode
+UA_BinaryProtocolManager_start(UA_Server *server,
+                               UA_ServerComponent *sc) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
+    UA_ServerConfig *config = &server->config;
+    
+    UA_StatusCode retVal =
+        addRepeatedCallback(server, secureChannelHouseKeeping,
+                            bpm, 1000.0, &bpm->houseKeepingCallbackId);
+    if(retVal != UA_STATUSCODE_GOOD)
+        return retVal;
+
+    /* Open server sockets */
+    UA_Boolean haveServerSocket = false;
+    if(config->serverUrlsSize == 0) {
+        /* Empty hostname -> listen on all devices */
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "No Server URL configured. Using \"opc.tcp://:4840\" "
+                       "to configure the listen socket.");
+        UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
+        retVal = createServerConnection(bpm, &defaultUrl);
+        if(retVal == UA_STATUSCODE_GOOD)
+            haveServerSocket = true;
+    } else {
+        for(size_t i = 0; i < config->serverUrlsSize; i++) {
+            retVal = createServerConnection(bpm, &config->serverUrls[i]);
+            if(retVal == UA_STATUSCODE_GOOD)
+                haveServerSocket = true;
+        }
+    }
+
+    if(!haveServerSocket) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
+                     "The server has no server socket");
+    }
+
+    /* Update the application description to include the server urls for
+     * discovery. Don't add the urls with an empty host (listening on all
+     * interfaces) */
+    for(size_t i = 0; i < config->serverUrlsSize; i++) {
+        UA_String hostname = UA_STRING_NULL;
+        UA_String path = UA_STRING_NULL;
+        UA_UInt16 port = 0;
+        retVal = UA_parseEndpointUrl(&config->serverUrls[i],
+                                     &hostname, &port, &path);
+        if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
+            continue;
+
+        /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+         * Add if not already there. */
+        size_t j = 0;
+        for(; j < config->applicationDescription.discoveryUrlsSize; j++) {
+            if(UA_String_equal(&config->serverUrls[i],
+                               &config->applicationDescription.discoveryUrls[j]))
+                break;
+        }
+        if(j == config->applicationDescription.discoveryUrlsSize) {
+            retVal =
+                UA_Array_appendCopy((void**)&config->applicationDescription.discoveryUrls,
+                                    &config->applicationDescription.discoveryUrlsSize,
+                                    &config->serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
+            (void)retVal;
+        }
+    }
+
+    /* Set the state to started */
+    setBinaryProtocolManagerState(bpm->server, bpm,
+                                  UA_LIFECYCLESTATE_STARTED);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_BinaryProtocolManager_stop(UA_Server *server,
+                              UA_ServerComponent *comp) {
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)comp;
+
+    /* Stop the Housekeeping Task */
+    removeCallback(server, bpm->houseKeepingCallbackId);
+    bpm->houseKeepingCallbackId = 0;
+
+    /* Stop the regular retry callback */
+    setReverseConnectRetryCallback(bpm, false);
+
+    /* Close or free all reverse connections */
+    reverse_connect_context *rev, *rev_tmp;
+    LIST_FOREACH_SAFE(rev, &bpm->reverseConnects, next, rev_tmp) {
+        if(rev->currentConnection.connectionId) {
+            UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
+            rev->destruction = true;
+            cm->closeConnection(cm, rev->currentConnection.connectionId);
+        } else {
+            LIST_REMOVE(rev, next);
+            setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
+            UA_String_clear(&rev->hostname);
+            free(rev);
+        }
+    }
+
+    /* Stop all SecureChannels */
+    channel_entry *entry;
+    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+        entry->closeEvent = UA_DIAGNOSTICEVENT_CLOSE;
+        UA_SecureChannel_shutdown(&entry->channel);
+    }
+
+    /* Stop all server sockets */
+    for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {
+        UA_ServerConnection *sc = &bpm->serverConnections[i];
+        UA_ConnectionManager *cm = sc->connectionManager;
+        if(sc->connectionId > 0)
+            cm->closeConnection(cm, sc->connectionId);
+    }
+
+    /* If open sockets remain, set to STOPPING */
+    if(bpm->serverConnectionsSize == 0 &&
+       LIST_EMPTY(&bpm->reverseConnects) &&
+       TAILQ_EMPTY(&bpm->channels)) {
+        setBinaryProtocolManagerState(bpm->server, bpm,
+                                      UA_LIFECYCLESTATE_STOPPED);
+    } else {
+        setBinaryProtocolManagerState(bpm->server, bpm,
+                                      UA_LIFECYCLESTATE_STOPPING);
+    }
+}
+
+static UA_StatusCode
+UA_BinaryProtocolManager_free(UA_Server *server,
+                              UA_ServerComponent *sc) {
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    server->binaryProtocolManager = NULL;
+    UA_free(sc);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_ServerComponent *
+UA_BinaryProtocolManager_new(UA_Server *server) {
+    /* There can be only one BinaryProtocolManager per server */
+    if(server->binaryProtocolManager)
+        return NULL;
+    
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)
+        UA_calloc(1, sizeof(UA_BinaryProtocolManager));
+    if(!bpm)
+        return NULL;
+
+    bpm->server = server;
+    bpm->logging = &server->config.logger;
+    server->binaryProtocolManager = &bpm->sc;
+
+    /* Initialize SecureChannel */
+    TAILQ_INIT(&bpm->channels);
+
+    /* TODO: use an ID that is likely to be unique after a restart */
+    bpm->lastChannelId = STARTCHANNELID;
+    bpm->lastTokenId = STARTTOKENID;
+
+    bpm->sc.start = UA_BinaryProtocolManager_start;
+    bpm->sc.stop = UA_BinaryProtocolManager_stop;
+    bpm->sc.free = UA_BinaryProtocolManager_free;
+    return &bpm->sc;
 }
