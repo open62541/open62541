@@ -361,9 +361,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Server_updateMdnsForDiscoveryUrl(server, mdnsServerName, mdnsConfig,
-                                                &requestServer->discoveryUrls[i],
-                                                requestServer->isOnline, updateTxt);
+            UA_Discovery_updateMdnsForDiscoveryUrl(dm, mdnsServerName, mdnsConfig,
+                                                   &requestServer->discoveryUrls[i],
+                                                   requestServer->isOnline, updateTxt);
         }
     }
 #endif

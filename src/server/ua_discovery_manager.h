@@ -76,6 +76,10 @@ struct UA_DiscoveryManager {
 
     UA_UInt64 discoveryCallbackId;
 
+    /* Taken from the server config during startup */
+    UA_Logger *logging;
+    const UA_ServerConfig *serverConfig;
+
     LIST_HEAD(, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks;
     LIST_HEAD(, registeredServer_list_entry) registeredServers;
     size_t registeredServersSize;
@@ -117,39 +121,40 @@ struct UA_DiscoveryManager {
  * serversOnNetwork list so that a client finds it when calling
  * FindServersOnNetwork. */
 void
-UA_Server_updateMdnsForDiscoveryUrl(UA_Server *server, const UA_String *serverName,
-                                    const UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                    const UA_String *discoveryUrl, UA_Boolean isOnline,
-                                    UA_Boolean updateTxt);
+UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String *serverName,
+                                       const UA_MdnsDiscoveryConfiguration *mdnsConfig,
+                                       const UA_String *discoveryUrl, UA_Boolean isOnline,
+                                       UA_Boolean updateTxt);
 
 void mdns_record_received(const struct resource *r, void *data);
 
-void mdns_create_txt(UA_Server *server, const char *fullServiceDomain,
+void mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                      const char *path, const UA_String *capabilites,
                      const size_t capabilitiesSize,
                      void (*conflict)(char *host, int type, void *arg));
 
-void mdns_set_address_record(UA_Server *server, const char *fullServiceDomain,
+void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                              const char *localDomain);
 
 mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
 
-UA_StatusCode
-initMulticastDiscoveryServer(UA_DiscoveryManager *dm, UA_Server* server);
-
 void startMulticastDiscoveryServer(UA_Server *server);
 void stopMulticastDiscoveryServer(UA_Server *server);
 
 UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord,
-                                               const char *serverName, size_t serverNameLen,
+UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
+                                               const char *fqdnMdnsRecord,
+                                               const char *serverName,
+                                               size_t serverNameLen,
                                                struct serverOnNetwork_list_entry **addedEntry);
 
 UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_Server *server, const char *fqdnMdnsRecord,
-                                                    const char *serverName, size_t serverNameLen);
+UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
+                                                    const char *fqdnMdnsRecord,
+                                                    const char *serverName,
+                                                    size_t serverNameLen);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
