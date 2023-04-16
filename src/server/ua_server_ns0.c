@@ -266,11 +266,16 @@ createNS0_base(UA_Server *server) {
     /* Add BaseEventType */
     UA_ObjectTypeAttributes eventtype_attr = UA_ObjectTypeAttributes_default;
     eventtype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseEventType");
-    ret |= ns0_addNode_raw(server, UA_NODECLASS_OBJECTTYPE,
-                           UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
-                           &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
-    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEEVENTTYPE,
-                              UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_ORGANIZES);
+    ret |= addNode(server, UA_NODECLASS_OBJECTTYPE,
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                   UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "BaseEventType"),
+                   UA_NODEID_NULL,
+                   &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], NULL, NULL);
+    ret |= addRef(server,
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTTYPESFOLDER),
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), true);
 
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
