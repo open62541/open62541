@@ -144,6 +144,9 @@ UA_DiscoveryManager_start(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    dm->logging = &server->config.logger;
+    dm->serverConfig = &server->config;
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
         startMulticastDiscoveryServer(server);
