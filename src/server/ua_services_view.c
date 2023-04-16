@@ -640,8 +640,13 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     cp->lastTarget = t->targetId;
     cp->lastRefKindIndex = bc->rk->referenceTypeIndex;
 
-    /* Abort the iteration if the status is not good */
-    return (bc->status == UA_STATUSCODE_GOOD) ? NULL : (void*)0x01;
+    /* Abort if the status is not good. Also doesn't make a deep-copy of
+     * cp->lastTarget after returning from here. */
+    if(bc->status != UA_STATUSCODE_GOOD) {
+        UA_NodePointer_init(&cp->lastTarget);
+        return (void*)0x01;
+    }
+    return NULL;
 }
 
 /* Returns whether the node / continuationpoint is done */
@@ -704,6 +709,10 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
                 rk->targets.array = &rk->targets.array[nextTargetIndex];
                 rk->targetsSize -= nextTargetIndex;
             }
+
+            /* Clear cp->lastTarget before it gets overwritten in the following
+             * browse steps. */
+            UA_NodePointer_clear(&cp->lastTarget);
         }
 
         /* Iterate over all reference targets */
@@ -726,12 +735,16 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
 
         /* The iteration was aborted */
         if(res != NULL) {
-            /* Aborted with status code good. The continuation point picks up
-             * from the last target. Make a deep copy of the last target. */
+            /* Aborted with status code good -> the maximum number of browse
+             * results was reached. Make a deep copy of the last target for the
+             * continuation point. */
             if(bc->status == UA_STATUSCODE_GOOD)
                 bc->status = UA_NodePointer_copy(cp->lastTarget, &cp->lastTarget);
             return;
         }
+
+        /* Reset last-target to prevent clearing it up */
+        UA_NodePointer_init(&cp->lastTarget);
     }
 
     /* Browsing the node is done */
@@ -898,7 +911,8 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
     cp2->maxReferences = cp.maxReferences;
     cp2->relevantReferences = cp.relevantReferences;
-    cp2->lastTarget = cp.lastTarget;
+    cp2->lastTarget = cp.lastTarget; /* Move the (deep) copy */
+    UA_NodePointer_init(&cp.lastTarget); /* No longer clear below (cleanup) */
     cp2->lastRefKindIndex = cp.lastRefKindIndex;
 
     /* Create a random bytestring via a Guid */
@@ -927,6 +941,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         ContinuationPoint_clear(cp2);
         UA_free(cp2);
     }
+    UA_NodePointer_clear(&cp.lastTarget);
     UA_BrowseResult_clear(result);
     result->statusCode = retval;
 }
