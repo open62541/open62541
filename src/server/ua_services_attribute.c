@@ -449,6 +449,11 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_INVERSENAME:
         CHECK_NODECLASS(UA_NODECLASS_REFERENCETYPE);
+        if(node->referenceTypeNode.symmetric) {
+            /* Symmetric reference types don't have an inverse name */
+            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            break;
+        }
         retval = UA_Variant_setScalarCopy(&v->value, &node->referenceTypeNode.inverseName,
                                           &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         break;
