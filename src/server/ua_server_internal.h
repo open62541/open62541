@@ -35,7 +35,8 @@ _UA_BEGIN_DECLS
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-#include "ua_discovery_manager.h"
+struct UA_DiscoveryManager;
+typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -196,7 +197,7 @@ struct UA_Server {
 
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager discoveryManager;
+    UA_DiscoveryManager *discoveryManager;
 #endif
 
     /* Subscriptions */
@@ -603,6 +604,9 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
+UA_ServerComponent *
+UA_DiscoveryManager_new(UA_Server *server);
+
 UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
