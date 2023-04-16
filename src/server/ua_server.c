@@ -33,9 +33,6 @@
 #include <valgrind/memcheck.h>
 #endif
 
-#define STARTCHANNELID 1
-#define STARTTOKENID 1
-
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -245,7 +242,6 @@ UA_Server_delete(UA_Server *server) {
 
     UA_LOCK(&server->serviceMutex);
 
-    UA_Server_deleteSecureChannels(server);
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
         UA_Server_removeSession(server, current, UA_DIAGNOSTICEVENT_CLOSE);
@@ -309,7 +305,6 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_LOCK(&server->serviceMutex);
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
-    UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -377,12 +372,6 @@ UA_Server_init(UA_Server *server) {
     server->namespaces[1] = UA_STRING_NULL;
     server->namespacesSize = 2;
 
-    /* Initialize SecureChannel */
-    TAILQ_INIT(&server->channels);
-    /* TODO: use an ID that is likely to be unique after a restart */
-    server->lastChannelId = STARTCHANNELID;
-    server->lastTokenId = STARTTOKENID;
-
     /* Initialize Session Management */
     LIST_INIT(&server->sessions);
     server->sessionCount = 0;
@@ -390,6 +379,9 @@ UA_Server_init(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
+
+    /* Initialize the binay protocol support */
+    addServerComponent(server, UA_BinaryProtocolManager_new(server), NULL);
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
@@ -539,6 +531,16 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+static void
+notifySecureChannelsStopped(UA_Server *server, struct UA_ServerComponent *sc,
+                            UA_LifecycleState state) {
+    if(sc->state == UA_LIFECYCLESTATE_STOPPED &&
+       server->state == UA_LIFECYCLESTATE_STARTED) {
+        sc->notifyState = NULL; /* remove the callback */
+        sc->start(server, sc);
+    }
+}
+
 UA_StatusCode
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
@@ -564,13 +566,11 @@ UA_Server_updateCertificate(UA_Server *server,
 
     }
 
-    if(closeSecureChannels) {
-        channel_entry *entry;
-        TAILQ_FOREACH(entry, &server->channels, pointers) {
-            if(UA_ByteString_equal(&entry->channel.securityPolicy->localCertificate,
-                                   oldCertificate))
-                shutdownServerSecureChannel(server, &entry->channel, UA_DIAGNOSTICEVENT_CLOSE);
-        }
+    /* Gracefully close all SecureChannels. And restart the
+     * BinaryProtocolManager once it has fully stopped. */
+    if(closeSecureChannels && server->binaryProtocolManager) {
+        server->binaryProtocolManager->notifyState = notifySecureChannelsStopped;
+        server->binaryProtocolManager->stop(server, server->binaryProtocolManager);
     }
 
     size_t i = 0;
@@ -643,191 +643,6 @@ UA_Server_getStatistics(UA_Server *server) {
     stat.ss.sessionTimeoutCount = sds->sessionTimeoutCount;
     stat.ss.sessionAbortCount = sds->sessionAbortCount;
     return stat;
-}
-
-static UA_StatusCode
-createServerConnection(UA_Server *server, const UA_String *serverUrl) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_ServerConfig *config = &server->config;
-
-    /* Extract the protocol, hostname and port from the url */
-    UA_String hostname = UA_STRING_NULL;
-    UA_String path = UA_STRING_NULL;
-    UA_UInt16 port = 4840; /* default */
-    UA_StatusCode res = UA_parseEndpointUrl(serverUrl, &hostname, &port, &path);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    UA_String tcpString = UA_STRING("tcp");
-    for(UA_EventSource *es = config->eventLoop->eventSources;
-        es != NULL; es = es->next) {
-        /* Is this a usable connection manager? */
-        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
-            continue;
-        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
-            continue;
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[3];
-        size_t paramsSize = 2;
-
-        params[0].key = UA_QUALIFIEDNAME(0, "port");
-        UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-
-        UA_Boolean listen = true;
-        params[1].key = UA_QUALIFIEDNAME(0, "listen");
-        UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
-
-        if(hostname.length > 0) {
-            /* The hostname is non-empty */
-            params[2].key = UA_QUALIFIEDNAME(0, "address");
-            UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
-            paramsSize = 3;
-        }
-
-        UA_KeyValueMap paramsMap;
-        paramsMap.map = params;
-        paramsMap.mapSize = paramsSize;
-
-        /* Open the server connection */
-        res = cm->openConnection(cm, &paramsMap, server, NULL, UA_Server_networkCallback);
-        if(res == UA_STATUSCODE_GOOD)
-            return res;
-    }
-
-    return UA_STATUSCODE_BADINTERNALERROR;
-}
-
-UA_StatusCode
-attemptReverseConnect(UA_Server *server, reverse_connect_context *context) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_ServerConfig *config = &server->config;
-    UA_EventLoop *el = config->eventLoop;
-
-    /* Find a TCP ConnectionManager */
-    UA_String tcpString = UA_STRING_STATIC("tcp");
-    for(UA_EventSource *es = el->eventSources; es != NULL; es = es->next) {
-        /* Is this a usable connection manager? */
-        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
-            continue;
-
-        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
-        if(!UA_String_equal(&tcpString, &cm->protocol))
-            continue;
-
-        if(es->state != UA_EVENTSOURCESTATE_STARTED)
-            continue;
-
-        /* Set up the parameters */
-        UA_KeyValuePair params[2];
-        params[0].key = UA_QUALIFIEDNAME(0, "address");
-        UA_Variant_setScalar(&params[0].value, &context->hostname,
-                             &UA_TYPES[UA_TYPES_STRING]);
-        params[1].key = UA_QUALIFIEDNAME(0, "port");
-        UA_Variant_setScalar(&params[1].value, &context->port,
-                             &UA_TYPES[UA_TYPES_UINT16]);
-        UA_KeyValueMap kvm = {2, params};
-
-        /* Open the connection */
-        UA_StatusCode res = cm->openConnection(cm, &kvm, server, context,
-                                               UA_Server_reverseConnectCallback);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                           "Failed to create connection for reverse connect: %s\n",
-                           UA_StatusCode_name(res));
-        }
-        return res;
-    }
-
-    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                   "No ConnectionManager found for reverse connect");
-    return UA_STATUSCODE_BADINTERNALERROR;
-}
-
-UA_StatusCode
-UA_Server_addReverseConnect(UA_Server *server, UA_String url,
-                            UA_Server_ReverseConnectStateCallback stateCallback,
-                            void *callbackContext, UA_UInt64 *handle) {
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    /* Parse the reverse connect URL */
-    UA_String hostname = UA_STRING_NULL;
-    UA_UInt16 port = 0;
-    UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
-                       "OPC UA URL is invalid: %.*s",
-                       (int)url.length, url.data);
-        return res;
-    }
-
-    /* Set up the reverse connection */
-    reverse_connect_context *newContext =
-        (reverse_connect_context *)calloc(1, sizeof(reverse_connect_context));
-    if(!newContext)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    UA_String_copy(&hostname, &newContext->hostname);
-    newContext->port = port;
-    newContext->handle = ++server->lastReverseConnectHandle;
-    newContext->stateCallback = stateCallback;
-    newContext->callbackContext = callbackContext;
-
-    UA_LOCK(&server->serviceMutex);
-
-    /* Register the retry callback */
-    if(LIST_EMPTY(&server->reverseConnects))
-        setReverseConnectRetryCallback(server, true);
-
-    /* Register the new reverse connection */
-    LIST_INSERT_HEAD(&server->reverseConnects, newContext, next);
-
-    if(handle)
-        *handle = newContext->handle;
-
-    /* Attempt to connect right away */
-    res = attemptReverseConnect(server, newContext);
-
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
-    UA_StatusCode result = UA_STATUSCODE_BADNOTFOUND;
-
-    UA_LOCK(&server->serviceMutex);
-
-    reverse_connect_context *rev, *temp;
-    LIST_FOREACH_SAFE(rev, &server->reverseConnects, next, temp) {
-        if(rev->handle != handle)
-            continue;
-
-        LIST_REMOVE(rev, next);
-
-        /* Connected -> disconnect, otherwise free immediately */
-        if(rev->currentConnection.connectionId) {
-            UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
-            rev->destruction = true;
-            cm->closeConnection(cm, rev->currentConnection.connectionId);
-        } else {
-            setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
-            UA_String_clear(&rev->hostname);
-            free(rev);
-        }
-        result = UA_STATUSCODE_GOOD;
-        break;
-    }
-
-    if(LIST_EMPTY(&server->reverseConnects))
-        setReverseConnectRetryCallback(server, false);
-
-    UA_UNLOCK(&server->serviceMutex);
-
-    return result;
 }
 
 /********************/
@@ -920,61 +735,6 @@ UA_Server_run_startup(UA_Server *server) {
                             &server->pollingCallbackId);
     }
 
-    /* <-- The point of no return for starting the server --> */
-
-    /* Open server sockets */
-    UA_Boolean haveServerSocket = false;
-    if(config->serverUrlsSize == 0) {
-        /* Empty hostname -> listen on all devices */
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
-                       "No Server URL configured. Using \"opc.tcp://:4840\" "
-                       "to configure the listen socket.");
-        UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
-        retVal = createServerConnection(server, &defaultUrl);
-        if(retVal == UA_STATUSCODE_GOOD)
-            haveServerSocket = true;
-    } else {
-        for(size_t i = 0; i < config->serverUrlsSize; i++) {
-            retVal = createServerConnection(server, &config->serverUrls[i]);
-            if(retVal == UA_STATUSCODE_GOOD)
-                haveServerSocket = true;
-        }
-    }
-
-    if(!haveServerSocket) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
-                     "The server has no server socket");
-    }
-
-    /* Update the application description to include the server urls for
-     * discovery. Don't add the urls with an empty host (listening on all
-     * interfaces) */
-    for(size_t i = 0; i < config->serverUrlsSize; i++) {
-        UA_String hostname = UA_STRING_NULL;
-        UA_String path = UA_STRING_NULL;
-        UA_UInt16 port = 0;
-        retVal = UA_parseEndpointUrl(&config->serverUrls[i],
-                                     &hostname, &port, &path);
-        if(retVal != UA_STATUSCODE_GOOD || hostname.length == 0)
-            continue;
-
-        /* Check if the ServerUrl is already present in the DiscoveryUrl array.
-         * Add if not already there. */
-        size_t j = 0;
-        for(; j < config->applicationDescription.discoveryUrlsSize; j++) {
-            if(UA_String_equal(&config->serverUrls[i],
-                               &config->applicationDescription.discoveryUrls[j]))
-                break;
-        }
-        if(j == config->applicationDescription.discoveryUrlsSize) {
-            retVal =
-                UA_Array_appendCopy((void**)&config->applicationDescription.discoveryUrls,
-                                    &config->applicationDescription.discoveryUrlsSize,
-                                    &config->serverUrls[i], &UA_TYPES[UA_TYPES_STRING]);
-            (void)retVal;
-        }
-    }
-
     /* Ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -1057,9 +817,8 @@ testStoppedCondition(UA_Server *server) {
 
 UA_StatusCode
 UA_Server_run_shutdown(UA_Server *server) {
-    if(server == NULL) {
+    if(server == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     UA_LOCK(&server->serviceMutex);
 
@@ -1085,38 +844,9 @@ UA_Server_run_shutdown(UA_Server *server) {
         server->pollingCallbackId = 0;
     }
 
-    /* Stop the regular retry callback */
-    setReverseConnectRetryCallback(server, false);
-
-    /* Close or free all reverse connections */
-    reverse_connect_context *rev, *rev_tmp;
-    LIST_FOREACH_SAFE(rev, &server->reverseConnects, next, rev_tmp) {
-        if(rev->currentConnection.connectionId) {
-            UA_ConnectionManager *cm = rev->currentConnection.connectionManager;
-            rev->destruction = true;
-            cm->closeConnection(cm, rev->currentConnection.connectionId);
-        } else {
-            LIST_REMOVE(rev, next);
-            setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
-            UA_String_clear(&rev->hostname);
-            free(rev);
-        }
-    }
-
-    /* Stop all SecureChannels */
-    UA_Server_deleteSecureChannels(server);
-
     /* Stop all ServerComponents */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
              stopServerComponent, server);
-
-    /* Stop all server sockets */
-    for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {
-        UA_ServerConnection *sc = &server->serverConnections[i];
-        UA_ConnectionManager *cm = sc->connectionManager;
-        if(sc->connectionId > 0)
-            cm->closeConnection(cm, sc->connectionId);
-    }
 
     /* Are we already stopped? */
     if(testStoppedCondition(server)) {
