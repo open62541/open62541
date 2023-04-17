@@ -52,9 +52,8 @@ int main(int argc, char* argv[]) {
         UA_UInt32 lenSubjectAltName = 2;
         UA_KeyValueMap *kvm = UA_KeyValueMap_new();
         UA_UInt16 expiresIn = 14;
-        UA_KeyValueMap_setScalar(kvm, CreateCertificateParams[CERT_EXPIRES_IN_DAYS].name,
-                                 (void *)&expiresIn,
-                                 CreateCertificateParams[CERT_EXPIRES_IN_DAYS].type);
+        UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                                 (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
         UA_StatusCode statusCertGen = UA_CreateCertificate(
             UA_Log_Stdout, subject, lenSubject, subjectAltName, lenSubjectAltName,
             UA_CERTIFICATEFORMAT_DER, kvm, &privateKey, &certificate);

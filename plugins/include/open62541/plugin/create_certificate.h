@@ -20,21 +20,6 @@ typedef enum {
     UA_CERTIFICATEFORMAT_PEM
 } UA_CertificateFormat;
 
-typedef struct {
-    const UA_QualifiedName name;
-    const UA_DataType *type;
-} UA_CreateCertificateParams;
-
-/* Configuration parameters */
-#define CREATECERTIFICATEPARAMSSIZE 2
-#define CERT_EXPIRES_IN_DAYS 0
-#define CERT_KEY_SIZE_BITS 1
-
-static const UA_CreateCertificateParams
-    CreateCertificateParams[CREATECERTIFICATEPARAMSSIZE] = {
-        {{0, UA_STRING_STATIC("expiresInDays")}, &UA_TYPES[UA_TYPES_UINT16]},
-        {{0, UA_STRING_STATIC("keySizeBits")}, &UA_TYPES[UA_TYPES_UINT16]}};
-
 /**
  * Create a self-signed certificate
  *
@@ -46,8 +31,8 @@ static const UA_CreateCertificateParams
  * \param subjectAltName Elements for SubjectAltName,
  *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
  * \param params key value map with optional parameters:
- *                  - expiresInDays after these the cert expires default: 365
- *                  - keySizeBits Size of the generated key in bits. Possible values are:
+ *                  - expires-in-days after these the cert expires default: 365
+ *                  - key-size-bits Size of the generated key in bits. Possible values are:
  *                    [0, 1024 (deprecated), 2048, 4096] default: 4096
  */
 UA_StatusCode UA_EXPORT

@@ -124,14 +124,12 @@ UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
 
     if(params) {
         const UA_UInt16 *keySizeBitsValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
-            params, CreateCertificateParams[CERT_KEY_SIZE_BITS].name,
-            CreateCertificateParams[CERT_KEY_SIZE_BITS].type);
+            params, UA_QUALIFIEDNAME(0, "key-size-bits"), &UA_TYPES[UA_TYPES_UINT16]);
         if(keySizeBitsValue)
             keySizeBits = *keySizeBitsValue;
 
         const UA_UInt16 *expiresInDaysValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
-            params, CreateCertificateParams[CERT_EXPIRES_IN_DAYS].name,
-            CreateCertificateParams[CERT_EXPIRES_IN_DAYS].type);
+            params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
         if(expiresInDaysValue)
             expiresInDays = *expiresInDaysValue;
     }
