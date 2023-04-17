@@ -292,6 +292,15 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
+/* Connect to the server. First a SecureChannel is opened, then a Session. The
+ * client configuration restricts the SecureChannel selection and contains the
+ * UserIdentityToken for the Session.
+ *
+ * @param client to use
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_ActivateSession(UA_Client *client);
+
 /* Connect async (non-blocking) to the server. After initiating the connection,
  * call UA_Client_run_iterate repeatedly until the connection is fully
  * established. You can set a callback to client->config.stateCallback to be

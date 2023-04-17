@@ -1710,6 +1710,59 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
 }
 
 static void
+activateSessionSync(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    // reset state to created
+    client->sessionState = UA_SESSIONSTATE_CREATED;
+    activateSessionAsync(client);
+
+    /* EventLoop is started. Otherwise activateSessionSync would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+    while(true) {
+
+        if(client->connectStatus != UA_STATUSCODE_GOOD &&
+           client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
+            break;
+
+        /* Timeout -> abort */
+        now = UA_DateTime_nowMonotonic();
+        if(maxDate < now) {
+            if(client->connectStatus == UA_STATUSCODE_GOOD)
+                client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+            closeSecureChannel(client);
+        }
+
+        /* Drop into the EventLoop */
+        UA_UNLOCK(&client->clientMutex);
+        UA_StatusCode res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+        UA_LOCK(&client->clientMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            client->connectStatus = res;
+            closeSecureChannel(client);
+        }
+
+        if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
+            break;
+    }    
+}
+
+UA_StatusCode
+UA_Client_ActivateSession(UA_Client *client) {
+    UA_LOCK(&client->clientMutex);
+    /* activate session sync */
+    activateSessionSync(client);
+
+    // wait for timeout or activate session response
+    UA_UNLOCK(&client->clientMutex);
+    return client->connectStatus;
+}
+
+static void
 __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void *application, void **connectionContext,
                          UA_ConnectionState state, const UA_KeyValueMap *params,
