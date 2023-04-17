@@ -259,7 +259,6 @@ if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     ua_add_test(check_eventloop_eth.c)
 endif()
 
-ua_add_test(client/check_activateSession.c)
 # Test Server
 
 ua_add_test(server/check_accesscontrol.c)
@@ -404,7 +403,8 @@ ua_add_test(server/check_server_reverseconnect.c)
 # Test Client
 
 ua_add_test(client/check_client.c)
-#ua_add_test(client/check_activateSession.c)
+ua_add_test(client/check_activateSession.c)
+ua_add_test(client/check_subscriptionWithactivateSession.c)
 ua_add_test(client/check_client_securechannel.c)
 ua_add_test(client/check_client_async.c)
 ua_add_test(client/check_client_async_connect.c)
