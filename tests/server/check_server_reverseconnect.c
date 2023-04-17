@@ -78,6 +78,7 @@ static void teardown(void) {
         THREAD_JOIN(server_thread);
     }
 
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     UA_Client_delete(client);
 }

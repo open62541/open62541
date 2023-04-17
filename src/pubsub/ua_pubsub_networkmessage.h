@@ -91,6 +91,7 @@ typedef struct {
         UA_DataSetMessage_DataKeyFrameData keyFrameData;
         UA_DataSetMessage_DataDeltaFrameData deltaFrameData;
     } data;
+    size_t configuredSize;
 } UA_DataSetMessage;
 
 typedef struct {

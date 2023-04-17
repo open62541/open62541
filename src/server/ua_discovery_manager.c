@@ -11,37 +11,23 @@
  *    Copyright 2017 (c) Julian Grothoff
  */
 
+#include "ua_discovery_manager.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY
 
-void
-UA_DiscoveryManager_init(UA_DiscoveryManager *dm) {
-    LIST_INIT(&dm->registeredServers);
-    dm->registeredServersSize = 0;
-    LIST_INIT(&dm->periodicServerRegisterCallbacks);
-    dm->registerServerCallback = NULL;
-    dm->registerServerCallbackData = NULL;
+static UA_StatusCode
+UA_DiscoveryManager_free(UA_Server *server,
+                         struct UA_ServerComponent *sc) {
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    dm->mdnsDaemon = NULL;
-    dm->mdnsSocket = UA_INVALID_SOCKET;
-    dm->mdnsMainSrvAdded = false;
-    dm->selfFqdnMdnsRecord = UA_STRING_NULL;
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "Cannot delete the DiscoveryManager because "
+                     "it is not stopped");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
-    LIST_INIT(&dm->serverOnNetwork);
-    dm->serverOnNetworkRecordIdCounter = 0;
-    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    memset(dm->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_SIZE);
-
-    dm->serverOnNetworkCallback = NULL;
-    dm->serverOnNetworkCallbackData = NULL;
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-}
-
-void
-UA_DiscoveryManager_clear(UA_DiscoveryManager *dm) {
     registeredServer_list_entry *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
@@ -77,40 +63,27 @@ UA_DiscoveryManager_clear(UA_DiscoveryManager *dm) {
             currHash = nextHash;
         }
     }
-
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-}
 
-void
-UA_DiscoveryManager_start(UA_Server *server) {
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
-        startMulticastDiscoveryServer(server);
-#endif
-}
-
-void
-UA_DiscoveryManager_stop(UA_Server *server) {
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
-        stopMulticastDiscoveryServer(server);
-#endif
+    UA_free(dm);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Cleanup server registration: If the semaphore file path is set, then it just
  * checks the existence of the file. When it is deleted, the registration is
  * removed. If there is no semaphore file, then the registration will be removed
  * if it is older than 60 minutes. */
-void
+static void
 UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
-                                    UA_DateTime nowMonotonic) {
+                                    void *data) {
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)data;
+
     /* TimedOut gives the last DateTime at which we must have seen the
      * registered server. Otherwise it is timed out. */
-    UA_DateTime timedOut = nowMonotonic;
+    UA_DateTime timedOut = UA_DateTime_nowMonotonic();
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
-    UA_DiscoveryManager *dm = &server->discoveryManager;
     registeredServer_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &dm->registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = false;
@@ -154,9 +127,92 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
             UA_free(current);
-            server->discoveryManager.registeredServersSize--;
+            dm->registeredServersSize--;
         }
     }
+}
+
+static UA_StatusCode
+UA_DiscoveryManager_start(UA_Server *server,
+                          struct UA_ServerComponent *sc) {
+    if(sc->state != UA_LIFECYCLESTATE_STOPPED)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+    UA_StatusCode res = addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
+                                            dm, 1000.0, &dm->discoveryCallbackId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    dm->logging = &server->config.logger;
+    dm->serverConfig = &server->config;
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.mdnsEnabled)
+        startMulticastDiscoveryServer(server);
+#endif
+
+    sc->state = UA_LIFECYCLESTATE_STARTED;
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_DiscoveryManager_stop(UA_Server *server,
+                         struct UA_ServerComponent *sc) {
+    if(sc->state != UA_LIFECYCLESTATE_STARTED)
+        return;
+
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
+    removeCallback(server, dm->discoveryCallbackId);
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    if(server->config.mdnsEnabled)
+        stopMulticastDiscoveryServer(server);
+#endif
+
+    sc->state = UA_LIFECYCLESTATE_STOPPED;
+}
+
+UA_ServerComponent *
+UA_DiscoveryManager_new(UA_Server *server) {
+    /* There can be only one DiscoveryManager per server */
+    if(server->discoveryManager)
+        return NULL;
+
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        UA_calloc(1, sizeof(UA_DiscoveryManager));
+    if(!dm)
+        return NULL;
+
+    LIST_INIT(&dm->registeredServers);
+    dm->registeredServersSize = 0;
+    LIST_INIT(&dm->periodicServerRegisterCallbacks);
+    dm->registerServerCallback = NULL;
+    dm->registerServerCallbackData = NULL;
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    dm->mdnsDaemon = NULL;
+    dm->mdnsSocket = UA_INVALID_SOCKET;
+    dm->mdnsMainSrvAdded = false;
+    dm->selfFqdnMdnsRecord = UA_STRING_NULL;
+
+    LIST_INIT(&dm->serverOnNetwork);
+    dm->serverOnNetworkRecordIdCounter = 0;
+    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    memset(dm->serverOnNetworkHash, 0,
+           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_SIZE);
+
+    dm->serverOnNetworkCallback = NULL;
+    dm->serverOnNetworkCallbackData = NULL;
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
+
+    /* Register in the server */
+    server->discoveryManager = dm;
+
+    dm->sc.start = UA_DiscoveryManager_start;
+    dm->sc.stop = UA_DiscoveryManager_stop;
+    dm->sc.free = UA_DiscoveryManager_free;
+    return &dm->sc;
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

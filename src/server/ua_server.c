@@ -173,19 +173,74 @@ cleanup:
     return res;
 }
 
+/*********************/
+/* Server Components */
+/*********************/
+
+enum ZIP_CMP
+cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b) {
+    if(*a == *b)
+        return ZIP_CMP_EQ;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
+}
+
+void
+addServerComponent(UA_Server *server, UA_ServerComponent *sc,
+                   UA_UInt64 *identifier) {
+    if(!sc)
+        return;
+
+    sc->identifier = ++server->serverComponentIds;
+    ZIP_INSERT(UA_ServerComponentTree, &server->serverComponents, sc);
+
+    /* Start the component if the server is started */
+    if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
+        sc->start(server, sc);
+
+    if(identifier)
+        *identifier = sc->identifier;
+}
+
+static void *
+removeServerComponent(void *application, UA_ServerComponent *sc) {
+    UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
+    sc->free((UA_Server*)application, sc);
+    return NULL;
+}
+
+static void *
+startServerComponent(void *application, UA_ServerComponent *sc) {
+    sc->start((UA_Server*)application, sc);
+    return NULL;
+}
+
+static void *
+stopServerComponent(void *application, UA_ServerComponent *sc) {
+    sc->stop((UA_Server*)application, sc);
+    return NULL;
+}
+
+/* ZIP_ITER returns NULL only if all components are stopped */
+static void *
+checkServerComponent(void *application, UA_ServerComponent *sc) {
+    return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
+}
+
 /********************/
 /* Server Lifecycle */
 /********************/
 
 /* The server needs to be stopped before it can be deleted */
-void UA_Server_delete(UA_Server *server) {
+UA_StatusCode
+UA_Server_delete(UA_Server *server) {
     if(server == NULL) {
-        return;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
-    /* check if UA_Server_run_shutdown has already been called */
-    if(server->houseKeepingCallbackId != 0) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_run_shutdown shall be called before UA_Server_delete");
+
+    if(server->state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "The server must be fully stopped before it can be deleted");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_LOCK(&server->serviceMutex);
@@ -222,16 +277,16 @@ void UA_Server_delete(UA_Server *server) {
     UA_PubSubManager_delete(server, &server->pubSubManager);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_clear(&server->discoveryManager);
-#endif
-
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
 
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
+
+    /* Remove all remaining server components (must be all stopped) */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             removeServerComponent, server);
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
@@ -242,8 +297,9 @@ void UA_Server_delete(UA_Server *server) {
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
-    /* Delete the server itself */
+    /* Delete the server itself and return */
     UA_free(server);
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Regular house-keeping tasks. Removing unused and timed-out channels and
@@ -254,9 +310,6 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
     UA_Server_cleanupSessions(server, nowMonotonic);
     UA_Server_cleanupTimedOutSecureChannels(server, nowMonotonic);
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_cleanupTimedOut(server, nowMonotonic);
-#endif
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -340,7 +393,7 @@ UA_Server_init(UA_Server *server) {
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_init(&server->discoveryManager);
+    addServerComponent(server, UA_DiscoveryManager_new(server), NULL);
 #endif
 
     /* Initialize namespace 0*/
@@ -783,6 +836,23 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
 
 #define UA_MAXTIMEOUT 200 /* Max timeout in ms between main-loop iterations */
 
+void
+setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
+    if(server->state == state)
+        return;
+    server->state = state;
+    if(server->config.notifyLifecycleState) {
+        UA_UNLOCK(&server->serviceMutex);
+        server->config.notifyLifecycleState(server, server->state);
+        UA_LOCK(&server->serviceMutex);
+    }
+}
+
+UA_LifecycleState
+UA_Server_getLifecycleState(UA_Server *server) {
+    return server->state;
+}
+
 /* Start: Spin up the workers and the network layer and sample the server's
  *        start time.
  * Iterate: Process repeated callbacks and events in the network layer. This
@@ -807,7 +877,7 @@ UA_Server_run_startup(UA_Server *server) {
                  "This should only be used for specific fuzzing builds.");
 #endif
 
-    if(server->state != UA_SERVERLIFECYCLE_STOPPED) {
+    if(server->state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
                        "The server has already been started");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -850,9 +920,7 @@ UA_Server_run_startup(UA_Server *server) {
                             &server->pollingCallbackId);
     }
 
-    /* Set the server to STARTED.
-     * From here on, only use UA_Server_run_shutdown(server) to stop the server. */
-    server->state = UA_SERVERLIFECYCLE_STARTED;
+    /* <-- The point of no return for starting the server --> */
 
     /* Open server sockets */
     UA_Boolean haveServerSocket = false;
@@ -939,29 +1007,52 @@ UA_Server_run_startup(UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME);
     writeValueAttribute(server, startTime, &var);
 
-    /* Start the multicast discovery server */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_start(server);
-#endif
+    /* Start all ServerComponents */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             startServerComponent, server);
 
-    /* Unlock and return */
+    /* Set the server to STARTED. From here on, only use
+     * UA_Server_run_shutdown(server) to stop the server. */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
+
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_UInt16
 UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
+    /* Make sure an EventLoop is configured */
+    UA_EventLoop *el = server->config.eventLoop;
+    if(!el)
+        return 0;
+
     /* Process timed and network events in the EventLoop */
     UA_UInt32 timeout = (waitInternal) ? UA_MAXTIMEOUT : 0;
-    server->config.eventLoop->run(server->config.eventLoop, timeout);
+    el->run(el, timeout);
 
     /* Return the time until the next scheduled callback */
-    UA_DateTime nextTimeout =
-        ((server->config.eventLoop->nextCyclicTime(server->config.eventLoop)
-         - UA_DateTime_nowMonotonic()) / UA_DATETIME_MSEC);
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    UA_DateTime nextTimeout = (el->nextCyclicTime(el) - now) / UA_DATETIME_MSEC;
     if(nextTimeout > UA_UINT16_MAX)
-        return UA_UINT16_MAX;
+        nextTimeout = UA_UINT16_MAX;
     return (UA_UInt16)nextTimeout;
+}
+
+static UA_Boolean
+testShutdownCondition(UA_Server *server) {
+    /* Was there a wait time until the shutdown configured? */
+    if(server->endTime == 0)
+        return false;
+    return (UA_DateTime_now() > server->endTime);
+}
+
+static UA_Boolean
+testStoppedCondition(UA_Server *server) {
+    /* Check if there are remaining server components that did not fully stop */
+    if(ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                checkServerComponent, server) != NULL)
+        return false;
+    return true;
 }
 
 UA_StatusCode
@@ -970,15 +1061,17 @@ UA_Server_run_shutdown(UA_Server *server) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    if(server->state != UA_SERVERLIFECYCLE_STARTED) {
+    UA_LOCK(&server->serviceMutex);
+
+    if(server->state != UA_LIFECYCLESTATE_STARTED) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "The server is not started, cannot be shut down");
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK(&server->serviceMutex);
-
-    server->state = UA_SERVERLIFECYCLE_STOPPING;
+    /* Set to stopping and notify the application */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
 
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
@@ -1013,6 +1106,10 @@ UA_Server_run_shutdown(UA_Server *server) {
     /* Stop all SecureChannels */
     UA_Server_deleteSecureChannels(server);
 
+    /* Stop all ServerComponents */
+    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+             stopServerComponent, server);
+
     /* Stop all server sockets */
     for(size_t i = 0; i < UA_MAXSERVERCONNECTIONS; i++) {
         UA_ServerConnection *sc = &server->serverConnections[i];
@@ -1021,37 +1118,42 @@ UA_Server_run_shutdown(UA_Server *server) {
             cm->closeConnection(cm, sc->connectionId);
     }
 
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager_stop(server);
-#endif
-
-    server->state = UA_SERVERLIFECYCLE_STOPPED;
-
-    UA_UNLOCK(&server->serviceMutex);
-
-    /* Run the EventLoop to let the connections fully close. Unlock the server
-     * mutex as the EventLoop may call into the server. */
-    UA_EventLoop *el = server->config.eventLoop;
-    if(server->config.externalEventLoop) {
-        el->run(el, 0); /* Run one iteration of the eventloop with a zero
-                         * timeout. This closes the connections fully. */
-    } else {
-        el->stop(el);
-        UA_StatusCode res = UA_STATUSCODE_GOOD;
-        while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
-              el->state != UA_EVENTLOOPSTATE_FRESH &&
-              res == UA_STATUSCODE_GOOD)
-            res = el->run(el, 100); /* Iterate until stopped */
+    /* Are we already stopped? */
+    if(testStoppedCondition(server)) {
+        setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
     }
 
-    return UA_STATUSCODE_GOOD;
-}
+    /* Only stop the EventLoop if it is coupled to the server lifecycle  */
+    if(server->config.externalEventLoop) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_GOOD;
+    }
 
-static UA_Boolean
-testShutdownCondition(UA_Server *server) {
-    if(server->endTime == 0)
-        return false;
-    return (UA_DateTime_now() > server->endTime);
+    /* Iterate the EventLoop until the server is stopped */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_EventLoop *el = server->config.eventLoop;
+    while(!testStoppedCondition(server) &&
+          res == UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&server->serviceMutex);
+        res = el->run(el, 100);
+        UA_LOCK(&server->serviceMutex);
+    }
+
+    /* Stop the EventLoop. Iterate until stopped. */
+    el->stop(el);
+    while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
+          el->state != UA_EVENTLOOPSTATE_FRESH &&
+          res == UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&server->serviceMutex);
+        res = el->run(el, 100);
+        UA_LOCK(&server->serviceMutex);
+    }
+
+    /* Set server lifecycle state to stopped if not already the case */
+    setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
+
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_StatusCode

@@ -35,7 +35,8 @@ _UA_BEGIN_DECLS
 #endif
 
 #ifdef UA_ENABLE_DISCOVERY
-#include "ua_discovery_manager.h"
+struct UA_DiscoveryManager;
+typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 #endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -51,6 +52,50 @@ typedef struct {
 } UA_LocalMonitoredItem;
 
 #endif
+
+/* Server Component
+ * ----------------
+ *
+ * ServerComponents have an explicit lifecycle. But they can only be started
+ * when the underlying server is started. The starting/stopping of
+ * ServerComponents is asynchronous. That is, they might require several
+ * iterations of the EventLoop to finish starting/stopping.
+ *
+ * ServerComponents can only be deleted when they are STOPPED. The server will
+ * not fully shut down as long as there is a component remaining. */
+
+typedef struct UA_ServerComponent {
+    UA_UInt64 identifier;
+    ZIP_ENTRY(UA_ServerComponent) treeEntry;
+    UA_LifecycleState state;
+
+    /* Starting fails if the server is not also already started */
+    UA_StatusCode (*start)(UA_Server *server,
+                           struct UA_ServerComponent *sc);
+
+    /* Stopping is asynchronous and might need a few iterations of the main-loop
+     * to succeed. */
+    void (*stop)(UA_Server *server,
+                 struct UA_ServerComponent *sc);
+
+    /* Clean up the ServerComponent. Can fail if it is not stopped. */
+    UA_StatusCode (*free)(UA_Server *server,
+                          struct UA_ServerComponent *sc);
+} UA_ServerComponent;
+
+enum ZIP_CMP
+cmpServerComponent(const UA_UInt64 *a, const UA_UInt64 *b);
+
+typedef ZIP_HEAD(UA_ServerComponentTree, UA_ServerComponent) UA_ServerComponentTree;
+
+ZIP_FUNCTIONS(UA_ServerComponentTree, UA_ServerComponent, treeEntry,
+              UA_UInt64, identifier, cmpServerComponent)
+
+/* Assigns the identifier if the pointer is non-NULL.
+ * Starts the component if the server is started. */
+void
+addServerComponent(UA_Server *server, UA_ServerComponent *sc,
+                   UA_UInt64 *identifier);
 
 typedef enum {
     UA_DIAGNOSTICEVENT_CLOSE,
@@ -72,12 +117,6 @@ typedef struct session_list_entry {
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
-
-typedef enum {
-    UA_SERVERLIFECYCLE_STOPPED = 0,
-    UA_SERVERLIFECYCLE_STARTED,
-    UA_SERVERLIFECYCLE_STOPPING
-} UA_ServerLifecycle;
 
 /* Maximum numbers of sockets to listen on */
 #define UA_MAXSERVERCONNECTIONS 16
@@ -116,11 +155,14 @@ struct UA_Server {
     UA_DateTime endTime; /* Zeroed out. If a time is set, then the server shuts
                           * down once the time has been reached */
 
-    UA_ServerLifecycle state;
+    UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
     UA_UInt64 pollingCallbackId; /* TODO: Move all subsystems that poll on the
                                   * network to a true EventLoop
                                   * implementation */
+
+    UA_UInt64 serverComponentIds; /* Counter to assign ids from */
+    UA_ServerComponentTree serverComponents;
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
     size_t serverConnectionsSize;
@@ -155,7 +197,7 @@ struct UA_Server {
 
     /* Discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager discoveryManager;
+    UA_DiscoveryManager *discoveryManager;
 #endif
 
     /* Subscriptions */
@@ -309,6 +351,8 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 /*********************/
 /* Utility Functions */
 /*********************/
+
+void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);
 UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
@@ -560,6 +604,9 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
+UA_ServerComponent *
+UA_DiscoveryManager_new(UA_Server *server);
+
 UA_StatusCode
 register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
