@@ -73,7 +73,7 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-static void testChangeLanguage(UA_Client *client) {
+static void changeLocale(UA_Client *client) {
     UA_LocalizedText loc;
     UA_ClientConfig *config = UA_Client_getConfig(client);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US"); 
@@ -105,6 +105,21 @@ static void testChangeLanguage(UA_Client *client) {
 
 }
 
+START_TEST(Client_activateSessionWithoutConnect) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
+    config->sessionLocaleIds[1] = UA_STRING_ALLOC("de");
+
+    changeLocale(client);
+    ck_assert_uint_eq(server->sessionCount, 0);
+    UA_Client_delete(client);
+}
+END_TEST
+
 START_TEST(Client_activateSession) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *config = UA_Client_getConfig(client);
@@ -116,7 +131,7 @@ START_TEST(Client_activateSession) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    testChangeLanguage(client);
+    changeLocale(client);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -134,7 +149,7 @@ START_TEST(Client_activateSession_username) {
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    testChangeLanguage(client);
+    changeLocale(client);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
@@ -151,7 +166,7 @@ START_TEST(Client_read) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    testChangeLanguage(client);
+    changeLocale(client);
 
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
@@ -180,7 +195,7 @@ START_TEST(Client_renewSecureChannel) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    testChangeLanguage(client);
+    changeLocale(client);
 
     /* Forward the time */
     UA_ClientConfig *cc = UA_Client_getConfig(client);
@@ -227,7 +242,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
                                                                             NULL, NULL, NULL);
 
     UA_CreateSubscriptionResponse_clear(&response);
-    testChangeLanguage(client);
+    changeLocale(client);
 
     /* manually control the server thread */
     running = false;
@@ -260,7 +275,7 @@ START_TEST(Client_reconnect) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    testChangeLanguage(client);
+    changeLocale(client);
     UA_Variant val;
     UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
@@ -304,14 +319,6 @@ START_TEST(Client_reconnect) {
 }
 END_TEST
 
-START_TEST(Client_delete_without_connect) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    ck_assert(client != NULL);
-    UA_Client_delete(client);
-}
-END_TEST
-
 START_TEST(Client_activateSessionClose) {
     // restart server
     teardown();
@@ -334,14 +341,14 @@ START_TEST(Client_activateSessionClose) {
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
-    testChangeLanguage(client);
+    changeLocale(client);
 
     UA_Client_disconnect(client);
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
 
-    testChangeLanguage(client);
+    changeLocale(client);
     nodeId = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -370,7 +377,7 @@ START_TEST(Client_activateSessionTimeout) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     ck_assert_uint_eq(server->sessionCount, 1);
-    testChangeLanguage(client);
+    changeLocale(client);
     ck_assert_uint_eq(server->sessionCount, 1);
 
     UA_Variant val;
@@ -424,7 +431,7 @@ START_TEST(Client_activateSessionLocaleIds) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
 
-    testChangeLanguage(client);
+    changeLocale(client);
     ck_assert_uint_eq(server->sessionCount, 1);
 
     UA_QualifiedName key = {0, UA_STRING_STATIC("localeIds")};
@@ -446,12 +453,8 @@ static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
     tcase_add_checked_fixture(tc_client, setup, teardown);
-//    tcase_add_test(tc_client, ClientConfig_Copy);
     tcase_add_test(tc_client, Client_activateSession);
     tcase_add_test(tc_client, Client_activateSession_username);
-    tcase_add_test(tc_client, Client_delete_without_connect);
-//    tcase_add_test(tc_client, Client_endpoints);
-//    tcase_add_test(tc_client, Client_endpoints_empty);
     tcase_add_test(tc_client, Client_read);
     suite_add_tcase(s,tc_client);
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
