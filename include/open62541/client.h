@@ -292,9 +292,9 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
-/* Connect to the server. First a SecureChannel is opened, then a Session. The
- * client configuration restricts the SecureChannel selection and contains the
- * UserIdentityToken for the Session.
+/* Activate an already established Session. A SecureChannel and a Session  must be open.
+ * The session may or may not already be activated.
+ * A change of prefered locales can be done too.
  *
  * @param client to use
  * @return Indicates whether the operation succeeded or returns an error code */
