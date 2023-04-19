@@ -395,6 +395,7 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
           ..
     make ${MAKEOPTS}
 
