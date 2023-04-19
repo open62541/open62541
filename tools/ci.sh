@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-#set -e
+set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
