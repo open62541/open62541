@@ -400,6 +400,8 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
     make ${MAKEOPTS}
 
