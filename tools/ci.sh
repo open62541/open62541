@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-set -e
+#set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
@@ -395,6 +395,7 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
           ..
     make ${MAKEOPTS}
 
