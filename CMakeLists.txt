@@ -664,7 +664,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     endif()
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
+if((UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION) AND NOT UA_ENABLE_ENCRYPTION_OPENSSL)
     # The recommended way is to install mbedtls via the OS package manager. If
     # that is not possible, manually compile mbedTLS and set the cmake variables
     # defined in /tools/cmake/FindMbedTLS.cmake.
@@ -1074,13 +1074,13 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR (UA_ENABLE_PUBSUB_ENCRYPTION AND NOT UA_ENABLE_ENCRYPTION_OPENSSL) OR UA_ENABLE_AMALGAMATION)
   list(INSERT default_plugin_sources 0
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
 endif()
 
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
+if(UA_ENABLE_PUBSUB_ENCRYPTION AND NOT UA_ENABLE_ENCRYPTION_OPENSSL)
   list(INSERT default_plugin_sources 1
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
