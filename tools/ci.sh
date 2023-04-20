@@ -397,6 +397,8 @@ function examples_valgrind {
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           -DUA_ENABLE_PUBSUB_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_NODESETLOADER=ON \
           ..
     make ${MAKEOPTS}
 

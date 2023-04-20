@@ -48,6 +48,7 @@ int main(int argc, char **argv)
         UA_Point *p = (UA_Point *)out.data;
         printf("point 2d x: %f y: %f \n", p->x, p->y);
         retval = UA_Server_run(server, &running);
+        UA_free(p);
     }
 
     UA_Server_delete(server);
