@@ -1719,6 +1719,7 @@ activateSessionSync(UA_Client *client) {
     // reset state to created
     client->sessionState = UA_SESSIONSTATE_CREATED;
     activateSessionAsync(client);
+    notifyClientState(client);
 
     /* EventLoop is started. Otherwise activateSessionSync would have failed. */
     UA_EventLoop *el = client->config.eventLoop;
@@ -1752,10 +1753,22 @@ activateSessionSync(UA_Client *client) {
 }
 
 UA_StatusCode
-UA_Client_ActivateSession(UA_Client *client) {
+UA_Client_activateSession(UA_Client *client) {
     UA_LOCK(&client->clientMutex);
     /* activate session sync */
     activateSessionSync(client);
+
+    // wait for timeout or activate session response
+    UA_UNLOCK(&client->clientMutex);
+    return client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_activateSessionAsync(UA_Client *client) {
+    UA_LOCK(&client->clientMutex);
+    /* activate session async */
+    activateSessionAsync(client);
+    notifyClientState(client);
 
     // wait for timeout or activate session response
     UA_UNLOCK(&client->clientMutex);
