@@ -402,6 +402,7 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
 
