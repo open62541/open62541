@@ -292,15 +292,6 @@ UA_Client_delete(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_connect(UA_Client *client, const char *endpointUrl);
 
-/* Activate an already established Session. A SecureChannel and a Session  must be open.
- * The session may or may not already be activated.
- * A change of prefered locales can be done too.
- *
- * @param client to use
- * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_ActivateSession(UA_Client *client);
-
 /* Connect async (non-blocking) to the server. After initiating the connection,
  * call UA_Client_run_iterate repeatedly until the connection is fully
  * established. You can set a callback to client->config.stateCallback to be
@@ -371,6 +362,25 @@ UA_Client_disconnectAsync(UA_Client *client);
  * This is always an async (non-blocking) operation. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_disconnectSecureChannel(UA_Client *client);
+
+/* Activate an already established Session. A SecureChannel and a Session  must be open.
+ * The session may or may not already be activated.
+ * A change of prefered locales can be done too.
+ *
+ * @param client to use
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateSession(UA_Client *client);
+
+/* Activate an already established Session async without waiting for server response.
+ * A SecureChannel and a Session  must be open.
+ * The session may or may not already be activated.
+ * A change of prefered locales can be done too.
+ *
+ * @param client to use
+ * @return Indicates whether the operation succeeded or returns an error code */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateSessionAsync(UA_Client *client);
 
 /**
  * Discovery
