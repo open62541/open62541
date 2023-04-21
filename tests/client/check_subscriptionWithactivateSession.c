@@ -70,7 +70,7 @@ static void changeLocale(UA_Client *client) {
     UA_ClientConfig *config = UA_Client_getConfig(client);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("de");
-    UA_StatusCode retval = UA_Client_ActivateSession(client);
+    UA_StatusCode retval = UA_Client_activateSession(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     const UA_NodeId nodeIdString = UA_NODEID_STRING(1, "my.variable");
@@ -84,7 +84,7 @@ static void changeLocale(UA_Client *client) {
 
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("de"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("en-US");
-    retval = UA_Client_ActivateSession(client);
+    retval = UA_Client_activateSession(client);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &loc);
