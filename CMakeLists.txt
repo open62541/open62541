@@ -905,8 +905,14 @@ configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open625
 if(UA_ENABLE_DISCOVERY_MULTICAST)
   include(GenerateExportHeader)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
+    
     # create a "fake" empty library to generate the export header macros
-    add_library(libmdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+    if (APPLE)
+    	add_library(libmdnsd INTERFACE ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+    else()
+    	add_library(libmdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+    endif()
+    
     if (UA_FORCE_CPP)
         set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE CXX)
     else()
