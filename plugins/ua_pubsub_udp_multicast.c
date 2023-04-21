@@ -24,6 +24,18 @@
 #   define UA_IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
+#if defined(__APPLE__)
+
+# ifndef IPV6_ADD_MEMBERSHIP
+#define IPV6_ADD_MEMBERSHIP  IPV6_JOIN_GROUP
+# endif
+
+# ifndef IPV6_DROP_MEMBERSHIP
+#define IPV6_DROP_MEMBERSHIP IPV6_LEAVE_GROUP
+# endif
+
+#endif
+
 static UA_THREAD_LOCAL UA_Byte ReceiveMsgBufferUDP[UA_RECEIVE_MSG_BUFFER_SIZE];
 
 typedef union {
