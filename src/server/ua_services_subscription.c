@@ -165,7 +165,7 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
                             request->maxNotificationsPerPublish, request->priority);
 
     /* Reset the subscription lifetime */
-    sub->currentLifetimeCount = 0;
+    Subscription_resetLifetime(sub);
 
     /* Change the repeated callback to the new interval. This cannot fail as the
      * CallbackId must exist. */
@@ -204,8 +204,10 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
     setPublishingEnabled(sub, *publishingEnabled); /* Set the publishing mode */
+
+    /* Reset the lifetime counter */
+    Subscription_resetLifetime(sub);
 }
 
 void
@@ -404,8 +406,8 @@ Service_Republish(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Reset the subscription lifetime */
-    sub->currentLifetimeCount = 0;
+    /* Reset the lifetime counter */
+    Subscription_resetLifetime(sub);
 
     /* Update the subscription statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
