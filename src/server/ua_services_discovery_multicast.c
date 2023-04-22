@@ -48,7 +48,8 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg);
 
 static void
 multicastPolling(UA_Server *server, void *_) {
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm)
         return;
 
@@ -187,7 +188,8 @@ discovery_createMulticastSocket(UA_Server* server) {
 void
 startMulticastDiscoveryServer(UA_Server *server) {
     /* Initialize the mdns daemon */
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm)
         return;
 
@@ -234,7 +236,8 @@ startMulticastDiscoveryServer(UA_Server *server) {
 
 void
 stopMulticastDiscoveryServer(UA_Server *server) {
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm)
         return;
 
@@ -307,7 +310,8 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
                              UA_FindServersOnNetworkResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -416,7 +420,8 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
                                      UA_Server_serverOnNetworkCallback cb,
                                      void* data) {
     UA_LOCK(&server->serviceMutex);
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(dm) {
         dm->serverOnNetworkCallback = cb;
         dm->serverOnNetworkCallbackData = data;
@@ -493,7 +498,8 @@ UA_Discovery_recordExists(UA_DiscoveryManager *dm, const char* fullServiceDomain
 static int
 discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     UA_Server *server = (UA_Server*) arg;
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm)
         return 0;
 
