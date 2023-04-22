@@ -131,6 +131,11 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     el->addDelayedCallback(el, &sub->delayedFreePointers);
 }
 
+void
+Subscription_resetLifetime(UA_Subscription *sub) {
+    sub->currentLifetimeCount = 0;
+}
+
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub, UA_UInt32 monitoredItemId) {
     UA_MonitoredItem *mon;
@@ -452,7 +457,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Update the LifetimeCounter */
     if(pre) {
-        sub->currentLifetimeCount = 0;
+        Subscription_resetLifetime(sub);
     } else {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "The publish queue is empty");

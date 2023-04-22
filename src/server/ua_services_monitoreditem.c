@@ -97,6 +97,9 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
+
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
@@ -535,8 +538,8 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Reset the subscription lifetime */
-    cmc.sub->currentLifetimeCount = 0;
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(cmc.sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -661,7 +664,8 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -710,7 +714,8 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    smc.sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(smc.sub);
 
     smc.monitoringMode = request->monitoringMode;
     response->responseHeader.serviceResult =
@@ -755,8 +760,8 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Reset the subscription lifetime */
-    sub->currentLifetimeCount = 0;
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
