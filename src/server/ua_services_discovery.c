@@ -123,7 +123,8 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 
     response->serversSize = 1;
 #else
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
         return;
@@ -276,7 +277,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm)
         return;
 
@@ -539,7 +541,8 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_UInt64 *periodicCallbackId) {
     UA_LOCK(&server->serviceMutex);
 
-    UA_DiscoveryManager *dm = server->discoveryManager;
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
     if(!dm) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;

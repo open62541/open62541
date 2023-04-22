@@ -199,6 +199,19 @@ addServerComponent(UA_Server *server, UA_ServerComponent *sc,
 }
 
 static void *
+findServerComponent(void *context, UA_ServerComponent *sc) {
+    UA_String *name = (UA_String*)context;
+    return (UA_String_equal(&sc->name, name)) ? sc : NULL;
+}
+
+UA_ServerComponent *
+getServerComponentByName(UA_Server *server, UA_String name) {
+    return (UA_ServerComponent*)
+        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                 findServerComponent, &name);
+}
+
+static void *
 removeServerComponent(void *application, UA_ServerComponent *sc) {
     UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
     sc->free((UA_Server*)application, sc);
@@ -568,9 +581,13 @@ UA_Server_updateCertificate(UA_Server *server,
 
     /* Gracefully close all SecureChannels. And restart the
      * BinaryProtocolManager once it has fully stopped. */
-    if(closeSecureChannels && server->binaryProtocolManager) {
-        server->binaryProtocolManager->notifyState = notifySecureChannelsStopped;
-        server->binaryProtocolManager->stop(server, server->binaryProtocolManager);
+    if(closeSecureChannels) {
+        UA_ServerComponent *binaryProtocolManager =
+            getServerComponentByName(server, UA_STRING("binary"));
+        if(binaryProtocolManager) {
+            binaryProtocolManager->notifyState = notifySecureChannelsStopped;
+            binaryProtocolManager->stop(server, binaryProtocolManager);
+        }
     }
 
     size_t i = 0;

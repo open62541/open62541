@@ -67,6 +67,7 @@ typedef struct {
 
 typedef struct UA_ServerComponent {
     UA_UInt64 identifier;
+    UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
 
@@ -102,6 +103,9 @@ ZIP_FUNCTIONS(UA_ServerComponentTree, UA_ServerComponent, treeEntry,
 void
 addServerComponent(UA_Server *server, UA_ServerComponent *sc,
                    UA_UInt64 *identifier);
+
+UA_ServerComponent *
+getServerComponentByName(UA_Server *server, UA_String name);
 
 /********************/
 /* Server Structure */
@@ -150,14 +154,6 @@ struct UA_Server {
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
-
-    /* Binary Protocol Manager -- also in the ServerComponents list */
-    UA_ServerComponent *binaryProtocolManager;
-
-    /* Discovery Manager -- also in the ServerComponents list */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager *discoveryManager;
-#endif
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS

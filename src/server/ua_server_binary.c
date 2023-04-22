@@ -115,14 +115,15 @@ UA_StatusCode setReverseConnectRetryCallback(UA_BinaryProtocolManager *bpm,
 
 UA_UInt32
 generateSecureChannelTokenId(UA_Server *server) {
-    UA_BinaryProtocolManager *bpm =
-        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
-    if(!bpm) {
+    UA_ServerComponent *sc =
+        getServerComponentByName(server, UA_STRING("binary"));
+    if(!sc) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot generate a SecureChannel Token Id. "
                      "No BinaryProtocolManager configured.");
         return 0;
     }
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
     return bpm->lastTokenId++;
 }
 
@@ -1553,8 +1554,9 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
                             UA_Server_ReverseConnectStateCallback stateCallback,
                             void *callbackContext, UA_UInt64 *handle) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_BinaryProtocolManager *bpm =
-        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
+    UA_ServerComponent *sc =
+        getServerComponentByName(server, UA_STRING("binary"));
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
     if(!bpm) {
         UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
@@ -1608,8 +1610,9 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
 
     UA_LOCK(&server->serviceMutex);
 
-    UA_BinaryProtocolManager *bpm =
-        (UA_BinaryProtocolManager*)server->binaryProtocolManager;
+    UA_ServerComponent *sc =
+        getServerComponentByName(server, UA_STRING("binary"));
+    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
     if(!bpm) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
@@ -1894,17 +1897,12 @@ UA_BinaryProtocolManager_free(UA_Server *server,
     if(sc->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    server->binaryProtocolManager = NULL;
     UA_free(sc);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server) {
-    /* There can be only one BinaryProtocolManager per server */
-    if(server->binaryProtocolManager)
-        return NULL;
-    
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)
         UA_calloc(1, sizeof(UA_BinaryProtocolManager));
     if(!bpm)
@@ -1912,7 +1910,6 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
 
     bpm->server = server;
     bpm->logging = &server->config.logger;
-    server->binaryProtocolManager = &bpm->sc;
 
     /* Initialize SecureChannel */
     TAILQ_INIT(&bpm->channels);
@@ -1921,6 +1918,7 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
     bpm->lastChannelId = STARTCHANNELID;
     bpm->lastTokenId = STARTTOKENID;
 
+    bpm->sc.name = UA_STRING("binary");
     bpm->sc.start = UA_BinaryProtocolManager_start;
     bpm->sc.stop = UA_BinaryProtocolManager_stop;
     bpm->sc.free = UA_BinaryProtocolManager_free;
