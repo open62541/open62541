@@ -845,7 +845,7 @@ START_TEST(Server_negativeSamplingInterval) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
-    ck_assert(response.results[0].revisedSamplingInterval == -1.0);
+    ck_assert(response.results[0].revisedSamplingInterval > 0.0);
 
     UA_MonitoredItemCreateRequest_clear(&item);
     UA_CreateMonitoredItemsResponse_clear(&response);
