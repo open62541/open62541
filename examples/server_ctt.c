@@ -305,14 +305,6 @@ writeEventTrigger(UA_Server *server, const UA_NodeId *sessionId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                            NULL, false);
 }
-
-static void
-cyclicEventTriger(UA_Server *server, void *data) {
-    (void)data;
-    UA_Server_triggerEvent(server, eventId,
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                           NULL, false);
-}
 #endif
 
 /* Method Node Example */
@@ -824,9 +816,6 @@ setInformationModel(UA_Server *server) {
     UA_Server_setVariableNode_valueCallback(server,
                                             UA_NODEID_STRING(1, "event-trigger-2"),
                                             eventTriggerValueBackend);
-
-    /* Auto-trigger the event every 500 ms */
-    UA_Server_addRepeatedCallback(server, cyclicEventTriger, NULL, 500.0, NULL);
 #endif
 }
 
