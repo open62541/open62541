@@ -210,6 +210,15 @@ typedef enum {
  * specification. The SecureChannel counters are not defined in the OPC UA spec,
  * but are harmonized with the Session layer counters if possible. */
 
+typedef enum {
+    UA_SHUTDOWNREASON_CLOSE = 0,
+    UA_SHUTDOWNREASON_REJECT,
+    UA_SHUTDOWNREASON_SECURITYREJECT,
+    UA_SHUTDOWNREASON_TIMEOUT,
+    UA_SHUTDOWNREASON_ABORT,
+    UA_SHUTDOWNREASON_PURGE
+} UA_ShutdownReason;
+
 typedef struct {
     size_t currentChannelCount;
     size_t cumulatedChannelCount;

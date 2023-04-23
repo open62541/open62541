@@ -257,7 +257,7 @@ UA_Server_delete(UA_Server *server) {
 
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &server->sessions, pointers, temp) {
-        UA_Server_removeSession(server, current, UA_DIAGNOSTICEVENT_CLOSE);
+        UA_Server_removeSession(server, current, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
@@ -561,18 +561,18 @@ UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *newPrivateKey,
                             UA_Boolean closeSessions,
                             UA_Boolean closeSecureChannels) {
-
     UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
              return UA_STATUSCODE_BADINTERNALERROR);
 
     if(closeSessions) {
         session_list_entry *current;
         LIST_FOREACH(current, &server->sessions, pointers) {
+            UA_SessionHeader *header = &current->session.header;
             if(UA_ByteString_equal(oldCertificate,
-                                    &current->session.header.channel->securityPolicy->localCertificate)) {
+                                    &header->channel->securityPolicy->localCertificate)) {
                 UA_LOCK(&server->serviceMutex);
-                UA_Server_removeSessionByToken(server, &current->session.header.authenticationToken,
-                                               UA_DIAGNOSTICEVENT_CLOSE);
+                UA_Server_removeSessionByToken(server, &header->authenticationToken,
+                                               UA_SHUTDOWNREASON_CLOSE);
                 UA_UNLOCK(&server->serviceMutex);
             }
         }
