@@ -1371,8 +1371,8 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Inconsistent SecureChannel state. Has to be fresh for a new
          * connection. */
-        if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
-                client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
+        if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED &&
+           client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "Cannot open a connection for SecureChannel that is already used");
             client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
@@ -1391,7 +1391,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(state == UA_CONNECTIONSTATE_OPENING)
             client->channel.state = UA_SECURECHANNELSTATE_CONNECTING;
         else {
-            if (client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+            if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
                 client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
             else /* state == UA_CONNECTIONSTATE_ESTABLISHED */
                 client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
@@ -1491,8 +1491,7 @@ initConnect(UA_Client *client) {
     if(client->noReconnect)
         return UA_STATUSCODE_BADNOTCONNECTED;
 
-    if(client->channel.state != UA_SECURECHANNELSTATE_FRESH &&
-       client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
+    if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Client connection already initiated");
         return UA_STATUSCODE_GOOD;
@@ -1774,8 +1773,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
                                           UA_UInt16 port) {
     UA_LOCK(&client->clientMutex);
 
-    if(client->channel.state > UA_SECURECHANNELSTATE_FRESH &&
-       client->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
+    if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                        "Unable to listen for reverse connect while the client "
                        "is connected or already listening");
@@ -2004,8 +2002,7 @@ UA_Client_disconnectSecureChannel(UA_Client *client) {
        el->state != UA_EVENTLOOPSTATE_FRESH &&
        el->state != UA_EVENTLOOPSTATE_STOPPED) {
         UA_UNLOCK(&client->clientMutex);
-        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED &&
-              client->channel.state != UA_SECURECHANNELSTATE_FRESH) {
+        while(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
             el->run(el, 100);
         }
         UA_LOCK(&client->clientMutex);
