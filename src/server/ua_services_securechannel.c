@@ -168,5 +168,5 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 /* The server does not send a CloseSecureChannel response */
 void
 Service_CloseSecureChannel(UA_Server *server, UA_SecureChannel *channel) {
-    shutdownServerSecureChannel(server, channel, UA_DIAGNOSTICEVENT_CLOSE);
+    UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
 }
