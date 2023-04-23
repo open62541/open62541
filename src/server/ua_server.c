@@ -33,6 +33,9 @@
 #include <valgrind/memcheck.h>
 #endif
 
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -368,6 +371,10 @@ UA_Server_init(UA_Server *server) {
 
     UA_LOCK_INIT(&server->serviceMutex);
     UA_LOCK(&server->serviceMutex);
+
+    /* TODO: use an ID that is likely to be unique after a restart */
+    server->lastChannelId = STARTCHANNELID;
+    server->lastTokenId = STARTTOKENID;
 
     /* Initialize the adminSession */
     UA_Session_init(&server->adminSession);

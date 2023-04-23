@@ -183,6 +183,10 @@ struct UA_Server {
     UA_Lock serviceMutex;
 #endif
 
+    /* SecureChannel Ids. Global entries, used for all transport types */
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
@@ -218,6 +222,18 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       const UA_KeyValueMap *params,
                       UA_ByteString msg);
 
+void
+initServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+                        UA_ConnectionManager *cm, uintptr_t connectionId);
+
+void
+deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
+
+UA_StatusCode
+processSecureChannelMessage(void *application, UA_SecureChannel *channel,
+                            UA_MessageType messagetype, UA_UInt32 requestId,
+                            UA_ByteString *message);
+
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
@@ -227,9 +243,6 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_ByteString *securityPolicyUri);
-
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server);
 
 /********************/
 /* Session Handling */
@@ -534,6 +547,9 @@ register_server_with_discovery_server(UA_Server *server, void *client,
 
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server);
+
+UA_ServerComponent *
+UA_ReverseBinaryProtocolManager_new(UA_Server *server);
 
 /***********/
 /* RefTree */
