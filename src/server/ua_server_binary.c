@@ -46,9 +46,8 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
 
 /* SecureChannel Linked List */
 typedef struct channel_entry {
-    TAILQ_ENTRY(channel_entry) pointers;
     UA_SecureChannel channel;
-    UA_DiagnosticEvent closeEvent;
+    TAILQ_ENTRY(channel_entry) pointers;
 } channel_entry;
 
 typedef struct {
@@ -137,42 +136,39 @@ setBinaryProtocolManagerState(UA_Server *server,
     if(bpm->sc.notifyState)
         bpm->sc.notifyState(server, &bpm->sc, state);
 }
- 
-#ifndef container_of
-#define container_of(ptr, type, member) \
-    (type *)((uintptr_t)ptr - offsetof(type,member))
-#endif
 
 static void
 deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
                           UA_SecureChannel *channel) {
-    UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed");
-
     /* Clean up the SecureChannel. This is the only place where
      * UA_SecureChannel_clear must be called within the server code-base. */
     UA_SecureChannel_clear(channel);
 
     /* Detach the channel from the server list */
-    struct channel_entry *entry = container_of(channel, channel_entry, channel);
-    TAILQ_REMOVE(&bpm->channels, entry, pointers);
+    TAILQ_REMOVE(&bpm->channels, (channel_entry*)channel, pointers);
 
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &bpm->server->secureChannelStatistics;
     scs->currentChannelCount--;
-    switch(entry->closeEvent) {
-    case UA_DIAGNOSTICEVENT_CLOSE:
+    switch(channel->shutdownReason) {
+    case UA_SHUTDOWNREASON_CLOSE:
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed");
         break;
-    case UA_DIAGNOSTICEVENT_TIMEOUT:
+    case UA_SHUTDOWNREASON_TIMEOUT:
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel closed due to timeout");
         scs->channelTimeoutCount++;
         break;
-    case UA_DIAGNOSTICEVENT_PURGE:
+    case UA_SHUTDOWNREASON_PURGE:
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was purged");
         scs->channelPurgeCount++;
         break;
-    case UA_DIAGNOSTICEVENT_REJECT:
-    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+    case UA_SHUTDOWNREASON_REJECT:
+    case UA_SHUTDOWNREASON_SECURITYREJECT:
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was rejected");
         scs->rejectedChannelCount++;
         break;
-    case UA_DIAGNOSTICEVENT_ABORT:
+    case UA_SHUTDOWNREASON_ABORT:
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel was aborted");
         scs->channelAbortCount++;
         break;
     default:
@@ -180,7 +176,7 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         break;
     }
 
-    UA_free(entry);
+    UA_free(channel);
 }
 
 UA_StatusCode
@@ -548,21 +544,24 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&requestType);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not decode the NodeId. Closing the connection");
-        shutdownServerSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
+                               "Could not decode the NodeId. "
+                               "Closing the SecureChannel.");
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
         return retval;
     }
     retval = UA_decodeBinaryInternal(msg, &offset, &openSecureChannelRequest,
                                      &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST], NULL);
 
     /* Error occurred */
-    if(retval != UA_STATUSCODE_GOOD ||
-       !UA_NodeId_equal(&requestType, &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId)) {
+    const UA_NodeId *opnRequestId =
+        &UA_TYPES[UA_TYPES_OPENSECURECHANNELREQUEST].binaryEncodingId;
+    if(retval != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&requestType, opnRequestId)) {
         UA_NodeId_clear(&requestType);
         UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                               "Could not decode the OPN message. Closing the connection.");
-        shutdownServerSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
+                               "Could not decode the OPN message. "
+                               "Closing the SecureChannel.");
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
         return retval;
     }
     UA_NodeId_clear(&requestType);
@@ -573,9 +572,10 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     Service_OpenSecureChannel(server, channel, &openSecureChannelRequest, &openScResponse);
     UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel, "Could not open a SecureChannel. "
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "Could not open a SecureChannel. "
                                "Closing the connection.");
-        shutdownServerSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
         return openScResponse.responseHeader.serviceResult;
     }
 
@@ -587,7 +587,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
                                "Could not send the OPN answer with error code %s",
                                UA_StatusCode_name(retval));
-        shutdownServerSecureChannel(server, channel, UA_DIAGNOSTICEVENT_REJECT);
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
     }
 
     return retval;
@@ -800,7 +800,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
         if(session != &anonymousSession) {
             UA_LOCK(&server->serviceMutex);
             UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
-                                           UA_DIAGNOSTICEVENT_ABORT);
+                                           UA_SHUTDOWNREASON_ABORT);
             UA_UNLOCK(&server->serviceMutex);
         }
         serviceRes = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
@@ -1013,7 +1013,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         UA_TcpErrorMessage_init(&errMsg);
         errMsg.error = retval;
         UA_SecureChannel_sendError(channel, &errMsg);
-        UA_DiagnosticEvent closeEvent;
+        UA_ShutdownReason reason;
         switch(retval) {
         case UA_STATUSCODE_BADSECURITYMODEREJECTED:
         case UA_STATUSCODE_BADSECURITYCHECKSFAILED:
@@ -1021,13 +1021,13 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
         case UA_STATUSCODE_BADSECURECHANNELTOKENUNKNOWN:
         case UA_STATUSCODE_BADSECURITYPOLICYREJECTED:
         case UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED:
-            closeEvent = UA_DIAGNOSTICEVENT_SECURITYREJECT;
+            reason = UA_SHUTDOWNREASON_SECURITYREJECT;
             break;
         default:
-            closeEvent = UA_DIAGNOSTICEVENT_CLOSE;
+            reason = UA_SHUTDOWNREASON_CLOSE;
             break;
         }
-        shutdownServerSecureChannel(server, channel, closeEvent);
+        UA_SecureChannel_shutdown(channel, reason);
     }
 
     return retval;
@@ -1043,8 +1043,7 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
         UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
                             "Channel was purged since maxSecureChannels was "
                             "reached and channel had no session attached");
-        entry->closeEvent = UA_DIAGNOSTICEVENT_PURGE;
-        UA_SecureChannel_shutdown(&entry->channel);
+        UA_SecureChannel_shutdown(&entry->channel, UA_SHUTDOWNREASON_PURGE);
         return true;
     }
     return false;
@@ -1096,7 +1095,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Allocate memory for the SecureChannel */
-    channel_entry *entry = (channel_entry *)UA_malloc(sizeof(channel_entry));
+    channel_entry *entry = (channel_entry *)UA_calloc(1, sizeof(channel_entry));
     if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -1122,7 +1121,6 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     entry->channel.processOPNHeader = configServerSecureChannel;
     entry->channel.connectionManager = cm;
     entry->channel.connectionId = connectionId;
-    entry->closeEvent = UA_DIAGNOSTICEVENT_CLOSE; /* Used if the eventloop closes */
 
     /* Set the SecureChannel identifier already here. So we get the right
      * identifier for logging right away. The rest of the SecurityToken is set
@@ -1265,7 +1263,7 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         error.error = retval;
         error.reason = UA_STRING_NULL;
         UA_SecureChannel_sendError(channel, &error);
-        UA_SecureChannel_shutdown(channel);
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_ABORT);
     }
 }
 
@@ -1325,28 +1323,6 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
     return UA_STATUSCODE_BADINTERNALERROR;
 }
 
-/* Trigger the closing of the SecureChannel. This needs one iteration of the
- * eventloop to take effect. */
-void
-shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                            UA_DiagnosticEvent event) {
-    /* Does the channel have an open socket? */
-    if(!UA_SecureChannel_isConnected(channel))
-        return;
-
-    UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "Closing the channel");
-
-    /* Set the event for diagnostics. The shutdown event is used in the
-     * deleteServerSecureChannel callback. */
-    struct channel_entry *entry = container_of(channel, channel_entry, channel);
-    entry->closeEvent = event;
-
-    /* Close the connection in the event-loop, which in the next iteration of
-     * the eventloop triggers the final deletion. This also sets the state to
-     * "closing". */
-    UA_SecureChannel_shutdown(channel);
-}
-
 /* Remove timed out SecureChannels */
 static void
 secureChannelHouseKeeping(UA_Server *server, void *context) {
@@ -1384,8 +1360,7 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
         if(timeout < nowMonotonic) {
             UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
                                 "SecureChannel has timed out");
-            entry->closeEvent = UA_DIAGNOSTICEVENT_TIMEOUT;
-            UA_SecureChannel_shutdown(&entry->channel);
+            UA_SecureChannel_shutdown(&entry->channel, UA_SHUTDOWNREASON_TIMEOUT);
         }
     }
     UA_UNLOCK(&server->serviceMutex);
@@ -1751,7 +1726,7 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         error.error = retval;
         error.reason = UA_STRING_NULL;
         UA_SecureChannel_sendError(context->channel, &error);
-        UA_SecureChannel_shutdown(context->channel);
+        UA_SecureChannel_shutdown(context->channel, UA_SHUTDOWNREASON_ABORT);
 
         setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CLOSING);
         return;
@@ -1867,8 +1842,7 @@ UA_BinaryProtocolManager_stop(UA_Server *server,
     /* Stop all SecureChannels */
     channel_entry *entry;
     TAILQ_FOREACH(entry, &bpm->channels, pointers) {
-        entry->closeEvent = UA_DIAGNOSTICEVENT_CLOSE;
-        UA_SecureChannel_shutdown(&entry->channel);
+        UA_SecureChannel_shutdown(&entry->channel, UA_SHUTDOWNREASON_CLOSE);
     }
 
     /* Stop all server sockets */

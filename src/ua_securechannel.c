@@ -147,10 +147,14 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_shutdown(UA_SecureChannel *channel) {
+UA_SecureChannel_shutdown(UA_SecureChannel *channel,
+                          UA_ShutdownReason shutdownReason) {
     /* No open socket or already closing -> nothing to do */
     if(!UA_SecureChannel_isConnected(channel))
         return;
+
+    /* Set the shutdown event for diagnostics */
+    channel->shutdownReason= shutdownReason;
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;

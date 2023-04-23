@@ -1900,7 +1900,7 @@ closeSecureChannel(UA_Client *client) {
     /* The connection is eventually closed in the next callback from the
      * ConnectionManager with the appropriate status code. Don't set the
      * connection closed right away! */
-    UA_SecureChannel_shutdown(&client->channel);
+    UA_SecureChannel_shutdown(&client->channel, UA_SHUTDOWNREASON_CLOSE);
 }
 
 static void

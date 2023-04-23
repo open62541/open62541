@@ -211,15 +211,6 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
-typedef enum {
-    UA_DIAGNOSTICEVENT_CLOSE,
-    UA_DIAGNOSTICEVENT_REJECT,
-    UA_DIAGNOSTICEVENT_SECURITYREJECT,
-    UA_DIAGNOSTICEVENT_TIMEOUT,
-    UA_DIAGNOSTICEVENT_ABORT,
-    UA_DIAGNOSTICEVENT_PURGE
-} UA_DiagnosticEvent;
-
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       void *application, void **connectionContext,
@@ -230,11 +221,6 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
-
-/* Can be called at any time */
-void
-shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                            UA_DiagnosticEvent event);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
@@ -267,11 +253,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
 void
 UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_DiagnosticEvent event);
+                        UA_ShutdownReason shutdownReason);
 
 UA_StatusCode
 UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_DiagnosticEvent event);
+                               UA_ShutdownReason shutdownReason);
 
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
