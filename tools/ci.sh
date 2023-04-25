@@ -405,14 +405,19 @@ function examples_valgrind {
           ..
     make ${MAKEOPTS}
 
+    # Arguments for the examples. The key is the example name and the value is the arguments.
+    declare -A example_args
+    example_args=( ["client_connect"]="opc.tcp://0.0.0.0:4840")
     # Run each example with valgrind. Wait 10 seconds and send the SIGINT
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
     FILES="./bin/examples/*"
     for f in $FILES
     do
+        example_name=$(basename $f)
+        args=${example_args[$example_name]:-}
 	    echo "Processing $f"
-	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f &
+	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f $args &
         pid=$!
 	    sleep 10
         # || true to ignore the error if the process is already dead
