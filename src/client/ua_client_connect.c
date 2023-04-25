@@ -1709,12 +1709,21 @@ UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
     return client->connectStatus;
 }
 
-static void
+static UA_StatusCode
 activateSessionSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
-    
+
     UA_DateTime now = UA_DateTime_nowMonotonic();
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    if(client->sessionState != UA_SESSIONSTATE_CREATED &&
+       client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Can not activate session, session neither created nor activated. "
+                     "Actual state: '%u'",
+                     client->sessionState);
+        return UA_STATUSCODE_BADSESSIONCLOSED;
+    }
 
     // reset state to created
     client->sessionState = UA_SESSIONSTATE_CREATED;
@@ -1728,7 +1737,7 @@ activateSessionSync(UA_Client *client) {
 
         if(client->connectStatus != UA_STATUSCODE_GOOD &&
            (client->channel.state == UA_SECURECHANNELSTATE_CLOSED || client->channel.state == UA_SECURECHANNELSTATE_FRESH))
-            break;
+            return client->connectStatus;
 
         /* Timeout -> abort */
         now = UA_DateTime_nowMonotonic();
@@ -1736,6 +1745,7 @@ activateSessionSync(UA_Client *client) {
             if(client->connectStatus == UA_STATUSCODE_GOOD)
                 client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
             closeSecureChannel(client);
+            return client->connectStatus;
         }
 
         /* Drop into the EventLoop */
@@ -1745,34 +1755,38 @@ activateSessionSync(UA_Client *client) {
         if(res != UA_STATUSCODE_GOOD) {
             client->connectStatus = res;
             closeSecureChannel(client);
+            return client->connectStatus;
         }
 
         if(client->sessionState == UA_SESSIONSTATE_ACTIVATED)
             break;
-    }    
+    }
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_Client_activateSession(UA_Client *client) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_LOCK(&client->clientMutex);
     /* activate session sync */
-    activateSessionSync(client);
+    retVal = activateSessionSync(client);
 
     // wait for timeout or activate session response
     UA_UNLOCK(&client->clientMutex);
-    return client->connectStatus;
+    return retVal != UA_STATUSCODE_GOOD ? retVal : client->connectStatus;
 }
 
 UA_StatusCode
 UA_Client_activateSessionAsync(UA_Client *client) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_LOCK(&client->clientMutex);
     /* activate session async */
-    activateSessionAsync(client);
+    retVal = activateSessionAsync(client);
     notifyClientState(client);
 
     // wait for timeout or activate session response
     UA_UNLOCK(&client->clientMutex);
-    return client->connectStatus;
+    return retVal != UA_STATUSCODE_GOOD ? retVal : client->connectStatus;
 }
 
 static void
