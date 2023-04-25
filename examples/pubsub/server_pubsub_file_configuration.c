@@ -7,7 +7,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub_config.h"
+#include "ua_pubsub.h"
 
 #include <signal.h>
 
