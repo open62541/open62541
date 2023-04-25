@@ -398,6 +398,8 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_MQTT=ON \
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
+          -DUA_ENABLE_MALLOC_SINGLETON=ON \
+          -DUA_ENABLE_IMMUTABLE_NODES=ON \
           ..
     make ${MAKEOPTS}
 
