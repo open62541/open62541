@@ -6,11 +6,22 @@
 #include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 
+#include <signal.h>
+
+UA_Boolean running = true;
+
+static void stopHandler(int sign) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    running = false;
+}
 /**
  * The PubSub connection example demonstrate the PubSub TransportLayer configuration and
  * the dynamic creation of PubSub Connections on runtime.
  */
 int main(void) {
+    signal(SIGINT, stopHandler);
+    signal(SIGTERM, stopHandler);
+
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -65,7 +76,7 @@ int main(void) {
                     "The PubSub Connection was created successfully!");
     }
 
-    retval |= UA_Server_runUntilInterrupt(server);
+    retval |= UA_Server_run(server, &running);
 
     UA_Server_delete(server);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
