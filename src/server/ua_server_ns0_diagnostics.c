@@ -374,6 +374,7 @@ readSessionDiagnostics(UA_Server *server,
     size_t memberOffset;
     UA_Boolean found;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS
     if(equalBrowseName(&bn.name, "SubscriptionDiagnosticsArray")) {
         /* Reuse the datasource callback. Forward a non-null nodeContext to
          * indicate that we want to see only the subscriptions for the current
@@ -382,7 +383,9 @@ readSessionDiagnostics(UA_Server *server,
                                                nodeId, (void*)0x01,
                                                sourceTimestamp, range, value);
         goto cleanup;
-    } else if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
+    } else
+#endif
+    if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
         setSessionDiagnostics(session, &data.sddt);
         content = &data.sddt;
         type = &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE];
