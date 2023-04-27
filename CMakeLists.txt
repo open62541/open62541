@@ -370,13 +370,6 @@ mark_as_advanced(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
 option(UA_FORCE_32BIT "Force compilation as 32-bit executable" OFF)
 mark_as_advanced(UA_FORCE_32BIT)
 
-option(UA_FORCE_CPP "Force compilation with a C++ compiler" OFF)
-mark_as_advanced(UA_FORCE_CPP)
-if(UA_FORCE_CPP)
-    enable_language(CXX)
-    add_definitions(-D__STDC_CONSTANT_MACROS) # We need the UINT32_C define
-endif()
-
 option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" ON)
 
 option(UA_ENABLE_DEBUG_SANITIZER "Use sanitizer in debug mode" ON)
@@ -718,7 +711,7 @@ function(check_add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
+if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -908,11 +901,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     	add_library(libmdnsd ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     endif()
     
-    if (UA_FORCE_CPP)
-        set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE CXX)
-    else()
-        set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE C)
-    endif()
+    set_property(TARGET libmdnsd PROPERTY LINKER_LANGUAGE C)
     set_property(TARGET libmdnsd PROPERTY DEFINE_SYMBOL "MDNSD_DYNAMIC_LINKING_EXPORT")
     configure_file("deps/mdnsd/libmdnsd/mdnsd_config_extra.in"
                    "${PROJECT_BINARY_DIR}/src_generated/mdnsd_config_extra")
@@ -1498,10 +1487,6 @@ if(UA_ENABLE_AMALGAMATION)
     # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
     target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
-    if(UA_FORCE_CPP)
-        set_source_files_properties(${PROJECT_BINARY_DIR}/open62541.c PROPERTIES LANGUAGE CXX)
-    endif()
-
     add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
     add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
 else()
@@ -1531,11 +1516,6 @@ else()
         set_target_properties(open62541-static PROPERTIES OUTPUT_NAME open62541)
     endif()
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-
-    if(UA_FORCE_CPP)
-        set_source_files_properties(${lib_sources} PROPERTIES LANGUAGE CXX)
-        set_source_files_properties(${default_plugin_sources} ${ua_architecture_sources} PROPERTIES LANGUAGE CXX)
-    endif()
 
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         # Prevent Wincrypt override warning.
