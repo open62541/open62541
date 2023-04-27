@@ -15,62 +15,12 @@
 /**
  * C99 Definitions
  * --------------- */
-#include <string.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
 #include <float.h>
-
-/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
-#ifdef UNDER_CE
-# include "stdint.h"
-#endif
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
-#else
-# include "ms_stdint.h"
-# if !defined(__bool_true_false_are_defined)
-#  define bool unsigned char
-#  define true 1
-#  define false 0
-#  define __bool_true_false_are_defined
-# endif
-#endif
-
-/* Include inttypes.h or workaround for older Visual Studios */
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <inttypes.h>
-#else
-# define __PRI_8_LENGTH_MODIFIER__ "hh"
-# define __PRI_64_LENGTH_MODIFIER__ "ll"
-
-# define PRId8 __PRI_8_LENGTH_MODIFIER__ "d"
-# define PRIi8 __PRI_8_LENGTH_MODIFIER__ "i"
-# define PRIo8 __PRI_8_LENGTH_MODIFIER__ "o"
-# define PRIu8 __PRI_8_LENGTH_MODIFIER__ "u"
-# define PRIx8 __PRI_8_LENGTH_MODIFIER__ "x"
-# define PRIX8 __PRI_8_LENGTH_MODIFIER__ "X"
-
-# define PRId16 "hd"
-# define PRIi16 "hi"
-# define PRIo16 "ho"
-# define PRIu16 "hu"
-# define PRIx16 "hx"
-# define PRIX16 "hX"
-
-# define PRId32 "ld"
-# define PRIi32 "li"
-# define PRIo32 "lo"
-# define PRIu32 "lu"
-# define PRIx32 "lx"
-# define PRIX32 "lX"
-
-# define PRId64 __PRI_64_LENGTH_MODIFIER__ "d"
-# define PRIi64 __PRI_64_LENGTH_MODIFIER__ "i"
-# define PRIo64 __PRI_64_LENGTH_MODIFIER__ "o"
-# define PRIu64 __PRI_64_LENGTH_MODIFIER__ "u"
-# define PRIx64 __PRI_64_LENGTH_MODIFIER__ "x"
-# define PRIX64 __PRI_64_LENGTH_MODIFIER__ "X"
-#endif
+#include <string.h>
 
 /**
  * Inline Functions

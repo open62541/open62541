@@ -486,11 +486,6 @@ if(UA_ENABLE_PUBSUB_MQTT)
     if(WIN32)
         MESSAGE(WARNING "Multithreading is enabled in MQTT plugin. This feature is under development and marked as EXPERIMENTAL")
     endif()
-    # Warn if run in Windows and the MSVC Version is lower than VS 12.0
-    if(WIN32 AND MSVC_VERSION LESS 1800)
-        message(WARNING "The MSVC version does not support the C99 standard. Therefore the file stdint.h will be included.")
-        configure_file(${PROJECT_SOURCE_DIR}/deps/ms_stdint.h "${PROJECT_BINARY_DIR}/src_generated/stdint.h" COPYONLY)
-    endif()
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "Mqtt cannot be used with disabled PubSub function.")
     endif()
@@ -947,7 +942,6 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${PROJECT_SOURCE_DIR}/deps/ms_stdint.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
