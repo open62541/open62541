@@ -17,10 +17,6 @@ environment:
         APPVEYOR_CACHE_ENTRY_ZIP_ARGS: -t7z -m0=lzma -mx=9
 
     matrix:
-        - CC_NAME: Visual Studio 9 2008
-          CC_SHORTNAME: vs2008
-          GENERATOR: Visual Studio 9 2008
-          FORCE_CXX: ON
         - CC_NAME: Visual Studio 12 2013
           CC_SHORTNAME: vs2013
           GENERATOR: Visual Studio 12 2013
