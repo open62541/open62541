@@ -19,6 +19,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
+#include "itoa.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -66,7 +67,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     if(sub->session) {
         /* Use a browse path to find the node */
         char subIdStr[32];
-        snprintf(subIdStr, 32, "%u", sub->subscriptionId);
+        itoaUnsigned(sub->subscriptionId, subIdStr, 10);
         UA_BrowsePath bp;
         UA_BrowsePath_init(&bp);
         bp.startingNode = sub->session->sessionId;
