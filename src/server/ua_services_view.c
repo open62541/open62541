@@ -690,9 +690,10 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
                 UA_ReferenceTargetTreeElem key;
                 key.target.targetId = cp->lastTarget;
                 key.targetIdHash = UA_ExpandedNodeId_hash(&lastEn);
-                ZIP_UNZIP(UA_ReferenceIdTree, &rk->targets.tree.idTree,
+                ZIP_UNZIP(UA_ReferenceIdTree,
+                          (UA_ReferenceIdTree*)&rk->targets.tree.idRoot,
                           &key, &left, &right);
-                rk->targets.tree.idTree = right;
+                rk->targets.tree.idRoot = right.root;
             } else {
                 /* Iterate over the array to find the match */
                 for(; nextTargetIndex < rk->targetsSize; nextTargetIndex++) {
@@ -722,7 +723,7 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
         /* Undo the "skipping ahead" for the continuation point */
         if(bc->activeCP) {
             if(rk->hasRefTree) {
-                rk->targets.tree.idTree.root =
+                rk->targets.tree.idRoot =
                     ZIP_ZIP(UA_ReferenceIdTree, left.root, right.root);
             } else {
                 /* rk->targets.array = rk->targets.array[-nextTargetIndex]; */
@@ -1195,7 +1196,7 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
             if(rk->hasRefTree) {
                 res = (UA_StatusCode)(uintptr_t)
                     ZIP_ITER_KEY(UA_ReferenceNameTree,
-                                 &rk->targets.tree.nameTree,
+                                 (UA_ReferenceNameTree*)&rk->targets.tree.nameRoot,
                                  &targetHashKey, addBrowseHashTarget, next);
                 if(res != UA_STATUSCODE_GOOD)
                     break;

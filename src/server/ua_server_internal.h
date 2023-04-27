@@ -249,8 +249,11 @@ enum ZIP_CMP
 cmpRefTargetName(const void *a, const void *b);
 
 /* Static inline methods for tree handling */
+typedef ZIP_HEAD(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem) UA_ReferenceIdTree;
 ZIP_FUNCTIONS(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem, idTreeEntry,
               UA_ReferenceTargetTreeElem, target, cmpRefTargetId)
+
+typedef ZIP_HEAD(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem) UA_ReferenceNameTree;
 ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
               UA_ReferenceTarget, target, cmpRefTargetName)
 
