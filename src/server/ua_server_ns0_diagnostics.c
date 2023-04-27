@@ -221,14 +221,16 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     const UA_NodeId subDiagArray =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
     res = addRefWithSession(server, session,  &subDiagArray, &refId, &objId, true);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* Get all children (including the variable itself) and set the contenxt + callback */
     res = referenceTypeIndices(server, &hasComponent, &refTypes, false);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    res = browseRecursive(server, 1, &objId,
-                          UA_BROWSEDIRECTION_FORWARD, &refTypes,
-                          UA_NODECLASS_VARIABLE, true, &childrenSize, &children);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
+        res = browseRecursive(server, 1, &objId,
+                              UA_BROWSEDIRECTION_FORWARD, &refTypes,
+                              UA_NODECLASS_VARIABLE, true, &childrenSize, &children);
+    }
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
