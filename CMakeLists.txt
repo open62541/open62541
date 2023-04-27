@@ -9,8 +9,6 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
 
-string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
-
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
@@ -64,15 +62,40 @@ set_open62541_version()
 set(OPEN62541_VERSION "v${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
 MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 
+# Check if a C compiler flag is supported and add it (if supported)
+# Taken from https://stackoverflow.com/a/33266748
+include(CheckCCompilerFlag)
+set(DEBUG_TARGET_COMPILE_OPTIONS "")
+set(RELEASE_TARGET_COMPILE_OPTIONS "")
+set(RELWITHDEBINFO_TARGET_COMPILE_OPTIONS "")
+set(MINSIZEREL_TARGET_COMPILE_OPTIONS "")
+function(check_add_cc_flag CC_FLAG BUILD_TYPE)
+    message(STATUS "Test CC flag ${CC_FLAG}")
+    check_c_compiler_flag("${CC_FLAG}" flag_supported)
+    if(flag_supported)
+      list(FIND BUILD_TYPE "Debug" _index)
+      if (${_index} GREATER -1)
+        set(DEBUG_TARGET_COMPILE_OPTIONS "${DEBUG_TARGET_COMPILE_OPTIONS};${CC_FLAG}" PARENT_SCOPE)
+      endif()
+      list(FIND BUILD_TYPE "Release" _index)
+      if (${_index} GREATER -1)
+        set(RELEASE_TARGET_COMPILE_OPTIONS "${RELEASE_TARGET_COMPILE_OPTIONS};${CC_FLAG}" PARENT_SCOPE)
+      endif()
+      list(FIND BUILD_TYPE "RelWithDebInfo" _index)
+      if (${_index} GREATER -1)
+        set(RELWITHDEBINFO_TARGET_COMPILE_OPTIONS "${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS};${CC_FLAG}" PARENT_SCOPE)
+      endif()
+      list(FIND BUILD_TYPE "MinSizeRel" _index)
+      if (${_index} GREATER -1)
+        set(MINSIZEREL_TARGET_COMPILE_OPTIONS "${MINSIZEREL_TARGET_COMPILE_OPTIONS};${CC_FLAG}" PARENT_SCOPE)
+      endif()
+    endif()
+    unset(flag_supported CACHE)
+endfunction()
+
 #################
 # Build Options #
 #################
-
-# Set default build type.
-if(NOT CMAKE_BUILD_TYPE)
-    message(STATUS "CMAKE_BUILD_TYPE not given; setting to 'Debug'")
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Choose the type of build" FORCE)
-endif()
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
 set(UA_AMALGAMATION_ARCHITECTURES "" CACHE STRING "List of architectures to include in amalgamation")
@@ -342,8 +365,8 @@ if(UA_ENABLE_CLANG_COV)
     if(UA_ENABLE_COVERAGE)
         message(FATAL_ERROR "Only either clang cov or normal coverage is allowed.")
     endif()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
+    check_add_cc_flag("-fprofile-instr-generate" "Debug")
+    check_add_cc_flag("-fcoverage-mapping" "Debug")
 endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
@@ -574,9 +597,6 @@ mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)
 mark_as_advanced(UA_DEBUG)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(UA_DEBUG ON)
-endif()
 
 option(UA_DEBUG_DUMP_PKGS "Dump every package received by the server as hexdump format" OFF)
 mark_as_advanced(UA_DEBUG_DUMP_PKGS)
@@ -592,10 +612,6 @@ endif()
 
 option(UA_DEBUG_FILE_LINE_INFO "Enable file and line information as additional debugging output for error messages" OFF)
 mark_as_advanced(UA_DEBUG_FILE_LINE_INFO)
-
-if(CMAKE_BUILD_TYPE MATCHES DEBUG)
-    set(UA_DEBUG_FILE_LINE_INFO ON)
-endif()
 
 # Build Targets
 option(UA_BUILD_EXAMPLES "Build example servers and clients" OFF)
@@ -708,67 +724,55 @@ endif()
 # Compiler Settings #
 #####################
 
-# Check if a C compiler flag is supported and add it (if supported)
-# Taken from https://stackoverflow.com/a/33266748
-include(CheckCCompilerFlag)
-function(check_add_cc_flag CC_FLAG)
-    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
-    if(flag_already_set EQUAL -1)
-        message(STATUS "Test CC flag ${CC_FLAG}")
-        check_c_compiler_flag("${CC_FLAG}" flag_supported)
-        if(flag_supported)
-            set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" PARENT_SCOPE)
-        endif()
-        unset(flag_supported CACHE)
-    endif()
-endfunction()
-
 if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang"))
-    check_add_cc_flag("-std=c99")   # C99 mode
-    check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
-    check_add_cc_flag("-Wall")      # Warnings
-    check_add_cc_flag("-Wextra")    # More warnings
-    check_add_cc_flag("-Wpedantic") # Standard compliance
+    check_add_cc_flag("-std=c99" "Debug;Release;RelWithDebInfo;MinSizeRel")   # C99 mode
+    check_add_cc_flag("-pipe" "Debug;Release;RelWithDebInfo;MinSizeRel")      # Avoid writing temporary files (for compiler speed)
+    check_add_cc_flag("-Wall" "Debug;Release;RelWithDebInfo;MinSizeRel")      # Warnings
+    check_add_cc_flag("-Wextra" "Debug;Release;RelWithDebInfo;MinSizeRel")    # More warnings
+    check_add_cc_flag("-Wpedantic" "Debug;Release;RelWithDebInfo;MinSizeRel") # Standard compliance
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Werror") # All warnings are errors
-        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+        check_add_cc_flag("-Wunused-command-line-argument" "Debug;Release;RelWithDebInfo;MinSizeRel") # Warning for command line args instead of error
+        check_add_cc_flag("-Werror" "Debug;Release;RelWithDebInfo;MinSizeRel")    # All warnings are errors
     endif()
 
-    check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
-    check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
-    check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
-    check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
+    check_add_cc_flag("-Wno-maybe-uninitialized" "Debug;Release;RelWithDebInfo;MinSizeRel") # too many false positives
+    if(NOT UA_PACK_DEBIAN)
+        check_add_cc_flag("-Wno-static-in-inline" "Debug;Release;RelWithDebInfo;MinSizeRel") # Clang doesn't like the use of static inline methods inside static inline methods
+    endif()
+    check_add_cc_flag("-Wno-overlength-strings" "Debug;Release;RelWithDebInfo;MinSizeRel") # May happen in the nodeset compiler when complex values are directly encoded
+    check_add_cc_flag("-Wno-unused-parameter" "Debug;Release;RelWithDebInfo;MinSizeRel") # some methods may require unused arguments to cast to a method pointer
 
     # Use a strict subset of the C and C++ languages
-    check_add_cc_flag("-Wc++-compat")
+    check_add_cc_flag("-Wc++-compat" "Debug;Release;RelWithDebInfo;MinSizeRel")
 
     # Check that format strings (printf/scanf) are sane
-    check_add_cc_flag("-Wformat")
-    check_add_cc_flag("-Wformat-security")
-    check_add_cc_flag("-Wformat-nonliteral")
+    check_add_cc_flag("-Wformat" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wformat-security" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wformat-nonliteral" "Debug;Release;RelWithDebInfo;MinSizeRel")
 
     # Check prototype definitions
-    check_add_cc_flag("-Wmissing-prototypes")
-    check_add_cc_flag("-Wstrict-prototypes")
-    check_add_cc_flag("-Wredundant-decls")
+    check_add_cc_flag("-Wmissing-prototypes" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wstrict-prototypes" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wredundant-decls" "Debug;Release;RelWithDebInfo;MinSizeRel")
 
-    check_add_cc_flag("-Wuninitialized")
-    check_add_cc_flag("-Winit-self")
-    check_add_cc_flag("-Wcast-qual")
-    check_add_cc_flag("-Wstrict-overflow")
-    check_add_cc_flag("-Wnested-externs")
-    check_add_cc_flag("-Wmultichar")
-    check_add_cc_flag("-Wundef")
-    check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
-    check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
+    check_add_cc_flag("-Wuninitialized" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Winit-self" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wcast-qual" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wstrict-overflow" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wnested-externs" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wmultichar" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-Wundef" "Debug;Release;RelWithDebInfo;MinSizeRel")
+    check_add_cc_flag("-fno-strict-aliasing" "Debug;Release;RelWithDebInfo;MinSizeRel") # fewer compiler assumptions about pointer types
+    check_add_cc_flag("-fexceptions" "Debug;Release;RelWithDebInfo;MinSizeRel") # recommended for multi-threaded C code, also in combination with C++ code
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        check_add_cc_flag("-fPIC")
+        check_add_cc_flag("-fPIC" "Debug;Release;RelWithDebInfo;MinSizeRel")
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
-        check_add_cc_flag("-pthread")
+        check_add_cc_flag("-pthread" "Debug;Release;RelWithDebInfo;MinSizeRel")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pthread")
     endif()
 
     # Force 32bit build
@@ -781,12 +785,12 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
         if(UA_ENABLE_HARDENING)
-            check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
-            check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
+            check_add_cc_flag("-fstack-protector-strong" "Debug;Release;RelWithDebInfo;MinSizeRel") # more performant stack protector, available since gcc 4.9
+            check_add_cc_flag("-fstack-clash-protection" "Debug;Release;RelWithDebInfo;MinSizeRel") # increased reliability of stack overflow detection, available since gcc 8
             # future use (control flow integrity protection)
             if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")
-                check_add_cc_flag("-mcet")
-                check_add_cc_flag("-fcf-protection")
+                check_add_cc_flag("-mcet" "Debug;Release;RelWithDebInfo;MinSizeRel")
+                check_add_cc_flag("-fcf-protection" "Debug;Release;RelWithDebInfo;MinSizeRel")
             endif()
         endif()
 
@@ -806,74 +810,69 @@ if(NOT UA_FORCE_CPP AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL
     endif()
 
     if(UA_ENABLE_AMALGAMATION)
-        add_definitions(-Wno-unused-function)
-    endif()
-
-    if(UA_PACK_DEBIAN)
-        remove_definitions(-Wno-static-in-inline)
+        check_add_cc_flag("-Wno-unused-function" "Debug;Release;RelWithDebInfo;MinSizeRel")
     endif()
 
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
     # Debug
-    if(UA_ENABLE_DEBUG_SANITIZER AND BUILD_TYPE_LOWER_CASE STREQUAL "debug" AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
+    if(UA_ENABLE_DEBUG_SANITIZER AND UNIX AND NOT UA_BUILD_OSS_FUZZ AND
        CMAKE_C_COMPILER_ID STREQUAL "Clang" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
         # Add default sanitizer settings when using clang and Debug build.
         # This allows e.g. CLion to find memory locations for SegFaults
         message(STATUS "Sanitizer enabled")
-        set(SANITIZER_FLAGS "-g -fno-omit-frame-pointer -gline-tables-only -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=leak -fsanitize=undefined")
+        set(SANITIZER_FLAGS "-g;-fno-omit-frame-pointer;-gline-tables-only;-fsanitize=address;-fsanitize=leak;-fsanitize=undefined")
         if(CMAKE_CXX_COMPILER_VERSION AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10.0)
-            set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-coverage=trace-pc-guard")
+            set(SANITIZER_FLAGS "${SANITIZER_FLAGS};-fsanitize-coverage=trace-pc-guard")
         endif()
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SANITIZER_FLAGS}")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SANITIZER_FLAGS}")
+        foreach(flag ${SANITIZER_FLAGS})
+            check_add_cc_flag(${flag} "Debug")
+        endforeach()
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=undefined")
     endif()
 
-    if(NOT MINGW AND UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
+    if(NOT MINGW AND UA_ENABLE_HARDENING)
+        check_add_cc_flag("-D_FORTIFY_SOURCE=2" "Release;RelWithDebInfo") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
     # Strip release builds
-    if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        check_add_cc_flag("-ffunction-sections")
-        check_add_cc_flag("-fdata-sections")
-        check_add_cc_flag("-fno-unwind-tables")
-        check_add_cc_flag("-fno-asynchronous-unwind-tables")
-        check_add_cc_flag("-fno-math-errno")
-#        check_add_cc_flag("-fno-ident")
+    check_add_cc_flag("-ffunction-sections" "Release;MinSizeRel")
+    check_add_cc_flag("-fdata-sections" "Release;MinSizeRel")
+    check_add_cc_flag("-fno-unwind-tables" "Release;MinSizeRel")
+    check_add_cc_flag("-fno-asynchronous-unwind-tables" "Release;MinSizeRel")
+    check_add_cc_flag("-fno-math-errno" "Release;MinSizeRel")
+#   check_add_cc_flag("-fno-ident" "Release;MinSizeRel")
 
-        # remove stack-protector with MinSizeRel
-        if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-            check_add_cc_flag("-fno-stack-protector")
-        endif()
-        if(NOT OS9)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
-        endif()
-        if(APPLE)
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
-        else()
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
-            set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
-        endif()
-        if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
-            # these settings reduce the binary size by ~2kb
-            set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
-        endif()
+    # remove stack-protector with MinSizeRel
+    check_add_cc_flag("-fno-stack-protector" "MinSizeRel")
+    if(NOT OS9)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
+    endif()
+    if(APPLE)
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-dead_strip")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,-dead_strip")
+    else()
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,--gc-sections")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
+    endif()
+    if(NOT WIN32 AND NOT CYGWIN AND NOT APPLE)
+        # these settings reduce the binary size by ~2kb
+        set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
     endif()
 endif()
 
 if(APPLE)
     set(CMAKE_MACOSX_RPATH 1)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DARWIN_C_SOURCE=1")
+    check_add_cc_flag("-D_DARWIN_C_SOURCE=1" "Debug;Release;RelWithDebInfo;MinSizeRel")
 endif()
 
 if(MSVC)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W3 /w44996")
+  check_add_cc_flag("/W3" "Debug;Release;RelWithDebInfo;MinSizeRel")
+  check_add_cc_flag("/w44996" "Debug;Release;RelWithDebInfo;MinSizeRel")
   if(UA_FORCE_WERROR)
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX") # Compiler warnings, error on warning
+      check_add_cc_flag("/WX" "Debug;Release;RelWithDebInfo;MinSizeRel")
   endif()
 
   if(UA_MSVC_FORCE_STATIC_CRT AND NOT BUILD_SHARED_LIBS)
@@ -1532,6 +1531,11 @@ else()
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
+    target_compile_options(open62541-plugins PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(open62541-plugins PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(open62541-plugins PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
+    target_compile_options(open62541-plugins PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
+
     if(UA_PACK_DEBIAN)
         add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
         set_target_properties(open62541-static PROPERTIES OUTPUT_NAME open62541)
@@ -1598,6 +1602,16 @@ else()
         include_directories_private("${PROJECT_SOURCE_DIR}/src/client")
     endif()
 endif()
+
+target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541 PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
+
+target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:DEBUG>>:${DEBUG_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELEASE>>:${RELEASE_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:RELWITHDEBINFO>>:${RELWITHDEBINFO_TARGET_COMPILE_OPTIONS}>")
+target_compile_options(open62541-object PUBLIC "$<$<AND:$<COMPILE_LANGUAGE:C>,$<CONFIG:MINSIZEREL>>:${MINSIZEREL_TARGET_COMPILE_OPTIONS}>")
 
 add_dependencies(open62541-object open62541-code-generation)
 
