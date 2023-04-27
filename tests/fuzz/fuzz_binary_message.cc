@@ -60,7 +60,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     memcpy(msg.data, data, size);
 
-    void *ctx;
+    void *ctx = NULL;
     UA_Server_networkCallback(&testConnectionManagerTCP, 0, server,
                               &ctx, UA_CONNECTIONSTATE_ESTABLISHED,
                               &UA_KEYVALUEMAP_NULL, msg);
