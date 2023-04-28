@@ -72,14 +72,29 @@ UA_PubSub_udpCallbackSubscribe(UA_ConnectionManager *cm, uintptr_t connectionId,
                                void *application, void **connectionContext,
                                UA_ConnectionState state, const UA_KeyValueMap *params,
                                UA_ByteString msg) {
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext*) *connectionContext;
+
     if (state == UA_CONNECTIONSTATE_CLOSED || state == UA_CONNECTIONSTATE_CLOSING) {
+        // We are the last users of this context, clean it up now.
+        if(ctx)
+        {
+            UA_KeyValueMap_clear(&ctx->subscriberParams);
+            UA_KeyValueMap_clear(&ctx->publisherParams);
+            UA_free(ctx);
+        }
+        return;
+    }
+
+    if(!ctx->connection)
+    {
+        // Application has already closed its part of that connection. Ignore all messages that were received
+        // after that.
         return;
     }
 
     UA_PubSubChannel *channel = (UA_PubSubChannel *) application;
     channel->sockfd = (int) connectionId;
 
-    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext*) *connectionContext;
     ctx->connectionIdSubscribe = connectionId;
     ctx->connectionManager = cm;
 
@@ -95,13 +110,20 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
                              UA_ConnectionState state, const UA_KeyValueMap *params,
                              UA_ByteString msg) {
 
+    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) *connectionContext;
     if(state == UA_CONNECTIONSTATE_CLOSED || state == UA_CONNECTIONSTATE_CLOSING || !application) {
+        // We are the last users of this context, clean it up now.
+        if(ctx)
+        {
+            UA_KeyValueMap_clear(&ctx->subscriberParams);
+            UA_KeyValueMap_clear(&ctx->publisherParams);
+            UA_free(ctx);
+        }
         return;
     }
     UA_PubSubChannel *channel = (UA_PubSubChannel *) application;
     channel->sockfd = (int) connectionId;
 
-    UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) *connectionContext;
     ctx->connectionIdPublish = connectionId;
     ctx->connectionManager = cm;
 }
@@ -114,11 +136,10 @@ UA_PubSub_udpCallbackPublish(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 UA_PubSubChannelUDP_close(UA_PubSubChannel *channel) {
     UA_UDPConnectionContext *ctx = (UA_UDPConnectionContext *) channel->handle;
-    if (ctx != NULL) {
-        UA_KeyValueMap_clear(&ctx->subscriberParams);
-        UA_KeyValueMap_clear(&ctx->publisherParams);
-        UA_free(ctx);
-    }
+    // Set the connection pointer to NULL to indicate that application has already closed its part,
+    // but don't free the context object yet. That context is still held by event loop,
+    // and will be freed once the connection is closed inside the event loop.
+    ctx->connection = NULL;
     UA_free(channel);
     return UA_STATUSCODE_GOOD;
 }
