@@ -54,10 +54,10 @@ static void clientStateCallback(UA_Client *c,
 
 static void setup(void) {
     for(int i = 0; i < numServerCallbackCalled; ++i)
-        serverCallbackStates[i] = UA_SECURECHANNELSTATE_FRESH;
+        serverCallbackStates[i] = UA_SECURECHANNELSTATE_CLOSED;
 
     for(int i = 0; i < numClientCallbackCalled; ++i)
-        clientCallbackStates[i] = UA_SECURECHANNELSTATE_FRESH;
+        clientCallbackStates[i] = UA_SECURECHANNELSTATE_CLOSED;
 
     numServerCallbackCalled = 0;
     reverseConnectHandle = 0;

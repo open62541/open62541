@@ -30,7 +30,6 @@ void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
-    channel->state = UA_SECURECHANNELSTATE_FRESH;
     SIMPLEQ_INIT(&channel->completeChunks);
     SIMPLEQ_INIT(&channel->decryptedChunks);
 }
@@ -85,7 +84,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
 
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
-    return (channel->state >= UA_SECURECHANNELSTATE_REVERSE_LISTENING &&
+    return (channel->state > UA_SECURECHANNELSTATE_CLOSED &&
             channel->state < UA_SECURECHANNELSTATE_CLOSING);
 }
 
@@ -147,10 +146,14 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_shutdown(UA_SecureChannel *channel) {
+UA_SecureChannel_shutdown(UA_SecureChannel *channel,
+                          UA_ShutdownReason shutdownReason) {
     /* No open socket or already closing -> nothing to do */
     if(!UA_SecureChannel_isConnected(channel))
         return;
+
+    /* Set the shutdown event for diagnostics */
+    channel->shutdownReason= shutdownReason;
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;

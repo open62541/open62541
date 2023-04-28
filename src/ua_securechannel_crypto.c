@@ -561,7 +561,7 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId) {
        timeout < UA_DateTime_nowMonotonic()) {
         UA_LOG_WARNING_CHANNEL(channel->securityPolicy->logger, channel,
                                "SecurityToken timed out");
-        UA_SecureChannel_shutdown(channel);
+        UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_TIMEOUT);
         return UA_STATUSCODE_BADSECURECHANNELCLOSED;
     }
 

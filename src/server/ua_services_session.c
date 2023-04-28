@@ -27,7 +27,7 @@ removeSessionCallback(UA_Server *server, session_list_entry *entry) {
 
 void
 UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_DiagnosticEvent event) {
+                        UA_ShutdownReason shutdownReason) {
     UA_Session *session = &sentry->session;
 
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -68,20 +68,20 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     LIST_REMOVE(sentry, pointers);
     server->sessionCount--;
 
-    switch(event) {
-    case UA_DIAGNOSTICEVENT_CLOSE:
-    case UA_DIAGNOSTICEVENT_PURGE:
+    switch(shutdownReason) {
+    case UA_SHUTDOWNREASON_CLOSE:
+    case UA_SHUTDOWNREASON_PURGE:
         break;
-    case UA_DIAGNOSTICEVENT_TIMEOUT:
+    case UA_SHUTDOWNREASON_TIMEOUT:
         server->serverDiagnosticsSummary.sessionTimeoutCount++;
         break;
-    case UA_DIAGNOSTICEVENT_REJECT:
+    case UA_SHUTDOWNREASON_REJECT:
         server->serverDiagnosticsSummary.rejectedSessionCount++;
         break;
-    case UA_DIAGNOSTICEVENT_SECURITYREJECT:
+    case UA_SHUTDOWNREASON_SECURITYREJECT:
         server->serverDiagnosticsSummary.securityRejectedSessionCount++;
         break;
-    case UA_DIAGNOSTICEVENT_ABORT:
+    case UA_SHUTDOWNREASON_ABORT:
         server->serverDiagnosticsSummary.sessionAbortCount++;
         break;
     default:
@@ -100,12 +100,12 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
 
 UA_StatusCode
 UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_DiagnosticEvent event) {
+                               UA_ShutdownReason shutdownReason) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     session_list_entry *entry;
     LIST_FOREACH(entry, &server->sessions, pointers) {
         if(UA_NodeId_equal(&entry->session.header.authenticationToken, token)) {
-            UA_Server_removeSession(server, entry, event);
+            UA_Server_removeSession(server, entry, shutdownReason);
             return UA_STATUSCODE_GOOD;
         }
     }
@@ -121,7 +121,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
         if(sentry->session.validTill >= nowMonotonic)
             continue;
         UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session, "Session has timed out");
-        UA_Server_removeSession(server, sentry, UA_DIAGNOSTICEVENT_TIMEOUT);
+        UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
 
@@ -324,7 +324,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     if(!response->serverEndpoints) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken,
-                                       UA_DIAGNOSTICEVENT_REJECT);
+                                       UA_SHUTDOWNREASON_REJECT);
         return;
     }
     response->serverEndpointsSize = server->config.endpointsSize;
@@ -336,7 +336,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                         &response->serverEndpoints[i]);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken,
-                                       UA_DIAGNOSTICEVENT_REJECT);
+                                       UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -397,7 +397,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken,
-                                       UA_DIAGNOSTICEVENT_REJECT);
+                                       UA_SHUTDOWNREASON_REJECT);
         return;
     }
 
@@ -937,5 +937,5 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
     /* Remove the sesison */
     response->responseHeader.serviceResult =
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
-                                       UA_DIAGNOSTICEVENT_CLOSE);
+                                       UA_SHUTDOWNREASON_CLOSE);
 }
