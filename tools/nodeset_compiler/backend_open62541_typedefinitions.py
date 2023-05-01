@@ -62,7 +62,7 @@ def getNodeidTypeAndId(nodeId):
         return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
 
 class CGenerator(object):
-    def __init__(self, parser, inname, outfile, is_internal_types, namespaceMap):
+    def __init__(self, parser, inname, outfile, is_internal_types, namespaceMap, export_macro):
         self.parser = parser
         self.inname = inname
         self.outfile = outfile
@@ -73,6 +73,7 @@ class CGenerator(object):
         self.ff = None
         self.fc = None
         self.fe = None
+        self.export_macro = export_macro
 
     @staticmethod
     def get_type_index(datatype):
@@ -423,7 +424,9 @@ _UA_BEGIN_DECLS
         if totalCount > 0:
 
             self.printh(
-                "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern " + self.export_macro + (" " if self.export_macro else "") +
+                "const UA_DataType UA_" + self.parser.outname.upper() +
+                "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):

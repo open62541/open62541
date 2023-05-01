@@ -89,6 +89,7 @@ endfunction()
 #   [TARGET_PREFIX] Optional prefix for the resulting target. Default `open62541-generator`
 #   [OUTPUT_DIR]    Optional target directory for the generated files. Default is '${PROJECT_BINARY_DIR}/src_generated'
 #   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
+#   [EXPORT_MACRO]  Optional export macro added to the generated code
 #
 #   Arguments taking multiple values:
 #
@@ -108,7 +109,7 @@ endfunction()
 #
 function(ua_generate_datatypes)
     set(options BUILTIN INTERNAL)
-    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_CSV)
+    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_CSV EXPORT_MACRO)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -159,6 +160,11 @@ function(ua_generate_datatypes)
         set(UA_GEN_DT_INTERNAL_ARG "--internal")
     endif()
 
+    set(UA_GEN_DT_EXPORT_MACRO_ARG "")
+    if (UA_GEN_DT_EXPORT_MACRO)
+        set(UA_GEN_DT_EXPORT_MACRO_ARG "--export-macro=${UA_GEN_DT_EXPORT_MACRO}")
+    endif()
+
     set(SELECTED_TYPES_TMP "")
     foreach(f ${UA_GEN_DT_FILES_SELECTED})
         set(SELECTED_TYPES_TMP ${SELECTED_TYPES_TMP} "--selected-types=${f}")
@@ -201,6 +207,7 @@ function(ua_generate_datatypes)
         --type-csv=${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_NO_BUILTIN}
         ${UA_GEN_DT_INTERNAL_ARG}
+        ${UA_GEN_DT_EXPORT_MACRO_ARG}
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
         DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${UA_GEN_DT_FILES_BSD}
