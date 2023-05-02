@@ -410,9 +410,13 @@ function examples_valgrind {
     do
 	    echo "Processing $f"
 	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f &
+        pid=$!
 	    sleep 10
-	    kill -INT %1
-	    wait $!; EXIT_CODE=$?
+        # || true to ignore the error if the process is already dead
+	    kill -INT $pid || true
+
+        # using a 20 second timeout with SIGTERM to kill the process if it is still running
+	    timeout 20s bash -c 'wait $pid || kill -TERM $pid' ; EXIT_CODE=$?
 	    if [[ $EXIT_CODE -ne 0 ]]; then
 		   echo "Processing $f failed with exit code $EXIT_CODE "
 		   exit $EXIT_CODE	
