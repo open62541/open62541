@@ -428,6 +428,50 @@ START_TEST(Client_activateSessionLocaleIds) {
 }
 END_TEST
 
+START_TEST(Client_promoteBadSessionIdInvalid) {
+    // restart server
+    teardown();
+    setup();
+    ck_assert_uint_eq(server->sessionCount, 0);
+
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig *config = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(config);
+
+    config->sessionLocaleIdsSize = 1;
+    config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(1, &UA_TYPES[UA_TYPES_LOCALEID]);
+    config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");
+
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(server->sessionCount, 1);
+
+    // check if everything works as expected
+    UA_Variant val;
+    UA_NodeId nodeId = UA_NODEID_STRING(1, "my.variable");
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    UA_Variant_clear(&val);    
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_StatusCode connectStatus;
+    UA_Client_getState(client, NULL, NULL, &connectStatus);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_GOOD);
+
+    // forcibly close the session to make it invalid
+    UA_Session* session = &(server->sessions.lh_first->session);
+    UA_Session_clear(session, server);
+
+    // perform a read on the invalid session to update the state
+    retval = UA_Client_readValueAttribute(client, nodeId, &val);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSESSIONIDINVALID);
+
+    UA_Client_getState(client, NULL, NULL, &connectStatus);
+    ck_assert_uint_eq(connectStatus, UA_STATUSCODE_BADSESSIONIDINVALID);
+
+    UA_Client_delete(client);
+}
+END_TEST
+
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");
     TCase *tc_client = tcase_create("Client Basic");
@@ -450,6 +494,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
     tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
     tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
+    tcase_add_test(tc_client_reconnect, Client_promoteBadSessionIdInvalid);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }
