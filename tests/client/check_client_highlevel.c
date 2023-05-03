@@ -713,6 +713,11 @@ START_TEST(Node_ReadWrite_Symmetric) {
     retval = UA_Client_readSymmetricAttribute(client, nodeReadWriteTestHasSubSubType, &symmetric);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(symmetric, newSymmetric);
+
+    /* reset */
+    newSymmetric = false;
+    retval = UA_Client_writeSymmetricAttribute(client, nodeReadWriteTestHasSubSubType, &newSymmetric);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 

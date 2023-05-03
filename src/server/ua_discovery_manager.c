@@ -175,10 +175,6 @@ UA_DiscoveryManager_stop(UA_Server *server,
 
 UA_ServerComponent *
 UA_DiscoveryManager_new(UA_Server *server) {
-    /* There can be only one DiscoveryManager per server */
-    if(server->discoveryManager)
-        return NULL;
-
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         UA_calloc(1, sizeof(UA_DiscoveryManager));
     if(!dm)
@@ -206,9 +202,7 @@ UA_DiscoveryManager_new(UA_Server *server) {
     dm->serverOnNetworkCallbackData = NULL;
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
-    /* Register in the server */
-    server->discoveryManager = dm;
-
+    dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;
     dm->sc.free = UA_DiscoveryManager_free;

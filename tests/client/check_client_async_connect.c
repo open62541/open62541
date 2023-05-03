@@ -124,8 +124,7 @@ START_TEST(Client_connect_async_abort) {
             UA_Server_run_iterate(server, false);
             UA_Client_run_iterate(client, 5);
             UA_Client_getState(client, &currentState, NULL, &retval);
-        } while(currentState != UA_SECURECHANNELSTATE_CLOSED &&
-                currentState != UA_SECURECHANNELSTATE_FRESH);
+        } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
     }
 
     UA_Client_delete(client);

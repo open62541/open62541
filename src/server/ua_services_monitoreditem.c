@@ -34,7 +34,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
                                   const UA_MonitoredItem *mon, UA_DataChangeFilter *filter) {
     /* A valid deadband? */
     if(filter->deadbandValue < 0.0 || filter->deadbandValue > 100.0)
-        return UA_STATUSCODE_BADDEADBANDFILTERINVALID;
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
 
     /* Browse for the percent range */
     UA_QualifiedName qn = UA_QUALIFIEDNAME(0, "EURange");
@@ -42,7 +42,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
         browseSimplifiedBrowsePath(server, mon->itemToMonitor.nodeId, 1, &qn);
     if(bpr.statusCode != UA_STATUSCODE_GOOD || bpr.targetsSize < 1) {
         UA_BrowsePathResult_clear(&bpr);
-        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
     }
 
     /* Read the range */
@@ -56,7 +56,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     if(!UA_Variant_isScalar(&rangeVal.value) ||
        rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
         UA_DataValue_clear(&rangeVal);
-        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
     }
 
     /* Compute the abs deadband */
@@ -68,7 +68,7 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     /* EURange invalid or NaN? */
     if(absDeadband < 0.0 || absDeadband != absDeadband) {
         UA_DataValue_clear(&rangeVal);
-        return UA_STATUSCODE_BADFILTERNOTALLOWED;
+        return UA_STATUSCODE_BADMONITOREDITEMFILTERUNSUPPORTED;
     }
 
     /* Adjust the original filter */
@@ -96,6 +96,9 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
+
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
 
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
@@ -224,24 +227,12 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
         
-    /* Adjust sampling interval */
     if(params->samplingInterval < 0.0) {
-        /* A negative number indicates that the sampling interval is the
-         * publishing interval of the Subscription. */
+        /* A negative number indicates that the sampling interval is the publishing
+         * interval of the Subscription. */
         if(!mon->subscription) {
             /* Not possible for local MonitoredItems */
             params->samplingInterval = server->config.samplingIntervalLimits.min;
-        } else {
-            /* Test if the publishing interval is a valid sampling interval. If
-             * not, adjust to lie within the limits. */
-            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                                       mon->subscription->publishingInterval,
-                                       params->samplingInterval);
-            if(params->samplingInterval == mon->subscription->publishingInterval) {
-                /* The publishing interval is valid also for sampling. The
-                 * standard says any negative number is interpreted as -1.*/
-                params->samplingInterval = -1.0;
-            }
         }
     } else {
         /* Adjust positive sampling interval to lie within the limits */
@@ -497,6 +488,14 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->revisedQueueSize = newMon->parameters.queueSize;
     result->monitoredItemId = newMon->monitoredItemId;
 
+    /* If the sampling interval is negative (the sampling callback is called
+     * from within the publishing callback), return the publishing interval of
+     * the Subscription. Note that we only use the cyclic callback of the
+     * Subscription. So if the Subscription publishing interval is modified,
+     * this also impacts this MonitoredItem. */
+    if(result->revisedSamplingInterval < 0.0 && cmc->sub)
+        result->revisedSamplingInterval = cmc->sub->publishingInterval;
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
@@ -535,8 +534,8 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Reset the subscription lifetime */
-    cmc.sub->currentLifetimeCount = 0;
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(cmc.sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -619,6 +618,14 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     result->revisedSamplingInterval = mon->parameters.samplingInterval;
     result->revisedQueueSize = mon->parameters.queueSize;
 
+    /* If the sampling interval is negative (the sampling callback is called
+     * from within the publishing callback), return the publishing interval of
+     * the Subscription. Note that we only use the cyclic callback of the
+     * Subscription. So if the Subscription publishing interval is modified,
+     * this also impacts this MonitoredItem. */
+    if(result->revisedSamplingInterval < 0.0 && mon->subscription)
+        result->revisedSamplingInterval = mon->subscription->publishingInterval;
+
     /* Remove some notifications if the queue is now too small */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
@@ -661,7 +668,8 @@ Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -710,7 +718,8 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    smc.sub->currentLifetimeCount = 0; /* Reset the subscription lifetime */
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(smc.sub);
 
     smc.monitoringMode = request->monitoringMode;
     response->responseHeader.serviceResult =
@@ -755,8 +764,8 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
         return;
     }
 
-    /* Reset the subscription lifetime */
-    sub->currentLifetimeCount = 0;
+    /* Reset the lifetime counter of the Subscription */
+    Subscription_resetLifetime(sub);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,

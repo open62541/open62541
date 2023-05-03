@@ -19,6 +19,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
+#include "itoa.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
@@ -66,7 +67,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     if(sub->session) {
         /* Use a browse path to find the node */
         char subIdStr[32];
-        snprintf(subIdStr, 32, "%u", sub->subscriptionId);
+        itoaUnsigned(sub->subscriptionId, subIdStr, 10);
         UA_BrowsePath bp;
         UA_BrowsePath_init(&bp);
         bp.startingNode = sub->session->sessionId;
@@ -129,6 +130,11 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     sub->delayedFreePointers.application = NULL;
     sub->delayedFreePointers.context = sub;
     el->addDelayedCallback(el, &sub->delayedFreePointers);
+}
+
+void
+Subscription_resetLifetime(UA_Subscription *sub) {
+    sub->currentLifetimeCount = 0;
 }
 
 UA_MonitoredItem *
@@ -452,7 +458,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
     /* Update the LifetimeCounter */
     if(pre) {
-        sub->currentLifetimeCount = 0;
+        Subscription_resetLifetime(sub);
     } else {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "The publish queue is empty");

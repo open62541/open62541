@@ -10,6 +10,7 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/types.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -29,15 +30,17 @@ typedef enum {
  *                  e.g. ["C=DE", "O=SampleOrganization", "CN=Open62541Server@localhost"]
  * \param subjectAltName Elements for SubjectAltName,
  *                  e.g. ["DNS:localhost", "URI:urn:open62541.server.application"]
- * \param keySizeBits Size of the generated key in bits. If set to 0, the maximum key
- *                  size is used. Possible values are: [0, 1024 (deprecated), 2048, 4096]
+ * \param params key value map with optional parameters:
+ *                  - expires-in-days after these the cert expires default: 365
+ *                  - key-size-bits Size of the generated key in bits. Possible values are:
+ *                    [0, 1024 (deprecated), 2048, 4096] default: 4096
  */
 UA_StatusCode UA_EXPORT
-UA_CreateCertificate(const UA_Logger *logger,
-                     const UA_String *subject, size_t subjectSize,
-                     const UA_String *subjectAltName, size_t subjectAltNameSize,
-                     size_t keySizeBits, UA_CertificateFormat certFormat,
-                     UA_ByteString *outPrivateKey, UA_ByteString *outCertificate);
+UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
+                     size_t subjectSize, const UA_String *subjectAltName,
+                     size_t subjectAltNameSize, UA_CertificateFormat certFormat,
+                     UA_KeyValueMap *params, UA_ByteString *outPrivateKey,
+                     UA_ByteString *outCertificate);
 #endif
 
 _UA_END_DECLS

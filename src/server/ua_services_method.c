@@ -379,7 +379,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
                                    UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
                                    UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
-        opResult->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        opResult->statusCode = UA_STATUSCODE_BADMETHODINVALID;
         return;
     }
 
@@ -476,7 +476,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
                                    UA_REFTYPESET(UA_REFERENCETYPEINDEX_HASPROPERTY),
                                    UA_BROWSEDIRECTION_FORWARD);
     if(!method) {
-        result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        result->statusCode = UA_STATUSCODE_BADMETHODINVALID;
         return;
     }
 

@@ -51,12 +51,13 @@ typedef struct {
     } callback;
 } UA_LocalMonitoredItem;
 
-#endif
+#endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
-/* Server Component
- * ----------------
- *
- * ServerComponents have an explicit lifecycle. But they can only be started
+/********************/
+/* Server Component */
+/********************/
+
+/* ServerComponents have an explicit lifecycle. But they can only be started
  * when the underlying server is started. The starting/stopping of
  * ServerComponents is asynchronous. That is, they might require several
  * iterations of the EventLoop to finish starting/stopping.
@@ -66,6 +67,7 @@ typedef struct {
 
 typedef struct UA_ServerComponent {
     UA_UInt64 identifier;
+    UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
 
@@ -81,6 +83,11 @@ typedef struct UA_ServerComponent {
     /* Clean up the ServerComponent. Can fail if it is not stopped. */
     UA_StatusCode (*free)(UA_Server *server,
                           struct UA_ServerComponent *sc);
+
+    /* To be set by the server. So the component can notify the server about
+     * asynchronous state changes. */
+    void (*notifyState)(UA_Server *server, struct UA_ServerComponent *sc,
+                        UA_LifecycleState state);
 } UA_ServerComponent;
 
 enum ZIP_CMP
@@ -97,54 +104,18 @@ void
 addServerComponent(UA_Server *server, UA_ServerComponent *sc,
                    UA_UInt64 *identifier);
 
-typedef enum {
-    UA_DIAGNOSTICEVENT_CLOSE,
-    UA_DIAGNOSTICEVENT_REJECT,
-    UA_DIAGNOSTICEVENT_SECURITYREJECT,
-    UA_DIAGNOSTICEVENT_TIMEOUT,
-    UA_DIAGNOSTICEVENT_ABORT,
-    UA_DIAGNOSTICEVENT_PURGE
-} UA_DiagnosticEvent;
+UA_ServerComponent *
+getServerComponentByName(UA_Server *server, UA_String name);
 
-typedef struct channel_entry {
-    TAILQ_ENTRY(channel_entry) pointers;
-    UA_SecureChannel channel;
-    UA_DiagnosticEvent closeEvent;
-} channel_entry;
+/********************/
+/* Server Structure */
+/********************/
 
 typedef struct session_list_entry {
     UA_DelayedCallback cleanupCallback;
     LIST_ENTRY(session_list_entry) pointers;
     UA_Session session;
 } session_list_entry;
-
-/* Maximum numbers of sockets to listen on */
-#define UA_MAXSERVERCONNECTIONS 16
-
-typedef struct {
-    UA_ConnectionState state;
-    uintptr_t connectionId;
-    UA_ConnectionManager *connectionManager;
-} UA_ServerConnection;
-
-typedef struct reverse_connect_context {
-    UA_String hostname;
-    UA_UInt16 port;
-    UA_UInt64 handle;
-
-    UA_SecureChannelState state;
-    UA_Server_ReverseConnectStateCallback stateCallback;
-    void *callbackContext;
-
-     /* If this is set to true, the reverse connection is removed/freed when the
-      * connection closes. Otherwise we try to reconnect when the connection
-      * closes. */
-    UA_Boolean destruction;
-
-    UA_ServerConnection currentConnection;
-    UA_SecureChannel *channel;
-    LIST_ENTRY(reverse_connect_context) next;
-} reverse_connect_context;
 
 struct UA_Server {
     /* Config */
@@ -163,17 +134,6 @@ struct UA_Server {
 
     UA_UInt64 serverComponentIds; /* Counter to assign ids from */
     UA_ServerComponentTree serverComponents;
-
-    UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
-    size_t serverConnectionsSize;
-
-    UA_ConnectionConfig tcpConnectionConfig; /* Extracted from the server config
-                                              * parameters */
-
-    /* SecureChannels */
-    TAILQ_HEAD(, channel_entry) channels;
-    UA_UInt32 lastChannelId;
-    UA_UInt32 lastTokenId;
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager asyncManager;
@@ -195,11 +155,6 @@ struct UA_Server {
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
 
-    /* Discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    UA_DiscoveryManager *discoveryManager;
-#endif
-
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     size_t subscriptionsSize;  /* Number of active subscriptions */
@@ -217,7 +172,6 @@ struct UA_Server {
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     UA_NodeId refreshEvents[2];
 # endif
-
 #endif
 
     /* Publish/Subscribe */
@@ -232,10 +186,6 @@ struct UA_Server {
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
-
-    LIST_HEAD(, reverse_connect_context) reverseConnects;
-    UA_UInt64 reverseConnectsCheckHandle;
-    UA_UInt64 lastReverseConnectHandle;
 };
 
 /***********************/
@@ -249,8 +199,11 @@ enum ZIP_CMP
 cmpRefTargetName(const void *a, const void *b);
 
 /* Static inline methods for tree handling */
+typedef ZIP_HEAD(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem) UA_ReferenceIdTree;
 ZIP_FUNCTIONS(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem, idTreeEntry,
               UA_ReferenceTargetTreeElem, target, cmpRefTargetId)
+
+typedef ZIP_HEAD(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem) UA_ReferenceNameTree;
 ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
               UA_ReferenceTarget, target, cmpRefTargetName)
 
@@ -258,37 +211,16 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
-/* Remove all securechannels */
 void
-UA_Server_deleteSecureChannels(UA_Server *server);
-
-/* Remove timed out securechannels with a delayed callback. So all currently
- * scheduled jobs with a pointer to a securechannel can finish first. */
-void
-UA_Server_cleanupTimedOutSecureChannels(UA_Server *server, UA_DateTime nowMonotonic);
-
+serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                      void *application, void **connectionContext,
+                      UA_ConnectionState state,
+                      const UA_KeyValueMap *params,
+                      UA_ByteString msg);
 
 UA_StatusCode
 sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
-
-/* Called only from within the network callback */
-UA_StatusCode
-createServerSecureChannel(UA_Server *server, UA_ConnectionManager *cm,
-                          uintptr_t connectionId, UA_SecureChannel **outChannel);
-
-UA_StatusCode
-configServerSecureChannel(void *application, UA_SecureChannel *channel,
-                          const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
-
-/* Can be called at any time */
-void
-shutdownServerSecureChannel(UA_Server *server, UA_SecureChannel *channel,
-                            UA_DiagnosticEvent event);
-
-/* Called only from within the network callback */
-void
-deleteServerSecureChannel(UA_Server *server, UA_SecureChannel *channel);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
@@ -296,6 +228,8 @@ UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_ByteString *securityPolicyUri);
 
+UA_UInt32
+generateSecureChannelTokenId(UA_Server *server);
 
 /********************/
 /* Session Handling */
@@ -319,11 +253,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
 
 void
 UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
-                        UA_DiagnosticEvent event);
+                        UA_ShutdownReason shutdownReason);
 
 UA_StatusCode
 UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
-                               UA_DiagnosticEvent event);
+                               UA_ShutdownReason shutdownReason);
 
 void
 UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic);
@@ -437,21 +371,6 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
                                    size_t *responseOperations,
                                    const UA_DataType *responseOperationsType)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-/* Processing for the binary protocol (SecureChannel) */
-void
-UA_Server_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                          void *application, void **connectionContext,
-                          UA_ConnectionState state,
-                          const UA_KeyValueMap *params,
-                          UA_ByteString msg);
-
-/* Processing for reverse connect */
-void
-UA_Server_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                                 void *application, void **connectionContext,
-                                 UA_ConnectionState state, const UA_KeyValueMap *params,
-                                 UA_ByteString msg);
 
 /******************************************/
 /* Internal function calls, without locks */
@@ -612,6 +531,9 @@ register_server_with_discovery_server(UA_Server *server, void *client,
                                       const UA_Boolean isUnregister,
                                       const char* semaphoreFilePath);
 #endif
+
+UA_ServerComponent *
+UA_BinaryProtocolManager_new(UA_Server *server);
 
 /***********/
 /* RefTree */
@@ -900,13 +822,6 @@ UA_Node_insertOrUpdateDisplayName(UA_NodeHead *head,
 UA_StatusCode
 UA_Node_insertOrUpdateDescription(UA_NodeHead *head,
                                   const UA_LocalizedText *value);
-
-
-/* Reverse connect */
-void setReverseConnectState(UA_Server *server, reverse_connect_context *context,
-                            UA_SecureChannelState newState);
-UA_StatusCode attemptReverseConnect(UA_Server *server, reverse_connect_context *context);
-UA_StatusCode setReverseConnectRetryCallback(UA_Server *server, UA_Boolean enabled);
 
 _UA_END_DECLS
 

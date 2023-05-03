@@ -80,7 +80,7 @@ START_TEST(callUnknownMethod) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
 } END_TEST
 
 START_TEST(callKnownMethodOnUnknownObject) {
@@ -94,7 +94,7 @@ START_TEST(callKnownMethodOnUnknownObject) {
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     result = UA_Server_call(server, &callMethodRequest);
-    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    ck_assert_int_eq(result.statusCode, UA_STATUSCODE_BADMETHODINVALID);
 } END_TEST
 
 START_TEST(callMethodAndObjectExistsButMethodHasWrongNodeClass) {

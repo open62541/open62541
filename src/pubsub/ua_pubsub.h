@@ -21,6 +21,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "open62541_queue.h"
+#include "ziptree.h"
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS
