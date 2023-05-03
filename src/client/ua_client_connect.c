@@ -1735,7 +1735,7 @@ activateSessionSync(UA_Client *client) {
     while(true) {
 
         if(client->connectStatus != UA_STATUSCODE_GOOD &&
-           (client->channel.state == UA_SECURECHANNELSTATE_CLOSED || client->channel.state == UA_SECURECHANNELSTATE_FRESH))
+           client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
             return client->connectStatus;
 
         /* Timeout -> abort */
