@@ -135,6 +135,8 @@ updateCertificateAndPrivateKey_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securit
         goto error;
     }
 
+    UA_ByteString_clear(&pc->localCertThumbprint);
+
     retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
                                                       &pc->localCertThumbprint, true);
     if(retval != UA_STATUSCODE_GOOD) {
