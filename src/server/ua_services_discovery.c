@@ -12,6 +12,7 @@
  */
 
 #include "ua_server_internal.h"
+#include "ua_discovery_manager.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_DISCOVERY
@@ -110,7 +111,6 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
     }
 
 #ifndef UA_ENABLE_DISCOVERY
-
     if(!foundSelf)
         return;
 
@@ -122,11 +122,16 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         return;
 
     response->serversSize = 1;
-
 #else
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
+    if(!dm) {
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
+        return;
+    }
 
     /* Allocate enough memory, including memory for the "self" response */
-    size_t maxResults = server->discoveryManager.registeredServersSize + 1;
+    size_t maxResults = dm->registeredServersSize + 1;
     response->servers = (UA_ApplicationDescription*)
         UA_Array_new(maxResults, &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     if(!response->servers) {
@@ -141,7 +146,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
                                        &response->servers[pos++]);
 
     registeredServer_list_entry* current;
-    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
+    LIST_FOREACH(current, &dm->registeredServers, pointers) {
         UA_Boolean usable = (request->serverUrisSize == 0);
         if(!usable) {
             /* If client only requested a specific set of servers */
@@ -272,10 +277,15 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
                        UA_DiagnosticInfo *responseDiagnosticInfos) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
+    if(!dm)
+        return;
+
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
-    LIST_FOREACH(current, &server->discoveryManager.registeredServers, pointers) {
+    LIST_FOREACH(current, &dm->registeredServers, pointers) {
         if(UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
             registeredServer_entry = current;
             break;
@@ -353,9 +363,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             /* create TXT if is online and first index, delete TXT if is offline and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Server_updateMdnsForDiscoveryUrl(server, mdnsServerName, mdnsConfig,
-                                                &requestServer->discoveryUrls[i],
-                                                requestServer->isOnline, updateTxt);
+            UA_Discovery_updateMdnsForDiscoveryUrl(dm, mdnsServerName, mdnsConfig,
+                                                   &requestServer->discoveryUrls[i],
+                                                   requestServer->isOnline, updateTxt);
         }
     }
 #endif
@@ -371,11 +381,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        if(server->discoveryManager.registerServerCallback) {
+        if(dm->registerServerCallback) {
             UA_UNLOCK(&server->serviceMutex);
-            server->discoveryManager.
-                    registerServerCallback(requestServer,
-                                           server->discoveryManager.registerServerCallbackData);
+            dm->registerServerCallback(requestServer,
+                                       dm->registerServerCallbackData);
             UA_LOCK(&server->serviceMutex);
         }
 
@@ -383,7 +392,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         LIST_REMOVE(registeredServer_entry, pointers);
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
         UA_free(registeredServer_entry);
-        server->discoveryManager.registeredServersSize--;
+        dm->registeredServersSize--;
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
@@ -401,9 +410,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             return;
         }
 
-        LIST_INSERT_HEAD(&server->discoveryManager.registeredServers,
+        LIST_INSERT_HEAD(&dm->registeredServers,
                          registeredServer_entry, pointers);
-        server->discoveryManager.registeredServersSize++;
+        dm->registeredServersSize++;
     } else {
         UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
     }
@@ -412,11 +421,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     // Previously we only called it if it was a new register call. It may be the case that this endpoint
     // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
     // and the callback would not be called.
-    if(server->discoveryManager.registerServerCallback) {
+    if(dm->registerServerCallback) {
         UA_UNLOCK(&server->serviceMutex);
-        server->discoveryManager.
-                registerServerCallback(requestServer,
-                                       server->discoveryManager.registerServerCallbackData);
+        dm->registerServerCallback(requestServer,
+                                   dm->registerServerCallbackData);
         UA_LOCK(&server->serviceMutex);
     }
 
@@ -447,64 +455,6 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                            &response->responseHeader, &response->configurationResultsSize,
                            &response->configurationResults, &response->diagnosticInfosSize,
                            response->diagnosticInfos);
-}
-
-/* Cleanup server registration: If the semaphore file path is set, then it just
- * checks the existence of the file. When it is deleted, the registration is
- * removed. If there is no semaphore file, then the registration will be removed
- * if it is older than 60 minutes. */
-void UA_Discovery_cleanupTimedOut(UA_Server *server, UA_DateTime nowMonotonic) {
-    UA_DateTime timedOut = nowMonotonic;
-    // registration is timed out if lastSeen is older than 60 minutes (default
-    // value, can be modified by user).
-    if(server->config.discoveryCleanupTimeout)
-        timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
-
-    registeredServer_list_entry* current, *temp;
-    LIST_FOREACH_SAFE(current, &server->discoveryManager.registeredServers, pointers, temp) {
-        UA_Boolean semaphoreDeleted = false;
-
-#ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-        if(current->registeredServer.semaphoreFilePath.length) {
-            size_t fpSize = sizeof(char)*current->registeredServer.semaphoreFilePath.length+1;
-            // todo: malloc may fail: return a statuscode
-            char* filePath = (char *)UA_malloc(fpSize);
-            if(filePath) {
-                memcpy(filePath, current->registeredServer.semaphoreFilePath.data,
-                       current->registeredServer.semaphoreFilePath.length );
-                filePath[current->registeredServer.semaphoreFilePath.length] = '\0';
-                semaphoreDeleted = UA_fileExists(filePath) == false;
-                UA_free(filePath);
-            } else {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                             "Cannot check registration semaphore. Out of memory");
-            }
-        }
-#endif
-
-        if(semaphoreDeleted || (server->config.discoveryCleanupTimeout &&
-                                current->lastSeen < timedOut)) {
-            if(semaphoreDeleted) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s is removed because "
-                            "the semaphore file '%.*s' was deleted.",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data,
-                            (int)current->registeredServer.semaphoreFilePath.length,
-                            current->registeredServer.semaphoreFilePath.data);
-            } else {
-                // cppcheck-suppress unreadVariable
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s has timed out and is removed.",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data);
-            }
-            LIST_REMOVE(current, pointers);
-            UA_RegisteredServer_clear(&current->registeredServer);
-            UA_free(current);
-            server->discoveryManager.registeredServersSize--;
-        }
-    }
 }
 
 /* Called by the UA_Server callback. The OPC UA specification says:
@@ -591,6 +541,13 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
                                             UA_UInt64 *periodicCallbackId) {
     UA_LOCK(&server->serviceMutex);
 
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
+        getServerComponentByName(server, UA_STRING("discovery"));
+    if(!dm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* No valid server URL */
     if(!discoveryServerUrl) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -607,8 +564,7 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
     /* Check if we are already registering with the given discovery url and
      * remove the old periodic call */
     periodicServerRegisterCallback_entry *rs, *rs_tmp;
-    LIST_FOREACH_SAFE(rs, &server->discoveryManager.
-                      periodicServerRegisterCallbacks, pointers, rs_tmp) {
+    LIST_FOREACH_SAFE(rs, &dm->periodicServerRegisterCallbacks, pointers, rs_tmp) {
         if(strcmp(rs->callback->discovery_server_url, discoveryServerUrl) == 0) {
             UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
                         "There is already a register callback for '%s' in place. "
@@ -670,23 +626,13 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     newEntry->callback = cb;
-    LIST_INSERT_HEAD(&server->discoveryManager.periodicServerRegisterCallbacks, newEntry, pointers);
+    LIST_INSERT_HEAD(&dm->periodicServerRegisterCallbacks, newEntry, pointers);
 #endif
 
     if(periodicCallbackId)
         *periodicCallbackId = cb->id;
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_Server_setRegisterServerCallback(UA_Server *server,
-                                    UA_Server_registerServerCallback cb,
-                                    void* data) {
-    UA_LOCK(&server->serviceMutex);
-    server->discoveryManager.registerServerCallback = cb;
-    server->discoveryManager.registerServerCallbackData = data;
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 #endif /* UA_ENABLE_DISCOVERY */

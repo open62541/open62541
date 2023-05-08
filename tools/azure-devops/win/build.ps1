@@ -45,7 +45,7 @@ try {
         New-Item -Force -ItemType directory -Path "C:/vcpkg/installed/x86-windows-static"
     }
 
-    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`"", "-DUA_FORCE_CPP:BOOL=$env:FORCE_CXX"
+    $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`""
 
     # Collect files for .zip packing
     New-Item -ItemType directory -Path pack

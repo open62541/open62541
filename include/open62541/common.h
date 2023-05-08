@@ -174,9 +174,11 @@ typedef enum {
  * ---------------- */
 
 typedef enum {
-    UA_SECURECHANNELSTATE_FRESH = 0,
+    UA_SECURECHANNELSTATE_CLOSED = 0,
+    UA_SECURECHANNELSTATE_REVERSE_LISTENING,
     UA_SECURECHANNELSTATE_CONNECTING,
     UA_SECURECHANNELSTATE_CONNECTED,
+    UA_SECURECHANNELSTATE_REVERSE_CONNECTED,
     UA_SECURECHANNELSTATE_RHE_SENT,
     UA_SECURECHANNELSTATE_HEL_SENT,
     UA_SECURECHANNELSTATE_HEL_RECEIVED,
@@ -185,11 +187,10 @@ typedef enum {
     UA_SECURECHANNELSTATE_OPN_SENT,
     UA_SECURECHANNELSTATE_OPEN,
     UA_SECURECHANNELSTATE_CLOSING,
-    UA_SECURECHANNELSTATE_CLOSED
 } UA_SecureChannelState;
 
 typedef enum {
-    UA_SESSIONSTATE_CLOSED,
+    UA_SESSIONSTATE_CLOSED = 0,
     UA_SESSIONSTATE_CREATE_REQUESTED,
     UA_SESSIONSTATE_CREATED,
     UA_SESSIONSTATE_ACTIVATE_REQUESTED,
@@ -208,6 +209,15 @@ typedef enum {
  * specification. The SecureChannel counters are not defined in the OPC UA spec,
  * but are harmonized with the Session layer counters if possible. */
 
+typedef enum {
+    UA_SHUTDOWNREASON_CLOSE = 0,
+    UA_SHUTDOWNREASON_REJECT,
+    UA_SHUTDOWNREASON_SECURITYREJECT,
+    UA_SHUTDOWNREASON_TIMEOUT,
+    UA_SHUTDOWNREASON_ABORT,
+    UA_SHUTDOWNREASON_PURGE
+} UA_ShutdownReason;
+
 typedef struct {
     size_t currentChannelCount;
     size_t cumulatedChannelCount;
@@ -225,6 +235,20 @@ typedef struct {
     size_t sessionTimeoutCount;          /* only used by servers */
     size_t sessionAbortCount;            /* only used by servers */
 } UA_SessionStatistics;
+
+/**
+ * Lifecycle States
+ * ----------------
+ *
+ * Generic lifecycle states. The STOPPING state indicates that the lifecycle is
+ * being terminated. But it might take time to (asynchronously) perform a
+ * graceful shutdown. */
+
+typedef enum {
+    UA_LIFECYCLESTATE_STOPPED = 0,
+    UA_LIFECYCLESTATE_STARTED,
+    UA_LIFECYCLESTATE_STOPPING
+} UA_LifecycleState;
 
 /**
  * Forward Declarations

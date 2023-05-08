@@ -40,9 +40,6 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     return range;
 }
 
-static UA_StatusCode
-setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber);
-
 UA_Server *
 UA_Server_new(void) {
     UA_ServerConfig config;
@@ -234,6 +231,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Logging */
     if(!conf->logger.log)
         conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_TRACE);
+    if(conf->logging == NULL)
+        conf->logging = &conf->logger;
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
@@ -375,6 +374,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */
 
+    if(!conf->certificateVerification.logging) {
+        /* Set Logger for Certificate Verification */
+        conf->certificateVerification.logging = &conf->logging;
+   }
+
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
     UA_CertificateVerification_AcceptAll(&conf->certificateVerification);
@@ -449,7 +453,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
-    UA_StatusCode res = setDefaultConfig(conf, 4840);
+    return UA_ServerConfig_setBasics_withPort(conf, 4840);
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setBasics_withPort(UA_ServerConfig* conf, UA_UInt16 portNumber) {
+    UA_StatusCode res = setDefaultConfig(conf, portNumber);
     UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
                    "Any remote certificate will be accepted.");
@@ -824,13 +833,17 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     }
 
     UA_CertificateVerification accessControlVerification;
+    memset(&accessControlVerification, 0, sizeof(accessControlVerification));
+    accessControlVerification.logging = &conf->logging;
     retval = UA_CertificateVerification_Trustlist(&accessControlVerification,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
                                                   revocationList, revocationListSize);
-    retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
-                &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+    if(retval == UA_STATUSCODE_GOOD) {
+        retval = UA_AccessControl_default(conf, true, &accessControlVerification,
+                    &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
+                    usernamePasswordsSize, usernamePasswords);
+    }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;
@@ -880,13 +893,15 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
      *  sessionLocaleIdsSize */
 
     if(config->timeout == 0)
-        config->timeout = 5000;
+        config->timeout = 5 * 1000; /* 5 seconds */
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
     if(!config->logger.log) {
         config->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
     }
+    if(config->logging == NULL)
+        config->logging = &config->logger;
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
@@ -906,6 +921,11 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     if(config->localConnectionConfig.recvBufferSize == 0)
         config->localConnectionConfig = UA_ConnectionConfig_default;
+
+    if(!config->certificateVerification.logging) {
+        /* Set Logger for Certificate Verification */
+        config->certificateVerification.logging = &config->logging;
+    }
 
     if(!config->certificateVerification.verifyCertificate) {
         /* Certificate Verification that accepts every certificate. Can be

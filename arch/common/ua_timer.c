@@ -8,34 +8,22 @@
 
 #include "ua_timer.h"
 
-/* There may be several entries with the same nextTime in the tree. We give them
- * an absolute order by considering the memory address to break ties. Because of
- * this, the nextTime property cannot be used to lookup specific entries. */
 static enum ZIP_CMP
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
-    if(*a < *b)
-        return ZIP_CMP_LESS;
-    if(*a > *b)
-        return ZIP_CMP_MORE;
-    if(a == b)
-        return ZIP_CMP_EQ;
-    if(a < b)
-        return ZIP_CMP_LESS;
-    return ZIP_CMP_MORE;
-}
-
-/* The identifiers of entries are unique */
-static enum ZIP_CMP
-cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
-    if(*a < *b)
-        return ZIP_CMP_LESS;
     if(*a == *b)
         return ZIP_CMP_EQ;
-    return ZIP_CMP_MORE;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 
-ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, (zip_cmp_cb)cmpDateTime)
-ZIP_FUNCTIONS(UA_TimerIdTree, UA_TimerEntry, idTreeEntry, UA_UInt64, id, (zip_cmp_cb)cmpId)
+static enum ZIP_CMP
+cmpId(const UA_UInt64 *a, const UA_UInt64 *b) {
+    if(*a == *b)
+        return ZIP_CMP_EQ;
+    return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
+}
+
+ZIP_FUNCTIONS(UA_TimerTree, UA_TimerEntry, treeEntry, UA_DateTime, nextTime, cmpDateTime)
+ZIP_FUNCTIONS(UA_TimerIdTree, UA_TimerEntry, idTreeEntry, UA_UInt64, id, cmpId)
 
 static UA_DateTime
 calculateNextTime(UA_DateTime currentTime, UA_DateTime baseTime,

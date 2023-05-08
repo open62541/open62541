@@ -117,3 +117,4 @@ ServerState
 ServerDiagnosticsSummaryDataType
 RedundancySupport
 KeyValuePair
+NamingRuleType

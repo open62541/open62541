@@ -427,9 +427,9 @@ subscriptionRequests(UA_Client *client) {
     UA_PublishRequest publishRequest;
     UA_PublishRequest_init(&publishRequest);
     ASSERT_GOOD(UA_Client_preparePublishRequest(client, &publishRequest));
-    UA_Client_sendAsyncRequest(client, &publishRequest,
-                               &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
-                               &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
+    __UA_Client_AsyncService(client, &publishRequest,
+                             &UA_TYPES[UA_TYPES_PUBLISHREQUEST], NULL,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE], NULL, NULL);
     // here we don't care about the return value since it may be UA_STATUSCODE_BADMESSAGENOTAVAILABLE
     // ASSERT_GOOD(publishResponse.responseHeader.serviceResult);
     UA_PublishRequest_clear(&publishRequest);

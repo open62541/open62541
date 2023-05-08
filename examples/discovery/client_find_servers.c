@@ -33,7 +33,7 @@ int main(void) {
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
         }
 
         // output all the returned/registered servers

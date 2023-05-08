@@ -23,18 +23,22 @@ UA_Boolean running;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
-        while (running)
+    while(running) {
         UA_Server_run_iterate(server, true);
-        return 0;
+    }
+    return 0;
 }
 
 static void setup(void) {
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    UA_Server_run_startup(server);
+
+    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -1232,26 +1236,26 @@ START_TEST(ReserveIdsMultipleTimes){
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                             &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         UA_NodeId connectionNodeId, writerGroupNodeId, dataSetWriterNodeId, publishedDataSetNodeId;
-        UA_Server_addPubSubConnection (server, &connectionConfig, &connectionNodeId);
+        retVal |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionNodeId);
 
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("TestWriterGroup");
         writerGroupConfig.writerGroupId = ((UA_UInt16 *)regWriterGroupIds.data)[0]; // Here use the reserved WriterGroupId
 
-        UA_Server_addWriterGroup(server, connectionNodeId, &writerGroupConfig, &writerGroupNodeId);
+        retVal |= UA_Server_addWriterGroup(server, connectionNodeId, &writerGroupConfig, &writerGroupNodeId);
 
         UA_PublishedDataSetConfig publishedDataSetConfig;
         memset(&publishedDataSetConfig, 0, sizeof(UA_PublishedDataSetConfig));
         publishedDataSetConfig.name = UA_STRING("TestPublishedDataSet");
-        UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetNodeId);
+        retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig, &publishedDataSetNodeId).addResult;
 
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("TestDataSetWriter");
         dataSetWriterConfig.dataSetWriterId = ((UA_UInt16 *)regDataSetWriterIds.data)[0]; // Here use the reserved DataSetWriterId
-        UA_Server_addDataSetWriter(server, writerGroupNodeId, publishedDataSetNodeId, &dataSetWriterConfig, &dataSetWriterNodeId);
-
+        retVal |= UA_Server_addDataSetWriter(server, writerGroupNodeId, publishedDataSetNodeId, &dataSetWriterConfig, &dataSetWriterNodeId);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Variant_clear(&defaultPublisherId);
         UA_Variant_clear(&regWriterGroupIds);
         UA_Variant_clear(&regDataSetWriterIds);

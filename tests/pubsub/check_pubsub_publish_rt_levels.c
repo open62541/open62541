@@ -51,6 +51,7 @@ addMinimalPubSubConfiguration(void){
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
@@ -83,6 +84,8 @@ static void teardown(void) {
     }
 
     UA_Server_delete(server);
+    rtEventLoop->logger = NULL; /* Don't access the logger that was removed with
+                                   the server */
     rtEventLoop->free(rtEventLoop);
 
     rtEventLoop = NULL;
@@ -138,7 +141,7 @@ receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
     }
     memset(networkMessage, 0, sizeof(UA_NetworkMessage));
     size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage);
+    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage, NULL);
     UA_ByteString_clear(&buffer);
 }
 
@@ -508,9 +511,9 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "test node");
         UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
         UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+        ck_assert_int_eq(UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId);
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId), UA_STATUSCODE_GOOD);
         ck_assert(!UA_NodeId_isNull(&variableNodeId));
         UA_Variant variant;
         UA_Variant_init(&variant);

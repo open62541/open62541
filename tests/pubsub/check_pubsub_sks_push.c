@@ -134,7 +134,11 @@ callSetSecurityKey(UA_Client *client, UA_String pSecurityGroupId, UA_UInt32 curr
     UA_Duration mskeyLifeTime = 2000;
     UA_Variant_setScalar(&inputs[6], &mskeyLifeTime, &UA_TYPES[UA_TYPES_DURATION]);
 
-    return UA_Client_call(client,parentId, methodId, inputSize, inputs, &outputSize, &output);
+    UA_StatusCode retval = UA_Client_call(client, parentId, methodId, inputSize, inputs, &outputSize, &output);
+    UA_ByteString_clear(&currentKey);
+    UA_Variant_clear(&inputs[4]);
+    UA_Array_delete(futureKey, futureKeySize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    return retval;
 }
 
 
@@ -198,6 +202,8 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
     server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -210,7 +216,7 @@ setup(void) {
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -218,7 +224,6 @@ setup(void) {
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_Server_run_startup(server);
     // add 2 connections
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -229,14 +234,15 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
+    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection);
 
     securityGroupId = UA_STRING("TestSecurityGroup");
 
     addTestReaderGroup(securityGroupId);
     addTestWriterGroup(securityGroupId);
 
-    UA_Server_run_startup(server);
+    retVal |= UA_Server_run_startup(server);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -246,10 +252,6 @@ teardown(void) {
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-    if(futureKey) {
-        UA_free(futureKey);
-        futureKey = NULL;
-    }
 }
 
 START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
@@ -262,6 +264,7 @@ START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
     retval = callSetSecurityKey(client, securityGroupId, 1, 2);
     ck_assert_msg(retval == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT, "Expected BAD_SECURITYMODEINSUFFICIENT but erorr code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
@@ -270,6 +273,7 @@ START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
     UA_String wrongSecurityGroupId = UA_STRING("WrongSecurityGroupId");
     retval = callSetSecurityKey(client, wrongSecurityGroupId, 1, 2);
     ck_assert_msg(retval == UA_STATUSCODE_BADNOTFOUND, "Expected BAD_BADNOTFOUND but erorr code : %s \n", UA_StatusCode_name(retval));
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_GOOD) {
@@ -298,6 +302,7 @@ START_TEST(TestSetSecurityKeys_GOOD) {
         startingTokenId++;
     }
     ck_assert_uint_eq(ks->keyListSize, futureKeySize+1);
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
@@ -319,6 +324,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode Good but erorr code : %s \n", UA_StatusCode_name(retval));
     ck_assert_uint_eq(ks->currentItem->keyID, currentTokenId);
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKeys){
@@ -351,6 +357,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
         iterator = TAILQ_NEXT(iterator, keyListEntry);
         startingTokenId++;
     }
+    UA_Client_delete(client);
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
@@ -381,6 +388,7 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
         startingTokenId++;
     }
     ck_assert_uint_eq(ks->keyListSize, futureKeySize+1);
+    UA_Client_delete(client);
 } END_TEST
 
 int

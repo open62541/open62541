@@ -47,6 +47,7 @@ static void setup(void) {
     clientCounter = 0;
     running = true;
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
@@ -114,11 +115,10 @@ START_TEST(Async_call) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Receive the answer of the sync call */
-    ck_assert_uint_eq(clientCounter, 0);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
-    UA_Server_run_iterate(server, true);
-    UA_Client_run_iterate(client, 0);
+    while(clientCounter == 0) {
+        UA_Server_run_iterate(server, true);
+        UA_Client_run_iterate(client, 0);
+    }
     ck_assert_uint_eq(clientCounter, 1);
 
     /* Process the async method call for the server */

@@ -14,7 +14,7 @@ parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
 
 rows = []
-with open(args.statuscodes, mode="rt") as f:
+with open(args.statuscodes, mode="rt", encoding='utf8') as f:
     lines = f.readlines()
     for l in lines:
         rows.append(tuple(l.strip().split(',')))

@@ -13,6 +13,7 @@
  *    Copyright 2018 (c) Thomas Stalder, Blue Time Concept SA
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
+ *    Copyright 2022 (c) Linutronix GmbH (Author: Muddasir Shakil)
  */
 
 #ifndef UA_CLIENT_H_
@@ -69,8 +70,16 @@ _UA_BEGIN_DECLS
 
 typedef struct {
     void *clientContext; /* User-defined pointer attached to the client */
-    UA_Logger logger;    /* Logger used by the client */
-    UA_UInt32 timeout;   /* Response timeout in ms */
+    UA_Logger logger;    /* Logger used by the client.
+                            logger is deprecated but still supported at this time.
+                            Use logging pointer instead. */
+    UA_Logger *logging; /* If NULL and "logger" is set, make this point to "logger" */
+
+    /* Response timeout in ms (0 -> no timeout). If the server does not answer a
+     * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
+     * returned. This timeout can be overridden for individual requests by
+     * setting a non-null "timeoutHint" in the request header. */
+    UA_UInt32 timeout;
 
     /* The description must be internally consistent.
      * - The ApplicationUri set in the ApplicationDescription must match the
@@ -108,6 +117,15 @@ typedef struct {
      * when the SecureChannel was broken. */
     UA_EndpointDescription endpoint;
     UA_UserTokenPolicy userTokenPolicy;
+
+    /**
+     * If the EndpointDescription has not been defined, the ApplicationURI
+     * constrains the servers considered in the FindServers service and the
+     * Endpoints considered in the GetEndpoints service.
+     *
+     * If empty the applicationURI is not used to filter.
+     */
+    UA_String applicationUri;
 
     /**
      * Custom Data Types
@@ -186,6 +204,29 @@ typedef struct {
     size_t sessionLocaleIdsSize;
 } UA_ClientConfig;
 
+/**
+ * @brief It makes a partial deep copy of the clientconfig. It makes a shallow
+ * copies of the plugins (logger, eventloop, securitypolicy).
+ *
+ * NOTE: It makes a shallow copy of all the plugins from source to destination.
+ * Therefore calling _clear on the dst object will also delete the plugins in src
+ * object.
+ */
+UA_EXPORT UA_StatusCode
+UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst);
+
+/**
+ * @brief It cleans the client config and frees the pointer.
+ */
+UA_EXPORT void
+UA_ClientConfig_delete(UA_ClientConfig *config);
+
+/**
+ * @brief It cleans the client config and deletes the plugins, whereas
+ * _copy makes a shallow copy of the plugins.
+ */
+UA_EXPORT void
+UA_ClientConfig_clear(UA_ClientConfig *config);
  /**
  * Client Lifecycle
  * ---------------- */
@@ -290,6 +331,22 @@ UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
     /* Silence a false-positive deprecated warning */
     return UA_Client_connect(client, endpointUrl);
 }
+
+/* Sets up a listening socket for incoming reverse connect requests by OPC UA servers.
+ * After the first server has connected, the listening socket is removed.
+ * The client state callback is also used for reverse connect. An implementation could
+ * for example issue a new call to UA_Client_startListeningForReverseConnect after the
+ * server has closed the connection. If the client is connected to any server while
+ * UA_Client_startListeningForReverseConnect is called, the connection will be closed.
+ *
+ * The reverse connect is closed by calling the standard disconnect functions like
+ * for a "normal" connection that was initiated by the client. Calling one of the connect
+ * methods will also close the listening socket and the connection to the remote server.
+ */
+UA_StatusCode UA_EXPORT
+UA_Client_startListeningForReverseConnect(UA_Client *client, const UA_String *listenHostnames,
+                                          size_t listenHostnamesLength,
+                                          UA_UInt16 port);
 
 /* Disconnect and close a connection to the selected server. Disconnection is
  * always performed async (without blocking). */
@@ -579,26 +636,25 @@ UA_Client_Service_queryNext(UA_Client *client,
  * This is especially true for the periodic renewal of a SecureChannel's
  * SecurityToken which is designed to have a limited lifetime and will
  * invalidate the connection if not renewed.
+ *
+ * Use the typed wrappers instead of `__UA_Client_AsyncService` directly. See
+ * :ref:`client_async`. However, the general mechanism of async service calls is
+ * explained here.
  */
 
-/* Use the type versions of this method. See below. However, the general
- * mechanism of async service calls is explained here.
+/* We say that an async service call has been dispatched once
+ * __UA_Client_AsyncService returns UA_STATUSCODE_GOOD. If there is an error
+ * after an async service has been dispatched, the callback is called with an
+ * "empty" response where the StatusCode has been set accordingly. This is also
+ * done if the client is shutting down and the list of dispatched async services
+ * is emptied.
  *
- * We say that an async service call has been dispatched once this method
- * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
- * been dispatched, the callback is called with an "empty" response where the
- * statusCode has been set accordingly. This is also done if the client is
- * shutting down and the list of dispatched async services is emptied.
- *
- * The statusCode received when the client is shutting down is
+ * The StatusCode received when the client is shutting down is
  * UA_STATUSCODE_BADSHUTDOWN.
  *
- * The statusCode received when the client doesn't receive response
- * after specified config->timeout (in ms) is
- * UA_STATUSCODE_BADTIMEOUT.
- *
- * Instead, you can use __UA_Client_AsyncServiceEx to specify
- * a custom timeout
+ * The StatusCode received when the client doesn't receive response after the
+ * specified in config->timeout (can be overridden via the "timeoutHint" in the
+ * request header) is UA_STATUSCODE_BADTIMEOUT.
  *
  * The userdata and requestId arguments can be NULL. */
 
@@ -612,16 +668,11 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_sendAsyncRequest(UA_Client *client, const void *request,
-        const UA_DataType *requestType, UA_ClientAsyncServiceCallback callback,
-        const UA_DataType *responseType, void *userdata, UA_UInt32 *requestId);
-
 /* Set new userdata and callback for an existing request.
  *
  * @param client Pointer to the UA_Client
  * @param requestId RequestId of the request, which was returned by
- *        UA_Client_sendAsyncRequest before
+ *        __UA_Client_AsyncService before
  * @param userdata The new userdata
  * @param callback The new callback
  * @return UA_StatusCode UA_STATUSCODE_GOOD on success
@@ -647,33 +698,6 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout);
  *         ``connectStatus`` is returned. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_renewSecureChannel(UA_Client *client);
-
-/* Use the type versions of this method. See below. However, the general
- * mechanism of async service calls is explained here.
- *
- * We say that an async service call has been dispatched once this method
- * returns UA_STATUSCODE_GOOD. If there is an error after an async service has
- * been dispatched, the callback is called with an "empty" response where the
- * statusCode has been set accordingly. This is also done if the client is
- * shutting down and the list of dispatched async services is emptied.
- *
- * The statusCode received when the client is shutting down is
- * UA_STATUSCODE_BADSHUTDOWN.
- *
- * The statusCode received when the client doesn't receive response
- * after specified timeout (in ms) is
- * UA_STATUSCODE_BADTIMEOUT.
- *
- * The timeout can be disabled by setting timeout to 0
- *
- * The userdata and requestId arguments can be NULL. */
-UA_StatusCode UA_EXPORT
-__UA_Client_AsyncServiceEx(UA_Client *client, const void *request,
-                           const UA_DataType *requestType,
-                           UA_ClientAsyncServiceCallback callback,
-                           const UA_DataType *responseType,
-                           void *userdata, UA_UInt32 *requestId,
-                           UA_UInt32 timeout);
 
 /**
  * Timed Callbacks
@@ -742,6 +766,7 @@ UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
  * .. toctree::
  *
  *    client_highlevel
+ *    client_highlevel_async
  *    client_subscriptions */
 
 _UA_END_DECLS

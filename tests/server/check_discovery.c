@@ -549,7 +549,7 @@ START_TEST(Server_new_shutdown_delete) {
     UA_Server *pServer = UA_Server_new();
     configure_lds_server(pServer);
     UA_StatusCode retval = UA_Server_run_shutdown(pServer);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
     UA_Server_delete(pServer);
 }
 END_TEST

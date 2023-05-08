@@ -20,9 +20,13 @@ UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    retval |= UA_ServerConfig_setDefault(config);
+    retval |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
+    retval |= UA_Server_run_startup(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -31,28 +35,23 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection1);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
     writerGroupConfig.name = UA_STRING("WriterGroup 1");
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
-    UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-    UA_Server_setWriterGroupOperational(server, writerGroup1);
+    retval |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
+    retval |= UA_Server_setWriterGroupOperational(server, writerGroup1);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
     pdsConfig.publishedDataSetType = UA_PUBSUB_DATASET_PUBLISHEDITEMS;
     pdsConfig.name = UA_STRING("PublishedDataSet 1");
-    UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1);
-
-    UA_DataSetWriterConfig dataSetWriterConfig;
-    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-    dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
-    UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-
-    UA_Server_run_startup(server);
+    retval |= UA_Server_addPublishedDataSet(server, &pdsConfig, &publishedDataSet1).addResult;
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
@@ -66,9 +65,10 @@ START_TEST(PublishSpeedTest) {
     dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
-    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME);
+    dataSetFieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL);
+    UA_StatusCode retval = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
 

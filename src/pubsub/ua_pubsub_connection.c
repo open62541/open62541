@@ -81,27 +81,6 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
     UA_KeyValueMap_clear(&connectionConfig->connectionProperties);
 }
 
-void
-UA_PubSubConnection_clear(UA_Server *server, UA_PubSubConnection *connection) {
-    /* Remove WriterGroups */
-    UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH_SAFE(writerGroup, &connection->writerGroups,
-                      listEntry, tmpWriterGroup) {
-        removeWriterGroup(server, writerGroup->identifier);
-    }
-
-    /* Remove ReaderGroups */
-    UA_ReaderGroup *readerGroups, *tmpReaderGroup;
-    LIST_FOREACH_SAFE(readerGroups, &connection->readerGroups, listEntry, tmpReaderGroup)
-        removeReaderGroup(server, readerGroups->identifier);
-
-    UA_NodeId_clear(&connection->identifier);
-    if(connection->channel)
-        connection->channel->close(connection->channel);
-
-    UA_PubSubConnectionConfig_clear(&connection->config);
-}
-
 static void
 assignConnectionIdentifier(UA_Server *server, UA_PubSubConnection *newConnectionsField,
                            UA_NodeId *connectionIdentifier) {
@@ -116,17 +95,6 @@ assignConnectionIdentifier(UA_Server *server, UA_PubSubConnection *newConnection
     if(connectionIdentifier) {
         UA_NodeId_copy(&newConnectionsField->identifier, connectionIdentifier);
     }
-}
-
-static UA_StatusCode
-channelErrorHandling(UA_Server *server, UA_PubSubConnection *newConnectionsField) {
-    UA_PubSubConnection_clear(server, newConnectionsField);
-    TAILQ_REMOVE(&server->pubSubManager.connections, newConnectionsField, listEntry);
-    server->pubSubManager.connectionsSize--;
-    UA_free(newConnectionsField);
-    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "PubSub Connection creation failed. Transport layer creation problem.");
-    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 UA_StatusCode
@@ -178,8 +146,12 @@ UA_PubSubConnection_create(UA_Server *server,
     ctx.server = server;
 
     newConnectionsField->channel = tl->createPubSubChannel(tl, &ctx);
-    UA_CHECK_MEM(newConnectionsField->channel,
-                 return channelErrorHandling(server, newConnectionsField));
+    if(!newConnectionsField->channel) {
+        UA_PubSubConnection_remove(server, newConnectionsField);
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "PubSub Connection creation failed. Transport layer creation problem.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
 #ifdef UA_ENABLE_PUBSUB_MQTT
     /* If the transport layer is MQTT, attach the server pointer to the callback function
@@ -196,6 +168,10 @@ UA_PubSubConnection_create(UA_Server *server,
 
     assignConnectionIdentifier(server, newConnectionsField, connectionIdentifier);
 
+    /* Open the connection channel */
+    if(newConnectionsField->channel->openSubscriber) {
+        newConnectionsField->channel->openSubscriber(newConnectionsField->channel);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -210,12 +186,8 @@ UA_Server_addPubSubConnection(UA_Server *server,
 }
 
 UA_StatusCode
-removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    /* Find the connection */
-    UA_PubSubConnection *c =
-        UA_PubSubConnection_findConnectionbyId(server, connection);
-    if(!c)
-        return UA_STATUSCODE_BADNOTFOUND;
+UA_PubSubConnection_remove(UA_Server *server, UA_PubSubConnection *c) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
     UA_WriterGroup *writerGroup, *tmpWriterGroup;
@@ -223,7 +195,7 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
         UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
-        removeWriterGroup(server, writerGroup->identifier);
+        UA_WriterGroup_remove(server, writerGroup);
     }
 
     /* Stop, unfreeze and delete all ReaderGroups attached to the Connection */
@@ -232,7 +204,13 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
         UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
         UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
-        removeReaderGroup(server, readerGroup->identifier);
+        UA_ReaderGroup_remove(server, readerGroup);
+    }
+    /* Close the related channel */
+    if(c->channel) {
+        if(c->channel->closeSubscriber)
+            c->channel->closeSubscriber(c->channel);
+        c->channel->close(c->channel);
     }
 
     /* Remove from the information model */
@@ -244,8 +222,8 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
     server->pubSubManager.connectionsSize--;
 
-    /* Clean up the connection structure */
-    UA_PubSubConnection_clear(server, c);
+    UA_NodeId_clear(&c->identifier);
+    UA_PubSubConnectionConfig_clear(&c->config);
     UA_free(c);
 
     return UA_STATUSCODE_GOOD;
@@ -254,7 +232,15 @@ removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
 UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removePubSubConnection(server, connection);
+    /* Find the connection */
+    UA_PubSubConnection *c =
+        UA_PubSubConnection_findConnectionbyId(server, connection);
+    if(!c) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode res = UA_PubSubConnection_remove(server, c);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

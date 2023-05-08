@@ -69,6 +69,7 @@ addMinimalPubSubConfiguration(void){
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
     /* Instantiate the PubSub SecurityPolicy */
@@ -114,20 +115,8 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_ReaderGro
         ck_abort_msg("Expected message not received!");
     }
 
-    UA_NetworkMessage currentNetworkMessage;
-    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-    size_t payLoadPosition = 0;
-    UA_NetworkMessage_decodeHeaders(&buffer, &payLoadPosition, &currentNetworkMessage);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    verifyAndDecryptNetworkMessage(&config->logger,
-                                   &buffer,
-                                   &payLoadPosition,
-                                   &currentNetworkMessage,
-                                   readerGroup);
-    UA_NetworkMessage_clear(&currentNetworkMessage);
-    size_t currentPosition = 0;
     /* Decode only the necessary offset and update the networkMessage */
-    if(UA_NetworkMessage_updateBufferedNwMessage(&dataSetReader->bufferedMessage, &buffer, &currentPosition) != UA_STATUSCODE_GOOD) {
+    if(UA_DataSetReader_decodeAndProcessRT(server, readerGroup, connection, &buffer) != UA_STATUSCODE_GOOD) {
         ck_abort_msg("PubSub receive. Unknown field type!");
     }
 
@@ -136,12 +125,6 @@ static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_ReaderGro
        (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
         ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
     }
-
-    UA_ReaderGroup *rg =
-        UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
-
-    UA_DataSetReader_process(server, rg, dataSetReader,
-                             dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 
     /* Delete the payload value of every dsf's decoded */
      UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
@@ -221,10 +204,11 @@ START_TEST(SetupInvalidPubSubConfig) {
     memset(&variant, 0, sizeof(UA_Variant));
     UA_Variant_setScalar(&variant, intValue, &UA_TYPES[UA_TYPES_UINT32]);
     attributes.value = variant;
-    UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1,  1000),
+    retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1,  1000),
                               UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
                               UA_QUALIFIEDNAME(1, "variable"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                               attributes, NULL, NULL);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);                          
     dsfConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(1, 1000);
     dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     /* Not using static value source */
@@ -298,11 +282,12 @@ START_TEST(SetupInvalidPubSubConfig) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed DateTime");
@@ -459,11 +444,12 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");
@@ -549,11 +535,12 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
         folderBrowseName1 = UA_QUALIFIEDNAME (1, "Published Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName1, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr1, NULL, &folderId1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     UA_UInt32 value            = 0;
     vAttr.accessLevel           = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
@@ -711,11 +698,12 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
+    retVal = UA_Server_addObjectNode (server, UA_NODEID_NULL,
                              UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
                              UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
                              folderBrowseName, UA_NODEID_NUMERIC (0,
                              UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* Variable to subscribe data */
     vAttr = UA_VariableAttributes_default;
     vAttr.description = UA_LOCALIZEDTEXT ("en-US", "Subscribed UInt32");

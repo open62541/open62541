@@ -305,14 +305,6 @@ writeEventTrigger(UA_Server *server, const UA_NodeId *sessionId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
                            NULL, false);
 }
-
-static void
-cyclicEventTriger(UA_Server *server, void *data) {
-    (void)data;
-    UA_Server_triggerEvent(server, eventId,
-                           UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                           NULL, false);
-}
 #endif
 
 /* Method Node Example */
@@ -824,9 +816,6 @@ setInformationModel(UA_Server *server) {
     UA_Server_setVariableNode_valueCallback(server,
                                             UA_NODEID_STRING(1, "event-trigger-2"),
                                             eventTriggerValueBackend);
-
-    /* Auto-trigger the event every 500 ms */
-    UA_Server_addRepeatedCallback(server, cyclicEventTriger, NULL, 500.0, NULL);
 #endif
 }
 
@@ -1290,7 +1279,7 @@ int main(int argc, char **argv) {
 
     /* Limit the number of SecureChannels and Sessions */
     config.maxSecureChannels = 10;
-    config.maxSessions = 20;
+    config.maxSessions = 50;
 
     /* Revolve the SecureChannel token every 300 seconds */
     config.maxSecurityTokenLifetime = 300000;
@@ -1307,7 +1296,7 @@ int main(int argc, char **argv) {
 
     /* Set Subscription limits */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    config.maxSubscriptions = 20;
+    config.maxSubscriptions = 100;
 #endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */

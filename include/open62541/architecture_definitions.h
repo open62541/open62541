@@ -15,61 +15,36 @@
 /**
  * C99 Definitions
  * --------------- */
-#include <string.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <inttypes.h>
 #include <float.h>
+#include <string.h>
 
-/* Include stdint.h and stdbool.h or workaround for older Visual Studios */
-#ifdef UNDER_CE
-# include "stdint.h"
-#endif
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <stdint.h>
-# include <stdbool.h> /* C99 Boolean */
+/**
+ * Inline Functions
+ * ---------------- */
+#ifdef _MSC_VER
+# define UA_INLINE __inline
 #else
-# include "ms_stdint.h"
-# if !defined(__bool_true_false_are_defined)
-#  define bool unsigned char
-#  define true 1
-#  define false 0
-#  define __bool_true_false_are_defined
-# endif
+# define UA_INLINE inline
 #endif
 
-/* Include inttypes.h or workaround for older Visual Studios */
-#if !defined(_MSC_VER) || _MSC_VER >= 1800
-# include <inttypes.h>
+/* An inlinable method is typically defined as "static inline". Some
+ * applications, such as language bindings with a C FFI (foreign function
+ * interface), can however not work with static inline methods. These can set
+ * the global UA_ENABLE_INLINABLE_EXPORT macro which causes all inlinable
+ * methods to be exported as a regular public API method.
+ *
+ * Note that UA_ENABLE_INLINABLE_EXPORT has a negative impact for both size and
+ * performance of the library. */
+#if defined(UA_ENABLE_INLINABLE_EXPORT) && defined(UA_INLINABLE_IMPL)
+# define UA_INLINABLE(decl, impl) UA_EXPORT decl; decl impl
+#elif defined(UA_ENABLE_INLINABLE_EXPORT)
+# define UA_INLINABLE(decl, impl) UA_EXPORT decl;
 #else
-# define __PRI_8_LENGTH_MODIFIER__ "hh"
-# define __PRI_64_LENGTH_MODIFIER__ "ll"
-
-# define PRId8 __PRI_8_LENGTH_MODIFIER__ "d"
-# define PRIi8 __PRI_8_LENGTH_MODIFIER__ "i"
-# define PRIo8 __PRI_8_LENGTH_MODIFIER__ "o"
-# define PRIu8 __PRI_8_LENGTH_MODIFIER__ "u"
-# define PRIx8 __PRI_8_LENGTH_MODIFIER__ "x"
-# define PRIX8 __PRI_8_LENGTH_MODIFIER__ "X"
-
-# define PRId16 "hd"
-# define PRIi16 "hi"
-# define PRIo16 "ho"
-# define PRIu16 "hu"
-# define PRIx16 "hx"
-# define PRIX16 "hX"
-
-# define PRId32 "ld"
-# define PRIi32 "li"
-# define PRIo32 "lo"
-# define PRIu32 "lu"
-# define PRIx32 "lx"
-# define PRIX32 "lX"
-
-# define PRId64 __PRI_64_LENGTH_MODIFIER__ "d"
-# define PRIi64 __PRI_64_LENGTH_MODIFIER__ "i"
-# define PRIo64 __PRI_64_LENGTH_MODIFIER__ "o"
-# define PRIu64 __PRI_64_LENGTH_MODIFIER__ "u"
-# define PRIx64 __PRI_64_LENGTH_MODIFIER__ "x"
-# define PRIX64 __PRI_64_LENGTH_MODIFIER__ "X"
+# define UA_INLINABLE(decl, impl) static UA_INLINE decl impl
 #endif
 
 /**
@@ -85,6 +60,56 @@
 #ifndef UA_THREAD_LOCAL
 # define UA_THREAD_LOCAL
 #endif
+
+/**
+ * Atomic Operations
+ * -----------------
+ *
+ * Atomic operations synchronize across processor cores and enable lockless
+ * multi-threading. */
+
+/* Intrinsic atomic operations are not available everywhere for MSVC.
+ * Use the win32 API. Prevent duplicate definitions by via winsock2. */
+#if UA_MULTITHREADING >= 100 && defined(_WIN32)
+# ifndef _WINSOCKAPI_
+#  define _NO_WINSOCKAPI_
+# endif
+# define _WINSOCKAPI_
+# include <windows.h>
+# ifdef _NO_WINSOCKAPI_
+#  undef _WINSOCKAPI_
+# endif
+#endif
+
+static UA_INLINE void *
+UA_atomic_xchg(void * volatile * addr, void *newptr) {
+#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
+    return InterlockedExchangePointer(addr, newptr);
+#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+    return __sync_lock_test_and_set(addr, newptr);
+#else
+# if UA_MULTITHREADING >= 100
+#  warning Atomic operations not implemented
+# endif
+    void *old = *addr;
+    *addr = newptr;
+    return old;
+#endif
+}
+
+static UA_INLINE void *
+UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
+#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
+    return InterlockedCompareExchangePointer(addr, expected, newptr);
+#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+    return __sync_val_compare_and_swap(addr, expected, newptr);
+#else
+    void *old = *addr;
+    if(old == expected)
+        *addr = newptr;
+    return old;
+#endif
+}
 
 /**
  * Memory Management
@@ -201,31 +226,6 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
  * developer. It can be used in the future for instrumentation and static
  * code analysis. */
 #define UA_THREADSAFE
-
-/**
- * Inline Functions
- * ---------------- */
-#ifdef _MSC_VER
-# define UA_INLINE __inline
-#else
-# define UA_INLINE inline
-#endif
-
-/* An inlinable method is typically defined as "static inline". Some
- * applications, such as language bindings with a C FFI (foreign function
- * interface), can however not work with static inline methods. These can set
- * the global UA_ENABLE_INLINABLE_EXPORT macro which causes all inlinable
- * methods to be exported as a regular public API method.
- *
- * Note that UA_ENABLE_INLINABLE_EXPORT has a negative impact for both size and
- * performance of the library. */
-#if defined(UA_ENABLE_INLINABLE_EXPORT) && defined(UA_INLINABLE_IMPL)
-# define UA_INLINABLE(decl, impl) UA_EXPORT decl; decl impl
-#elif defined(UA_ENABLE_INLINABLE_EXPORT)
-# define UA_INLINABLE(decl, impl) UA_EXPORT decl;
-#else
-# define UA_INLINABLE(decl, impl) static UA_INLINE decl impl
-#endif
 
 /**
  * Non-aliasing pointers

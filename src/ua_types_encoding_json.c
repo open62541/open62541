@@ -2736,7 +2736,7 @@ status
 tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
     /* Tokenize */
     cj5_result r = cj5_parse((char*)src->data, (unsigned int)src->length,
-                             ctx->tokens, (unsigned int)tokensSize);
+                             ctx->tokens, (unsigned int)tokensSize, NULL);
 
     /* Handle overflow error by allocating the number of tokens the parser would
      * have needed */

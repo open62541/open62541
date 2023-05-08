@@ -107,19 +107,32 @@ static EVP_PKEY * UA_RSA_Generate_Key (size_t keySizeBits){
 #endif
 
 UA_StatusCode
-UA_CreateCertificate(const UA_Logger *logger,
-                     const UA_String *subject, size_t subjectSize,
-                     const UA_String *subjectAltName, size_t subjectAltNameSize,
-                     size_t keySizeBits, UA_CertificateFormat certFormat,
-                     UA_ByteString *outPrivateKey, UA_ByteString *outCertificate) {
-    if(!outPrivateKey || !outCertificate || !logger || !subjectAltName ||
-       !subject || subjectAltNameSize == 0 || subjectSize == 0 ||
-       (certFormat != UA_CERTIFICATEFORMAT_DER && certFormat != UA_CERTIFICATEFORMAT_PEM ))
+UA_CreateCertificate(const UA_Logger *logger, const UA_String *subject,
+                     size_t subjectSize, const UA_String *subjectAltName,
+                     size_t subjectAltNameSize, UA_CertificateFormat certFormat,
+                     UA_KeyValueMap *params, UA_ByteString *outPrivateKey,
+                     UA_ByteString *outCertificate) {
+    if(!outPrivateKey || !outCertificate || !logger || !subjectAltName || !subject ||
+       subjectAltNameSize == 0 || subjectSize == 0 ||
+       (certFormat != UA_CERTIFICATEFORMAT_DER && certFormat != UA_CERTIFICATEFORMAT_PEM))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     /* Use the maximum size */
-    if(keySizeBits == 0)
-        keySizeBits = 4096;
+    UA_UInt16 keySizeBits = 4096;
+    /* Default to 1 year */
+    UA_UInt16 expiresInDays = 365;
+
+    if(params) {
+        const UA_UInt16 *keySizeBitsValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "key-size-bits"), &UA_TYPES[UA_TYPES_UINT16]);
+        if(keySizeBitsValue)
+            keySizeBits = *keySizeBitsValue;
+
+        const UA_UInt16 *expiresInDaysValue = (const UA_UInt16 *)UA_KeyValueMap_getScalar(
+            params, UA_QUALIFIEDNAME(0, "expires-in-days"), &UA_TYPES[UA_TYPES_UINT16]);
+        if(expiresInDaysValue)
+            expiresInDays = *expiresInDaysValue;
+    }
 
     UA_ByteString_init(outPrivateKey);
     UA_ByteString_init(outCertificate);
@@ -203,7 +216,8 @@ UA_CreateCertificate(const UA_Logger *logger,
         goto cleanup;
     }
 
-    if(X509_gmtime_adj(X509_get_notAfter(x509), (UA_Int64) 60 * 60 * 24 * 365) == NULL) {
+    if(X509_gmtime_adj(X509_get_notAfter(x509), (UA_Int64)60 * 60 * 24 * expiresInDays) ==
+       NULL) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                      "Create Certificate: Setting 'not before' failed.");
         errRet = UA_STATUSCODE_BADINTERNALERROR;
@@ -311,23 +325,36 @@ UA_CreateCertificate(const UA_Logger *logger,
 
     switch(certFormat) {
         case UA_CERTIFICATEFORMAT_DER: {
-            int tmpLen = i2d_PrivateKey(pkey, &outPrivateKey->data);
-            if(tmpLen <= 0) {
+            unsigned char *p;
+            /* Private Key */
+            /* get length */
+            outPrivateKey->length = (size_t)i2d_PrivateKey(pkey, NULL);
+            if((int)outPrivateKey->length <= 0) {
                 UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                             "Create Certificate: Create private DER key failed.");
                 errRet = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
-            outPrivateKey->length = (size_t) tmpLen;
+            /* allocate buffer */
+            UA_ByteString_allocBuffer(outPrivateKey, outPrivateKey->length);
+            memset(outPrivateKey->data, 0, outPrivateKey->length);
+            p = outPrivateKey->data;
+            i2d_PrivateKey(pkey, &p);
 
-            tmpLen = i2d_X509(x509, &outCertificate->data);
-            if(tmpLen <= 0) {
+            /* Certificate */
+            /* get length */
+            outCertificate->length = (size_t)i2d_X509(x509, NULL);
+            if((int)outCertificate->length <= 0) {
                 UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURECHANNEL,
                             "Create Certificate: Create DER-certificate failed.");
                 errRet = UA_STATUSCODE_BADINTERNALERROR;
                 goto cleanup;
             }
-            outCertificate->length = (size_t) tmpLen;
+            /* allocate buffer */
+            UA_ByteString_allocBuffer(outCertificate, outCertificate->length);
+            memset(outCertificate->data, 0, outCertificate->length);
+            p = outCertificate->data;
+            i2d_X509(x509, &p);
             break;
         }
         case UA_CERTIFICATEFORMAT_PEM: {

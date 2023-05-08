@@ -11,10 +11,6 @@
 
 #include "ua_pubsub_ns0.h"
 
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-#include "ua_pubsub_config.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 typedef struct {
@@ -176,8 +172,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable =
                     field->config.field.variable.publishParameters.publishedVariable;
-                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
-                //               &pvd[counter].publishedVariable);
+                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
+                               &pvd[counter].publishedVariable);
                 counter++;
             }
             UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
@@ -1155,6 +1151,7 @@ addPublishedDataItemsAction(UA_Server *server,
 
     UA_DataSetFieldConfig dataSetFieldConfig;
     for(size_t j = 0; j < variablesToAddSize; ++j) {
+        /* Prepare the config */
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = fieldNameAliases[j];
@@ -1717,11 +1714,10 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     size_t sgNamelength = securityGroupConfig->securityGroupName.length;
-    char *sgName = (char *)UA_malloc(sgNamelength);
+    char *sgName = (char *)UA_calloc(1, sgNamelength + 1);
     if(!sgName)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(sgName, 0, sgNamelength);
     memcpy(sgName, securityGroupConfig->securityGroupName.data,
            securityGroupConfig->securityGroupName.length);
     sgName[securityGroupConfig->securityGroupName.length] = '\0';
@@ -1751,6 +1747,7 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
     }
+    UA_free(sgName);
     return retval;
 }
 

@@ -10,7 +10,10 @@
 #define UA_PUBSUB_KEYSTORAGE
 
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/client_highlevel_async.h>
+#include <open62541/client_config_default.h>
 #include <open62541/server.h>
+#include <open62541/client.h>
 
 #include "open62541_queue.h"
 
@@ -113,6 +116,18 @@ typedef struct UA_PubSubKeyListItem {
 typedef TAILQ_HEAD(keyListItems, UA_PubSubKeyListItem) keyListItems;
 
 /**
+ * @brief It is used to hold configuration information required to connect an SKS server
+ * and fetch the security keys
+ */
+typedef struct UA_PubSubSKSConfig {
+    UA_ClientConfig clientConfig;
+    const char *endpointUrl;
+    UA_Server_sksPullRequestCallback userNotifyCallback;
+    void *context;
+    UA_UInt32 reqId;
+} UA_PubSubSKSConfig;
+
+/**
  * @brief This structure holds all info and keys related to one SecurityGroup.
  * it is used as a list.
  */
@@ -185,6 +200,11 @@ typedef struct UA_PubSubKeyStorage {
      * group
      */
     UA_UInt64 callBackId;
+
+    /**
+     * used to store the sks related information to connect with SKS server and fetch security keys.
+     */
+    UA_PubSubSKSConfig sksConfig;
 
     /**
      * Pointer to the key storage list
@@ -359,6 +379,10 @@ UA_PubSubKeyStorage_update(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
  * is deleted. */
 void
 UA_PubSubKeyStorage_detachKeyStorage(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
+
+/*Calls get SecurityKeys Method and Store the returned keys into KeyStorage*/
+UA_StatusCode
+getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keyStorage);
 
 #endif
 

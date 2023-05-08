@@ -25,47 +25,16 @@ static UA_KeyValueRestriction TCPConfigParameters[TCP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
 };
 
-/* A registered file descriptor with an additional method pointer */
 typedef struct {
-    UA_RegisteredFD fd;
-    UA_ConnectionManager_connectionCallback connectionCallback;
+    UA_RegisteredFD rfd;
+
+    UA_ConnectionManager_connectionCallback applicationCB;
+    void *application;
+    void *context;
 } TCP_FD;
 
-typedef struct {
-    UA_ConnectionManager cm;
-
-    size_t fdsSize;
-    LIST_HEAD(, UA_RegisteredFD) fds;
-
-    UA_ByteString rxBuffer; /* Reuse the receiver buffer. The size is configured
-                             * via the recv-bufsize parameter.*/
-} TCPConnectionManager;
-
 static void
-TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd);
-
-static UA_StatusCode
-TCPConnectionManager_register(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
-    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, rfd);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    LIST_INSERT_HEAD(&tcm->fds, rfd, es_pointers);
-    tcm->fdsSize++;
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-TCP_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                       UA_ByteString *buf, size_t bufSize) {
-    return UA_ByteString_allocBuffer(buf, bufSize);
-}
-
-static void
-TCP_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                      UA_ByteString *buf) {
-    UA_ByteString_clear(buf);
-}
+TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
 /* Do not merge packets on the socket (disable Nagle's algorithm) */
 static UA_StatusCode
@@ -79,70 +48,75 @@ TCP_setNoNagle(UA_FD sockfd) {
 
 /* Test if the ConnectionManager can be stopped */
 static void
-TCP_checkStopped(TCPConnectionManager *tcm) {
-    if(tcm->fdsSize == 0 && tcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
-        UA_LOG_DEBUG(tcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+
+    if(pcm->fdsSize == 0 &&
+       pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| All sockets closed, the EventLoop has stopped");
-
-        UA_ByteString_clear(&tcm->rxBuffer);
-        tcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
+        pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
     }
-}
-
-static UA_StatusCode
-TCP_close(TCPConnectionManager *tcm, UA_RegisteredFD *rfd) {
-    TCP_FD *tcpfd = (TCP_FD*)rfd;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)tcm->cm.eventSource.eventLoop;
-
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Closing connection", (unsigned)rfd->fd);
-
-    /* Signal closing to the application */
-    tcpfd->connectionCallback(&tcm->cm, (uintptr_t)rfd->fd,
-                              rfd->application, &rfd->context,
-                              UA_CONNECTIONSTATE_CLOSING,
-                              &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-
-    /* Close the socket */
-    int ret = UA_close(rfd->fd);
-    if(ret == 0) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Socket closed", (unsigned)rfd->fd);
-    } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not close the socket (%s)",
-                          (unsigned)rfd->fd, errno_str));
-    }
-
-    /* Decrease the number of open sockets. Then check if the tcm is stopping
-     * and this was the last open socket */
-    UA_assert(tcm->fdsSize > 0);
-    tcm->fdsSize--;
-    TCP_checkStopped(tcm);
-    return UA_STATUSCODE_GOOD;
 }
 
 static void
 TCP_delayedClose(void *application, void *context) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)application;
-    UA_ConnectionManager *cm = &tcm->cm;
-    UA_RegisteredFD* rfd = (UA_RegisteredFD *)context;
-    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "TCP %u\t| Delayed closing of the connection", (unsigned)rfd->fd);
-    TCP_close(tcm, rfd);
-    UA_free(rfd);
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_ConnectionManager *cm = &pcm->cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    TCP_FD *conn = (TCP_FD*)context;
+
+    UA_LOCK(&el->elMutex);
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "TCP %u\t| Delayed closing of the connection",
+                 (unsigned)conn->rfd.fd);
+
+    /* Deregister from the EventLoop */
+    UA_EventLoopPOSIX_deregisterFD(el, &conn->rfd);
+
+    /* Deregister internally */
+    ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
+    UA_assert(pcm->fdsSize > 0);
+    pcm->fdsSize--;
+
+    /* Signal closing to the application */
+    UA_UNLOCK(&el->elMutex);
+    conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
+                        conn->application, &conn->context,
+                        UA_CONNECTIONSTATE_CLOSING,
+                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    UA_LOCK(&el->elMutex);
+
+    /* Close the socket */
+    int ret = UA_close(conn->rfd.fd);
+    if(ret == 0) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Socket closed", (unsigned)conn->rfd.fd);
+    } else {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                          "TCP %u\t| Could not close the socket (%s)",
+                          (unsigned)conn->rfd.fd, errno_str));
+    }
+
+    UA_free(conn);
+
+    /* Check if this was the last connection for a closing ConnectionManager */
+    TCP_checkStopped(pcm);
+
+    UA_UNLOCK(&el->elMutex);
 }
 
 static int
-getSockError(UA_RegisteredFD *rfd) {
+getSockError(TCP_FD *conn) {
     int error = 0;
 #ifndef _WIN32
     socklen_t errlen = sizeof(int);
-    int err = getsockopt(rfd->fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+    int err = getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
 #else
     int errlen = (int)sizeof(int);
-    int err = getsockopt((SOCKET)rfd->fd, SOL_SOCKET, SO_ERROR,
+    int err = getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
                          (char*)&error, &errlen);
 #endif
     return (err == 0) ? error : err;
@@ -150,20 +124,21 @@ getSockError(UA_RegisteredFD *rfd) {
 
 /* Gets called when a connection socket opens, receives data or closes */
 static void
-TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
+TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
-    TCP_FD *tcpfd = (TCP_FD*)rfd;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Activity on the socket", (unsigned)rfd->fd);
+                 "TCP %u\t| Activity on the socket",
+                 (unsigned)conn->rfd.fd);
 
     /* Error. The connection has closed. */
     if(event == UA_FDEVENT_ERR) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| The connection closes with error %i",
-                    (unsigned)rfd->fd, getSockError(rfd));
-        TCP_shutdown(cm, rfd);
+                    (unsigned)conn->rfd.fd, getSockError(conn));
+        TCP_shutdown(cm, conn);
         return;
     }
 
@@ -172,43 +147,48 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
      * initiate the connection. So we check manually for error conditions on
      * the socket. */
     if(event == UA_FDEVENT_OUT) {
-        int error = getSockError(rfd);
+        int error = getSockError(conn);
         if(error != 0) {
             UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "TCP %u\t| The connection closes with error %i",
-                        (unsigned)rfd->fd, error);
-            TCP_shutdown(cm, rfd);
+                        (unsigned)conn->rfd.fd, error);
+            TCP_shutdown(cm, conn);
             return;
         }
 
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP %u\t| Opening a new connection", (unsigned)rfd->fd);
+                     "TCP %u\t| Opening a new connection",
+                     (unsigned)conn->rfd.fd);
 
         /* Now we are interested in read-events. */
-        rfd->listenEvents = UA_FDEVENT_IN;
-        UA_EventLoopPOSIX_modifyFD(el, rfd);
+        conn->rfd.listenEvents = UA_FDEVENT_IN;
+        UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
 
         /* A new socket has opened. Signal it to the application. */
-        tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
-                                  rfd->application, &rfd->context,
-                                  UA_CONNECTIONSTATE_ESTABLISHED, &UA_KEYVALUEMAP_NULL,
-                                  UA_BYTESTRING_NULL);
-
+        UA_UNLOCK(&el->elMutex);
+        conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
+                            conn->application, &conn->context,
+                            UA_CONNECTIONSTATE_ESTABLISHED,
+                            &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+        UA_LOCK(&el->elMutex);
         return;
     }
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Allocate receive buffer", (unsigned)rfd->fd);
+                 "TCP %u\t| Allocate receive buffer",
+                 (unsigned)conn->rfd.fd);
 
     /* Use the already allocated receive-buffer */
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    UA_ByteString response = tcm->rxBuffer;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
 #ifndef _WIN32
-    ssize_t ret = UA_recv(rfd->fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
+                          response.length, MSG_DONTWAIT);
 #else
-    int ret = UA_recv(rfd->fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    int ret = UA_recv(conn->rfd.fd, (char*)response.data,
+                      response.length, MSG_DONTWAIT);
 #endif
 
     /* Receive has failed */
@@ -222,37 +202,40 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "TCP %u\t| recv signaled the socket was shutdown (%s)",
-                        (unsigned)rfd->fd, errno_str));
-        TCP_shutdown(cm, rfd);
+                        (unsigned)conn->rfd.fd, errno_str));
+        TCP_shutdown(cm, conn);
         return;
     }
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Received message of size %u",
-                 (unsigned)rfd->fd, (unsigned)ret);
+                 (unsigned)conn->rfd.fd, (unsigned)ret);
 
     /* Callback to the application layer */
     response.length = (size_t)ret; /* Set the length of the received buffer */
-    tcpfd->connectionCallback(cm, (uintptr_t)rfd->fd,
-                              rfd->application, &rfd->context,
-                              UA_CONNECTIONSTATE_ESTABLISHED,
-                              &UA_KEYVALUEMAP_NULL, response);
+    UA_UNLOCK(&el->elMutex);
+    conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
+                        conn->application, &conn->context,
+                        UA_CONNECTIONSTATE_ESTABLISHED,
+                        &UA_KEYVALUEMAP_NULL, response);
+    UA_LOCK(&el->elMutex);
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
-TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short event) {
-    TCP_FD *tcpfd = (TCP_FD*)rfd;
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Callback on server socket", (unsigned)rfd->fd);
+                 "TCP %u\t| Callback on server socket",
+                 (unsigned)conn->rfd.fd);
 
     /* Try to accept a new connection */
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_FD newsockfd = UA_accept(rfd->fd, (struct sockaddr*)&remote, &remote_size);
+    UA_FD newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
         if(UA_ERRNO == UA_INTERRUPTED)
@@ -263,10 +246,10 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
             UA_LOG_SOCKET_ERRNO_WRAP(
                 UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                                "TCP %u\t| Error %s, closing the server socket",
-                               (unsigned)rfd->fd, errno_str));
+                               (unsigned)conn->rfd.fd, errno_str));
         }
 
-        TCP_shutdown(cm, rfd);
+        TCP_shutdown(cm, conn);
         return;
     }
 
@@ -279,16 +262,16 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| getnameinfo(...) could not resolve the "
-                          "hostname (%s)", (unsigned)rfd->fd, errno_str));
+                          "hostname (%s)", (unsigned)conn->rfd.fd, errno_str));
     }
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| Connection opened from \"%s\" via the server socket %u",
-                (unsigned)newsockfd, hoststr, (unsigned)rfd->fd);
+                (unsigned)newsockfd, hoststr, (unsigned)conn->rfd.fd);
 
     /* Configure the new socket */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     /* res |= UA_EventLoopPOSIX_setNonBlocking(newsockfd); Inherited from the listen-socket */
-    res |= UA_EventLoopPOSIX_setNoSigPipe(newsockfd);   /* Supress interrupts from the socket */
+    res |= UA_EventLoopPOSIX_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
     res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -301,32 +284,37 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     }
 
     /* Allocate the UA_RegisteredFD */
-    TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
-    if(!newtcpfd) {
+    TCP_FD *newConn = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
+    if(!newConn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)newsockfd);
         UA_close(newsockfd);
         return;
     }
-    newtcpfd->fd.fd = newsockfd;
-    newtcpfd->fd.es = &cm->eventSource;
-    newtcpfd->fd.callback = (UA_FDCallback)TCP_connectionSocketCallback;
-    newtcpfd->fd.application = rfd->application;
-    newtcpfd->fd.context = rfd->context;
-    newtcpfd->fd.listenEvents = UA_FDEVENT_IN;
-    newtcpfd->connectionCallback = tcpfd->connectionCallback;
+
+    newConn->rfd.fd = newsockfd;
+    newConn->rfd.listenEvents = UA_FDEVENT_IN;
+    newConn->rfd.es = &cm->eventSource;
+    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_connectionSocketCallback;
+    newConn->applicationCB = conn->applicationCB;
+    newConn->application = conn->application;
+    newConn->context = conn->context;
 
     /* Register in the EventLoop. Signal to the user if registering failed. */
-    res = TCPConnectionManager_register(tcm, &newtcpfd->fd);
+    res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error registering the socket",
                        (unsigned)newsockfd);
-        UA_free(newtcpfd);
+        UA_free(newConn);
         UA_close(newsockfd);
         return;
     }
+
+    /* Register internally in the EventSource */
+    ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
+    pcm->fdsSize++;
 
     /* Forward the remote hostname to the application */
     UA_KeyValuePair kvp;
@@ -339,18 +327,20 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd, short e
     kvm.map = &kvp;
 
     /* The socket has opened. Signal it to the application. */
-    tcpfd->connectionCallback(cm, (uintptr_t)newsockfd,
-                              newtcpfd->fd.application, &newtcpfd->fd.context,
-                              UA_CONNECTIONSTATE_ESTABLISHED,
-                              &kvm, UA_BYTESTRING_NULL);
+    UA_UNLOCK(&el->elMutex);
+    newConn->applicationCB(cm, (uintptr_t)newsockfd,
+                           newConn->application, &newConn->context,
+                           UA_CONNECTIONSTATE_ESTABLISHED,
+                           &kvm, UA_BYTESTRING_NULL);
+    UA_LOCK(&el->elMutex);
 }
 
 static UA_StatusCode
-TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
+TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          UA_UInt16 port, void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
 
     /* Get the hostname information */
     char hoststr[UA_MAXHOSTNAME_LENGTH];
@@ -454,9 +444,9 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Allocate the UA_RegisteredFD */
-    TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
-    if(!newtcpfd) {
+    /* Allocate the connection */
+    TCP_FD *newConn = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
+    if(!newConn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)listenSocket);
@@ -464,24 +454,28 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    newtcpfd->fd.fd = listenSocket;
-    newtcpfd->fd.es = &cm->eventSource;
-    newtcpfd->fd.callback = (UA_FDCallback)TCP_listenSocketCallback;
-    newtcpfd->fd.application = application;
-    newtcpfd->fd.context = context;
-    newtcpfd->fd.listenEvents = UA_FDEVENT_IN;
-    newtcpfd->connectionCallback = connectionCallback;
+    newConn->rfd.fd = listenSocket;
+    newConn->rfd.listenEvents = UA_FDEVENT_IN;
+    newConn->rfd.es = &pcm->cm.eventSource;
+    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_listenSocketCallback;
+    newConn->applicationCB = connectionCallback;
+    newConn->application = application;
+    newConn->context = context;
 
     /* Register in the EventLoop */
-    UA_StatusCode res = TCPConnectionManager_register(tcm, &newtcpfd->fd);
+    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error registering the socket",
                        (unsigned)listenSocket);
-        UA_free(newtcpfd);
+        UA_free(newConn);
         UA_close(listenSocket);
         return res;
     }
+
+    /* Register internally */
+    ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
+    pcm->fdsSize++;
 
     /* Set up the callback parameters */
     UA_KeyValuePair params[2];
@@ -499,18 +493,22 @@ TCP_registerListenSocket(UA_ConnectionManager *cm, struct addrinfo *ai,
     }
 
     /* Announce the listen-socket in the application */
-    connectionCallback(cm, (uintptr_t)listenSocket, application,
-                       &newtcpfd->fd.context,
+    UA_UNLOCK(&el->elMutex);
+    connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
+                       application, &newConn->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &paramMap, UA_BYTESTRING_NULL);
+    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
+TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+
     /* Create a string for the port */
     char portstr[6];
     UA_snprintf(portstr, sizeof(portstr), "%d", port);
@@ -526,20 +524,16 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
-#ifdef AI_ADDRCONFIG
-    hints.ai_flags |= AI_ADDRCONFIG; /* Only return IPv4/IPv6 if at least one
-                                      * such address is configured */
-#endif
 
     int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(
-        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
                        hostname, port, errno_str));
 #else
-        UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
                        hostname, port, gai_strerror(retcode));
 #endif
@@ -551,7 +545,7 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     UA_StatusCode total_result = UA_INT32_MAX;
     struct addrinfo *ai = res;
     while(ai) {
-        total_result &= TCP_registerListenSocket(cm, ai, port, application, context,
+        total_result &= TCP_registerListenSocket(pcm, ai, port, application, context,
                                                  connectionCallback);
         ai = ai->ai_next;
     }
@@ -560,68 +554,65 @@ TCP_registerListenSockets(UA_ConnectionManager *cm, const char *hostname,
     return total_result;
 }
 
-static
-UA_RegisteredFD *
-TCP_findRegisteredFD(TCPConnectionManager *tcm, uintptr_t connectionId) {
-    UA_RegisteredFD *rfd;
-    LIST_FOREACH(rfd, &tcm->fds, es_pointers) {
-        if(rfd->fd == (UA_FD)connectionId)
-            return rfd;
-    }
-    return NULL;
-}
-
 /* Close the connection via a delayed callback */
 static void
-TCP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
-    UA_EventLoop *el = cm->eventSource.eventLoop;
-
+TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     /* Already closing - nothing to do */
-    if(rfd->dc.callback) {
-        UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
+
+    if(conn->rfd.dc.callback) {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Cannot shutdown - already triggered",
-                     (unsigned)rfd->fd);
+                     (unsigned)conn->rfd.fd);
         return;
     }
 
-    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Shutdown triggered", (unsigned)rfd->fd);
-
-    /* Deregister from the EventLoop. Don't decrease the tcm->fdsSize counter
-     * right now. Do this in the delayed callback where the rfd is freed.
-     * Otherwise the ConnectionManager may be freed too early. */
-    UA_EventLoopPOSIX_deregisterFD((UA_EventLoopPOSIX*)el, rfd);
-    LIST_REMOVE(rfd, es_pointers);
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                 "TCP %u\t| Shutdown triggered",
+                 (unsigned)conn->rfd.fd);
 
     /* Add to the delayed callback list. Will be cleaned up in the next
      * iteration. */
-    UA_DelayedCallback *dc = &rfd->dc;
+    UA_DelayedCallback *dc = &conn->rfd.dc;
     dc->callback = TCP_delayedClose;
     dc->application = cm;
-    dc->context = rfd;
-    el->addDelayedCallback(el, dc);
+    dc->context = conn;
+
+    /* Don't use the "public" el->addDelayedCallback. It takes a lock. */
+    dc->next = el->delayedCallbacks;
+    el->delayedCallbacks = dc;
 }
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
-    UA_EventLoop *el = cm->eventSource.eventLoop;
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    UA_RegisteredFD *rfd = TCP_findRegisteredFD(tcm, connectionId);
-    if(!rfd) {
-        UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_NETWORK,
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
+    UA_LOCK(&el->elMutex);
+
+    UA_FD fd = (UA_FD)connectionId;
+    TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+    if(!conn) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Cannot close TCP connection %u - not found",
                        (unsigned)connectionId);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    TCP_shutdown(cm, rfd);
+    TCP_shutdown(cm, conn);
 
+    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
+    /* Don't have a lock and don't take a lock. As the connectionId is the fd,
+     * no need to to a lookup and access internal data strucures. */
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)cm->eventSource.eventLoop)->elMutex, 0);
+
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
@@ -675,10 +666,11 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-TCP_openPassiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
+TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
 
     /* Get the port parameter */
     const UA_UInt16 *port = (const UA_UInt16*)
@@ -702,7 +694,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
-        return TCP_registerListenSockets(cm, NULL, *port, application,
+        return TCP_registerListenSockets(pcm, NULL, *port, application,
                                          context, connectionCallback);
     }
 
@@ -714,7 +706,7 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        TCP_registerListenSockets(cm, hostname, *port, application,
+        TCP_registerListenSockets(pcm, hostname, *port, application,
                                   context, connectionCallback);
     }
 
@@ -723,11 +715,11 @@ TCP_openPassiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params
 
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
-TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
+TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex, 1);
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
@@ -816,12 +808,13 @@ TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Connecting the socket to %s failed (%s)",
                            hostname, errno_str));
+        UA_close(newSock);
         return UA_STATUSCODE_BADDISCONNECT;
     }
 
     /* Allocate the UA_RegisteredFD */
-    TCP_FD *newtcpfd = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
-    if(!newtcpfd) {
+    TCP_FD *newConn = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
+    if(!newConn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)newSock);
@@ -829,34 +822,40 @@ TCP_openActiveConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    newtcpfd->fd.fd = newSock;
-    newtcpfd->fd.es = &cm->eventSource;
-    newtcpfd->fd.callback = (UA_FDCallback)TCP_connectionSocketCallback;
-    newtcpfd->fd.application = application;
-    newtcpfd->fd.context = context;
-    newtcpfd->fd.listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
+    newConn->rfd.fd = newSock;
+    newConn->rfd.es = &pcm->cm.eventSource;
+    newConn->rfd.eventSourceCB = (UA_FDCallback)TCP_connectionSocketCallback;
+    newConn->rfd.listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
                                                  * connection is open */
-    newtcpfd->connectionCallback = connectionCallback;
+    newConn->applicationCB = connectionCallback;
+    newConn->application = application;
+    newConn->context = context;
 
     /* Register the fd to trigger when output is possible (the connection is open) */
-    res = TCPConnectionManager_register(tcm, &newtcpfd->fd);
+    res = UA_EventLoopPOSIX_registerFD(el, &newConn->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Registering the socket to connect to %s failed", hostname);
         UA_close(newSock);
-        UA_free(newtcpfd);
+        UA_free(newConn);
         return res;
     }
+
+    /* Register internally in the EventSource */
+    ZIP_INSERT(UA_FDTree, &pcm->fds, &newConn->rfd);
+    pcm->fdsSize++;
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| New connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
     /* Signal the new connection to the application as asynchonously opening */
-    connectionCallback(cm, (uintptr_t)newSock,
-                       application, &newtcpfd->fd.context,
+    UA_UNLOCK(&el->elMutex);
+    connectionCallback(&pcm->cm, (uintptr_t)newSock,
+                       application, &newConn->context,
                        UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
+    UA_LOCK(&el->elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -865,11 +864,15 @@ static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_LOCK(&el->elMutex);
+
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Cannot open a connection for a "
                      "ConnectionManager that is not started");
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -878,8 +881,10 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "TCP",
                                         &TCPConfigParameters[1],
                                         TCP_PARAMETERSSIZE-1, params);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&el->elMutex);
         return res;
+    }
 
     /* Listen or active connection? */
     UA_Boolean listen = false;
@@ -890,26 +895,33 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     if(listenParam)
         listen = *listenParam;
 
-    if(listen)
-        return TCP_openPassiveConnection(cm, params, application,
-                                         context, connectionCallback);
-    else
-        return TCP_openActiveConnection(cm, params, application,
+    if(listen) {
+        res = TCP_openPassiveConnection(pcm, params, application,
                                         context, connectionCallback);
+    } else {
+        res = TCP_openActiveConnection(pcm, params, application,
+                                       context, connectionCallback);
+    }
+
+    UA_UNLOCK(&el->elMutex);
+    return res;
 }
 
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_LOCK(&el->elMutex);
 
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| To start the ConnectionManager, it has to be "
                      "registered in an EventLoop and not started yet");
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -919,53 +931,60 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
                                         TCPConfigParameters, 1,
                                         &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
-        return res;
+        goto finish;
 
-    /* Configure the receive buffer */
-    UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
-    const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
-        UA_KeyValueMap_getScalar(&cm->eventSource.params,
-                                 TCPConfigParameters[TCP_PARAMINDEX_RECVBUF].name,
-                                 &UA_TYPES[UA_TYPES_UINT32]);
-    if(configRxBufSize)
-        rxBufSize = *configRxBufSize;
-    res = UA_ByteString_allocBuffer(&tcm->rxBuffer, rxBufSize);
+    /* Allocate the rx buffer */
+    res = UA_EventLoopPOSIX_allocateRXBuffer(pcm);
     if(res != UA_STATUSCODE_GOOD)
-        return res;
+        goto finish;
 
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 
-    return UA_STATUSCODE_GOOD;
+ finish:
+    UA_UNLOCK(&el->elMutex);
+    return res;
+}
+
+static void *
+TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*)application;
+    TCP_shutdown(cm, (TCP_FD*)rfd);
+    return NULL;
 }
 
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
-    TCPConnectionManager *tcm = (TCPConnectionManager*)cm;
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+
+    UA_LOCK(&el->elMutex);
+
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP\t| Shutting down the ConnectionManager");
 
+    /* Prevent new connections to open */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
-    /* Shut down all registered fd. The cm is set to "stopped" when the last fd
-     * is closed and deregistered in the callback from the EventLoop. */
-    UA_RegisteredFD *rfd;
-    LIST_FOREACH(rfd, &tcm->fds, es_pointers) {
-        TCP_shutdown(cm, rfd);
-    }
+    /* Shutdown all existing connection */
+    ZIP_ITER(UA_FDTree, &pcm->fds, TCP_shutdownCB, cm);
 
     /* All sockets closed? Otherwise iterate some more. */
-    TCP_checkStopped(tcm);
+    TCP_checkStopped(pcm);
+
+    UA_UNLOCK(&el->elMutex);
 }
 
 static UA_StatusCode
 TCP_eventSourceDelete(UA_ConnectionManager *cm) {
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The EventSource must be stopped before it can be deleted");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    UA_ByteString_clear(&pcm->rxBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);
@@ -977,20 +996,20 @@ static const char *tcpName = "tcp";
 
 UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
-    TCPConnectionManager *cm = (TCPConnectionManager*)
-        UA_calloc(1, sizeof(TCPConnectionManager));
+    UA_POSIXConnectionManager *cm = (UA_POSIXConnectionManager*)
+        UA_calloc(1, sizeof(UA_POSIXConnectionManager));
     if(!cm)
         return NULL;
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *)) TCP_eventSourceStart;
+    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceStart;
     cm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
-    cm->cm.allocNetworkBuffer = TCP_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = TCP_freeNetworkBuffer;
+    cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;
+    cm->cm.freeNetworkBuffer = UA_EventLoopPOSIX_freeNetworkBuffer;
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
     return &cm->cm;

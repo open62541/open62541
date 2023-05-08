@@ -306,10 +306,11 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           ..
     make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V"
+    # set_capabilities not possible with valgrind
+    make test ARGS="-V -R sks"
 }
 
 ##########################################
@@ -352,7 +353,6 @@ function unit_tests_with_coverage {
 function unit_tests_valgrind {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
-          -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
@@ -374,6 +374,54 @@ function unit_tests_valgrind {
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
     make test ARGS="-V"
+}
+
+########################################
+# Build and Run Examples with Valgrind #
+########################################
+
+function examples_valgrind {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_DISCOVERY=ON \
+          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
+          -DUA_ENABLE_ENCRYPTION=$1 \
+          -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_ENABLE_HISTORIZING=ON \
+          -DUA_ENABLE_JSON_ENCODING=ON \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_ENABLE_PUBSUB_MQTT=ON \
+          -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          ..
+    make ${MAKEOPTS}
+
+    # Run each example with valgrind. Wait 10 seconds and send the SIGINT
+    # signal. Wait for the process to terminate and collect the exit status.
+    # Abort when the exit status is non-null.
+    FILES="./bin/examples/*"
+    for f in $FILES
+    do
+	    echo "Processing $f"
+	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f &
+        pid=$!
+	    sleep 10
+        # || true to ignore the error if the process is already dead
+	    kill -INT $pid || true
+
+        # using a 20 second timeout with SIGTERM to kill the process if it is still running
+	    timeout 20s bash -c 'wait $pid || kill -TERM $pid' ; EXIT_CODE=$?
+	    if [[ $EXIT_CODE -ne 0 ]]; then
+		   echo "Processing $f failed with exit code $EXIT_CODE "
+		   exit $EXIT_CODE	
+	    fi
+    done
 }
 
 ##############################

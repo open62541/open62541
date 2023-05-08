@@ -660,11 +660,11 @@ createDataChanges_async(UA_Client *client, const UA_CreateMonitoredItemsRequest 
         return res;
     }
 
-    return __Client_AsyncServiceEx(client, &data->request,
-                                   &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
-                                   ua_MonitoredItems_create_async_handler,
-                                   &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
-                                   data, requestId, client->config.timeout);
+    return __Client_AsyncService(client, &data->request,
+                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSREQUEST],
+                                 ua_MonitoredItems_create_async_handler,
+                                 &UA_TYPES[UA_TYPES_CREATEMONITOREDITEMSRESPONSE],
+                                 data, requestId);
 }
 
 UA_CreateMonitoredItemsResponse
@@ -1343,7 +1343,7 @@ void
 __Client_Subscriptions_backgroundPublish(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
+    if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
         return;
 
     /* The session must have at least one subscription */
@@ -1355,27 +1355,26 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
         if(!request)
             return;
 
-        request->requestHeader.timeoutHint = 60000;
+        /* Publish requests are valid for 10 minutes */
+        request->requestHeader.timeoutHint = 10 * 60 * 1000;
+
         UA_StatusCode retval = __Client_preparePublishRequest(client, request);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
             return;
         }
 
-        UA_UInt32 requestId;
-        client->currentlyOutStandingPublishRequests++;
-
-        /* Disable the timeout, it is treat in
-         * UA_Client_Subscriptions_backgroundPublishInactivityCheck */
-        retval = __Client_AsyncServiceEx(client, request,
+        retval = __Client_AsyncService(client, request,
                                          &UA_TYPES[UA_TYPES_PUBLISHREQUEST],
                                          processPublishResponseAsync,
                                          &UA_TYPES[UA_TYPES_PUBLISHRESPONSE],
-                                         (void*)request, &requestId, 0);
+                                         (void*)request, NULL);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_PublishRequest_delete(request);
             return;
         }
+
+        client->currentlyOutStandingPublishRequests++;
     }
 }
 

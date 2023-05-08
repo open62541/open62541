@@ -56,9 +56,6 @@ macro(add_example EXAMPLE_NAME EXAMPLE_SOURCE)
   assign_source_group(${EXAMPLE_SOURCE})
   set_target_properties(${EXAMPLE_NAME} PROPERTIES FOLDER "open62541/examples")
   set_target_properties(${EXAMPLE_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-  if(UA_FORCE_CPP)
-      set_source_files_properties(${EXAMPLE_SOURCE} PROPERTIES LANGUAGE CXX)
-  endif()
 endmacro()
 
 #############
@@ -87,7 +84,7 @@ add_example(tutorial_server_reverseconnect tutorial_server_reverseconnect.c)
 
 if(UA_ENABLE_METHODCALLS)
     add_example(tutorial_server_method tutorial_server_method.c)
-    if (UA_MULTITHREADING EQUAL 100)
+    if (UA_MULTITHREADING GREATER_EQUAL 100)
         add_example(tutorial_server_method_async tutorial_server_method_async.c)
     endif()
 endif()
@@ -133,14 +130,12 @@ install(PROGRAMS $<TARGET_FILE:client>
 add_example(client_async client_async.c)
 
 if(UA_ENABLE_METHODCALLS)
-    if (UA_MULTITHREADING EQUAL 100)
+    if (UA_MULTITHREADING GREATER_EQUAL 100)
         add_example(client_method_async client_method_async.c)
     endif()
 endif()
 
 add_example(client_connect_loop client_connect_loop.c)
-
-add_example(client_connectivitycheck_loop client_connectivitycheck_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(client_subscription_loop client_subscription_loop.c)
@@ -255,6 +250,9 @@ if(UA_ENABLE_PUBSUB)
             add_example(pubsub_subscribe_encrypted_tpm_keystore pubsub/pubsub_subscribe_encrypted_tpm_keystore.c)
             target_link_libraries(pubsub_publish_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
             target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
+        endif()
+        if(UA_ENABLE_PUBSUB_SKS)
+        add_subdirectory(pubsub/sks)
         endif()
     endif()
 

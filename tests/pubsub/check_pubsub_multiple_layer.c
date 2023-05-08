@@ -24,6 +24,7 @@ static void teardown(void) {
 
 START_TEST(AddMultipleTransportLayers){
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 

@@ -138,32 +138,33 @@ void UA_sleep_ms(unsigned long ms);
 
 typedef struct {
     pthread_mutex_t mutex;
-    pthread_mutexattr_t mutexAttr;
     int mutexCounter;
 } UA_Lock;
 
+#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
+
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
-    pthread_mutexattr_init(&lock->mutexAttr);
-    pthread_mutex_init(&lock->mutex, &lock->mutexAttr);
+    pthread_mutex_init(&lock->mutex, NULL);
     lock->mutexCounter = 0;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
     pthread_mutex_destroy(&lock->mutex);
-    pthread_mutexattr_destroy(&lock->mutexAttr);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
+    UA_assert(lock->mutexCounter == 0);
+    lock->mutexCounter++;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
+    UA_assert(lock->mutexCounter == 1);
+    lock->mutexCounter--;
     pthread_mutex_unlock(&lock->mutex);
 }
 
@@ -171,6 +172,7 @@ static UA_INLINE void
 UA_LOCK_ASSERT(UA_Lock *lock, int num) {
     UA_assert(lock->mutexCounter == num);
 }
+
 #else
 #define UA_EMPTY_STATEMENT                                                               \
     do {                                                                                 \
