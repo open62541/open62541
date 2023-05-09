@@ -24,6 +24,38 @@ THREAD_HANDLE server_thread;
 static UA_Boolean noNewSubscription; /* Don't create a subscription when the
                                         session activates */
 
+#define VARLENGTH 16366
+
+static void
+addVariable(size_t size) {
+    /* Define the attribute of the myInteger variable node */
+    UA_VariableAttributes attr = UA_VariableAttributes_default;
+    UA_Int32* array = (UA_Int32*)UA_malloc(size * sizeof(UA_Int32));
+    for(size_t i = 0; i < size; i++)
+        array[i] = (UA_Int32)i;
+    UA_Variant_setArray(&attr.value, array, size, &UA_TYPES[UA_TYPES_INT32]);
+
+    char name[] = "my.variable";
+    attr.description = UA_LOCALIZEDTEXT("en-US", name);
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
+    attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
+
+    /* Add the variable node to the information model */
+    UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, name);
+    UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              attr, NULL, NULL);
+
+   /* add displayname to variable */
+    UA_Server_writeDisplayName(server, myIntegerNodeId,
+                              UA_LOCALIZEDTEXT("de", "meine.Variable"));
+    UA_free(array);
+}
+
 THREAD_CALLBACK(serverloop) {
     while(running)
         UA_Server_run_iterate(server, true);
@@ -39,6 +71,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
+    addVariable(VARLENGTH);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -65,9 +98,21 @@ dataChangeHandler(UA_Client *client, UA_UInt32 subId, void *subContext,
     countNotificationReceived++;
 }
 
+static void clearLocale(UA_ClientConfig *config) {
+    if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds,
+                        config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIdsSize = 0;
+}
+
 static void changeLocale(UA_Client *client) {
     UA_LocalizedText loc;
     UA_ClientConfig *config = UA_Client_getConfig(client);
+    clearLocale(config);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("de");
     UA_StatusCode retval = UA_Client_activateSession(client);
@@ -76,12 +121,15 @@ static void changeLocale(UA_Client *client) {
     const UA_NodeId nodeIdString = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &loc);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    char *convert = (char *)UA_malloc(sizeof(char) * loc.text.length + 1);
-    memcpy(convert, loc.text.data, loc.text.length);
-    convert[loc.text.length] = '\0';
-    ck_assert_str_eq(convert, "my.variable");
-    UA_free(convert);
 
+    UA_LocalizedText newLocaleEng = UA_LOCALIZEDTEXT("en-US", "my.variable");
+    ck_assert(UA_String_equal(&newLocaleEng.locale, &loc.locale));
+    ck_assert(UA_String_equal(&newLocaleEng.text, &loc.text));
+    UA_LocalizedText_clear(&loc);
+
+    clearLocale(config);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("de"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("en-US");
     retval = UA_Client_activateSession(client);
@@ -89,12 +137,11 @@ static void changeLocale(UA_Client *client) {
 
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &loc);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    convert = (char *)UA_malloc(sizeof(char) * loc.text.length + 1);
-    memcpy(convert, loc.text.data, loc.text.length);
-    convert[loc.text.length] = '\0';
-    ck_assert_str_eq(convert, "meine.Variable");
-    UA_free(convert);
-
+    
+    UA_LocalizedText newLocaleGerm = UA_LOCALIZEDTEXT("de", "meine.Variable");
+    ck_assert(UA_String_equal(&newLocaleGerm.locale, &loc.locale));
+    ck_assert(UA_String_equal(&newLocaleGerm.text, &loc.text));
+    UA_LocalizedText_clear(&loc);
 }
 
 START_TEST(Client_subscription_createDataChanges) {
@@ -114,25 +161,23 @@ START_TEST(Client_subscription_createDataChanges) {
     UA_UInt32 newMonitoredItemIds[3];
     UA_Client_DataChangeNotificationCallback callbacks[3];
     UA_Client_DeleteMonitoredItemCallback deleteCallbacks[3];
-    void *contexts[3];
+    void *contexts = NULL;
     changeLocale(client);
 
     /* monitor the server state */
     items[0] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
     callbacks[0] = dataChangeHandler;
-    contexts[0] = NULL;
     deleteCallbacks[0] = NULL;
 
     /* monitor invalid node */
     items[1] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, 999999));
     callbacks[1] = dataChangeHandler;
-    contexts[1] = NULL;
     deleteCallbacks[1] = NULL;
 
     /* monitor current time */
     items[2] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
     callbacks[2] = dataChangeHandler;
-    contexts[2] = NULL;
+ 
     deleteCallbacks[2] = NULL;
 
     UA_CreateMonitoredItemsRequest createRequest;
@@ -142,7 +187,7 @@ START_TEST(Client_subscription_createDataChanges) {
     createRequest.itemsToCreate = items;
     createRequest.itemsToCreateSize = 3;
     UA_CreateMonitoredItemsResponse createResponse =
-       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, &contexts,
                                                    callbacks, deleteCallbacks);
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
@@ -208,16 +253,16 @@ START_TEST(Client_subscription_createDataChanges) {
     retval = UA_Client_Subscriptions_deleteSingle(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client Subscription");
-
     TCase *tc_client = tcase_create("Client Subscription Basic");
+    tcase_add_checked_fixture(tc_client, setup, teardown);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
+    suite_add_tcase(s, tc_client);
     return s;
 }
 

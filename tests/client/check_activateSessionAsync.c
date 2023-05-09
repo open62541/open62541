@@ -85,6 +85,15 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
     (*asyncCounter)++;
 }
 
+static void clearLocale(UA_ClientConfig *config) {
+    if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds,
+                        config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIdsSize = 0;
+}
+
 START_TEST(Client_activateSession_async) {
     UA_StatusCode retval;
     UA_Client *client = UA_Client_new();
@@ -105,6 +114,9 @@ START_TEST(Client_activateSession_async) {
     THREAD_JOIN(server_thread);
 
     /* try to change locale */
+    clearLocale(cc);
+    cc->sessionLocaleIdsSize = 2;
+    cc->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     cc->sessionLocaleIds[0] = UA_STRING_ALLOC("de");
     cc->sessionLocaleIds[1] = UA_STRING_ALLOC("en-US");
     UA_Client_activateSessionAsync(client);
@@ -117,10 +129,12 @@ START_TEST(Client_activateSession_async) {
     convert[loc.length] = '\0';
     ck_assert_str_eq(convert, "en-US");
     UA_free(convert);
+
     ck_assert_uint_eq(server->sessionCount, 1);
 
     /* Manual clock for unit tests */
     UA_Server_run_iterate(server, false);
+
     loc = LIST_FIRST(&server->sessions)->session.localeIds[0];
     convert = (char *)UA_malloc(sizeof(char) * loc.length + 1);
     memcpy(convert, loc.data, loc.length);
@@ -137,10 +151,11 @@ START_TEST(Client_activateSession_async) {
     const UA_NodeId nodeIdString = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &dName);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    convert = (char *)UA_malloc(sizeof(char) * dName.text.length + 1);
-    memcpy(convert, dName.text.data, dName.text.length);
-    convert[dName.text.length] = '\0';
-    ck_assert_str_eq(convert, "meine.Variable");
+    
+    UA_LocalizedText newLocaleEng = UA_LOCALIZEDTEXT("de", "meine.Variable");
+    ck_assert(UA_String_equal(&newLocaleEng.locale, &dName.locale));
+    ck_assert(UA_String_equal(&newLocaleEng.text, &dName.text));
+    UA_LocalizedText_clear(&dName);
 
     UA_Client_disconnect(client);
     UA_Client_delete (client);

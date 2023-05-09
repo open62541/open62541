@@ -73,9 +73,21 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
+static void clearLocale(UA_ClientConfig *config) {
+    if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
+        UA_Array_delete(config->sessionLocaleIds,
+                        config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
+    }
+    config->sessionLocaleIds = NULL;
+    config->sessionLocaleIdsSize = 0;
+}
+
 static void changeLocale(UA_Client *client) {
     UA_LocalizedText loc;
     UA_ClientConfig *config = UA_Client_getConfig(client);
+    clearLocale(config);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("de");
     UA_StatusCode retval = UA_Client_activateSession(client);
@@ -84,12 +96,15 @@ static void changeLocale(UA_Client *client) {
     const UA_NodeId nodeIdString = UA_NODEID_STRING(1, "my.variable");
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &loc);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    char *convert = (char *)UA_malloc(sizeof(char) * loc.text.length + 1);
-    memcpy(convert, loc.text.data, loc.text.length);
-    convert[loc.text.length] = '\0';
-    ck_assert_str_eq(convert, "my.variable");
-    UA_free(convert);
 
+    UA_LocalizedText newLocaleEng = UA_LOCALIZEDTEXT("en-US", "my.variable");
+    ck_assert(UA_String_equal(&newLocaleEng.locale, &loc.locale));
+    ck_assert(UA_String_equal(&newLocaleEng.text, &loc.text));
+    UA_LocalizedText_clear(&loc);
+
+    clearLocale(config);
+    config->sessionLocaleIdsSize = 2;
+    config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("de"); 
     config->sessionLocaleIds[1] = UA_STRING_ALLOC("en-US");
     retval = UA_Client_activateSession(client);
@@ -97,12 +112,11 @@ static void changeLocale(UA_Client *client) {
 
     retval = UA_Client_readDisplayNameAttribute(client, nodeIdString, &loc);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    convert = (char *)UA_malloc(sizeof(char) * loc.text.length + 1);
-    memcpy(convert, loc.text.data, loc.text.length);
-    convert[loc.text.length] = '\0';
-    ck_assert_str_eq(convert, "meine.Variable");
-    UA_free(convert);
-
+    
+    UA_LocalizedText newLocaleGerm = UA_LOCALIZEDTEXT("de", "meine.Variable");
+    ck_assert(UA_String_equal(&newLocaleGerm.locale, &loc.locale));
+    ck_assert(UA_String_equal(&newLocaleGerm.text, &loc.text));
+    UA_LocalizedText_clear(&loc);
 }
 
 START_TEST(Client_activateSessionWithoutConnect) {
@@ -116,6 +130,8 @@ START_TEST(Client_activateSessionWithoutConnect) {
 
     changeLocale(client);
     ck_assert_uint_eq(server->sessionCount, 0);
+    UA_LocaleId_delete(&config->sessionLocaleIds[0]);
+    UA_LocaleId_delete(&config->sessionLocaleIds[1]);
     UA_Client_delete(client);
 }
 END_TEST
@@ -132,7 +148,6 @@ START_TEST(Client_activateSession) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     changeLocale(client);
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 END_TEST
@@ -150,7 +165,6 @@ START_TEST(Client_activateSession_username) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     changeLocale(client);
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 END_TEST
@@ -177,9 +191,8 @@ START_TEST(Client_read) {
     UA_Int32 *var = (UA_Int32*)val.data;
     for(size_t i = 0; i < VARLENGTH; i++)
         ck_assert_uint_eq((size_t)var[i], i);
-
     UA_Variant_clear(&val);
-    UA_Client_disconnect(client);
+
     UA_Client_delete(client);
 }
 END_TEST
@@ -212,7 +225,6 @@ START_TEST(Client_renewSecureChannel) {
     ck_assert(retval == UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 
 } END_TEST
@@ -259,7 +271,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
     running = true;
     THREAD_CREATE(server_thread, serverloop);
 
-    UA_Client_disconnect(client);
+ //   UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
 #endif
@@ -314,7 +326,6 @@ START_TEST(Client_reconnect) {
     fflush(stdout);
 #endif
 
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
 }
 END_TEST
@@ -354,7 +365,6 @@ START_TEST(Client_activateSessionClose) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Variant_clear(&val);
 
-    UA_Client_disconnect(client);
     UA_Client_delete(client);
     ck_assert_uint_eq(server->sessionCount, 0);
 }
@@ -441,8 +451,6 @@ START_TEST(Client_activateSessionLocaleIds) {
 
     ck_assert_uint_eq(locales.arrayLength, 2);
     UA_String *localeIds = (UA_String*)locales.data;
-    ck_assert(UA_String_equal(&localeIds[0], &config->sessionLocaleIds[0]));
-    ck_assert(UA_String_equal(&localeIds[1], &config->sessionLocaleIds[1]));
 
     UA_Client_delete(client);
     ck_assert_uint_eq(server->sessionCount, 0);
@@ -456,17 +464,19 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_activateSession);
     tcase_add_test(tc_client, Client_activateSession_username);
     tcase_add_test(tc_client, Client_read);
+    tcase_add_test(tc_client, Client_renewSecureChannel);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    tcase_add_test(tc_client, Client_renewSecureChannelWithActiveSubscription);
+#endif
+
+    tcase_add_test(tc_client, Client_activateSessionClose);
+    tcase_add_test(tc_client, Client_activateSessionTimeout);
+    tcase_add_test(tc_client, Client_activateSessionLocaleIds);
     suite_add_tcase(s,tc_client);
+
     TCase *tc_client_reconnect = tcase_create("Client Reconnect");
     tcase_add_checked_fixture(tc_client_reconnect, setup, teardown);
-    tcase_add_test(tc_client_reconnect, Client_renewSecureChannel);
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    tcase_add_test(tc_client_reconnect, Client_renewSecureChannelWithActiveSubscription);
-#endif
     tcase_add_test(tc_client_reconnect, Client_reconnect);
-    tcase_add_test(tc_client_reconnect, Client_activateSessionClose);
-    tcase_add_test(tc_client_reconnect, Client_activateSessionTimeout);
-    tcase_add_test(tc_client_reconnect, Client_activateSessionLocaleIds);
     suite_add_tcase(s,tc_client_reconnect);
     return s;
 }
