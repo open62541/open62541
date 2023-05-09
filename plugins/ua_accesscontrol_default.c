@@ -106,6 +106,8 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
         /* For the CTT, recognize whether two sessions are  */
+        if(*sessionContext)
+           UA_ByteString_delete((UA_ByteString*)*sessionContext);
         UA_ByteString *username = UA_ByteString_new();
         if(username)
             UA_ByteString_copy(&userToken->userName, username);
