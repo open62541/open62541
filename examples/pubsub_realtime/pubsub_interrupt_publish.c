@@ -305,7 +305,6 @@ addPubSubConfiguration(UA_Server* server) {
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue,
                               &dataSetFieldIdentCounter);
-
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -373,6 +372,7 @@ int main(void) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 #if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
     if(staticValueSource != NULL) {
+        UA_DataValue_init(staticValueSource);
         UA_DataValue_delete(staticValueSource);
     }
 #endif
