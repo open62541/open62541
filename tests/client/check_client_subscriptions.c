@@ -1502,11 +1502,15 @@ START_TEST(Client_subscription_transfer) {
     UA_MonitoredItemCreateRequest monRequest =
         UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
 
+    for(size_t i = 0; i < 5; i++) {
     UA_MonitoredItemCreateResult monResponse =
         UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
                                                   UA_TIMESTAMPSTORETURN_BOTH,
                                                   monRequest, NULL, dataChangeHandler, NULL);
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
+    }
+
+    UA_sleep_ms(1000);
 
     /* Create a second client */
     UA_Client *client2 = UA_Client_new();
@@ -1529,11 +1533,12 @@ START_TEST(Client_subscription_transfer) {
     UA_TransferSubscriptionsResponse_clear(&tresponse);
 
     /* Iterate the clients some more to see what happens */
-    UA_Client_run_iterate(client, 1);
-    UA_Client_run_iterate(client2, 1);
+    for(size_t i = 0; i < 10; i++) {
+        UA_Client_run_iterate(client, 1);
+        UA_Client_run_iterate(client2, 1);
 
-    UA_Client_run_iterate(client, 1);
-    UA_Client_run_iterate(client2, 1);
+        UA_sleep_ms(100);
+    }
 
     /* Delete */
     UA_Client_disconnect(client);

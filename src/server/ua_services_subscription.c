@@ -544,8 +544,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);
-    UA_Notification *nn;
-    TAILQ_FOREACH(nn, &sub->notificationQueue, globalEntry) {
+    UA_Notification *nn, *nn_tmp;
+    TAILQ_FOREACH_SAFE(nn, &sub->notificationQueue, globalEntry, nn_tmp) {
         TAILQ_REMOVE(&sub->notificationQueue, nn, globalEntry);
         TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, globalEntry);
     }
