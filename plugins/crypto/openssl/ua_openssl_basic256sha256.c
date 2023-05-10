@@ -127,6 +127,8 @@ updateCertificateAndPrivateKey_sp_basic256sha256(UA_SecurityPolicy *securityPoli
         goto error;
     }
 
+    UA_ByteString_clear(&pc->localCertThumbprint);
+
     retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
                                                       &pc->localCertThumbprint, true);
     if(retval != UA_STATUSCODE_GOOD) {

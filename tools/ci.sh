@@ -388,6 +388,7 @@ function examples_valgrind {
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
           -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
@@ -399,6 +400,7 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
+          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           ..
     make ${MAKEOPTS}
 
