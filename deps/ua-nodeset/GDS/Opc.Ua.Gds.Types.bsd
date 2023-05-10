@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary
+  xmlns:opc="http://opcfoundation.org/BinarySchema/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:ua="http://opcfoundation.org/UA/"
+  xmlns:tns="http://opcfoundation.org/UA/GDS/"
+  DefaultByteOrder="LittleEndian"
+  TargetNamespace="http://opcfoundation.org/UA/GDS/"
+>
+  <opc:Import Namespace="http://opcfoundation.org/UA/" Location="Opc.Ua.BinarySchema.bsd"/>
+
+  <opc:StructuredType Name="ApplicationRecordDataType" BaseType="ua:ExtensionObject">
+    <opc:Field Name="ApplicationId" TypeName="ua:NodeId" />
+    <opc:Field Name="ApplicationUri" TypeName="opc:String" />
+    <opc:Field Name="ApplicationType" TypeName="ua:ApplicationType" />
+    <opc:Field Name="NoOfApplicationNames" TypeName="opc:Int32" />
+    <opc:Field Name="ApplicationNames" TypeName="ua:LocalizedText" LengthField="NoOfApplicationNames" />
+    <opc:Field Name="ProductUri" TypeName="opc:String" />
+    <opc:Field Name="NoOfDiscoveryUrls" TypeName="opc:Int32" />
+    <opc:Field Name="DiscoveryUrls" TypeName="opc:String" LengthField="NoOfDiscoveryUrls" />
+    <opc:Field Name="NoOfServerCapabilities" TypeName="opc:Int32" />
+    <opc:Field Name="ServerCapabilities" TypeName="opc:String" LengthField="NoOfServerCapabilities" />
+  </opc:StructuredType>
+
+</opc:TypeDictionary>

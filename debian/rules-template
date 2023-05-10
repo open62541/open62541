@@ -1,0 +1,22 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+override_dh_auto_configure:
+	dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=REDUCED -DUA_ENABLE_ENCRYPTION="MBEDTLS" -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON -DCMAKE_LIBRARY_ARCHITECTURE="$(DEB_HOST_MULTIARCH)"
+
+override_dh_auto_test:
+	dh_auto_test -- ARGS+=--output-on-failure
+
+override_dh_auto_build:
+	dh_auto_build -- -j`nproc --ignore=2`
+	make -C obj-${DEB_HOST_GNU_TYPE} doc doc_pdf
+
+override_dh_install:
+	dh_install
+	dh_sphinxdoc -X_sources
+
+%:
+	dh $@ --buildsystem=cmake --parallel

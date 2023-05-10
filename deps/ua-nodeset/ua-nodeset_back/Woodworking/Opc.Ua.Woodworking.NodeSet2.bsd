@@ -1,0 +1,60 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/Woodworking/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/Woodworking/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:Argument" Name="WwMessageArgumentDataType">
+        <opc:Documentation>The WwArgumentDataType definition extends the argument structure with an argument value.</opc:Documentation>
+        <opc:Field SourceType="ua:Argument" TypeName="opc:CharArray" Name="Name"/>
+        <opc:Field SourceType="ua:Argument" TypeName="ua:NodeId" Name="DataType"/>
+        <opc:Field SourceType="ua:Argument" TypeName="opc:Int32" Name="ValueRank"/>
+        <opc:Field SourceType="ua:Argument" TypeName="opc:Int32" Name="NoOfArrayDimensions"/>
+        <opc:Field LengthField="NoOfArrayDimensions" SourceType="ua:Argument" TypeName="opc:UInt32" Name="ArrayDimensions"/>
+        <opc:Field SourceType="ua:Argument" TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="tns:WwMessageArgumentValueDataType" Name="Value"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:Union" Name="WwMessageArgumentValueDataType">
+        <opc:Documentation>The WwArgumentValueDataType definition defines the possible types of an argument value.</opc:Documentation>
+        <opc:Field TypeName="opc:UInt32" Name="SwitchField"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int32" SwitchValue="1" Name="NoOfArray"/>
+        <opc:Field LengthField="NoOfArray" SwitchField="SwitchField" TypeName="tns:WwMessageArgumentValueDataType" SwitchValue="1" Name="Array"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Boolean" SwitchValue="2" Name="Boolean"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int16" SwitchValue="3" Name="Int16"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int32" SwitchValue="4" Name="Int32"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Int64" SwitchValue="5" Name="Int64"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:SByte" SwitchValue="6" Name="SByte"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:UInt16" SwitchValue="7" Name="UInt16"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:UInt32" SwitchValue="8" Name="UInt32"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:UInt64" SwitchValue="9" Name="UInt64"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Byte" SwitchValue="10" Name="Byte"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:DateTime" SwitchValue="11" Name="DateTime"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Guid" SwitchValue="12" Name="Guid"/>
+        <opc:Field SwitchField="SwitchField" TypeName="ua:LocalizedText" SwitchValue="13" Name="LocalizedText"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Double" SwitchValue="14" Name="Double"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:Float" SwitchValue="15" Name="Float"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:CharArray" SwitchValue="16" Name="String"/>
+        <opc:Field SwitchField="SwitchField" TypeName="opc:CharArray" SwitchValue="17" Name="Other"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="WwEventCategoryEnumeration">
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="DIAGNOSTIC" Value="1"/>
+        <opc:EnumeratedValue Name="INFORMATION" Value="2"/>
+        <opc:EnumeratedValue Name="WARNING" Value="3"/>
+        <opc:EnumeratedValue Name="ALARM" Value="4"/>
+        <opc:EnumeratedValue Name="ERROR" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="WwUnitModeEnumeration">
+        <opc:Documentation>This enumeration represents the generalized mode of a unit.</opc:Documentation>
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="AUTOMATIC" Value="1"/>
+        <opc:EnumeratedValue Name="SEMIAUTOMATIC" Value="2"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="3"/>
+        <opc:EnumeratedValue Name="SETUP" Value="4"/>
+        <opc:EnumeratedValue Name="SLEEP" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="WwUnitStateEnumeration">
+        <opc:Documentation>This enumeration represents the generalized state of a unit.</opc:Documentation>
+        <opc:EnumeratedValue Name="OFFLINE" Value="0"/>
+        <opc:EnumeratedValue Name="STANDBY" Value="1"/>
+        <opc:EnumeratedValue Name="READY" Value="2"/>
+        <opc:EnumeratedValue Name="WORKING" Value="3"/>
+        <opc:EnumeratedValue Name="ERROR" Value="4"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

@@ -1,0 +1,2150 @@
+﻿Status,"Common
+Code",Name,Description,"Level /
+Category",Symbol,Conversion Factor
+X,05,lift,,3.9,,
+X,06,small spray,,3.9,,
+X,08,heat lot,,3.9,,
+,10,group,A unit of count defining the number of groups (group: set of items classified together).,3.9,,
+,11,outfit,A unit of count defining the number of outfits (outfit: a complete set of equipment / materials / objects used for a specific purpose).,3.9,,
+,13,ration,A unit of count defining the number of rations (ration: a single portion of provisions).,3.9,,
+,14,shot,"A unit of liquid measure, especially related to spirits.",3.9,,
+,15,"stick, military",A unit of count defining the number of military sticks (military stick: bombs or paratroops released in rapid succession from an aircraft).,3.9,,
+X,16,hundred fifteen kg drum,,3.3,,
+X,17,hundred lb drum,,3.3,,
+X,18,fiftyfive gallon (US) drum,,3.3,,
+X,19,tank truck,,3.4,,
+,20,twenty foot container,A unit of count defining the number of shipping containers that measure 20 foot in length.,3.4,,
+,21,forty foot container,A unit of count defining the number of shipping containers that measure 40 foot in length.,3.4,,
+,22,decilitre per gram,,1M,dl/g,10⁻¹ x m³/kg
+,23,gram per cubic centimetre,,1S,g/cm³,10³ kg/m³
+,24,theoretical pound,A unit of mass defining the expected mass of material expressed as the number of pounds.,3.1,,
+,25,gram per square centimetre,,1M,g/cm²,10 kg/m²
+X,26,actual ton,,3.1,,
+,27,theoretical ton,"A unit of mass defining the expected mass of material, expressed as the number of tons.",3.1,,
+,28,kilogram per square metre,,1,kg/m²,kg/m²
+X,29,pound per thousand square foot,,3.8,lb/kft²,
+X,30,horse power day per air dry metric ton,,3.5,,
+X,31,catch weight,,3.9,,
+X,32,kilogram per air dry metric ton,,3.5,,
+,33,kilopascal square metre per gram,,1M,kPa·m²/g,10⁶ m/s²
+,34,kilopascal per millimetre,,1M,kPa/mm,10⁶ kg/(m² x s²)
+,35,millilitre per square centimetre second,,1M,ml/(cm²·s),10⁻² m/s
+X,36,cubic foot per minute per square foot,Conversion factor required,1M,ft³/(min/ft²),
+,37,ounce per square foot,,2,oz/ft²,"0,305 151 7 kg/m²"
+,38,"ounce per square foot per 0,01inch",,3.9,oz/(ft²/cin),
+,40,millilitre per second,,1M,ml/s,10⁻⁶ m³/s
+,41,millilitre per minute,,1M,ml/min,"1,666 67 x 10⁻⁸ m³/s"
+X,43,super bulk bag,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,44,fivehundred kg bulk bag,,3.3,,
+X,45,threehundred kg bulk bag,,3.3,,
+X,46,fifty lb bulk bag,,3.3,,
+X,47,fifty lb bag,,3.3,,
+X,48,bulk car load,,3.4,,
+X,53,theoretical kilogram,,3.1,,
+X,54,theoretical tonne,,3.1,,
+,56,sitas,A unit of area for tin plate equal to a surface area of 100 square metres.,3.9,,
+,57,mesh,A unit of count defining the number of strands per inch as a measure of the fineness of a woven product.,3.9,,
+,58,net kilogram,A unit of mass defining the total number of kilograms after deductions.,3.1,,
+,59,part per million,A unit of proportion equal to 10⁻⁶.,3.7,ppm,1 x 10⁻⁶
+,60,percent weight,A unit of proportion equal to 10⁻².,3.7,,1 x 10⁻²
+,61,part per billion (US),A unit of proportion equal to 10⁻⁹.,3.7,ppb,1 x 10⁻⁹
+X,62,percent per 1000 hour,,3.7,,
+X,63,failure rate in time,,3.9,,
+D,64,"pound per square inch, gauge",,3.1,,"7,030 696 x 10² kg/m²"
+D,66,oersted,,3.5,Oe,"7,957 747 x 10 A/m"
+X,69,test specific scale,,3.9,,
+X,71,volt ampere per pound,,3.9,,
+X,72,watt per pound,,3.9,,
+X,73,ampere tum per centimetre,,3.9,,
+,74,millipascal,,1S,mPa,10⁻³ Pa
+D,76,gauss,,3.5,Gs,10⁻⁴ T
+,77,milli-inch,,2,mil,"25,4 x 10⁻⁶ m"
+D,78,kilogauss,,3.5,kGs,10⁻¹ T
+,80,pound per square inch absolute,,2,lb/in²,"7,030 696 x 10² kg/m²"
+,81,henry,,1,H,H
+D,84,kilopound-force per square inch,"A unit of pressure defining the number of kilopounds force per square inch.
+Use kip per square inch (common code N20).",2,klbf/in²,"6,894 757 x 10⁶ Pa"
+,85,foot pound-force,,2,ft·lbf,"1,355 818 J"
+,87,pound per cubic foot,,2,lb/ft³,"1,601 846 x 10¹ kg/m³"
+,89,poise,,2,P,"0,1 Pa x s"
+X,90,Saybold universal second,,3.9,,
+,91,stokes,,2,St,10⁻⁴ m²/s
+X,92,calorie per cubic centimetre,,3.9,,
+X,93,calorie per gram,Use International Table (IT) calorie per gram (common code D75).,3.5,cal/g,"4,186 8 x 10³ J/kg"
+X,94,curl unit,,3.9,,
+X,95,twenty thousand gallon (US) tankcar,,3.4,,
+X,96,ten thousand gallon (US) tankcar,,3.4,,
+X,97,ten kg drum,,3.3,,
+X,98,fifteen kg drum,,3.3,,
+X,1A,car mile,,3.5,,
+X,1B,car count,,3.5,,
+X,1C,locomotive count,,3.5,,
+X,1D,caboose count,,3.5,,
+X,1E,empty car,,3.5,,
+X,1F,train mile,,3.5,,
+X,1G,fuel usage gallon (US),,3.5,,
+X,1H,caboose mile,,3.5,,
+,1I,fixed rate,A unit of quantity expressed as a predetermined or set rate for usage of a facility or service.,3.9,,
+X,1J,ton mile,,3.5,,
+X,1K,locomotive mile,,3.5,,
+X,1L,total car count,,3.5,,
+X,1M,total car mile,,3.5,,
+X,1X,quarter mile,,3.8,,
+,2A,radian per second,Refer ISO/TC12 SI Guide,1,rad/s,rad/s
+,2B,radian per second squared,Refer ISO/TC12 SI Guide,1,rad/s²,rad/s²
+,2C,roentgen,,2,R,"2,58 x 10⁻⁴ C/kg"
+,2G,volt AC,A unit of electric potential in relation to alternating current (AC).,3.1,V,V
+,2H,volt DC,A unit of electric potential in relation to direct current (DC).,3.1,V,V
+,2I,British thermal unit (international table) per hour,,2,BtuIT/h,"2,930 711x 10⁻¹ W"
+,2J,cubic centimetre per second,,1S,cm³/s,10⁻⁶ m³/s
+,2K,cubic foot per hour,,2,ft³/h,"7,865 79 x 10⁻⁶ m³/s"
+,2L,cubic foot per minute,,2,ft³/min,"4,719 474 x 10⁻⁴ m³/s"
+,2M,centimetre per second,,1S,cm/s,10⁻² m/s
+,2N,decibel,,1,dB,"0,115 129 3 Np"
+,2P,kilobyte,A unit of information equal to 10³ (1000) bytes.,3.6,kbyte,
+,2Q,kilobecquerel,,1S,kBq,10³ Bq
+,2R,kilocurie,,2S,kCi,"3,7 x 10¹³ Bq"
+,2U,megagram,,1S,Mg,10³ kg
+X,2V,megagram per hour,,3.8,Mg/h,
+X,2W,bin,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,2X,metre per minute,,1M,m/min,"0,016 666 m/s"
+,2Y,milliroentgen,,2,mR,"2,58 x 10⁻⁷ C/kg"
+,2Z,millivolt,,1S,mV,10⁻³ V
+,3B,megajoule,,1S,MJ,10⁶ J
+,3C,manmonth,A unit of count defining the number of months for a person or persons to perform an undertaking.,3.9,,
+X,3E,pound per pound of product,,3.9,,
+X,3G,pound per piece of product,,3.9,,
+X,3H,kilogram per kilogram of product,,3.9,,
+X,3I,kilogram per piece of product,,3.9,,
+X,4A,bobbin,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,4B,cap,,3.9,,
+,4C,centistokes,,2,cSt,10⁻⁶ m²/s
+X,4E,twenty pack,,3.2,,
+,4G,microlitre,,1M,µl,10⁻⁹ m³
+,4H,micrometre (micron),,1S,µm,10⁻⁶ m
+,4K,milliampere,,1S,mA,10⁻³ A
+,4L,megabyte,A unit of information equal to 10⁶ (1000000) bytes.,3.6,Mbyte,
+,4M,milligram per hour,,1M,mg/h,"2,777 78 x 10⁻¹⁰ kg/s"
+,4N,megabecquerel,,1S,MBq,10⁶ Bq
+,4O,microfarad,,1S,µF,10⁻⁶ F
+,4P,newton per metre,,1,N/m,N/m
+,4Q,ounce inch,,2,oz·in,"7,200 778 x 10⁻⁴ kg x m"
+,4R,ounce foot,,2,oz·ft,"8,640 934 x 10⁻³ kg x m"
+,4T,picofarad,,1S,pF,10⁻¹² F
+,4U,pound per hour,,2,lb/h,"1,259 979 x 10⁻⁴ kg/s"
+,4W,ton (US) per hour,,2,ton (US) /h,"2,519 958 x 10⁻¹ kg/s"
+,4X,kilolitre per hour,,1M,kl/h,"2,777 78 x 10⁻⁴ m³/s"
+,5A,barrel (US) per minute,,2,barrel (US)/min,"2,649 79 x 10⁻³ m³/s"
+,5B,batch,A unit of count defining the number of batches (batch: quantity of material produced in one operation or number of animals or persons coming at once).,3.9,,
+X,5C,gallon(US) per thousand,,3.9,,
+,5E,MMSCF/day,A unit of volume equal to one million (1000000) cubic feet of gas per day.,3.9,,
+X,5F,pound per thousand,,3.9,,
+X,5G,pump,,3.9,,
+X,5H,stage,,3.9,,
+X,5I,standard cubic foot,Use standard (common code WSD),2,std,"4,672 m³"
+,5J,hydraulic horse power,A unit of power defining the hydraulic horse power delivered by a fluid pump depending on the viscosity of the fluid.,3.5,,
+X,5K,count per minute,,3.9,,
+X,5P,seismic level,,3.9,,
+X,5Q,seismic line,,3.9,,
+D,A1,15 °C calorie,,2,cal₁₅,"4,188 46  J"
+,A10,ampere square metre per joule second,,1,A·m²/(J·s),(A x s)/kg
+,A11,angstrom,,1,Å,10⁻¹⁰ m
+,A12,astronomical unit,,1,ua,"1,495 978 70 x 10¹¹ m"
+,A13,attojoule,,1S,aJ,10⁻¹⁸ J
+,A14,barn,,1,b,10⁻²⁸ m²
+,A15,barn per electronvolt,,1,b/eV,"6,241 51 x 10⁻¹⁰ m²/J"
+,A16,barn per steradian electronvolt,,1,b/(sr·eV),"6,241 51 x 10⁻¹⁰ m²/(sr xJ)"
+,A17,barn per steradian,,1,b/sr,1 x 10⁻²⁸ m²/sr
+,A18,becquerel per kilogram,,1,Bq/kg,"27,027 x 10⁻¹² Ci/kg"
+,A19,becquerel per cubic metre,,1,Bq/m³,Bq/m³
+,A2,ampere per centimetre,,1S,A/cm,10² A/m
+,A20,British thermal unit (international table) per second square foot degree Rankine,,2,BtuIT/(s·ft²·°R),"20 441,7 W/(m² x K)"
+,A21,British thermal unit (international table) per pound degree Rankine,,2,BtuIT/(lb·°R),"4 186,8 J/(kg x K)"
+,A22,British thermal unit (international table) per second foot degree Rankine,,2,BtuIT/(s·ft·°R),"6 230,64 W/(m x K)"
+,A23,British thermal unit (international table) per hour square foot degree Rankine,,2,BtuIT/(h·ft²·°R),"5,678 26 W/ (m² x K)"
+,A24,candela per square metre,,1,cd/m²,cd/m²
+D,A25,cheval vapeur,Synonym: metric horse power,2,CV,"7,354 988 x 10² W"
+,A26,coulomb metre,,1,C·m,A x s x m
+,A27,coulomb metre squared per volt,,1,C·m²/V,A² x  s⁴/kg
+,A28,coulomb per cubic centimetre,,1S,C/cm³,10⁶ C/m³
+,A29,coulomb per cubic metre,,1,C/m³,C/m³
+,A3,ampere per millimetre,,1S,A/mm,10³ A/m
+,A30,coulomb per cubic millimetre,,1S,C/mm³,10⁹ C/m³
+,A31,coulomb per kilogram second,,1,C/(kg·s),A/kg
+,A32,coulomb per mole,,1,C/mol,A x s/mol
+,A33,coulomb per square centimetre,,1S,C/cm²,10⁴ C/m²
+,A34,coulomb per square metre,,1,C/m²,C/m²
+,A35,coulomb per square millimetre,,1S,C/mm²,10⁶ C/m²
+,A36,cubic centimetre per mole,,1S,cm³/mol,10⁻⁶ m³/mol
+,A37,cubic decimetre per mole,,1S,dm³/mol,10⁻³ m³/mol
+,A38,cubic metre per coulomb,,1,m³/C,m³/A x s
+,A39,cubic metre per kilogram,,1,m³/kg,m³/kg
+,A4,ampere per square centimetre,,1S,A/cm²,10⁴ A/m²
+,A40,cubic metre per mole,,1,m³/mol,m³/mol
+,A41,ampere per square metre,,1,A/m²,A/m²
+,A42,curie per kilogram,,2,Ci/kg,"3,7 x 10¹⁰ Bq/kg"
+,A43,deadweight tonnage,"A unit of mass defining the difference between the weight of a ship when completely empty and its weight when completely loaded, expressed as the number of tons.",3.4,dwt,
+,A44,decalitre,,1M,dal,10⁻² m³
+,A45,decametre,,1M,dam,10 m
+,A47,decitex,A unit of yarn density. One decitex equals a mass of 1 gram per 10 kilometres of length.,3.5,dtex (g/10km),
+,A48,degree Rankine,Refer ISO 80000-5 (Quantities and units — Part 5: Thermodynamics),2,°R,5/9 x K
+,A49,denier,A unit of yarn density. One denier equals a mass of 1 gram per 9 kilometres of length.,3.5,den (g/9 km),
+,A5,ampere square metre,,1,A·m²,A x m²
+D,A50,dyne second per cubic centimetre,,2,dyn·s/cm³,10 Pa x s/m
+D,A51,dyne second per centimetre,,2,dyn·s/cm,10⁻³ N x s/m
+D,A52,dyne second per centimetre to the fifth power,,2,dyn·s/cm⁵,10⁵ Pa x s/m³
+,A53,electronvolt,,1,eV,"1,602 176 487 x 10⁻¹⁹ J"
+,A54,electronvolt per metre,,1,eV/m,"1,602 176 487 x 10⁻¹⁹ J/m"
+,A55,electronvolt square metre,,1,eV·m²,"1,602 176 487 x 10⁻¹⁹ J x m²"
+,A56,electronvolt square metre per kilogram,,1,eV·m²/kg,"1,602 176 487 x 10⁻¹⁹ J x m²/kg"
+D,A57,erg,,2,erg,10⁻⁷J
+D,A58,erg per centimetre,,2,erg/cm,10⁻⁵ J/m
+,A59,8-part cloud cover,"A unit of count defining the number of eighth-parts as a measure of the celestial dome cloud coverage.
+Synonym: OKTA , OCTA",3.9,,
+,A6,ampere per square metre kelvin squared,,1,A/(m²·K²),A/(m² x K²)
+D,A60,erg per cubic centimetre,,2,erg/cm³,10⁻¹ J/m³
+D,A61,erg per gram,,2,erg/g,10⁻⁴ J/kg
+D,A62,erg per gram second,,2,erg/g·s,10⁻⁴ W/kg
+D,A63,erg per second,,2,erg/s,10⁻⁷ W
+D,A64,erg per second square centimetre,,2,erg/(s·cm²),10⁻³ W/m²
+D,A65,erg per square centimetre second,,2,erg/(cm²·s),10⁻³ W/m²
+D,A66,erg square centimetre,,2,erg·cm²,10⁻¹¹ J x m²
+D,A67,erg square centimetre per gram,,2,erg·cm²/g,10⁻⁸ J x m²/kg
+,A68,exajoule,,1S,EJ,10¹⁸ J
+,A69,farad per metre,,1,F/m,kg⁻¹ x m⁻³ x s⁴ x A²
+,A7,ampere per square millimetre,,1S,A/mm²,10⁶ A/m²
+,A70,femtojoule,,1S,fJ,10⁻¹⁵ J
+,A71,femtometre,,1S,fm,10⁻¹⁵ m
+,A73,foot per second squared,,2,ft/s²,"0,304 8 m/s²"
+,A74,foot pound-force per second,,2,ft·lbf/s,"1,355 818 W"
+,A75,freight ton,"A unit of information typically used for billing purposes, defined as either the number of metric tons or the number of cubic metres, whichever is the larger.",3.4,,
+,A76,gal,,1S,Gal,10⁻² m/s²
+D,A77,Gaussian CGS (Centimetre-Gram-Second system) unit of displacement,,3.5,,
+D,A78,Gaussian CGS (Centimetre-Gram-Second system) unit of electric current,,3.5,,
+D,A79,Gaussian CGS (Centimetre-Gram-Second system) unit of electric charge,,3.5,,
+,A8,ampere second,,1,A·s,C
+D,A80,Gaussian CGS (Centimetre-Gram-Second system) unit of electric field strength,,3.5,,
+D,A81,Gaussian CGS (Centimetre-Gram-Second system) unit of electric polarization,,3.5,,
+D,A82,Gaussian CGS (Centimetre-Gram-Second system) unit of electric potential,,3.5,,
+D,A83,Gaussian CGS (Centimetre-Gram-Second system) unit of magnetization,,3.5,,
+,A84,gigacoulomb per cubic metre,,1S,GC/m³,10⁹ C/m³
+,A85,gigaelectronvolt,,1S,GeV,10⁹ eV
+,A86,gigahertz,,1S,GHz,10⁹ Hz
+,A87,gigaohm,,1S,GΩ,10⁹ Ω
+,A88,gigaohm metre,,1S,GΩ·m,10⁹ Ω x m
+,A89,gigapascal,,1S,GPa,10⁹ Pa
+,A9,rate,A unit of quantity expressed as a rate for usage of a facility or service.,3.9,,
+,A90,gigawatt,,1S,GW,10⁹ W
+,A91,gon,Synonym: grade,2,gon,"1,570 796 x 10⁻² rad"
+,A93,gram per cubic metre,,1M,g/m³,10⁻³ kg/m³
+,A94,gram per mole,,1S,g/mol,10⁻³ kg/mol
+,A95,gray,,1,Gy,m²/s²
+,A96,gray per second,,1,Gy/s,m²/s³
+,A97,hectopascal,,1S,hPa,10² Pa
+,A98,henry per metre,,1,H/m,H/m
+,A99,bit,A unit of information equal to one binary digit.,3.6,bit,
+,AA,ball,A unit of count defining the number of balls (ball: object formed in the shape of sphere).,3.9,,
+,AB,bulk pack,A unit of count defining the number of items per bulk pack.,3.9,pk,
+,ACR,acre,,2,acre,"4 046,873 m²"
+,ACT,activity,A unit of count defining the number of activities (activity: a unit of work or action).,3.2,,
+,AD,byte,A unit of information equal to 8 bits.,3.6,byte,
+,AE,ampere per metre,,1,A/m,A/m
+,AH,additional minute,A unit of time defining the number of minutes in addition to the referenced minutes.,3.5,,
+,AI,average minute per call,A unit of count defining the number of minutes for the average interval of a call.,3.5,,
+X,AJ,cop,,3.9,,
+,AK,fathom,,2,fth,"1,828 8 m"
+,AL,access line,A unit of count defining the number of telephone access lines.,3.5,,
+X,AM,ampoule,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,AMH,ampere hour,A unit of electric charge defining the amount of charge accumulated by a steady flow of one ampere for one hour.,1M,A·h,"3,6 x 10³ C"
+,AMP,ampere,,1,A,A
+,ANN,year,"Unit of time equal to 365,25 days.
+Synonym: Julian year",2,y,"3,155 76 x 10⁷ s"
+X,AP,aluminium pound only,,3.1,,
+,APZ,troy ounce or apothecary ounce,,2,tr oz,"3,110 348 x 10⁻³ kg"
+,AQ,anti-hemophilic factor (AHF) unit,A unit of measure for blood potency (US).,3.9,,
+X,AR,suppository,,3.3,,
+D,ARE,are,Synonym: square decametre,2,a,10² m²
+,AS,assortment,A unit of count defining the number of assortments (assortment: set of items grouped in a mixed collection).,3.9,,
+,ASM,alcoholic strength by mass,A unit of mass defining the alcoholic strength of a liquid.,3.5,,
+,ASU,alcoholic strength by volume,"A unit of volume defining the alcoholic strength of a liquid (e.g. spirit, wine, beer, etc), often at a specific temperature.",3.5,,
+,ATM,standard atmosphere,,1,atm,1 013 25 Pa
+D,ATT,technical atmosphere,,2,at,"98 066,5 Pa"
+X,AV,capsule,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,AW,powder filled vial,,3.3,,
+,AWG,american wire gauge,A unit of distance used for measuring the diameter of small tubes or wires such as the outer diameter of hypotermic or suture needles.,2,AWG,
+,AY,assembly,A unit of count defining the number of assemblies (assembly: items that consist of component parts).,3.9,,
+,AZ,British thermal unit (international table) per pound,,2,BtuIT/lb,2 326 J/kg
+X,B0,Btu per cubic foot,,3.9,BTU/ft³,
+,B1,barrel (US) per day,,3.5,barrel (US)/d,"1,840 13 x 10⁻⁶ m³/s"
+,B10,bit per second,A unit of information equal to one binary digit per second.,3.6,bit/s,
+,B11,joule per kilogram kelvin,,1,J/(kg·K),J/(kg x K)
+,B12,joule per metre,,1,J/m,J/m
+,B13,joule per square metre,Synonym: joule per metre squared,1,J/m²,J/m²
+,B14,joule per metre to the fourth power,,1,J/m⁴,J/m⁴
+,B15,joule per mole,,1,J/mol,J/mol
+,B16,joule per mole kelvin,,1,J/(mol·K),J/(mol x K)
+,B17,credit,A unit of count defining the number of entries made to the credit side of an account.,3.9,,
+,B18,joule second,,1,J·s,J x s
+,B19,digit,A unit of information defining the quantity of numerals used to form a number.,3.7,,
+X,B2,bunk,,3.9,,
+,B20,joule square metre per kilogram,,1,J·m²/kg,J x m²/kg
+,B21,kelvin per watt,,1,K/W,K/W
+,B22,kiloampere,,1S,kA,10³ A
+,B23,kiloampere per square metre,,1S,kA/m²,10³ A/m²
+,B24,kiloampere per metre,,1S,kA/m,10³ A/m
+,B25,kilobecquerel per kilogram,,1S,kBq/kg,10³ Bq/kg
+,B26,kilocoulomb,,1S,kC,10³ C
+,B27,kilocoulomb per cubic metre,,1S,kC/m³,10³ C/m³
+,B28,kilocoulomb per square metre,,1S,kC/m²,10³ C/m²
+,B29,kiloelectronvolt,,1S,keV,10³ eV
+,B3,batting pound,A unit of mass defining the number of pounds of wadded fibre.,3.1,,
+,B30,gibibit,A unit of information equal to 2³⁰ bits (binary digits).,3.6,Gibit,
+,B31,kilogram metre per second,,1,kg·m/s,kg x m/s
+,B32,kilogram metre squared,,1,kg·m²,kg x m²
+,B33,kilogram metre squared per second,,1,kg·m²/s,kg x m²/s
+,B34,kilogram per cubic decimetre,,1S,kg/dm³,10³ kg/m³
+,B35,kilogram per litre,,1S,kg/l or kg/L,10³ kg/m³
+D,B36,calorie (thermochemical) per gram,,2,calth/g,4 184 J/kg
+D,B37,kilogram-force,,2,kgf,"9,806 65 N"
+D,B38,kilogram-force metre,,2,kgf·m,"9,806 65 N x m"
+D,B39,kilogram-force metre per second,,2,kgf·m/s,"9,806 65 W"
+,B4,"barrel, imperial",A unit of volume used to measure beer.  One beer barrel equals 36 imperial gallons.,3.5,,
+D,B40,kilogram-force per square metre,,2,kgf/m²,"9,806 65 Pa"
+,B41,kilojoule per kelvin,,1S,kJ/K,10³ J/K
+,B42,kilojoule per kilogram,,1S,kJ/kg,10³ J/kg
+,B43,kilojoule per kilogram kelvin,,1S,kJ/(kg·K),10³ J/(kg x K)
+,B44,kilojoule per mole,,1S,kJ/mol,10³ J/mol
+,B45,kilomole,,1S,kmol,10³ mol
+,B46,kilomole per cubic metre,,1S,kmol/m³,10³ mol/m³
+,B47,kilonewton,,1S,kN,10³ N
+,B48,kilonewton metre,,1S,kN·m,10³ N x m
+,B49,kiloohm,,1S,kΩ,10³ Ω
+X,B5,billet,,3.9,,
+,B50,kiloohm metre,,1S,kΩ·m,10³ Ω x m
+D,B51,kilopond,Synonym: kilogram-force,2,kp,"9,806 65 N"
+,B52,kilosecond,,1S,ks,10³ s
+,B53,kilosiemens,,1S,kS,10³ S
+,B54,kilosiemens per metre,,1S,kS/m,10³ S/m
+,B55,kilovolt per metre,,1S,kV/m,10³ V/m
+,B56,kiloweber per metre,,1S,kWb/m,10³ Wb/m
+,B57,light year,A unit of length defining the distance that light travels in a vacuum in one year.,2,ly,"9,460 73 x 10¹⁵ m"
+,B58,litre per mole,,1M,l/mol,10⁻³ m³/mol
+,B59,lumen hour,,1S,lm·h,"3,6 x 10³ s x cd x sr"
+X,B6,bun,,3.9,,
+,B60,lumen per square metre,,1,lm/m²,cd x sr/m²
+,B61,lumen per watt,,1,lm/W,cd x sr/W
+,B62,lumen second,,1,lm·s,s x cd x sr
+,B63,lux hour,,1S,lx·h,"3,6 x 10³ s x cd x sr / m²"
+,B64,lux second,,1,lx·s,s x cd x sr / m²
+D,B65,maxwell,,3.5,Mx,10⁻⁸ Wb
+,B66,megaampere per square metre,,1S,MA/m²,10⁶ A/m²
+,B67,megabecquerel per kilogram,,1S,MBq/kg,10⁶ Bq/kg
+,B68,gigabit,A unit of information equal to 10⁹ bits (binary digits).,3.6,Gbit,
+,B69,megacoulomb per cubic metre,,1S,MC/m³,10⁶ C/m³
+,B7,cycle,A unit of count defining the number of cycles (cycle: a recurrent period of definite duration).,3.9,,
+,B70,megacoulomb per square metre,,1S,MC/m²,10⁶ C/m²
+,B71,megaelectronvolt,,1S,MeV,10⁶ eV
+,B72,megagram per cubic metre,,1S,Mg/m³,10³ kg/m³
+,B73,meganewton,,1S,MN,10⁶ N
+,B74,meganewton metre,,1S,MN·m,10⁶ N x m
+,B75,megaohm,,1S,MΩ,10⁶ Ω
+,B76,megaohm metre,,1S,MΩ·m,10⁶ Ω x m
+,B77,megasiemens per metre,,1S,MS/m,10⁶ S/m
+,B78,megavolt,,1S,MV,10⁶ V
+,B79,megavolt per metre,,1S,MV/m,10⁶ V/m
+,B8,joule per cubic metre,,1,J/m³,J/m³
+,B80,gigabit per second,A unit of information equal to 10⁹ bits (binary digits) per second.,3.6,Gbit/s,
+,B81,reciprocal metre squared reciprocal second,,1,m⁻²/s,m⁻²/s
+,B82,inch per linear foot,A unit of length defining the number of inches per linear foot.,3.1,,
+,B83,metre to the fourth power,,1,m⁴,m⁴
+,B84,microampere,,1S,µA,10⁻⁶ A
+,B85,microbar,,1S,µbar,10⁻¹ Pa
+,B86,microcoulomb,,1S,µC,10⁻⁶ C
+,B87,microcoulomb per cubic metre,,1S,µC/m³,10⁻⁶ C/m³
+,B88,microcoulomb per square metre,,1S,µC/m²,10⁻⁶ C/m²
+,B89,microfarad per metre,,1S,µF/m,10⁻⁶ F/m
+X,B9,batt,,3.9,,
+,B90,microhenry,,1S,µH,10⁻⁶ H
+,B91,microhenry per metre,,1S,µH/m,10⁻⁶ H/m
+,B92,micronewton,,1S,µN,10⁻⁶ N
+,B93,micronewton metre,,1S,µN·m,10⁻⁶ N x m
+,B94,microohm,,1S,µΩ,10⁻⁶ Ω
+,B95,microohm metre,,1S,µΩ·m,10⁻⁶ Ω x m
+,B96,micropascal,,1S,µPa,10⁻⁶ Pa
+,B97,microradian,,1S,µrad,10⁻⁶ rad
+,B98,microsecond,,1S,µs,10⁻⁶ s
+,B99,microsiemens,,1S,µS,10⁻⁶ S
+,BAR,bar [unit of pressure],,1,bar,10⁵ Pa
+,BB,base box,"A unit of area of 112 sheets of tin mil products (tin plate, tin free steel or black plate) 14 by 20 inches, or 31,360 square inches.",3.5,,
+X,BD,board,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BE,bundle,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,BFT,board foot,A unit of volume defining the number of cords (cord: a stack of firewood of 128 cubic feet).,3.5,fbm,
+X,BG,bag,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BH,brush,,3.9,,
+,BHP,brake horse power,,2,BHP,"7,457 x 10² W"
+,BIL,billion (EUR),Synonym: trillion (US),3.7,,10¹²
+X,BJ,bucket,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BK,basket,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BL,bale,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,BLD,dry barrel (US),,2,bbl (US),"1,156 27 x 10⁻¹ m³"
+,BLL,barrel (US),,2,barrel (US),"158,987 3 x 10⁻³ m³"
+X,BO,bottle,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,BP,hundred board foot,A unit of volume equal to one hundred board foot.,3.5,,
+,BPM,beats per minute,The number of beats per minute.,3.1,BPM,1.667 x 10-2 /s
+,BQL,becquerel,,1,Bq,"27,027 x 10⁻¹² Ci"
+X,BR,bar [unit of packaging],"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BT,bolt,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,BTU,British thermal unit (international table),,2,BtuIT,"1,055 056 x 10³ J"
+,BUA,bushel (US),,2,bu (US),"3,523 907 x 10⁻² m³"
+,BUI,bushel (UK),,2,bushel (UK),"3,636 872 x 10⁻² m³"
+X,BW,base weight,,3.9,,
+X,BX,box,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,BZ,million BTUs,,3.8,,
+,C0,call,A unit of count defining the number of calls (call: communication session or visitation).,3.5,,
+X,C1,composite product pound (total weight),,3.9,,
+,C10,millifarad,,1S,mF,10⁻³ F
+,C11,milligal,,1M,mGal,10⁻⁵ m/s²
+,C12,milligram per metre,,1S,mg/m,10⁻⁶ kg/m
+,C13,milligray,,1S,mGy,10⁻³ Gy
+,C14,millihenry,,1S,mH,10⁻³ H
+,C15,millijoule,,1S,mJ,10⁻³ J
+,C16,millimetre per second,,1S,mm/s,10⁻³ m/s
+,C17,millimetre squared per second,,1S,mm²/s,10⁻⁶ m²/s
+,C18,millimole,,1S,mmol,10⁻³ mol
+,C19,mole per kilogram,,1,mol/kg,mol/kg
+X,C2,carset,,3.5,,
+,C20,millinewton,,1S,mN,10⁻³ N
+,C21,kibibit,A unit of information equal to 2¹⁰ (1024) bits (binary digits).,3.6,Kibit,
+,C22,millinewton per metre,,1S,mN/m,10⁻³ N/m
+,C23,milliohm metre,,1S,mΩ·m,10⁻³ Ω x m
+,C24,millipascal second,,1S,mPa·s,10⁻³ Pa x s
+,C25,milliradian,,1S,mrad,10⁻³ rad
+,C26,millisecond,,1S,ms,10⁻³ s
+,C27,millisiemens,,1S,mS,10⁻³ S
+,C28,millisievert,,1S,mSv,10⁻³ Sv
+,C29,millitesla,,1S,mT,10⁻³ T
+,C3,microvolt per metre,,1S,µV/m,10⁻⁶ V/m
+,C30,millivolt per metre,,1S,mV/m,10⁻³ V/m
+,C31,milliwatt,,1S,mW,10⁻³ W
+,C32,milliwatt per square metre,,1S,mW/m²,10⁻³ W/m²
+,C33,milliweber,,1S,mWb,10⁻³ Wb
+,C34,mole,,1,mol,mol
+,C35,mole per cubic decimetre,,1S,mol/dm³,10³ mol/m³
+,C36,mole per cubic metre,,1,mol/m³,mol/m³
+,C37,kilobit,A unit of information equal to 10³ (1000) bits (binary digits).,3.6,kbit,
+,C38,mole per litre,,1,mol/l,10³ mol/m³
+,C39,nanoampere,,1S,nA,10⁻⁹ A
+X,C4,carload,,3.5,,
+,C40,nanocoulomb,,1S,nC,10⁻⁹ C
+,C41,nanofarad,,1S,nF,10⁻⁹ F
+,C42,nanofarad per metre,,1S,nF/m,10⁻⁹ F/m
+,C43,nanohenry,,1S,nH,10⁻⁹ H
+,C44,nanohenry per metre,,1S,nH/m,10⁻⁹ H/m
+,C45,nanometre,,1S,nm,10⁻⁹ m
+,C46,nanoohm metre,,1S,nΩ·m,10⁻⁹ Ω·x m
+,C47,nanosecond,,1S,ns,10⁻⁹ s
+,C48,nanotesla,,1S,nT,10⁻⁹ T
+,C49,nanowatt,,1S,nW,10⁻⁹ W
+X,C5,cost,,3.9,,
+,C50,neper,,1,Np,Np
+,C51,neper per second,,1,Np/s,Np/s
+,C52,picometre,,1S,pm,10⁻¹² m
+,C53,newton metre second,,1,N·m·s,N x m x s
+,C54,newton metre squared per kilogram squared,,1,N·m²/kg²,N x m²/kg²
+,C55,newton per square metre,,1S,N/m²,Pa
+,C56,newton per square millimetre,,1S,N/mm²,10⁶ Pa
+,C57,newton second,,1,N·s,N x s
+,C58,newton second per metre,,1,N·s/m,N x s/m
+,C59,octave,A unit used in music to describe the ratio in frequency between notes.,1,,
+X,C6,cell,,3.9,,
+,C60,ohm centimetre,,1S,Ω·cm,10⁻² Ω x m 
+,C61,ohm metre,,1,Ω·m,Ω x m
+,C62,one,Synonym: unit,1,1,1
+,C63,parsec,,1,pc,"3,085 678 x 10¹⁶ m"
+,C64,pascal per kelvin,,1,Pa/K,Pa/K
+,C65,pascal second,,1,Pa·s,Pa x s
+,C66,pascal second per cubic metre,,1,Pa·s/m³,Pa x s/m³
+,C67,pascal second per metre,,1,Pa· s/m,Pa x s/m
+,C68,petajoule,,1S,PJ,10¹⁵ J
+,C69,phon,A unit of subjective sound loudness. A sound has loudness p phons if it seems to the listener to be equal in loudness to the sound of a pure tone of frequency 1 kilohertz and strength p decibels.,1,,
+,C7,centipoise,,2,cP,10⁻³ Pa x s
+,C70,picoampere,,1S,pA,10⁻¹² A
+,C71,picocoulomb,,1S,pC,10⁻¹² C
+,C72,picofarad per metre,,1S,pF/m,10⁻¹² F/m
+,C73,picohenry,,1S,pH,10⁻¹² H
+,C74,kilobit per second,A unit of information equal to 10³ (1000) bits (binary digits) per second.,3.6,kbit/s,10³ bit/s
+,C75,picowatt,,1S,pW,10⁻¹² W
+,C76,picowatt per square metre,,1S,pW/m²,10⁻¹² W/m²
+X,C77,pound gage,,3.1,,
+,C78,pound-force,,2,lbf,"4,448 222 N"
+,C79,kilovolt ampere hour,A unit of accumulated energy of 1000 volt amperes over a period of one hour.,3.1,kVAh,
+,C8,millicoulomb per kilogram,,1S,mC/kg,10⁻³ C/kg
+,C80,rad,,2,rad,10⁻² Gy
+,C81,radian,,1,rad,rad
+,C82,radian square metre per mole,,1,rad·m²/mol,rad x m²/mol
+,C83,radian square metre per kilogram,,1,rad·m²/kg,rad x m²/kg
+,C84,radian per metre,,1,rad/m,rad/m
+,C85,reciprocal angstrom,,1,Å⁻¹,10¹⁰ m⁻¹
+,C86,reciprocal cubic metre,,1,m⁻³,m⁻³
+,C87,reciprocal cubic metre per second,Synonym: reciprocal second per cubic metre,1,m⁻³/s,m⁻³/s
+,C88,reciprocal electron volt per cubic metre,,1,eV⁻¹/m³,"6,241 46 x 10¹⁸ J⁻¹/m³"
+,C89,reciprocal henry,,1,H⁻¹,H⁻¹
+,C9,coil group,A unit of count defining the number of coil groups (coil group: groups of items arranged by lengths of those items placed in a joined sequence of concentric circles).,3.9,,
+,C90,reciprocal joule per cubic metre,,1,J⁻¹/m³,J⁻¹/m³
+,C91,reciprocal kelvin or kelvin to the power minus one,,1,K⁻¹,K⁻¹
+,C92,reciprocal metre,,1,m⁻¹,m⁻¹
+,C93,reciprocal square metre,Synonym: reciprocal metre squared,1,m⁻²,m⁻²
+,C94,reciprocal minute,,1S,min⁻¹,"1,666 667 x 10⁻² s"
+,C95,reciprocal mole,,1,mol⁻¹,mol⁻¹
+,C96,reciprocal pascal or pascal to the power minus one,,1,Pa⁻¹,Pa⁻¹
+,C97,reciprocal second,,1,s⁻¹,s⁻¹
+X,C98,reciprocal second per cubic metre,,1,s⁻¹/m³,s⁻¹/m³
+,C99,reciprocal second per metre squared,,1,s⁻¹/m²,s⁻¹/m²
+X,CA,can,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,CCT,carrying capacity in metric ton,"A unit of mass defining the carrying capacity, expressed as the number of metric tons.",3.4,,
+,CDL,candela,,1,cd,cd
+,CEL,degree Celsius,Refer ISO 80000-5 (Quantities and units — Part 5: Thermodynamics),1,°C,1 x K
+,CEN,hundred,A unit of count defining the number of units in multiples of 100.,3.7,,100
+,CG,card,A unit of count defining the number of units of card (card: thick stiff paper or cardboard).,3.9,,
+,CGM,centigram,,1M,cg,10⁻⁵ kg
+X,CH,container,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.4,,
+X,CJ,cone,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.9,,
+X,CK,connector,,3.9,,
+,CKG,coulomb per kilogram,,1,C/kg,A x s/kg
+X,CL,coil,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,CLF,hundred leave,"A unit of count defining the number of leaves, expressed in units of one hundred leaves.",3.8,,
+,CLT,centilitre,,1S,cl,10⁻⁵ m³
+,CMK,square centimetre,,1S,cm²,10⁻⁴ m²
+,CMQ,cubic centimetre,,1S,cm³,10⁻⁶ m³
+,CMT,centimetre,,"1S
+3.5",cm,10⁻² m
+,CNP,hundred pack,A unit of count defining the number of hundred-packs (hundred-pack: set of one hundred items packaged together).,"3.2
+3.8",,
+,CNT,cental (UK),A unit of mass equal to one hundred weight (US).,3.5,,"45,359 237 kg"
+X,CO,carboy,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,COU,coulomb,,1,C,A x s
+X,CQ,cartridge,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.9,,
+X,CR,crate,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,CS,case,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,CT,carton,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,CTG,content gram,A unit of mass defining the number of grams of a named item in a product.,3.1,,
+,CTM,metric carat,,3.5,,200 mg
+,CTN,content ton (metric),A unit of mass defining the number of metric tons of a named item in a product.,3.1,,
+X,CU,cup,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,CUR,curie,,2,Ci,"3,7 x 10¹⁰ Bq"
+X,CV,cover,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,CWA,hundred pound (cwt) / hundred weight (US),,2,cwt (US),"45,359 2 kg"
+,CWI,hundred weight (UK),,2,cwt (UK),"50,802 35 kg"
+X,CY,cylinder,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,CZ,combo,,3.9,,
+,D03,kilowatt hour per hour,A unit of accumulated energy of a thousand watts over a period of one hour.,3.1,kW·h/h,
+,D04,lot [unit of weight],A unit of weight equal to about 1/2 ounce or 15 grams.,3.2,,
+,D1,reciprocal second per steradian,,1,s⁻¹/sr,s⁻¹/sr
+,D10,siemens per metre,,1,S/m,S/m
+,D11,mebibit,A unit of information equal to 2²⁰ (1048576) bits (binary digits).,3.6,Mibit,
+,D12,siemens square metre per mole,,1,S·m²/mol,S x m²/mol
+,D13,sievert,,1,Sv,m²/s²
+X,D14,thousand linear yard,,3.8,,
+,D15,sone,A unit of subjective sound loudness. One sone is the loudness of a pure tone of frequency one kilohertz and strength 40 decibels.,1,,
+,D16,square centimetre per erg,,2,cm²/erg,10³ m²/J
+,D17,square centimetre per steradian erg,,2,cm²/(sr·erg),10³ m²/(sr x J)
+,D18,metre kelvin,,1,m·K,m x K
+,D19,square metre kelvin per watt,,1,m²·K/W,m² x K/W
+,D2,reciprocal second per steradian metre squared,,1,s⁻¹/(sr·m²),s⁻¹/(sr x m²)
+,D20,square metre per joule,,1,m²/J,m²/J
+,D21,square metre per kilogram,,1,m²/kg,m²/kg
+,D22,square metre per mole,,1,m²/mol,m²/mol
+,D23,pen gram (protein),A unit of count defining the number of grams of amino acid prescribed for parenteral/enteral therapy.,3.9,,
+,D24,square metre per steradian,,1,m²/sr,m²/sr
+,D25,square metre per steradian joule,,1,m²/(sr·J),m²/(sr x J)
+,D26,square metre per volt second,,1,m²/(V·s),m²/(V x s)
+,D27,steradian,,1,sr,sr
+X,D28,syphon,,3.9,,
+,D29,terahertz,,1S,THz,10¹² Hz
+,D30,terajoule,,1S,TJ,10¹² J
+,D31,terawatt,,1S,TW,10¹² W
+,D32,terawatt hour,,1S,TW·h,"3,6 x 10¹⁵ J"
+,D33,tesla,,1,T,T
+,D34,tex,A unit of yarn density. One decitex equals a mass of 1 gram per 1 kilometre of length.,3.5,tex (g/km),10⁻⁶ kg/m
+D,D35,calorie (thermochemical),,2,calth,"4,184 J"
+,D36,megabit,A unit of information equal to 10⁶ (1000000) bits (binary digits).,3.6,Mbit,
+D,D37,calorie (thermochemical) per gram kelvin,,2,calth/(g·K),"4,184 x 10³ J/(kg x K)"
+D,D38,calorie (thermochemical) per second centimetre kelvin,,2,calth/(s·cm·K),"418,4 W/(m x K)"
+D,D39,calorie (thermochemical) per second square centimetre kelvin,,2,calth/(s·cm²·K),"4,184 x10⁴ W/(m² x K)"
+X,D40,thousand litre,,3.8,,m³
+,D41,tonne per cubic metre,,1S,t/m³,10³ kg/m³
+,D42,tropical year,,2,y (tropical),"3,155 692 5 x 10⁷ s"
+,D43,unified atomic mass unit,,1,u,"1,660 538 782 x 10⁻²⁷ kg"
+,D44,var,The name of the unit is an acronym for volt-ampere-reactive.,1,var,V x A
+,D45,volt squared per kelvin squared,,1,V²/K²,V²/K²
+,D46,volt - ampere,,1,V·A,W
+,D47,volt per centimetre,,1S,V/cm,V/m x 10²
+,D48,volt per kelvin,,1,V/K,V/K
+,D49,millivolt per kelvin,,1S,mV/K,10⁻³ V/K
+,D5,kilogram per square centimetre,,2,kg/cm²,10⁴ kg/m²
+,D50,volt per metre,,1,V/m,V/m
+,D51,volt per millimetre,,1S,V/mm,10³ V/m
+,D52,watt per kelvin,,1,W/K,W/K
+,D53,watt per metre kelvin,,1,W/(m·K),W/(m x K)
+,D54,watt per square metre,,1,W/m²,W/m²
+,D55,watt per square metre kelvin,,1,W/(m²·K),W/(m² x K)
+,D56,watt per square metre kelvin to the fourth power,,1,W/(m²·K⁴),W/(m² x K⁴)
+,D57,watt per steradian,,1,W/sr,W/sr
+,D58,watt per steradian square metre,,1,W/(sr·m²),W/(sr x m²)
+,D59,weber per metre,,1,Wb/m,Wb/m
+,D6,roentgen per second,,2,R/s,"2,58 x 10⁻⁴ C/(kg x s)"
+,D60,weber per millimetre,,1S,Wb/mm,10³ Wb/m
+,D61,minute [unit of angle],,1,',"2,908 882 x 10⁻⁴ rad"
+,D62,second [unit of angle],,1,"""","4,848 137 x 10⁻⁶ rad"
+,D63,book,A unit of count defining the number of books (book: set of items bound together or written document of a material whole).,3.9,,
+X,D64,block,,3.9,,
+,D65,round,A unit of count defining the number of rounds (round: A circular or cylindrical object).,3.9,,
+X,D66,cassette,,3.9,,
+X,D67,dollar per hour,,3.9,,
+,D68,number of words,A unit of count defining the number of words.,3.7,,
+,D69,inch to the fourth power,,2,in⁴,"41,623 14 x 10⁻⁸ m⁴"
+X,D7,sandwich,,3.9,,
+D,D70,calorie (international table),,2,calIT,"4,186 8 J"
+D,D71,calorie (international table) per second centimetre kelvin,,2,calIT/(s·cm·K),"418,68 W/(m x K)"
+D,D72,calorie (international table) per second square centimetre kelvin,,2,calIT/(s·cm²·K),"4,186 8 x 10⁴ W/(m² x K)"
+,D73,joule square metre,,1,J·m²,J x m²
+,D74,kilogram per mole,,1,kg/mol,kg/mol
+D,D75,calorie (international table) per gram,,2,calIT/g,"4 186,8 J/kg"
+D,D76,calorie (international table) per gram kelvin,,2,calIT/(g·K),"4 186,8 J/(kg x K)"
+,D77,megacoulomb,,1S,MC,10⁶ C
+,D78,megajoule per second,A unit of accumulated energy equal to one million joules per second.,3.1,MJ/s,
+X,D79,beam,,3.3,,
+X,D8,draize score,,3.7,,
+,D80,microwatt,,1S,µW,10⁻⁶ W
+,D81,microtesla,,1S,µT,10⁻⁶ T
+,D82,microvolt,,1S,µV,10⁻⁶ V
+,D83,millinewton metre,,1S,mN·m,10⁻³ N x m
+,D85,microwatt per square metre,,1S,µW/m²,10⁻⁶ W/m²
+,D86,millicoulomb,,1S,mC,10⁻³ C
+,D87,millimole per kilogram,,1S,mmol/kg,10⁻³ mol/kg
+,D88,millicoulomb per cubic metre,,1S,mC/m³,10⁻³ C/m³
+,D89,millicoulomb per square metre,,1S,mC/m²,10⁻³ C/m²
+D,D9,dyne per square centimetre,,"2
+3.9",dyn/cm²,10⁻¹ Pa
+X,D90,cubic metre (net),,3.1,,
+,D91,rem,,2,rem,10⁻² Sv
+X,D92,band,,3.9,,
+,D93,second per cubic metre,,1,s/m³,s/m³
+,D94,second per cubic metre radian,,1,s/(rad·m³),s/(rad x m³)
+,D95,joule per gram,,1S,J/g,J/(10⁻³ x kg)
+X,D96,pound gross,,3.1,,
+X,D97,pallet/unit load,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.4,,
+X,D98,mass pound,,3.1,,
+X,D99,sleeve,,3.3,,
+,DAA,decare,,1M,daa,10³ m²
+,DAD,ten day,A unit of time defining the number of days in multiples of 10.,3.2,,
+,DAY,day,,1,d,86 400 s
+,DB,dry pound,"A unit of mass defining the number of pounds of a product, disregarding the water content of the product.",3.1,,
+X,DC,disk (disc),,3.9,,
+,DD,degree [unit of angle],,1,°,"1,745 329 x 10⁻² rad"
+X,DE,deal,,3.9,,
+,DEC,decade,A unit of count defining the number of decades (decade: quantity equal to 10 or time equal to 10 years).,3.8,,
+,DG,decigram,,1M,dg,10⁻⁴ kg
+X,DI,dispenser,,3.3,,
+,DJ,decagram,,1M,dag,10⁻² kg
+,DLT,decilitre,,1M,dl,10⁻⁴ m³
+,DMA,cubic decametre,,1S,dam³,10³ m³
+,DMK,square decimetre,,1S,dm²,10⁻² m²
+,DMO,standard kilolitre,"A unit of volume defining the number of kilolitres of a product at a temperature of 15 degrees Celsius, especially in relation to hydrocarbon oils.",3.1,,
+,DMQ,cubic decimetre,,1S,dm³,10⁻³ m³
+,DMT,decimetre,,1M,dm,10⁻¹ m
+,DN,decinewton metre,,1S,dN·m,10⁻¹ N x m
+,DPC,dozen piece,"A unit of count defining the number of pieces in multiples of 12 (piece: a single item, article or exemplar).",3.2,,
+,DPR,dozen pair,A unit of count defining the number of pairs in multiples of 12 (pair: item described by two's).,3.2,,
+,DPT,displacement tonnage,"A unit of mass defining the volume of sea water a ship displaces, expressed as the number of tons.",3.4,,
+X,DQ,data record,,3.6,,
+X,DR,drum,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,DRA,dram (US),"Synonym: drachm (UK), troy dram",3.5,,"3,887 935 g"
+,DRI,dram (UK),Synonym: avoirdupois dram,3.5,,"1,771 745 g"
+,DRL,dozen roll,"A unit of count defining the number of rolls, expressed in twelve roll units.",3.2,,
+X,DRM,drachm (UK),,3.5,,"3,887 935 g"
+X,DS,display,,3.9,,
+,DT,dry ton,"A unit of mass defining the number of tons of a product, disregarding the water content of the product.",3.1,,
+,DTN,decitonne,"Synonym: centner, metric 100 kg; quintal, metric 100 kg","1M
+3.5",dt or dtn,10² kg
+D,DU,dyne,,2,dyn,10⁻⁵ N
+,DWT,pennyweight,,3.5,,"1,555 174 g"
+D,DX,dyne per centimetre,,2,dyn/cm,10⁻³ N/m
+X,DY,directory book,,3.9,,
+,DZN,dozen,A unit of count defining the number of units in multiples of 12.,3.7,DOZ,12
+,DZP,dozen pack,A unit of count defining the number of packs in multiples of 12 (pack: standard packaging unit).,3.2,,
+,E01,newton per square centimetre,A measure of pressure expressed in newtons per square centimetre.,1M,N/cm²,10⁴ Pa
+,E07,megawatt hour per hour,A unit of accumulated energy of a million watts over a period of one hour.,3.1,MW·h/h,
+,E08,megawatt per hertz,A unit of energy expressed as the load change in million watts that will cause a frequency shift of one hertz.,3.1,MW/Hz,
+,E09,milliampere hour,A unit of power load delivered at the rate of one thousandth of an ampere over a period of one hour.,1M,mA·h,"3,6 C"
+,E10,degree day,A unit of measure used in meteorology and engineering to measure the demand for heating or cooling over a given period of days.,3.5,deg da,
+D,E11,gigacalorie,A unit of heat energy equal to one thousand million calories.,3.5,,10⁹ cal
+,E12,mille,A unit of count defining the number of cigarettes in units of 1000.,3.9,,
+,E14,kilocalorie (international table),A unit of heat energy equal to one thousand calories.,2,kcalIT,"4,186 8 x 10³ J"
+,E15,kilocalorie (thermochemical) per hour,A unit of energy equal to one thousand calories per hour.,2,kcalth/h,"1,162 22 W"
+,E16,million Btu(IT) per hour,A unit of power equal to one million British thermal units per hour.,3.1,BtuIT/h,"293 071,1 W"
+,E17,cubic foot per second,A unit of volume equal to one cubic foot passing a given point in a period of one second.,3.1,ft³/s,"2,831 685 x 10⁻² m³/s"
+,E18,tonne per hour,A unit of weight or mass equal to one tonne per hour.,2,t/h,"2,777 78 x 10⁻¹ kg/s"
+,E19,ping,A unit of area equal to 3.3 square metres.,3.1,,"3,305 m²"
+X,E2,belt,,3.9,,
+,E20,megabit per second,A unit of information equal to 10⁶ (1000000) bits (binary digits) per second.,3.6,Mbit/s,
+,E21,shares,A unit of count defining the number of shares (share: a total or portion of the parts into which a business entity’s capital is divided).,3.7,,
+,E22,TEU,A unit of count defining the number of twenty-foot equivalent units (TEUs) as a measure of containerized cargo capacity.,3.4,,
+,E23,tyre,"A unit of count defining the number of tyres (a solid or air-filled covering placed around a wheel rim to form a soft contact with the road, absorb shock and provide traction).",3.7,,
+,E25,active unit,A unit of count defining the number of active units within a substance.,3.9,,
+,E27,dose,A unit of count defining the number of doses (dose: a definite quantity of a medicine or drug).,3.9,,
+,E28,air dry ton,"A unit of mass defining the number of tons of a product, disregarding the water content of the product.",3.1,,
+X,E3,trailer,,3.4,,
+,E30,strand,"A unit of count defining the number of strands (strand: long, thin, flexible, single thread, strip of fibre, constituent filament or multiples of the same, twisted together).",3.7,,
+,E31,square metre per litre,A unit of count defining the number of square metres per litre.,3.1,m²/l,
+,E32,litre per hour,A unit of count defining the number of litres per hour.,3.1,l/h,"2,777 78 x 10⁻⁷ m³/s"
+,E33,foot per thousand,A unit of count defining the number of feet per thousand units.,3.1,,"3,048 x 10⁻⁴ m"
+,E34,gigabyte,A unit of information equal to 10⁹ bytes.,3.6,Gbyte,
+,E35,terabyte,A unit of information equal to 10¹² bytes.,3.6,Tbyte,
+,E36,petabyte,A unit of information equal to 10¹⁵ bytes.,3.6,Pbyte,
+,E37,pixel,A unit of count defining the number of pixels (pixel: picture element).,3.6,,
+,E38,megapixel,A unit of count equal to 10⁶ (1000000) pixels (picture elements).,3.6,,
+,E39,dots per inch,A unit of information defining the number of dots per linear inch as a measure of the resolution or sharpness of a graphic image.,3.6,dpi,
+,E4,gross kilogram,A unit of mass defining the total number of kilograms before deductions.,3.1,,
+,E40,part per hundred thousand,A unit of proportion equal to 10⁻⁵.,3.7,ppht,1 x 10⁻⁵
+,E41,kilogram-force per square millimetre,A unit of pressure defining the number of kilograms force per square millimetre.,2,kgf/mm²,"9,806 65 x 10⁶ Pa"
+,E42,kilogram-force per square centimetre,A unit of pressure defining the number of kilograms force per square centimetre.,2,kgf/cm²,"9,806 65 x 10⁴ Pa"
+,E43,joule per square centimetre,A unit of energy defining the number of joules per square centimetre.,1M,J/cm²,10⁴ J/m²
+,E44,kilogram-force metre per square centimetre,A unit of torsion defining the torque kilogram-force metre per square centimetre.,3.5,kgf·m/cm²,
+,E45,milliohm,,1S,mΩ,10⁻³ Ω
+,E46,kilowatt hour per cubic metre,A unit of energy consumption expressed as kilowatt hour per cubic metre.,3.1,kW·h/m³,"3,6 x 10⁶ J/m³"
+,E47,kilowatt hour per kelvin,A unit of energy consumption expressed as kilowatt hour per kelvin.,3.1,kW·h/K,"3,6 x 10⁶ J/K"
+,E48,service unit,A unit of count defining the number of service units (service unit: defined period / property / facility / utility of supply).,3.5,,
+,E49,working day,A unit of count defining the number of working days (working day: a day on which work is ordinarily performed).,3.5,,
+X,E5,metric long ton,Use ton (UK) or long ton (US) (common code LTN),3.1,,
+,E50,accounting unit,A unit of count defining the number of accounting units.,3.5,,
+,E51,job,A unit of count defining the number of jobs.,3.5,,
+,E52,run foot,A unit of count defining the number feet per run.,3.5,,
+,E53,test,A unit of count defining the number of tests.,3.5,,
+,E54,trip,A unit of count defining the number of trips.,3.5,,
+,E55,use,A unit of count defining the number of times an object is used.,3.5,,
+,E56,well,A unit of count defining the number of wells.,3.5,,
+,E57,zone,A unit of count defining the number of zones.,3.5,,
+,E58,exabit per second,A unit of information equal to 10¹⁸ bits (binary digits) per second.,3.6,Ebit/s,
+,E59,exbibyte,A unit of information equal to 2⁶⁰ bytes.,3.6,Eibyte,
+,E60,pebibyte,A unit of information equal to 2⁵⁰ bytes.,3.6,Pibyte,
+,E61,tebibyte,A unit of information equal to 2⁴⁰ bytes.,3.6,Tibyte,
+,E62,gibibyte,A unit of information equal to 2³⁰ bytes.,3.6,Gibyte,
+,E63,mebibyte,A unit of information equal to 2²⁰ bytes.,3.6,Mibyte,
+,E64,kibibyte,A unit of information equal to 2¹⁰ bytes.,3.6,Kibyte,
+,E65,exbibit per metre,A unit of information equal to 2⁶⁰ bits (binary digits) per metre.,3.6,Eibit/m,
+,E66,exbibit per square metre,A unit of information equal to 2⁶⁰ bits (binary digits) per square metre.,3.6,Eibit/m²,
+,E67,exbibit per cubic metre,A unit of information equal to 2⁶⁰ bits (binary digits) per cubic metre.,3.6,Eibit/m³,
+,E68,gigabyte per second,A unit of information equal to 10⁹ bytes per second.,3.6,Gbyte/s,
+,E69,gibibit per metre,A unit of information equal to 2³⁰ bits (binary digits) per metre.,3.6,Gibit/m,
+,E70,gibibit per square metre,A unit of information equal to 2³⁰ bits (binary digits) per square metre.,3.6,Gibit/m²,
+,E71,gibibit per cubic metre,A unit of information equal to 2³⁰ bits (binary digits) per cubic metre.,3.6,Gibit/m³,
+,E72,kibibit per metre,A unit of information equal to 2¹⁰ bits (binary digits) per metre.,3.6,Kibit/m,
+,E73,kibibit per square metre,A unit of information equal to 2¹⁰ bits (binary digits) per square metre.,3.6,Kibit/m²,
+,E74,kibibit per cubic metre,A unit of information equal to 2¹⁰ bits (binary digits) per cubic metre.,3.6,Kibit/m³,
+,E75,mebibit per metre,A unit of information equal to 2²⁰ bits (binary digits) per metre.,3.6,Mibit/m,
+,E76,mebibit per square metre,A unit of information equal to 2²⁰ bits (binary digits) per square metre.,3.6,Mibit/m²,
+,E77,mebibit per cubic metre,A unit of information equal to 2²⁰ bits (binary digits) per cubic metre.,3.6,Mibit/m³,
+,E78,petabit,A unit of information equal to 10¹⁵ bits (binary digits).,3.6,Pbit,
+,E79,petabit per second,A unit of information equal to 10¹⁵ bits (binary digits) per second.,3.6,Pbit/s,
+,E80,pebibit per metre,A unit of information equal to 2⁵⁰ bits (binary digits) per metre.,3.6,Pibit/m,
+,E81,pebibit per square metre,A unit of information equal to 2⁵⁰ bits (binary digits) per square metre.,3.6,Pibit/m²,
+,E82,pebibit per cubic metre,A unit of information equal to 2⁵⁰ bits (binary digits) per cubic metre.,3.6,Pibit/m³,
+,E83,terabit,A unit of information equal to 10¹² bits (binary digits).,3.6,Tbit,
+,E84,terabit per second,A unit of information equal to 10¹² bits (binary digits) per second.,3.6,Tbit/s,
+,E85,tebibit per metre,A unit of information equal to 2⁴⁰ bits (binary digits) per metre.,3.6,Tibit/m,
+,E86,tebibit per cubic metre,A unit of information equal to 2⁴⁰ bits (binary digits) per cubic metre.,3.6,Tibit/m³,
+,E87,tebibit per square metre,A unit of information equal to 2⁴⁰ bits (binary digits) per square metre.,3.6,Tibit/m²,
+,E88,bit per metre,A unit of information equal to 1 bit (binary digit) per metre.,3.6,bit/m,
+,E89,bit per square metre,A unit of information equal to 1 bit (binary digit) per square metre.,3.6,bit/m²,
+,E90,reciprocal centimetre,,3.1,cm⁻¹,10² m⁻¹
+,E91,reciprocal day,,3.1,d⁻¹,"1,157 41 × 10⁻⁵ s⁻¹"
+,E92,cubic decimetre per hour,,1S,dm³/h,"2,777 78 × 10⁻⁷ m³ x s⁻¹"
+,E93,kilogram per hour,,1S,kg/h,"2,777 78 × 10⁻⁴ kg x s⁻¹"
+,E94,kilomole per second,,1S,kmol/s,10³ s⁻¹ x mol
+,E95,mole per second,,1S,mol/s,s⁻¹ x mol
+,E96,degree per second,,1M,°/s,"1,745 329 x 10⁻² rad x s⁻¹"
+,E97,millimetre per degree Celcius metre,,1M,mm/(°C·m),10⁻³ K⁻¹
+,E98,degree Celsius per kelvin,,1M,°C/K,1
+,E99,hectopascal per bar,,1M,hPa/bar,10⁻³
+,EA,each,A unit of count defining the number of items regarded as separate units.,3.2,,
+,EB,electronic mail box,A unit of count defining the number of electronic mail boxes.,3.9,,
+X,EC,each per month,,3.9,,
+X,EP,eleven pack,,3.2,,
+,EQ,equivalent gallon,A unit of volume defining the number of gallons of product produced from concentrate.,3.1,,
+X,EV,envelope,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.9,,
+,F01,bit per cubic metre,A unit of information equal to 1 bit (binary digit) per cubic metre.,3.6,bit/m³,
+,F02,kelvin per kelvin,,1M,K/K,1
+,F03,kilopascal per bar,,1M,kPa/bar,10⁻²
+,F04,millibar per bar,,1M,mbar/bar,10⁻³
+,F05,megapascal per bar,,1M,MPa/bar,10¹
+,F06,poise per bar,,2,P/bar,10⁻⁶ s
+,F07,pascal per bar,,1M,Pa/bar,10⁻⁵
+,F08,milliampere per inch,,2,mA/in,"3,937 007 874 015 75 x 10⁻² A x m⁻¹"
+X,F1,thousand cubic foot per day,,3.8,,
+,F10,kelvin per hour,,1M,K/h,"2,777 78 × 10⁻⁴ s⁻¹ x K"
+,F11,kelvin per minute,,1M,K/min,"1,666 67 × 10⁻² s⁻¹ x K"
+,F12,kelvin per second,,1M,K/s,s⁻¹ x K
+,F13,slug,A unit of mass. One slug is the mass accelerated at 1 foot per second per second by a force of 1 pound.,2,slug,"1,459 390 x 10¹ kg"
+,F14,gram per kelvin,,1M,g/K,10⁻³ kg x K⁻¹
+,F15,kilogram per kelvin,,1M,kg/K,kg x K⁻¹
+,F16,milligram per kelvin,,1M,mg/K,10⁻⁶ kg x K⁻¹
+,F17,pound-force per foot,,2,lbf/ft,"1,459 39 × 10¹ kg x s⁻²"
+,F18,kilogram square centimetre,,1M,kg·cm²,10⁻⁴ kg m²
+,F19,kilogram square millimetre,,1M,kg·mm²,10⁻⁶ kg m²
+,F20,pound inch squared,,2,lb·in²,"2,926 397 x 10⁻⁴ kg x m²"
+,F21,pound-force inch,,2,lbf·in,"1,129 85 × 10⁻¹ kg x m² x s⁻²"
+,F22,pound-force foot per ampere,,2,lbf·ft/A,"1,355 82 kg x m² x s⁻² x A⁻¹"
+,F23,gram per cubic decimetre,,1M,g/dm³,kg x m⁻³
+,F24,kilogram per kilomol,,1M,kg/kmol,10⁻³ kg x mol⁻¹
+,F25,gram per hertz,,1M,g/Hz,10⁻³ kg x s
+,F26,gram per day,,1M,g/d,"1,157 41 × 10⁻⁸ kg x s⁻¹"
+,F27,gram per hour,,1M,g/h,"2,777 78 × 10⁻⁷ kg x s⁻¹"
+,F28,gram per minute,,1M,g/min,"1,666 67 × 10⁻⁵ kg x s⁻¹"
+,F29,gram per second,,1M,g/s,10⁻³ kg x s⁻¹
+,F30,kilogram per day,,1M,kg/d,"1,157 41 × 10⁻⁵ kg x s⁻¹"
+,F31,kilogram per minute,,1M,kg/min,"1,666 67 × 10⁻² kg x s⁻¹"
+,F32,milligram per day,,1M,mg/d,"1,157 41 × 10⁻¹¹ kg x s⁻¹"
+,F33,milligram per minute,,1M,mg/min,"1,666 67 × 10⁻⁸ kg x s⁻¹"
+,F34,milligram per second,,1M,mg/s,10⁻⁶ kg x s⁻¹
+,F35,gram per day kelvin,,1M,g/(d·K),"1,157 41 × 10⁻⁸ kg x s⁻¹ x K⁻¹"
+,F36,gram per hour kelvin,,1M,g/(h·K),"2,777 78 × 10⁻⁷ kg x s⁻¹ x K⁻¹"
+,F37,gram per minute kelvin,,1M,g/(min·K),"1,666 67 × 10⁻⁵ kg x s⁻¹ x K⁻¹"
+,F38,gram per second kelvin,,1M,g/(s·K),10⁻³ kg x s⁻¹ x K⁻¹
+,F39,kilogram per day kelvin,,1M,kg/(d·K),"1,157 41 × 10⁻⁵ kg x s⁻¹ x K⁻¹"
+,F40,kilogram per hour kelvin,,1M,kg/(h·K),"2,777 78 × 10⁻⁴ kg x s⁻¹ x K⁻¹"
+,F41,kilogram per minute kelvin,,1M,kg/(min·K),"1,666 67 × 10⁻²kg x s⁻¹ x K⁻¹"
+,F42,kilogram per second kelvin,,1M,kg/(s·K),kg x s⁻¹ x K⁻¹
+,F43,milligram per day kelvin,,1M,mg/(d·K),"1,157 41 × 10⁻¹¹ kg x s⁻¹ x K⁻¹"
+,F44,milligram per hour kelvin,,1M,mg/(h·K),"2,777 78 × 10⁻¹⁰ kg x s⁻¹ x K⁻¹"
+,F45,milligram per minute kelvin,,1M,mg/(min·K),"1,666 67 × 10⁻⁸ kg x s⁻¹ x K⁻¹"
+,F46,milligram per second kelvin,,1M,mg/(s·K),10⁻⁶ kg x s⁻¹ x K⁻¹
+,F47,newton per millimetre,,1M,N/mm,10³ kg x s⁻²
+,F48,pound-force per inch,,2,lbf/in,"1,751 27 × 10² kg x s⁻²"
+,F49,rod [unit of distance],A unit of distance equal to 5.5 yards (16 feet 6 inches).,2,rd (US),"5,029 210 m"
+,F50,micrometre per kelvin,,1M,µm/K,10⁻⁶ m x K⁻¹
+,F51,centimetre per kelvin,,1M,cm/K,10⁻² m x K⁻¹
+,F52,metre per kelvin,,1M,m/K,m x K⁻¹
+,F53,millimetre per kelvin,,1M,mm/K,10⁻³ m x K⁻¹
+,F54,milliohm per metre,,1M,mΩ/m,10⁻³ Ω/m
+,F55,ohm per mile (statute mile),,2,Ω/mi,"6,213 71 × 10⁻⁴  Ω/m"
+,F56,ohm per kilometre,,1M,Ω/km,10⁻³ Ω/m
+,F57,milliampere per pound-force per square inch,,2,mA/(lbf/in²),"1,450 38 × 10⁻⁷ kg⁻¹ x m x s² x A"
+,F58,reciprocal bar,,1M,1/bar,bar⁻¹
+,F59,milliampere per bar,,1M,mA/bar,10⁻⁸ kg⁻¹ x m x s² x A
+,F60,degree Celsius per bar,,1M,°C/bar,10⁻⁵ kg⁻¹ x m x s² x K
+,F61,kelvin per bar,,1M,K/bar,10⁻⁵ kg⁻¹ x m x s² x K
+,F62,gram per day bar,,1M,g/(d·bar),"1,157 41 × 10⁻¹³ m x s"
+,F63,gram per hour bar,,1M,g/(h·bar),"2,777 78 × 10⁻¹² m x s"
+,F64,gram per minute bar,,1M,g/(min·bar),"1,666 67 × 10⁻¹⁰ m x s"
+,F65,gram per second bar,,1M,g/(s·bar),10⁻⁸ m x s
+,F66,kilogram per day bar,,1M,kg/(d·bar),"1,157 41 × 10⁻¹⁰ m x s"
+,F67,kilogram per hour bar,,1M,kg/(h·bar),"2,777 78 × 10⁻⁹ m x s"
+,F68,kilogram per minute bar,,1M,kg/(min·bar),"1,666 67 × 10⁻⁷ m x s"
+,F69,kilogram per second bar,,1M,kg/(s·bar),10⁻⁵ m x s
+,F70,milligram per day bar,,1M,mg/(d·bar),"1,157 41 × 10⁻¹⁶ m x s"
+,F71,milligram per hour bar,,1M,mg/(h·bar),"2,777 78 × 10⁻¹⁵ m x s"
+,F72,milligram per minute bar,,1M,mg/(min·bar),"1,666 67 × 10⁻¹³ m x s"
+,F73,milligram per second bar,,1M,mg/(s·bar),10⁻¹¹ m x s
+,F74,gram per bar,,1M,g/bar,10⁻⁸ m x s²
+,F75,milligram per bar,,1M,mg/bar,10⁻¹¹ m x s²
+,F76,milliampere per millimetre,,1M,mA/mm,m⁻¹ x A
+,F77,pascal second per kelvin,,1M,Pa.s/K,kg x m⁻¹ x s⁻¹ x K⁻¹
+,F78,inch of water,,2,inH₂O,"2,490 89 × 10² kg x m⁻¹ x s⁻²"
+,F79,inch of mercury,,2,inHg,"3,386 39 × 10³ kg x m⁻¹ x s⁻²"
+,F80,water horse power,A unit of power defining the amount of power required to move a given volume of water against acceleration of gravity to a specified elevation (pressure head).,2,,"7,460 43 x 10² W"
+,F81,bar per kelvin,,1M,bar/K,10⁵ kg x m⁻¹ x s⁻² x K⁻¹
+,F82,hectopascal per kelvin,,1M,hPa/K,10² kg x m⁻¹ x s⁻² x K⁻¹
+,F83,kilopascal per kelvin,,1M,kPa/K,10³ kg x m⁻¹ x s⁻² x K⁻¹
+,F84,millibar per kelvin,,1M,mbar/K,10² kg x m⁻¹ x s⁻² x K⁻¹
+,F85,megapascal per kelvin,,1M,MPa/K,10⁶ kg x m⁻¹ x s⁻² x K⁻¹
+,F86,poise per kelvin,,2,P/K,10⁻¹ kg x m⁻¹ x s⁻¹ x K⁻¹
+,F87,volt per litre minute,,1M,V/(l·min),"1,666 67 × 10¹ kg x m⁻¹ x s⁻⁴ x A⁻¹"
+,F88,newton centimetre,,1M,N·cm,10⁻² kg x m² x s⁻²
+,F89,newton metre per degree,,1M,Nm/°,"57,295 788 kg x m² x s⁻² x rad⁻¹"
+X,F9,fibre per cubic centimetre of air,,3.9,,
+,F90,newton metre per ampere,,1M,N·m/A,kg x m² x s⁻² x A⁻¹
+,F91,bar litre per second,,1M,bar·l/s,10² kg x m² x s⁻³
+,F92,bar cubic metre per second,,1M,bar·m³/s,10⁵ kg x m² x s⁻³
+,F93,hectopascal litre per second,,1M,hPa·l/s,10⁻¹ kg x m² x s⁻³
+,F94,hectopascal cubic metre per second,,1M,hPa·m³/s,10² kg x m² x s⁻³
+,F95,millibar litre per second,,1M,mbar·l/s,10⁻¹ kg x m² x s⁻³
+,F96,millibar cubic metre per second,,1M,mbar·m³/s,10² kg x m² x s⁻³
+,F97,megapascal litre per second,,1M,MPa·l/s,10³ kg x m² x s⁻³
+,F98,megapascal cubic metre per second,,1M,MPa·m³/s,10⁶ kg x m² x s⁻³
+,F99,pascal litre per second,,1M,Pa·l/s,10⁻³ kg x m² x s⁻³
+,FAH,degree Fahrenheit,Refer ISO 80000-5 (Quantities and units — Part 5: Thermodynamics),2,°F,5/9 x K
+,FAR,farad,,1,F,F
+X,FB,field,,3.9,,
+,FBM,fibre metre,A unit of length defining the number of metres of individual fibre.,3.1,,
+,FC,thousand cubic foot,A unit of volume equal to one thousand cubic foot.,3.8,kft³,
+X,FD,million particle per cubic foot,,3.9,,
+X,FE,track foot,,3.5,,
+,FF,hundred cubic metre,A unit of volume equal to one hundred cubic metres.,3.8,,
+X,FG,transdermal patch,,3.9,,
+,FH,micromole,,1S,µmol,10⁻⁶ mol
+,FIT,failures in time,A unit of count defining the number of failures that can be expected over a specified time interval. Failure rates of semiconductor components are often specified as FIT (failures in time unit) where 1 FIT = 10⁻⁹ /h.,3.8,FIT,"2,777 78 × 10⁻¹³ s⁻¹"
+,FL,flake ton,A unit of mass defining the number of tons of a flaked substance (flake: a small flattish fragment).,3.1,,
+X,FM,million cubic foot,,3.8,Mft³,
+,FOT,foot,,2,ft,"0,304 8 m"
+,FP,pound per square foot,,2,lb/ft²,"4,882 428 kg/m²"
+,FR,foot per minute,,2,ft/min,"5,08 x 10⁻³ m/s"
+,FS,foot per second,,2,ft/s,"0,304 8 m/s"
+,FTK,square foot,,2,ft²,"9,290 304 x 10⁻² m²"
+,FTQ,cubic foot,,2,ft³,"2,831 685 x 10⁻² m³"
+,G01,pascal cubic metre per second,,1M,Pa·m³/s,kg x m² x s⁻³
+,G04,centimetre per bar,,1M,cm/bar,10⁻⁷ kg⁻¹ x m² x s²
+,G05,metre per bar,,1M,m/bar,10⁻⁵ kg⁻¹ x m² x s²
+,G06,millimetre per bar,,1M,mm/bar,10⁻⁸ kg⁻¹ x m² x s²
+,G08,square inch per second,,2,in²/s,"6,451 6 × 10⁻⁴ m² x s⁻¹"
+,G09,square metre per second kelvin,,1M,m²/(s·K),m² x s⁻¹ x K⁻¹
+,G10,stokes per kelvin,,2,St/K,10⁻⁴ m² x s⁻¹ x K⁻¹
+,G11,gram per cubic centimetre bar,,1M,g/(cm³·bar),10⁻² m⁻² x s²
+,G12,gram per cubic decimetre bar,,1M,g/(dm³·bar),10⁻⁵ m⁻² x s²
+,G13,gram per litre bar,,1M,g/(l·bar),10⁻⁵ m⁻² x s²
+,G14,gram per cubic metre bar,,1M,g/(m³·bar),10⁻⁸ m⁻² x s²
+,G15,gram per millilitre bar,,1M,g/(ml·bar),10⁻² m⁻² x s²
+,G16,kilogram per cubic centimetre bar,,1M,kg/(cm³·bar),10¹ m⁻² x s²
+,G17,kilogram per litre bar,,1M,kg/(l·bar),10⁻² m⁻² x s²
+,G18,kilogram per cubic metre bar,,1M,kg/(m³·bar),10⁻⁵ m⁻² x s²
+,G19,newton metre per kilogram,,1M,N·m/kg,m² x s⁻²
+,G2,US gallon per minute,,2,gal (US) /min,"6,309 020 x 10⁻⁵ m³/s"
+,G20,pound-force foot per pound,,2,lbf·ft/lb,"2,989 07 m² x s⁻²"
+,G21,cup [unit of volume],,2,cup (US),"2,365 882 x 10⁻⁴ m³"
+,G23,peck,,2,pk (US),"8,809 768 x 10⁻³ m³"
+,G24,tablespoon (US),,2,tablespoon (US),"1,478 676 x 10⁻⁵ m³"
+,G25,teaspoon (US),,2,teaspoon (US),"4,928 922 x 10⁻⁶ m³"
+,G26,stere,,1M,st,m³
+,G27,cubic centimetre per kelvin,,1M,cm³/K,10⁻⁶ m³ x K⁻¹
+,G28,litre per kelvin,,1M,l/K,10⁻³ m³ x K⁻¹
+,G29,cubic metre per kelvin,,1M,m³/K,m³ x K⁻¹
+,G3,Imperial gallon per minute,,2,gal (UK) /min,"7,576 82 x 10⁻⁵ m³/s"
+,G30,millilitre per kelvin,,1M,ml/K,10⁻⁶ m³ x K⁻¹
+,G31,kilogram per cubic centimetre,,1M,kg/cm³,10⁶ kg x m⁻³
+,G32,ounce (avoirdupois) per cubic yard,,2,oz/yd³,"3,707 98 × 10⁻² kg x m⁻³"
+,G33,gram per cubic centimetre kelvin,,1M,g/(cm³·K),10³ kg x m⁻³ x K⁻¹
+,G34,gram per cubic decimetre kelvin,,1M,g/(dm³·K),kg x m⁻³ x K⁻¹
+,G35,gram per litre kelvin,,1M,g/(l·K),kg x m⁻³ x K⁻¹
+,G36,gram per cubic metre kelvin,,1M,g/(m³·K),10⁻³ kg x m⁻³ x K⁻¹
+,G37,gram per millilitre kelvin,,1M,g/(ml·K),10³ kg x m⁻³ x K⁻¹
+,G38,kilogram per cubic centimetre kelvin,,1M,kg/(cm³·K),10⁶ kg x m⁻³ x K⁻¹
+,G39,kilogram per litre kelvin,,1M,kg/(l·K),10³ kg x m⁻³ x K⁻¹
+,G40,kilogram per cubic metre kelvin,,1M,kg/(m³·K),kg x m⁻³ x K⁻¹
+,G41,square metre per second bar,,1M,m²/(s·bar),10⁻⁵ kg⁻¹ x m³ x s
+,G42,microsiemens per centimetre,,1M,µS/cm,10⁻⁴ S/m
+,G43,microsiemens per metre,,1M,µS/m,10⁻⁶ S/m
+,G44,nanosiemens per centimetre,,1M,nS/cm,10⁻⁷ S/m
+,G45,nanosiemens per metre,,1M,nS/m,10⁻⁹ S/m
+,G46,stokes per bar,,2,St/bar,10⁻⁹ kg⁻¹ x m³ x s
+,G47,cubic centimetre per day,,1M,cm³/d,"1,157 41 × 10⁻¹¹ m³ x s⁻¹"
+,G48,cubic centimetre per hour,,1M,cm³/h,"2,777 78 × 10⁻¹⁰ m³ x s⁻¹"
+,G49,cubic centimetre per minute,,1M,cm³/min,"1,666 67 × 10⁻⁸ m³ x s⁻¹"
+,G50,gallon (US) per hour,,2,gal/h,"1,051 5 × 10⁻⁶ m³ x s⁻¹"
+,G51,litre per second,,1M,l/s,10⁻³ m³ x s⁻¹
+,G52,cubic metre per day,,1M,m³/d,"1,157 41 × 10⁻⁵ m³ x s⁻¹"
+,G53,cubic metre per minute,,1M,m³/min,"1,666 67 × 10⁻² m³ x s⁻¹"
+,G54,millilitre per day,,1M,ml/d,"1,157 41 × 10⁻¹¹ m³ x s⁻¹"
+,G55,millilitre per hour,,1M,ml/h,"2,777 78 × 10⁻¹⁰ m³ x s⁻¹"
+,G56,cubic inch per hour,,2,in³/h,"4,551 96 × 10⁻⁹ m³ x s⁻¹"
+,G57,cubic inch per minute,,2,in³/min,"2,731 18 × 10⁻⁷ m³ x s⁻¹"
+,G58,cubic inch per second,,2,in³/s,"1,638 71 × 10⁻⁵ m³ x s⁻¹"
+,G59,milliampere per litre minute,,1M,mA/(l·min),"1,666 67 × 10⁻² m⁻³ x s⁻¹ x A"
+,G60,volt per bar,,1M,V/bar,10⁻⁵ m³ x s⁻¹ x A⁻¹
+,G61,cubic centimetre per day kelvin,,1M,cm³/(d·K),"1,157 41 × 10⁻¹¹ m³ x s⁻¹ x K⁻¹"
+,G62,cubic centimetre per hour kelvin,,1M,cm³/(h·K),"2,777 78 × 10⁻¹⁰ m³ x s⁻¹ x K⁻¹"
+,G63,cubic centimetre per minute kelvin,,1M,cm³/(min·K),"1,666 67 × 10⁻⁸ m³ x s⁻¹ x K⁻¹"
+,G64,cubic centimetre per second kelvin,,1M,cm³/(s·K),10⁻⁶ m³ x s⁻¹ x K⁻¹
+,G65,litre per day kelvin,,1M,l/(d·K),"1,157 41 × 10⁻⁸ m³ x s⁻¹ x K⁻¹"
+,G66,litre per hour kelvin,,1M,l/(h·K),"2,777 78 × 10⁻⁷ m³ x s⁻¹ x K⁻¹"
+,G67,litre per minute kelvin,,1M,l/(min·K),"1,666 67 × 10⁻⁵ m³ x s⁻¹ x K⁻¹"
+,G68,litre per second kelvin,,1M,l/(s·K),10⁻³ m³ x s⁻¹ x K⁻¹
+,G69,cubic metre per day kelvin,,1M,m³/(d·K),"1,157 41 × 10⁻⁵ m³ x s⁻¹ x K⁻¹"
+X,G7,microfiche sheet,,3.9,,
+,G70,cubic metre per hour kelvin,,1M,m³/(h·K),"2,777 78 × 10⁻⁴ m³ x s⁻¹ x K⁻¹"
+,G71,cubic metre per minute kelvin,,1M,m³/(min·K),"1,666 67 × 10⁻² m³ x s⁻¹ x K⁻¹"
+,G72,cubic metre per second kelvin,,1M,m³/(s·K),m³ x s⁻¹ x K⁻¹
+,G73,millilitre per day kelvin,,1M,ml/(d·K),"1,157 41 × 10⁻¹¹ m³ x s⁻¹ x K⁻¹"
+,G74,millilitre per hour kelvin,,1M,ml/(h·K),"2,777 78 × 10⁻¹⁰ m³ x s⁻¹ x K⁻¹"
+,G75,millilitre per minute kelvin,,1M,ml/(min·K),"1,666 67 × 10⁻⁸ m³ x s⁻¹ x K⁻¹"
+,G76,millilitre per second kelvin,,1M,ml/(s·K),10⁻⁶ m³ x s⁻¹ x K⁻¹
+,G77,millimetre to the fourth power,,1M,mm⁴,10⁻¹² m⁴
+,G78,cubic centimetre per day bar,,1M,cm³/(d·bar),"1,157 41 × 10⁻¹⁶ kg⁻¹ x m⁴ x s"
+,G79,cubic centimetre per hour bar,,1M,cm³/(h·bar),"2,777 78 × 10⁻¹⁵ kg⁻¹ x m⁴ x s"
+,G80,cubic centimetre per minute bar,,1M,cm³/(min·bar),"1,666 67 × 10⁻¹³ kg⁻¹ x m⁴ x s"
+,G81,cubic centimetre per second bar,,1M,cm³/(s·bar),10⁻¹¹ kg⁻¹ x m⁴ x s
+,G82,litre per day bar,,1M,l/(d·bar),"1,157 41 × 10⁻¹³ kg⁻¹ x m⁴ x s"
+,G83,litre per hour bar,,1M,l/(h·bar),"2,777 78 × 10⁻¹² kg⁻¹ x m⁴ x s"
+,G84,litre per minute bar,,1M,l/(min·bar),"1,666 67 × 10⁻¹⁰ kg⁻¹ x m⁴ x s"
+,G85,litre per second bar,,1M,l/(s·bar),10⁻⁸ kg⁻¹ x m⁴ x s
+,G86,cubic metre per day bar,,1M,m³/(d·bar),"1,157 41 × 10⁻¹⁰ kg⁻¹ x m⁴ x s"
+,G87,cubic metre per hour bar,,1M,m³/(h·bar),"2,777 78 × 10⁻⁹ kg⁻¹ x m⁴ x s"
+,G88,cubic metre per minute bar,,1M,m³/(min·bar),"1,666 67 × 10⁻⁷ kg⁻¹ x m⁴ x s"
+,G89,cubic metre per second bar,,1M,m³/(s·bar),10⁻⁵ kg⁻¹ x m⁴ x s
+,G90,millilitre per day bar,,1M,ml/(d·bar),"1,157 41 x 10⁻¹⁶ x kg⁻¹ x m⁴ x s"
+,G91,millilitre per hour bar,,1M,ml/(h·bar),"2,777 78 x 10⁻¹⁵ x kg⁻¹ x m⁴ x s"
+,G92,millilitre per minute bar,,1M,ml/(min·bar),"1,666 67 × 10⁻¹³ x kg⁻¹ x m⁴ x s"
+,G93,millilitre per second bar,,1M,ml/(s·bar),10⁻¹¹ kg⁻¹ x m⁴ x s
+,G94,cubic centimetre per bar,,1M,cm³/bar,10⁻¹¹ kg⁻¹ x m⁴ x s²
+,G95,litre per bar,,1M,l/bar,10⁻⁸ kg⁻¹ x m⁴ x s²
+,G96,cubic metre per bar,,1M,m³/bar,10⁻⁵ kg⁻¹ x m⁴ x s²
+,G97,millilitre per bar,,1M,ml/bar,10⁻¹¹ kg⁻¹ x m⁴ x s²
+,G98,microhenry per kiloohm,,1M,µH/kΩ,10⁻⁹ s
+,G99,microhenry per ohm,,1M,µH/Ω,10⁻⁶ s
+,GB,gallon (US) per day,,3.5,gal (US)/d,"4,381 264 x 10⁻⁸ m³/s"
+,GBQ,gigabecquerel,,1M,GBq,10⁹ Bq
+X,GC,gram per 100 gram,,3.7,,
+X,GD,gross barrel,,3.1,,
+,GDW,"gram, dry weight","A unit of mass defining the number of grams of a product, disregarding the water content of the product.",3.1,,
+,GE,pound per gallon (US),,2,lb/gal (US),"1,198 264 x 10² kg/m³"
+,GF,gram per metre (gram per 100 centimetres),,1M,g/m,10⁻³ kg/m
+,GFI,gram of fissile isotope,A unit of mass defining the number of grams of a fissile isotope (fissile isotope: an isotope whose nucleus is able to be split when irradiated with low energy neutrons).,3.1,gi F/S,
+,GGR,great gross,A unit of count defining the number of units in multiples of 1728 (12 x 12 x 12).,3.7,,1728
+X,GH,half gallon (US),,3.8,,
+,GIA,gill (US),,3.5,gi (US),"1,182 941 x 10⁻⁴ m³"
+,GIC,"gram, including container","A unit of mass defining the number of grams of a product, including its container.",3.1,,
+,GII,gill (UK),,3.5,gi (UK),"1,420 653 x 10⁻⁴ m³"
+,GIP,"gram, including inner packaging","A unit of mass defining the number of grams of a product, including its inner packaging materials.",3.1,,
+,GJ,gram per millilitre,,1S,g/ml,10³ kg/m³
+X,GK,gram per kilogram,,3.7,,
+,GL,gram per litre,,1S,g/l,kg/m³
+,GLD,dry gallon (US),,2,dry gal (US),"4,404 884 x 10⁻³ m³"
+,GLI,gallon (UK),,2,gal (UK),"4,546 092 x 10⁻³ m³"
+,GLL,gallon (US),,2,gal (US),"3,785 412 x 10⁻³ m³"
+,GM,gram per square metre,,1M,g/m²,10⁻³ kg/m²
+X,GN,gross gallon,,3.1,,
+,GO,milligram per square metre,,1,mg/m²,10⁻⁶ kg/m²
+,GP,milligram per cubic metre,,1M,mg/m³,10⁻⁶ kg/m³
+,GQ,microgram per cubic metre,,1M,µg/m³,10⁻⁹ kg/m³
+,GRM,gram,,1S,g,10⁻³ kg
+,GRN,grain,,2,gr,"64,798 91 x 10⁻⁶ kg"
+,GRO,gross,A unit of count defining the number of units in multiples of 144 (12 x 12).,3.7,gr,144
+D,GRT,gross register ton,"A unit of mass equal to the total cubic footage before deductions, where 1 register ton is equal to 100 cubic feet. Refer International Convention on tonnage measurement of ships.",3.4,,
+D,GT,gross ton,"A unit of mass equal to 2240 pounds. Refer International Convention on Tonnage measurement of Ships.
+Synonym: ton (UK) or long ton (US) (common code LTN)","3.1
+3.4",,
+,GV,gigajoule,,1S,GJ,10⁹ J
+X,GW,gallon per thousand cubic foot,,3.5,,
+,GWH,gigawatt hour,,1S,GW·h,"3,6 x 10¹² J"
+X,GY,gross yard,,3.1,,
+X,GZ,gage system,,3.9,,
+,H03,henry per kiloohm,,1M,H/kΩ,10⁻³ s
+,H04,henry per ohm,,1M,H/Ω,s
+,H05,millihenry per kiloohm,,1M,mH/kΩ,10⁻⁶ s
+,H06,millihenry per ohm,,1M,mH/Ω,10⁻³ s
+,H07,pascal second per bar,,1M,Pa·s/bar,10⁻⁵ s
+,H08,microbecquerel,,1M,µBq,10⁻⁶ Bq
+,H09,reciprocal year,,1M,1/y,"3,168 81 x 10⁻⁸ s⁻¹"
+X,H1,half page – electronic,,3.9,,
+,H10,reciprocal hour,,1M,1/h,"2,777 78 × 10⁻⁴ s⁻¹"
+,H11,reciprocal month,,1M,1/mo,"3,802 57 × 10⁻⁷ s⁻¹"
+,H12,degree Celsius per hour,,1M,°C/h,"2,777 78 x 10⁻⁴ s⁻¹ K"
+,H13,degree Celsius per minute,,1M,°C/min,"1,666 67 x 10⁻² s⁻¹ K"
+,H14,degree Celsius per second,,1M,°C/s,s⁻¹ K
+,H15,square centimetre per gram,,1M,cm²/g,10⁻¹ kg⁻¹ x m²
+,H16,square decametre,Synonym: are,1S,dam²,10² m²
+,H18,square hectometre,Synonym: hectare,1S,hm²,10⁴ m²
+,H19,cubic hectometre,,1S,hm³,10⁶ m³
+X,H2,half litre,,3.8,,
+,H20,cubic kilometre,,1S,km³,10⁹ m³
+,H21,blank,A unit of count defining the number of blanks.,3.2,,
+,H22,volt square inch per pound-force,,2,V/(lbf/in²),"1,450 377 439 8 × 10⁻⁴ m³ x s⁻¹ x A⁻¹"
+,H23,volt per inch,,2,V/in,"3,937 007 874 × 10¹ m x kg x s⁻³ x A⁻¹"
+,H24,volt per microsecond,,1S,V/µs,10⁶ V/s
+,H25,percent per kelvin,"A unit of proportion, equal to 0.01, in relation to the SI base unit Kelvin.",3.7,%/K,10⁻² K⁻¹
+,H26,ohm per metre,,1M,Ω/m,Ω/m
+,H27,degree per metre,,2,°/m,"1,745 329 x 10⁻² rad/m"
+,H28,microfarad per kilometre,,1S,µF/km,10⁻⁹ F/m
+,H29,microgram per litre,,1M,µg/l,10⁻⁶ m⁻³ x kg
+,H30,square micrometre (square micron),,1S,µm²,10⁻¹² m²
+,H31,ampere per kilogram,,1,A/kg,A x kg⁻¹
+,H32,ampere squared second,,1,A²·s,A² x s
+,H33,farad per kilometre,,1S,F/km,10⁻³ F/m
+,H34,hertz metre,,2,Hz·m,Hz x m
+,H35,kelvin metre per watt,,1,K·m/W,K x m⁻¹ x kg⁻¹ x s³
+,H36,megaohm per kilometre,,1M,MΩ/km,10³ Ω/m
+,H37,megaohm per metre,,1M,MΩ/m,10⁶ Ω/m
+,H38,megaampere,,1S,MA,10⁶ A
+,H39,megahertz kilometre,,2,MHz·km,10⁹ Hz x m
+,H40,newton per ampere,,1,N/A,kg x m x s⁻² x A⁻¹
+,H41,"newton metre watt to the power minus 0,5",,2,N·m·W⁻⁰‧⁵,kg x m² x s⁻² x W⁻⁰‧⁵
+,H42,pascal per metre,,1M,Pa/m,m⁻² kg x s⁻²
+,H43,siemens per centimetre,,1S,S/cm,10² S/m
+,H44,teraohm,,1S,TΩ,10¹² Ω
+,H45,volt second per metre,,1,V·s/m,m x kg x s⁻² x A⁻¹
+,H46,volt per second,,1S,V/s,m² x kg x s⁻⁴ x A⁻¹
+,H47,watt per cubic metre,,1,W/m³,m⁻¹ x kg x s⁻³
+,H48,attofarad,,1S,aF,10⁻¹⁸ m⁻² x kg⁻¹ x s⁴ x A²
+,H49,centimetre per hour,,1M,cm/h,"0,277 777 778 × 10⁻⁶ m x s⁻¹"
+,H50,reciprocal cubic centimetre,,1M,cm⁻³,10⁶ m⁻³
+,H51,decibel per kilometre,,1,dB/km,10⁻⁴ B/m
+,H52,decibel per metre,,1,dB/m,10⁻¹ B/m
+,H53,kilogram per bar,,1M,kg/bar,10⁻⁵ m x s²
+,H54,kilogram per cubic decimetre kelvin,,1M,(kg/dm³)/K,10³ m⁻³ x kg x K⁻¹
+,H55,kilogram per cubic decimetre bar,,1M,(kg/dm³)/bar,10⁻² m⁻² x s²
+,H56,kilogram per square metre second,,1,kg/(m²·s),kg m⁻² x s⁻¹
+,H57,inch per two pi radiant,,2,in/revolution,"2,54 x 10⁻² m/(2 x π x rad)"
+,H58,metre per volt second,,1,m/(V·s),m⁻¹ x kg⁻¹ x s² x A
+,H59,square metre per newton,,1,m²/N,m x kg⁻¹ x s²
+,H60,cubic metre per cubic metre,,1M,m³/m³,1
+,H61,millisiemens per centimetre,,1S,mS/cm,10⁻¹ S/m
+,H62,millivolt per minute,,1M,mV/min,"1,666 666 667 × 10⁻⁵ m² x kg x s⁻⁴ x A⁻¹"
+,H63,milligram per square centimetre,,1S,mg/cm²,10⁻² m⁻² x kg
+,H64,milligram per gram,,1S,mg/g,10⁻³ 1
+,H65,millilitre per cubic metre,,1M,ml/m³,10⁻⁶ 1
+,H66,millimetre per year,,2,mm/y,"3,15576 × 10⁴ m x s⁻¹"
+,H67,millimetre per hour,,2,mm/h,"0,277 777 778 × 10⁻⁷ m x s⁻¹"
+,H68,millimole per gram,,1M,mmol/g,mol x kg⁻¹
+,H69,picopascal per kilometre,,1M,pPa/km,10⁻¹⁵ m⁻² x kg x s⁻²
+,H70,picosecond,,1,ps,10⁻¹² s
+,H71,percent per month,"A unit of proportion, equal to 0.01, in relation to a month.",3.7,%/mo,
+,H72,percent per hectobar,"A unit of proportion, equal to 0.01, in relation to 100-fold of the unit bar.",3.7,%/hbar,
+,H73,percent per decakelvin,"A unit of proportion, equal to 0.01, in relation to 10-fold of the SI base unit Kelvin.",3.7,%/daK,10⁻³ K⁻¹
+,H74,watt per metre,,1M,W/m,W m⁻¹
+,H75,decapascal,,1M,daPa,10¹ Pa
+,H76,gram per millimetre,,1M,g/mm,10¹ kg x m⁻¹
+,H77,module width,A unit of measure used to describe the breadth of electronic assemblies as an installation standard or mounting dimension.,3,MW,
+D,H78,conventional centimetre of water,,2,cm H₂O,"9,806 65 × 10¹ Pa"
+,H79,French gauge,"A unit of distance used for measuring the diameter of small tubes such as urological instruments and catheters.
+Synonym: French, Charrière, Charrière gauge",2,Fg,"0,333 333 333 × 10⁻³ m"
+,H80,rack unit,A unit of measure used to describe the height in rack units of equipment intended for mounting in a 19-inch rack or a 23-inch rack. One rack unit is 1.75 inches (44.45 mm) high.,3,U or RU,"4,445 × 10⁻² m"
+,H81,millimetre per minute,,1M,mm/min,"1,666 666 667 × 10⁻⁵ m x s⁻¹"
+,H82,big point,A unit of length defining the number of big points (big point: Adobe software(US) defines the big point to be exactly 1/72 inch (0.013 888 9 inch or 0.352 777 8 millimeters)),3.5,bp,"0,352 777 8 × 10⁻³ m"
+,H83,litre per kilogram,,1M,l/kg,10⁻³ m³ x kg⁻¹
+,H84,gram millimetre,,1M,g·mm,10⁻⁶ kg x m
+,H85,reciprocal week,,1M,1/wk,"1,647 989 452 868 × 10⁻⁶ s⁻¹"
+,H87,piece,"A unit of count defining the number of pieces (piece: a single item, article or exemplar).",3.8,,
+,H88,megaohm kilometre,,1S,MΩ·km,10⁹ Ω x m
+,H89,percent per ohm,"A unit of proportion, equal to 0.01, in relation to the SI derived unit ohm.",3.7,%/Ω,10⁻² Ω⁻¹
+,H90,percent per degree,"A unit of proportion, equal to 0.01, in relation to an angle of one degree.",3.7,%/°,"0,572 957 8 rad⁻¹"
+,H91,percent per ten thousand,"A unit of proportion, equal to 0.01, in relation to multiples of ten thousand.",3.7,%/10000,10⁻⁶
+,H92,percent per one hundred thousand,"A unit of proportion, equal to 0.01, in relation to multiples of one hundred thousand.",3.7,%/100000,10⁻⁷
+,H93,percent per hundred,"A unit of proportion, equal to 0.01, in relation to multiples of one hundred.",3.7,%/100,10⁻⁴
+,H94,percent per thousand,"A unit of proportion, equal to 0.01, in relation to multiples of one thousand.",3.7,%/1000,10⁻⁵
+,H95,percent per volt,"A unit of proportion, equal to 0.01, in relation to the SI derived unit volt.",3.7,%/V,10⁻² V⁻¹
+,H96,percent per bar,"A unit of proportion, equal to 0.01, in relation to an atmospheric pressure of one bar.",3.7,%/bar,10⁻⁷ Pa⁻¹
+,H98,percent per inch,"A unit of proportion, equal to 0.01, in relation to an inch.",3.7,%/in,"0,393 700 8 m⁻¹"
+,H99,percent per metre,"A unit of proportion, equal to 0.01, in relation to a metre.",3.7,%/m,10⁻² m⁻¹
+,HA,hank,"A unit of length, typically for yarn.",3.9,,
+D,HAR,hectare,Synonym: square hectometre,2,ha,10⁴ m²
+,HBA,hectobar,,1M,hbar,10⁷ Pa
+,HBX,hundred boxes,A unit of count defining the number of boxes in multiples of one hundred box units.,3.2,,
+,HC,hundred count,A unit of count defining the number of units counted in multiples of 100.,3.7,,
+X,HD,half dozen,,3.7,,6
+,HDW,"hundred kilogram, dry weight","A unit of mass defining the number of hundred kilograms of a product, disregarding the water content of the product.",3.1,,
+X,HE,hundredth of a carat,,3.5,,
+,HEA,head,A unit of count defining the number of heads (head: a person or animal considered as one of a number).,3.5,,
+X,HF,hundred foot,,3.8,,
+,HGM,hectogram,,1M,hg,10⁻¹ kg
+,HH,hundred cubic foot,A unit of volume equal to one hundred cubic foot.,3.8,,
+X,HI,hundred sheet,,3.8,,
+,HIU,hundred international unit,A unit of count defining the number of international units in multiples of 100.,3.7,,
+D,HJ,metric horse power,,2,metric hp,"735,498 75 W"
+X,HK,hundred kilogram,,3.8,,
+,HKM,"hundred kilogram, net mass","A unit of mass defining the number of hundred kilograms of a product, after deductions.",3.1,,
+X,HL,hundred foot (linear),,3.8,,
+,HLT,hectolitre,,1S,hl,10⁻¹ m³
+,HM,mile per hour (statute mile),,2,mile/h,"0,447 04 m/s"
+,HMQ,million cubic metre,A unit of volume equal to one million cubic metres.,3.8,Mm³,
+,HMT,hectometre,,1M,hm,10² m
+D,HN,conventional millimetre of mercury,,2,mm Hg,"133,322 4 Pa"
+X,HO,hundred troy ounce,,3.8,,
+D,HP,conventional millimetre of water,,2,mm H₂O,"9,806 65 Pa"
+,HPA,hectolitre of pure alcohol,A unit of volume equal to one hundred litres of pure alcohol.,3.1,,
+X,HS,hundred square foot,,3.8,,
+X,HT,half hour,,3.8,,
+,HTZ,hertz,,1,Hz,Hz
+,HUR,hour,,1,h,3 600 s
+X,HY,hundred yard,,3.8,,
+,IA,inch pound (pound inch),,2,in·lb,"1,152 12 x 10⁻² kg x m"
+X,IC,count per inch,,3.9,,
+,IE,person,A unit of count defining the number of persons.,3.9,,
+X,IF,inches of water,Use inch of water (common code F78),3.1,,
+X,II,column inch,,3.9,,
+X,IL,inch per minute,,3.5,,
+X,IM,impression,,3.9,,
+,INH,inch,,2,in,"25,4 x 10⁻³ m"
+,INK,square inch,,2,in²,"6,451 6 x 10⁻⁴ m²"
+,INQ,cubic inch,Synonym: inch cubed,2,in³,"16,387 064 x 10⁻⁶ m³"
+X,IP,insurance policy,,3.9,,
+,ISD,international sugar degree,"A unit of measure defining the sugar content of a solution, expressed in degrees.",3.5,,
+X,IT,count per centimetre,,3.9,,
+,IU,inch per second,,2,in/s,"0,025 4 m/s"
+,IUG,international unit per gram,A unit of count defining the number of international units per gram.,3.7,,
+,IV,inch per second squared,,2,in/s²,"0,025 4 m/s²"
+,J10,percent per millimetre,"A unit of proportion, equal to 0.01, in relation to a millimetre.",3.7,%/mm,10 m⁻¹
+,J12,per mille per psi,A unit of pressure equal to one thousandth of a psi (pound-force per square inch).,3.7,‰/psi,"1,450 377 x 10⁻⁷ Pa⁻¹"
+,J13,degree API,A unit of relative density as a measure of how heavy or light a petroleum liquid is compared to water (API: American Petroleum Institute).,3.5,°API,
+,J14,degree Baume (origin scale),A traditional unit of relative density for liquids. Named after Antoine Baumé.,3.5,°Bé,
+,J15,degree Baume (US heavy),A unit of relative density for liquids heavier than water.,3.5,°Bé (US heavy),
+,J16,degree Baume (US light),A unit of relative density for liquids lighter than water.,3.5,°Bé (US light),
+,J17,degree Balling,"A unit of density as a measure of sugar content, especially of beer wort. Named after Karl Balling.",3.5,°Balling,
+,J18,degree Brix,A unit of proportion used in measuring the dissolved sugar-to-water mass ratio of a liquid. Named after Adolf Brix.,3.5,°Bx,
+,J19,degree Fahrenheit hour square foot per British thermal unit (thermochemical),,2,°F·h·ft²/Btuth,"0,176 228 m² x K/W"
+,J2,joule per kilogram,,1,J/kg,J/kg
+,J20,degree Fahrenheit per kelvin,,2,°F/K,"0,555 555 6"
+,J21,degree Fahrenheit per bar,,2,°F/bar,"0,555 555 6 x 10⁻⁵ K/Pa"
+,J22,degree Fahrenheit hour square foot per British thermal unit (international table),,2,°F·h·ft²/BtuIT,"0,176 110 2 m² x K/W"
+,J23,degree Fahrenheit per hour,,2,°F/h,"1,543 210 x 10⁻⁴ K/s"
+,J24,degree Fahrenheit per minute,,2,°F/min,"9,259 259 x 10⁻³  K/s"
+,J25,degree Fahrenheit per second,,2,°F/s,"0,555 555 6 K/s"
+,J26,reciprocal degree Fahrenheit,,2,1/°F,"1,8 1/K"
+,J27,degree Oechsle,"A unit of density as a measure of sugar content of must, the unfermented liqueur from which wine is made. Named after Ferdinand Oechsle.",3.5,°Oechsle,
+,J28,degree Rankine per hour,,2,°R/h,"1,543 210 x 10⁻⁴ K/s"
+,J29,degree Rankine per minute,,2,°R/min,"9,259 259 x 10⁻³  K/s"
+,J30,degree Rankine per second,,2,°R/s,"0,555 555 6 K/s"
+,J31,degree Twaddell,A unit of density for liquids that are heavier than water.  1 degree Twaddle represents a difference in specific gravity of 0.005.,3.5,°Tw,
+,J32,micropoise,,2,µP,10⁻⁶ Pa x s
+,J33,microgram per kilogram,,1S,µg/kg,10⁻⁹
+,J34,microgram per cubic metre kelvin,,2,(µg/m³)/K,10⁻⁹ (kg/m³)/K
+,J35,microgram per cubic metre bar,,2,(µg/m³)/bar,10⁻¹⁴ (kg/m³)/Pa
+,J36,microlitre per litre,,1S,µl/l,10⁻⁶
+,J38,baud,A unit of signal transmission speed equal to one signalling event per second.,3.6,Bd,
+,J39,British thermal unit (mean),,2,Btu,"1,055 87 x 10³ J"
+,J40,British thermal unit (international table) foot per hour square foot degree Fahrenheit,,2,BtuIT·ft/(h·ft²·°F),"1,730 735 W/(m x K)"
+,J41,British thermal unit (international table) inch per hour square foot degree Fahrenheit,,2,BtuIT·in/(h·ft²·°F),"0,144 227 9 W/(m x K)"
+,J42,British thermal unit (international table) inch per second square foot degree Fahrenheit,,2,BtuIT·in/(s·ft²·°F),"5,192 204 x 10² W/(m x K)"
+,J43,British thermal unit (international table) per pound degree Fahrenheit,,2,BtuIT/(lb·°F),"4,186 8 x 10³ J/(kg x K)"
+,J44,British thermal unit (international table) per minute,,2,BtuIT/min,"17,584 266 W"
+,J45,British thermal unit (international table) per second,,2,BtuIT/s,"1,055 056 x 10³ W"
+,J46,British thermal unit (thermochemical) foot per hour square foot degree Fahrenheit,,2,Btuth·ft/(h·ft²·°F),"1,729 577 W/(m x K)"
+,J47,British thermal unit (thermochemical) per hour,,2,Btuth/h,"0,292 875 1 W"
+,J48,British thermal unit (thermochemical) inch per hour square foot degree Fahrenheit,,2,Btuth·in/(h·ft²·°F),"0,144 131 4 W/(m x K)"
+,J49,British thermal unit (thermochemical) inch per second square foot degree Fahrenheit,,2,Btuth·in/(s·ft²·°F),"5,188 732 x 10² W/(m x K)"
+,J50,British thermal unit (thermochemical) per pound degree Fahrenheit,,2,Btuth/(lb·°F),"4,184 x 10³ J/(kg x K)"
+,J51,British thermal unit (thermochemical) per minute,,2,Btuth/min,"17,572 50 W"
+,J52,British thermal unit (thermochemical) per second,,2,Btuth/s,"1,054 350 x 10³ W"
+,J53,coulomb square metre per kilogram,,2,C·m²/kg,C x m²/kg
+,J54,megabaud,A unit of signal transmission speed equal to 10⁶ (1000000) signaling events per second.,3.6,MBd,10⁶ Bd
+,J55,watt second,,1S,W·s,W x s
+,J56,bar per bar,,2,bar/bar,1
+,J57,barrel (UK petroleum),,2,bbl (UK liq.),"0,159 113 15 m³"
+,J58,barrel (UK petroleum) per minute,,2,bbl (UK liq.)/min,"2,651 886 m³/s"
+,J59,barrel (UK petroleum) per day,,2,bbl (UK liq.)/d,"1,841 587 4 x 10⁻⁶ m³/s"
+,J60,barrel (UK petroleum) per hour,,2,bbl (UK liq.)/h,"4,419 810 x 10⁻⁵ m³/s"
+,J61,barrel (UK petroleum) per second,,2,bbl (UK liq.)/s,"0,159 113 15 m³/s"
+,J62,barrel (US petroleum) per hour,,2,bbl (US)/h,"4,416 314 x 10⁻⁵ m³/s"
+,J63,barrel (US petroleum) per second,,2,bbl (US)/s,"0,158 987 3 m³/s"
+,J64,bushel (UK) per day,,2,bu (UK)/d,"4,209 343 x 10⁻⁷ m³/s"
+,J65,bushel (UK) per hour,,2,bu (UK)/h,"1,010 242 x 10⁻⁵ m³/s"
+,J66,bushel (UK) per minute,,2,bu (UK)/min,"6,061 453 x 10⁻⁴ m³/s"
+,J67,bushel (UK) per second,,2,bu (UK)/s,"3,636 872 x 10⁻² m³/s"
+,J68,bushel (US dry) per day,,2,bu (US dry)/d,"4,078 596 x 10⁻⁷ m³/s"
+,J69,bushel (US dry) per hour,,2,bu (US dry)/h,"9,788 631 x 10⁻⁶ m³/s"
+,J70,bushel (US dry) per minute,,2,bu (US dry)/min,"5,873 178 x 10⁻⁴ m³/s"
+,J71,bushel (US dry) per second,,2,bu (US dry)/s,"3,523 907 x 10⁻² m³/s"
+,J72,centinewton metre,,1S,cN·m,10⁻² N x m
+,J73,centipoise per kelvin,,2,cP/K,10⁻³  Pa x s/K
+,J74,centipoise per bar,,2,cP/bar,10⁻⁸ s
+,J75,calorie (mean),,2,cal,"4,190 02 J"
+,J76,calorie (international table) per gram degree Celsius,,2,calIT/(g·°C),"4,186 8 x 10³ J/(kg x K)"
+,J78,calorie (thermochemical) per centimetre second degree Celsius,,2,calth/(cm·s·°C),"4,184 x 10² W/(m x K)"
+,J79,calorie (thermochemical) per gram degree Celsius,,2,calth/(g·°C),"4,184 x 10³ J/(kg x K)"
+,J81,calorie (thermochemical) per minute,,2,calth/min,"6,973 333 x 10⁻² W"
+,J82,calorie (thermochemical) per second,,2,calth/s,"4,184 W"
+,J83,clo,,2,clo,"0,155 m² x K/W"
+,J84,centimetre per second kelvin,,2,(cm/s)/K,10⁻² (m/s)/K
+,J85,centimetre per second bar,,2,(cm/s)/bar,10⁻⁷ (m/s)/Pa
+,J87,cubic centimetre per cubic metre,,1S,cm³/m³,10⁻⁶
+D,J89,centimetre of mercury,,2,cm Hg,"1,333 224 x 10³ Pa"
+,J90,cubic decimetre per day,,1S,dm³/d,"1,157 41 x 10⁻⁸ m³/s"
+,J91,cubic decimetre per cubic metre,,1S,dm³/m³,10⁻³
+,J92,cubic decimetre per minute,,1S,dm³/min,"1,666 67 x 10⁻⁵ m³/s"
+,J93,cubic decimetre per second,,1S,dm³/s,10⁻³ m³/s
+D,J94,dyne centimetre,,2,dyn·cm,10⁻⁷ N x m
+,J95,ounce (UK fluid) per day,,2,fl oz (UK)/d,"3,288 549 x 10⁻¹⁰ m³/s"
+,J96,ounce (UK fluid) per hour,,2,fl oz (UK)/h,"7,892 517 x 10⁻⁹ m³/s"
+,J97,ounce (UK fluid) per minute,,2,fl oz (UK)/min,"4,735 51 x 10⁻⁷ m³/s"
+,J98,ounce (UK fluid) per second,,2,fl oz (UK)/s,"2,841 306 x 10⁻⁵ m³/s"
+,J99,ounce (US fluid) per day,,2,fl oz (US)/d,"3,422 862 x 10⁻¹⁰ m³/s"
+X,JB,jumbo,,3.4,,
+,JE,joule per kelvin,,1,J/K,J/K
+X,JG,jug,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,JK,megajoule per kilogram,,1S,MJ/kg,10⁶ J/kg
+,JM,megajoule per cubic metre,,1M,MJ/m³,10⁶ J/m³
+,JNT,pipeline joint,A count of the number of pipeline joints.,3.5,,
+X,JO,joint,,3.9,,
+,JOU,joule,,1,J,J
+,JPS,hundred metre,A unit of count defining the number of 100 metre lengths.,3.1,,
+X,JR,jar,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,JWL,number of jewels,A unit of count defining the number of jewels (jewel: precious stone).,3.7,,
+,K1,kilowatt demand,A unit of measure defining the power load measured at predetermined intervals.,3.5,,
+,K10,ounce (US fluid) per hour,,2,fl oz (US)/h,"8,214 869 x 10⁻⁹ m³/s"
+,K11,ounce (US fluid) per minute,,2,fl oz (US)/min,"4,928 922 x 10⁻⁷ m³/s"
+,K12,ounce (US fluid) per second,,2,fl oz (US)/s,"2,957 353 x 10⁻⁵ m³/s"
+,K13,foot per degree Fahrenheit,,2,ft/°F,"0,548 64 m/K"
+,K14,foot per hour,,2,ft/h,"8,466 667 x 10⁻⁵m/s"
+,K15,foot pound-force per hour,,2,ft·lbf/h,"3,766 161 x 10⁻⁴ W"
+,K16,foot pound-force per minute,,2,ft·lbf/min,"2,259 697 x 10⁻² W"
+,K17,foot per psi,,2,ft/psi,"4,420 750 x 10⁻⁵ m/Pa"
+,K18,foot per second degree Fahrenheit,,2,(ft/s)/°F,"0,548 64  (m/s)/K"
+,K19,foot per second psi,,2,(ft/s)/psi,"4,420 750 x 10⁻⁵ (m/s)/Pa"
+,K2,kilovolt ampere reactive demand,A unit of measure defining the reactive power demand equal to one kilovolt ampere of reactive power.,3.5,,
+,K20,reciprocal cubic foot,,2,1/ft³,"35,314 66 m⁻³"
+,K21,cubic foot per degree Fahrenheit,,2,ft³/°F,"5,097 033 x 10⁻² m³/K"
+,K22,cubic foot per day,,2,ft³/d,"3,277 413 x 10⁻⁷ m³/s"
+,K23,cubic foot per psi,,2,ft³/psi,"4,107 012 x 10⁻⁶ m³/Pa"
+D,K24,foot of water,,2,ft H₂O,"2,989 067 x 10³  Pa"
+D,K25,foot of mercury,,2,ft Hg,"4,063 666 x 10⁴ Pa"
+,K26,gallon (UK) per day,,2,gal (UK)/d,"5,261 678 x 10⁻⁸ m³/s"
+,K27,gallon (UK) per hour,,2,gal (UK)/h,"1,262 803 x 10⁻⁶ m³/s"
+,K28,gallon (UK) per second,,2,gal (UK)/s,"4,546 09 x 10⁻³ m³/s"
+,K3,kilovolt ampere reactive hour,A unit of measure defining the accumulated reactive energy equal to one kilovolt ampere of reactive power per hour.,3.5,kvar·h,
+,K30,gallon (US liquid) per second,,2,gal (US liq.)/s,"3,785 412 x 10⁻³ m³/s"
+,K31,gram-force per square centimetre,,2,gf/cm²,"98,066 5 Pa"
+,K32,gill (UK) per day,,2,gi (UK)/d,"1,644 274 x 10⁻⁵ m³/s"
+,K33,gill (UK) per hour,,2,gi (UK)/h,"3,946 258 x 10⁻⁸ m³/s"
+,K34,gill (UK) per minute,,2,gi (UK)/min,"0,023 677 55 m³/s"
+,K35,gill (UK) per second,,2,gi (UK)/s,"1,420 653 x 10⁻⁴ m³/s"
+,K36,gill (US) per day,,2,gi (US)/d,"1,369 145 x 10⁻⁹ m³/s"
+,K37,gill (US) per hour,,2,gi (US)/h,"3,285 947 x 10⁻⁸ m³/s"
+,K38,gill (US) per minute,,2,gi (US)/min,"1,971 568 x 10⁻⁶ m³/s"
+,K39,gill (US) per second,,2,gi (US)/s,"1,182 941 x 10⁻⁴ m³/s"
+,K40,standard acceleration of free fall,,2,gn,"9,806 65 m/s²"
+,K41,grain per gallon (US),,2,gr/gal (US),"1,711 806 x 10⁻² kg/m³"
+,K42,horsepower (boiler),,2,boiler hp,"9,809 50 x 10³ W"
+,K43,horsepower (electric),,2,electric hp,746 W
+,K45,inch per degree Fahrenheit,,2,in/°F,"4,572 x 10⁻² m/K"
+,K46,inch per psi,,2,in/psi,"3,683 959 x 10⁻⁶ m/Pa"
+,K47,inch per second degree Fahrenheit,,2,(in/s)/°F,"4,572 x 10⁻² (m/s)/K"
+,K48,inch per second psi,,2,(in/s)/psi,"3,683 959 x 10⁻⁶ (m/s)/Pa"
+,K49,reciprocal cubic inch,,2,1/in³,"6,102 375 9 x 10⁴ m⁻³"
+D,K5,kilovolt ampere (reactive),Use kilovar (common code KVR),1S,kvar,10³ V x A
+,K50,kilobaud,A unit of signal transmission speed equal to 10³ (1000) signaling events per second.,3.6,kBd,10³ Bd
+,K51,kilocalorie (mean),,2,kcal,"4,190 02 x 10³ J"
+,K52,kilocalorie (international table) per hour metre degree Celsius,,2,kcal/(m·h·°C),"1,163 J/(m x s x K)"
+,K53,kilocalorie (thermochemical),,2,kcalth,"4,184 x 10³ J"
+,K54,kilocalorie (thermochemical) per minute,,2,kcalth/min,"69,733 33 W"
+,K55,kilocalorie (thermochemical) per second,,2,kcalth/s,"4,184 x 10³ W"
+,K58,kilomole per hour,,1S,kmol/h,"2,777 78 x 10⁻¹ mol/s"
+,K59,kilomole per cubic metre kelvin,,2,(kmol/m³)/K,10³ (mol/m³)/K
+,K6,kilolitre,,1M,kl,m³
+,K60,kilomole per cubic metre bar,,2,(kmol/m³)/bar,10⁻² (mol/m³)/Pa
+,K61,kilomole per minute,,1S,kmol/min,"16,666 7 mol/s"
+,K62,litre per litre,,1S,l/l,1
+,K63,reciprocal litre,,2,1/l,10³ m⁻³
+,K64,pound (avoirdupois) per degree Fahrenheit,,2,lb/°F,"0,816 466 3 kg/K"
+,K65,pound (avoirdupois) square foot,,2,lb·ft²,"4,214 011 x 10⁻² kg x m²"
+,K66,pound (avoirdupois) per day,,2,lb/d,"5,249 912 x 10⁻⁶ kg/s"
+,K67,pound per foot hour,,2,lb/(ft·h),"4,133 789 x 10⁻⁴ Pa x s"
+,K68,pound per foot second,,2,lb/(ft·s),"1,488 164 Pa x s"
+,K69,pound (avoirdupois) per cubic foot degree Fahrenheit,,2,(lb/ft³)/°F,"28,833 23 (kg/m³)/K"
+,K70,pound (avoirdupois) per cubic foot psi,,2,(lb/ft³)/psi,"2,323 282 x 10⁻³"
+,K71,pound (avoirdupois) per gallon (UK),,2,lb/gal (UK),"99,776 37 kg/m³"
+,K73,pound (avoirdupois) per hour degree Fahrenheit,,2,(lb/h)/°F,"2,267 962 x 10⁻⁴ (kg/s)/K"
+,K74,pound (avoirdupois) per hour psi,,2,(lb/h)/psi,"1,827 445 x 10⁻⁸ (kg/s)/Pa"
+,K75,pound (avoirdupois) per cubic inch degree Fahrenheit,,2,(lb/in³)/°F,"4,982 384 x 10⁴ (kg/m³)/K"
+,K76,pound (avoirdupois) per cubic inch psi,,2,(lb/in³)/psi,"4,014 632 (kg/m³)/Pa"
+,K77,pound (avoirdupois) per psi,,2,lb/psi,"6,578 802 x 10⁻⁵ kg/Pa"
+,K78,pound (avoirdupois) per minute,,2,lb/min,"7,559 873 x 10⁻³ kg/s"
+,K79,pound (avoirdupois) per minute degree Fahrenheit,,2,lb/(min·°F),"1,360 777  x 10⁻² (kg/s)/K"
+,K80,pound (avoirdupois) per minute psi,,2,(lb/min)/psi,"1,096 467 x 10⁻⁶ (kg/s)/Pa"
+,K81,pound (avoirdupois) per second,,2,lb/s,"0,453 592 4 kg/s"
+,K82,pound (avoirdupois) per second degree Fahrenheit,,2,(lb/s)/°F,"0,816 466 3 (kg/s)/K"
+,K83,pound (avoirdupois) per second psi,,2,(lb/s)/psi,"6,578 802 x 10⁻⁵ (kg/s)/Pa"
+,K84,pound per cubic yard,,2,lb/yd³,"0,593 276 4 kg/m³"
+,K85,pound-force per square foot,,2,lbf/ft²,"47,880 26 Pa"
+,K86,pound-force per square inch degree Fahrenheit,,2,psi/°F,"1,241 056 x 10⁴ Pa/K"
+,K87,psi cubic inch per second,,2,psi·in³/s,"0,112 985 Pa x m³/s"
+,K88,psi litre per second,,2,psi·l/s,"6,894 757 Pa x m³/s"
+,K89,psi cubic metre per second,,2,psi·m³/s,"6,894 757  x 10³ Pa x m³/s"
+,K90,psi cubic yard per second,,2,psi·yd³/s,"5,271 420 x 10³ Pa x m³/s"
+,K91,pound-force second per square foot,,2,lbf·s/ft²,"47,880 26 Pa x s"
+,K92,pound-force second per square inch,,2,lbf·s/in²,"6,894 757  x 10³ Pa x s"
+,K93,reciprocal psi,,2,1/psi,"1,450 377 x 10⁻⁴ Pa⁻¹"
+,K94,quart (UK liquid) per day,,2,qt (UK liq.)/d,"1,315 420 x 10⁻⁸ m³/s"
+,K95,quart (UK liquid) per hour,,2,qt (UK liq.)/h,"3,157 008 x 10⁻⁷ m³/s"
+,K96,quart (UK liquid) per minute,,2,qt (UK liq.)/min,"1,894 205 x 10⁻⁵ m³/s"
+,K97,quart (UK liquid) per second,,2,qt (UK liq.)/s,"1,136 523 x 10⁻³ m³/s"
+,K98,quart (US liquid) per day,,2,qt (US liq.)/d,"1,095 316 x 10⁻⁸ m³/s"
+,K99,quart (US liquid) per hour,,2,qt (US liq.)/h,"2,628 758 x 10⁻⁷ m³/s"
+,KA,cake,"A unit of count defining the number of cakes (cake: object shaped into a flat, compact mass).",3.9,,
+,KAT,katal,A unit of catalytic activity defining the catalytic activity of enzymes and other catalysts.,1M,kat,s⁻¹ x mol
+,KB,kilocharacter,A unit of information equal to 10³ (1000) characters.,3.9,,
+,KBA,kilobar,,1M,kbar,10⁸ Pa
+,KCC,kilogram of choline chloride,A unit of mass equal to one thousand grams of choline chloride.,3.1,kg C₅ H₁₄ClNO,
+X,KD,kilogram decimal,,3.9,,
+,KDW,kilogram drained net weight,"A unit of mass defining the net number of kilograms of a product, disregarding the liquid content of the product.",3.1,kg/net eda,
+,KEL,kelvin,Refer ISO 80000-5 (Quantities and units — Part 5: Thermodynamics),1,K,K
+X,KF,kilopacket,,3.9,,
+X,KG,keg,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,KGM,kilogram,A unit of mass equal to one thousand grams.,1,kg,kg
+,KGS,kilogram per second,,1,kg/s,kg/s
+,KHY,kilogram of hydrogen peroxide,A unit of mass equal to one thousand grams of hydrogen peroxide.,3.1,kg H₂O₂,
+,KHZ,kilohertz,,1S,kHz,10³ Hz
+,KI,kilogram per millimetre width,,3.1,,10³ kg/m
+,KIC,"kilogram, including container","A unit of mass defining the number of kilograms of a product, including its container.",3.1,,
+,KIP,"kilogram, including inner packaging","A unit of mass defining the number of kilograms of a product, including its inner packaging materials.",3.1,,
+,KJ,kilosegment,A unit of information equal to 10³ (1000) segments.,3.6,,
+,KJO,kilojoule,,1S,kJ,10³ J
+,KL,kilogram per metre,,1,kg/m,kg/m
+,KLK,lactic dry material percentage,A unit of proportion defining the percentage of dry lactic material in a product.,3.5,,
+,KLX,kilolux,A unit of illuminance equal to one thousand lux.,1M,klx,10³ cd x sr / m²
+,KMA,kilogram of methylamine,A unit of mass equal to one thousand grams of methylamine.,3.1,kg met.am.,
+,KMH,kilometre per hour,,1S,km/h,"0,277 778 m/s"
+,KMK,square kilometre,,1S,km²,10⁶ m²
+,KMQ,kilogram per cubic metre,A unit of weight expressed in kilograms of a substance that fills a volume of one cubic metre.,1,kg/m³,kg/m³
+,KMT,kilometre,,1S,km,10³ m
+,KNI,kilogram of nitrogen,A unit of mass equal to one thousand grams of nitrogen.,3.1,kg N,
+,KNM,kilonewton per square metre,Pressure expressed in kN/m2.,1S,kN/m2,103pascal
+,KNS,kilogram named substance,A unit of mass equal to one kilogram of a named substance.,3.1,,
+,KNT,knot,,1,kn,"0,514 444 m/s"
+,KO,milliequivalence caustic potash per gram of product,A unit of count defining the number of milligrams of potassium hydroxide per gram of product as a measure of the concentration of potassium hydroxide in the product.,3.9,,
+,KPA,kilopascal,,1S,kPa,10³ Pa
+,KPH,kilogram of potassium hydroxide (caustic potash),A unit of mass equal to one thousand grams of potassium hydroxide (caustic potash).,3.1,kg KOH,
+,KPO,kilogram of potassium oxide,A unit of mass equal to one thousand grams of potassium oxide.,3.1,kg K₂O,
+,KPP,kilogram of phosphorus pentoxide (phosphoric anhydride),A unit of mass equal to one thousand grams of phosphorus pentoxide phosphoric anhydride.,3.1,,
+,KR,kiloroentgen,,2,kR,"2,58 x 10⁻¹ C/kg"
+X,KS,thousand pound per square inch,,3.8,,
+,KSD,kilogram of substance 90 % dry,A unit of mass equal to one thousand grams of a named substance that is 90% dry.,3.1,kg 90 % sdt,
+,KSH,kilogram of sodium hydroxide (caustic soda),A unit of mass equal to one thousand grams of sodium hydroxide (caustic soda).,3.1,kg NaOH,
+,KT,kit,"A unit of count defining the number of kits (kit: tub, barrel or pail).",3.2,,
+X,KTM,kilometre,,1S,km,10³ m
+,KTN,kilotonne,,1M,kt,10⁶ kg
+,KUR,kilogram of uranium,A unit of mass equal to one thousand grams of uranium.,3.1,kg U,
+,KVA,kilovolt - ampere,,1S,kV·A,10³ V x A
+,KVR,kilovar,,1S,kvar,10³ V x A
+,KVT,kilovolt,,1S,kV,10³ V
+,KW,kilogram per millimetre,,1M,kg/mm,10³ kg/m
+,KWH,kilowatt hour,,1S,kW·h,"3,6 x 10⁶ J"
+,KWY,kilowatt year,killowatt year,2,kW/year,
+,KWN,Kilowatt hour per normalized cubic metre,Kilowatt hour per normalized cubic metre (temperature 0°C and pressure 1013.25 millibars ).,2,,
+,KWO,kilogram of tungsten trioxide,A unit of mass equal to one thousand grams of tungsten trioxide.,3.1,kg WO₃,
+,KWS,Kilowatt hour per standard cubic metre,Kilowatt hour per standard cubic metre (temperature 15°C and pressure 1013.25 millibars).,2,,
+,KWT,kilowatt,,1S,kW,10³ W
+,KX,millilitre per kilogram,,1M,ml/kg,10⁻⁶ m³/kg
+,L10,quart (US liquid) per minute,,2,qt (US liq.)/min,"1,577 255 x 10⁻⁵ m³/s"
+,L11,quart (US liquid) per second,,2,qt (US liq.)/s,"9,463 529 x 10⁻⁴ m³/s"
+,L12,metre per second kelvin,,2,(m/s)/K,(m/s)/K
+,L13,metre per second bar,,2,(m/s)/bar,10⁻⁵ (m/s)/Pa
+,L14,square metre hour degree Celsius per kilocalorie (international table),,2,m²·h·°C/kcal,"0,859 845 2 m² x s x K/J"
+,L15,millipascal second per kelvin,,2,mPa·s/K,10⁻³ Pa x s/K
+,L16,millipascal second per bar,,2,mPa·s/bar,10⁻⁸ s
+,L17,milligram per cubic metre kelvin,,2,(mg/m³)/K,10⁻⁶ (kg/m³)/K
+,L18,milligram per cubic metre bar,,2,(mg/m³)/bar,10⁻¹¹ (kg/m³)/Pa
+,L19,millilitre per litre,,1S,ml/l,10⁻³
+,L2,litre per minute,,1M,l/min,"1,666 67 x 10⁻⁵ m³/s"
+,L20,reciprocal cubic millimetre,,1S,1/mm³,10⁹ m⁻³
+,L21,cubic millimetre per cubic metre,,1S,mm³/m³,10⁹
+,L23,mole per hour,,1S,mol/h,"2,777 78 x 10⁻⁴ mol/s"
+,L24,mole per kilogram kelvin,,2,(mol/kg)/K,(mol/kg)/K
+,L25,mole per kilogram bar,,2,(mol/kg)/bar,10⁻⁵ (mol/kg)/Pa
+,L26,mole per litre kelvin,,2,(mol/l)/K,10³ (mol/m³)/K
+,L27,mole per litre bar,,2,(mol/l)/bar,10⁻² (mol/m³)/Pa
+,L28,mole per cubic metre kelvin,,2,(mol/m³)/K,(mol/m³)/K
+,L29,mole per cubic metre bar,,2,(mol/m³)/bar,10⁻⁵ (mol/m³)/Pa
+,L30,mole per minute,,1S,mol/min,"1,666 67 x 10⁻² mol/s"
+,L31,milliroentgen aequivalent men,,2,mrem,10⁻⁵ Sv
+,L32,nanogram per kilogram,,1S,ng/kg,10⁻¹²
+,L33,ounce (avoirdupois) per day,,2,oz/d,"3,281 194 x 10⁻⁷kg/s"
+,L34,ounce (avoirdupois) per hour,,2,oz/h,"7,874 867 x 10⁻⁶ kg/s"
+,L35,ounce (avoirdupois) per minute,,2,oz/min,"4,724 92 x 10⁻⁴ kg/s"
+,L36,ounce (avoirdupois) per second,,2,oz/s,"2,834 952 x 10⁻² kg/s"
+,L37,ounce (avoirdupois) per gallon (UK),,2,oz/gal (UK),"6,236 023 kg/m³"
+,L38,ounce (avoirdupois) per gallon (US),,2,oz/gal (US),"7,489 152 kg/m³"
+,L39,ounce (avoirdupois) per cubic inch,,2,oz/in³,"1,729 994 x 10³ kg/m³"
+,L40,ounce (avoirdupois)-force,,2,ozf,"0,278 013 9 N"
+,L41,ounce (avoirdupois)-force inch,,2,ozf·in,"7,061 552 x 10⁻³ N x m"
+,L42,picosiemens per metre,,2,pS/m,10⁻¹² S/m
+,L43,peck (UK),,2,pk (UK),"9,092 181 x 10⁻³ m³"
+,L44,peck (UK) per day,,2,pk (UK)/d,"1,052 336 x 10⁻⁷ m³/s"
+,L45,peck (UK) per hour,,2,pk (UK)/h,"2,525 606 x 10⁻⁶ m³/s"
+,L46,peck (UK) per minute,,2,pk (UK)/min,"1,515 363 5 x 10⁻⁴ m³/s"
+,L47,peck (UK) per second,,2,pk (UK)/s,"9,092 181 x 10⁻³ m³/s"
+,L48,peck (US dry) per day,,2,pk (US dry)/d,"1,019 649 x 10⁻⁷ m³/s"
+,L49,peck (US dry) per hour,,2,pk (US dry)/h,"2,447 158 x 10⁻⁶ m³/s"
+,L50,peck (US dry) per minute,,2,pk (US dry)/min,"1,468 295 x 10⁻⁴ m³/s"
+,L51,peck (US dry) per second,,2,pk (US dry)/s,"8,809 768 x 10⁻³ m³/s"
+,L52,psi per psi,,2,psi/psi,1
+,L53,pint (UK) per day,,2,pt (UK)/d,"6,577 098 x 10⁻⁹ m³/s"
+,L54,pint (UK) per hour,,2,pt (UK)/h,"1,578 504 x 10⁻⁷ m³/s"
+,L55,pint (UK) per minute,,2,pt (UK)/min,"9,471 022 x 10⁻⁶ m³/s"
+,L56,pint (UK) per second,,2,pt (UK)/s,"5,682 613 x 10⁻⁴ m³/s"
+,L57,pint (US liquid) per day,,2,pt (US liq.)/d,"5,476 580 x 10⁻⁹ m³/s"
+,L58,pint (US liquid) per hour,,2,pt (US liq.)/h,"1,314 379 x 10⁻⁷ m³/s"
+,L59,pint (US liquid) per minute,,2,pt (US liq.)/min,"7,886 275 x 10⁻⁶ m³/s"
+,L60,pint (US liquid) per second,,2,pt (US liq.)/s,"4,731 765 x 10⁻⁴ m³/s"
+X,L61,pint (US dry),Use dry pint (common code PTD),2,pt (US dry),"5,506 105 x 10⁻⁴ m³"
+X,L62,quart (US dry),Use dry quart (US) (common code QTD),2,qt (US dry),"1,101 221 x 10⁻³ m³"
+,L63,slug per day,,2,slug/d,"1,689 109 x 10⁻⁴ kg/s"
+,L64,slug per foot second,,2,slug/(ft·s),"47,880 26 Pa x s"
+,L65,slug per cubic foot,,2,slug/ft³,"5,153 788 x 10² kg/m³"
+,L66,slug per hour,,2,slug/h,"4,053 861 x 10⁻³ kg/s"
+,L67,slug per minute,,2,slug/min,"0,243 231 7 kg/s"
+,L68,slug per second,,2,slug/s,"14,593 90 kg/s"
+,L69,tonne per kelvin,,2,t/K,10³ kg/K
+,L70,tonne per bar,,2,t/bar,10⁻² kg/Pa
+,L71,tonne per day,,2,t/d,"1,157 41 x 10⁻² kg/s"
+,L72,tonne per day kelvin,,2,(t/d)/K,"1,157 41 x 10⁻² (kg/s)/K"
+,L73,tonne per day bar,,2,(t/d)/bar,"1,157 41 x 10⁻⁷ (kg/s)/Pa"
+,L74,tonne per hour kelvin,,2,(t/h)/K,"2,777 78 x 10⁻¹ (kg/s)/K"
+,L75,tonne per hour bar,,2,(t/h)/bar,"2,777 78 x 10⁻⁶ (kg/s)/Pa"
+,L76,tonne per cubic metre kelvin,,2,(t/m³)/K,10³ (kg/m³)/K
+,L77,tonne per cubic metre bar,,2,(t/m³)/bar,10⁻² (kg/m³)/Pa
+,L78,tonne per minute,,2,t/min,"16,666 7 kg/s"
+,L79,tonne per minute kelvin,,2,(t/min)/K,"16,666 7 (kg/s)/K"
+,L80,tonne per minute bar,,2,(t/min)/bar,"1,666 67 x 10⁻⁴ (kg/s)/Pa"
+,L81,tonne per second,,2,t/s,10³ kg/s
+,L82,tonne per second kelvin,,2,(t/s)/K,10³ (kg/s)/K
+,L83,tonne per second bar,,2,(t/s)/bar,10⁻² (kg/s)/Pa
+,L84,ton (UK shipping),,2,British shipping ton,"1,189 3 m³"
+,L85,ton long per day,,2,ton (UK)/d,"1,175 980 x 10⁻² kg/s"
+,L86,ton (US shipping),,2,(US) shipping ton,"1,132 6 m³"
+,L87,ton short per degree Fahrenheit,,2,ton (US)/°F,"1,632 932 x 10³ kg/K"
+,L88,ton short per day,,2,ton (US)/d,"1,049 982 x 10⁻² kg/s"
+,L89,ton short per hour degree Fahrenheit,,2,ton (US)/(h·°F),"0,453 592 2 kg/s x K"
+,L90,ton short per hour psi,,2,(ton (US)/h)/psi,"3,654 889 x 10⁻⁵ (kg/s)/Pa"
+,L91,ton short per psi,,2,ton (US)/psi,"0,131 576"
+,L92,ton (UK long) per cubic yard,,2,ton.l/yd³ (UK),"1,328 939 x 10³ kg/m³"
+,L93,ton (US short) per cubic yard,,2,ton.s/yd³ (US),"1,186 553 x 10³ kg/m³"
+,L94,ton-force (US short),,2,ton.sh-force,"8,896 443 x 10³ N"
+,L95,common year,,2,y (365 days),"3,153 6 x 10⁷ s"
+,L96,sidereal year,,2,y (sidereal),"3,155 815 x 10⁷ s"
+,L98,yard per degree Fahrenheit,,2,yd/°F,"1,645 92 m/K"
+,L99,yard per psi,,2,yd/psi,"1,326 225 x 10⁻⁴ m/Pa"
+,LA,pound per cubic inch,,2,lb/in³,"2,767 990 x 10⁴ kg/m³"
+,LAC,lactose excess percentage,A unit of proportion defining the percentage of lactose in a product that exceeds a defined percentage level.,3.5,,
+,LBR,pound,,2,lb,"0,453 592 37 kg"
+,LBT,troy pound (US),,3.5,,"373,241 7 g"
+X,LC,linear centimetre,,3.1,,
+,LD,litre per day,,1M,l/d,"1,157 41 x 10⁻⁸ m³/s"
+X,LE,lite,,3.9,,
+,LEF,leaf,A unit of count defining the number of leaves.,3.5,,
+,LF,linear foot,A unit of count defining the number of feet (12-inch) in length of a uniform width object.,3.1,,
+,LH,labour hour,A unit of time defining the number of labour hours.,3.1,,
+X,LI,linear inch,,3.1,,
+X,LJ,large spray,,3.9,,
+,LK,link,A unit of distance equal to 0.01 chain.,3.9,,
+,LM,linear metre,A unit of count defining the number of metres in length of a uniform width object.,3.1,,
+,LN,length,A unit of distance defining the linear extent of an item measured from end to end.,3.9,,
+,LO,lot [unit of procurement],A unit of count defining the number of lots (lot: a collection of associated items).,3.9,,
+,LP,liquid pound,A unit of mass defining the number of pounds of a liquid substance.,3.1,,
+,LPA,litre of pure alcohol,A unit of volume equal to one litre of pure alcohol.,3.1,,
+,LR,layer,A unit of count defining the number of layers.,3.9,,
+,LS,lump sum,A unit of count defining the number of whole or a complete monetary amounts.,3.9,,
+,LTN,ton (UK) or long ton (US),Synonym: gross ton (2240 lb),2,ton (UK),"1,016 047 x 10³ kg"
+,LTR,litre,,1,l,10⁻³ m³
+,LUB,"metric ton, lubricating oil",A unit of mass defining the number of metric tons of lubricating oil.,3.1,,
+,LUM,lumen,,1,lm,cd x sr
+,LUX,lux,,1,lx,cd x sr / m²
+X,LX,linear yard per pound,,3.1,,
+,LY,linear yard,A unit of count defining the number of 36-inch units in length of a uniform width object.,3.1,,
+X,M0,magnetic tape,,3.6,,
+,M1,milligram per litre,,1M,mg/l,10⁻³ kg/m³
+,M10,reciprocal cubic yard,,2,1/yd³,"1,307 951 m⁻³"
+,M11,cubic yard per degree Fahrenheit,,2,yd³/°F,"1,376 199 m³/K"
+,M12,cubic yard per day,,2,yd³/d,"8,849 015 x 10⁻⁶ m³/s"
+,M13,cubic yard per hour,,2,yd³/h,"2,123 764 x 10⁻⁴ m³/s"
+,M14,cubic yard per psi,,2,yd³/psi,"1,108 893 x 10⁻⁴ m³/Pa"
+,M15,cubic yard per minute,,2,yd³/min,"1,274 258 x 10⁻² m³/s"
+,M16,cubic yard per second,,2,yd³/s,"0,764 554 9 m³/s"
+,M17,kilohertz metre,,2,kHz·m,10³ Hz x m
+,M18,gigahertz metre,,2,GHz·m,10⁹ Hz x m
+,M19,Beaufort,"An empirical measure for describing wind speed based mainly on observed sea conditions. The Beaufort scale indicates the wind speed by numbers that typically range from 0 for calm, to 12 for hurricane.",3,Bft,
+,M20,reciprocal megakelvin or megakelvin to the power minus one,,2,1/MK,10⁻⁶ K⁻¹
+,M21,reciprocal kilovolt - ampere reciprocal hour,,2,1/kVAh,"2,777 778 x 10⁻⁷ (V x A x s)⁻¹"
+,M22,millilitre per square centimetre minute,,2,(ml/min)/cm²,"2,777 778 x 10⁻⁶  (m³/s)/m²"
+,M23,newton per centimetre,,1M,N/cm,10² N/m
+,M24,ohm kilometre,,1M,Ω·km,10³ Ω x m
+,M25,percent per degree Celsius,"A unit of proportion, equal to 0.01, in relation to a temperature of one degree.",3.7,%/°C,10⁻² °C⁻¹
+,M26,gigaohm per metre,,2,GΩ/m,10⁹ Ω/m
+,M27,megahertz metre,,2,MHz·m,10⁶ Hz x m
+,M29,kilogram per kilogram,,1S,kg/kg,1
+,M30,reciprocal volt - ampere reciprocal second,,1S,1/(V·A·s),(V x A x s)⁻¹
+,M31,kilogram per kilometre,,1S,kg/km,10⁻³ kg/m
+,M32,pascal second per litre,,2,Pa·s/l,10³ Pa x s/m³
+,M33,millimole per litre,,1S,mmol/l,mol/m³
+,M34,newton metre per square metre,,1S,N·m/m²,N x m/m²
+,M35,millivolt - ampere,,1S,mV·A,10⁻³ V x A
+,M36,30-day month,"A unit of count defining the number of months expressed in multiples of 30 days, one day equals 24 hours.",3.7,mo (30 days),"2,592 000 x 10⁶ s"
+,M37,actual/360,"A unit of count defining the number of years expressed in multiples of 360 days, one day equals 24 hours.",3.7,y (360 days),"3,110 400 0 x 10⁷ s"
+,M38,kilometre per second squared,1000-fold of the SI base unit metre divided by the power of the SI base unit second by exponent 2.,1M,km/s²,10³ m/s²
+,M39,centimetre per second squared,"0,01-fold of the SI base unit metre divided by the power of the SI base unit second by exponent 2.",1M,cm/s²,10⁻² m/s²
+,M4,monetary value,A unit of measure expressed as a monetary amount.,3.9,,
+,M40,yard per second squared,Unit of the length according to the Anglo-American and Imperial system of units divided by the power of the SI base unit second by exponent 2.,2,yd/s²,"9,144 x 10⁻¹ m/s²"
+,M41,millimetre per second squared,"0,001-fold of the SI base unit metre divided by the power of the SI base unit second by exponent 2.",1M,mm/s²,10⁻³ m/s²
+,M42,mile (statute mile) per second squared,Unit of the length according to the Imperial system of units divided by the power of the SI base unit second by exponent 2.,2,mi/s²,"1,609 344 x 10³ m/s²"
+,M43,mil,"Unit to indicate an angle at military zone, equal to the 6400th part of the full circle of the 360° or 2·p·rad.",2,mil,"9,817 477  x 10⁻⁴ rad"
+,M44,revolution,Unit to identify an angle of the full circle of 360° or 2·p·rad (Refer ISO/TC12 SI Guide).,2,rev,"6,283 185 rad"
+,M45,degree [unit of angle] per second squared,360 part of a full circle divided by the power of the SI base unit second and the exponent 2.,1M,°/s²,"1,745 329 x 10⁻² rad / s"
+,M46,revolution per minute,Unit of the angular velocity.,2,r/min,"0,104 719 8 rad/s"
+,M47,circular mil,"Unit of an area, of which the size is given by a diameter of length of 1 mm (0,001 in) based on the formula: area = p·(diameter/2)².",2,cmil,"5,067 075 x 10⁻¹⁰ m²"
+,M48,square mile (based on U.S. survey foot),"Unit of the area, which is mainly common in the agriculture and forestry.",2,mi² (US survey),"2,589 998 x 10⁶ m²"
+,M49,chain (based on U.S. survey foot),Unit of the length according the Anglo-American system of units.,2,ch (US survey) ,"2,011684 x 10 m"
+,M5,microcurie,,2S,µCi,"3,7 x 10⁴ Bq"
+,M50,furlong,Unit commonly used in Great Britain at rural distances: 1 furlong = 40 rods = 10 chains (UK) = 1/8 mile = 1/10 furlong = 220 yards = 660 foot.,2,fur,"2,011 68 x 10² m"
+,M51,foot (U.S. survey),"Unit commonly used in the United States for ordnance survey.",2,ft (US survey) ,"3,048 006 x 10⁻¹ m"
+,M52,mile (based on U.S. survey foot),Unit commonly used in the United States for ordnance survey.,2,mi (US survey) ,"1,609347 x 10³ m"
+,M53,metre per pascal,SI base unit metre divided by the derived SI unit pascal.,1M,m/Pa,kg⁻¹ x m² x s²
+,M55,metre per radiant,Unit of the translation factor for implementation from rotation to linear movement.,1S,m/rad,m/rad
+,M56,shake,Unit for a very short period.,2,shake,10⁻⁸ s
+,M57,mile per minute,Unit of velocity from the Imperial system of units.,2,mi/min,"26,822 4 m/s"
+,M58,mile per second,Unit of the velocity from the Imperial system of units.,2,mi/s,"1,609 344 x 10³ m/s"
+,M59,metre per second pascal,SI base unit meter divided by the product of SI base unit second and the derived SI unit pascal.,1S,(m/s)/Pa,m² x kg⁻¹ x s
+,M60,metre per hour,SI base unit metre divided by the unit hour.,2,m/h,"2,777 78 x 10⁻⁴ m/s"
+,M61,inch per year,Unit of the length according to the Anglo-American and Imperial system of units divided by the unit common year with 365 days.,2,in/y,"8,048 774 x 10⁻¹⁰ m/s"
+,M62,kilometre per second,1000-fold of the SI base unit metre divided by the SI base unit second.,2,km/s,10³ m/s
+,M63,inch per minute,Unit inch according to the Anglo-American and Imperial system of units divided by the unit minute.,2,in/min,"4,233 333 x 10⁻⁴ m/s"
+,M64,yard per second,Unit yard according to the Anglo-American and Imperial system of units divided by the SI base unit second.,2,yd/s,"9,144 x 10⁻¹ m/s"
+,M65,yard per minute,Unit yard according to the Anglo-American and Imperial system of units divided by the unit minute.,2,yd/min,"1,524 x 10⁻² m/s"
+,M66,yard per hour,Unit yard according to the Anglo-American and Imperial system of units divided by the unit hour.,2,yd/h,"2,54 x 10⁻⁴ m/s"
+,M67,acre-foot (based on U.S. survey foot),"Unit of the volume, which is used in the United States to measure/gauge the capacity of reservoirs.",2,acre-ft (US survey),"1,233 489 x 10³ m³"
+,M68,cord (128 ft3),Traditional unit of the volume of stacked firewood which has been measured with a cord.,2,cord,"3,624 556 m³"
+,M69,cubic mile (UK statute),Unit of volume according to the Imperial system of units.,2,mi³,"4,168 182 x 10⁹ m³"
+,M7,micro-inch,,2,µin,"25,4 x 10⁻⁹ m"
+,M70,"ton, register",Traditional unit of the cargo capacity.,2,RT,"2,831 685 m³"
+,M71,cubic metre per pascal,Power of the SI base unit meter by exponent 3 divided by the derived SI base unit pascal.,1S,m³/Pa,kg⁻¹ x m⁴ x s²
+,M72,bel,Logarithmic relationship to base 10.,1M,B,B
+,M73,kilogram per cubic metre pascal,SI base unit kilogram divided by the product of the power of the SI base unit metre with exponent 3 and the derived SI unit pascal.,1M,(kg/m³)/Pa,m⁻² x s²
+,M74,kilogram per pascal,SI base unit kilogram divided by the derived SI unit pascal.,2,kg/Pa,m x s²
+,M75,kilopound-force,1000-fold of the unit of the force pound-force (lbf) according to the Anglo-American system of units with the relationship.,2,kip,"4,448 222 x 10³ N"
+,M76,poundal,"Non SI-conforming unit of the power, which corresponds to a mass of a pound multiplied with the acceleration of a foot per square second.",2,pdl,"1,382 550 x 10⁻¹ N"
+,M77,kilogram metre per second squared,Product of the SI base unit kilogram and the SI base unit metre divided by the power of the SI base unit second by exponent 2.,2,kg·m/s²,(kg x m)/s²
+,M78,pond,"0,001-fold of the unit of the weight, defined as a mass of 1 kg which finds out about a weight strength from 1 kp by the gravitational force at sea level which corresponds to a strength of 9,806 65 newton.",2,p,"9,806 65 x 10⁻³ N"
+,M79,square foot per hour,Power of the unit foot according to the Anglo-American and Imperial system of units by exponent 2 divided by the unit of time hour.,2,ft²/h,"2,580 64 x 10⁻⁵ m²/s"
+,M80,stokes per pascal,CGS (Centimetre-Gram-Second system) unit stokes divided by the derived SI unit pascal.,2,St/Pa,10⁻⁴ kg⁻¹ x m³ x s
+,M81,square centimetre per second,"0,000 1-fold of the power of the SI base unit metre by exponent 2 divided by the SI base unit second.",2,cm²/s,10⁻⁴ m²/s
+,M82,square metre per second pascal,Power of the SI base unit metre with the exponent 2 divided by the SI base unit second and the derived SI unit pascal.,1,(m²/s)/Pa,kg⁻¹ x m³ x s
+,M83,denier,Traditional unit for the indication of the linear mass of textile fibers and yarns.,2,den,"1,111 111 x 10⁻⁷ kg/m"
+,M84,pound per yard,Unit for linear mass according to avoirdupois system of units.,2,lb/yd,"4,960 546 x 10⁻¹ kg/m"
+,M85,"ton, assay",Non SI-conforming unit of the mass used in the mineralogy to determine the concentration of precious metals in ore according to the mass of the precious metal in milligrams in a sample of the mass of an assay sound (number of troy ounces in a short ton (1 000 lb)).,2,,"2,916 667 x 10⁻² kg"
+,M86,pfund,Outdated unit of the mass used in Germany.,2,pfd,"0,5 kg"
+,M87,kilogram per second pascal,SI base unit kilogram divided by the product of the SI base unit second and the derived SI unit pascal.,1S,(kg/s)/Pa,m x s
+,M88,tonne per month,Unit tonne divided by the unit month.,2,t/mo,"3,802 570 537 68 x 10⁻⁴ kg/s"
+,M89,tonne per year,Unit tonne divided by the unit year with 365 days.,2,t/y,"3,168 808 781 x 10⁻⁵ kg/s"
+,M9,million Btu per 1000 cubic foot,,3.9,MBTU/kft³,
+,M90,kilopound per hour,1000-fold of the unit of the mass avoirdupois pound according to the avoirdupois unit system divided by the unit hour.,2,klb/h,"0,125 997 889 kg/s"
+,M91,pound per pound,Proportion of the mass consisting of the avoirdupois pound according to the avoirdupois unit system divided by the avoirdupois pound according to the avoirdupois unit system.,2,lb/lb,1
+,M92,pound-force foot,Product of the unit pound-force according to the Anglo-American system of units and the unit foot according to the Anglo-American and the Imperial system of units.,2,lbf·ft,"1,355 818 N x m"
+,M93,newton metre per radian,Product of the derived SI unit newton and the SI base unit metre divided by the unit radian.,1M,N·m/rad,m² x kg x s⁻² x rad⁻¹
+,M94,kilogram metre,Unit of imbalance as a product of the SI base unit kilogram and the SI base unit metre.,1S,kg·m,kg x m
+,M95,poundal foot,Product of the non SI-conforming unit of the force poundal and the unit foot according to the Anglo-American and Imperial system of units .,2,pdl·ft,"4,214 011 x 10⁻² N x m"
+,M96,poundal inch,Product of the non SI-conforming unit of the force poundal and the unit inch according to the Anglo-American and Imperial system of units .,2,pdl·in,"3,511 677 10⁻³ N x m"
+,M97,dyne metre,CGS (Centimetre-Gram-Second system) unit of the rotational moment.,2,dyn·m,10⁻⁵ N x m
+,M98,kilogram centimetre per second,"Product of the SI base unit kilogram and the 0,01-fold of the SI base unit metre divided by the SI base unit second.",1M,kg·(cm/s),10⁻² kg x m/s
+,M99,gram centimetre per second,"Product of the 0,001-fold of the SI base unit kilogram and the 0,01-fold of the SI base unit metre divided by the SI base unit second.",1M,g·(cm/s),10⁻⁵ kg x m/s
+X,MA,machine per unit,,3.9,,
+,MAH,megavolt ampere reactive hour,A unit of electrical reactive power defining the total amount of reactive power across a power system.,3.1,Mvar·h,
+,MAL,megalitre,,1M,Ml,10³ m³
+,MAM,megametre,,2,Mm,10⁶ m
+,MAR,megavar,A unit of electrical reactive power represented by a current of one thousand amperes flowing due a potential difference of one thousand volts where the sine of the phase angle between them is 1.,1M,Mvar,
+,MAW,megawatt,A unit of power defining the rate of energy transferred or consumed when a current of 1000 amperes flows due to a potential of 1000 volts at unity power factor.,1S,MW,10⁶ W
+,MBE,thousand standard brick equivalent,A unit of count defining the number of one thousand brick equivalent units.,3.5,,
+,MBF,thousand board foot,A unit of volume equal to one thousand board foot.,3.5,,
+,MBR,millibar,,1S,mbar,10² Pa
+,MC,microgram,,1S,µg,10⁻⁹ kg
+,MCU,millicurie,,2S,mCi,"3,7 x 10⁷ Bq"
+,MD,air dry metric ton,"A unit of count defining the number of metric tons of a product, disregarding the water content of the product.",3.1,,
+X,MF,milligram per square foot per side,,3.1,,
+,MGM,milligram,,1S,mg,10⁻⁶ kg
+,MHZ,megahertz,,1S,MHz,10⁶ Hz
+,MIK,square mile (statute mile),,2,mi²,"2,589 988 km²"
+,MIL,thousand,,3.7,,10³
+,MIN,minute [unit of time],,1,min,60 s
+,MIO,million,,3.7,,10⁶
+,MIU,million international unit,A unit of count defining the number of international units in multiples of 10⁶.,3.7,,
+X,MK,milligram per square inch,,3.5,mg/in²,
+,MLD,milliard,Synonym: billion (US),3.7,,10⁹
+,MLT,millilitre,,1S,ml,10⁻⁶ m³
+,MMK,square millimetre,,1S,mm²,10⁻⁶ m²
+,MMQ,cubic millimetre,,1S,mm³,10⁻⁹ m³
+,MMT,millimetre,,1S,mm,10⁻³ m
+,MND,"kilogram, dry weight","A unit of mass defining the number of kilograms of a product, disregarding the water content of the product.",3.1,,
+,MON,month,"Unit of time equal to 1/12 of a year of 365,25 days.",2,mo,"2,629 800 x 10⁶ s"
+,MPA,megapascal,,1S,MPa,10⁶ Pa
+X,MQ,thousand metre,,3.8,,10³m
+,MQH,cubic metre per hour,,1M,m³/h,"2,777 78 x 10⁻⁴ m³/s"
+,MQS,cubic metre per second,,1,m³/s,m³/s
+,MSK,metre per second squared,,1,m/s²,m/s²
+X,MT,mat,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,MTK,square metre,,1,m²,m²
+,MTQ,cubic metre,Synonym: metre cubed,1,m³,m³
+,MTR,metre,,1,m,m
+,MTS,metre per second,,1,m/s,m/s
+X,MV,number of mults,,3.7,,
+,MVA,megavolt - ampere,,1S,MV·A,10⁶ V x A
+,MWH,megawatt hour (1000 kW.h),A unit of power defining the total amount of bulk energy transferred or consumed.,1S,MW·h,"3,6 x 10⁹ J"
+,N1,pen calorie,A unit of count defining the number of calories prescribed daily for parenteral/enteral therapy.,3.9,,
+,N10,pound foot per second,Product of the avoirdupois pound according to the avoirdupois unit system and the unit foot according to the Anglo-American and Imperial system of units divided by the SI base unit second.,2,lb·(ft/s),"1,382 550 x 10⁻¹ kg x m/s"
+,N11,pound inch per second,Product of the avoirdupois pound according to the avoirdupois unit system and the unit inch according to the Anglo-American and Imperial system of units divided by the SI base unit second.,2,lb·(in/s),"1,152 125 x 10⁻² kg x m/s"
+,N12,Pferdestaerke,"Obsolete unit of the power relating to DIN 1301-3:1979: 1 PS = 735,498 75 W.",2,PS,"7,354 988 x 10² W"
+,N13,centimetre of mercury (0 ºC),"Non SI-conforming unit of pressure, at which a value of 1 cmHg meets the static pressure, which is generated by a mercury at a temperature of 0 °C with a height of 1 centimetre .",2,cmHg (0 ºC),"1,333 22 x 10³ Pa"
+,N14,centimetre of water (4 ºC),"Non SI-conforming unit of pressure, at which a value of 1 cmH2O meets the static pressure, which is generated by a head of water at a temperature of 4 °C with a height of 1 centimetre .",2,cmH₂O (4 °C),"9,806 38 x 10 Pa"
+,N15,foot of water (39.2 ºF),"Non SI-conforming unit of pressure according to the Anglo-American and Imperial system for units, whereas the value of 1 ftH2O is equivalent to the static pressure, which is generated by a head of water at a temperature 39,2°F with a height of 1 foot .",2,"ftH₂O (39,2 ºF)","2,988 98 x 10³  Pa"
+,N16,inch of mercury (32 ºF),"Non SI-conforming unit of pressure according to the Anglo-American and Imperial system for units, whereas the value of 1 inHg meets the static pressure, which is generated by a mercury at a temperature of 32°F with a height of 1 inch.",2,inHG (32 ºF),"3,386 38 x 10³  Pa"
+,N17,inch of mercury (60 ºF),"Non SI-conforming unit of pressure according to the Anglo-American and Imperial system for units, whereas the value of 1 inHg meets the static pressure, which is generated by a mercury at a temperature of 60°F with a height of 1 inch.",2,inHg (60 ºF),"3,376 85 x 10³  Pa"
+,N18,inch of water (39.2 ºF),"Non SI-conforming unit of pressure according to the Anglo-American and Imperial system for units, whereas the value of 1 inH2O meets the static pressure, which is generated by a head of water at a temperature of 39,2°F with a height of 1 inch .",2,"inH₂O (39,2 ºF)","2,490 82 × 10² Pa"
+,N19,inch of water (60 ºF),"Non SI-conforming unit of pressure according to the Anglo-American and Imperial system for units, whereas the value of 1 inH2O meets the static pressure, which is generated by a head of water at a temperature of 60°F with a height of 1 inch .",2,inH₂O (60 ºF),"2,488 4 × 10² Pa"
+X,N2,number of lines,,3.9,,
+,N20,kip per square inch,Non SI-conforming unit of the pressure according to the Anglo-American system of units as the 1000-fold of the unit of the force pound-force divided by the power of the unit inch by exponent 2.,2,ksi,"6,894 757 x 10⁶ Pa"
+,N21,poundal per square foot,"Non SI-conforming unit of pressure by the Imperial system of units according to NIST: 1 pdl/ft² = 1,488 164 Pa.",2,pdl/ft²,"1,488 164 Pa"
+,N22,ounce (avoirdupois) per square inch,Unit of the surface specific mass (avoirdupois ounce according to the avoirdupois system of units according to the surface square inch according to the Anglo-American and Imperial system of units).,2,oz/in²,"4,394 185 x 10 kg/m²"
+,N23,conventional metre of water,"Not SI-conforming unit of pressure, whereas a value of 1 mH2O is equivalent to the static pressure, which is produced by one metre high water column .",2,mH₂O,"9,806 65 x 10³ Pa"
+,N24,gram per square millimetre,"0,001-fold of the SI base unit kilogram divided by the 0.000 001-fold of the power of the SI base unit meter by exponent 2.",2,g/mm²,10³ kg/m²
+,N25,pound per square yard,Unit for areal-related mass as a unit pound according to the avoirdupois unit system divided by the power of the unit yard according to the Anglo-American and Imperial system of units with exponent 2.,2,lb/yd²,"5,424 919 x 10⁻¹ kg/m²"
+,N26,poundal per square inch,Non SI-conforming unit of the pressure according to the Imperial system of units (poundal by square inch).,2,pdl/in²,"2,142 957 × 10² Pa"
+,N27,foot to the fourth power,"Power of the unit foot according to the Anglo-American and Imperial system of units by exponent 4 according to NIST: 1 ft4 = 8,630 975 m4.",2,ft⁴,"8,630 975 x 10⁻³ m⁴"
+,N28,cubic decimetre per kilogram,"0,001 fold of the power of the SI base unit meter by exponent 3 divided by the SI based unit kilogram.",1M,dm³/kg,10⁻³ m³ x kg⁻¹
+,N29,cubic foot per pound,Power of the unit foot according to the Anglo-American and Imperial system of units by exponent 3 divided by the unit avoirdupois pound according to the avoirdupois unit system.,2,ft³/lb,"6,242 796 x 10⁻² m³/kg"
+,N3,print point,,3.5,,"0,013 8 in (approx)"
+,N30,cubic inch per pound,Power of the unit inch according to the Anglo-American and Imperial system of units by exponent 3 divided by the avoirdupois pound according to the avoirdupois unit system .,2,in³/lb,"3,612 728 x 10⁻⁵ m³/kg"
+,N31,kilonewton per metre,1000-fold of the derived SI unit newton divided by the SI base unit metre.,1M,kN/m,10³ N/m
+,N32,poundal per inch,Non SI-conforming unit of the surface tension according to the Imperial unit system as quotient poundal by inch.,2,pdl/in,"5,443 110 N/m"
+,N33,pound-force per yard,Unit of force per unit length based on the Anglo-American system of units.,2,lbf/yd,"4,864 635 N/m"
+,N34,poundal second per square foot,Non SI-conforming unit of viscosity.,2,(pdl/ft²)·s,"1,488 164 Pa x s"
+,N35,poise per pascal,CGS (Centimetre-Gram-Second system) unit poise divided by the derived SI unit pascal.,2,P/Pa,"0,1 s"
+,N36,newton second per square metre,Unit of the dynamic viscosity as a product of unit of the pressure (newton by square metre) multiplied with the SI base unit second.,1S,(N/m²)·s,Pa x s
+,N37,kilogram per metre second,Unit of the dynamic viscosity as a quotient SI base unit kilogram divided by the SI base unit metre and by the SI base unit second.,1,kg/(m·s),Pa x s
+,N38,kilogram per metre minute,Unit of the dynamic viscosity as a quotient SI base unit kilogram divided by the SI base unit metre and by the unit minute.,1,kg/(m·min),"1,666 67 × 10⁻² Pa x s"
+,N39,kilogram per metre day,Unit of the dynamic viscosity as a quotient SI base unit kilogram divided by the SI base unit metre and by the unit day.,1M,kg/(m·d),"1,157 41 × 10⁻⁵ Pa x s"
+,N40,kilogram per metre hour,Unit of the dynamic viscosity as a quotient SI base unit kilogram divided by the SI base unit metre and by the unit hour.,1M,kg/(m·h),"2,777 78 × 10⁻⁴ Pa x s"
+,N41,gram per centimetre second,"Unit of the dynamic viscosity as a quotient of the 0,001-fold of the SI base unit kilogram divided by the 0,01-fold of the SI base unit metre and SI base unit second.",1M,g/(cm·s),"0,1 Pa x s"
+,N42,poundal second per square inch,Non SI-conforming unit of dynamic viscosity according to the Imperial system of units as product unit of the pressure (poundal by square inch) multiplied by the SI base unit second.,2,(pdl/in²)·s,"2,142 957 x 10² Pa x s"
+,N43,pound per foot minute,Unit of the dynamic viscosity according to the Anglo-American unit system.,2,lb/(ft·min),"2,480 273 x 10⁻²  Pa x s"
+,N44,pound per foot day,Unit of the dynamic viscosity according to the Anglo-American unit system.,2,lb/(ft·d),"1,722 412 x 10⁻⁵ Pa x s"
+,N45,cubic metre per second pascal,Power of the SI base unit meter by exponent 3 divided by the product of the SI base unit second and the derived SI base unit pascal.,1S,(m³/s)/Pa,kg⁻¹ x m⁴ x s
+,N46,foot poundal,Unit of the work (force-path).,2,ft·pdl,"4,214 011 x 10⁻² J"
+,N47,inch poundal,Unit of work (force multiplied by path) according to the Imperial system of units as a product unit inch multiplied by poundal.,2,in·pdl,"3,511 677 x 10⁻³ J"
+,N48,watt per square centimetre,"Derived SI unit watt divided by the power of the 0,01-fold the SI base unit metre by exponent 2.",2,W/cm²,10⁴ W/m²
+,N49,watt per square inch,Derived SI unit watt divided by the power of the unit inch according to the Anglo-American and Imperial system of units by exponent 2.,2,W/in²,"1,550 003 x 10³ W/m²"
+,N50,British thermal unit (international table) per square foot hour,Unit of the surface heat flux according to the Imperial system of units.,2,BtuIT/(ft²·h),"3,154 591 W/m²"
+,N51,British thermal unit (thermochemical) per square foot hour,Unit of the surface heat flux according to the Imperial system of units.,2,Btuth/(ft²·h),"3,152 481 W/m²"
+,N52,British thermal unit (thermochemical) per square foot minute,Unit of the surface heat flux according to the Imperial system of units.,2,Btuth/(ft²·min) ,"1,891 489 x 10² W/m²"
+,N53,British thermal unit (international table) per square foot second,Unit of the surface heat flux according to the Imperial system of units.,2,BtuIT/(ft²·s),"1,135 653 x 10⁴ W/m²"
+,N54,British thermal unit (thermochemical) per square foot second,Unit of the surface heat flux according to the Imperial system of units.,2,Btuth/(ft²·s),"1,134 893 x 10⁴ W/m²"
+,N55,British thermal unit (international table) per square inch second,Unit of the surface heat flux according to the Imperial system of units.,2,BtuIT/(in²·s),"1,634 246 x 10⁶ W/m²"
+,N56,calorie (thermochemical) per square centimetre minute,Unit of the surface heat flux according to the Imperial system of units.,2,calth/(cm²·min),"6,973 333 x 10² W/m²"
+,N57,calorie (thermochemical) per square centimetre second,Unit of the surface heat flux according to the Imperial system of units.,2,calth/(cm²·s),"4,184 x 10⁴ W/m²"
+,N58,British thermal unit (international table) per cubic foot,Unit of the energy density according to the Imperial system of units.,2,BtuIT/ft³,"3,725 895 x10⁴ J/m³"
+,N59,British thermal unit (thermochemical) per cubic foot,Unit of the energy density according to the Imperial system of units.,2,Btuth/ft³,"3,723 403 x10⁴ J/m³"
+,N60,British thermal unit (international table) per degree Fahrenheit,Unit of the heat capacity according to the Imperial system of units.,2,BtuIT/ºF,"1,899 101 x 10³ J/K"
+,N61,British thermal unit (thermochemical) per degree Fahrenheit,Unit of the heat capacity according to the Imperial system of units.,2,Btuth/ºF,"1,897 830 x 10³ J/K"
+,N62,British thermal unit (international table) per degree Rankine,Unit of the heat capacity according to the Imperial system of units.,2,BtuIT/ºR,"1,899 101 x 10³ J/K"
+,N63,British thermal unit (thermochemical) per degree Rankine,Unit of the heat capacity according to the Imperial system of units.,2,Btuth/ºR,"1,897 830 x 10³ J/K"
+,N64,British thermal unit (thermochemical) per pound degree Rankine,Unit of the heat capacity (British thermal unit according to the international table according to the Rankine degree) according to the Imperial system of units divided by the unit avoirdupois pound according to the avoirdupois system of units.,2,(Btuth/°R)/lb,"4,184 x 10³ J/(kg x K)"
+,N65,kilocalorie (international table) per gram kelvin,"Unit of the mass-related heat capacity as quotient 1000-fold of the calorie (international table) divided by the product of the 0,001-fold of the SI base units kilogram and kelvin.",2,(kcalIT/K)/g,"4,186 8 x 10⁶ J/(kg x K)"
+,N66,British thermal unit (39 ºF),Unit of heat energy according to the Imperial system of units in a reference temperature of 39 °F.,2,Btu (39 ºF) ,"1,059 67  x 10³ J"
+,N67,British thermal unit (59 ºF),Unit of heat energy according to the Imperial system of units in a reference temperature of 59 °F.,2,Btu (59 ºF),"1,054 80  x 10³ J"
+,N68,British thermal unit (60 ºF),Unit of head energy according to the Imperial system of units at a reference temperature of 60 °F.,2,Btu (60 ºF) ,"1,054 68  x 10³ J"
+,N69,calorie (20 ºC),"Unit for quantity of heat, which is to be required for 1 g air free water at a constant pressure from 101,325 kPa, to warm up the pressure of standard atmosphere at sea level, from 19,5 °C on 20,5 °C.",2,cal₂₀,"4,181 90"
+,N70,quad (1015 BtuIT),Unit of heat energy according to the imperial system of units.,2,quad,"1,055 056 × 10¹⁸ J"
+,N71,therm (EC),"Unit of heat energy in commercial use, within the EU defined: 1 thm (EC) = 100 000 BtuIT.",2,thm (EC),"1,055 06 × 10⁸ J"
+,N72,therm (U.S.),Unit of heat energy in commercial use.,2,thm (US),"1,054 804 × 10⁸ J"
+,N73,British thermal unit (thermochemical) per pound,Unit of the heat energy according to the Imperial system of units divided the unit avoirdupois pound according to the avoirdupois system of units.,2,Btuth/lb,"2,324 444 x 10³ J/kg"
+,N74,British thermal unit (international table) per hour square foot degree Fahrenheit,Unit of the heat transition coefficient according to the Imperial system of units.,2,BtuIT/(h·ft²·ºF),"5,678 263 W/(m² x K)"
+,N75,British thermal unit (thermochemical) per hour square foot degree Fahrenheit,Unit of the heat transition coefficient according to the imperial system of units.,2,Btuth/(h·ft²·ºF),"5,674 466 W/(m² x K)"
+,N76,British thermal unit (international table) per second square foot degree Fahrenheit,Unit of the heat transition coefficient according to the imperial system of units.,2,BtuIT/(s·ft²·ºF),"2,044 175 x 10⁴ W/(m² x K)"
+,N77,British thermal unit (thermochemical) per second square foot degree Fahrenheit,Unit of the heat transition coefficient according to the imperial system of units.,2,Btuth/(s·ft²·ºF) ,"2,042 808 x 10⁴ W/(m² x K)"
+,N78,kilowatt per square metre kelvin,1000-fold of the derived SI unit watt divided by the product of the power of the SI base unit metre by exponent 2 and the SI base unit kelvin.,1M,kW/(m²·K),10³ W/(m² x K)
+,N79,kelvin per pascal,SI base unit kelvin divided by the derived SI unit pascal.,1S,K/Pa,kg⁻¹ x m x s² x K
+,N80,watt per metre degree Celsius,Derived SI unit watt divided by the product of the SI base unit metre and the unit for temperature degree Celsius.,1M,W/(m·°C),W/(m x K)
+,N81,kilowatt per metre kelvin,1000-fold of the derived SI unit watt divided by the product of the SI base unit metre and the SI base unit kelvin.,1M,kW/(m·K),10³ W/(m x K)
+,N82,kilowatt per metre degree Celsius,1000-fold of the derived SI unit watt divided by the product of the SI base unit metre and the unit for temperature degree Celsius.,1M,kW/(m·°C),10³ W/(m x K)
+,N83,metre per degree Celcius metre,SI base unit metre divided by the product of the unit degree Celsius and the SI base unit metre.,2,m/(°C·m),K⁻¹
+,N84,degree Fahrenheit hour per British thermal unit (international table),Non SI-conforming unit of the thermal resistance according to the Imperial system of units.,2,ºF/(BtuIT/h),"1,895 634 K/W"
+,N85,degree Fahrenheit hour per British thermal unit (thermochemical),Non SI-conforming unit of the thermal resistance according to the Imperial system of units.,2,ºF/(Btuth/h),"1,896 903 K/W"
+,N86,degree Fahrenheit second per British thermal unit (international table),Non SI-conforming unit of the thermal resistance according to the Imperial system of units.,2,ºF/(BtuIT/s),"5,265 651 x 10⁻⁴ K/W"
+,N87,degree Fahrenheit second per British thermal unit (thermochemical),Non SI-conforming unit of the thermal resistance according to the Imperial system of units.,2,ºF/(Btuth/s),"5,269 175 x 10⁻⁴ K/W"
+,N88,degree Fahrenheit hour square foot per British thermal unit (international table) inch,Unit of specific thermal resistance according to the Imperial system of units.,2,ºF·h·ft²/(BtuIT·in),"6,933 472 K x m/W"
+,N89,degree Fahrenheit hour square foot per British thermal unit (thermochemical) inch,Unit of specific thermal resistance according to the Imperial system of units.,2,ºF·h·ft²/(Btuth·in),"6,938 112 K x m/W"
+,N90,kilofarad,1000-fold of the derived SI unit farad.,1M,kF,10³ F
+,N91,reciprocal joule,Reciprocal of the derived SI unit joule.,1,1/J,1/J
+,N92,picosiemens,"0,000 000 000 001-fold of the derived SI unit siemens.",1M,pS,10⁻¹² S
+,N93,ampere per pascal,SI base unit ampere divided by the derived SI unit pascal.,1M,A/Pa,kg⁻¹ x m x s² x A
+,N94,franklin,"CGS (Centimetre-Gram-Second system) unit of the electrical charge, where the charge amounts to exactly 1 Fr where the force of 1 dyn on an equal load is performed at a distance of 1 cm.",2,Fr,"3,335 641 x 10⁻¹⁰ C"
+,N95,ampere minute,A unit of electric charge defining the amount of charge accumulated by a steady flow of one ampere for one minute..,1M,A·min,60 C
+,N96,biot,CGS (Centimetre-Gram-Second system) unit of the electric power which is defined by a force of 2 dyn per cm between two parallel conductors of infinite length with negligible cross-section in the distance of 1 cm.,2,Bi,10¹ A
+,N97,gilbert,"CGS (Centimetre-Gram-Second system) unit of the magnetomotive force, which is defined by the work to increase the magnetic potential of a positive common pol with 1 erg.",2,Gi,"7,957 747 x 10⁻¹ A"
+,N98,volt per pascal,Derived SI unit volt divided by the derived SI unit pascal.,1M,V/Pa,m³ x s⁻¹ x A⁻¹
+,N99,picovolt,"0,000 000 000 001-fold of the derived SI unit volt.",1M,pV,10⁻¹² V
+,NA,milligram per kilogram,,1S,mg/kg,10⁻⁶  1
+,NAR,number of articles,A unit of count defining the number of articles (article: item).,3.7,,
+X,NB,barge,,3.4,,
+X,NBB,number of bobbins,,3.7,,
+X,NC,car,,3.5,,
+,NCL,number of cells,"A unit of count defining the number of cells (cell: an enclosed or circumscribed space, cavity, or volume).",3.7,,
+X,ND,net barrel,,3.1,,
+X,NE,net litre,,3.1,,
+,NEW,newton,,1,N,(kg x m)/s²
+,NF,message,A unit of count defining the number of messages.,3.9,,
+X,NG,net gallon (us),,3.1,,
+X,NH,message hour,,3.5,,
+X,NI,net imperial gallon,,3.1,,
+,NIL,nil,A unit of count defining the number of instances of nothing.,3.8,(),
+,NIU,number of international units,A unit of count defining the number of international units.,3.7,,
+X,NJ,number of screens,,3.7,,
+,NL,load,A unit of volume defining the number of loads (load: a quantity of items carried or processed at one time).,3.4,,
+,NM3,Normalised cubic metre,Normalised cubic metre (temperature 0°C and pressure 1013.25 millibars ),2,,m3
+,NMI,nautical mile,,1,n mile,1 852 m
+,NMP,number of packs,A unit of count defining the number of packs (pack: a collection of objects packaged together).,3.7,,
+X,NN,train,,3.5,,
+X,NPL,number of parcels,,3.7,,
+D,NPR,number of pairs,A unit of count defining the number of pairs (pair: item described by two's).,3.7,,use pair
+,NPT,number of parts,A unit of count defining the number of parts (part: component of a larger entity).,3.7,,
+D,NQ,mho,,2,,S
+D,NR,micromho,,2,,10⁻⁶ S
+X,NRL,number of rolls,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.7,,
+,NT,net ton,"A unit of mass equal to 2000 pounds, see ton (US).  Refer International Convention on tonnage measurement of Ships.",3.4,,
+D,NTT,net register ton,"A unit of mass equal to the total cubic footage after deductions, where 1 register ton is equal to 100 cubic feet. Refer International Convention on tonnage measurement of Ships.",3.4,,
+,NU,newton metre,,1,N·m,N x m
+X,NV,vehicle,,3.4,,
+,NX,part per thousand,"A unit of proportion equal to 10⁻³. 
+Synonym: per mille",3.7,‰,1 x 10⁻³
+X,NY,pound per air dry metric ton,,3.5,,
+,OA,panel,"A unit of count defining the number of panels (panel: a distinct, usually rectangular, section of a surface).",3.9,,
+,ODE,ozone depletion equivalent,"A unit of mass defining the ozone depletion potential in kilograms of a product relative to the calculated depletion for the reference substance, Trichlorofluoromethane (CFC-11).",3.1,,
+,ODG,ODS Grams,"A unit of measure calculated by multiplying the mass of the substance in grams and the ozone-depleting potential for the substance.
+",3.1,,
+,ODK,ODS Kilograms,A unit of measure calculated by multiplying the mass of the substance in kilograms and the ozone-depleting potential for the substance.,3.1,,
+,ODM,ODS Milligrams,A unit of measure calculated by multiplying the mass of the substance in milligrams and the ozone-depleting potential for the substance.,3.1,,
+,OHM,ohm,,1,Ω,Ω
+,ON,ounce per square yard,,2,oz/yd²,"3,390 575 x 10⁻² kg/m²"
+,ONZ,ounce (avoirdupois),,2,oz,"2,834 952 x 10⁻² kg"
+X,OP,two pack,,3.2,,
+,OPM,oscillations per minute,The number of oscillations per minute.,2,o/min,1.667 x 10-2 /s
+,OT,overtime hour,A unit of time defining the number of overtime hours.,3.1,,
+D,OZ,ounce av,A unit of measure equal to 1/16 of a pound or about 28.3495 grams (av = avoirdupois). Use ounce (common code ONZ).,3.1,,
+,OZA,fluid ounce (US),,2,fl oz (US),"2,957 353 x 10⁻⁵ m³"
+,OZI,fluid ounce (UK),,2,fl oz (UK),"2,841 306 x 10⁻⁵ m³"
+X,P0,page - electronic,,3.9,,
+,P1,percent,A unit of proportion equal to 0.01.,3.7,% or pct,1 x 10⁻²
+,P10,coulomb per metre,Derived SI unit coulomb divided by the SI base unit metre.,1,C/m,m⁻¹ x s x A
+,P11,kiloweber,1000 fold of the derived SI unit weber.,1M,kWb,10³ Wb
+,P12,gamma,Unit of magnetic flow density.,2,γ,10⁻⁹ T
+,P13,kilotesla,1000-fold of the derived SI unit tesla.,1M,kT,10³ T
+,P14,joule per second,Quotient of the derived SI unit joule divided by the SI base unit second.,1,J/s,W
+,P15,joule per minute,Quotient from the derived SI unit joule divided by the unit minute.,1M,J/min,"1,666 67 × 10⁻² W"
+,P16,joule per hour,Quotient from the derived SI unit joule divided by the unit hour.,1M,J/h,"2,777 78 × 10⁻⁴ W"
+,P17,joule per day,Quotient from the derived SI unit joule divided by the unit day.,1M,J/d,"1,157 41 × 10⁻⁵ W"
+,P18,kilojoule per second,Quotient from the 1000-fold of the derived SI unit joule divided by the SI base unit second.,1M,kJ/s,10³ W
+,P19,kilojoule per minute,Quotient from the 1000-fold of the derived SI unit joule divided by the unit minute.,1M,kJ/min,"1,666 67 × 10 W"
+,P2,pound per foot,,2,lb/ft,"1,488 164 kg/m"
+,P20,kilojoule per hour,Quotient from the 1000-fold of the derived SI unit joule divided by the unit hour.,1M,kJ/h,"2,777 78 x 10⁻¹ W"
+,P21,kilojoule per day,Quotient from the 1000-fold of the derived SI unit joule divided by the unit day.,1M,kJ/d,"1,157 41 x 10⁻² W"
+,P22,nanoohm,"0,000 000 001-fold of the derived SI unit ohm.",1M,nΩ,10⁻⁹ Ω
+,P23,ohm circular-mil per foot,Unit of resistivity.,2,Ω·cmil/ft ,"1,662 426 x 10⁻⁹ Ω x m"
+,P24,kilohenry,1000-fold of the derived SI unit henry.,1M,kH,10³ H
+,P25,lumen per square foot,Derived SI unit lumen divided by the power of the unit foot according to the Anglo-American and Imperial system of units by exponent 2.,2,lm/ft²,"1,076 391 x 10¹ cd x sr / m²"
+,P26,phot,"CGS (Centimetre-Gram-Second system) unit of luminance, defined as lumen by square centimetre.",2,ph,10⁴ cd x sr / m²
+,P27,footcandle,"Non SI conform traditional unit, defined as density of light which impinges on a surface which has a distance of one foot from a light source, which shines with an intensity of an international candle.",2,ftc,"1,076 391 x 10¹ cd x sr / m²"
+,P28,candela per square inch,SI base unit candela divided by the power of unit inch according to the Anglo-American and Imperial system of units by exponent 2.,2,cd/in²,"1,550 003 x 10³ cd/m²"
+,P29,footlambert,"Unit of the luminance according to the Anglo-American system of units, defined as emitted or reflected luminance of a lm/ft².",2,ftL,"3,426 259 cd/m²"
+X,P3,three pack,,3.2,,
+,P30,lambert,"CGS (Centimetre-Gram-Second system) unit of luminance, defined as the emitted or reflected luminance by one lumen per square centimetre.",2,Lb,"3,183 099 x 10³ cd/m²"
+,P31,stilb,"CGS (Centimetre-Gram-Second system) unit of luminance, defined as emitted or reflected luminance by one lumen per square centimetre.",2,sb,10⁴ cd/m²
+,P32,candela per square foot,Base unit SI candela divided by the power of the unit foot according to the Anglo-American and Imperial system of units by exponent 2.,2,cd/ft²,"1,076 391 x 10 cd/m²"
+,P33,kilocandela,1000-fold of the SI base unit candela.,1M,kcd,10³ cd
+,P34,millicandela,"0,001-fold of the SI base unit candela.",1M,mcd,10⁻³ cd
+,P35,Hefner-Kerze,"Obsolete, non-legal unit of the power in Germany relating to DIN 1301-3:1979: 1 HK = 0,903 cd.",2,HK,"0,903 cd"
+,P36,international candle,"Obsolete, non-legal unit of the power in Germany relating to DIN 1301-3:1979: 1 HK = 1,019 cd.",2,IK,"1,019 cd"
+,P37,British thermal unit (international table) per square foot,Unit of the areal-related energy transmission according to the Imperial system of units.,2,BtuIT/ft²,"1,135 653 x 10⁴ J/m²"
+,P38,British thermal unit (thermochemical) per square foot,Unit of the areal-related energy transmission according to the Imperial system of units.,2,Btuth/ft²,"1,134 893 x 10⁴ J/m²"
+,P39,calorie (thermochemical) per square centimetre,Unit of the areal-related energy transmission according to the Imperial system of units.,2,calth/cm²,"4,184 x 10⁴ J/m²"
+X,P4,four pack,,3.2,,
+,P40,langley,CGS (Centimetre-Gram-Second system) unit of the areal-related energy transmission (as a measure of the incident quantity of heat of solar radiation on the earth's surface).,2,Ly,"4,184 x 10⁴ J/m²"
+,P41,decade (logarithmic),"1 Dec := log2 10 ˜ 3,32 according to the logarithm for frequency range between f1 and f2, when f2/f1 = 10.",2,dec,dec
+,P42,pascal squared second,Unit of the set as a product of the power of derived SI unit pascal with exponent 2 and the SI base unit second.,1,Pa²·s,m⁻² x kg² x s⁻³
+,P43,bel per metre,Unit bel divided by the SI base unit metre.,1M,B/m,B/m
+,P44,pound mole,Non SI-conforming unit of quantity of a substance relating that one pound mole of a chemical composition corresponds to the same number of pounds as the molecular weight of one molecule of this composition in atomic mass units.,2,lbmol,"453,592 4 mol"
+,P45,pound mole per second,Non SI-conforming unit of the power of the amount of substance non-SI compliant unit of the molar flux relating that a pound mole of a chemical composition the same number of pound corresponds like the molecular weight of a molecule of this composition in atomic mass units.,2,lbmol/s,"4,535 924 x 10² mol/s"
+,P46,pound mole per minute,Non SI-conforming unit of the power of the amount of substance non-SI compliant unit of the molar flux relating that a pound mole of a chemical composition the same number of pound corresponds like the molecular weight of a molecule of this composition in atomic mass units.,2,lbmol/h,"7,559 873 mol/s"
+,P47,kilomole per kilogram,1000-fold of the SI base unit mol divided by the SI base unit kilogram.,1M,kmol/kg,10³ mol/kg
+,P48,pound mole per pound,Non SI-conforming unit of the material molar flux divided by the avoirdupois pound for mass according to the avoirdupois unit system.,2,lbmol/lb,10³ mol/kg
+,P49,newton square metre per ampere,Product of the derived SI unit newton and the power of SI base unit metre with exponent 2 divided by the SI base unit ampere.,1S,N·m²/A,m³ x kg x s⁻²  x A⁻¹
+,P5,five pack,A unit of count defining the number of five-packs (five-pack: set of five items packaged together).,3.2,,
+,P50,weber metre,Product of the derived SI unit weber and SI base unit metre.,1S,Wb·m,m³ x kg x s⁻²  x A⁻¹
+,P51,mol per kilogram pascal,SI base unit mol divided by the product of the SI base unit kilogram and the derived SI unit pascal.,1S,(mol/kg)/Pa,m x kg⁻² x s² x mol
+,P52,mol per cubic metre pascal,SI base unit mol divided by the product of the power from the SI base unit metre with exponent 3 and the derived SI unit pascal.,1S,(mol/m³)/Pa,m⁻² x kg⁻¹ x s² x mol
+,P53,unit pole,CGS (Centimetre-Gram-Second system) unit for magnetic flux of a magnetic pole (according to the interaction of identical poles of 1 dyn at a distance of a cm).,2,unit pole ,"1,256 637 x 10⁻⁷ Wb"
+,P54,milligray per second,"0,001-fold of the derived SI unit gray divided by the SI base unit second.",1M,mGy/s,10⁻³ Gy/s
+,P55,microgray per second,"0,000 001-fold of the derived SI unit gray divided by the SI base unit second.",1M,µGy/s,10⁻⁶ Gy/s
+,P56,nanogray per second,"0,000 000 001-fold of the derived SI unit gray divided by the SI base unit second.",1M,nGy/s,10⁻⁹ Gy/s
+,P57,gray per minute,SI derived unit gray divided by the unit minute.,1M,Gy/min,"1,666 67 × 10⁻² Gy/s"
+,P58,milligray per minute,"0,001-fold of the derived SI unit gray divided by the unit minute.",1M,mGy/min,"1,666 67 × 10⁻⁵ Gy/s"
+,P59,microgray per minute,"0,000 001-fold of the derived SI unit gray divided by the unit minute.",1M,µGy/min,"1,666 67 × 10⁻⁸ Gy/s"
+X,P6,six pack,,3.2,,
+,P60,nanogray per minute,"0,000 000 001-fold of the derived SI unit gray divided by the unit minute.",1M,nGy/min,"1,666 67 × 10⁻¹¹ Gy/s"
+,P61,gray per hour,SI derived unit gray divided by the unit hour.,1M,Gy/h,"2,777 78 × 10⁻⁴ Gy/s"
+,P62,milligray per hour,"0,001-fold of the derived SI unit gray divided by the unit hour.",1M,mGy/h,"2,777 78 × 10⁻⁷ Gy/s"
+,P63,microgray per hour,"0,000 001-fold of the derived SI unit gray divided by the unit hour.",1M,µGy/h,"2,777 78 × 10⁻¹⁰ Gy/s"
+,P64,nanogray per hour,"0,000 000 001-fold of the derived SI unit gray divided by the unit hour.",1M,nGy/h,"2,777 78 × 10⁻¹³ Gy/s"
+,P65,sievert per second,Derived SI unit sievert divided by the SI base unit second.,2,Sv/s,Sv/s
+,P66,millisievert per second,"0,001-fold of the derived SI unit sievert divided by the SI base unit second.",2,mSv/s,10⁻³ Sv/s
+,P67,microsievert per second,"0,000 001-fold of the derived SI unit sievert divided by the SI base unit second.",2,µSv/s,10⁻⁶ Sv/s
+,P68,nanosievert per second,"0,000 000 001-fold of the derived SI unit sievert divided by the SI base unit second.",2,nSv/s,10⁻⁹ Sv/s
+,P69,rem per second,"Unit for the equivalent tin rate relating to DIN 1301-3:1979: 1 rem/s = 0,01 J/(kg·s) = 1 Sv/s.",2,rem/s,10⁻² Sv/s
+X,P7,seven pack,,3.2,,
+,P70,sievert per hour,Derived SI unit sievert divided by the unit hour.,2,Sv/h,"2,777 78 × 10⁻⁴ Sv/s"
+,P71,millisievert per hour,"0,001-fold of the derived SI unit sievert divided by the unit hour.",2,mSv/h,"0,277 777 778 × 10⁻⁷ Sv/s"
+,P72,microsievert per hour,"0,000 001-fold of the derived SI unit sievert divided by the unit hour.",2,µSv/h,"0,277 777 778 × 10⁻¹⁰ Sv/s"
+,P73,nanosievert per hour,"0,000 000 001-fold of the derived SI unit sievert divided by the unit hour.",2,nSv/h,"0,277 777 778 × 10⁻¹³ Sv/s"
+,P74,sievert per minute,Derived SI unit sievert divided by the unit minute.,2,Sv/min,"0,016 666 Sv/s"
+,P75,millisievert per minute,"0,001-fold of the derived SI unit sievert divided by the unit minute.",2,mSv/min,"1,666 666 667 × 10⁻⁵ Sv/s"
+,P76,microsievert per minute,"0,000 001-fold of the derived SI unit sievert divided by the unit minute.",2,µSv/min,"1,666 666 667 × 10⁻⁸ Sv/s"
+,P77,nanosievert per minute,"0,000 000 001-fold of the derived SI unit sievert divided by the unit minute.",2,nSv/min,"1,666 666 667 × 10⁻¹¹ Sv/s"
+,P78,reciprocal square inch,Complement of the power of the unit inch according to the Anglo-American and Imperial system of units by exponent 2.,2,1/in²,"1,550 003 x 10³ m⁻²"
+,P79,pascal square metre per kilogram,"Unit of the burst index as derived unit for pressure pascal related to the substance, represented as a quotient from the SI base unit kilogram divided by the power of the SI base unit metre by exponent 2.",1,Pa/(kg/m²),m/s²
+X,P8,eight pack,,3.2,,
+,P80,millipascal per metre,"0,001-fold of the derived SI unit pascal divided by the SI base unit metre.",1M,mPa/m,10⁻³ kg/(m² x s²)
+,P81,kilopascal per metre,1000-fold of the derived SI unit pascal divided by the SI base unit metre.,1M,kPa/m,10³ kg/(m² x s²)
+,P82,hectopascal per metre,100-fold of the derived SI unit pascal divided by the SI base unit metre.,1M,hPa/m,10² kg/(m² x s²)
+,P83,standard atmosphere per metre,Outdated unit of the pressure divided by the SI base unit metre.,2,Atm/m,"1,013 25 x 10⁵ kg/(m² x s²)"
+,P84,technical atmosphere per metre,Obsolete and non-legal unit of the pressure which is generated by a 10 metre water column divided by the SI base unit metre.,2,at/m,"9,806 65 x 10⁴  kg/(m² x s²)"
+,P85,torr per metre,CGS (Centimetre-Gram-Second system) unit of the pressure divided by the SI base unit metre.,2,Torr/m,"1,333 224 x 10² kg/(m² x s²)"
+,P86,psi per inch,Compound unit for pressure (pound-force according to the Anglo-American unit system divided by the power of the unit inch according to the Anglo-American and Imperial system of units with the exponent 2) divided by the unit inch according to the Anglo-American and Imperial system of units .,2,psi/in,"2,714 471 x 10⁵ kg/(m² x s²)"
+,P87,cubic metre per second square metre,Unit of volume flow cubic meters by second related to the transmission surface in square metres.,1M,(m³/s)/m²,m/s
+,P88,rhe,Non SI-conforming unit of fluidity of dynamic viscosity.,3.5,rhe,10 m x kg⁻¹ x s
+,P89,pound-force foot per inch,Unit for length-related rotational moment according to the Anglo-American and Imperial system of units.,3.5,lbf·ft/in,"53,378 66 m x kg / s²"
+X,P9,nine pack,,3.2,,
+,P90,pound-force inch per inch,Unit for length-related rotational moment according to the Anglo-American and Imperial system of units.,3.5,lbf·in/in,"4,448 222 m x kg / s²"
+,P91,perm (0 ºC),"Traditional unit for the ability of a material to allow the transition of the steam, defined at a temperature of 0 °C as steam transmittance, where the mass of one grain steam penetrates an area of one foot squared at a pressure from one inch mercury per hour.",3.5,perm (0 ºC) ,"5,721 35 x 10⁻¹¹ kg/(m² x Pa x s)"
+,P92,perm (23 ºC),"Traditional unit for the ability of a material to allow the transition of the steam, defined at a temperature of 23 °C as steam transmittance at which the mass of one grain of steam penetrates an area of one square foot at a pressure of one inch mercury per hour.",3.5,perm (23 ºC) ,"5,745 25 x 10⁻¹¹ kg/(m² x Pa x s)"
+,P93,byte per second,Unit byte divided by the SI base unit second.,3.6,byte/s,byte/s
+,P94,kilobyte per second,1000-fold of the unit byte divided by the SI base unit second.,3.6,kbyte/s,10³ byte/s
+,P95,megabyte per second,1 000 000-fold of the unit byte divided by the SI base unit second.,3.6,Mbyte/s,10⁶ byte/s
+,P96,reciprocal volt,Reciprocal of the derived SI unit volt.,3.5,1/V,m⁻² x kg⁻¹ x s³ x A
+,P97,reciprocal radian,Reciprocal of the unit radian.,3.5,1/rad,1/rad
+,P98,pascal to the power sum of stoichiometric numbers,"Unit of the equilibrium constant on the basis of the pressure(ISO 80000-9:2009, 9-35.a).",3.5,PaΣνB,
+,P99,mole per cubiv metre to the power sum of stoichiometric numbers,"Unit of the equilibrium constant on the basis of the concentration (ISO 80000-9:2009, 9-36.a).",3.5,(mol/m³)∑νB,
+X,PA,packet,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,PAL,pascal,,1,Pa,Pa
+X,PB,pair inch,,3.8,,
+,PD,pad,A unit of count defining the number of pads (pad: block of paper sheets fastened together at one end).,3.9,,
+X,PE,pound equivalent,,3.1,,
+X,PF,pallet (lift),"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,PFL,proof litre,"A unit of volume equal to one litre of proof spirits, or the alcohol equivalent thereof. Used for measuring the strength of distilled alcoholic liquors, expressed as a percentage of the alcohol content of a standard mixture at a specific temperature.",3.1,,
+X,PG,plate,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,PGL,proof gallon,"A unit of volume equal to one gallon of proof spirits, or the alcohol equivalent thereof. Used for measuring the strength of distilled alcoholic liquors, expressed as a percentage of the alcohol content of a standard mixture at a specific temperature.",3.1,,
+,PI,pitch,A unit of count defining the number of characters that fit in a horizontal inch.,3.5,,
+X,PK,pack,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).
+Synonym: package",3.3,,
+X,PL,pail,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,PLA,degree Plato,"A unit of proportion defining the sugar content of a product, especially in relation to beer.",3.5,°P,
+X,PM,pound percentage,,3.1,,
+X,PN,pound net,,3.1,,
+,PO,pound per inch of length,,2,lb/in,"1,785 797 x 10¹ kg/m"
+,PQ,page per inch,"A unit of quantity defining the degree of thickness of a bound publication, expressed as the number of pages per inch of thickness.",3.5,ppi,
+,PR,pair,A unit of count defining the number of pairs (pair: item described by two's).,3.7,,2
+,PS,pound-force per square inch,,2,lbf/in²,"6,894 757 x 10³ Pa"
+D,PT,pint (US),Use liquid pint (common code PTL),2,pt (US),"4, 731 76 x 10⁻⁴ m³"
+,PTD,dry pint (US),,2,dry pt (US),"5,506 105 x 10⁻⁴ m³"
+,PTI,pint (UK),,2,pt (UK),"5, 682 61 x 10⁻⁴ m³"
+,PTL,liquid pint (US),,2,liq pt (US),"4, 731 765 x 10⁻⁴ m³"
+,PTN,portion,"A quantity of allowance of food allotted to, or enough for, one person.",3.5,PTN,
+X,PU,tray / tray pack,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,PV,half pint (US),,3.8,,
+X,PW,pound per inch of width,,3.1,,
+X,PY,peck dry (US),,3.5,,
+X,PZ,peck dry (UK),,3.5,,
+,Q10,joule per tesla,Unit of the magnetic dipole moment of the molecule as derived SI unit joule divided by the derived SI unit tesla.,3.5,J/T,m² x A
+,Q11,erlang,Unit of the market value according to the feature of a single feature as a statistical measurement of the existing utilization.,3.6,E,1 E
+,Q12,octet,Synonym for byte: 1 octet = 8 bit = 1 byte.,3.6,o,8 bit
+,Q13,octet per second,Unit octet divided by the SI base unit second.,3.6,o/s,8 bit/s
+,Q14,shannon,"Logarithmic unit for information equal to the content of decision of a sentence of two mutually exclusive events, expressed as a logarithm to base 2.",3.6,Sh,
+,Q15,hartley,"Logarithmic unit for information equal to the content of decision of a sentence of ten mutually exclusive events, expressed as a logarithm to base 10.",3.6,Hart,
+,Q16,natural unit of information,"Logarithmic unit for information equal to the content of decision of a sentence of ,718 281 828 459 mutually exclusive events, expressed as a logarithm to base Euler value e.",3.6,nat,nat
+,Q17,shannon per second,"Time related logarithmic unit for information equal to the content of decision of a sentence of two mutually exclusive events, expressed as a logarithm to base 2.",3.6,Sh/s,Sh/s
+,Q18,hartley per second,"Time related logarithmic unit for information equal to the content of decision of a sentence of ten mutually exclusive events, expressed as a logarithm to base 10.",3.6,Hart/s,Hart/s
+,Q19,natural unit of information per second,"Time related logarithmic unit for information equal to the content of decision of a sentence of 2,718 281 828 459 mutually exclusive events, expressed as a logarithm to base of the Euler value e.",3.6,nat/s,nat/s
+,Q20,second per kilogramm,"Unit of the Einstein transition probability for spontaneous or inducing emissions and absorption according to ISO 80000-7:2008, expressed as SI base unit second divided by the SI base unit kilogram.",3.5,s/kg,kg⁻¹ x s
+,Q21,watt square metre,"Unit of the first radiation constants c1 = 2·p·h·c0², the value of which is 3,741 771 18·10?¹6-fold   that of the comparative value of the product of the derived SI unit watt multiplied with the power of the SI base unit metre with the exponent 2.",3.5,W·m²,m⁴ x kg x s⁻³
+,Q22,second per radian cubic metre,Unit of the density of states as an expression of angular frequency as complement of the product of hertz and radiant and the power of SI base unit metre by exponent 3 .,3.5,1/(Hz·rad·m³),m⁻³ x s x rad⁻¹
+,Q23,weber to the power minus one,"Complement of the derived SI unit weber as unit of the Josephson constant, which value is equal to the 384 597,891-fold of the reference value gigahertz divided by volt.",3.5,1/Wb,m⁻² x kg⁻¹ x s² x A
+,Q24,reciprocal inch,Complement of the unit inch according to the Anglo-American and Imperial system of units.,3.5,1/in,"39,370 08 m⁻¹"
+,Q25,dioptre,Unit used at the statement of relative refractive indexes of optical systems as complement of the focal length with correspondence to: 1 dpt = 1/m.,3.5,dpt,m⁻¹
+,Q26,one per one,Value of the quotient from two physical units of the same kind as a numerator and denominator whereas the units are shortened mutually.,3.5,1/1,1/1
+,Q27,newton metre per metre,Unit for length-related rotational moment as product of the derived SI unit newton and the SI base unit metre divided by the SI base unit metre.,3.5,N·m/m²,m x kg x s⁻²
+,Q28,kilogram per square metre pascal second,Unit for the ability of a material to allow the transition of steam.,3.5,kg/(m²·Pa·s),kg/(m² x Pa x s)
+,Q29,microgram per hectogram,Microgram per hectogram.,1S,µg/hg,10⁻8
+,Q30,pH (potential of Hydrogen),The activity of the (solvated) hydrogen ion (a logarithmic measure used to state the acidity or alkalinity of a chemical solution).,2,pH,-log10(mol/l)
+,Q31,kilojoule per gram,,1S,kJ/g,10⁶ J/kg
+,Q32,femtolitre,,1S,fl,10-18 m3
+,Q33,picolitre,,1S,pl,10-15 m3
+,Q34,nanolitre,,1S,nl,10-12 m3
+,Q35,megawatts per minute,A unit of power defining the total amount of bulk energy transferred or consumer per minute.,1M,MW/min,1.667 × 104 W/s
+,Q36,square metre per cubic metre,A unit of the amount of surface area per unit volume of an object or collection of objects.,3.1,m2/m3,1 m2/m3
+,Q37,Standard cubic metre per day,Standard cubic metre (temperature 15°C and pressure 1013.25 millibars ) per day,2,,1.15741 × 10-5 m3/s
+,Q38,Standard cubic metre per hour,Standard cubic metre (temperature 15°C and pressure 1013.25 millibars ) per hour,2,,2.77778 × 10-4 m3/s
+,Q39,Normalized cubic metre per day,Normalized cubic metre (temperature 0°C and pressure 1013.25 millibars ) per day,2,,1.15741 × 10-5 m3/s
+,Q40,Normalized cubic metre per hour,Normalized cubic metre (temperature 0°C and pressure 1013.25 millibars ) per hour,2,,2.77778 × 10-4 m3/s
+,Q41,Joule per normalised cubic metre,Joule per normalised cubic metre (temperature 0°C and pressure 1013.25 millibars).,2,,
+,Q42,Joule per standard cubic metre,Joule per standard cubic metre (temperature 15°C and pressure 1013.25 millibars).,2,,
+,Q3,meal,A unit of count defining the number of meals (meal: an amount of food to be eaten on a single occasion).,3.9,,
+,QA,page - facsimile,A unit of count defining the number of facsimile pages.,3.5,,
+,QAN,quarter (of a year),A unit of time defining the number of quarters (3 months).,3.8,,
+,QB,page - hardcopy,"A unit of count defining the number of hardcopy pages (hardcopy page: a page rendered as printed or written output on paper, film, or other permanent medium).",3.5,,
+X,QD,quarter dozen,,3.7,,3
+X,QH,quarter hour,,3.8,,900 s
+X,QK,quarter kilogram,,3.8,,
+,QR,quire,"A unit of count for paper, expressed as the number of quires (quire: a number of paper sheets, typically 25).",3.5,qr,
+D,QT,quart (US),Use liquid quart (common code QTL),2,qt (US),"0,946 352 9 x 10⁻³ m³"
+,QTD,dry quart (US),,2,dry qt (US),"1,101 221 x 10⁻³ m³"
+,QTI,quart (UK),,2,qt (UK),"1,136 522 5 x 10⁻³ m³"
+,QTL,liquid quart (US),,2,liq qt (US),"9,463 529 x 10⁻⁴ m³"
+,QTR,quarter (UK),"A traditional unit of weight equal to 1/4 hundredweight. In the United Kingdom, one quarter equals 28 pounds.",3.5,Qr (UK),"12,700 59 kg"
+,R1,pica,A unit of count defining the number of picas. (pica: typographical length equal to 12 points or 4.22 mm (approx.)).,3.5,,"4,217 518 x 10⁻³ m"
+X,R4,calorie,Use International Table (IT) calorie (common code D70),3.5,cal,"4,186 8 J"
+,R9,thousand cubic metre,A unit of volume equal to one thousand cubic metres.,3.8,,10³m³
+X,RA,rack,,3.3,,
+X,RD,rod,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,RG,ring,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,RH,running or operating hour,A unit of time defining the number of hours of operation.,3.1,,
+X,RK,roll metric measure,,3.3,,
+X,RL,reel,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,RM,ream,"A unit of count for paper, expressed as the number of reams (ream: a large quantity of paper sheets, typically 500).",3.5,,
+X,RN,ream metric measure,,3.5,,
+X,RO,roll,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,ROM,room,A unit of count defining the number of rooms.,3.9,,
+,RP,pound per ream,"A unit of mass for paper, expressed as pounds per ream. (ream: a large quantity of paper, typically 500 sheets).",3.5,,
+,RPM,revolutions per minute,Refer ISO/TC12 SI Guide,1,r/min,"1,67 x 10⁻²/s"
+,RPS,revolutions per second,Refer ISO/TC12 SI Guide,1,r/s,1/s
+X,RS,reset,,3.9,,
+,RT,revenue ton mile,"A unit of information typically used for billing purposes, expressed as the number of revenue tons (revenue ton: either a metric ton or a cubic metres, whichever is the larger), moved over a distance of one mile.",3.4,,
+X,RU,run,,3.9,,
+,S3,square foot per second,Synonym: foot squared per second,2,ft²/s,"0,092 903 04 m²/s"
+,S4,square metre per second,Synonym: metre squared per second (square metres/second US),1,m²/s,m²/s
+X,S5,sixty fourths of an inch,,3.8,,
+X,S6,session,,3.9,,
+X,S7,storage unit,,3.9,,
+X,S8,standard advertising unit,,3.9,,
+X,SA,sack,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,SAN,half year (6 months),A unit of time defining the number of half years (6 months).,3.8,,
+,SCO,score,A unit of count defining the number of units in multiples of 20.,3.7,,20
+,SCR,scruple,,3.5,,"1,295 982 g"
+X,SD,solid pound,,3.1,,
+X,SE,section,,3.9,,
+,SEC,second [unit of time],,1,s,s
+,SET,set,A unit of count defining the number of sets (set: a number of objects grouped together).,3.2,,
+,SG,segment,A unit of information equal to 64000 bytes.,3.9,,
+D,SHT,shipping ton,A unit of mass defining the number of tons for shipping.,3.4,,
+,SIE,siemens,,1,S,A/V
+X,SK,split tank truck,,3.4,,
+X,SL,slipsheet,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,SM3,Standard cubic metre,Standard cubic metre (temperature 15°C and pressure 1013.25 millibars ),2,,m3
+,SMI,mile (statute mile),,2,mile,"1 609,344 m"
+X,SN,square rod,,3.8,rd²,"25,292 9 m²"
+X,SO,spool,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,SP,shelf package,,3.9,,
+,SQ,square,A unit of count defining the number of squares (square: rectangular shape).,3.9,,
+,SQR,"square, roofing","A unit of count defining the number of squares of roofing materials, measured in multiples of 100 square feet.",3.1,,
+,SR,strip,A unit of count defining the number of strips (strip: long narrow piece of an object).,3.9,,
+X,SS,sheet metric measure,,3.3,,
+X,SST,short standard (7200 matches),,3.5,,
+X,ST,sheet,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,STC,stick,A unit of count defining the number of sticks (stick: slender and often cylindrical piece of a substance).,3.9,,
+,STI,stone (UK),,2,st,"6,350 293 kg"
+,STK,"stick, cigarette",A unit of count defining the number of cigarettes in the smallest unit for stock-taking and/or duty computation.,3.9,,
+,STL,standard litre,"A unit of volume defining the number of litres of a product at a temperature of 15 degrees Celsius, especially in relation to hydrocarbon oils.",3.1,,
+,STN,ton (US) or short ton (UK/US),Synonym: net ton (2000 lb),2,ton (US),"0,907184 7 x 10³ kg"
+,STW,straw,A unit of count defining the number of straws (straw: a slender tube used for sucking up liquids).,3.9,,
+X,SV,skid,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.9,,
+,SW,skein,A unit of count defining the number of skeins (skein: a loosely-coiled bundle of yarn or thread).,3.9,,
+,SX,shipment,A unit of count defining the number of shipments (shipment: an amount of goods shipped or transported).,3.4,,
+,SYR,syringe,"A unit of count defining the number of syringes (syringe: a small device for pumping, spraying and/or injecting liquids through a small aperture).",3.9,,
+,T0,telecommunication line in service,A unit of count defining the number of lines in service.,3.5,,
+X,T1,thousand pound gross,,3.8,,
+,T3,thousand piece,"A unit of count defining the number of pieces in multiples of 1000 (piece: a single item, article or exemplar).",3.8,,
+X,T4,thousand bag,,3.8,,
+X,T5,thousand casing,,3.8,,
+X,T6,thousand gallon (US),,3.8,,"3,785 412 m³"
+X,T7,thousand impression,,3.8,,
+X,T8,thousand linear inch,,3.8,,
+X,TA,tenth cubic foot,,3.8,,
+,TAH,kiloampere hour (thousand ampere hour),,1M,kA·h,"3,6 x 10⁶ C"
+,TAN,total acid number,A unit of chemistry defining the amount of potassium hydroxide (KOH) in milligrams that is needed to neutralize the acids in one gram of oil. It is an important quality measurement of crude oil.,3.5,TAN,mg KOH/g 
+X,TC,truckload,,3.4,,
+X,TD,therm,,3.8,,"10⁵ x  1 055,056 J"
+X,TE,tote,,3.3,,
+X,TF,ten square yard,,3.8,,
+,TI,thousand square inch,,3.8,,
+,TIC,"metric ton, including container","A unit of mass defining the number of metric tons of a product, including its container.",3.1,,
+,TIP,"metric ton, including inner packaging","A unit of mass defining the number of metric tons of a product, including its inner packaging materials.",3.1,,
+X,TJ,thousand square centimetre,,3.8,,
+X,TK,"tank, rectangular","Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.4,,
+,TKM,tonne kilometre,"A unit of information typically used for billing purposes, expressed as the number of tonnes (metric tons) moved over a distance of one kilometre. ",3.4,t·km,10⁶ kg x m
+X,TL,thousand foot (linear),,3.8,,
+,TMS,"kilogram of imported meat, less offal","A unit of mass equal to one thousand grams of imported meat, disregarding less valuable by-products such as the entrails.",3.5,,
+X,TN,tin,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,TNE,tonne (metric ton),Synonym: metric ton,1S,t,10³ kg
+,TP,ten pack,A unit of count defining the number of items in multiples of 10.,3.2,,
+,TPI,teeth per inch,The number of teeth per inch.,3.1,TPI,0.0254 /m
+,TPR,ten pair,A unit of count defining the number of pairs in multiples of 10 (pair: item described by two's).,3.8,,
+X,TQ,thousand foot,,3.8,,
+,TQD,thousand cubic metre per day,A unit of volume equal to one thousand cubic metres per day.,3.8,km³/d,"1,157 41 x 10⁻² m³/s"
+X,TR,ten square foot,,3.8,,
+,TRL,trillion (EUR),,3.7,,10¹⁸
+X,TS,thousand square foot,,3.8,,
+X,TSD,tonne of substance 90 % dry,,3.1,,
+X,TSH,ton of steam per hour,,3.1,,
+,TST,ten set,A unit of count defining the number of sets in multiples of 10 (set: a number of objects grouped together).,3.9,,
+X,TT,thousand linear metre,,3.8,,
+,TTS,ten thousand sticks,A unit of count defining the number of sticks in multiples of 10000 (stick: slender and often cylindrical piece of a substance).,3.9,,
+X,TU,tube,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,TV,thousand kilogram,,3.8,,10³kg
+X,TW,thousand sheet,,3.8,,
+X,TY,"tank, cylindrical","Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.4,,
+,U1,treatment,"A unit of count defining the number of treatments (treatment: subjection to the action of a chemical, physical or biological agent).",3.9,,
+,U2,tablet,A unit of count defining the number of tablets (tablet: a small flat or compressed solid object).,3.9,,
+D,UA,torr,,2,Torr,"133,322 4 Pa"
+,UB,telecommunication line in service average,A unit of count defining the average number of lines in service.,3.5,,
+,UC,telecommunication port,A unit of count defining the number of network access ports.,3.5,,
+X,UD,tenth minute,,3.8,,6 s
+X,UE,tenth hour,,3.8,,360 s
+X,UF,usage per telecommunication line average,,3.5,,
+X,UH,ten thousand yard,,3.8,,
+X,UM,million unit,,3.8,,
+,VA,volt - ampere per kilogram,,3.9,V·A / kg,V x A / kg
+X,VI,vial,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+,VLT,volt,,1,V,V
+,VP,percent volume,"A measure of concentration, typically expressed as the percentage volume of a solute in a solution.",3.7,,
+X,VQ,bulk,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,VS,visit,,3.9,,
+,W2,wet kilo,"A unit of mass defining the number of kilograms of a product, including the water content of the product.",3.1,,
+X,W4,two week,,3.8,,
+,WA,watt per kilogram,,3.9,W/kg,1 W/kg
+,WB,wet pound,"A unit of mass defining the number of pounds of a material, including the water content of the material.",3.1,,
+,WCD,cord,A unit of volume used for measuring lumber. One board foot equals 1/12 of a cubic foot.,3.5,,"3,63 m³"
+,WE,wet ton,"A unit of mass defining the number of tons of a material, including the water content of the material.",3.1,,
+,WEB,weber,,1,Wb,Wb
+,WEE,week,,2,wk,"6,048 x 10⁵ s"
+,WG,wine gallon,A unit of volume equal to 231 cubic inches.,3.1,,
+X,WH,wheel,,3.9,,
+,WHR,watt hour,,1,W·h,"3,6 x 10³ J"
+X,WI,weight per square inch,,3.9,,
+,WM,working month,A unit of time defining the number of working months.,3.1,,
+X,WR,wrap,,3.3,,
+,WSD,standard,"A unit of volume of finished lumber equal to 165 cubic feet.
+Synonym: standard cubic foot",3.5,std,"4,672 m³"
+,WTT,watt,,1,W,W
+D,WW,millilitre of water,A unit of volume equal to the number of millilitres of water.,3.1,,
+,X1,Gunter's chain,A unit of distance used or formerly used by British surveyors.,2,ch (UK),"20,116 8 m"
+,YDK,square yard,,2,yd²,"8,361 274 x 10⁻¹ m²"
+,YDQ,cubic yard,,2,yd³,"0,764 555 m³"
+X,YL,hundred linear yard,,3.8,,
+,YRD,yard,,2,yd,"0,914 4 m"
+X,YT,ten yard,,3.8,,
+X,Z1,lift van,,3.4,,
+,Z11,hanging container,A unit of count defining the number of hanging containers.,3.9,,
+X,Z2,chest,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,Z3,cask,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,Z4,hogshead,"Use UN/ECE Recommendation 21 (refer to Note 2 in the spreadsheet introduction, 1st sheet).",3.3,,
+X,Z5,lug,,3.9,,
+X,Z6,conference point,,3.5,,
+X,Z8,newspage agate line,,3.9,,
+,ZP,page,A unit of count defining the number of pages.,3.5,,
+,ZZ,mutually defined,A unit of measure as agreed in common between two or more parties.,3.9,,
++,MRW,Metre Week,"Unit for measuring physical dimensions and time, as required by DIN 18451",3.2,m·wk,
++,MKW,Square Metre Week,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m²· wk,
++,MQW,Cubic Metre Week,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m³·wk,
++,HWE,Piece Week,Unit for measuring the item amount and time as required by DIN 18451,3.2,piece·k,
++,MRD,Metre Day,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m·day,
++,MKD,Square Metre Day,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m²·d,
++,MQD,Cubic Metre Day,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m³·d,
++,HAD,Piece Day,Unit for measuring the item amount and time as required by DIN 18451,3.2,piece·d,
++,MRM,Metre Month,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m·mo,
++,MKM,Square Metre Month,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m²·mo,
++,MQM,Cubic Metre Month,Unit for measuring physical dimensions and time as required by DIN 18451,3.2,m³·mo,
++,HMO,Piece Month,Unit for measuring the item amount and time as required by DIN 18451,3.2,piece·mo,
++,DBW,Decibel watt,The decibel watt or dBW is a unit for the measurement of the strength of a signal expressed in decibels relative to one watt.,3.1,dBW,10^[Power in dBW/10] W
++,DBM,Decibel-milliwatts,dBm (sometimes dBmW or decibel-milliwatts) is unit of level used to indicate that a power ratio is expressed in decibels (dB) with reference to one milliwatt (mW).,3.1,dBm,10^[(Power in dBm-30)/10] W
++,FNU,Formazin nephelometric unit,Formazin nephelometric unit (FNU) is used for water turbidity level evaluation,3.5,FNU,
++,NTU,Nephelometric turbidity unit,Nephelometric turbidity unit (NTU) is used for water turbidity level evaluation,3.5,NTU,
