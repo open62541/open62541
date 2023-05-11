@@ -69,22 +69,18 @@ methodCalled(UA_Client *client, void *userdata, UA_UInt32 requestId,
     }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_CallResponse_clear(response);
-    }
-
-    /* Move the output arguments */
-    output = response->results[0].outputArguments;
-    outputSize = response->results[0].outputArgumentsSize;
-    response->results[0].outputArguments = NULL;
-    response->results[0].outputArgumentsSize = 0;
-
-    if(retval == UA_STATUSCODE_GOOD) {
-        printf("---Method call was successful, returned %lu values.\n",
-               (unsigned long) outputSize);
-        UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
+        printf("---Method call was unsuccessful, returned %x values.\n", retval);
     } else {
-        printf("---Method call was unsuccessful, returned %x values.\n",
-                retval);
+        /* Move the output arguments */
+        output = response->results[0].outputArguments;
+        outputSize = response->results[0].outputArgumentsSize;
+        response->results[0].outputArguments = NULL;
+        response->results[0].outputArgumentsSize = 0;
+        printf("---Method call was successful, returned %lu values.\n",
+               (unsigned long)outputSize);
+        UA_Array_delete(output, outputSize, &UA_TYPES[UA_TYPES_VARIANT]);
     }
+
     UA_CallResponse_clear(response);
 }
 
