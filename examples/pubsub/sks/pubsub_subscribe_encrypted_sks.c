@@ -335,6 +335,7 @@ run(UA_UInt16 port, UA_String *transportProfile,
 
     retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
+    UA_ClientConfig_delete(sksClientConfig);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 

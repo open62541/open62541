@@ -101,7 +101,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: examples_valgrind MBEDTLS
           - build_name: "Valgrind Examples  with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto
             cmd_action: examples_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto

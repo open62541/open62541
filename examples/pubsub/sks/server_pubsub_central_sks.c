@@ -161,10 +161,8 @@ setSecurityGroupRolePermission(UA_Server *server, UA_NodeId securityGroupNodeId,
     if(!server && !nodeContext)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_ByteString *username = UA_ByteString_new();
-    UA_String allowedUsername = UA_STRING((char *)nodeContext);
-    UA_ByteString_copy(&allowedUsername, username);
-    return UA_Server_setNodeContext(server, securityGroupNodeId, username);
+    UA_ByteString allowedUsername = UA_STRING((char *)nodeContext);
+    return UA_Server_setNodeContext(server, securityGroupNodeId, &allowedUsername);
 }
 
 UA_Boolean running = true;

@@ -400,6 +400,8 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_PUBSUB_SKS=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           ..
     make ${MAKEOPTS}
 
@@ -416,6 +418,14 @@ function examples_valgrind {
         # || true to ignore the error if the process is already dead
 	    kill -INT $pid || true
 
+        # wait for the process to terminate and check if the process is still running
+        sleep 5
+        if ps | grep "$pid"; then
+            echo $pid is still in the ps output. Must still be running.
+            # send the SIGINT signal again       
+            kill -INT $pid || true
+        fi
+        
         # using a 20 second timeout with SIGTERM to kill the process if it is still running
 	    timeout 20s bash -c 'wait $pid || kill -TERM $pid' ; EXIT_CODE=$?
 	    if [[ $EXIT_CODE -ne 0 ]]; then
