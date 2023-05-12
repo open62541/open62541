@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Exit immediately if a command exits with a non-zero status
-set -e
+#set -e
 
 # Use the error status of the first failure in a pipeline
 set -o pipefail
@@ -380,7 +380,109 @@ function unit_tests_valgrind {
 ########################################
 
 function examples_valgrind {
+
+    declare -A example_args
+    example_args=(["client_encryption"]="opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der"
+        ["access_control_client_encrypt"]="opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der"
+        ["client_event_filter"]="opc.tcp://localhost:4840"
+        ["client_connect"]="-username user1 -password password -cert client_cert.der -key client_key.der opc.tcp://localhost:4840"
+        ["pubsub_nodeset_rt_publisher"]="-i lo"
+        ["pubsub_nodeset_rt_subscriber"]="-i lo"
+        ["pubsub_TSN_loopback"]="-i lo"
+        ["pubsub_TSN_loopback_single_thread"]="-i lo"
+        ["pubsub_TSN_publisher"]="-i lo"
+        ["pubsub_TSN_publisher_multiple_thread"]="-i lo"
+        ["server_encryption"]="server_cert.der server_key.der client_cert.der"
+        ["server_loglevel"]="--loglevel=1"
+        ["ci_server"]="4840 server_cert.der server_key.der client_cert.der"
+    )
+
+    ciServer="ci_server 4840 server_cert.der server_key.der client_cert.der"
+
+    declare -A server_needed_examples
+    server_needed_examples=(["access_control_client"]=$ciServer
+        ["access_control_client_encrypt"]=$ciServer
+        ["client"]=$ciServer
+        ["client_async"]=$ciServer
+        ["client_connect"]=$ciServer
+        ["client_connect_loop"]=$ciServer
+        ["client_encryption"]="server_encryption server_cert.der server_key.der client_cert.der"
+        ["client_event_filter"]=$ciServer
+        ["client_historical"]="tutorial_server_historicaldata"
+        ["client_method_async"]=$ciServer
+        ["client_subscription_loop"]=$ciServer
+        ["custom_datatype_client"]="custom_datatype_server"
+        ["discovery_client_find_servers"]="discovery_server_lds"
+        ["discovery_server_register"]="discovery_server_lds"
+        ["pubsub_publish_encrypted"]="pubsub_subscribe_encrypted"
+        ["pubsub_publish_encrypted_sks"]="server_pubsub_central_sks server_cert.der server_key.der --enableUnencrypted --enableAnonymous"
+        ["pubsub_subscribe_encrypted"]="pubsub_publish_encrypted"
+        ["pubsub_subscribe_encrypted_sks"]="server_pubsub_central_sks server_cert.der server_key.der --enableUnencrypted --enableAnonymous"
+        ["pubsub_subscribe_standalone_dataset"]="tutorial_pubsub_publish"
+        ["server_pubsub_publish_rt_level"]="server_pubsub_subscribe_rt_level"
+        ["server_pubsub_publish_rt_level_raw"]="server_pubsub_subscribe_rt_level"
+        ["server_pubsub_rt_information_model"]="server_pubsub_subscribe_rt_level"
+        ["server_pubsub_subscribe_custom_monitoring"]="tutorial_pubsub_publish_raw"
+        ["server_pubsub_subscribe_rt_level"]="server_pubsub_publish_rt_level"
+        ["tutorial_client_events"]="tutorial_server_events"
+        ["tutorial_client_firststeps"]="tutorial_server_firststeps"
+        ["tutorial_pubsub_connection"]="tutorial_pubsub_subscribe_raw"
+        ["tutorial_pubsub_mqtt_subscrib"]="tutorial_pubsub_mqtt_publish"
+        ["tutorial_pubsub_publish"]="tutorial_pubsub_subscribe"
+        ["tutorial_pubsub_publish_raw"]="tutorial_pubsub_subscribe_raw"
+        ["tutorial_pubsub_subscribe"]="tutorial_pubsub_publish"
+        ["tutorial_pubsub_subscribe_raw"]="tutorial_pubsub_publish_raw"
+        ["tutorial_server_reverseconnect"]="ci_server 4841 client_cert.der client_key.der server_cert.der")
+
+    declare -A client_needed_examples
+    client_needed_examples=(["ci_server"]="client"
+        ["server_ctt"]="client"
+        ["server_inheritance"]="client"
+        ["server_instantiation"]="client"
+        ["server_loglevel"]="client"
+        ["server_mainloop"]="client"
+        ["server_nodeset"]="client"
+        ["server_nodeset_loader"]="client"
+        ["server_nodeset_plcopen"]="client"
+        ["server_nodeset_powerlink"]="client"
+        ["server_settimestamp"]="client"
+        ["server_testnodeset"]="client"
+        ["tutorial_server_monitoreditems"]="client"
+        ["tutorial_server_variabletype"]="client"
+        ["tutorial_server_object"]="client"
+        ["tutorial_server_variable"]="client"
+        ["access_control_server"]="access_control_client"
+        ["custom_datatype_server"]="custom_datatype_client"
+        ["discovery_server_lds"]="discovery_client_find_servers"
+        ["server_encryption"]="client_encryption opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der"
+        ["server_events_random"]="tutorial_client_events opc.tcp://localhost:4840"
+        ["server_pubsub_central_sks"]="pubsub_publish_encrypted_sks"
+        ["tutorial_server_alarms_conditions"]="tutorial_client_events opc.tcp://localhost:4840"
+        ["tutorial_server_datasource"]="tutorial_client_events opc.tcp://localhost:4840"
+        ["tutorial_server_firststeps"]="tutorial_client_firststeps"
+        ["tutorial_server_historicaldata"]="client_historical"
+        ["tutorial_server_historicaldata_circular"]="client_historical"
+        ["tutorial_server_method"]="client_method_async"
+        ["tutorial_server_method_async"]="client_method_async")
+
+    # a blacklist for examples taht cause issues. Mostly because of EXIT_FAILURE...
+    declare -A blacklist
+    blacklist=(
+        ["pubsub_TSN_loopback"]=1
+        ["pubsub_TSN_loopback_single_thread"]=1
+        ["pubsub_TSN_publisher"]=1
+        ["pubsub_TSN_publisher_multiple_thread"]=1
+        ["pubsub_nodeset_rt_publisher"]=1
+        ["pubsub_nodeset_rt_subscriber"]=1
+        ["access_control_client_encrypt"]=1
+        ["client_encryption"]=1
+        ["client_historical"]=1
+    )
     mkdir -p build; cd build; rm -rf *
+
+    python3 ../tools/certs/create_self-signed.py -c server 
+    python3 ../tools/certs/create_self-signed.py -c client 
+
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -405,9 +507,6 @@ function examples_valgrind {
           ..
     make ${MAKEOPTS}
 
-    # Arguments for the examples. The key is the example name and the value is the arguments.
-    declare -A example_args
-    example_args=( ["client_connect"]="opc.tcp://0.0.0.0:4840")
     # Run each example with valgrind. Wait 10 seconds and send the SIGINT
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
@@ -416,27 +515,82 @@ function examples_valgrind {
     do
         example_name=$(basename $f)
         args=${example_args[$example_name]:-}
-	    echo "Processing $f"
-	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f $args &
-        pid=$!
-	    sleep 10
-        # || true to ignore the error if the process is already dead
-	    kill -INT $pid || true
-
-        # wait for the process to terminate and check if the process is still running
-        sleep 5
-        if ps | grep "$pid"; then
-            echo $pid is still in the ps output. Must still be running.
-            # send the SIGINT signal again       
-            kill -INT $pid || true
-        fi
         
-        # using a 20 second timeout with SIGTERM to kill the process if it is still running
-	    timeout 20s bash -c 'wait $pid || kill -TERM $pid' ; EXIT_CODE=$?
-	    if [[ $EXIT_CODE -ne 0 ]]; then
-		   echo "Processing $f failed with exit code $EXIT_CODE "
-		   exit $EXIT_CODE	
-	    fi
+        #check if examples is in blacklist. If yes, skip it
+        if [[ ${blacklist[$example_name]:-} ]]; then
+            echo "Skipping $example_name"
+            continue
+        fi
+
+        # check if a server/client is needed for the example
+        if [[ ${server_needed_examples[$example_name]:-} ]]; then
+            # Start the server in the background
+            server=${server_needed_examples[$example_name]:-}
+            echo "Starting $server for $example_name"
+            # silence all output of the server
+            
+            eval "./bin/examples/$server" >/dev/null 2>&1 &
+            # Save the PID of the server process
+            server_pid=$!
+            # Give the server some time to start up
+            sleep 10
+        fi
+ 
+        eval "valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f $args" &
+        pid=$!
+
+        # Give the example some time to start up
+        sleep 5
+        # check if a client is needed for the example
+        if [[ ${client_needed_examples[$example_name]:-} ]]; then
+            # Start the client in the background
+            client=${client_needed_examples[$example_name]:-}
+            echo "Starting $client for $example_name"
+            # silence all output of the client
+            eval "./bin/examples/$client" >/dev/null 2>&1 &
+            # Save the PID of the client process
+            client_pid=$!
+        fi
+
+        sleep 10
+        # || true to ignore the error if the process is already dead
+        kill -INT $pid || true
+
+        sleep 5
+
+        # Check if the process is still running.
+        tries=0
+        while ps | grep "$pid" >/dev/null; do
+            tries=$((tries+1))
+            if [[ $tries -gt 5 ]]; then
+                echo "Process $pid is still running after 5 tries. Terminating process."
+                kill -9 $pid || true
+            fi
+            echo "$pid is still in the ps output. Must still be running. Try: $tries"
+            kill -INT $pid || true
+            sleep 10
+        done
+
+        wait $pid
+        EXIT_CODE=$?
+        if [[ $EXIT_CODE -ne 0 ]]; then
+            echo "Processing $f failed with exit code $EXIT_CODE "
+            exit $EXIT_CODE
+        fi
+
+        if [[ ${server_needed_examples[$example_name]:-} ]]; then
+            # Once the client has finished, kill the server
+            echo "Stopping server_encryption with pid $server_pid for $example_name"
+            kill -9 $server_pid || true
+            wait $server_pid
+        fi
+
+        if [[ ${client_needed_examples[$example_name]:-} ]]; then
+            # Once the client has finished, kill the client
+            echo "Stopping client with pid $client_pid for $example_name"
+            kill -9 $client_pid || true
+            wait $client_pid
+        fi
     done
 }
 

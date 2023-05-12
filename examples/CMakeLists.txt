@@ -154,6 +154,8 @@ endif()
 # Feature Examples #
 ####################
 
+add_example(ci_server ci_server.c)
+
 add_example(server_mainloop server_mainloop.c)
 
 add_example(server_instantiation server_instantiation.c)

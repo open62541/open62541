@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     /* Connect to the Unified Automation demo server */
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:53530/OPCUA/SimulationServer");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840/");
     if(retval != UA_STATUSCODE_GOOD) {
         printf("Could not connect\n");
         UA_Client_delete(client);
