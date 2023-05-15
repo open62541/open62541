@@ -28,14 +28,16 @@
 #endif
 
 UA_Boolean running = true;
+#if 0 /* TODO */
 static UA_StatusCode
 customDecodeAndProcessCallback(UA_PubSubChannel *psc, void* ctx, const UA_ByteString *buffer);
+#endif
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "received ctrl-c");
     running = false;
 }
-
+#if 0 /* TODO */
 static UA_StatusCode
 subscriberListen(UA_PubSubChannel *psc) {
     UA_ByteString buffer;
@@ -118,11 +120,11 @@ cleanup:
     UA_NetworkMessage_clear(&networkMessage);
     return UA_STATUSCODE_GOOD;
 }
-
+#endif
 int main(int argc, char **argv) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
-
+#if 0 /* TODO */
     UA_PubSubTransportLayer udpLayer = UA_PubSubTransportLayerUDPMP();
 
     UA_PubSubConnectionConfig connectionConfig;
@@ -148,6 +150,6 @@ int main(int argc, char **argv) {
         retval = subscriberListen(psc);
 
     psc->close(psc);
-
+#endif
     return 0;
 }
