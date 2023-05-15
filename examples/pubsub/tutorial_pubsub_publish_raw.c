@@ -9,8 +9,7 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 
 const UA_NodeId pointVariableTypeId = {

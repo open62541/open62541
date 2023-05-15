@@ -13,12 +13,8 @@
 #define METADATA_DATASET_NAME "Demo PDS"
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>

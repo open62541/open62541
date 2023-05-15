@@ -21,7 +21,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub.h>
 
 #define ETH_PUBLISH_ADDRESS     "opc.eth://01-00-5E-00-00-01"
 #define MILLI_AS_NANO_SECONDS   (1000 * 1000)

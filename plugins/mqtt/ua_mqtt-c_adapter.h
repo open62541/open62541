@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#include <open62541/plugin/pubsub_mqtt.h>
+#include <open62541/plugin/pubsub.h>
 #include <open62541/plugin/network.h>
 #include "ua_pubsub.h"
 

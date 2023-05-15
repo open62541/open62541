@@ -8,7 +8,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub.h>
 
 #include "ua_server_internal.h"
 #include "ua_pubsub.h"

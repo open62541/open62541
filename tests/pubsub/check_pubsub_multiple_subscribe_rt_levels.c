@@ -7,7 +7,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/pubsub.h>
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"

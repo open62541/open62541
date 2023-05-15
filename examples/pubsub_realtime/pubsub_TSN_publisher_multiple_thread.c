@@ -67,8 +67,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/pubsub.h>
 
 #include "ua_pubsub.h"
 

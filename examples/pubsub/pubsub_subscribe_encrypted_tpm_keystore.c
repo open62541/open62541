@@ -8,7 +8,7 @@
           to run the application */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
+#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types_generated.h>
@@ -17,10 +17,6 @@
 
 #include "ua_pubsub.h"
 #include "common.h"
-
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <stdio.h>
 #include <signal.h>

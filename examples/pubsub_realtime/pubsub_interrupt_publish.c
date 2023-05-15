@@ -20,7 +20,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub.h>
 
 #define ETH_PUBLISH_ADDRESS      "opc.eth://0a-00-27-00-00-08"
 #define ETH_INTERFACE            "enp0s8"

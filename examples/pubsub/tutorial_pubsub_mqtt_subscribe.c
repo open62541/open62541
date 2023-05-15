@@ -7,7 +7,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pubsub_mqtt.h>
+#include <open62541/plugin/pubsub.h>
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"

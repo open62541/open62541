@@ -35,7 +35,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
+#include <open62541/plugin/pubsub.h>
 
 #include "ua_pubsub.h"
 #include "open62541/namespace_example_subscriber_generated.h"
