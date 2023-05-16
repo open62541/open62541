@@ -56,7 +56,7 @@ static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t buf
 
 /* Include headers and source files! We need deep integration to use the above definitions. */
 #include "../deps/mqtt-c/include/mqtt.h"
-#include "../deps/mqtt-c/src/mqtt.c"
+#include "mqtt_local.c"
 
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
 #define MQTT_PARAMETERSSIZE 7
