@@ -673,13 +673,17 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
         }
 
         /* attempt to parse */
+printf("calling mqtt_unpack_response\r\n");        
         consumed = mqtt_unpack_response(&response, client->recv_buffer.mem_start, (size_t) (client->recv_buffer.curr - client->recv_buffer.mem_start));
+printf("after mqtt_unpack_response\r\n");        
 
         if (consumed < 0) {
             client->error = (enum MQTTErrors)consumed;
             MQTT_PAL_MUTEX_UNLOCK(&client->mutex);
+printf("error consumed\r\n");        
             return consumed;
         } else if (consumed == 0) {
+printf("nothing consumed\r\n");        
             /* if curr_sz is 0 then the buffer is too small to ever fit the message */
             if (client->recv_buffer.curr_sz == 0) {
                 client->error = MQTT_ERROR_RECV_BUFFER_TOO_SMALL;
@@ -722,6 +726,7 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
         MQTT_CONTROL_PINGRESP:
             -> release PINGREQ
         */
+printf("before switch control_type\r\n");        
         switch (response.fixed_header.control_type) {
             case MQTT_CONTROL_CONNACK:
                 /* release associated CONNECT */
@@ -889,7 +894,9 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
           void* dest = (unsigned char*)client->recv_buffer.mem_start;
           void* src  = (unsigned char*)client->recv_buffer.mem_start + consumed;
           size_t n = (size_t) (client->recv_buffer.curr - client->recv_buffer.mem_start - consumed);
+printf("before memmove %zu\r\n", n);
           memmove(dest, src, n);
+printf("after memmove\r\n");        
           client->recv_buffer.curr -= consumed;
           client->recv_buffer.curr_sz += (unsigned long)consumed;
         }
