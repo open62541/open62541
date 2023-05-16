@@ -9,6 +9,7 @@
  * TCP ConnectionManager and uses it for the underlying TCP connections. */
 
 #include <open62541/plugin/eventloop.h>
+#include <open62541/plugin/log_stdout.h>
 
 struct MQTTConnectionManager;
 typedef struct MQTTConnectionManager MQTTConnectionManager;
