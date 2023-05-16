@@ -465,7 +465,7 @@ if(UA_ENABLE_PUBSUB_MQTT)
     endif()
 
     if(NOT UA_FILE_MQTT)
-        set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
+    set(UA_FILE_MQTT ${open62541_MQTT_DIR}/src/mqtt.c)
     endif()
     if(NOT EXISTS "${UA_FILE_MQTT}")
         message(STATUS "Submodule update")
@@ -1141,6 +1141,10 @@ if(UA_ENABLE_DISCOVERY)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
 endif()
 
+if(UA_ENABLE_PUBSUB_MQTT)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+endif()
+
 if(UA_ENABLE_PUBSUB)
     list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
     list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
@@ -1163,9 +1167,7 @@ if(UA_ENABLE_PUBSUB)
                  ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
                  ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
-                 ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
+            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
         endif()
     endif()
