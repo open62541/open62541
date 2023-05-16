@@ -313,6 +313,7 @@ UA_PubSubChannelMQTT_close(UA_PubSubChannel *channel) {
     UA_PubSubChannelDataMQTT *channelDataMQTT = (UA_PubSubChannelDataMQTT *) channel->handle;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Closing PubSubChannel.");
     disconnectMqtt(channelDataMQTT);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: after disconnectMqtt.");
     UA_String_clear(&channelDataMQTT->mqttUsername);
     UA_String_clear(&channelDataMQTT->mqttPassword);
     UA_String_clear(&channelDataMQTT->mqttCaFilePath);

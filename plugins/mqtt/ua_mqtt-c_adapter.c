@@ -306,13 +306,16 @@ disconnectMqtt(UA_PubSubChannelDataMQTT* channelData){
     channelData->callback = NULL;
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
     if(client){
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: calling mqtt_disconnect.");
         mqtt_disconnect(client);
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: calling yieldMqtt.");
         yieldMqtt(channelData, 10);
 #ifdef UA_ENABLE_MQTT_TLS_OPENSSL //mbedTLS condition is missing
         client->socketfd = NULL;
 #endif
     }
 
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: calling freeTLS.");
     freeTLS(channelData);
 
     UA_free(channelData->mqttRecvBuffer);
@@ -426,8 +429,11 @@ yieldMqtt(UA_PubSubChannelDataMQTT* channelData, UA_UInt16 timeout){
 
     struct mqtt_client* client = (struct mqtt_client*)channelData->mqttClient;
 
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: before mqtt_sync");
     enum MQTTErrors error = mqtt_sync(client);
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: error %u", error);
     if(error == MQTT_OK){
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: yield: success");
         return UA_STATUSCODE_GOOD;
     }else if(error == -1){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "PubSub MQTT: yield: Communication Error.");

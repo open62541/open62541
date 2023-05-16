@@ -161,6 +161,7 @@ mqtt_pal_sendall(MQTTBrokerConnection *bc, const void* buf, size_t len, int flag
  * So we don't block in the EventLoop model. */
 ssize_t
 mqtt_pal_recvall(MQTTBrokerConnection *bc, void* buf, size_t bufsz, int flags) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "called mqtt_pal_recvall");
     return 0;
 }
 
