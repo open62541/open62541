@@ -70,6 +70,7 @@ enum MQTTErrors mqtt_sync(struct mqtt_client *client) {
     /* Call receive */
 printf("before __mqtt_recv\r\n");
     err = (enum MQTTErrors)__mqtt_recv(client);
+printf("after __mqtt_recv, err = %u\r\n", (unsigned int)err);
     if (err != MQTT_OK) return err;
 
     /* Call send */
@@ -662,6 +663,7 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
         struct mqtt_queued_message *msg = NULL;
 
         rv = mqtt_pal_recvall(client->socketfd, client->recv_buffer.curr, client->recv_buffer.curr_sz, 0);
+printf("after mqtt_pal_recvall\r\n");
         if (rv < 0) {
             /* an error occurred */
             client->error = (enum MQTTErrors)rv;
@@ -673,17 +675,17 @@ ssize_t __mqtt_recv(struct mqtt_client *client)
         }
 
         /* attempt to parse */
-printf("calling mqtt_unpack_response\r\n");        
+printf("calling mqtt_unpack_response\r\n");
         consumed = mqtt_unpack_response(&response, client->recv_buffer.mem_start, (size_t) (client->recv_buffer.curr - client->recv_buffer.mem_start));
-printf("after mqtt_unpack_response\r\n");        
+printf("after mqtt_unpack_response\r\n");
 
         if (consumed < 0) {
             client->error = (enum MQTTErrors)consumed;
             MQTT_PAL_MUTEX_UNLOCK(&client->mutex);
-printf("error consumed\r\n");        
+printf("error consumed\r\n");
             return consumed;
         } else if (consumed == 0) {
-printf("nothing consumed\r\n");        
+printf("nothing consumed\r\n");
             /* if curr_sz is 0 then the buffer is too small to ever fit the message */
             if (client->recv_buffer.curr_sz == 0) {
                 client->error = MQTT_ERROR_RECV_BUFFER_TOO_SMALL;
@@ -726,7 +728,7 @@ printf("nothing consumed\r\n");
         MQTT_CONTROL_PINGRESP:
             -> release PINGREQ
         */
-printf("before switch control_type\r\n");        
+printf("before switch control_type\r\n");
         switch (response.fixed_header.control_type) {
             case MQTT_CONTROL_CONNACK:
                 /* release associated CONNECT */
@@ -896,7 +898,7 @@ printf("before switch control_type\r\n");
           size_t n = (size_t) (client->recv_buffer.curr - client->recv_buffer.mem_start - consumed);
 printf("before memmove %zu\r\n", n);
           memmove(dest, src, n);
-printf("after memmove\r\n");        
+printf("after memmove\r\n");
           client->recv_buffer.curr -= consumed;
           client->recv_buffer.curr_sz += (unsigned long)consumed;
         }
