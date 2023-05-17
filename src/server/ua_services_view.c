@@ -778,12 +778,22 @@ browse(struct BrowseContext *bc) {
         return;
     }
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession &&
        !bc->server->config.accessControl.
          allowBrowseNode(bc->server, &bc->server->config.accessControl,
                          &bc->session->sessionId, bc->session->sessionHandle,
-                         &descr->nodeId, node->head.context)) {
+                         &descr->nodeId, node->head.context, node->head.userRolePermissions,
+                         node->head.userRolePermissionsSize)) {
+#else
+    if(bc->session != &bc->server->adminSession &&
+       !bc->server->config.accessControl.
+         allowBrowseNode(bc->server, &bc->server->config.accessControl,
+                         &bc->session->sessionId, bc->session->sessionHandle,
+                         &descr->nodeId, node->head.context, NULL,
+                         0)) {
+#endif
         UA_NODESTORE_RELEASE(bc->server, node);
         bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;

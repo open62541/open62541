@@ -1010,18 +1010,31 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         UA_NODESTORE_RELEASE(server, type);
     return retval;
 }
+UA_UInt32 count = 0;
 
 /* Create the node and add it to the nodestore. But don't typecheck and add
  * references so far */
 UA_StatusCode
 addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             const UA_AddNodesItem *item, UA_NodeId *outNewNodeId) {
+
     /* Do not check access for server */
     if(session != &server->adminSession && server->config.accessControl.allowAddNode) {
         UA_UNLOCK(&server->serviceMutex);
+        size_t userRolePermissionSize = 0;
+        UA_RolePermissionType *userRolePermissions = NULL;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        const UA_Node *node;
+        if (!UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
+            node = UA_NODESTORE_GET(server, &item->parentNodeId.nodeId);
+            userRolePermissionSize = node->head.userRolePermissionsSize;
+            userRolePermissions = node->head.userRolePermissions;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+#endif
         if(!server->config.accessControl.
            allowAddNode(server, &server->config.accessControl,
-                        &session->sessionId, session->sessionHandle, item)) {
+                        &session->sessionId, session->sessionHandle, item, userRolePermissions, userRolePermissionSize)) {
             UA_LOCK(&server->serviceMutex);
             return UA_STATUSCODE_BADUSERACCESSDENIED;
         }
@@ -1065,8 +1078,11 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
 
     retval = UA_Node_setAttributes(node, item->nodeAttributes.content.decoded.data,
                                    item->nodeAttributes.content.decoded.type);
-    if(retval != UA_STATUSCODE_GOOD)
+
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Could Not create new node");
         goto create_error;
+    }
 
     /* Add the node to the nodestore */
     if(!outNewNodeId)
@@ -1923,9 +1939,21 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
     /* Do not check access for server */
     if(session != &server->adminSession && server->config.accessControl.allowDeleteNode) {
         UA_UNLOCK(&server->serviceMutex);
+        size_t userRolePermissionSize = 0;
+        UA_RolePermissionType *userRolePermissions = NULL;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        const UA_Node *node;
+        if (!UA_NodeId_isNull(&item->nodeId)) {
+            node = UA_NODESTORE_GET(server, &item->nodeId);
+            userRolePermissionSize = node->head.userRolePermissionsSize;
+            userRolePermissions = node->head.userRolePermissions;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+#endif
         if(!server->config.accessControl.
            allowDeleteNode(server, &server->config.accessControl,
-                           &session->sessionId, session->sessionHandle, item)) {
+                           &session->sessionId, session->sessionHandle, item, userRolePermissions,
+                           userRolePermissionSize )) {
             UA_LOCK(&server->serviceMutex);
             *result = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -2076,9 +2104,21 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     /* Check access rights */
     if(session != &server->adminSession && server->config.accessControl.allowAddReference) {
         UA_UNLOCK(&server->serviceMutex);
+        size_t userRolePermissionSize = 0;
+        UA_RolePermissionType *userRolePermissions = NULL;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        const UA_Node *node;
+        if (!UA_NodeId_isNull(&item->sourceNodeId)) {
+            node = UA_NODESTORE_GET(server, &item->sourceNodeId);
+            userRolePermissionSize = node->head.userRolePermissionsSize;
+            userRolePermissions = node->head.userRolePermissions;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+#endif
         if (!server->config.accessControl.
                 allowAddReference(server, &server->config.accessControl,
-                                  &session->sessionId, session->sessionHandle, item)) {
+                                  &session->sessionId, session->sessionHandle, item,
+                                  userRolePermissions, userRolePermissionSize)) {
             UA_LOCK(&server->serviceMutex);
             *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -2246,9 +2286,21 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     if(session != &server->adminSession &&
        server->config.accessControl.allowDeleteReference) {
         UA_UNLOCK(&server->serviceMutex);
+        size_t userRolePermissionSize = 0;
+        UA_RolePermissionType *userRolePermissions = NULL;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        const UA_Node *node;
+        if (!UA_NodeId_isNull(&item->sourceNodeId)) {
+            node = UA_NODESTORE_GET(server, &item->sourceNodeId);
+            userRolePermissionSize = node->head.userRolePermissionsSize;
+            userRolePermissions = node->head.userRolePermissions;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+#endif
         if (!server->config.accessControl.
                 allowDeleteReference(server, &server->config.accessControl,
-                                     &session->sessionId, session->sessionHandle, item)){
+                                     &session->sessionId, session->sessionHandle, item,
+                                     userRolePermissions, userRolePermissionSize)){
             UA_LOCK(&server->serviceMutex);
             *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;

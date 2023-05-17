@@ -17,6 +17,7 @@
 #include "ua_server_internal.h"
 #include "ua_session.h"
 #include "ua_subscription.h"
+#include "ua_server_role_access.h"
 
 static UA_StatusCode
 ns0_addNode_raw(UA_Server *server, UA_NodeClass nodeClass,
@@ -1187,7 +1188,9 @@ initNS0(UA_Server *server) {
     /* The HasComponent references to the ModellingRules are not part of the
      * Nodeset2.xml. So we add the references manually. */
     addModellingRules(server);
-
+#ifdef UA_ENABLE_ROLE_PERMISSION
+     retVal |= UA_Server_setDefaultRoles(server);
+#endif
 #endif /* UA_GENERATED_NAMESPACE_ZERO */
 
     if(retVal != UA_STATUSCODE_GOOD) {

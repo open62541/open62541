@@ -16,6 +16,34 @@ _UA_BEGIN_DECLS
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
+
+typedef enum {
+    UA_ANONYMOUS_WELL_KNOWN_RULE = 0,
+    UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE = 1,
+    UA_CONFIGUREADMIN_WELL_KNOWN_RULE = 2,
+    UA_ENGINEER_WELL_KNOWN_RULE = 3,
+    UA_OBSERVER_WELL_KNOWN_RULE = 4,
+    UA_OPERATOR_WELL_KNOWN_RULE = 5,
+    UA_SECURITYADMIN_WELL_KNOWN_RULE = 6,
+    UA_SUPERVISOR_WELL_KNOWN_RULE = 7,
+}UA_AccessControlGroup;
+
+typedef struct {
+    UA_AccessControlGroup  accessControlGroup;
+    UA_UInt32              accessPermissions;
+    UA_Boolean             methodAccessPermission;
+    UA_IdentityMappingRuleType identityMappingRule;
+    UA_RolePermissionType  role;
+} UA_AccessControlSettings;
+
+typedef struct {
+    UA_String *username;
+    UA_String *rolename;
+    UA_AccessControlSettings *accessControlSettings;
+} UA_UsernameRoleInfo;
+#endif
+
 /**
  * .. _access-control:
  *
@@ -80,27 +108,36 @@ struct UA_AccessControl {
     /* Allow adding a node */
     UA_Boolean (*allowAddNode)(UA_Server *server, UA_AccessControl *ac,
                                const UA_NodeId *sessionId, void *sessionContext,
-                               const UA_AddNodesItem *item);
+                               const UA_AddNodesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow adding a reference */
     UA_Boolean (*allowAddReference)(UA_Server *server, UA_AccessControl *ac,
                                     const UA_NodeId *sessionId, void *sessionContext,
-                                    const UA_AddReferencesItem *item);
+                                    const UA_AddReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow deleting a node */
     UA_Boolean (*allowDeleteNode)(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
-                                  const UA_DeleteNodesItem *item);
+                                  const UA_DeleteNodesItem *item, UA_RolePermissionType *userRolePermission,size_t userRolePermissionSize);
 
     /* Allow deleting a reference */
     UA_Boolean (*allowDeleteReference)(UA_Server *server, UA_AccessControl *ac,
                                        const UA_NodeId *sessionId, void *sessionContext,
-                                       const UA_DeleteReferencesItem *item);
+                                       const UA_DeleteReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize);
 
     /* Allow browsing a node */
     UA_Boolean (*allowBrowseNode)(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *sessionId, void *sessionContext,
-                                  const UA_NodeId *nodeId, void *nodeContext);
+                                  const UA_NodeId *nodeId, void *nodeContext, UA_RolePermissionType *userRolePermission,size_t userRoleSize);
+
+    /* Check access to Node */
+    UA_Boolean (*hasAccessToNode)(UA_Server *server, UA_AccessControl *ac,
+                                  const UA_NodeId *sessionId, void *sessionContext,
+                                  const UA_NodeId *nodeId, void *nodeContext, UA_Byte* serviceAccessLevel);
+    /* Check access to Node */
+    UA_Boolean (*hasAccessToMethod)(UA_Server *server, UA_AccessControl *ac,
+                          const UA_NodeId *sessionId, void *sessionContext,
+                          const UA_NodeId *methodId, void *methodContext);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Allow transfer of a subscription to another session. The Server shall
@@ -127,6 +164,13 @@ struct UA_AccessControl {
                                                       UA_DateTime endTimestamp,
                                                       bool isDeleteModified);
 #endif
+    UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
+
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_StatusCode (*setRoleAccessPermission)(UA_String roleName, UA_AccessControlSettings* accessControlSettings);
+    UA_PermissionType (*readUserDefinedRolePermission)(UA_Server *server, UA_AccessControlSettings* accessControlSettings);
+    UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
+#endif /* UA_ENABLE_ROLE_PERMISSION */
 };
 
 _UA_END_DECLS

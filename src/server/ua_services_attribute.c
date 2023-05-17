@@ -65,7 +65,6 @@ attributeId2AttributeMask(UA_AttributeId id) {
 /******************/
 /* Access Control */
 /******************/
-
 /* Session for read operations can be NULL. For example for a MonitoredItem
  * where the underlying Subscription was detached during CloseSession. */
 
@@ -124,6 +123,34 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
                           &node->head.nodeId, node->head.context);
     UA_LOCK(&server->serviceMutex);
     return userExecutable;
+}
+
+static UA_Boolean
+hasAccessToNode(UA_Server *server, const UA_Session *session,
+                const UA_VariableNode *node, UA_Byte* serviceAccessLevel) {
+    UA_Boolean retval;
+    UA_UNLOCK(&server->serviceMutex);
+    retval = server->config.accessControl.
+        hasAccessToNode(server, &server->config.accessControl,
+                           session ? &session->sessionId : NULL,
+                           session ? session->sessionHandle : NULL,
+                           &node->head.nodeId, node->head.context, serviceAccessLevel);
+    UA_LOCK(&server->serviceMutex);
+    return retval;
+}
+
+static UA_Boolean
+hasAccessToMethod(UA_Server *server, const UA_Session *session,
+                  const UA_MethodNode *node) {
+    UA_Boolean retval;
+    UA_UNLOCK(&server->serviceMutex);
+    retval = server->config.accessControl.
+        hasAccessToMethod(server, &server->config.accessControl,
+                          session ? &session->sessionId : NULL,
+                          session ? session->sessionHandle : NULL,
+                          &node->head.nodeId, node->head.context);
+    UA_LOCK(&server->serviceMutex);
+    return retval;
 }
 
 /****************/
@@ -517,9 +544,27 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
-        UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
-        retval = UA_Variant_setScalarCopy(&v->value, &userAccessLevel,
-                                          &UA_TYPES[UA_TYPES_BYTE]);
+        if(session != &server->adminSession) {
+            //Check Whether the Access available
+            UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_READ;
+            UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode,
+                                                           &currentServiceLevel);
+            if (checkAccessToNode != true) {
+                UA_Variant_setScalarCopy(&v->value, &currentServiceLevel,
+                                        &UA_TYPES[UA_TYPES_BYTE]);
+                retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                break;
+            }
+
+            retval = UA_Variant_setScalarCopy(&v->value, &currentServiceLevel,
+                                              &UA_TYPES[UA_TYPES_BYTE]);
+        }
+        else {
+             UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
+             retval = UA_Variant_setScalarCopy(&v->value, &userAccessLevel,
+                                              &UA_TYPES[UA_TYPES_BYTE]);
+        }
+
         break; }
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
@@ -539,8 +584,15 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break;
     case UA_ATTRIBUTEID_USEREXECUTABLE: {
         CHECK_NODECLASS(UA_NODECLASS_METHOD);
-        UA_Boolean userExecutable =
-            getUserExecutable(server, session, &node->methodNode);
+        UA_Boolean userExecutable;
+        if(session != &server->adminSession) {
+            userExecutable = hasAccessToMethod(server, session, &node->methodNode);
+        }
+        else {
+            userExecutable =
+                getUserExecutable(server, session, &node->methodNode);
+        }
+
         retval = UA_Variant_setScalarCopy(&v->value, &userExecutable,
                                           &UA_TYPES[UA_TYPES_BOOLEAN]);
         break; }
@@ -570,6 +622,22 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 #endif
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS: {
+        CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
+        if(node->head.rolePermissionsSize != 0)
+            retval = UA_Variant_setArrayCopy(&v->value, node->head.rolePermissions,
+                                             node->head.rolePermissionsSize,
+                                             &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        break;}
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS: {
+        CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
+        if (node->head.userRolePermissionsSize != 0)
+            retval = UA_Variant_setArrayCopy(&v->value, node->head.userRolePermissions,
+                                             node->head.userRolePermissionsSize,
+                                             &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        break;}
+#endif /* UA_ENABLE_ROLE_PERMISSION */
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
@@ -619,8 +687,27 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
 
     /* Perform the read operation */
     if(node) {
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_Boolean checkAccess = true;
+        if (session != &server->adminSession && (node->head.nodeId.namespaceIndex != 0)){
+            checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_READ);
+            if ((rvi->attributeId == UA_ATTRIBUTEID_ROLEPERMISSIONS) || (rvi->attributeId == UA_ATTRIBUTEID_USERROLEPERMISSIONS))
+                checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_READROLEPERMISSIONS);
+            if (rvi->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+                checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_RECEIVEEVENTS);
+        }
+        if (checkAccess == true){
+#endif
         ReadWithNode(node, server, session, request->timestampsToReturn, rvi, result);
         UA_NODESTORE_RELEASE(server, node);
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        }
+        else{
+            result->hasStatus = true;
+            result->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+            UA_NODESTORE_RELEASE(server, node);
+        }
+#endif
     } else {
         result->hasStatus = true;
         result->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
@@ -683,10 +770,28 @@ UA_Server_readWithSession(UA_Server *server, UA_Session *session,
         dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return dv;
     }
-
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        UA_Boolean checkAccess = true;
+        if (session != &server->adminSession && (node->head.nodeId.namespaceIndex != 0)){
+            checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_READ);
+            if ((item->attributeId == UA_ATTRIBUTEID_ROLEPERMISSIONS) || (item->attributeId == UA_ATTRIBUTEID_USERROLEPERMISSIONS))
+                checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_READROLEPERMISSIONS);
+            if (item->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+                 checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_RECEIVEEVENTS);
+        }
+        if (checkAccess == true){
+#endif
     /* Perform the read operation */
     ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
-
+#ifdef UA_ENABLE_ROLE_PERMISSION
+        }
+        else{
+            dv.hasStatus = true;
+            dv.status = UA_STATUSCODE_BADUSERACCESSDENIED;
+            UA_NODESTORE_RELEASE(server, node);
+            return dv;
+        }
+#endif
     /* Release the node and return */
     UA_NODESTORE_RELEASE(server, node);
     return dv;
@@ -1063,7 +1168,7 @@ compatibleValue(UA_Server *server, UA_Session *session, const UA_NodeId *targetD
        value->arrayLength == 0) {
         /* There is no way to check type compatibility here. Leave it for the upper layers to
          * decide, if empty array is okay. */
-        return true;        
+        return true;
     }
 
     /* Is the datatype compatible? */
@@ -1559,6 +1664,68 @@ writeIsAbstract(UA_Node *node, UA_Boolean value) {
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_ROLE_PERMISSION
+static UA_StatusCode
+writeRolePermissionAttribute(UA_Server *server, UA_Session *session,
+                             UA_VariableNode *node,
+                             size_t rolePermissionSize, UA_ExtensionObject *rolePermission) {
+    UA_assert(node != NULL);
+
+    UA_RolePermissionType *oldRolePermission = node->head.rolePermissions;
+    size_t oldRolePermissionSize = node->head.rolePermissionsSize;
+    UA_RolePermissionType rolePermission1[rolePermissionSize];
+    for (size_t index = 0; index < rolePermissionSize; index++){
+        UA_ExtensionObject *eo = &rolePermission[index];
+        if(eo->encoding == UA_EXTENSIONOBJECT_DECODED &&
+            eo->content.decoded.type == &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]) {
+            void *data = eo->content.decoded.data;
+            UA_RolePermissionType *decodedData = (UA_RolePermissionType *)data;
+            rolePermission1[index] = *decodedData;
+        }
+    }
+
+    UA_StatusCode retval = UA_Array_copy(rolePermission1, rolePermissionSize,
+                                        (void**)&node->head.rolePermissions,
+                                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Array_delete(oldRolePermission, oldRolePermissionSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    node->head.rolePermissionsSize = rolePermissionSize;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+writeUserRolePermissionAttribute(UA_Server *server, UA_Session *session,
+                             UA_VariableNode *node,
+                             size_t userRolePermissionSize, UA_ExtensionObject *userRolePermission) {
+    UA_assert(node != NULL);
+    UA_RolePermissionType *oldUserRolePermission = node->head.userRolePermissions;
+    size_t oldUserRolePermissionSize = node->head.userRolePermissionsSize;
+    UA_RolePermissionType userRolePermission1[userRolePermissionSize];
+    for (size_t index = 0; index < userRolePermissionSize; index++){
+        UA_ExtensionObject *eo = &userRolePermission[index];
+        if(eo->encoding == UA_EXTENSIONOBJECT_DECODED &&
+            eo->content.decoded.type == &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]) {
+            void *data = eo->content.decoded.data;
+            UA_RolePermissionType *decodedData = (UA_RolePermissionType *)data;
+            userRolePermission1[index] = *decodedData;
+        }
+    }
+
+    UA_StatusCode retval = UA_Array_copy(userRolePermission1, userRolePermissionSize,
+                                        (void**)&node->head.userRolePermissions,
+                                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_Array_delete(oldUserRolePermission, oldUserRolePermissionSize, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    node->head.userRolePermissionsSize = userRolePermissionSize;
+
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 /*****************/
 /* Write Service */
 /*****************/
@@ -1646,6 +1813,20 @@ static UA_StatusCode
 copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                       UA_Node *node, const UA_WriteValue *wvalue) {
     UA_assert(session != NULL);
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    UA_Boolean checkAccess = true;
+    if (session != &server->adminSession && (node->head.nodeId.namespaceIndex != 0)){
+        checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_WRITE);
+        if (checkAccess == false)
+            checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_WRITEATTRIBUTE);
+        if (wvalue->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+            checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_RECEIVEEVENTS);
+        if ((wvalue->attributeId == UA_ATTRIBUTEID_ROLEPERMISSIONS) || (wvalue->attributeId == UA_ATTRIBUTEID_USERROLEPERMISSIONS))
+            checkAccess = checkUserAccess(node, session->sessionHandle, UA_PERMISSIONTYPE_READROLEPERMISSIONS);
+        if (checkAccess != true)
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+#endif
     const void *value = wvalue->value.value.data;
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -1662,8 +1843,6 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_NODEID:
     case UA_ATTRIBUTEID_NODECLASS:
     case UA_ATTRIBUTEID_USERWRITEMASK:
-    case UA_ATTRIBUTEID_USERACCESSLEVEL:
-    case UA_ATTRIBUTEID_USEREXECUTABLE:
     case UA_ATTRIBUTEID_BROWSENAME: /* BrowseName is tracked in a binary tree
                                        for fast lookup */
         retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
@@ -1729,11 +1908,25 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 retval = UA_STATUSCODE_BADNOTWRITABLE;
                 break;
             }
-            accessLevel = getUserAccessLevel(server, session, &node->variableNode);
-            if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
-                retval = UA_STATUSCODE_BADUSERACCESSDENIED;
-                break;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+            if(session != &server->adminSession) {
+                UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_WRITE;
+                UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode, &currentServiceLevel);
+                if (checkAccessToNode != true) {
+                    retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    break;
+                }
             }
+            else {
+#endif
+                accessLevel = getUserAccessLevel(server, session, &node->variableNode);
+                if(!(accessLevel & (UA_ACCESSLEVELMASK_WRITE))) {
+                    retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    break;
+                }
+#ifdef UA_ENABLE_ROLE_PERMISSION
+            }
+#endif
         } else { /* UA_NODECLASS_VARIABLETYPE */
             CHECK_USERWRITEMASK(UA_WRITEMASK_VALUEFORVARIABLETYPE);
         }
@@ -1768,6 +1961,24 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                                                (UA_UInt32 *)wvalue->value.value.data);
         UA_NODESTORE_RELEASE(server, (const UA_Node*)type);
         break;
+    case UA_ATTRIBUTEID_USERACCESSLEVEL:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_USERWRITEMASK(UA_WRITEMASK_USERACCESSLEVEL);
+        CHECK_DATATYPE_SCALAR(BYTE);
+        if(session != &server->adminSession) {
+            UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_WRITE;
+            UA_Boolean checkAccessToNode = hasAccessToNode(server, session, &node->variableNode, &currentServiceLevel);
+            if (checkAccessToNode != true) {
+                retval = UA_STATUSCODE_BADUSERACCESSDENIED;
+                break;
+            }
+            node->variableNode.userAccessLevel = currentServiceLevel;
+        }
+        else {
+            node->variableNode.userAccessLevel = *(const UA_Byte*)value;
+        }
+
+        break;
     case UA_ATTRIBUTEID_ACCESSLEVEL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
         CHECK_USERWRITEMASK(UA_WRITEMASK_ACCESSLEVEL);
@@ -1792,6 +2003,26 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_DATATYPE_SCALAR(BOOLEAN);
         node->methodNode.executable = *(const UA_Boolean*)value;
         break;
+    case UA_ATTRIBUTEID_USEREXECUTABLE:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_METHOD);
+        CHECK_USERWRITEMASK(UA_WRITEMASK_EXECUTABLE);
+        CHECK_DATATYPE_SCALAR(BOOLEAN);
+        node->methodNode.userExecutable = *(const UA_Boolean*)value;
+        break;
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE_ARRAY(EXTENSIONOBJECT);
+        retval = writeRolePermissionAttribute(server, session, &node->variableNode, wvalue->value.value.arrayLength,
+                                              (UA_ExtensionObject *)wvalue->value.value.data);
+        break;
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_DATATYPE_ARRAY(EXTENSIONOBJECT);
+        retval = writeUserRolePermissionAttribute(server, session, &node->variableNode, wvalue->value.value.arrayLength,
+                                                 (UA_ExtensionObject *)wvalue->value.value.data);
+        break;
+#endif
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
@@ -1807,6 +2038,10 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 
     /* Trigger MonitoredItems with no SamplingInterval */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+#ifdef UA_ENABLE_ROLE_PERMISSION
+    if ((wvalue->attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) && (checkAccess == false))
+        return UA_STATUSCODE_GOOD;
+#endif
     triggerImmediateDataChange(server, session, node, wvalue);
 #endif
 
@@ -2131,7 +2366,7 @@ UA_Server_writeObjectProperty_scalar(UA_Server *server, const UA_NodeId objectId
                                      const UA_QualifiedName propertyName,
                                      const void *value, const UA_DataType *type) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retval = 
+    UA_StatusCode retval =
         writeObjectProperty_scalar(server, objectId, propertyName, value, type);
     UA_UNLOCK(&server->serviceMutex);
     return retval;

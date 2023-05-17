@@ -97,11 +97,12 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         UA_Boolean match = false;
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
             if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+            UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
                 match = true;
                 break;
             }
         }
+
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
 
@@ -172,35 +173,36 @@ getUserExecutableOnObject_default(UA_Server *server, UA_AccessControl *ac,
 static UA_Boolean
 allowAddNode_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext,
-                     const UA_AddNodesItem *item) {
+                     const UA_AddNodesItem *item, UA_RolePermissionType *userRolePermission,size_t userRoleSize) {
     return true;
 }
 
 static UA_Boolean
 allowAddReference_default(UA_Server *server, UA_AccessControl *ac,
                           const UA_NodeId *sessionId, void *sessionContext,
-                          const UA_AddReferencesItem *item) {
+                          const UA_AddReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize) {
     return true;
 }
 
 static UA_Boolean
 allowDeleteNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
-                        const UA_DeleteNodesItem *item) {
+                        const UA_DeleteNodesItem *item, UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
     return true;
 }
 
 static UA_Boolean
 allowDeleteReference_default(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
-                             const UA_DeleteReferencesItem *item) {
+                             const UA_DeleteReferencesItem *item, UA_RolePermissionType *userRolePermission, size_t userRoleSize) {
     return true;
 }
 
 static UA_Boolean
 allowBrowseNode_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
-                        const UA_NodeId *nodeId, void *nodeContext) {
+                        const UA_NodeId *nodeId, void *nodeContext,
+                        UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
     return true;
 }
 

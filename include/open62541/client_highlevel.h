@@ -212,6 +212,15 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
                                      &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
 
+UA_StatusCode UA_EXPORT
+UA_Client_readRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       size_t *outRolePermissionSize,
+                                       UA_RolePermissionType **rolePermission);
+
+UA_StatusCode UA_EXPORT
+UA_Client_readUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                         size_t *outUserRolePermissionSize,
+                                         UA_RolePermissionType **userRolePermission);
 /**
  * Historical Access
  * ^^^^^^^^^^^^^^^^^
@@ -453,6 +462,16 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
                                       newUserExecutable,
                                       &UA_TYPES[UA_TYPES_BOOLEAN]);
 }
+
+UA_StatusCode UA_EXPORT
+UA_Client_writeRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                       size_t newRolePermissionSize,
+                                       const UA_RolePermissionType *rolePermission);
+
+UA_StatusCode UA_EXPORT
+UA_Client_writeUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                           size_t newUserRolePermissionSize,
+                                           const UA_RolePermissionType *userRolePermission);
 
 /**
  * Method Calling
