@@ -318,17 +318,20 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl);
 static UA_INLINE UA_StatusCode
 UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
                           const char *username, const char *password) {
+    /* Set the user identity token */
     UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
     if(!identityToken)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     identityToken->userName = UA_STRING_ALLOC(username);
     identityToken->password = UA_STRING_ALLOC(password);
+
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ExtensionObject_clear(&cc->userIdentityToken);
-    cc->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    cc->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    cc->userIdentityToken.content.decoded.data = identityToken;
-    /* Silence a false-positive deprecated warning */
+    UA_ExtensionObject_setValue(&cc->userIdentityToken,
+                                identityToken,
+                                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+
+    /* Connect */
     return UA_Client_connect(client, endpointUrl);
 }
 
