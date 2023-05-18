@@ -975,22 +975,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
-                                          const char *username, const char *password) {
-    /* Create UserIdentityToken */
-    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_STRING_ALLOC(password);
-    UA_ExtensionObject_clear(&config->userIdentityToken);
-    config->userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
-    config->userIdentityToken.content.decoded.type = &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN];
-    config->userIdentityToken.content.decoded.data = identityToken;
-    return UA_STATUSCODE_GOOD;
-}
-
 #ifdef UA_ENABLE_ENCRYPTION
 UA_StatusCode
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,

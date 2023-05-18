@@ -227,7 +227,28 @@ UA_ClientConfig_delete(UA_ClientConfig *config);
  */
 UA_EXPORT void
 UA_ClientConfig_clear(UA_ClientConfig *config);
- /**
+
+/* Configure Username/Password for the Session authentication. Also see
+ * UA_ClientConfig_setAuthenticationCert for x509-based authentication, which is
+ * implemented as a plugin (as it can be based on different crypto
+ * libraries). */
+static UA_INLINE UA_StatusCode
+UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
+                                          const char *username,
+                                          const char *password) {
+    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
+    if(!identityToken)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    identityToken->userName = UA_STRING_ALLOC(username);
+    identityToken->password = UA_STRING_ALLOC(password);
+
+    UA_ExtensionObject_clear(&config->userIdentityToken);
+    UA_ExtensionObject_setValue(&config->userIdentityToken, identityToken,
+                                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    return UA_STATUSCODE_GOOD;
+}
+
+/**
  * Client Lifecycle
  * ---------------- */
 
@@ -319,17 +340,11 @@ static UA_INLINE UA_StatusCode
 UA_Client_connectUsername(UA_Client *client, const char *endpointUrl,
                           const char *username, const char *password) {
     /* Set the user identity token */
-    UA_UserNameIdentityToken* identityToken = UA_UserNameIdentityToken_new();
-    if(!identityToken)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_STRING_ALLOC(password);
-
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ExtensionObject_clear(&cc->userIdentityToken);
-    UA_ExtensionObject_setValue(&cc->userIdentityToken,
-                                identityToken,
-                                &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]);
+    UA_StatusCode res =
+        UA_ClientConfig_setAuthenticationUsername(cc, username, password);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
     /* Connect */
     return UA_Client_connect(client, endpointUrl);
