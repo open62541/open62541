@@ -86,6 +86,10 @@ typedef struct {
      *   URI set in the certificate */
     UA_ApplicationDescription clientDescription;
 
+    /* The endpoint for the client to connect to.
+     * Such as "opc.tcp://host:port". */
+    UA_String endpointUrl;
+
     /**
      * Connection configuration
      * ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -102,6 +106,10 @@ typedef struct {
     UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
                                   * empty string indicates the client to select
                                   * any matching SecurityPolicy. */
+
+    UA_Boolean noSession;   /* Only open a SecureChannel, but no Session */
+    UA_Boolean noReconnect; /* Don't reconnect SecureChannel (and Session) when
+                             * the connection is lost without explicitly closing. */
 
     /**
      * If either endpoint or userTokenPolicy has been set (at least one non-zero
@@ -303,6 +311,12 @@ UA_Client_delete(UA_Client *client);
  * If the connection fails unrecoverably (state->connectStatus is set to an
  * error), the client is no longer usable. Create a new client if required. */
 
+/* Connect with the client configuration. For the async connection, finish
+ * connecting via UA_Client_run_iterate (or manually running a configured
+ * external EventLoop). */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+__UA_Client_connect(UA_Client *client, UA_Boolean async);
+
 /* Connect to the server. First a SecureChannel is opened, then a Session. The
  * client configuration restricts the SecureChannel selection and contains the
  * UserIdentityToken for the Session.
@@ -310,28 +324,64 @@ UA_Client_delete(UA_Client *client);
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
  * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_connect(UA_Client *client, const char *endpointUrl);
+static UA_INLINE UA_StatusCode
+UA_Client_connect(UA_Client *client, const char *endpointUrl) {
+    /* Update the configuration */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = false; /* Open a Session */
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+
+    /* Connect */
+    return __UA_Client_connect(client, false);
+}
 
 /* Connect async (non-blocking) to the server. After initiating the connection,
  * call UA_Client_run_iterate repeatedly until the connection is fully
  * established. You can set a callback to client->config.stateCallback to be
  * notified when the connection status changes. Or use UA_Client_getState to get
  * the state manually. */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_connectAsync(UA_Client *client, const char *endpointUrl);
+static UA_INLINE UA_StatusCode
+UA_Client_connectAsync(UA_Client *client, const char *endpointUrl) {
+    /* Update the configuration */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = false; /* Open a Session */
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+
+    /* Connect */
+    return __UA_Client_connect(client, true);
+}
 
 /* Connect to the server without creating a session
  *
  * @param client to use
  * @param endpointURL to connect (for example "opc.tcp://localhost:4840")
  * @return Indicates whether the operation succeeded or returns an error code */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl);
+static UA_INLINE UA_StatusCode
+UA_Client_connectSecureChannel(UA_Client *client, const char *endpointUrl) {
+    /* Update the configuration */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true; /* Don't open a Session */
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+
+    /* Connect */
+    return __UA_Client_connect(client, false);
+}
 
 /* Connect async (non-blocking) only the SecureChannel */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl);
+static UA_INLINE UA_StatusCode
+UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) {
+    /* Update the configuration */
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true; /* Don't open a Session */
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+
+    /* Connect */
+    return __UA_Client_connect(client, false);
+}
 
 /* Connect to the server and create+activate a Session with the given username
  * and password. This first set the UserIdentityToken in the client config and

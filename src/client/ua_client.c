@@ -152,7 +152,7 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
 void
 UA_ClientConfig_clear(UA_ClientConfig *config) {
     UA_ApplicationDescription_clear(&config->clientDescription);
-
+    UA_String_clear(&config->endpointUrl);
     UA_ExtensionObject_clear(&config->userIdentityToken);
 
     /* Delete the SecurityPolicies for Authentication */
@@ -239,7 +239,6 @@ UA_Client_clear(UA_Client *client) {
     client->sessionState = oldState;
 
     UA_Client_disconnect(client);
-    UA_String_clear(&client->endpointUrl);
     UA_String_clear(&client->discoveryUrl);
 
     UA_String_clear(&client->remoteNonce);
