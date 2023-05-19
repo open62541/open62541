@@ -137,14 +137,12 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
-    UA_Boolean noSession;              /* Don't open a session */
-    UA_Boolean noReconnect;            /* Don't reconnect when the connection closes */
 
-    /* Connection */
-    UA_String endpointUrl;  /* Used to extract address and port */
-    UA_String discoveryUrl; /* The discoveryUrl (also used to signal which
-                               application we want to connect to in the HEL/ACK
-                               handshake). */
+    /* The discoveryUrl can be different from the EndpointUrl in the client
+     * configuration. The EndpointUrl is used to connect initially, then the
+     * DiscoveryUrl is selected via FindServers. This triggers a reconnect if
+     * EndpointUrl != DiscoveryUrl. */
+    UA_String discoveryUrl;
 
     /* SecureChannel */
     UA_SecureChannel channel;
