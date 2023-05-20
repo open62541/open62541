@@ -426,10 +426,15 @@ UA_Client_disconnect(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_disconnectAsync(UA_Client *client);
 
-/* Disconnect the SecureChannel but keep the Session intact (if it exists).
- * This is always an async (non-blocking) operation. */
+/* Disconnect the SecureChannel but keep the Session intact (if it exists). */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_disconnectSecureChannel(UA_Client *client);
+
+/* Disconnect the SecureChannel but keep the Session intact (if it exists). This
+ * is an async operation. Iterate the client until the SecureChannel was fully
+ * cleaned up. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_disconnectSecureChannelAsync(UA_Client *client);
 
 /**
  * Discovery

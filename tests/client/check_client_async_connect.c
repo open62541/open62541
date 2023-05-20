@@ -116,14 +116,13 @@ START_TEST(Client_connect_async_abort) {
 
     for(int i = 0; i < UA_SECURECHANNELSTATE_CLOSING; i++) {
         abortState = (UA_SecureChannelState)i;
-        UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
 
         UA_SecureChannelState currentState;
         do {
             UA_Server_run_iterate(server, false);
             UA_Client_run_iterate(client, 5);
-            UA_Client_getState(client, &currentState, NULL, &retval);
+            UA_Client_getState(client, &currentState, NULL, NULL);
         } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
     }
 
