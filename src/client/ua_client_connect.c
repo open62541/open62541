@@ -1099,8 +1099,8 @@ requestFindServers(UA_Client *client) {
 }
 
 static void
-responseSessionCallback(UA_Client *client, void *userdata,
-                        UA_UInt32 requestId, void *response) {
+createSessionCallback(UA_Client *client, void *userdata,
+                      UA_UInt32 requestId, void *response) {
     UA_LOCK(&client->clientMutex);
 
     UA_CreateSessionResponse *sessionResponse = (UA_CreateSessionResponse*)response;
@@ -1183,7 +1183,7 @@ createSessionAsync(UA_Client *client) {
 
     res = __Client_AsyncService(client, &request,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST],
-                                (UA_ClientAsyncServiceCallback)responseSessionCallback,
+                                (UA_ClientAsyncServiceCallback)createSessionCallback,
                                 &UA_TYPES[UA_TYPES_CREATESESSIONRESPONSE], NULL, NULL);
 
     if(res == UA_STATUSCODE_GOOD)
