@@ -153,8 +153,8 @@ struct UA_Client {
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-    UA_ByteString remoteNonce;
-    UA_ByteString localNonce;
+    UA_ByteString serverSessionNonce;
+    UA_ByteString clientSessionNonce;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
