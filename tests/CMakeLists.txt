@@ -259,6 +259,11 @@ if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     ua_add_test(check_eventloop_eth.c)
 endif()
 
+if(UA_ENABLE_MQTT)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+    ua_add_test(check_eventloop_mqtt.c)
+endif()
+
 # Test Server
 
 ua_add_test(server/check_accesscontrol.c)
