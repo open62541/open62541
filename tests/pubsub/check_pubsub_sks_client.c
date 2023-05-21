@@ -104,13 +104,17 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
                               const UA_NodeId *sessionId, void *sessionContext,
                               const UA_NodeId *methodId, void *methodContext,
                               const UA_NodeId *objectId, void *objectContext) {
-    if(objectContext && sessionContext) {
-        UA_ByteString *username = (UA_ByteString *)objectContext;
-        UA_ByteString *sessionUsername = (UA_ByteString *)sessionContext;
-        if(!UA_ByteString_equal(username, sessionUsername))
-            return false;
-    }
-    return true;
+    if(!objectContext)
+        return true;
+    if(!sessionContext)
+        return false;
+    UA_ExtensionObject *userIdentityToken = (UA_ExtensionObject*)sessionContext;
+    if(userIdentityToken->content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+        return false;
+    UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken*)
+        userIdentityToken->content.decoded.data;
+    UA_ByteString *username = (UA_ByteString *)objectContext;
+    return UA_ByteString_equal(username, &token->userName);
 }
 
 static void
