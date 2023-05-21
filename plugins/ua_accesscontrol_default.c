@@ -45,21 +45,34 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
     AccessControlContext *context = (AccessControlContext*)ac->context;
 
     /* The empty token is interpreted as anonymous */
+    UA_AnonymousIdentityToken anonToken;
+    UA_ExtensionObject tmpIdentity;
     if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        if(!context->allowAnonymous)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        /* No userdata atm */
-        *sessionContext = NULL;
-        return UA_STATUSCODE_GOOD;
+        UA_AnonymousIdentityToken_init(&anonToken);
+        UA_ExtensionObject_init(&tmpIdentity);
+        UA_ExtensionObject_setValueNoDelete(&tmpIdentity,
+                                            &anonToken,
+                                            &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+        userIdentityToken = &tmpIdentity;
     }
 
     /* Could the token be decoded? */
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-    /* Anonymous login */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+    /* If the session has been activated before, the same (decoded)
+     * UserIdentityToken must be used. */
+    if(*sessionContext) {
+        UA_ExtensionObject *oldUserIdentityToken = *(UA_ExtensionObject**)sessionContext;
+        if(UA_order(userIdentityToken, oldUserIdentityToken,
+                    &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) != UA_ORDER_EQ)
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
+    if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* Anonymous login */
         if(!context->allowAnonymous)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -71,17 +84,10 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
          * policyId == ANONYMOUS_POLICY */
         if(token->policyId.data && !UA_String_equal(&token->policyId, &anonymous_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        /* No userdata atm */
-        *sessionContext = NULL;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Username and password */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+    } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        /* Username and password */
         const UA_UserNameIdentityToken *userToken =
             (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-
         if(!UA_String_equal(&userToken->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -96,25 +102,18 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Try to match username/pw */
         UA_Boolean match = false;
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+            if(UA_String_equal(&userToken->userName,
+                               &context->usernamePasswordLogin[i].username) &&
+               UA_String_equal(&userToken->password,
+                               &context->usernamePasswordLogin[i].password)) {
                 match = true;
                 break;
             }
         }
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
-
-        /* For the CTT, recognize whether two sessions are  */
-        UA_ByteString *username = UA_ByteString_new();
-        if(username)
-            UA_ByteString_copy(&userToken->userName, username);
-        *sessionContext = username;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* x509 certificate */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* x509 certificate */
         const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
             userIdentityToken->content.decoded.data;
 
@@ -124,20 +123,35 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!context->verifyX509.verifyCertificate)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        return context->verifyX509.
+        UA_StatusCode res = context->verifyX509.
             verifyCertificate(&context->verifyX509,
                               &userToken->certificateData);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        /* Unsupported token type */
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
-    /* Unsupported token type */
-    return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    /* Login successful. Store the token in the context. */
+    UA_ExtensionObject *tokenCopy = UA_ExtensionObject_new();
+    if(!tokenCopy)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode res = UA_ExtensionObject_copy(userIdentityToken, tokenCopy);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_ExtensionObject_delete(tokenCopy);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    *sessionContext = tokenCopy;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
     if(sessionContext)
-        UA_ByteString_delete((UA_ByteString*)sessionContext);
+        UA_ExtensionObject_delete((UA_ExtensionObject*)sessionContext);
 }
 
 static UA_UInt32
@@ -212,8 +226,8 @@ allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
     if(oldSessionContext == newSessionContext)
         return true;
     if(oldSessionContext && newSessionContext)
-        return UA_ByteString_equal((UA_ByteString*)oldSessionContext,
-                                   (UA_ByteString*)newSessionContext);
+        return (UA_order(oldSessionContext, newSessionContext,
+                         &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
     return false;
 }
 #endif

@@ -18,8 +18,11 @@ typedef struct {
     UA_String password;
 } UA_UsernamePasswordLogin;
 
-/* Default access control. The log-in can be anonymous or username-password. A
- * logged-in user has all access rights.
+/* Default access control. The login can be anonymous, username-password or
+ * certificate-based. A logged-in user has all access rights.
+ *
+ * The plugin stores the UserIdentityToken in the session context. So that
+ * cannot be used for other purposes.
  *
  * The certificate verification plugin lifecycle is moved to the access control
  * system. So it is cleared up eventually together with the AccessControl. */
