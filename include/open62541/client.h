@@ -439,6 +439,43 @@ UA_Client_disconnectSecureChannel(UA_Client *client);
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_disconnectSecureChannelAsync(UA_Client *client);
 
+/* Get the AuthenticationToken and ServerNonce required to activate the current
+ * Session on a different SecureChannel. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authenticationToken,
+                                        UA_ByteString *serverNonce);
+
+/* Re-activate the current session. A change of prefered locales can be done by
+ * updating the client configuration. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateCurrentSession(UA_Client *client);
+
+/* Async version of UA_Client_activateCurrentSession */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateCurrentSessionAsync(UA_Client *client);
+
+/* Activate an already created Session. This allows a Session to be transferred
+ * from a different client instance. The AuthenticationToken and ServerNonce
+ * must be provided for this. Both can be retrieved for an activated Session
+ * with UA_Client_getSessionAuthenticationToken.
+ *
+ * The UserIdentityToken used for authentication must be identical to the
+ * original activation of the Session. The UserIdentityToken is set in the
+ * client configuration.
+ *
+ * Note the noNewSession option if there should not be a new Session
+ * automatically created when this one closes. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateSession(UA_Client *client,
+                          const UA_NodeId authenticationToken,
+                          const UA_ByteString serverNonce);
+
+/* Async version of UA_Client_activateSession */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_activateSessionAsync(UA_Client *client,
+                               const UA_NodeId authenticationToken,
+                               const UA_ByteString serverNonce);
+
 /**
  * Discovery
  * --------- */
