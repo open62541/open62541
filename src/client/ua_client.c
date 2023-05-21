@@ -476,14 +476,28 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         response->responseHeader.serviceResult = retval;
     }
 
-    /* Warn if the Session closed */
+    /* The Session closed. The current response is processed with the return code.
+     * The next request first recreates a session. */
     if(responseType != &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE] &&
        (response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID ||
         response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED)) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "Session no longer valid. A new Session is created for the next "
-                       "Service request but we do not re-send the current request.");
+        /* Clean up the session information and reset the state */
         cleanupSession(client);
+
+        if(client->config.noNewSession) {
+            /* Configuration option to not create a new Session. Disconnect the
+             * client. */
+            client->connectStatus = response->responseHeader.serviceResult;
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "Session cannot be activated with StatusCode %s. "
+                         "The client is configured not to create a new Session.",
+                         UA_StatusCode_name(client->connectStatus));
+            closeSecureChannel(client);
+        } else {
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Session no longer valid. A new Session is created for the next "
+                           "Service request but we do not re-send the current request.");
+        }
     }
 
     /* Call the async callback. This is the only thread with access to ac. So we
