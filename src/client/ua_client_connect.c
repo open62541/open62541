@@ -700,6 +700,14 @@ static UA_StatusCode
 activateSessionAsync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    if(client->sessionState != UA_SESSIONSTATE_CREATED &&
+       client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Can not activate session, session neither created nor activated. "
+                     "Actual state: '%u'", client->sessionState);
+        return UA_STATUSCODE_BADSESSIONCLOSED;
+    }
+
     UA_ActivateSessionRequest request;
     UA_ActivateSessionRequest_init(&request);
     UA_StatusCode retval =
