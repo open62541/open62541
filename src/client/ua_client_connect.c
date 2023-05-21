@@ -112,7 +112,8 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
         return retval;
 
     /* Allocate a temporary buffer */
-    size_t dataToSignSize = channel->remoteCertificate.length + client->remoteNonce.length;
+    size_t dataToSignSize = channel->remoteCertificate.length +
+        client->serverSessionNonce.length;
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -125,7 +126,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
     memcpy(dataToSign.data, channel->remoteCertificate.data,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
-           client->remoteNonce.data, client->remoteNonce.length);
+           client->serverSessionNonce.data, client->serverSessionNonce.length);
     retval = sp->certificateSigningAlgorithm.sign(channel->channelContext,
                                                   &dataToSign, &sd->signature);
     if(retval != UA_STATUSCODE_GOOD)
@@ -161,7 +162,8 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
         return retval;
 
     /* Allocate a temporary buffer */
-    size_t userTokenSignSize = channel->remoteCertificate.length + client->remoteNonce.length;
+    size_t userTokenSignSize = channel->remoteCertificate.length +
+        client->serverSessionNonce.length;
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -174,7 +176,7 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
     memcpy(userTokenSign.data, channel->remoteCertificate.data,
            channel->remoteCertificate.length);
     memcpy(userTokenSign.data + channel->remoteCertificate.length,
-           client->remoteNonce.data, client->remoteNonce.length);
+           client->serverSessionNonce.data, client->serverSessionNonce.length);
     retval = utpSecurityPolicy->certificateSigningAlgorithm.sign(tempChannelContext,
                                                   &userTokenSign, &utsd->signature);
     /* Clean up */
@@ -233,7 +235,8 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
         encryptionAlgorithm.getRemotePlainTextBlockSize(channelContext);
     size_t encryptedBlockSize = sp->asymmetricModule.cryptoModule.
         encryptionAlgorithm.getRemoteBlockSize(channelContext);
-    UA_UInt32 length = (UA_UInt32)(tokenData->length + client->remoteNonce.length);
+    UA_UInt32 length = (UA_UInt32)(tokenData->length +
+                                   client->serverSessionNonce.length);
     UA_UInt32 totalLength = length + 4; /* Including the length field */
     size_t blocks = totalLength / plainTextBlockSize;
     if(totalLength % plainTextBlockSize != 0)
@@ -252,7 +255,8 @@ encryptUserIdentityToken(UA_Client *client, const UA_String *userTokenSecurityPo
     const UA_Byte *end = &encrypted.data[encrypted.length];
     retval = UA_UInt32_encodeBinary(&length, &pos, end);
     memcpy(pos, tokenData->data, tokenData->length);
-    memcpy(&pos[tokenData->length], client->remoteNonce.data, client->remoteNonce.length);
+    memcpy(&pos[tokenData->length], client->serverSessionNonce.data,
+           client->serverSessionNonce.length);
     UA_assert(retval == UA_STATUSCODE_GOOD);
 
     /* Add padding
@@ -302,15 +306,15 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     const UA_ByteString *lc = &sp->localCertificate;
 
-    size_t dataToVerifySize = lc->length + client->localNonce.length;
+    size_t dataToVerifySize = lc->length + client->clientSessionNonce.length;
     UA_ByteString dataToVerify = UA_BYTESTRING_NULL;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToVerify, dataToVerifySize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     memcpy(dataToVerify.data, lc->data, lc->length);
-    memcpy(dataToVerify.data + lc->length,
-           client->localNonce.data, client->localNonce.length);
+    memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
+           client->clientSessionNonce.length);
 
     retval = sp->certificateSigningAlgorithm.verify(channel->channelContext, &dataToVerify,
                                                     &response->serverSignature.signature);
@@ -680,8 +684,8 @@ responseActivateSession(UA_Client *client, void *userdata,
     }
 
     /* Replace the nonce */
-    UA_ByteString_clear(&client->remoteNonce);
-    client->remoteNonce = ar->serverNonce;
+    UA_ByteString_clear(&client->serverSessionNonce);
+    client->serverSessionNonce = ar->serverNonce;
     UA_ByteString_init(&ar->serverNonce);
 
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
@@ -1151,9 +1155,10 @@ createSessionCallback(UA_Client *client, void *userdata,
 #endif
 
     /* Copy nonce and AuthenticationToken */
-    UA_ByteString_clear(&client->remoteNonce);
+    UA_ByteString_clear(&client->serverSessionNonce);
     UA_NodeId_clear(&client->authenticationToken);
-    res |= UA_ByteString_copy(&sessionResponse->serverNonce, &client->remoteNonce);
+    res |= UA_ByteString_copy(&sessionResponse->serverNonce,
+                              &client->serverSessionNonce);
     res |= UA_NodeId_copy(&sessionResponse->authenticationToken,
                           &client->authenticationToken);
     if(res != UA_STATUSCODE_GOOD)
@@ -1178,16 +1183,16 @@ createSessionAsync(UA_Client *client) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
-        if(client->localNonce.length != UA_SESSION_LOCALNONCELENGTH) {
-           UA_ByteString_clear(&client->localNonce);
-            res = UA_ByteString_allocBuffer(&client->localNonce,
+        if(client->clientSessionNonce.length != UA_SESSION_LOCALNONCELENGTH) {
+           UA_ByteString_clear(&client->clientSessionNonce);
+            res = UA_ByteString_allocBuffer(&client->clientSessionNonce,
                                             UA_SESSION_LOCALNONCELENGTH);
             if(res != UA_STATUSCODE_GOOD)
                 return res;
         }
         res = client->channel.securityPolicy->symmetricModule.
                  generateNonce(client->channel.securityPolicy->policyContext,
-                               &client->localNonce);
+                               &client->clientSessionNonce);
         if(res != UA_STATUSCODE_GOOD)
             return res;
     }
@@ -1195,7 +1200,7 @@ createSessionAsync(UA_Client *client) {
     /* Prepare and send the request */
     UA_CreateSessionRequest request;
     UA_CreateSessionRequest_init(&request);
-    request.clientNonce = client->localNonce;
+    request.clientNonce = client->clientSessionNonce;
     request.requestedSessionTimeout = client->config.requestedSessionTimeout;
     request.maxResponseMessageSize = UA_INT32_MAX;
     request.endpointUrl = client->config.endpoint.endpointUrl;
@@ -1739,7 +1744,7 @@ UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authentica
     }
 
     UA_StatusCode res = UA_NodeId_copy(&client->authenticationToken, authenticationToken);
-    res |= UA_ByteString_copy(&client->remoteNonce, serverNonce);
+    res |= UA_ByteString_copy(&client->serverSessionNonce, serverNonce);
     UA_UNLOCK(&client->clientMutex);
     return res;
 }
@@ -1758,9 +1763,9 @@ switchSession(UA_Client *client,
 
     /* Replace token and nonce */
     UA_NodeId_clear(&client->authenticationToken);
-    UA_ByteString_clear(&client->remoteNonce);
+    UA_ByteString_clear(&client->serverSessionNonce);
     UA_StatusCode res = UA_NodeId_copy(&authenticationToken, &client->authenticationToken);
-    res |= UA_ByteString_copy(&serverNonce, &client->remoteNonce);
+    res |= UA_ByteString_copy(&serverNonce, &client->serverSessionNonce);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 

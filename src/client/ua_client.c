@@ -241,8 +241,8 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_disconnect(client);
     UA_String_clear(&client->discoveryUrl);
 
-    UA_String_clear(&client->remoteNonce);
-    UA_String_clear(&client->localNonce);
+    UA_String_clear(&client->serverSessionNonce);
+    UA_String_clear(&client->clientSessionNonce);
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
