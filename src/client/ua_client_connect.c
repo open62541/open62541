@@ -1664,6 +1664,145 @@ __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     return client->connectStatus;
 }
 
+static UA_StatusCode
+activateSessionSync(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
+    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+
+    /* Try to activate */
+    UA_StatusCode res = activateSessionAsync(client);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+    while(client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
+          client->connectStatus == UA_STATUSCODE_GOOD) {
+
+        /* Timeout -> abort */
+        now = UA_DateTime_nowMonotonic();
+        if(maxDate < now) {
+            UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                         "The connection has timed out before it could be fully opened");
+            client->connectStatus = UA_STATUSCODE_BADTIMEOUT;
+            closeSecureChannel(client);
+            /* Continue to run. So the SecureChannel is fully closed in the next
+             * EventLoop iteration. */
+        }
+
+        /* Drop into the EventLoop */
+        UA_UNLOCK(&client->clientMutex);
+        res = el->run(el, (UA_UInt32)((maxDate - now) / UA_DATETIME_MSEC));
+        UA_LOCK(&client->clientMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            client->connectStatus = res;
+            closeSecureChannel(client);
+        }
+
+        notifyClientState(client);
+    }
+
+    return client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_activateCurrentSession(UA_Client *client) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = activateSessionSync(client);
+    notifyClientState(client);
+    UA_UNLOCK(&client->clientMutex);
+    return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_activateCurrentSessionAsync(UA_Client *client) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = activateSessionAsync(client);
+    notifyClientState(client);
+    UA_UNLOCK(&client->clientMutex);
+    return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_getSessionAuthenticationToken(UA_Client *client, UA_NodeId *authenticationToken,
+                                        UA_ByteString *serverNonce) {
+    UA_LOCK(&client->clientMutex);
+    if(client->sessionState != UA_SESSIONSTATE_CREATED &&
+       client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "There is no current session");
+        UA_UNLOCK(&client->clientMutex);
+        return UA_STATUSCODE_BADSESSIONCLOSED;
+    }
+
+    UA_StatusCode res = UA_NodeId_copy(&client->authenticationToken, authenticationToken);
+    res |= UA_ByteString_copy(&client->remoteNonce, serverNonce);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+static UA_StatusCode
+switchSession(UA_Client *client,
+              const UA_NodeId authenticationToken,
+              const UA_ByteString serverNonce) {
+    /* Check that there is no pending session in the client */
+    if(client->sessionState != UA_SESSIONSTATE_CLOSED) {
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Cannot activate a session with a different AuthenticationToken "
+                     "when the client already has a Session.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Replace token and nonce */
+    UA_NodeId_clear(&client->authenticationToken);
+    UA_ByteString_clear(&client->remoteNonce);
+    UA_StatusCode res = UA_NodeId_copy(&authenticationToken, &client->authenticationToken);
+    res |= UA_ByteString_copy(&serverNonce, &client->remoteNonce);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Notify that we have now a created session */
+    client->sessionState = UA_SESSIONSTATE_CREATED;
+    notifyClientState(client);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_activateSession(UA_Client *client,
+                          const UA_NodeId authenticationToken,
+                          const UA_ByteString serverNonce) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = switchSession(client, authenticationToken, serverNonce);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&client->clientMutex);
+        return res;
+    }
+    res = activateSessionSync(client);
+    notifyClientState(client);
+    UA_UNLOCK(&client->clientMutex);
+    return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
+}
+
+UA_StatusCode
+UA_Client_activateSessionAsync(UA_Client *client,
+                               const UA_NodeId authenticationToken,
+                               const UA_ByteString serverNonce) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = switchSession(client, authenticationToken, serverNonce);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&client->clientMutex);
+        return res;
+    }
+    res = activateSessionAsync(client);
+    notifyClientState(client);
+    UA_UNLOCK(&client->clientMutex);
+    return res != UA_STATUSCODE_GOOD ? res : client->connectStatus;
+}
+
 static void
 __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void *application, void **connectionContext,

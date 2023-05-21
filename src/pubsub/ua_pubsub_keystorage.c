@@ -645,7 +645,6 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         }
     }
     if(triggerSKSCleanup) {
-        client->noReconnect = true;
         /* call user callback to notify about the status */
         sksClientContext *ctx = (sksClientContext *)client->config.clientContext;
         UA_PubSubKeyStorage *ks = ctx->ks;
@@ -655,7 +654,6 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
         UA_Client_disconnectAsync(client);
         addDelayedSksClientCleanupCb(client);
     }
-    return;
 }
 
 static void
