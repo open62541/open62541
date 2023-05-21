@@ -643,21 +643,38 @@ responseActivateSession(UA_Client *client, void *userdata,
 
     UA_ActivateSessionResponse *ar = (UA_ActivateSessionResponse*)response;
     if(ar->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "ActivateSession failed with error code %s",
-                     UA_StatusCode_name(ar->responseHeader.serviceResult));
-        if(ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID ||
-           ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
-            /* The session is no longer usable. Create a brand new one. */
-            cleanupSession(client);
+        /* Activating the Session failed */
+        cleanupSession(client);
+
+        /* Configuration option to not create a new Session */
+        if(client->config.noNewSession) {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                         "Session cannot be activated. Create a new Session.");
-            client->connectStatus = createSessionAsync(client);
-        } else {
-            /* Something else is wrong. Give up. */
+                         "Session cannot be activated with StatusCode %s. "
+                         "The client is configured not to create a new Session.",
+                         UA_StatusCode_name(ar->responseHeader.serviceResult));
             client->connectStatus = ar->responseHeader.serviceResult;
             closeSecureChannel(client);
+            UA_UNLOCK(&client->clientMutex);
+            return;
         }
+
+        /* The Session is no longer usable. Create a brand new one. */
+        if(ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONIDINVALID ||
+           ar->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
+            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                           "Session to be activated no longer exists. Create a new Session.");
+            client->connectStatus = createSessionAsync(client);
+            UA_UNLOCK(&client->clientMutex);
+            return;
+        }
+
+        /* Something else is wrong. Maybe the credentials no longer work. Give up. */
+        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                     "Session cannot be activated with StatusCode %s. "
+                     "The client cannot recover from this, closing the connection.",
+                     UA_StatusCode_name(ar->responseHeader.serviceResult));
+        client->connectStatus = ar->responseHeader.serviceResult;
+        closeSecureChannel(client);
         UA_UNLOCK(&client->clientMutex);
         return;
     }

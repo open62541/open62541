@@ -108,8 +108,11 @@ typedef struct {
                                   * any matching SecurityPolicy. */
 
     UA_Boolean noSession;   /* Only open a SecureChannel, but no Session */
-    UA_Boolean noReconnect; /* Don't reconnect SecureChannel (and Session) when
-                             * the connection is lost without explicitly closing. */
+    UA_Boolean noReconnect; /* Don't reconnect SecureChannel when the connection
+                             * is lost without explicitly closing. */
+    UA_Boolean noNewSession; /* Don't automatically create a new Session when
+                              * the intial one is lost. Instead abort the
+                              * connection when the Session is lost. */
 
     /**
      * If either endpoint or userTokenPolicy has been set (at least one non-zero
