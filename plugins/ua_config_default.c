@@ -262,6 +262,13 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
                            "Cannot create the Interrupt Manager (only relevant if used)");
         }
+#ifdef UA_ENABLE_MQTT
+        /* Add the MQTT connection manager */
+        UA_ConnectionManager *mqttCM =
+            UA_ConnectionManager_new_MQTT(UA_STRING("mqtt connection manager"));
+        if(mqttCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)mqttCM);
+#endif
     }
     if(conf->eventLoop != NULL) {
         if(conf->eventLoop->state != UA_EVENTLOOPSTATE_STARTED) {
