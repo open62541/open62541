@@ -61,7 +61,7 @@ static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t buf
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
 #define MQTT_PARAMETERSSIZE 7
 #define MQTT_BROKERPARAMETERSSIZE 5 /* Parameters shared by topic connections
-                                     * connected to the smae broker */
+                                     * connected to the same broker */
 
 static const struct {
     UA_QualifiedName name;
