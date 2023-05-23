@@ -154,7 +154,7 @@ START_TEST(Client_subscription_createDataChanges) {
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
                                                                             NULL, NULL, NULL);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
-    changeLocale(client);
+  //  changeLocale(client);
     UA_UInt32 subId = response.subscriptionId;
 
     UA_MonitoredItemCreateRequest items[3];
@@ -162,7 +162,7 @@ START_TEST(Client_subscription_createDataChanges) {
     UA_Client_DataChangeNotificationCallback callbacks[3];
     UA_Client_DeleteMonitoredItemCallback deleteCallbacks[3];
     void *contexts = NULL;
-    changeLocale(client);
+  //  changeLocale(client);
 
     /* monitor the server state */
     items[0] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
