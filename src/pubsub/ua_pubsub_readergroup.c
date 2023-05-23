@@ -75,87 +75,7 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
 #endif
 }
 
-/* This triggers the collection and reception of NetworkMessages and the
- * contained DataSetMessages. */
-static void
-subscribeCallback(UA_Server *server,
-                  UA_ReaderGroup *readerGroup) {
-    // TODO: feedback for debug-assert vs runtime-check
-    UA_assert(server);
-    UA_assert(readerGroup);
-
-    UA_LOG_DEBUG_READERGROUP(&server->config.logger, readerGroup,
-                             "PubSub subscribe callback");
-
-    UA_PubSubConnection *connection = readerGroup->linkedConnection;
-    if(!connection) {
-        UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
-                     "SubscribeCallback(): Find linked connection failed");
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_ERROR,
-                                      UA_STATUSCODE_BADCONNECTIONCLOSED);
-        return;
-    }
-
-    receiveBufferedNetworkMessage(server, readerGroup, connection);
-}
-
-static void
-UA_ReaderGroup_subscribeCallback(UA_Server *server,
-                                 UA_ReaderGroup *readerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    subscribeCallback(server, readerGroup);
-    UA_UNLOCK(&server->serviceMutex);
-}
-
 /* ReaderGroup Lifecycle */
-
-/* Add new subscribeCallback. The first execution is triggered directly after
- * creation. */
-static UA_StatusCode
-UA_ReaderGroup_addSubscribeCallback(UA_Server *server, UA_ReaderGroup *readerGroup) {
-    /* Already registered */
-    if(readerGroup->subscribeCallbackId != 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_EventLoop *el = readerGroup->linkedConnection->config.eventLoop;
-    if(!el)
-        el = server->config.eventLoop;
-
-    UA_StatusCode retval =
-        el->addCyclicCallback(el, (UA_Callback)UA_ReaderGroup_subscribeCallback,
-                              server, readerGroup,
-                              readerGroup->config.subscribingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
-                              &readerGroup->subscribeCallbackId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    /* Run once after creation */
-    /* When using blocking socket functionality, the server mechanism might get
-     * blocked. It is highly recommended to use custom callback when using
-     * blockingsocket. */
-    if(readerGroup->config.enableBlockingSocket != true)
-        subscribeCallback(server, readerGroup);
-
-    return retval;
-}
-
-static void
-UA_ReaderGroup_removeSubscribeCallback(UA_Server *server,
-                                       UA_ReaderGroup *readerGroup) {
-    UA_PubSubConnection *connection = readerGroup->linkedConnection;
-    UA_EventLoop *el = server->config.eventLoop;
-    if(connection && connection->config.eventLoop)
-        el = connection->config.eventLoop;
-    if(readerGroup->subscribeCallbackId != 0)
-        el->removeCyclicCallback(el, readerGroup->subscribeCallbackId);
-    readerGroup->subscribeCallbackId = 0;
-}
 
 UA_StatusCode
 UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
@@ -186,15 +106,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    /* Regist (bind) the connection channel if it is not already registered */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!connection->isRegistered) {
-        retval |= UA_PubSubConnection_regist(server, &connectionId, rgc);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    }
-
-    /* Allocate memory for new reader group */
+    /* Allocate memory for new reader group and add settings */
     UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
     if(!newGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -202,7 +114,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
 
     /* Deep copy of the config */
-    retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
+    UA_StatusCode retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_free(newGroup);
         return retval;
@@ -225,6 +137,14 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     /* Add to the connection */
     LIST_INSERT_HEAD(&connection->readerGroups, newGroup, listEntry);
     connection->readerGroupsSize++;
+
+    /* If the connection is operational, we still reset the state. We might open
+     * a different (recv) connection internally when a readergroup is
+     * present. */
+    if(connection->state == UA_PUBSUBSTATE_OPERATIONAL ||
+       connection->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_PubSubConnection_setPubSubState(server, connection,
+                                           UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval |= addReaderGroupRepresentation(server, newGroup);
@@ -299,10 +219,6 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    /* Unregister subscribe callback */
-    if(rg->state == UA_PUBSUBSTATE_OPERATIONAL)
-        UA_ReaderGroup_removeSubscribeCallback(server, rg);
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, rg->identifier, true);
 #endif
@@ -328,8 +244,10 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
 
     LIST_REMOVE(rg, listEntry);
     UA_PubSubConnection* pConn = rg->linkedConnection;
-    if(pConn != NULL)
+    if(pConn != NULL) {
         pConn->readerGroupsSize--;
+        UA_PubSubConnection_setPubSubState(server, pConn, pConn->state, UA_STATUSCODE_GOOD);
+    }
 
     UA_NodeId_clear(&rg->identifier);
     UA_ReaderGroupConfig_clear(&rg->config);
@@ -406,7 +324,6 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-        UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
             UA_DataSetReader_setPubSubState(server, dataSetReader,
                                             UA_PUBSUBSTATE_DISABLED, cause);
@@ -451,6 +368,17 @@ static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_ReaderGroup *rg,
                                           UA_StatusCode cause) {
+    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
+    UA_StatusCode ret =
+        UA_PubSubConnection_setPubSubState(server, pubSubConnection, UA_PUBSUBSTATE_OPERATIONAL,
+                                           UA_STATUSCODE_GOOD);
+    if(ret != UA_STATUSCODE_GOOD ||
+       (pubSubConnection->state != UA_PUBSUBSTATE_OPERATIONAL &&
+        pubSubConnection->state != UA_PUBSUBSTATE_PREOPERATIONAL)) {
+        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg, "Connection not operational");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
     UA_DataSetReader *dataSetReader = LIST_FIRST(&rg->readers);
     if(!dataSetReader ||
@@ -465,8 +393,6 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
 
     switch(oldstate) {
     case UA_PUBSUBSTATE_DISABLED:
-        UA_ReaderGroup_addSubscribeCallback(server, rg);
-        /* Fall-through */
     case UA_PUBSUBSTATE_OPERATIONAL:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
@@ -497,7 +423,6 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
         break;
     case UA_PUBSUBSTATE_OPERATIONAL:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-        UA_ReaderGroup_removeSubscribeCallback(server, rg);
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
             UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_ERROR,
                                             cause);

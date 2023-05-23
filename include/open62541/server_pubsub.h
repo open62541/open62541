@@ -219,10 +219,6 @@ typedef struct {
 
 /* General PubSub configuration */
 struct UA_PubSubConfiguration {
-    /* PubSub network layer */
-    size_t transportLayersSize;
-    UA_PubSubTransportLayer *transportLayers;
-
     /* Callback for PubSub component state changes: If provided this callback
      * informs the application about PubSub component state changes. E.g. state
      * change from operational to error in case of a DataSetReader
@@ -243,20 +239,6 @@ struct UA_PubSubConfiguration {
 #endif
 };
 
-
-/**
- * The UA_ServerConfig_addPubSubTransportLayer is used to add a transport layer
- * to the server configuration. The list memory is allocated and will be freed
- * with UA_PubSubManager_delete.
- *
- * .. note:: If the UA_String transportProfileUri was dynamically allocated
- *           the memory has to be freed when no longer required.
- *
- * .. note:: This has to be done before the server is started with UA_Server_run. */
-
-UA_StatusCode UA_EXPORT
-UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer pubsubTransportLayer);
 /**
  * Add a new PubSub connection to the given server and open it.
  * @param[in] server the server to add the connection to

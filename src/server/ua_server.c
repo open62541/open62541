@@ -325,25 +325,6 @@ serverHouseKeeping(UA_Server *server, void *_) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
-/* Some subsystems require regula polling of the network. This is a holdover
- * from before the EventLoop model.
- *
- * TODO: Refactor to use the EventLoop instead of polling. Get rid of this
- * entirely. */
-static void
-serverPolling(UA_Server *server, void *_) {
-    /* Listen on the pubsublayer, but only if the yield function is set. */
-#if defined(UA_ENABLE_PUBSUB_MQTT)
-    UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry){
-        UA_PubSubConnection *ps = connection;
-        if(ps && ps->channel && ps->channel->yield){
-            ps->channel->yield(ps->channel, 0);
-        }
-    }
-#endif
-}
-
 /********************/
 /* Server Lifecycle */
 /********************/
@@ -754,15 +735,6 @@ UA_Server_run_startup(UA_Server *server) {
                           &config->logger, UA_LOGCATEGORY_SERVER,
                           "Could not create the server housekeeping task");
 
-    /* Add a regular callback for network polling tasks. With a 200ms interval.
-     *
-     * TODO: Move this to the EventLoop model without polling.
-     */
-    if(server->pollingCallbackId == 0) {
-        addRepeatedCallback(server, serverPolling, NULL, 200.0,
-                            &server->pollingCallbackId);
-    }
-
     /* Ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -864,12 +836,6 @@ UA_Server_run_shutdown(UA_Server *server) {
     if(server->houseKeepingCallbackId != 0) {
         removeCallback(server, server->houseKeepingCallbackId);
         server->houseKeepingCallbackId = 0;
-    }
-
-    /* Stop the polling tasks */
-    if(server->pollingCallbackId != 0) {
-        removeCallback(server, server->pollingCallbackId);
-        server->pollingCallbackId = 0;
     }
 
     /* Stop all ServerComponents */
