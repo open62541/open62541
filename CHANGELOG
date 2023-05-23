@@ -1,6 +1,14 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2023-06-01 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
+
+ * Switch PubSub to event loop
+
+   The transport layers have been substituted by the event loop.
+   The function UA_ServerConfig_addPubSubTransportLayer has been
+   removed.
+
 2022-12-03 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * KeyValueMap in PubSub configuration
