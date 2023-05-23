@@ -114,8 +114,6 @@ setup(void) {
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;

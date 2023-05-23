@@ -74,7 +74,6 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
     *config = UA_Server_getConfig(*server);
 
     retVal |= UA_Server_run_startup(*server);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 

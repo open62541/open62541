@@ -5,7 +5,6 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/types.h>
@@ -21,11 +20,10 @@ UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
-    retVal |= UA_Server_run_startup(server);
+    UA_ServerConfig_setDefault(config);
+    UA_Server_run_startup(server);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));

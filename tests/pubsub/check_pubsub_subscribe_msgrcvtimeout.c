@@ -46,7 +46,6 @@ static void setup(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     UA_StatusCode res = UA_Server_run_startup(server);
     ck_assert(UA_STATUSCODE_GOOD == res);
