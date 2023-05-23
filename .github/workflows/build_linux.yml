@@ -50,9 +50,9 @@ jobs:
           - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
                 sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.0.tar.gz --output libressl.tar.gz
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.2.tar.gz --output libressl.tar.gz
                 tar -xvz -f libressl.tar.gz
-                cd libressl-3.7.0
+                cd libressl-3.7.2
                 ./configure
                 sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
@@ -101,7 +101,7 @@ jobs:
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: examples_valgrind MBEDTLS
           - build_name: "Valgrind Examples  with OpenSSL (gcc)"
-            cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
+            cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto
             cmd_action: examples_valgrind OPENSSL
           - build_name: "Clang Static Analyzer"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
