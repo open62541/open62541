@@ -217,11 +217,12 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 
     if((!newGroup->config.enableBlockingSocket) && (!newGroup->config.timeout))
         newGroup->config.timeout = 1000; /* Set default to 1ms socket timeout
-                                            when non-blocking socket allows with
-                                            zero timeout */
+                                          * when non-blocking socket allows with
+                                          * zero timeout */
 
     newGroup->linkedConnection = connection;
 
+    /* Add to the connection */
     LIST_INSERT_HEAD(&connection->readerGroups, newGroup, listEntry);
     connection->readerGroupsSize++;
 
@@ -333,6 +334,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     UA_NodeId_clear(&rg->identifier);
     UA_ReaderGroupConfig_clear(&rg->config);
     UA_free(rg);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -455,7 +457,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
        (rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE &&
         rg->configurationFrozen && !dataSetReader->bufferedMessage.nm))
         state = UA_PUBSUBSTATE_PREOPERATIONAL;
-                               
+
     UA_PubSubState oldstate = rg->state;
     rg->state = state; /* Set the new state now. So we can already switch from
                         * pre-operational to operational when the first messages

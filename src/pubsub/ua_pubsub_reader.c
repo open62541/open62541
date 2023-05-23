@@ -1075,15 +1075,17 @@ processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
     UA_Byte totalDataSets = 1;
     if(msg->payloadHeaderEnabled)
         totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
+
     for(UA_Byte i = 0; i < totalDataSets; i++) {
-        /* map dataset reader to dataset message since multiple dataset reader may read this network message
-           otherwise the dataset message may be written to the wrong dataset reader.  */
-        if (!msg->payloadHeaderEnabled ||
-            (reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i])) {
+        /* Map dataset reader to dataset message since multiple dataset reader
+         * may read this network message. Otherwise the dataset message may be
+         * written to the wrong dataset reader. */
+        if(!msg->payloadHeaderEnabled ||
+           (reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i])) {
             UA_LOG_DEBUG_READER(&server->config.logger, reader,
-                            "Process Msg with DataSetReader!");
+                                "Process Msg with DataSetReader!");
             UA_DataSetReader_process(server, readerGroup, reader,
-                                 &msg->payload.dataSetPayload.dataSetMessages[i]);
+                                     &msg->payload.dataSetPayload.dataSetMessages[i]);
         }
     }
 }
