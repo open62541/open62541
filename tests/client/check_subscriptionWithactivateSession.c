@@ -161,23 +161,25 @@ START_TEST(Client_subscription_createDataChanges) {
     UA_UInt32 newMonitoredItemIds[3];
     UA_Client_DataChangeNotificationCallback callbacks[3];
     UA_Client_DeleteMonitoredItemCallback deleteCallbacks[3];
-    void *contexts = NULL;
+    void *contexts[3];
   //  changeLocale(client);
 
     /* monitor the server state */
     items[0] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE));
     callbacks[0] = dataChangeHandler;
+    contexts[0] = NULL;
     deleteCallbacks[0] = NULL;
 
     /* monitor invalid node */
     items[1] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, 999999));
     callbacks[1] = dataChangeHandler;
+    contexts[1] = NULL;
     deleteCallbacks[1] = NULL;
 
     /* monitor current time */
     items[2] = UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
     callbacks[2] = dataChangeHandler;
- 
+    contexts[2] = NULL;
     deleteCallbacks[2] = NULL;
 
     UA_CreateMonitoredItemsRequest createRequest;
@@ -187,7 +189,7 @@ START_TEST(Client_subscription_createDataChanges) {
     createRequest.itemsToCreate = items;
     createRequest.itemsToCreateSize = 3;
     UA_CreateMonitoredItemsResponse createResponse =
-       UA_Client_MonitoredItems_createDataChanges(client, createRequest, &contexts,
+       UA_Client_MonitoredItems_createDataChanges(client, createRequest, contexts,
                                                    callbacks, deleteCallbacks);
 
     ck_assert_uint_eq(createResponse.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
