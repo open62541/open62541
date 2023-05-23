@@ -678,11 +678,6 @@ int main(int argc, char **argv) {
     networkAddressUrlPub.networkInterface = UA_STRING(interface);
     networkAddressUrlPub.url              = UA_STRING(PUBLISHING_MAC_ADDRESS);
 
-    /* It is possible to use multiple PubSubTransportLayers on runtime.
-     * The correct factory is selected on runtime by the standard defined
-     * PubSub TransportProfileUri's. */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-
     addPubSubConnection(server, &networkAddressUrlPub);
     addPublishedDataSet(server);
     _addDataSetField(server);

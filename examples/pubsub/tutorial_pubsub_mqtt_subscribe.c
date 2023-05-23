@@ -375,18 +375,16 @@ int main(int argc, char **argv) {
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
 
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Instantiate the PubSub SecurityPolicy */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 #endif
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
 
     /* API calls */
     /* Add PubSubConnection */

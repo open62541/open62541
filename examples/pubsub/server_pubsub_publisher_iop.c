@@ -746,13 +746,6 @@ static int run(UA_String *transportProfile,
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, 4802, NULL);
 
-    /* Details about the connection configuration and handling are located in
-    * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
     addPubSubConnection(server, transportProfile, networkAddressUrl);
 
     /* Create a PublishedDataSet based on a PublishedDataSetConfig. */

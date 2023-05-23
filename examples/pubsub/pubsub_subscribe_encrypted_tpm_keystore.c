@@ -310,16 +310,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     /* API calls */
     /* Add PubSubConnection */
     retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);

@@ -107,9 +107,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
-    UA_LOCK(&server->serviceMutex);
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
-    UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
 
@@ -177,13 +174,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-        UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-    #endif
 
     addTargetVariable(server);
     addStandaloneSubscribedDataSet(server);

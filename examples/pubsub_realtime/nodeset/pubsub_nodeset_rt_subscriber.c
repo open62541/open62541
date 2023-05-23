@@ -642,8 +642,6 @@ int main(int argc, char **argv) {
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(SUBSCRIBING_MAC_ADDRESS);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);

@@ -303,15 +303,6 @@ run(UA_UInt16 port, UA_String *transportProfile,
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
     /* API calls */
     /* Add PubSubConnection */
     retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);

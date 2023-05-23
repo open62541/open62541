@@ -157,12 +157,6 @@ static int run(UA_String *transportProfile,
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);

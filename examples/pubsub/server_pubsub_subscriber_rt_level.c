@@ -356,12 +356,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, 4801, NULL);
 
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-
     /* API calls */
     /* Add PubSubConnection */
     retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);

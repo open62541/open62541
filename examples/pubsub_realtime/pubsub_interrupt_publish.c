@@ -363,8 +363,6 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-
     addServerNodes(server);
     addPubSubConfiguration(server);
 

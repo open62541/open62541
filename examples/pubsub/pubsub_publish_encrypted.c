@@ -132,8 +132,6 @@ static int run(UA_String *transportProfile,
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);

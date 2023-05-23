@@ -155,7 +155,6 @@ run(UA_UInt16 port, UA_String *transportProfile,
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);

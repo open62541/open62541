@@ -1402,12 +1402,6 @@ int main(int argc, char **argv) {
         fpSubscriber                  = fopen(fileSubscribedData, "w");
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     /* Initialize arguments required for the thread to run */
     threadArgPubSub1 = (threadArgPubSub *) UA_malloc(sizeof(threadArgPubSub));
 
@@ -1423,12 +1417,6 @@ int main(int argc, char **argv) {
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 #ifdef TWO_WAY_COMMUNICATION
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     addPubSubConnectionSubscriber(server, &transportProfile, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);

@@ -280,13 +280,6 @@ static int run(UA_String *transportProfile,
     add3DPointVariableType(server);
     add3DPointVariable(server);
 
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
     //add string variable to information model
     UA_VariableAttributes variableAttributes = UA_VariableAttributes_default;
     UA_String value = UA_STRING("hello world");
