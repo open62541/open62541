@@ -132,7 +132,7 @@ UA_ReserveId_isFree(UA_Server *server,  UA_UInt16 id,
                 LIST_FOREACH(currentWriter, &writerGroup->writers, listEntry) {
                     if(UA_String_equal(&tmpConnection->config.transportProfileUri,
                                        &transportProfileUri) &&
-                    currentWriter->config.dataSetWriterId == id)
+                       currentWriter->config.dataSetWriterId == id)
                         return false;
                 }
             }
@@ -469,7 +469,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         UA_free(server->config.pubSubConfig.transportLayers);
         server->config.pubSubConfig.transportLayersSize = 0;
     }
-    /* delete subscribed datasets */
+    /* Delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
         removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);

@@ -71,9 +71,8 @@ UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionId
 
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
-    if (connectionConfig->publisherIdType == UA_PUBLISHERIDTYPE_STRING) {
+    if(connectionConfig->publisherIdType == UA_PUBLISHERIDTYPE_STRING)
         UA_String_clear(&connectionConfig->publisherId.string);
-    }
     UA_String_clear(&connectionConfig->name);
     UA_String_clear(&connectionConfig->transportProfileUri);
     UA_Variant_clear(&connectionConfig->connectionTransportSettings);
@@ -99,8 +98,8 @@ assignConnectionIdentifier(UA_Server *server, UA_PubSubConnection *newConnection
 
 UA_StatusCode
 UA_PubSubConnection_create(UA_Server *server,
-                          const UA_PubSubConnectionConfig *connectionConfig,
-                          UA_NodeId *connectionIdentifier) {
+                           const UA_PubSubConnectionConfig *connectionConfig,
+                           UA_NodeId *connectionIdentifier) {
     /* Validate preconditions */
     UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
     UA_CHECK_MEM_ERROR(connectionConfig, return UA_STATUSCODE_BADINTERNALERROR,

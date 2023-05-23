@@ -1179,6 +1179,7 @@ publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *c
     }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Send the encrypted buffered message if PubSub encryption is enabled */
     if(writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
             signatureAlgorithm.getLocalSignatureSize(writerGroup->securityPolicyContext);
