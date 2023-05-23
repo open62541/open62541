@@ -101,8 +101,6 @@ static void AddConnection(
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
     UA_LOCK(&server->serviceMutex);
-    ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
