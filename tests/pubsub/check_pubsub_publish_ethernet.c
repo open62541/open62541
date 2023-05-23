@@ -70,7 +70,9 @@ START_TEST(EthernetSendWithoutVLANTag) {
     /* Initialize a buffer to send data */
     testBuffer = UA_STRING(BUFFER_STRING);
     /* Validate the Ethernet send API */
-    retVal = connection->channel->send(connection->channel, NULL, &testBuffer);
+    retVal = connection->cm->sendWithConnection(connection->cm,
+                                                connection->sendConnection,
+                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     } END_TEST
@@ -99,7 +101,9 @@ START_TEST(EthernetSendWithVLANTag) {
     /* Initialize a buffer to send data */
     testBuffer = UA_STRING(BUFFER_STRING);
     /* Validate the Ethernet send API */
-    retVal = connection->channel->send(connection->channel, NULL, &testBuffer);
+    retVal = connection->cm->sendWithConnection(connection->cm,
+                                                connection->sendConnection,
+                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     } END_TEST

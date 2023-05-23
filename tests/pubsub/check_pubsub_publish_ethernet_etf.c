@@ -57,12 +57,6 @@ static void teardown(void) {
 }
 
 START_TEST(EthernetSendWithoutVLANTag) {
-    struct timespec nextnanosleeptime;
-    UA_UInt64 transmission_time;
-    nextnanosleeptime.tv_sec = SECONDS_SLEEP;
-    nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
-
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -87,33 +81,15 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     ck_assert(connection);
 
-    /* Define Ethernet ETF transport settings */
-    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
-    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
-    ethernettransportSettings.transmission_time = 0;
-
-    /* Encapsulate ETF config in transportSettings */
-    UA_ExtensionObject transportSettings;
-    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
-    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    transportSettings.content.decoded.data = &ethernettransportSettings;
-    clock_gettime(CLOCKID, &nextnanosleeptime);
-    transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-    ethernettransportSettings.transmission_time = transmission_time;
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-
     /* Initialize a buffer to send data */
     UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
-    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
+    UA_StatusCode retVal = connection->cm->sendWithConnection(connection->cm,
+                                                connection->sendConnection,
+                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(EthernetSendWithVLANTag) {
-    struct timespec nextnanosleeptime;
-    UA_UInt64 transmission_time;
-    nextnanosleeptime.tv_sec = SECONDS_SLEEP;
-    nextnanosleeptime.tv_nsec = NANO_SECONDS_SLEEP_PUB;
-    UA_UInt64 roundOffCycleTime = (long) (CYCLE_TIME * MILLI_SECONDS) - NANO_SECONDS_SLEEP_PUB;
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -138,24 +114,11 @@ START_TEST(EthernetSendWithVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     ck_assert(connection);
 
-    /* Define Ethernet ETF transport settings */
-    UA_EthernetWriterGroupTransportDataType ethernettransportSettings;
-    memset(&ethernettransportSettings, 0, sizeof(UA_EthernetWriterGroupTransportDataType));
-    ethernettransportSettings.transmission_time = 0;
-
-    /* Encapsulate ETF config in transportSettings */
-    UA_ExtensionObject transportSettings;
-    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
-    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-    transportSettings.content.decoded.data = &ethernettransportSettings;
-    clock_gettime(CLOCKID, &nextnanosleeptime);
-    transmission_time = ((UA_UInt64)nextnanosleeptime.tv_sec * SECONDS + (UA_UInt64)nextnanosleeptime.tv_nsec) + roundOffCycleTime + QBV_OFFSET;
-    ethernettransportSettings.transmission_time = transmission_time;
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-
     /* Initialize a buffer to send data */
     UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
-    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
+    UA_StatusCode retVal = connection->cm->sendWithConnection(connection->cm,
+                                                connection->sendConnection,
+                                                &UA_KEYVALUEMAP_NULL, &testBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
