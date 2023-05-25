@@ -532,8 +532,10 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                             &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
         UA_LOCK(&el->elMutex);
 
-        /* Now we are interested in read-events. */
-        conn->rfd.listenEvents = UA_FDEVENT_IN;
+        /* Don't listen for any events (besides the connection closing) for
+         * send-connections. Blocking sending (where UA_FDEVENT_OUT is
+         * interesting) is handled in sendWithConnection. */
+        conn->rfd.listenEvents = 0;
         UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
         return;
     }
