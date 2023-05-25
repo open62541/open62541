@@ -40,8 +40,7 @@ ua_generate_nodeid_header(
 
 add_example(server_nodeset server_nodeset.c
             ${UA_NODESET_EXAMPLE_SOURCES}
-            ${PROJECT_BINARY_DIR}/src_generated/open62541/example_nodeids.h
-            )
+            ${PROJECT_BINARY_DIR}/src_generated/open62541/example_nodeids.h)
 add_dependencies(server_nodeset open62541-generator-ns-example open62541-generator-ids_example)
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -75,7 +74,7 @@ else()
     set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
 endif()
 
-## PLCopen requires the full ns0 as basis
+# PLCopen requires the full ns0 as basis
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Generate types and namespace for DI

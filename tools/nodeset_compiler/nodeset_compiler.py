@@ -150,7 +150,6 @@ for xmlfile in args.existing:
         ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
         nsCount += 1
         continue
-
     ns.addNodeSet(xmlfile, True, typesArray="UA_TYPES")
 
 for xmlfile in args.infiles:

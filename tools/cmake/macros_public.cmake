@@ -50,11 +50,8 @@ function(ua_generate_nodeid_header)
     endif()
 
     if(UA_GEN_ID_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
-        #TODO: Check if it is a problem that the generator and the source file may be included in the list more than once.
         list(APPEND UA_NODESETINJECTOR_GENERATORS ${UA_GEN_ID_TARGET_PREFIX}-${UA_GEN_ID_TARGET_SUFFIX})
         set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
-        #list(APPEND UA_NODESETINJECTOR_SOURCE_FILES  ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h)
-        #set(UA_NODESETINJECTOR_SOURCE_FILES ${UA_NODESETINJECTOR_SOURCE_FILES} PARENT_SCOPE)
     endif()
 
     # Make sure that the output directory exists
@@ -222,12 +219,10 @@ function(ua_generate_datatypes)
         add_custom_target(${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX} DEPENDS
                           ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
                           ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-                          ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
-                          )
+                          ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h)
     endif()
 
     if(UA_GEN_DT_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
-        #TODO: Check if it is a problem that the generator and the source file may be included in the list more than once.
         list(APPEND UA_NODESETINJECTOR_GENERATORS ${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX})
         set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
         list(APPEND UA_NODESETINJECTOR_SOURCE_FILES  ${PROJECT_BINARY_DIR}/src_generated/open62541/${UA_GEN_DT_NAME}_generated.c)
@@ -409,8 +404,7 @@ function(ua_generate_nodeset)
         add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}
                           DEPENDS
                           ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
-                          ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
-                          )
+                          ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h)
     endif()
 
     if(UA_GEN_NS_AUTOLOAD)
@@ -552,18 +546,6 @@ function(ua_generate_nodeset_and_datatypes)
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_MAP are set")
     endif()
 
-#    if((NOT UA_GEN_FILE_BSD OR "${UA_GEN_FILE_BSD}" STREQUAL "") AND
-#    (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
-#        NOT "${UA_GEN_NAMESPACE_MAP}" STREQUAL ""))
-#        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_BSD argument if any of FILE_CSV or NAMESPACE_MAP are set")
-#    endif()
-
-#    if(NOT UA_GEN_NAMESPACE_MAP OR "${UA_GEN_NAMESPACE_MAP}" STREQUAL "" AND
-#    (NOT "${UA_GEN_FILE_CSV}" STREQUAL "" OR
-#        NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
-#        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires NAMESPACE_MAP argument if any of FILE_CSV or FILE_BSD are set")
-#    endif()
-
     # Set default value for output dir
     if(NOT UA_GEN_OUTPUT_DIR OR "${UA_GEN_OUTPUT_DIR}" STREQUAL "")
         set(UA_GEN_OUTPUT_DIR ${PROJECT_BINARY_DIR}/src_generated/open62541)
@@ -604,10 +586,6 @@ function(ua_generate_nodeset_and_datatypes)
                 string(REPLACE "-" "_" DEPENDS_NAME "${f}")
                 string(TOUPPER "${DEPENDS_NAME}" DEPENDS_NAME)
                 get_property(DEPENDS_NAMESPACE_MAP GLOBAL PROPERTY "UA_GEN_DT_DEPENDS_NAMESPACE_MAP_${DEPENDS_NAME}")
-
-                if(NOT DEPENDS_NAMESPACE_MAP OR "${DEPENDS_NAMESPACE_MAP}" STREQUAL "")
-                    #message(FATAL_ERROR "Nodeset dependency ${f} needs to be generated before ${UA_GEN_NAME}")
-                endif()
 
                 set(NAMESPACE_MAP_DEPENDS ${NAMESPACE_MAP_DEPENDS} "${DEPENDS_NAMESPACE_MAP}")
             endforeach()

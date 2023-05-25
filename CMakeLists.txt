@@ -1422,6 +1422,8 @@ ua_generate_nodeid_header(
     FILE_CSV "${UA_FILE_NODEIDS}"
 )
 
+# we need a custom target to avoid that the generator is called concurrently and
+# thus overwriting files while the other thread is compiling
 add_custom_target(open62541-generator-statuscode DEPENDS
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h
                   ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
@@ -1915,14 +1917,5 @@ set_target_properties(open62541-generator-transport PROPERTIES FOLDER "open62541
 set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/generators")
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
-endif()
-
-assign_source_group(${lib_sources})
-assign_source_group(${internal_headers})
-assign_source_group(${exported_headers})
-assign_source_group(${default_plugin_sources})
-assign_source_group(${ua_architecture_sources})
-
-if(UA_ENABLE_NODESET_INJECTOR)
     add_subdirectory(tools/nodeset_injector)
 endif()
