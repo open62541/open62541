@@ -46,29 +46,42 @@ UA_readNumber(const UA_Byte *buf, size_t buflen, UA_UInt32 *number) {
     return UA_readNumberWithBase(buf, buflen, number, 10);
 }
 
+struct urlSchema {
+    const char *schema;
+};
+
+static const struct urlSchema schemas[] = {
+    {"opc.tcp://"},
+    {"opc.udp://"},
+    {"opc.mqtt://"}
+};
+
+static const unsigned scNumSchemas = sizeof(schemas) / sizeof(schemas[0]);
+
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
                     UA_UInt16 *outPort, UA_String *outPath) {
-    UA_Boolean ipv6 = false;
-
     /* Url must begin with "opc.tcp://" or opc.udp:// (if pubsub enabled) */
     if(endpointUrl->length < 11) {
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
     }
-    if (strncmp((char*)endpointUrl->data, "opc.tcp://", 10) != 0) {
-#ifdef UA_ENABLE_PUBSUB
-        if (strncmp((char*)endpointUrl->data, "opc.udp://", 10) != 0 &&
-                strncmp((char*)endpointUrl->data, "opc.mqtt://", 11) != 0) {
-            return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-        }
-#else
-        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
-#endif
-    }
 
-    /* Where does the hostname end? */
-    size_t curr = 10;
-    if(endpointUrl->data[curr] == '[') {
+    /* Which type of schema is this? */
+    unsigned schemaType = 0;
+    for(; schemaType < scNumSchemas; schemaType++) {
+        if(strncmp((char*)endpointUrl->data,
+                   schemas[schemaType].schema,
+                   strlen(schemas[schemaType].schema)) == 0)
+            break;
+    }
+    if(schemaType == scNumSchemas)
+        return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+
+    /* Forward the current position until the first colon or slash */
+    size_t start = strlen(schemas[schemaType].schema);
+    size_t curr = start;
+    UA_Boolean ipv6 = false;
+    if(endpointUrl->length > curr && endpointUrl->data[curr] == '[') {
         /* IPv6: opc.tcp://[2001:0db8:85a3::8a2e:0370:7334]:1234/path */
         for(; curr < endpointUrl->length; ++curr) {
             if(endpointUrl->data[curr] == ']')
@@ -89,24 +102,27 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     /* Set the hostname */
     if(ipv6) {
         /* Skip the ipv6 '[]' container for getaddrinfo() later */
-        outHostname->data = &endpointUrl->data[11];
-        outHostname->length = curr - 12;
+        outHostname->data = &endpointUrl->data[start+1];
+        outHostname->length = curr - (start+2);
     } else {
-        outHostname->data = &endpointUrl->data[10];
-        outHostname->length = curr - 10;
+        outHostname->data = &endpointUrl->data[start];
+        outHostname->length = curr - start;
     }
 
     /* Empty string? */
     if(outHostname->length == 0)
         outHostname->data = NULL;
 
+    /* Already at the end */
     if(curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
 
-    /* Set the port */
+    /* Set the port - and for ETH set the VID.PCP postfix in the outpath string.
+     * We have to parse that externally. */
     if(endpointUrl->data[curr] == ':') {
         if(++curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+
         u32 largeNum;
         size_t progress = UA_readNumber(&endpointUrl->data[curr],
                                         endpointUrl->length - curr, &largeNum);
@@ -126,16 +142,18 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
         return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
     if(++curr == endpointUrl->length)
         return UA_STATUSCODE_GOOD;
-    outPath->data = &endpointUrl->data[curr];
-    outPath->length = endpointUrl->length - curr;
+    if(outPath != NULL) {
+        outPath->data = &endpointUrl->data[curr];
+        outPath->length = endpointUrl->length - curr;
 
-    /* Remove trailing slash from the path */
-    if(endpointUrl->data[endpointUrl->length - 1] == '/')
-        outPath->length--;
+        /* Remove trailing slash from the path */
+        if(endpointUrl->data[endpointUrl->length - 1] == '/')
+            outPath->length--;
 
-    /* Empty string? */
-    if(outPath->length == 0)
-        outPath->data = NULL;
+        /* Empty string? */
+        if(outPath->length == 0)
+            outPath->data = NULL;
+    }
 
     return UA_STATUSCODE_GOOD;
 }

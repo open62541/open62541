@@ -68,21 +68,32 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
     /* Get address and remove 'opc.mqtt://' from the address */
     UA_NetworkAddressUrlDataType address = channelData->address;
 
-    UA_String hostname, path;
+    UA_String hostname;
     UA_UInt16 networkPort;
-    if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, &path) != UA_STATUSCODE_GOOD){
+    if(UA_parseEndpointUrl(&address.url, &hostname, &networkPort, NULL) != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "MQTT PubSub Connection creation failed. Invalid URL.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    if (hostname.length == 0) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "MQTT PubSub Connection creation failed. Invalid URL.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* Build the url and port*/
-    char rest[512];
-    memcpy(rest, path.data, path.length);
-    rest[path.length] = '\0';
-    char *rest2 = rest;
-    const char *addr = strtok_r(rest2, ":", &rest2);
-    const char *port = strtok_r(rest2, ":", &rest2);
+    /* Save hostname and networkPort as char arrays */
+    char addr[512];
+    char port[8];
+    if (hostname.length >= sizeof(addr)) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "MQTT PubSub Connection creation failed. Host address too long.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    memset(addr, 0, sizeof(addr));
+    memset(port, 0, sizeof(port));
+    sprintf(port, "%u", networkPort);
+    memcpy(addr, hostname.data, hostname.length);
+    addr[hostname.length] = '\0';
 
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL) || defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL)
@@ -152,7 +163,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #endif
 #if defined(UA_ENABLE_MQTT_TLS_OPENSSL) // Extend condition when mbedTLS support is added
         /* open the non-blocking TCP socket (connecting to the broker) */
-        UA_StatusCode rv = open_nb_socket(&sockfd, &ctx, addr, port, mqttCaFilePath, NULL, mqttClientCertPath, mqttClientKeyPath);
+        UA_StatusCode rv = open_nb_socket(&sockfd, &ctx, &addr[0], &port[0], mqttCaFilePath, NULL, mqttClientCertPath, mqttClientKeyPath);
         if(rv != UA_STATUSCODE_GOOD){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed.");
             UA_free(mqttCaFilePath);
@@ -176,7 +187,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 
 #elif defined(UA_ENABLE_MQTT_TLS_MBEDTLS)
         /* open the non-blocking TCP socket (connecting to the broker) */
-        UA_StatusCode rv = open_nb_socket(&ctx,addr,port,mqttCaFilePath);
+        UA_StatusCode rv = open_nb_socket(&ctx, &addr[0], &port[0], mqttCaFilePath);
         if(rv != UA_STATUSCODE_GOOD){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed.");
             UA_free(mqttCaFilePath);
@@ -199,7 +210,7 @@ connectMqtt(UA_PubSubChannelDataMQTT* channelData){
 #else
     int sockfd = -1;
     /* open the non-blocking TCP socket (connecting to the broker) */
-    UA_StatusCode rv = open_nb_socket(&sockfd,addr, port);
+    UA_StatusCode rv = open_nb_socket(&sockfd, &addr[0], &port[0]);
     if(rv != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "PubSub MQTT: Connection creation failed.");
         return rv;
