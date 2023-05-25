@@ -215,9 +215,12 @@ function(ua_add_test test_path_relative)
     string(REPLACE "/" ";" QUALIFIED_PATHNAME ${PATH_WITHOUT_EXTENSION})
     list(POP_BACK QUALIFIED_PATHNAME TEST_NAME)
 
-    add_executable(${TEST_NAME} ${test_path_relative} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_executable(${TEST_NAME} ${test_path_relative} ${ARGN} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(${TEST_NAME} ${LIBS})
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
+    if(UA_ENABLE_NODESET_INJECTOR)
+        set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
+    endif()
 endfunction()
 
 ua_add_test(check_types_builtin.c)
@@ -425,9 +428,7 @@ endif()
 # Test Encryption and Authentication
 
 if(UA_ENABLE_ENCRYPTION)
-    add_executable(check_client_encryption client/check_client_encryption.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    target_link_libraries(check_client_encryption ${LIBS})
-    add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
+    ua_add_test(client/check_client_encryption.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
@@ -465,8 +466,10 @@ endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    add_executable(check_interfaces server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    ua_add_test(server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
-    target_link_libraries(check_interfaces ${LIBS})
-    add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
+endif()
+
+if(UA_ENABLE_NODESET_INJECTOR)
+    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()

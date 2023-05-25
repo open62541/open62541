@@ -31,15 +31,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         INTERNAL
     )
 
-    add_executable(check_nodeset_compiler_adi check_nodeset_compiler_adi.c
-                   ${UA_NODESET_TESTS_DI_SOURCES}
-                   ${UA_NODESET_TESTS_ADI_SOURCES}
-                   ${UA_TYPES_TESTS_DI_SOURCES}
-                   ${UA_TYPES_TESTS_ADI_SOURCES}
-                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    add_dependencies(check_nodeset_compiler_adi open62541-generator-ns-tests-adi)
-    target_link_libraries(check_nodeset_compiler_adi ${LIBS})
-    add_test_valgrind(nodeset_compiler_adi ${TESTS_BINARY_DIR}/check_nodeset_compiler_adi)
+    ua_add_test(check_nodeset_compiler_adi.c
+                ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_NODESET_TESTS_ADI_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_ADI_SOURCES})
 
     # generate PLCopen namespace which is using DI
     ua_generate_nodeset_and_datatypes(
@@ -52,15 +48,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         INTERNAL
     )
 
-    add_executable(check_nodeset_compiler_plc check_nodeset_compiler_plc.c
-                   ${UA_NODESET_TESTS_DI_SOURCES}
-                   ${UA_NODESET_TESTS_PLC_SOURCES}
-                   ${UA_TYPES_TESTS_DI_SOURCES}
-                   ${UA_TYPES_TESTS_PLC_SOURCES}
-                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
-    target_link_libraries(check_nodeset_compiler_plc ${LIBS})
-    add_test_valgrind(nodeset_compiler_plc ${TESTS_BINARY_DIR}/check_nodeset_compiler_plc)
+    ua_add_test(check_nodeset_compiler_plc.c
+                ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_NODESET_TESTS_PLC_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_PLC_SOURCES})
 
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
@@ -74,17 +66,11 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             INTERNAL
     )
 
-    add_executable(check_nodeset_compiler_autoid check_nodeset_compiler_autoid.c
-            ${UA_NODESET_TESTS_DI_SOURCES}
-            ${UA_NODESET_TESTS_AUTOID_SOURCES}
-            ${UA_TYPES_TESTS_DI_SOURCES}
-            ${UA_TYPES_TESTS_AUTOID_SOURCES}
-            $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
-    target_link_libraries(check_nodeset_compiler_autoid ${LIBS})
-    add_test_valgrind(nodeset_compiler_autoid ${TESTS_BINARY_DIR}/check_nodeset_compiler_autoid)
-
-
+    ua_add_test(check_nodeset_compiler_autoid.c
+                ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_NODESET_TESTS_AUTOID_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_AUTOID_SOURCES})
 endif()
 
 #[[ua_generate_datatypes(
@@ -95,15 +81,11 @@ endif()
         FILES_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
 )
 
-add_executable(check_nodeset_compiler_optstructs_union check_nodeset_compiler_optstructs_union.c
-        ${UA_NODESET_TESTS_DI_SOURCES}
-        ${UA_NODESET_TESTS_PLC_SOURCES}
-        ${UA_TYPES_TESTS_DI_SOURCES}
-        ${UA_TYPES_TESTS_PLC_SOURCES}
-        $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-add_dependencies(check_nodeset_compiler_optstructs_union open62541-generator-types-optstruct-union)
-target_link_libraries(check_nodeset_compiler_optstructs_union ${LIBS})
-add_test_valgrind(check_nodeset_compiler_optstructs_union ${TESTS_BINARY_DIR}/check_nodeset_compiler_optstructs_union)]]
+ua_add_test(check_nodeset_compiler_optstructs_union.c
+            ${UA_NODESET_TESTS_DI_SOURCES}
+            ${UA_NODESET_TESTS_PLC_SOURCES}
+            ${UA_TYPES_TESTS_DI_SOURCES}
+            ${UA_TYPES_TESTS_PLC_SOURCES})]]
 
 #generate testnodeset
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
@@ -119,13 +101,13 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         DEPENDS "tests-di"
     )
 
-    add_executable(check_nodeset_compiler_testnodeset check_nodeset_compiler_testnodeset.c
-                   ${UA_NODESET_TESTS_DI_SOURCES}
-                   ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
-                   ${UA_TYPES_TESTS_DI_SOURCES}
-                   ${UA_TYPES_TESTS_TESTNODESET_SOURCES}
-                $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
-    target_link_libraries(check_nodeset_compiler_testnodeset ${LIBS})
-    add_test_valgrind(nodeset_compiler_testnodeset ${TESTS_BINARY_DIR}/check_nodeset_compiler_testnodeset)
+    ua_add_test(check_nodeset_compiler_testnodeset.c
+                ${UA_NODESET_TESTS_DI_SOURCES}
+                ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
+                ${UA_TYPES_TESTS_DI_SOURCES}
+                ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
+endif()
+
+if(UA_ENABLE_NODESET_INJECTOR)
+    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()

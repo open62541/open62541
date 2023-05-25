@@ -32,9 +32,9 @@ int main(int argc, char** argv) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* create nodes from nodeset */
-    size_t idx = LONG_MAX;
+    size_t idx = (size_t) -1;
     UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
-    if(idx == LONG_MAX) {
+    if(idx != (size_t) -1) {
         retval = namespace_di_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -43,9 +43,9 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
-    idx = LONG_MAX;
+    idx = (size_t) -1;
     UA_Server_getNamespaceByName(server, UA_STRING("http://PLCopen.org/OpcUa/IEC61131-3/"), &idx);
-    if(idx == LONG_MAX) {
+    if(idx != (size_t) -1) {
         retval = namespace_plc_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

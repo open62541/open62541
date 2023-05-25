@@ -31,11 +31,10 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
-    endif()
 
     # only one xml file
     # di as dependency
-    if(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
+    elseif(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
        OR MODEL STREQUAL "Scales" OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT"
        OR MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
         # get csv file
@@ -64,11 +63,9 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
-    endif()
-
 
     # more dependencies
-    if(MODEL STREQUAL "CAS")
+    elseif(MODEL STREQUAL "CAS")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
@@ -79,8 +76,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "machinery"
                 DEPENDS "ia"
         )
-    endif()
-    if(MODEL STREQUAL "TMC")
+    elseif(MODEL STREQUAL "TMC")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
@@ -91,8 +87,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "packml"
         )
-    endif()
-    if(MODEL STREQUAL "Pumps")
+    elseif(MODEL STREQUAL "Pumps")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.csv"
@@ -102,8 +97,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "machinery"
         )
-    endif()
-    if(MODEL STREQUAL "Weihenstephan")
+    elseif(MODEL STREQUAL "Weihenstephan")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
@@ -114,8 +108,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "machinery"
                 DEPENDS "packml"
         )
-    endif()
-    if(MODEL STREQUAL "MachineTool")
+    elseif(MODEL STREQUAL "MachineTool")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
@@ -126,10 +119,8 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "machinery"
                 DEPENDS "ia"
         )
-    endif()
-
     # Extra
-    if(MODEL STREQUAL "DI")
+    elseif(MODEL STREQUAL "DI")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeIds.csv"
@@ -137,8 +128,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
-    endif()
-    if(MODEL STREQUAL "PROFINET")
+    elseif(MODEL STREQUAL "PROFINET")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Pn.NodeIds.csv"
@@ -146,8 +136,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
-    endif()
-    if(MODEL STREQUAL "Glass")
+    elseif(MODEL STREQUAL "Glass")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Flat/NodeIds.csv"
@@ -158,8 +147,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "machinery"
         )
-    endif()
-    if(MODEL STREQUAL "IJT")
+    elseif(MODEL STREQUAL "IJT")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Tightening/NodeIds.csv"
@@ -170,8 +158,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "machinery"
         )
-    endif()
-    if(MODEL STREQUAL "OpenSCS")
+    elseif(MODEL STREQUAL "OpenSCS")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
@@ -179,8 +166,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
-    endif()
-    if(MODEL STREQUAL "PNEM")
+    elseif(MODEL STREQUAL "PNEM")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
@@ -189,8 +175,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
-    endif()
-    if(MODEL STREQUAL "PNRIO")
+    elseif(MODEL STREQUAL "PNRIO")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/NodeIds.csv"
@@ -199,8 +184,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
-    endif()
-    if(MODEL STREQUAL "ISA95-JOBCONTROL")
+    elseif(MODEL STREQUAL "ISA95-JOBCONTROL")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/opc.ua.isa95-jobcontrol.nodeset2.csv"
@@ -208,8 +192,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
-    endif()
-    if(MODEL STREQUAL "PLCopen")
+    elseif(MODEL STREQUAL "PLCopen")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
                 FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2_V1.02.csv"
@@ -218,6 +201,8 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
+    else()
+        MESSAGE(WARNING "The specified nodeset '${MODEL}' is not supported or is misspelled.")
     endif()
 
 endforeach()
@@ -231,3 +216,12 @@ foreach(EXAMPLE_NAME ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
         add_dependencies(${EXAMPLE_NAME} ${UA_NODESETINJECTOR_GENERATORS})
     endif()
 endforeach()
+
+if(UA_BUILD_UNIT_TESTS)
+    foreach(TEST_NAME ${UA_NODESETINJECTOR_TEST_NAMES})
+        if(UA_NODESETINJECTOR_GENERATORS)
+            target_link_libraries(${TEST_NAME} autoinject_library)
+            add_dependencies(${TEST_NAME} ${UA_NODESETINJECTOR_GENERATORS})
+        endif()
+    endforeach()
+endif()

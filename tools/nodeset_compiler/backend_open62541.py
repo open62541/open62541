@@ -12,8 +12,6 @@
 
 
 from __future__ import print_function
-
-import re
 from os.path import basename
 import logging
 import codecs
