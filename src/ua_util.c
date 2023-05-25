@@ -53,10 +53,12 @@ struct urlSchema {
 static const struct urlSchema schemas[] = {
     {"opc.tcp://"},
     {"opc.udp://"},
+    {"opc.eth://"},
     {"opc.mqtt://"}
 };
 
 static const unsigned scNumSchemas = sizeof(schemas) / sizeof(schemas[0]);
+static const unsigned scEthSchemaIdx = 2;
 
 UA_StatusCode
 UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
@@ -122,6 +124,15 @@ UA_parseEndpointUrl(const UA_String *endpointUrl, UA_String *outHostname,
     if(endpointUrl->data[curr] == ':') {
         if(++curr == endpointUrl->length)
             return UA_STATUSCODE_BADTCPENDPOINTURLINVALID;
+
+        /* ETH schema */
+        if(schemaType == scEthSchemaIdx) {
+            if(outPath != NULL) {
+                outPath->data = &endpointUrl->data[curr];
+                outPath->length = endpointUrl->length - curr;
+            }
+            return UA_STATUSCODE_GOOD;
+        }
 
         u32 largeNum;
         size_t progress = UA_readNumber(&endpointUrl->data[curr],
