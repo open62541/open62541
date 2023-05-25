@@ -310,20 +310,9 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     # Change namespaceIndex from the current namespace,
     # but only if it defines its own data types, otherwise it is not necessary.
-    # The current namespace is the last item in the list of namespaces.
-    currentNs = nodeset.namespaces[-1]
-    split = currentNs.strip('/').split('/')
-    ns = split[-1]
-    # Check whether ns contains a number. If it is, check if the value starts with an uppercase letter.
-    # If not, it is not the correct value. Grab the next one and repeat the check.
-    # eg. http://opcfoundation.org/UA/TMC/v2/, http://opcfoundation.org/UA/I4AAS/
-    idx = 2
-    while re.search(r'\d', ns) and ns[0].islower():
-        ns = split[idx*-1]
-        idx += 1
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
-        if typeArr == "UA_TYPES_"+ns.upper():
+        if typeArr != "UA_TYPES" and typeArr != "ns0":
             writec("/* Change namespaceIndex from current namespace */")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
             writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")

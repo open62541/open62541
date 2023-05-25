@@ -277,18 +277,6 @@ class NodeSet(object):
         if modelUri is None:
             raise Exception(self, self.originXML + " does not define the nodeset URI in Models/Model/ModelUri or NamespaceUris array.")
 
-        split = modelUri.strip('/').split('/')
-        modelName = split[-1]
-        # Check whether modelName contains a number. If it is, check if the value starts with an uppercase letter.
-        # If not, it is not the correct value. Grab the next one and repeat the check.
-        # eg. http://opcfoundation.org/UA/TMC/v2/, http://opcfoundation.org/UA/I4AAS/
-        idx = 2
-        while re.search(r'\d', modelName) and modelName[0].islower():
-            modelName = split[idx*-1]
-            idx += 1
-        if modelName != "UA":
-            typesArray = "UA_TYPES_" + modelName.upper()
-
         for ns in orig_namespaces:
             self.addNamespace(ns)
         self.createNamespaceMapping(orig_namespaces) # mapping for this file

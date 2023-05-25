@@ -177,7 +177,10 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
-option(UA_ENABLE_NODESET_INJECTOR "Enable automatic nodeset injection" OFF)
+
+if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_ENABLE_NODESETLOADER AND NOT UA_BUILD_FUZZING)
+    set(UA_ENABLE_NODESET_INJECTOR ON)
+endif()
 
 set(MULTITHREADING_DEFAULT 0)
 if(WIN32 OR UNIX)
@@ -1077,7 +1080,7 @@ if(UA_ENABLE_PARSING)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)
-    message(STATUS "Nodesetinjector enabled")
+    message(STATUS "Nodesetinjector feature enabled")
     cmake_minimum_required(VERSION 3.20)
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
@@ -1093,6 +1096,7 @@ if(UA_ENABLE_NODESET_INJECTOR)
     set(UA_NODESETINJECTOR_GENERATORS "")
     set(UA_NODESETINJECTOR_SOURCE_FILES "")
     set(UA_NODESETINJECTOR_EXAMPLE_NAMES "")
+    set(UA_NODESETINJECTOR_TEST_NAMES "")
 endif()
 
 # Always include encryption plugins into the amalgamation
@@ -1920,12 +1924,5 @@ assign_source_group(${default_plugin_sources})
 assign_source_group(${ua_architecture_sources})
 
 if(UA_ENABLE_NODESET_INJECTOR)
-    # no dependencies
-#    set(UA_INFORMATION_MODEL_AUTOLOAD DI ISA95-JOBCONTROL OpenSCS DEXPI AMB)
-    # di as dependency
-#    set(UA_INFORMATION_MODEL_AUTOLOAD DI AutoID  POWERLINK IA Machinery PNEM PLCopen)
-    # more dependencies
-#    set(UA_INFORMATION_MODEL_AUTOLOAD DI Machinery IA MachineTool)
-
     add_subdirectory(tools/nodeset_injector)
 endif()

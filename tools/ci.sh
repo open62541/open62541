@@ -468,7 +468,6 @@ function build_all_companion_specs {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_NODESET_INJECTOR=ON \
           -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;ISA95-JOBCONTROL\;OpenSCS\; \
           DEXPI\;AMB\;AutoID\;POWERLINK\;IA\;Machinery\; \
           PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\; \
@@ -476,5 +475,6 @@ function build_all_companion_specs {
           PNRIO\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
-    make ${MAKEOPTS}
+    make ${MAKEOPTS} tutorial_server_firststeps
+    ./bin/examples/tutorial_server_firststeps
 }
