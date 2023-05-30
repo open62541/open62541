@@ -196,9 +196,6 @@ MQTT_eventSourceStart(UA_ConnectionManager *cm) {
 }
 
 static void
-removeTopicConnection(MQTTTopicConnection *tc);
-
-static void
 shutdownBrokerConnection(MQTTBrokerConnection *bc) {
     if(bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSED &&
        bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSING) {
@@ -317,6 +314,12 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     /* The last topic connection was removed. Close the broker connection. */
     if(!bc->topicConnections)
         shutdownBrokerConnection(bc);
+}
+
+static void
+removeTopicConnectionDelayed(void *application, void *context) {
+    MQTTTopicConnection *tc = (MQTTTopicConnection*)context;
+    removeTopicConnection(tc);
 }
 
 static void
@@ -766,12 +769,16 @@ MQTT_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                         UA_ByteString *buf) {
     MQTTConnectionManager *mcm = (MQTTConnectionManager*)cm;
     MQTTTopicConnection *tc = findTopicConnection(mcm, connectionId);
-    if(!tc)
+    if(!tc) {
+        UA_ByteString_clear(buf);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     MQTTBrokerConnection *bc = tc->brokerConnection;
-    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED)
+    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_ESTABLISHED) {
+        UA_ByteString_clear(buf);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
 
     UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger,
                  UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Publishing on topic \"%s\" "
@@ -782,6 +789,7 @@ MQTT_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                        buf->data, buf->length, 0);
     if(UA_LIKELY(res == MQTT_OK))
         res = (enum MQTTErrors)__mqtt_send(&bc->client);
+    UA_ByteString_clear(buf);
     return (res == MQTT_OK) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
 }
 
@@ -791,7 +799,24 @@ MQTT_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     MQTTTopicConnection *tc = findTopicConnection(mcm, connectionId);
     if(!tc)
         return UA_STATUSCODE_BADINTERNALERROR;
-    removeTopicConnection(tc);
+
+    if(tc->topicConnectionState == UA_CONNECTIONSTATE_CLOSING ||
+       tc->topicConnectionState == UA_CONNECTIONSTATE_CLOSED)
+        return UA_STATUSCODE_GOOD;
+
+    UA_EventLoop *el = tc->brokerConnection->mcm->cm.eventSource.eventLoop;
+    UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
+                 "MQTT %u\t| Shutdown called", (unsigned)tc->topicConnectionId);
+
+    tc->topicConnectionState = UA_CONNECTIONSTATE_CLOSING;
+
+    /* Add a delayed callback to remove in the next iteration */
+    UA_DelayedCallback *dc = &tc->dc;
+    dc->callback = removeTopicConnectionDelayed;
+    dc->application = NULL;
+    dc->context = tc;
+    el->addDelayedCallback(el, dc);
+
     return UA_STATUSCODE_GOOD;
 }
 
