@@ -1713,33 +1713,28 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
     if(securityGroupConfig->securityGroupName.length <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    size_t sgNamelength = securityGroupConfig->securityGroupName.length;
-    char *sgName = (char *)UA_calloc(1, sgNamelength + 1);
-    if(!sgName)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    memcpy(sgName, securityGroupConfig->securityGroupName.data,
-           securityGroupConfig->securityGroupName.length);
-    sgName[securityGroupConfig->securityGroupName.length] = '\0';
+    UA_QualifiedName browseName;
+    UA_QualifiedName_init(&browseName);
+    browseName.name = securityGroupConfig->securityGroupName;
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
-    object_attr.displayName = UA_LOCALIZEDTEXT("", sgName);
+    object_attr.displayName.text = securityGroupConfig->securityGroupName;
     UA_NodeId refType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE);
     retval = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NULL,
                      securityGroup->securityGroupFolderId, refType,
-                     UA_QUALIFIEDNAME(0, sgName), nodeType, &object_attr,
+                     browseName, nodeType, &object_attr,
                      &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL,
                      &securityGroup->securityGroupNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
-        UA_free(sgName);
         return retval;
     }
 
-    retval = updateSecurityGroupProperties(server, &securityGroup->securityGroupNodeId,
+    retval = updateSecurityGroupProperties(server,
+                                           &securityGroup->securityGroupNodeId,
                                            securityGroupConfig);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -1747,7 +1742,6 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
     }
-    UA_free(sgName);
     return retval;
 }
 
