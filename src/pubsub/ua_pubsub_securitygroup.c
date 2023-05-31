@@ -228,12 +228,14 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
     memset(newSecurityGroup, 0, sizeof(UA_SecurityGroup));
     UA_SecurityGroupConfig_copy(securityGroupConfig, &newSecurityGroup->config);
 
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retval = UA_NodeId_copy(&securityGroupFolderNodeId,
                             &newSecurityGroup->securityGroupFolderId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_SecurityGroup_delete(newSecurityGroup);
         return retval;
     }
+#endif
 
     retval = UA_String_copy(&securityGroupConfig->securityGroupName,
                             &newSecurityGroup->securityGroupId);
@@ -303,7 +305,9 @@ static void
 UA_SecurityGroup_clear(UA_SecurityGroup *securityGroup) {
     UA_SecurityGroupConfig_clear(&securityGroup->config);
     UA_String_clear(&securityGroup->securityGroupId);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_NodeId_clear(&securityGroup->securityGroupFolderId);
+#endif
     UA_NodeId_clear(&securityGroup->securityGroupNodeId);
 }
 
