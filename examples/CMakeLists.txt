@@ -166,6 +166,10 @@ add_example(server_inheritance server_inheritance.c)
 
 add_example(server_loglevel server_loglevel.c)
 
+if(UA_ENABLE_JSON_ENCODING)
+    add_example(server_file_based_config file_based_server/server_file_based_config.c)
+endif()
+
 if(UA_ENABLE_HISTORIZING)
     add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
     add_example(tutorial_server_historicaldata_circular tutorial_server_historicaldata_circular.c)

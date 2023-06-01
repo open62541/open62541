@@ -483,6 +483,13 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->asyncOperationTimeout = 120000; /* Async Operation Timeout in ms (2 minutes) */
 #endif
 
+#ifdef UA_ENABLE_PUBSUB
+    conf->pubSubConfig.enableDeltaFrames = true;
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    conf->pubSubConfig.enableInformationModelMethods = true;
+#endif
+#endif
+
     /* --> Finish setting the default static config <-- */
 
     return UA_STATUSCODE_GOOD;
