@@ -16,7 +16,8 @@ example_args = {
         "pubsub_TSN_publisher_multiple_thread":"-i lo",
         "server_encryption":"server_cert.der server_key.der client_cert.der",
         "server_loglevel":"--loglevel=1",
-        "ci_server":"4840 server_cert.der server_key.der client_cert.der"
+        "ci_server":"4840 server_cert.der server_key.der client_cert.der",
+        "server_file_based_config":"server_config.json5"
         }
 
 server_needed_examples = {

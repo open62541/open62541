@@ -1267,11 +1267,17 @@ START_TEST(ReserveIdsMultipleTimes){
 
         /* Call ReserveIds 3rd time within the same session and try to reserve one more ID from each category -
          * check if the already reserved IDs are blocked. */
-        retVal = CallReserveIds(client, &transportProfileUri, 1, 1,
+
+        /* Currently the return value is not checked, once the lower assert statement is re-inserted,
+         * the return value can also be saved. Otherwise there will be an error in the Clang static analyzer
+         * (warning: value stored in 'retVal' is never read). */
+        CallReserveIds(client, &transportProfileUri, 1, 1,
             &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
+        CallReserveIds(client, &transportProfileUri, 1, 1,
+                &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
         /* TODO: Currently Part 14 doesn't define what should happen if the ID cannot be reserved.
          * There is an open Mantis issue #8415. */
-        // ck_assert(UA_StatusCode_isBad(retVal));
+//        ck_assert(UA_StatusCode_isBad(retVal));
         ck_assert_uint_eq(regWriterGroupIds.arrayLength, 1);
         ck_assert_uint_eq(((UA_UInt16 *)regWriterGroupIds.data)[0], 0);
         ck_assert_uint_eq(regDataSetWriterIds.arrayLength, 1);
