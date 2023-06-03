@@ -54,7 +54,7 @@ START_TEST(AddConnectionsWithMinimalValidIPv6Configuration){
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff00::1:5]:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -96,7 +96,7 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidIPv6Configuration){
         UA_PubSubConnectionConfig connectionConfig;
         memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
         connectionConfig.name = UA_STRING("UADP Connection");
-        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff00::1:5]:4840/")};
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                              &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -271,7 +271,6 @@ int main(void) {
     suite_add_tcase(s, tc_add_pubsub_connections_minimal_config);
     suite_add_tcase(s, tc_add_pubsub_connections_invalid_config);
     suite_add_tcase(s, tc_add_pubsub_connections_maximal_config);
-    //suite_add_tcase(s, tc_decode);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
