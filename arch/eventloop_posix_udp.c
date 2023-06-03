@@ -169,7 +169,7 @@ setTimeToLive(UA_SOCKET sockfd, UA_UInt32 messageTTL,
                      (const char *)&messageTTL,
                      sizeof(messageTTL)) < 0)
 #else
-        if(UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL,
+    if(UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL,
                      (const char *)&messageTTL,
                      sizeof(messageTTL)) < 0)
 #endif
@@ -188,9 +188,7 @@ static UA_StatusCode
 setReuseAddress(UA_SOCKET sockfd, UA_Boolean enableReuse, const UA_Logger *logger) {
     /* Set reuse address -> enables sharing of the same listening address on
      * different sockets */
-    int enableReuseVal = 1;
-    if(!enableReuse)
-        enableReuseVal = 0;
+    int enableReuseVal = (enableReuse) ? 1 : 0;
     if(UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                      (const char*)&enableReuseVal, sizeof(enableReuseVal)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -382,7 +380,7 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
     }
 
     if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_JOIN_GROUP,
-                     &ipMulticastRequest.ipv6,sizeof(ipMulticastRequest.ipv6)) < 0) {
+                     &ipMulticastRequest.ipv6, sizeof(ipMulticastRequest.ipv6)) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "UDP\t| Multicast IP membership setup failed: "
@@ -606,8 +604,7 @@ checkForListenMulticastAndConfigure(struct addrinfo *info, const UA_KeyValueMap 
         }
 #endif
     } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK, "UDP\t| Unknown connection type");
         res = UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
     return res;
@@ -806,14 +803,12 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     while(ai) {
         rv = UDP_registerListenSocket(pcm, port, ai, params, application,
                                       context, connectionCallback, validate);
-        if(rv != UA_STATUSCODE_GOOD && validate) {
-            UA_freeaddrinfo(res);
-            return rv;
-        }
+        if(rv != UA_STATUSCODE_GOOD)
+            break;
         ai = ai->ai_next;
     }
     UA_freeaddrinfo(res);
-    return UA_STATUSCODE_GOOD;
+    return rv;
 }
 
 /* Close the connection via a delayed callback */
@@ -989,8 +984,8 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                            hostname, errno_str));
         return UA_STATUSCODE_BADDISCONNECT;
     }
-    UA_StatusCode res = setConnectionConfig(newSock, params,
-                                            info->ai_family, logger);
+    UA_StatusCode res =
+        setConnectionConfig(newSock, params, info->ai_family, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
         return res;
@@ -1109,7 +1104,7 @@ UDP_openReceiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
-    /* Get the socket */
+    /* Get the port */
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
