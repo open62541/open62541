@@ -172,6 +172,10 @@ checkClosed(UA_EventLoopPOSIX *el) {
         es = es->next;
     }
 
+    /* Not closed until all delayed callbacks are processed */
+    if(el->delayedCallbacks != NULL)
+        return;
+
     /* Dirty-write the state that is const "from the outside" */
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
         UA_EVENTLOOPSTATE_STOPPED;
