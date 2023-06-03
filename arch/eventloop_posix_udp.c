@@ -242,6 +242,23 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_EventLoopPOSIX_setNonBlocking(socket);
     res |= UA_EventLoopPOSIX_setNoSigPipe(socket);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Some Linux distributions have net.ipv6.bindv6only not activated. So
+     * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
+     * AF_INET6 sockets only for IPv6. */
+    int optval = 1;
+#if UA_IPV6
+    if(ai_family == AF_INET6 &&
+       UA_setsockopt(socket, IPPROTO_IPV6, IPV6_V6ONLY,
+                     (const char*)&optval, sizeof(optval)) == -1) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| Could not set an IPv6 socket to IPv6 only, closing",
+                       (unsigned)socket);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+#endif
 
     /* Set socket settings from the parameters */
     const UA_UInt32 *messageTTL = (const UA_UInt32*)
@@ -650,61 +667,16 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
                 "UDP %u\t| New listen socket for \"%s\" on port %u",
                 (unsigned)listenSocket, hoststr, port);
 
+    /* Set the socket configuration per the parameters */
     UA_StatusCode res =
-        checkForListenMulticastAndConfigure(info, params, listenSocket,
-                                            el->eventLoop.logger);
+        setConnectionConfig(listenSocket, params,
+                            info->ai_family, el->eventLoop.logger);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Configuring listen multicast failed");
         UA_close(listenSocket);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
-    /* Some Linux distributions have net.ipv6.bindv6only not activated. So
-     * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
-     * AF_INET6 sockets only for IPv6. */
-    int optval = 1;
-#if UA_IPV6
-    if(info->ai_family == AF_INET6 &&
-       UA_setsockopt(listenSocket, IPPROTO_IPV6, IPV6_V6ONLY,
-                     (const char*)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| Could not set an IPv6 socket to IPv6 only, closing",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
-    }
-#endif
-
-    /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
-    if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
-                     (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| Could not make the socket reusable, closing",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
-    }
-
-    /* Set the socket non-blocking */
-    if(UA_EventLoopPOSIX_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| Could not set the socket non-blocking, closing",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
-    }
-
-    /* Supress interrupts from the socket */
-    if(UA_EventLoopPOSIX_setNoSigPipe(listenSocket) != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| Could not disable SIGPIPE, closing",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
-    }
-
-    /* Bind socket to address */
+    /* Bind socket to the address */
     int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -715,6 +687,17 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
+    /* Enable multicast if this is a multicast address */
+    res = checkForListenMulticastAndConfigure(info, params, listenSocket,
+                                              el->eventLoop.logger);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP\t| Configuring listen multicast failed");
+        UA_close(listenSocket);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+
+    /* Validation is complete - close and return */
     if(validate) {
         UA_close(listenSocket);
         return UA_STATUSCODE_GOOD;
