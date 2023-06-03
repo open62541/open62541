@@ -254,6 +254,14 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
 
+        /* Add the Ethernet connection manager */
+#ifdef __linux__
+        UA_ConnectionManager *ethCM =
+            UA_ConnectionManager_new_POSIX_Ethernet(UA_STRING("eth connection manager"));
+        if(ethCM)
+            conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)ethCM);
+#endif
+
         /* Add the interrupt manager */
         UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
         if(im) {
