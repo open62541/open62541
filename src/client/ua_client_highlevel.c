@@ -474,7 +474,7 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
     item.nodeId = *nodeId;
     item.indexRange = indexRange;
     item.continuationPoint = continuationPoint;
-    item.dataEncoding = UA_QUALIFIEDNAME(0, "Default Binary");
+    item.dataEncoding = UA_QUALIFIEDNAME(0, "");
 
     UA_HistoryReadRequest request;
     UA_HistoryReadRequest_init(&request);
