@@ -541,9 +541,11 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
 
     /* Receive */
 #ifndef _WIN32
-    ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
+                          response.length, MSG_DONTWAIT);
 #else
-    int ret = UA_recv(conn->rfd.fd, (char*)response.data, response.length, MSG_DONTWAIT);
+    int ret = UA_recv(conn->rfd.fd, (char*)response.data,
+                      response.length, MSG_DONTWAIT);
 #endif
 
     /* Receive has failed */
@@ -802,10 +804,9 @@ static UA_StatusCode
 UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
+    UA_FD fd = (UA_FD)connectionId;
 
     UA_LOCK(&el->elMutex);
-
-    UA_FD fd = (UA_FD)connectionId;
     UA_RegisteredFD *rfd = ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!rfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -814,11 +815,8 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-
     UDP_shutdown(cm, rfd);
-
     UA_UNLOCK(&el->elMutex);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -830,13 +828,6 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
     UA_LOCK(&el->elMutex);
-
-    /* Prevent OS signals when sending to a closed socket */
-    int flags = MSG_NOSIGNAL;
-
-    struct pollfd tmp_poll_fd;
-    tmp_poll_fd.fd = (UA_FD)connectionId;
-    tmp_poll_fd.events = UA_POLLOUT;
 
     /* Look up the registered UDP socket */
     UA_FD fd = (UA_FD)connectionId;
@@ -854,6 +845,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         do {
             UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Attempting to send", (unsigned)connectionId);
+
+            /* Prevent OS signals when sending to a closed socket */
+            int flags = MSG_NOSIGNAL;
             size_t bytes_to_send = buf->length - nWritten;
             n = UA_sendto((UA_FD)connectionId, (const char*)buf->data + nWritten,
                           bytes_to_send, flags, (struct sockaddr*)&conn->sendAddr,
@@ -876,6 +870,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                 /* Poll for the socket resources to become available and retry
                  * (blocking) */
                 int poll_ret;
+                struct pollfd tmp_poll_fd;
+                tmp_poll_fd.fd = (UA_FD)connectionId;
+                tmp_poll_fd.events = UA_POLLOUT;
                 do {
                     poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
                     if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
