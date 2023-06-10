@@ -533,28 +533,6 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                  "UDP %u\t| Activity on the socket",
                  (unsigned)conn->rfd.fd);
 
-    /* Write-Event, a new connection for sending has opened.  */
-    if(event == UA_FDEVENT_OUT) {
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP %u\t| Opening a new connection",
-                     (unsigned)conn->rfd.fd);
-
-        /* A new socket has opened. Signal it to the application. */
-        UA_UNLOCK(&el->elMutex);
-        conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
-                            conn->application, &conn->context,
-                            UA_CONNECTIONSTATE_ESTABLISHED,
-                            &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-        UA_LOCK(&el->elMutex);
-
-        /* Don't listen for any events (besides the connection closing) for
-         * send-connections. Blocking sending (where UA_FDEVENT_OUT is
-         * interesting) is handled in sendWithConnection. */
-        conn->rfd.listenEvents = 0;
-        UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
-        return;
-    }
-
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Allocate receive buffer", (unsigned)conn->rfd.fd);
 
@@ -1042,11 +1020,10 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
     }
 
     conn->rfd.fd = newSock;
-    conn->rfd.listenEvents = UA_FDEVENT_OUT; /* Switched to _IN once the
-                                              * connection is open */
+    conn->rfd.listenEvents = 0;
     conn->rfd.es = &pcm->cm.eventSource;
     conn->rfd.eventSourceCB = (UA_FDCallback)UDP_connectionSocketCallback;
-    conn->applicationCB= connectionCallback;
+    conn->applicationCB = connectionCallback;
     conn->application = application;
     conn->context = context;
 
@@ -1072,7 +1049,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
      * iteration of the EventLoop */
     UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock, application,
-                       &conn->context, UA_CONNECTIONSTATE_OPENING,
+                       &conn->context, UA_CONNECTIONSTATE_ESTABLISHED,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     UA_LOCK(&el->elMutex);
 
