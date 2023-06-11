@@ -75,12 +75,13 @@ START_TEST(connectSubscribePublish) {
     el->run(el, 100);
 
     /* Send with the subscribed connection succeeds */
-    UA_ByteString msg = UA_BYTESTRING("open62541-msg");
+    UA_ByteString msg = UA_BYTESTRING_ALLOC("open62541-msg");
     res = mcm->sendWithConnection(mcm, subscribeConnectionId,
                                   &UA_KEYVALUEMAP_NULL, &msg);
     ck_assert(res == UA_STATUSCODE_GOOD);
 
     /* Send with the publish connection */
+    msg = UA_BYTESTRING_ALLOC("open62541-msg");
     res = mcm->sendWithConnection(mcm, publishConnectionId,
                                   &UA_KEYVALUEMAP_NULL, &msg);
     ck_assert(res == UA_STATUSCODE_GOOD);
