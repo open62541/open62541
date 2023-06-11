@@ -2126,7 +2126,7 @@ UA_Client_disconnectAsync(UA_Client *client) {
         /* Sending the close request failed. Continue to close the connection
          * anyway. */
         cleanupSession(client);
-        disconnectSecureChannel(client, true);
+        disconnectSecureChannel(client, false);
     }
 
     notifyClientState(client);
