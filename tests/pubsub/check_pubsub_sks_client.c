@@ -636,18 +636,26 @@ START_TEST(CheckPublishedValuesInUserLand) {
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Variant *publishedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(
-        publisherApp, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
+    retval = UA_Server_readValue(publisherApp,
+                                 UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
+                                 publishedNodeData);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retval =
-        UA_Server_readValue(subscriberApp, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
-                            subscribedNodeData);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(*(UA_Int32 *)publishedNodeData->data,
-                     *(UA_Int32 *)subscribedNodeData->data);
-    UA_Variant_delete(subscribedNodeData);
+    while(true) {
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retval = UA_Server_readValue(subscriberApp,
+                                     UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                     subscribedNodeData);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Boolean isEqual = (UA_order(publishedNodeData->data, subscribedNodeData->data,
+                                       publishedNodeData->type) == UA_ORDER_EQ);
+        UA_Variant_delete(subscribedNodeData);
+        if(isEqual)
+            break;
+        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(subscriberApp, false);
+        UA_fakeSleep(50);
+    }
     UA_Variant_delete(publishedNodeData);
     UA_free(pubSksClientConfig);
     UA_free(subSksClientConfig);
@@ -676,17 +684,27 @@ START_TEST(PublisherSubscriberTogethor) {
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     UA_Variant *publishedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(
-        publisherApp, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
+    retval = UA_Server_readValue(publisherApp,
+                                 UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
+                                 publishedNodeData);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(
-        publisherApp, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(*(UA_Int32 *)publishedNodeData->data,
-                     *(UA_Int32 *)subscribedNodeData->data);
-    UA_Variant_delete(subscribedNodeData);
+    while(true) {
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retval = UA_Server_readValue(publisherApp,
+                                     UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                     subscribedNodeData);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Boolean isEqual = (UA_order(publishedNodeData->data, subscribedNodeData->data,
+                                       publishedNodeData->type) == UA_ORDER_EQ);
+        UA_Variant_delete(subscribedNodeData);
+        if(isEqual)
+            break;
+        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(subscriberApp, false);
+        UA_fakeSleep(50);
+    }
+
     UA_Variant_delete(publishedNodeData);
     UA_free(pubSksClientConfig);
 }
@@ -724,13 +742,22 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
         publisherApp, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retval = UA_Server_readValue(
-        publisherApp, UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID), subscribedNodeData);
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(*(UA_Int32 *)publishedNodeData->data,
-                     *(UA_Int32 *)subscribedNodeData->data);
-    UA_Variant_delete(subscribedNodeData);
+    while(true) {
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retval = UA_Server_readValue(publisherApp,
+                                     UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID),
+                                     subscribedNodeData);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Boolean isEqual = (UA_order(publishedNodeData->data, subscribedNodeData->data,
+                                       publishedNodeData->type) == UA_ORDER_EQ);
+        UA_Variant_delete(subscribedNodeData);
+        if(isEqual)
+            break;
+        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(subscriberApp, false);
+        UA_fakeSleep(50);
+    }
+
     UA_Variant_delete(publishedNodeData);
     UA_free(pubSksClientConfig);
 }
@@ -793,7 +820,7 @@ START_TEST(FetchNextbatchOfKeys) {
         if(sksPullIteration > 10 &&
            subKs->currentItem->keyID == pubKs->currentItem->keyID)
             break;
-        UA_fakeSleep(1);
+        UA_fakeSleep(50);
     }
     ck_assert(subKs->currentItem->keyID == pubKs->currentItem->keyID);
     ck_assert(UA_ByteString_equal(&subKs->currentItem->key, &pubKs->currentItem->key));

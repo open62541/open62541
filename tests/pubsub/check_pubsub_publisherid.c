@@ -337,27 +337,6 @@ static void AddDataSetReader(
 }
 
 /***************************************************************************************************/
-/***************************************************************************************************/
-
-/***************************************************************************************************/
-/* utility function to trigger server process loop and wait until callbacks are executed */
-static void ServerDoProcess(
-    const char *pMessage,
-    const UA_UInt32 Sleep_ms,             /* use at least publishing interval */
-    const UA_UInt32 NoOfRunIterateCycles)
-{
-    ck_assert(pMessage != 0);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ServerDoProcess() sleep : %s", pMessage);
-    for (UA_UInt32 i = 0; i < NoOfRunIterateCycles; i++) {
-        UA_Server_run_iterate(server, true);
-        UA_fakeSleep(Sleep_ms);
-        UA_Server_run_iterate(server, true);
-    }
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ServerDoProcess() wakeup : %s", pMessage);
-}
-
-/***************************************************************************************************/
 /* utility function to check working pubsub operation */
 static void ValidatePublishSubscribe(
     const UA_UInt32 NoOfTestVars,
@@ -392,25 +371,28 @@ static void ValidatePublishSubscribe(
         }
     }
 
-    ServerDoProcess("ValidatePublishSubscribe()", Sleep_ms, NoOfRunIterateCycles);
-
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): read subscribed variable");
-    for (UA_UInt32 i = 0; i < NoOfTestVars; i++) {
-        tmpValue = TestValue + (UA_Int32) i;
-        if (UseFastPath) {
-            ck_assert(fastPathSubscriberValues[i] != 0);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): expected value: '%i' vs. actual value: '%i'",
-                tmpValue, *(UA_Int32 *) fastPathSubscriberValues[i]->value.data);
-            ck_assert_int_eq(tmpValue, *(UA_Int32 *) fastPathSubscriberValues[i]->value.data);
-        } else {
-            UA_Variant SubscribedNodeData;
-            UA_Variant_init(&SubscribedNodeData);
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData));
-            ck_assert(SubscribedNodeData.data != 0);
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "ValidatePublishSubscribe(): expected value: '%i' vs. actual value: '%i'",
-                tmpValue, *(UA_Int32 *)SubscribedNodeData.data);
-            ck_assert_int_eq(tmpValue, *(UA_Int32 *)SubscribedNodeData.data);
-            UA_Variant_clear(&SubscribedNodeData);
+    UA_Boolean done = true;
+    while(done) {
+        UA_fakeSleep(Sleep_ms);
+        UA_Server_run_iterate(server, true);
+        done = true;
+        for(UA_UInt32 i = 0; i < NoOfTestVars; i++) {
+            tmpValue = TestValue + (UA_Int32)i;
+            if(UseFastPath) {
+                ck_assert(fastPathSubscriberValues[i] != 0);
+                if(tmpValue != *(UA_Int32 *)fastPathSubscriberValues[i]->value.data) {
+                    done = false;
+                    break;
+                }
+            } else {
+                UA_Variant SubscribedNodeData;
+                UA_Variant_init(&SubscribedNodeData);
+                UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
+                done = (tmpValue == *(UA_Int32 *)SubscribedNodeData.data);
+                UA_Variant_clear(&SubscribedNodeData);
+                if(!done)
+                    break;
+            }
         }
     }
 }
