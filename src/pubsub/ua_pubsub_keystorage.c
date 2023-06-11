@@ -470,51 +470,53 @@ typedef struct {
     UA_PubSubKeyStorage *ks;
     UA_UInt32 startingTokenId;
     UA_UInt32 requestedKeyCount;
+    UA_DelayedCallback dc;
 } sksClientContext;
 
-void
-sksClientCleanupCb(void *client, void *context);
+static void sksClientCleanupCb(void *client, void *context);
 
-static UA_StatusCode
-addDelayedSksClientCleanupCb(UA_Client *client){
-    UA_DelayedCallback *dc = (UA_DelayedCallback *)UA_calloc(1, sizeof(UA_DelayedCallback));
-    if(!dc) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                       "SKS Client: Failed to add addDelayedSksClientCleanup callback "
-                       "with error: %s ",
-                       UA_StatusCode_name(UA_STATUSCODE_BADOUTOFMEMORY));
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    dc->application = client;
-    dc->callback = sksClientCleanupCb;
-    dc->context = dc;
-    client->config.eventLoop->addDelayedCallback(client->config.eventLoop, dc);
-    return UA_STATUSCODE_GOOD;
+static void
+addDelayedSksClientCleanupCb(UA_Client *client, sksClientContext *context) {
+    /* Register at most once */
+    if(context->dc.application != NULL)
+        return;
+    context->dc.application = client;
+    context->dc.callback = sksClientCleanupCb;
+    context->dc.context = context;
+    client->config.eventLoop->addDelayedCallback(client->config.eventLoop, &context->dc);
 }
 
-void
+static void
 sksClientCleanupCb(void *client, void *context) {
     UA_Client *sksClient = (UA_Client *)client;
+    sksClientContext *ctx = (sksClientContext*)context;
+
     /* we do not want to call state change Callback when cleaning up */
     sksClient->config.stateCallback = NULL;
+
     if(sksClient->sessionState > UA_SESSIONSTATE_CLOSED &&
        sksClient->channel.state < UA_SECURECHANNELSTATE_CLOSED) {
+        sksClient->config.eventLoop->
+            addDelayedCallback(sksClient->config.eventLoop, &ctx->dc);
         UA_Client_disconnectAsync(sksClient);
+        return;
     }
-    if(sksClient->sessionState != UA_SESSIONSTATE_ACTIVATED &&
-       sksClient->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
-        /* we cannot make deep copy of the following pointers because these have internal structures,
-        therefore we do not free them here. These will be freed in UA_PubSubKeyStorage_delete */
+
+    if(sksClient->channel.state == UA_SECURECHANNELSTATE_CLOSED) {
+        /* We cannot make deep copy of the following pointers because these have
+         * internal structures, therefore we do not free them here. These will
+         * be freed in UA_PubSubKeyStorage_delete. */
         sksClient->config.securityPolicies = NULL;
         sksClient->config.securityPoliciesSize = 0;
         sksClient->config.certificateVerification.context = NULL;
         sksClient->config.logger.context = NULL;
-        UA_free(sksClient->config.clientContext);
+        sksClient->config.clientContext = NULL;
         UA_Client_delete(sksClient);
+        UA_free(context);
     } else {
-        addDelayedSksClientCleanupCb(sksClient);
+        sksClient->config.eventLoop->
+            addDelayedCallback(sksClient->config.eventLoop, &ctx->dc);
     }
-    UA_free(context);
 }
 
 static void
@@ -596,8 +598,7 @@ cleanup:
         ks->sksConfig.userNotifyCallback(server, retval, ks->sksConfig.context);
     ks->sksConfig.reqId = 0;
     UA_Client_disconnectAsync(client);
-    addDelayedSksClientCleanupCb(client);
-    return;
+    addDelayedSksClientCleanupCb(client, ctx);
 }
 
 static UA_StatusCode
@@ -652,7 +653,7 @@ onConnect(UA_Client *client, UA_SecureChannelState channelState,
             ks->sksConfig.userNotifyCallback(ctx->server, connectStatus,
                                              ks->sksConfig.context);
         UA_Client_disconnectAsync(client);
-        addDelayedSksClientCleanupCb(client);
+        addDelayedSksClientCleanupCb(client, ctx);
     }
 }
 
@@ -708,7 +709,7 @@ getSecurityKeysAndStoreFetchedKeys(UA_Server *server, UA_PubSubKeyStorage *keySt
         keep waiting for the client status to go from Fresh to closed in UA_Client_delete*/
         client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
         /* this client instance will be cleared in the next event loop iteration */
-        addDelayedSksClientCleanupCb(client);
+        addDelayedSksClientCleanupCb(client, ctx);
         return retval;
     }
 
