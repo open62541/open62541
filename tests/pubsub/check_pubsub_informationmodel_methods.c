@@ -24,7 +24,7 @@ THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
     while(running) {
-        UA_Server_run_iterate(server, true);
+        UA_Server_run_iterate(server, false);
     }
     return 0;
 }

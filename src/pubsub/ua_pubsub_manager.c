@@ -429,6 +429,15 @@ UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager) {
 #endif
 }
 
+void
+UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager) {
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+        UA_PubSubConnection_setPubSubState(server, tmpConnection,
+                                           UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+    }
+}
+
 /* Delete the current PubSub configuration including all nested members. This
  * action also delete the configured PubSub transport Layers. */
 void
@@ -441,7 +450,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PubSubConnection *tmpConnection1, *tmpConnection2;
     TAILQ_FOREACH_SAFE(tmpConnection1, &server->pubSubManager.connections,
                        listEntry, tmpConnection2) {
-        UA_PubSubConnection_remove(server, tmpConnection1);
+        UA_PubSubConnection_delete(server, tmpConnection1);
     }
 
     /* Remove the DataSets */
@@ -469,6 +478,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
         UA_free(server->config.pubSubConfig.transportLayers);
         server->config.pubSubConfig.transportLayersSize = 0;
     }
+
     /* Delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){

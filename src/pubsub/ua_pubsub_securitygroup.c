@@ -187,7 +187,8 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
                                  &securityGroup->callbackId);
 
 cleanup:
-    UA_Array_delete(futurekeys, securityGroup->config.maxFutureKeyCount, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    UA_Array_delete(futurekeys, securityGroup->config.maxFutureKeyCount,
+                    &UA_TYPES[UA_TYPES_BYTESTRING]);
     UA_ByteString_clear(&currentKey);
     if(retval != UA_STATUSCODE_GOOD)
         UA_PubSubKeyStorage_delete(server, ks);

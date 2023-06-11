@@ -8,8 +8,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <open62541/plugin/pubsub_mqtt.h>
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -37,7 +35,6 @@ static void setup(void) {
     ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     retVal |= UA_Server_run_startup(server);
 
     //add connection
@@ -45,7 +42,7 @@ static void setup(void) {
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("Mqtt Connection");
     connectionConfig.transportProfileUri =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
     connectionConfig.enabled = UA_TRUE;
 
 

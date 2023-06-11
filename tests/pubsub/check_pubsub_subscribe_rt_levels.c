@@ -78,58 +78,6 @@ static void teardown(void) {
     UA_Server_delete(server);
 }
 
-typedef struct {
-    UA_ByteString *buffer;
-    size_t offset;
-} UA_ReceiveContext;
-
-static UA_StatusCode
-recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffer) {
-    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
-    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
-    ctx->offset += buffer->length;
-    ctx->buffer->length = ctx->offset;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-receiveSingleMessageRT(UA_PubSubConnection *connection,
-                       UA_ReaderGroup *rg, UA_DataSetReader *dataSetReader) {
-    UA_ByteString buffer;
-    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-    }
-
-    if(!connection->channel) {
-        ck_abort_msg("No connection established");
-        return;
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    UA_StatusCode retval =
-        connection->channel->receive(connection->channel, NULL,
-                                     recvTestFun, &testCtx, 1000000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
-
-    size_t currentPosition = 0;
-    /* Decode only the necessary offset and update the networkMessage */
-    if(UA_DataSetReader_decodeAndProcessRT(server, rg, connection, &buffer) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("PubSub receive. Unknown field type!");
-    }
-
-    /* Check the decoded message is the expected one */
-    if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
-       (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
-        ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
-    }
-
-    UA_ByteString_clear(&buffer);
-}
-
 /* If the external data source is written over the information model, the
  * externalDataWriteCallback will be triggered. The user has to take care and assure
  * that the write leads not to synchronization issues and race conditions. */
@@ -155,7 +103,6 @@ externalDataReadNotificationCallback(UA_Server *serverLocal, const UA_NodeId *se
 START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
 
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -196,6 +143,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     dataSetWriterConfig.name = UA_STRING("Test DataSetWriter");
     dataSetWriterConfig.dataSetWriterId = 62541;
     ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -204,11 +152,12 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
     /* Data Set Reader */
+    UA_UInt16 publisherIdentifier = 2234;
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING ("DataSetReader Test");
-    UA_UInt16 publisherIdentifier = 2234;
     readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
     readerConfig.publisherId.data = &publisherIdentifier;
     readerConfig.writerGroupId    = 100;
@@ -307,24 +256,28 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
 
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    receiveSingleMessageRT(connection, readerGroup, dataSetReader);
-   /* Read data received by the Subscriber */
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    while(true) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
 
-    ck_assert((*(UA_Int32 *)subscribedNodeData->data) == 1000);
-    UA_Variant_clear(subscribedNodeData);
-    UA_free(subscribedNodeData);
+        /* Read data received by the Subscriber */
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_Boolean eq = ((*(UA_Int32 *)subscribedNodeData->data) == 1000);
+        UA_Variant_clear(subscribedNodeData);
+        UA_free(subscribedNodeData);
+        if(eq)
+            break;
+    }
+    UA_DataValue_delete(dataValue);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    UA_DataValue_delete(dataValue);
     UA_free(subValue);
     UA_free(subDataValueRT);
-
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, publishedDataSetIdent));
 } END_TEST
 

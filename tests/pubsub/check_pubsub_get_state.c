@@ -58,9 +58,6 @@ static void AddConnection(
     connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
-    UA_LOCK(&server->serviceMutex);
-    ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
@@ -307,7 +304,7 @@ START_TEST(Test_normal_operation) {
 
     ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 

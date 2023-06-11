@@ -82,6 +82,10 @@ if(LINUX)
   list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
+if(UA_ENABLE_MQTT)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+endif()
+
 if(UA_ENABLE_HISTORIZING)
     set(test_plugin_sources ${test_plugin_sources}
         ${PROJECT_SOURCE_DIR}/plugins/historydata/ua_history_data_backend_memory.c
@@ -133,17 +137,6 @@ if(UA_ENABLE_PUBSUB)
 
         # Add ethernet_config.h to ensure the tests are rebuild when it changes
         list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
-    endif()
-
-    if(UA_ENABLE_PUBSUB_MQTT)
-      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-           ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
     endif()
 endif()
 
@@ -263,7 +256,6 @@ if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
 endif()
 
 if(UA_ENABLE_MQTT)
-    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
     ua_add_test(check_eventloop_mqtt.c)
 endif()
 

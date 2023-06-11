@@ -11,6 +11,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -61,80 +62,6 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-}
-
-typedef struct {
-    UA_ByteString *buffer;
-    size_t offset;
-} UA_ReceiveContext;
-
-static UA_StatusCode
-recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffer) {
-    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
-    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
-    ctx->offset += buffer->length;
-    ctx->buffer->length = ctx->offset;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-receiveMultipleMessageRT(UA_PubSubConnection *connection, UA_DataSetReader *dataSetReader) {
-    UA_ByteString buffer;
-    if (UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    connection->channel->receive(connection->channel, NULL, recvTestFun, &testCtx, 1000000);
-    if(buffer.length > 0) {
-        UA_UInt16  rcvCount    = 0;
-        UA_ReaderGroup *rg =
-            UA_ReaderGroup_findRGbyId(server, dataSetReader->linkedReaderGroup);
-        
-        /* Decode only the necessary offset and update the networkMessage */
-        if(UA_DataSetReader_decodeAndProcessRT(server, rg, connection, &buffer) != UA_STATUSCODE_GOOD) {
-            ck_abort_msg("PubSub receive. Unknown field type!");
-        }
-        
-        /* Check the decoded message is the expected one */
-        if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
-           (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
-            ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
-        }
-        
-        UA_ByteString_clear(&buffer);
-    }
-}
-
-static void receiveSingleMessage(UA_PubSubConnection *connection) {
-    UA_ByteString buffer;
-    if (UA_ByteString_allocBuffer(&buffer, 4096) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    UA_StatusCode retval =
-        connection->channel->receive(connection->channel, NULL, recvTestFun,
-                                     &testCtx, 1000000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 4096;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
-
-    size_t currentPosition = 0;
-    UA_UInt16 rcvCount    = 0;
-    do {
-        UA_NetworkMessage currentNetworkMessage;
-        memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-        UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, &currentNetworkMessage, NULL);
-        ck_assert((*((UA_UInt32 *)currentNetworkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_clear(&currentNetworkMessage);
-        rcvCount++;
-    } while((buffer.length) > currentPosition);
-
-    ck_assert_int_eq(rcvCount, 2);
-    UA_ByteString_clear(&buffer);
 }
 
 /* If the external data source is written over the information model, the
@@ -342,19 +269,23 @@ START_TEST(SubscribeMultipleMessagesRT) {
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
 
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
-    receiveMultipleMessageRT(connection, dataSetReader);
+    while(true) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
 
-    /* Read data received by the Subscriber */
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        /* Read data received by the Subscriber */
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    ck_assert((*(UA_Int32 *)subscribedNodeData->data) == 1000);
+        UA_Boolean eq = ((*(UA_Int32 *)subscribedNodeData->data) == 1000);
+        UA_Variant_delete(subscribedNodeData);
+        if(eq)
+            break;
+    }
 
-    UA_Variant_clear(subscribedNodeData);
-    UA_free(subscribedNodeData);
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
@@ -527,7 +458,7 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
-    receiveSingleMessage(connection);
+    UA_Server_run_iterate(server, false);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);

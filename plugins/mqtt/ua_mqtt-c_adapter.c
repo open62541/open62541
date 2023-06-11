@@ -339,7 +339,7 @@ void
 publish_callback(void** ptrServer, struct mqtt_response_publish *published)
 {
     UA_Server *server = (UA_Server*)*ptrServer;
-    UA_PubSubManager pubSubManager = server->pubSubManager;
+    //UA_PubSubManager pubSubManager = server->pubSubManager;
     UA_Boolean is_reader_configured = false;
     const UA_String transport_uri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
 
@@ -383,13 +383,13 @@ publish_callback(void** ptrServer, struct mqtt_response_publish *published)
     memcpy(topic->data, published->topic_name, published->topic_name_size);
     memcpy(msg->data, published->application_message, published->application_message_size);
 
-    UA_TopicAssign *topicAssign1;
-    TAILQ_FOREACH(topicAssign1, &pubSubManager.topicAssign, listEntry){
-        if(UA_String_equal(&topicAssign1->topic, topic)) {
-            UA_PubSubConnection* pConn = topicAssign1->rgIdentifier->linkedConnection;
-            processMqttSubscriberCallback(server, pConn, msg);
-        }
-    }
+    /* UA_TopicAssign *topicAssign1; */
+    /* TAILQ_FOREACH(topicAssign1, &pubSubManager.topicAssign, listEntry){ */
+    /*     if(UA_String_equal(&topicAssign1->topic, topic)) { */
+    /*         UA_PubSubConnection* pConn = topicAssign1->rgIdentifier->linkedConnection; */
+    /*         //processMqttSubscriberCallback(server, pConn, msg); */
+    /*     } */
+    /* } */
 }
 
 UA_StatusCode

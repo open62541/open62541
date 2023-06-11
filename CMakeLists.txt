@@ -1008,6 +1008,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_eventloop.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c
@@ -1170,8 +1171,17 @@ if(UA_ENABLE_DISCOVERY)
 endif()
 
 if(UA_ENABLE_MQTT)
+    if(NOT EXISTS "${UA_FILE_MQTT}")
+        message(STATUS "Submodule update")
+        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
+        endif()
+    endif()
+
     include_directories("${open62541_MQTT_DIR}/include")
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+    list(APPEND ua_architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -1196,8 +1206,9 @@ if(UA_ENABLE_PUBSUB)
                  ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
                  ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h)
-            list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
+            list(APPEND default_plugin_sources
+            #                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
+            #                 ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
                  ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
                  ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
         endif()

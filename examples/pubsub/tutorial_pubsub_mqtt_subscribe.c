@@ -7,7 +7,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pubsub_mqtt.h>
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
@@ -373,12 +372,11 @@ int main(int argc, char **argv) {
     int interval = SUBSCRIBE_INTERVAL;
 
     /* Return value initialized to Status Good */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
     /* Instantiate the PubSub SecurityPolicy */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
@@ -386,11 +384,9 @@ int main(int argc, char **argv) {
                                       &config->logger);
 #endif
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
-
     /* API calls */
     /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, addressUrl);
+    UA_StatusCode retval = addPubSubConnection(server, addressUrl);
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 

@@ -78,6 +78,14 @@ set(fuzzing_plugin_sources
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
 )
 
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+endif()
+
+if(UA_ENABLE_MQTT)
+    list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
+endif()
+
 if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
   list(APPEND fuzzing_plugin_sources
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c

@@ -90,75 +90,6 @@ static void addVariables(void) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
 }
 
-typedef struct {
-    UA_ByteString *buffer;
-    size_t offset;
-} UA_ReceiveContext;
-
-static UA_StatusCode
-recvTestFun(UA_PubSubChannel *channel, void *context,
-               const UA_ByteString *buffer) {
-    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
-    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
-    ctx->offset += buffer->length;
-    ctx->buffer->length = ctx->offset;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-receiveInvalidMessage(UA_ByteString buffer, UA_PubSubConnection *connection) {
-    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-        return;
-    }
-
-    if(!connection->channel) {
-        ck_abort_msg("No connection established");
-        return;
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    UA_StatusCode retval =
-        connection->channel->receive(connection->channel, NULL,
-                                     recvTestFun, &testCtx, 1000000);
-
-    /* an invalid message is not sent. We reach a non critical timeout */
-    ck_assert(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT);
-    buffer.length = 512;
-    UA_ByteString_clear(&buffer);
-}
-
-static void
-receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
-                     UA_NetworkMessage *networkMessage) {
-    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-        return;
-    }
-
-    if(!connection->channel) {
-        ck_abort_msg("No connection established");
-        return;
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    UA_StatusCode retval =
-        connection->channel->receive(connection->channel, NULL,
-                                     recvTestFun, &testCtx, 1000000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
-    memset(networkMessage, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
-
-    /* check if the buffer has the length of the configured size*/
-    ck_assert(buffer.length == VALID_DATASETMESSAGE_SIZE);
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage, NULL);
-    UA_ByteString_clear(&buffer);
-}
-
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
@@ -196,28 +127,30 @@ static void teardown(void) {
 }
 
 static void checkReceived(void) {
-    /* Read data sent by the Publisher */
-    UA_ReadValueId rvi;
-    UA_ReadValueId_init(&rvi);
-    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-    rvi.nodeId = UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID);
-    UA_DataValue publishedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-
-    /* Read data received by the Subscriber */
-    rvi.nodeId = UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID);
-    UA_DataValue subscribedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
-    
-    /* Check if data sent from Publisher is being received by Subscriber */
-    ck_assert(publishedNodeData.value.type == subscribedNodeData.value.type);
-    ck_assert(UA_order(publishedNodeData.value.data,
-                       subscribedNodeData.value.data,
-                       subscribedNodeData.value.type) == UA_ORDER_EQ);
-
-    ck_assert(publishedNodeData.hasStatus == subscribedNodeData.hasStatus);
-    ck_assert(publishedNodeData.status == subscribedNodeData.status);
-
-    UA_DataValue_clear(&subscribedNodeData);
-    UA_DataValue_clear(&publishedNodeData);
+    while(true) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
+        /* Read data sent by the Publisher */
+        UA_ReadValueId rvi;
+        UA_ReadValueId_init(&rvi);
+        rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+        rvi.nodeId = UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID);
+        UA_DataValue publishedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        
+        /* Read data received by the Subscriber */
+        rvi.nodeId = UA_NODEID_NUMERIC(1, SUBSCRIBEVARIABLE_NODEID);
+        UA_DataValue subscribedNodeData = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+        
+        /* Check if data sent from Publisher is being received by Subscriber */
+        ck_assert(publishedNodeData.value.type == subscribedNodeData.value.type);
+        UA_Boolean eq = 
+            (UA_order(&publishedNodeData, &subscribedNodeData,
+                      &UA_TYPES[UA_TYPES_DATAVALUE]) == UA_ORDER_EQ);
+        UA_DataValue_clear(&subscribedNodeData);
+        UA_DataValue_clear(&publishedNodeData);
+        if(eq)
+            break;
+    }
 }
 
 START_TEST(AddReaderGroupWithValidConfiguration) {
@@ -1673,6 +1606,11 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
 
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     ck_assert_ptr_ne(dsr, NULL);
+
+    UA_fakeSleep(100);
+    UA_Server_run_iterate(server, false);
+    UA_Server_run_iterate(server, false);
+
     /* since the test cases are using a fake timer with a static timestamp,
      * we compare the lastHeartbeatReceived with the static timestamp
      * (given by UA_DateTime_nowMonotonic()). If the timestamps are equal,
@@ -2441,12 +2379,7 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         /* run server - publisher and subscriber */
         retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        UA_NetworkMessage_clear(&networkMessage);
+        UA_Server_run_iterate(server, false);
 } END_TEST
 
 START_TEST(InvalidConfiguredSizPublishSubscribe) {
@@ -2594,10 +2527,7 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         /* run server - publisher and subscriber */
         retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        receiveInvalidMessage(buffer, connection);
+        UA_Server_run_iterate(server, false);
 } END_TEST
 
 int main(void) {

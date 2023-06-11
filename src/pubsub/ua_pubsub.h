@@ -34,6 +34,9 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
 
+/* Max number of underlying for sending and receiving */
+#define UA_PUBSUB_MAXCHANNELS 8
+
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
 
@@ -132,19 +135,38 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
 
 typedef struct UA_PubSubConnection {
     UA_PubSubComponentEnumType componentType;
-    UA_PubSubConnectionConfig config;
-    UA_PubSubChannel *channel;
-    UA_NodeId identifier;
-
-    LIST_HEAD(, UA_WriterGroup) writerGroups;
-    size_t writerGroupsSize;
-
-    LIST_HEAD(, UA_ReaderGroup) readerGroups;
-    size_t readerGroupsSize;
 
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
+    UA_NodeId identifier;
+
+    /* The send/recv connections are only opened if the state is operational */
+    UA_PubSubState state;
+    UA_PubSubConnectionConfig config;
+    UA_Boolean json; /* Extracted from the TransportProfileUrl */
+
+    /* Channels belonging to the PubSubConnection. Send channels belong to
+     * WriterGroups, recv channels belong to ReaderGroups. We only open channels 
+     * if there is at least one WriterGroup/ReaderGroup respectively.
+     *
+     * Some channels belong exclusively to just one WriterGroup/ReaderGroup that
+     * defines additional connection properties. For example an MQTT topic name
+     * or QoS parameters. In that case a dedicated NetworkCallback is used that
+     * takes this ReaderGroup/WriterGroup directly as context. */
+    UA_ConnectionManager *cm;
+    uintptr_t recvChannels[UA_PUBSUB_MAXCHANNELS];
+    size_t recvChannelsSize;
+    uintptr_t sendChannel;
+
+    size_t writerGroupsSize;
+    LIST_HEAD(, UA_WriterGroup) writerGroups;
+
+    size_t readerGroupsSize;
+    LIST_HEAD(, UA_ReaderGroup) readerGroups;
+
     UA_UInt16 configurationFreezeCounter;
-    UA_Boolean isRegistered; /* Subscriber requires connection channel regist */
+
+    UA_Boolean deleteFlag; /* To be deleted - in addition to the PubSubState */
+    UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
 
 UA_StatusCode
@@ -163,13 +185,20 @@ UA_PubSubConnection_create(UA_Server *server,
 void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
-UA_StatusCode
-UA_PubSubConnection_remove(UA_Server *server, UA_PubSubConnection *c);
+void
+UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
-/* Register channel for given connectionIdentifier */
 UA_StatusCode
-UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
-                           const UA_ReaderGroupConfig *readerGroupConfig);
+UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c);
+
+void
+UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
+
+UA_StatusCode
+UA_PubSubConnection_setPubSubState(UA_Server *server,
+                                   UA_PubSubConnection *connection,
+                                   UA_PubSubState state,
+                                   UA_StatusCode cause);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -194,11 +223,6 @@ UA_PubSubConnection_regist(UA_Server *server, UA_NodeId *connectionIdentifier,
     UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, ERROR, CONNECTION, __VA_ARGS__, ""))
 #define UA_LOG_FATAL_CONNECTION(LOGGER, CONNECTION, ...)                \
     UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, FATAL, CONNECTION, __VA_ARGS__, ""))
-
-UA_StatusCode
-UA_decodeAndProcessNetworkMessage(UA_Server *server,
-                                  UA_PubSubConnection *connection,
-                                  UA_ByteString *buf);
 
 /**********************************************/
 /*              DataSetWriter                 */
@@ -306,16 +330,22 @@ struct UA_WriterGroup {
     UA_WriterGroupConfig config;
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
-    UA_PubSubConnection *linkedConnection;
+
     LIST_HEAD(, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
+
     UA_UInt64 publishCallbackId; /* registered if != 0 */
     UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
-    UA_PubSubChannel *channel; /* channel used for udp unicast communication */
+
+    /* The ConnectionManager pointer is stored in the Connection. The channels
+     * are either stored here or in the Connection, but never both. */
+    UA_PubSubConnection *linkedConnection;
+    uintptr_t sendChannel;
+    UA_Boolean deleteFlag;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
@@ -334,6 +364,12 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
 UA_StatusCode
 UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg);
+
+void
+UA_WriterGroup_disconnect(UA_WriterGroup *wg);
+
+UA_StatusCode
+UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
@@ -360,6 +396,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
+
+UA_StatusCode
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
 void
 UA_WriterGroup_publishCallback(UA_Server *server,
@@ -461,6 +500,11 @@ UA_DataSetReader_process(UA_Server *server,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
+UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
+                                 UA_DataSetReader *reader,
+                                 UA_ReaderGroupConfig readerGroupConfig);
+
+UA_StatusCode
 UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         const UA_DataSetReaderConfig *dataSetReaderConfig,
                         UA_NodeId *readerIdentifier);
@@ -490,10 +534,6 @@ UA_StatusCode
 DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
                                     const UA_FieldTargetVariable *targetVariables);
-
-UA_StatusCode
-UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                                    UA_PubSubConnection *connection, UA_ByteString *buf);
 
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server,
@@ -539,14 +579,20 @@ struct UA_ReaderGroup {
     UA_PubSubComponentEnumType componentType;
     UA_ReaderGroupConfig config;
     UA_NodeId identifier;
-    UA_PubSubConnection *linkedConnection;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
+
     LIST_HEAD(, UA_DataSetReader) readers;
-    /* for simplified information access */
     UA_UInt32 readersCount;
-    UA_UInt64 subscribeCallbackId;
+
     UA_PubSubState state;
     UA_Boolean configurationFrozen;
+
+    /* The ConnectionManager pointer is stored in the Connection. The channels 
+     * are either stored here or in the Connection, but never both. */
+    UA_PubSubConnection *linkedConnection;
+    uintptr_t recvChannels[UA_PUBSUB_MAXCHANNELS];
+    size_t recvChannelsSize;
+    UA_Boolean deleteFlag;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
@@ -565,6 +611,12 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 
 UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
+
+UA_StatusCode
+UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg);
+
+void
+UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);
 
 UA_StatusCode
 setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
@@ -596,6 +648,14 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_ReaderGroup *readerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
+
+UA_Boolean
+UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
+                                    UA_ByteString *buf);
+
+UA_Boolean
+UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
+                       UA_NetworkMessage *nm);
 
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -643,19 +703,6 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                      UA_NetworkMessage *nm, UA_PubSubConnection *connection);
-
-UA_StatusCode
-receiveBufferedNetworkMessage(UA_Server *server, UA_ReaderGroup *readerGroup,
-                              UA_PubSubConnection *connection);
-
-/* It serves as the entry point into reader processing and is called when
- * a publish is received, and the topic matches with one or more readers. */
-void processMqttSubscriberCallback(UA_Server *server, UA_PubSubConnection *connection,
-                                   UA_ByteString *msg);
-
-UA_StatusCode
-decodeNetworkMessageJson(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                         UA_NetworkMessage *nm, UA_PubSubConnection *connection);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 /*********************************************************/
@@ -764,6 +811,9 @@ UA_PubSubManager_freeIds(UA_Server *server);
 
 void
 UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager);
+
+void
+UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager);
 
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
