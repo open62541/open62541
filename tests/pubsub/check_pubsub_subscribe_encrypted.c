@@ -391,6 +391,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_Server_setWriterGroupOperational(server, writerGroup);
         UA_Server_setReaderGroupOperational(server, readerGroupTest);
 
+        UA_Server_run_iterate(server, true);
+
         /* Read data sent by the Publisher */
         UA_Variant *publishedNodeData = UA_Variant_new();
         retVal                        = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID), publishedNodeData);
