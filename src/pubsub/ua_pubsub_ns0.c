@@ -20,13 +20,13 @@ typedef struct {
 } UA_NodePropertyContext;
 
 static UA_StatusCode
-writePubSubNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
+writePubSubNs0VariableArray(UA_Server *server, const UA_NodeId id, void *v,
                             size_t length, const UA_DataType *type) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
-    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
+    return writeValueAttribute(server, id, &var);
 }
 
 static UA_NodeId
@@ -627,39 +627,38 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                       UA_NODEID_NUMERIC(0, UA_NS0ID_NETWORKADDRESSURLTYPE),
                       &attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
 
-    addNode_finish(server, &server->adminSession, &connection->identifier);
+    retVal |= addNode_finish(server, &server->adminSession, &connection->identifier);
 
-    UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode,
-        connectionPropertieNode, transportProfileUri;
-    addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                      connection->identifier);
-    urlNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  addressNode);
-    interfaceNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                        addressNode);
-    publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                        connection->identifier);
-    connectionPropertieNode = findSingleChildNode(server,
-                                                  UA_QUALIFIEDNAME(0, "ConnectionProperties"),
-                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                  connection->identifier);
-    transportProfileUri = findSingleChildNode(server,
-                                              UA_QUALIFIEDNAME(0, "TransportProfileUri"),
-                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                              connection->identifier);
+    UA_NodeId addressNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            connection->identifier);
+    UA_NodeId urlNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
+    UA_NodeId interfaceNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
+    UA_NodeId publisherIdNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), connection->identifier);
+    UA_NodeId connectionPropertyNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            connection->identifier);
+    UA_NodeId transportProfileUri =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            connection->identifier);
 
     if(UA_NodeId_isNull(&addressNode) || UA_NodeId_isNull(&urlNode) ||
        UA_NodeId_isNull(&interfaceNode) || UA_NodeId_isNull(&publisherIdNode) ||
-       UA_NodeId_isNull(&connectionPropertieNode) ||
+       UA_NodeId_isNull(&connectionPropertyNode) ||
        UA_NodeId_isNull(&transportProfileUri)) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
+    retVal |= writePubSubNs0VariableArray(server, connectionPropertyNode,
                                           connection->config.connectionProperties.map,
                                           connection->config.connectionProperties.mapSize,
                                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
@@ -2342,8 +2341,9 @@ initPubSubNS0(UA_Server *server) {
     UA_String profileArray[1];
     profileArray[0] = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
-    retVal |= writePubSubNs0VariableArray(server, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES,
-                                    profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writePubSubNs0VariableArray(server,
+           UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES),
+                                          profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     /* Add missing references */
