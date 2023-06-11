@@ -103,10 +103,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     ethernettransportSettings.transmission_time = transmission_time;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
-    /* Initialize a buffer to send data */
-    UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
-    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
 } END_TEST
 
 START_TEST(EthernetSendWithVLANTag) {
@@ -154,10 +151,7 @@ START_TEST(EthernetSendWithVLANTag) {
     ethernettransportSettings.transmission_time = transmission_time;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
-    /* Initialize a buffer to send data */
-    UA_ByteString testBuffer = UA_STRING(BUFFER_STRING);
-    retVal = connection->channel->send(connection->channel, &transportSettings, &testBuffer);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
 } END_TEST
 
 int main(void) {

@@ -13,6 +13,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -85,56 +86,6 @@ static void setup(void) {
 static void teardown(void) {
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
-}
-
-static UA_StatusCode
-recvTestFun(UA_PubSubChannel *channel, void *context, const UA_ByteString *buffer) {
-    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
-    memcpy(ctx->buffer->data, buffer->data, buffer->length);
-    ctx->buffer->length = buffer->length;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void receiveSingleMessageRT(UA_PubSubConnection *connection, UA_ReaderGroup *readerGroup) {
-    UA_ByteString buffer;
-    UA_DataSetReader *dataSetReader = LIST_FIRST(&readerGroup->readers);
-    if (UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-    }
-
-    if(!connection->channel) {
-        ck_abort_msg("No connection established");
-        return;
-    }
-
-    UA_ReceiveContext testCtx = {&buffer};
-    UA_StatusCode retval = connection->channel->receive(connection->channel, NULL, recvTestFun, &testCtx, 1000000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
-
-    /* Decode only the necessary offset and update the networkMessage */
-    if(UA_DataSetReader_decodeAndProcessRT(server, readerGroup, connection, &buffer) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("PubSub receive. Unknown field type!");
-    }
-
-    /* Check the decoded message is the expected one */
-    if((dataSetReader->bufferedMessage.nm->groupHeader.writerGroupId != dataSetReader->config.writerGroupId) ||
-       (*dataSetReader->bufferedMessage.nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds != dataSetReader->config.dataSetWriterId)) {
-        ck_abort_msg("PubSub receive. Unknown message received. Will not be processed.");
-    }
-
-    /* Delete the payload value of every dsf's decoded */
-     UA_DataSetMessage *dsm = dataSetReader->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages;
-     if(dsm->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
-         for(UA_UInt16 i = 0; i < dsm->data.keyFrameData.fieldCount; i++) {
-             UA_Variant_clear(&dsm->data.keyFrameData.dataSetFields[i].value);
-         }
-     }
-
-    UA_ByteString_clear(&buffer);
 }
 
 /* If the external data source is written over the information model, the
@@ -497,17 +448,24 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
 
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    receiveSingleMessageRT(connection, readerGroup);
-   /* Read data received by the Subscriber */
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    while(true) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
 
-    ck_assert((*(UA_UInt32 *)subscribedNodeData->data) == 1000);
-    UA_Variant_clear(subscribedNodeData);
-    UA_free(subscribedNodeData);
+        /* Read data received by the Subscriber */
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 50002), subscribedNodeData);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_Boolean eq = ((*(UA_Int32 *)subscribedNodeData->data) == 1000);
+        UA_Variant_clear(subscribedNodeData);
+        UA_free(subscribedNodeData);
+        if(eq)
+            break;
+    }
+
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);
     UA_free(subValue);
@@ -774,17 +732,24 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
 
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    receiveSingleMessageRT(connection, readerGroup);
-   /* Read data received by the Subscriber */
-    UA_Variant *subscribedNodeData = UA_Variant_new();
-    retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 60003), subscribedNodeData);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    while(true) {
+        UA_fakeSleep(50);
+        UA_Server_run_iterate(server, false);
 
-    ck_assert((*(UA_UInt32 *)subscribedNodeData->data) == 1000);
-    UA_Variant_clear(subscribedNodeData);
-    UA_free(subscribedNodeData);
+        /* Read data received by the Subscriber */
+        UA_Variant *subscribedNodeData = UA_Variant_new();
+        retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 60003), subscribedNodeData);
+        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        
+        UA_Boolean eq = ((*(UA_Int32 *)subscribedNodeData->data) == 1000);
+        UA_Variant_clear(subscribedNodeData);
+        UA_free(subscribedNodeData);
+        if(eq)
+            break;
+    }
+
    /* Read data received by the Subscriber */
     UA_Variant *subscribedNodeData1 = UA_Variant_new();
     retVal = UA_Server_readValue(server, UA_NODEID_NUMERIC(1, 60004), subscribedNodeData1);

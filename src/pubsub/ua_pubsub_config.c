@@ -202,8 +202,6 @@ createComponentsForConnection(UA_Server *server,
     /* ReaderGroups configuration */
     for(size_t j = 0; j < connParams->readerGroupsSize; j++) {
         res = createReaderGroup(server, &connParams->readerGroups[j], connectionIdent);
-        if(res == UA_STATUSCODE_GOOD)
-            res |= UA_PubSubConnection_regist(server, &connectionIdent, NULL);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_createComponentsForConnection] "
@@ -213,74 +211,6 @@ createComponentsForConnection(UA_Server *server,
     }
 
     return res;
-}
-
-/* Checks if transportLayer for the specified transportProfileUri exists.
- *
- * @param server Server object that shall be configured
- * @param transportProfileUri String that specifies the transport protocol */
-static UA_Boolean
-transportLayerExists(UA_Server *server, UA_String transportProfileUri) {
-    for(size_t i = 0; i < server->config.pubSubConfig.transportLayersSize; i++) {
-        if(UA_String_equal(&server->config.pubSubConfig.transportLayers[i].transportProfileUri,
-                           &transportProfileUri)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/* Creates transportlayer for specified transport protocol if this layer doesn't exist yet */
-static UA_StatusCode
-createTransportLayer(UA_Server *server, const UA_String transportProfileUri) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    if(transportLayerExists(server, transportProfileUri))
-        return UA_STATUSCODE_GOOD;
-
-    UA_ServerConfig *config = &server->config;
-    UA_PubSubTransportLayer tl;
-
-    do {
-        UA_String strUDP =
-            UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-        if(UA_String_equal(&transportProfileUri, &strUDP)) {
-            tl = UA_PubSubTransportLayerUDPMP();
-            break;
-        }
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-        UA_String strETH =
-            UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
-        if(UA_String_equal(&transportProfileUri, &strETH)) {
-            tl = UA_PubSubTransportLayerEthernet();
-            break;
-        }
-#endif
-
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_createTransportLayer] "
-                     "invalid transportProfileUri");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    } while(0);
-
-    UA_PubSubTransportLayer *newLayer;
-    if(config->pubSubConfig.transportLayersSize > 0) {
-        newLayer = (UA_PubSubTransportLayer *)
-            UA_realloc(config->pubSubConfig.transportLayers,
-                       (config->pubSubConfig.transportLayersSize + 1) *
-                       sizeof(UA_PubSubTransportLayer));
-    } else {
-        newLayer = (UA_PubSubTransportLayer *)
-            UA_calloc(1, sizeof(UA_PubSubTransportLayer));
-    }
-    if(!newLayer)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    config->pubSubConfig.transportLayers = newLayer;
-
-    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = tl;
-    config->pubSubConfig.transportLayersSize++;
-    return UA_STATUSCODE_GOOD;
 }
 
 /* Creates PubSubConnection configuration from PubSubConnectionDataType object
@@ -330,14 +260,6 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "[UA_PubSubManager_createPubSubConnection] "
                        "TransportSettings can not be read");
-    }
-
-    res = createTransportLayer(server, connParams->transportProfileUri);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_createPubSubConnection] "
-                     "Creating transportLayer failed");
-        return res;
     }
 
     /* Load connection config into server: */

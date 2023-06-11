@@ -74,13 +74,8 @@ UA_PubSubKeyStorage_delete(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
     }
 
     UA_PubSubKeyStorage_clearKeyList(keyStorage);
-
-    if(keyStorage->securityGroupID.data)
-        UA_String_clear(&keyStorage->securityGroupID);
-
-    /* clear SKS client config from keystorage */
+    UA_String_clear(&keyStorage->securityGroupID);
     UA_ClientConfig_clear(&keyStorage->sksConfig.clientConfig);
-
     UA_free(keyStorage);
 }
 

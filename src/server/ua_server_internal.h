@@ -128,9 +128,6 @@ struct UA_Server {
 
     UA_LifecycleState state;
     UA_UInt64 houseKeepingCallbackId;
-    UA_UInt64 pollingCallbackId; /* TODO: Move all subsystems that poll on the
-                                  * network to a true EventLoop
-                                  * implementation */
 
     UA_UInt64 serverComponentIds; /* Counter to assign ids from */
     UA_ServerComponentTree serverComponents;

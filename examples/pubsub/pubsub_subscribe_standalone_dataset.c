@@ -102,14 +102,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |=
-        UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
-    if(retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-    UA_LOCK(&server->serviceMutex);
-    retval |= UA_PubSubConnection_regist(server, &connectionIdentifier, NULL);
-    UA_UNLOCK(&server->serviceMutex);
+    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     return retval;
 }
 
