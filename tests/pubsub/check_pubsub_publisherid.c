@@ -1,4 +1,3 @@
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
@@ -9,7 +8,6 @@
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
 #include "ua_util_internal.h"
-#include "ua_pubsub_config.h"
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>
@@ -29,7 +27,6 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_setDefault(config));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP()));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 

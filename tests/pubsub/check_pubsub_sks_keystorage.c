@@ -5,7 +5,6 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -186,7 +185,6 @@ setup(void) {
     SecurityGroupId = UA_STRING("TestSecurityGroup");
     UA_ServerConfig *config = UA_Server_getConfig(server);
     retVal |= UA_ServerConfig_setDefault(config);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
 
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));

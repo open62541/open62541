@@ -5,7 +5,6 @@
  * Copyright (c) 2017 - 2018 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/securitypolicy_default.h>
@@ -33,7 +32,6 @@ static void setup(void) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(server);
     retVal |= UA_ServerConfig_setDefault(config);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));

@@ -5,7 +5,6 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <check.h>
@@ -19,7 +18,7 @@
 #define STR_BUFSIZE             1024
 
 #define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
-#define UA_PUBLISHER_PORT        4800    /* Port for Publisher*/
+#define UA_PUBLISHER_PORT        4801    /* Port for Publisher*/
 #define PUBLISH_INTERVAL         5       /* Publish interval*/
 #define PUBLISHER_ID             2234    /* Publisher Id*/
 #define DATASET_WRITER_ID        62541   /* DataSet Writer Id*/
@@ -74,7 +73,6 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
     *config = UA_Server_getConfig(*server);
 
     retVal |= UA_Server_run_startup(*server);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(*config, UA_PubSubTransportLayerUDP());
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
@@ -284,7 +282,7 @@ static void setup(void) {
                            UA_SUBSCRIBER_PORT, PUBLISHVARIABLE_NODEID);
 
     setupPubSubServer(&serverSubscriber, &configSubscriber,
-                      UA_SUBSCRIBER_PORT, configPublisher->eventLoop);
+                      UA_SUBSCRIBER_PORT, NULL);
 
     UA_NodeId folderId;
     setupFolder(serverSubscriber, &folderId);

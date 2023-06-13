@@ -6,7 +6,6 @@
  * Copyright (c) 2020-2021 Kalycito Infotech Private Limited
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/client.h>
@@ -36,7 +35,6 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     retVal |= UA_Server_run_startup(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);

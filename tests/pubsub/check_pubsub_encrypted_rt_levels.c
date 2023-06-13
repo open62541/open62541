@@ -7,7 +7,6 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include "open62541/server_pubsub.h"
 #include <open62541/plugin/securitypolicy_default.h>
 
@@ -79,7 +78,6 @@ static void setup(void) {
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
                                       &config->logger);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 
