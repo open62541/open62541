@@ -78,7 +78,7 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
 
-if(LINUX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
 endif()
 
@@ -250,7 +250,8 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 ua_add_test(check_eventloop_interrupt.c)
-if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     # Requires raw socket capability, currently not possible with valgrind
     ua_add_test(check_eventloop_eth.c)
 endif()
