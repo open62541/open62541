@@ -253,6 +253,8 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_removeCallback(client, client->houseKeepingCallbackId);
     client->houseKeepingCallbackId = 0;
 
+    UA_SecureChannel_clear(&client->channel);
+
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&client->clientMutex);
 #endif
