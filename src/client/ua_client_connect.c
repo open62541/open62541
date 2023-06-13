@@ -1542,7 +1542,7 @@ initConnect(UA_Client *client) {
     verifyClientApplicationURI(client);
 
     /* Initialize the SecureChannel */
-    UA_SecureChannel_init(&client->channel);
+    UA_SecureChannel_clear(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
