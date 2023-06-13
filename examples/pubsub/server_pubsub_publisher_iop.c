@@ -2,11 +2,7 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
-#include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
 #include <signal.h>
@@ -745,13 +741,6 @@ static int run(UA_String *transportProfile,
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, 4802, NULL);
-
-    /* Details about the connection configuration and handling are located in
-    * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
 

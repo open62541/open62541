@@ -8,10 +8,9 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
 #include <signal.h>
@@ -155,7 +154,6 @@ run(UA_UInt16 port, UA_String *transportProfile,
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);
     addDataSetField(server);

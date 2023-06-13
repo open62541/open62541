@@ -89,7 +89,6 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #include <open62541/plugin/securitypolicy_default.h>
 
@@ -1123,7 +1122,7 @@ void *subscriber(void *arg) {
     while(*runningSub) {
         /* The Subscriber threads wakes up at the configured subscriber wake up percentage (0%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-        /* Receive and process the incoming data using the subcallback - UA_ReaderGroup_subscribeCallback() */
+        /* Receive and process the incoming data */
         subCallback(server, currentReaderGroup);
         /* Calculation of the next wake up time by adding the interval with the previous wake up time */
         nextnanosleeptimeSub.tv_nsec += (__syscall_slong_t)subInterval_ns;
@@ -1740,14 +1739,6 @@ int main(int argc, char **argv) {
 #endif
     }
 
-    /* It is possible to use multiple PubSubTransportLayers on runtime.
-     * The correct factory is selected on runtime by the standard defined
-     * PubSub TransportProfileUri's. */
-
-#if defined (PUBLISHER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
     /* Create variable nodes for publisher and subscriber in address space */
     addServerNodes(server);
 
@@ -1763,14 +1754,6 @@ int main(int argc, char **argv) {
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(SUBSCRIBER)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
                                       &config->logger);
-#endif
-
-#if defined (PUBLISHER) && defined(SUBSCRIBER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
-#if defined(SUBSCRIBER) && !defined(PUBLISHER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 #endif
 
 #if defined(SUBSCRIBER)

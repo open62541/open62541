@@ -8,19 +8,14 @@
           to run the application */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types_generated.h>
 
 #include <open62541/plugin/securitypolicy_default.h>
 
-#include "ua_pubsub.h"
 #include "common.h"
-
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <stdio.h>
 #include <signal.h>
@@ -309,16 +304,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
-
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
 
     /* API calls */
     /* Add PubSubConnection */
