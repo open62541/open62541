@@ -5,7 +5,6 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -62,7 +61,6 @@ static void setup(void) {
                                       &config->logger);
 
     retVal |= UA_Server_run_startup(server);
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* Add connection to the server */
     UA_PubSubConnectionConfig connectionConfig;

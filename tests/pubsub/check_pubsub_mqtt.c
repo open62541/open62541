@@ -34,8 +34,8 @@ static void setup(void) {
     server = UA_Server_new();
     ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
-    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_Server_run_startup(server);
+    UA_ServerConfig_setDefault(config);
+    UA_Server_run_startup(server);
 
     //add connection
     UA_PubSubConnectionConfig connectionConfig;
@@ -68,7 +68,7 @@ static void setup(void) {
     connectionConfig.connectionProperties.map = connectionOptions;
     connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
-    retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 

@@ -127,17 +127,8 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-  list(APPEND test_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
-  list(APPEND test_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
-    if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-
-        # Add ethernet_config.h to ensure the tests are rebuild when it changes
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
-    endif()
+    # Add ethernet_config.h to ensure the tests are rebuild when it changes
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)
@@ -320,7 +311,6 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_pds.c)
     ua_add_test(pubsub/check_pubsub_connection_udp.c)
     ua_add_test(pubsub/check_pubsub_publish.c)
-    ua_add_test(pubsub/check_pubsub_publish_uadp.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
     ua_add_test(pubsub/check_pubsub_udp_unicast.c)
     ua_add_test(pubsub/check_pubsub_publisherid.c)
@@ -333,7 +323,6 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_subscribe_config_freeze.c)
     ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
     ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_multiple_layer.c)
 
     if(UA_ENABLE_PUBSUB_ENCRYPTION)
         ua_add_test(pubsub/check_pubsub_encryption.c)
