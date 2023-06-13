@@ -3,8 +3,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 
 /**
  * The PubSub connection example demonstrate the PubSub TransportLayer configuration and
@@ -12,17 +12,6 @@
  */
 int main(void) {
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    /* Add the PubSubTransportLayer implementation to the server config.
-     * The PubSubTransportLayer is a factory to create new connections
-     * on runtime. The UA_PubSubTransportLayer is used for all kinds of
-     * concrete connections e.g. UDP, MQTT, AMQP...
-     *
-     * It is possible to use multiple PubSubTransportLayers on runtime. The
-     * correct factory is selected on runtime by the standard defined PubSub
-     * TransportProfileUri's. */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /* Create a new ConnectionConfig. The addPubSubConnection function takes the
      * config and create a new connection. The Connection identifier is

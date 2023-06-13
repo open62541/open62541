@@ -3,8 +3,8 @@
 
 /* Includes */
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
 #include "ua_pubsub.h"

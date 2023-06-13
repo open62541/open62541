@@ -10,16 +10,9 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
-
-#include "ua_pubsub.h"
-#include "../server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 
 #include <signal.h>
@@ -92,7 +85,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -102,8 +94,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
-    return retval;
+    return UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 }
 
 /* Add ReaderGroup to the created connection */
@@ -170,13 +161,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-    #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-        UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-    #endif
 
     addTargetVariable(server);
     addStandaloneSubscribedDataSet(server);
