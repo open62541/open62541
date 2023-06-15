@@ -790,6 +790,18 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                     UA_LOG_WARNING_WRITERGROUP(&server->config.logger, writerGroup,
                                                "Received unknown PubSub state!");
             }
+
+            UA_PubSubConnection *c = writerGroup->linkedConnection;
+            ret = UA_PubSubConnection_setPubSubState(server, c,
+                                                     UA_PUBSUBSTATE_OPERATIONAL,
+                                                     UA_STATUSCODE_GOOD);
+            if(ret != UA_STATUSCODE_GOOD ||
+               (c->state != UA_PUBSUBSTATE_OPERATIONAL &&
+                c->state != UA_PUBSUBSTATE_PREOPERATIONAL)) {
+                UA_LOG_WARNING_WRITERGROUP(&server->config.logger, writerGroup,
+                                           "Connection not operational");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
             break;
         case UA_PUBSUBSTATE_ERROR: {
             switch (writerGroup->state){
