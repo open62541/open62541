@@ -501,6 +501,10 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
         }
     } 
 
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                "ETH %u\t| Opened an Ethernet listen socket",
+                (unsigned)conn->rfd.fd);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -553,6 +557,12 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
     /* Generate the Ethernet header */
     conn->headerSize = setETHHeader(conn->header, dest, source, etherType,
                                   vid, pcp, eid, &conn->lengthOffset);
+
+
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                "ETH %u\t| Opened an Ethernet send socket",
+                (unsigned)conn->rfd.fd);
+
     return UA_STATUSCODE_GOOD;
 }
 
