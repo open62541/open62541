@@ -8,7 +8,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -113,8 +112,6 @@ setup(void) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
-
-    retVal |= UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));

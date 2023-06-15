@@ -5,7 +5,6 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types_generated.h>
@@ -304,12 +303,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
                                          encryptionKeyLabel, signingKeyLabel, &config->logger);
-
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
 
     /* API calls */
     /* Add PubSubConnection */

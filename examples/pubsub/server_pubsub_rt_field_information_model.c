@@ -5,7 +5,6 @@
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
-#include <open62541/plugin/pubsub_udp.h>
 
 #include <signal.h>
 
@@ -122,7 +121,6 @@ int main(void){
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     addMinimalPubSubConfiguration(server);
 

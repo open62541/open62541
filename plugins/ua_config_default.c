@@ -25,6 +25,19 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
+#ifdef UA_ENABLE_PUBSUB
+#include <open62541/plugin/pubsub_udp.h>
+
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+#include <open62541/plugin/pubsub_ethernet.h>
+#endif // UA_ENABLE_PUBSUB_ETH_UADP
+
+#ifdef UA_ENABLE_PUBSUB_MQTT
+#include <open62541/plugin/pubsub_mqtt.h>
+#endif // UA_ENABLE_PUBSUB_MQTT
+
+#endif // UA_ENABLE_PUBSUB
+
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
  * heterogeneous across the three. */
@@ -620,6 +633,21 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         UA_ServerConfig_clean(config);
         return retval;
     }
+
+    // A server application with full namespace should not throw 'transport
+    // layer not found' error while trying to add pubsub to a running server application.
+#if defined(UA_ENABLE_PUBSUB) && defined(UA_GENERATED_NAMESPACE_ZERO_FULL)
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
+
+#ifdef UA_ENABLE_PUBSUB_ETH_UADP
+    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
+#endif // UA_ENABLE_PUBSUB_ETH_UADP
+
+// #ifdef UA_ENABLE_PUBSUB_MQTT
+//     UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
+// #endif // UA_ENABLE_PUBSUB_MQTT
+
+#endif // UA_ENABLE_PUBSUB && UA_GENERATED_NAMESPACE_ZERO_FULL
 
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "

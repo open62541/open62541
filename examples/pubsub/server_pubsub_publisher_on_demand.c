@@ -25,8 +25,6 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -183,13 +181,6 @@ static int run(UA_String *transportProfile,
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-
-    /* Details about the connection configuration and handling are located in
-     * the pubsub connection tutorial */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);

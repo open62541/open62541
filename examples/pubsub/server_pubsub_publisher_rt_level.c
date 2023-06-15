@@ -2,7 +2,6 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -100,7 +99,6 @@ int main(void) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     /*Add standard PubSub configuration (no difference to the std. configuration)*/
     addMinimalPubSubConfiguration(server);

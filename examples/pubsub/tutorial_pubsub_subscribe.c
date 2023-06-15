@@ -31,12 +31,7 @@
  * ``tutorial_pubsub_connection.c``. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
-
-#if defined (UA_ENABLE_PUBSUB_ETH_UADP)
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
 
 #include <stdio.h>
 
@@ -274,16 +269,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     /* Return value initialized to Status Good */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    /* Add the PubSub network layer implementation to the server config.
-     * The TransportLayer is acting as factory to create new connections
-     * on runtime. Details about the PubSubTransportLayer can be found inside the
-     * tutorial_pubsub_connection */
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
     /* API calls */
     /* Add PubSubConnection */
