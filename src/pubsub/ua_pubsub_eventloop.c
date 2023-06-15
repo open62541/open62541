@@ -437,7 +437,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
                                    "instead of opening a channel for sending.");
         }
 
-        listen = true;
+        listen = false;
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
         UA_LOCK(&server->serviceMutex);
