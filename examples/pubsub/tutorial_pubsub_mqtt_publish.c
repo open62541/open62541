@@ -115,44 +115,41 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionConfig.publisherId.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 1
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    + LOGIN_OPTION_COUNT
-#endif
-#ifdef EXAMPLE_USE_MQTT_TLS
-    + TLS_OPTION_COUNT
-#endif
-    ;
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     + LOGIN_OPTION_COUNT */
+/* #endif */
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     + TLS_OPTION_COUNT */
+/* #endif */
 
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
-    size_t connectionOptionIndex = 0;
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
+    UA_Variant_setScalar(&connectionOptions[0].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME);
-    UA_String mqttUsername = UA_STRING(MQTT_USERNAME);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]);
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME); */
+/*     UA_String mqttUsername = UA_STRING(MQTT_USERNAME); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]); */
 
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME);
-    UA_String mqttPassword = UA_STRING(MQTT_PASSWORD);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]);
-#endif
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME); */
+/*     UA_String mqttPassword = UA_STRING(MQTT_PASSWORD); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
-#ifdef EXAMPLE_USE_MQTT_TLS
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME);
-    UA_Boolean mqttUseTLS = true;
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]);
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME); */
+/*     UA_Boolean mqttUseTLS = true; */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]); */
 
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME);
-    UA_String mqttCaFile = UA_STRING(CA_FILE_PATH);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]);
-#endif
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME); */
+/*     UA_String mqttCaFile = UA_STRING(CA_FILE_PATH); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
     connectionConfig.connectionProperties.map = connectionOptions;
-    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.mapSize = 1;
 
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
