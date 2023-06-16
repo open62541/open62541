@@ -891,7 +891,6 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
@@ -1123,19 +1122,6 @@ if(UA_ENABLE_MQTT)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-    list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_udp.h)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
-    list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
-    if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND default_plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
-        list(APPEND default_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-        find_library(LIB_BPF bpf)
-        if(LIB_BPF)
-            list(APPEND open62541_LIBRARIES bpf)
-        else()
-            message("bpf library not found. XDP functionalities will not be available.")
-        endif()
-    endif()
     if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
         list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.h)
