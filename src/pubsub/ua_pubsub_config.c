@@ -9,12 +9,6 @@
 #include <open62541/server_pubsub.h>
 
 #if defined(UA_ENABLE_PUBSUB) && defined(UA_ENABLE_PUBSUB_FILE_CONFIG)
-
-#include <open62541/plugin/pubsub_udp.h>
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-#include <open62541/plugin/pubsub_ethernet.h>
-#endif
-
 #include "pubsub/ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
