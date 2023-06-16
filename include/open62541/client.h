@@ -23,7 +23,6 @@
 #include <open62541/common.h>
 
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/securitypolicy.h>
 

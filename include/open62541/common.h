@@ -174,6 +174,17 @@ typedef enum {
  * ---------------- */
 
 typedef enum {
+    UA_CONNECTIONSTATE_CLOSED,     /* The socket has been closed and the connection
+                                    * will be deleted */
+    UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the HEL/ACK handshake
+                                    * is not done */
+    UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
+                                    * configured */
+    UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
+} UA_ConnectionState;
+
+
+typedef enum {
     UA_SECURECHANNELSTATE_CLOSED = 0,
     UA_SECURECHANNELSTATE_REVERSE_LISTENING,
     UA_SECURECHANNELSTATE_CONNECTING,

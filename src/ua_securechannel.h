@@ -23,6 +23,9 @@
 
 _UA_BEGIN_DECLS
 
+struct UA_SecureChannel;
+typedef struct UA_SecureChannel UA_SecureChannel;
+
 /* The message header of the OPC UA binary protocol is structured as follows:
  *
  * - MessageType (3 Byte)
