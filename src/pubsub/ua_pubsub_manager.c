@@ -26,25 +26,6 @@
 #define UA_RESERVEID_LAST_ID UA_RESERVEID_FIRST_ID + 10
 #endif
 
-UA_PubSubTransportLayer *
-UA_getTransportProtocolLayer(const UA_Server *server,
-                             const UA_String *transportProfileUri) {
-    /* Find the matching UA_PubSubTransportLayers */
-    UA_PubSubTransportLayer *tl = NULL;
-    for(size_t i = 0; i < server->config.pubSubConfig.transportLayersSize; i++) {
-        if(UA_String_equal(&server->config.pubSubConfig.transportLayers[i].transportProfileUri,
-                           transportProfileUri)) {
-            tl = &server->config.pubSubConfig.transportLayers[i];
-        }
-    }
-    if(!tl) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Requested transport layer not found.");
-        return NULL;
-    }
-    return tl;
-}
-
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
     TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
@@ -472,12 +453,6 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     /* Remove the ReserveIds*/
     ZIP_ITER(UA_ReserveIdTree, &server->pubSubManager.reserveIds, removeReserveId, NULL);
     server->pubSubManager.reserveIdsSize = 0;
-
-    /* Free the list of transport layers */
-    if(server->config.pubSubConfig.transportLayersSize > 0) {
-        UA_free(server->config.pubSubConfig.transportLayers);
-        server->config.pubSubConfig.transportLayersSize = 0;
-    }
 
     /* Delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
