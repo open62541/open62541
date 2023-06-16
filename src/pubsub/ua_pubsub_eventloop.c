@@ -655,12 +655,12 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */
-    UA_Boolean listen = true;
+    UA_Boolean listen = false;
     UA_KeyValuePair kvp[4];
     UA_KeyValueMap kvm = {4, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
-    kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
     UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
     kvp[2].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&kvp[2].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
@@ -921,7 +921,7 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg) {
     UA_KeyValueMap kvm = {4, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
-    kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
     UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
     kvp[2].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&kvp[2].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
