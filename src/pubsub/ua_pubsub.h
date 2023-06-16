@@ -16,7 +16,6 @@
 #define UA_PUBSUB_H_
 
 #define UA_INTERNAL
-#include <open62541/plugin/pubsub.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
@@ -27,8 +26,6 @@
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include <ua_pubsub_keystorage.h>
 #endif
-
-/* The public configuration structs are defined in include/ua_plugin_pubsub.h */
 
 _UA_BEGIN_DECLS
 
@@ -842,10 +839,6 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(void);
-
-UA_PubSubTransportLayer *
-UA_getTransportProtocolLayer(const UA_Server *server,
-                             const UA_String *transportProfileUri);
 
 /*************************************************/
 /*      PubSub component monitoring              */

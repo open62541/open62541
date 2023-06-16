@@ -114,23 +114,3 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     UA_cleanupDataTypeWithCustom(config->customDataTypes);
     config->customDataTypes = NULL;
 }
-
-#ifdef UA_ENABLE_PUBSUB
-/* Add a pubsubTransportLayer to the configuration. Memory is reallocated on
- * demand. */
-UA_StatusCode
-UA_ServerConfig_addPubSubTransportLayer(UA_ServerConfig *config,
-                                        UA_PubSubTransportLayer pubsubTransportLayer) {
-    UA_PubSubTransportLayer *tmpLayers = (UA_PubSubTransportLayer*)
-        UA_realloc(config->pubSubConfig.transportLayers,
-                   sizeof(UA_PubSubTransportLayer) *
-                   (config->pubSubConfig.transportLayersSize + 1));
-    if(tmpLayers == NULL)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    config->pubSubConfig.transportLayers = tmpLayers;
-    config->pubSubConfig.transportLayers[config->pubSubConfig.transportLayersSize] = pubsubTransportLayer;
-    config->pubSubConfig.transportLayersSize++;
-    return UA_STATUSCODE_GOOD;
-}
-#endif /* UA_ENABLE_PUBSUB */
