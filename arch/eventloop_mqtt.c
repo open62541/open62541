@@ -306,7 +306,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     UA_Variant_setScalar(&kvp[0].value, &tc->subscribe, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {2, kvp};
     tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
-                 UA_CONNECTIONSTATE_CLOSED, &kvm, UA_BYTESTRING_NULL);
+                 UA_CONNECTIONSTATE_CLOSING, &kvm, UA_BYTESTRING_NULL);
 
     /* Register delayed callback to free the memory */
     UA_EventLoop *el = bc->mcm->cm.eventSource.eventLoop;
