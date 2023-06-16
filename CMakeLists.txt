@@ -139,14 +139,6 @@ set(ua_architecture_headers ${ua_architecture_headers}
     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_functions.h
 )
 
-if(UA_ENABLE_WEBSOCKET_SERVER)
-    set(ua_architecture_sources ${ua_architecture_sources}
-                                ${PROJECT_SOURCE_DIR}/arch/network_ws.c)
-
-    set(ua_architecture_headers ${ua_architecture_headers}
-                                ${PROJECT_SOURCE_DIR}/include/open62541/network_ws.h)
-endif()
-
 if(${UA_ARCHITECTURE} STREQUAL "None")
   message(FATAL_ERROR "No architecture was selected. Please select the architecture of your target platform")
 endif(${UA_ARCHITECTURE} STREQUAL "None")
@@ -200,9 +192,6 @@ mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
-
-option(UA_ENABLE_WEBSOCKET_SERVER "Enable websocket support (uses libwebsockets)" OFF)
-mark_as_advanced(UA_ENABLE_WEBSOCKET_SERVER)
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -620,17 +609,6 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
-endif()
-
-if(UA_ENABLE_WEBSOCKET_SERVER)
-    # The recommended way is to install libwebsockets via the OS package manager. If
-    # that is not possible, manually compile libwebsockets and set the cmake variables
-    # defined in /tools/cmake/Findlibwebsockets.cmake
-    find_package(libwebsockets REQUIRED)
-    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
-
-    set(ua_architecture_directories_to_include ${ua_architecture_directories_to_include}
-                                               ${LIBWEBSOCKETS_INCLUDE_DIR})
 endif()
 
 if(MINGW)
