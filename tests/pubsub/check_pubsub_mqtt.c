@@ -45,7 +45,6 @@ static void setup(void) {
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
     connectionConfig.enabled = UA_TRUE;
 
-
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(TEST_MQTT_SERVER)};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
@@ -205,8 +204,15 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
         ck_assert(wg != 0);
+
+        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+            UA_Server_run_iterate(server, false);
+
         UA_WriterGroup_publishCallback(server, wg);
 
         /*---------------------------------------------------------------------*/
