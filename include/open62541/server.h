@@ -22,7 +22,6 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
-#include <open62541/plugin/network.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
