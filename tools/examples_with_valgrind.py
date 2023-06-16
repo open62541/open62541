@@ -2,7 +2,6 @@ import os
 import subprocess
 import time
 from collections import defaultdict
-import shlex
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der",
@@ -120,10 +119,11 @@ for example in examples:
         continue
     
     # get the arguments for the example
-    args = example_args.get(example, "")
+    args = example_args.get(example)
     cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1", "./bin/examples/"+example]
     if args:
-        cmd += shlex.split(args)
+        args_list = args.split()
+        cmd += args_list
     print(f"Args for {example}: {cmd} ")
 
     # check if the example needs a server or client to be running
@@ -133,7 +133,7 @@ for example in examples:
     #start the server if needed
     server_process = None
     if server_needed:
-        server_cmd = shlex.split(server_needed)
+        server_cmd = server_needed.split()
         server_cmd[0] = "./bin/examples/" + server_cmd[0]
         print(f"Starting server {server_cmd} from {os.getcwd()}")
         server_process = subprocess.Popen(server_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -146,7 +146,7 @@ for example in examples:
     # start the client if needed
     client_process = None
     if client_needed:
-        client_cmd = shlex.split(client_needed)
+        client_cmd = client_needed.split()
         client_cmd[0] = "./bin/examples/" + client_cmd[0]
         print(f"Starting client {client_cmd}")
         client_process = subprocess.Popen(client_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
