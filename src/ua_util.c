@@ -481,3 +481,15 @@ UA_Guid_random(void) {
     result.data4[7] = (u8)(r >> 12);
     return result;
 }
+
+/********************/
+/* Malloc Singleton */
+/********************/
+
+/* Global malloc singletons */
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+#endif

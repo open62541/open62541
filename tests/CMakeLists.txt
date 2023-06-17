@@ -147,7 +147,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     )
 endif()
 
-add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
+add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_ENABLE_COVERAGE)

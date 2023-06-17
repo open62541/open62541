@@ -200,8 +200,6 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 #define UA_LOCK_ASSERT(lock, num)
 #endif
 
-#include <open62541/architecture_functions.h>
-
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 #if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)
 # undef SLIST_ENTRY

@@ -314,6 +314,11 @@ startMulticastDiscoveryServer(UA_Server *server) {
         mdnsd_register_receive_callback(dm->mdnsDaemon, mdns_record_received, dm);
     }
 
+#if defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_WEC7)
+  WSADATA wsaData;
+  WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+
     /* Open the mdns listen socket */
     if(dm->mdnsSendConnection == 0)
         discovery_createMulticastSocket(server, dm);
