@@ -75,44 +75,8 @@ To port to a new architecture you should follow these steps:
     #define PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_
     
     /*
-    * Define and include all that's needed for your architecture
-    */
-    
-    /*
-    * Define OPTVAL_TYPE for non windows systems. In doubt, use int //TODO: Is this really necessary
-    */
-    
-    /*
-    * Define the following network options
-    */
-    
-    
-    //#define UA_IPV6 1 //or 0
-    //#define UA_SOCKET
-    //#define UA_INVALID_SOCKET
-    //#define UA_ERRNO
-    //#define UA_INTERRUPTED
-    //#define UA_AGAIN
-    //#define UA_WOULDBLOCK
-    //#define UA_INTERRUPTED
-    
-    /*
-    * Define the ua_getnameinfo if your architecture supports it
-    */
-    
-    /*
-    * Use #define for the functions defined in ua_architecture_functions.h
-    * or implement them in a ua_architecture_functions.c file and 
-    * put it in your new_arch folder and add it in the CMakeLists.txt file 
-    * using ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_architecture_functions.c)
-    */ 
-    
-    /*
-    * Define UA_LOG_SOCKET_ERRNO_WRAP(LOG) which prints the string error given a char* errno_str variable
-    * Do the same for UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) for errors related to getaddrinfo
-    */
-    
-    #include <open62541/architecture_functions.h>
+     * Define and include all that's needed for your architecture
+     */
     
     #endif /* PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ */
     

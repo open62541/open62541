@@ -417,4 +417,10 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
 
+/**
+ * File access
+ * ----------- */
+
+#define UA_fileExists(X) ( UA_access(X, 0) == 0)
+
 #endif /* ARCH_UA_ARCHITECTURE_DEFINITIONS_H_ */

@@ -184,8 +184,6 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 #define UA_LOCK_ASSERT(lock, num) UA_EMPTY_STATEMENT
 #endif
 
-#include <open62541/architecture_functions.h>
-
 #if defined(__APPLE__) && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't
 //  have all functions

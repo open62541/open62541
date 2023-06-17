@@ -125,8 +125,6 @@
 #define UA_LOCK_ASSERT(lock, num)
 #endif
 
-#include <open62541/architecture_functions.h>
-
 #endif /* PLUGINS_ARCH_VXWORKS_UA_ARCHITECTURE_H_ */
 
 #endif /* UA_ARCHITECTURE_VXWORKS */
