@@ -549,12 +549,15 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
+    struct sockaddr_storage source;
 #ifndef _WIN32
-    ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                          response.length, MSG_DONTWAIT);
+    socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
+    ssize_t ret = recvfrom(conn->rfd.fd, (char*)response.data, response.length,
+                           MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #else
-    int ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                      response.length, MSG_DONTWAIT);
+    int sourceSize = (int)sizeof(struct sockaddr_storage);
+    int ret = recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
+                       MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #endif
 
     /* Receive has failed */
@@ -573,17 +576,46 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
         return;
     }
 
+    response.length = (size_t)ret; /* Set the length of the received buffer */
+
+    /* Extract message source and port */
+    char sourceAddr[64];
+    UA_UInt16 sourcePort;
+    switch(source.ss_family) {
+        case AF_INET:
+            inet_ntop(AF_INET, &((struct sockaddr_in *)&source)->sin_addr,
+                    sourceAddr, 64);
+            sourcePort = htons(((struct sockaddr_in *)&source)->sin_port);
+            break;
+        case AF_INET6:
+            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&source)->sin6_addr),
+                    sourceAddr, 64);
+            sourcePort = htons(((struct sockaddr_in6 *)&source)->sin6_port);
+            break;
+        default:
+            sourceAddr[0] = 0;
+            sourcePort = 0;
+    }
+
+    UA_String sourceAddrStr = UA_STRING(sourceAddr);
+    UA_KeyValuePair kvp[2];
+    kvp[0].key = UA_QUALIFIEDNAME(0, "remote-address");
+    UA_Variant_setScalar(&kvp[0].value, &sourceAddrStr, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "remote-port");
+    UA_Variant_setScalar(&kvp[1].value, &sourcePort, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap kvm = {2, kvp};
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "UDP %u\t| Received message of size %u",
-                 (unsigned)conn->rfd.fd, (unsigned)ret);
+                 "UDP %u\t| Received message of size %u from %s on port %u",
+                 (unsigned)conn->rfd.fd, (unsigned)ret,
+                 sourceAddr, sourcePort);
 
     /* Callback to the application layer */
-    response.length = (size_t)ret; /* Set the length of the received buffer */
     UA_UNLOCK(&el->elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
-                        &UA_KEYVALUEMAP_NULL, response);
+                        &kvm, response);
     UA_LOCK(&el->elMutex);
 }
 
