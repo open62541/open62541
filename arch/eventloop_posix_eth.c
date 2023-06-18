@@ -304,14 +304,6 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "ETH %u\t| recv signaled the socket was shutdown (%s)",
                         (unsigned)rfd->fd, errno_str));
-
-        /* A new socket has opened. Signal it to the application. */
-        UA_UNLOCK(&el->elMutex);
-        conn->applicationCB(cm, (uintptr_t)rfd->fd,
-                            conn->application, &conn->context,
-                            UA_CONNECTIONSTATE_CLOSING,
-                            &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-        UA_LOCK(&el->elMutex);
         ETH_close(pcm, conn);
         UA_free(rfd);
         return;
