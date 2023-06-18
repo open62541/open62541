@@ -515,9 +515,8 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *
  * Connection Callback Paramters:
  *
- * - 0:remote-hostname [string]: When a new connection is opened by listening on
- *                               a port, the first callback contains the remote
- *                               hostname parameter.
+ * - 0:remote-address [string]: Contains the remote IP address.
+ * - 0:remote-port [uint16]: Contains the remote port.
  *
  * Send Parameters:
  * No additional parameters for sending over an UDP connection defined. */
