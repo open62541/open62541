@@ -533,6 +533,15 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                  "UDP %u\t| Activity on the socket",
                  (unsigned)conn->rfd.fd);
 
+    if(event == UA_FDEVENT_ERR) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "UDP %u\t| recv signaled the socket was shutdown (%s)",
+                        (unsigned)conn->rfd.fd, errno_str));
+        UDP_close(pcm, conn);
+        return;
+    }
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Allocate receive buffer", (unsigned)conn->rfd.fd);
 
