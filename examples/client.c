@@ -50,7 +50,8 @@ int main(int argc, char *argv[]) {
                endpointArray[i].endpointUrl.data);
     }
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-
+    UA_Client_delete(client);
+    
     /* Create a client and connect */
     client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));

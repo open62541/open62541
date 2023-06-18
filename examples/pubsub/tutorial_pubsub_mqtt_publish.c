@@ -490,7 +490,8 @@ int main(int argc, char **argv) {
     if(UA_STATUSCODE_GOOD != retval) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Error Name = %s", UA_StatusCode_name(retval));
-        return EXIT_FAILURE;
+        UA_Server_delete(server);
+        return EXIT_SUCCESS;
     }
     addDataSetWriter(server, topic);
 
