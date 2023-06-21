@@ -16,6 +16,17 @@
 
 #ifdef UA_ENABLE_DISCOVERY
 
+void
+UA_DiscoveryManager_setState(UA_Server *server,
+                             UA_DiscoveryManager *dm,
+                             UA_LifecycleState state) {
+    if(state == dm->sc.state)
+        return;
+    dm->sc.state = state;
+    if(dm->sc.notifyState)
+        dm->sc.notifyState(server, &dm->sc, state);
+}
+
 static UA_StatusCode
 UA_DiscoveryManager_free(UA_Server *server,
                          struct UA_ServerComponent *sc) {
@@ -130,6 +141,8 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
             dm->registeredServersSize--;
         }
     }
+
+    /* Send out multicast */
 }
 
 static UA_StatusCode
@@ -152,7 +165,7 @@ UA_DiscoveryManager_start(UA_Server *server,
         startMulticastDiscoveryServer(server);
 #endif
 
-    sc->state = UA_LIFECYCLESTATE_STARTED;
+    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STARTED);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -170,7 +183,10 @@ UA_DiscoveryManager_stop(UA_Server *server,
         stopMulticastDiscoveryServer(server);
 #endif
 
-    sc->state = UA_LIFECYCLESTATE_STOPPED;
+    if(dm->mdnsRecvConnectionsSize == 0 && dm->mdnsSendConnection == 0)
+        UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
+    else
+        UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPING);
 }
 
 UA_ServerComponent *
