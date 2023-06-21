@@ -180,26 +180,8 @@ UA_DiscoveryManager_new(UA_Server *server) {
     if(!dm)
         return NULL;
 
-    LIST_INIT(&dm->registeredServers);
-    dm->registeredServersSize = 0;
-    LIST_INIT(&dm->periodicServerRegisterCallbacks);
-    dm->registerServerCallback = NULL;
-    dm->registerServerCallbackData = NULL;
-
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    dm->mdnsDaemon = NULL;
-    dm->mdnsSocket = UA_INVALID_SOCKET;
-    dm->mdnsMainSrvAdded = false;
-    dm->selfFqdnMdnsRecord = UA_STRING_NULL;
-
-    LIST_INIT(&dm->serverOnNetwork);
-    dm->serverOnNetworkRecordIdCounter = 0;
     dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    memset(dm->serverOnNetworkHash, 0,
-           sizeof(struct serverOnNetwork_hash_entry*) * SERVER_ON_NETWORK_HASH_SIZE);
-
-    dm->serverOnNetworkCallback = NULL;
-    dm->serverOnNetworkCallbackData = NULL;
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     dm->sc.name = UA_STRING("discovery");
