@@ -142,7 +142,10 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
         }
     }
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Send out multicast */
+    sendMulticastMessages(dm);
+#endif
 }
 
 static UA_StatusCode
@@ -183,10 +186,14 @@ UA_DiscoveryManager_stop(UA_Server *server,
         stopMulticastDiscoveryServer(server);
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(dm->mdnsRecvConnectionsSize == 0 && dm->mdnsSendConnection == 0)
         UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
     else
         UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPING);
+#else
+    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
+#endif
 }
 
 UA_ServerComponent *
