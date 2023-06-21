@@ -310,11 +310,16 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValue
         memcpy(interfaceAsChar, netif->data, netif->length);
         interfaceAsChar[netif->length] = 0;
         if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Interface configuration preparation failed",
                          (unsigned)socket);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+    } else {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| No network interface defined for multicast. "
+                       "That means the first suitable network interface is used.",
+                       (unsigned)socket);
     }
 
     int res = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF,
@@ -356,6 +361,11 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
                          "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+    } else {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| No network interface defined for multicast. "
+                       "That means the first suitable network interface is used.",
+                       (unsigned)socket);
     }
 
     int res = UA_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP,
@@ -394,6 +404,11 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
                          "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+    } else {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| No network interface defined for multicast. "
+                       "That means the first suitable network interface is used.",
+                       (unsigned)socket);
     }
 
     if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_JOIN_GROUP,
@@ -429,6 +444,11 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
                          "UDP\t| Interface configuration preparation failed.");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
+    } else {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| No network interface defined for multicast. "
+                       "That means the first suitable network interface is used.",
+                       (unsigned)socket);
     }
 
     int res = setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF,
