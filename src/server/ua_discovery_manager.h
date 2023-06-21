@@ -43,6 +43,7 @@ typedef struct periodicServerRegisterCallback_entry {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 #include "mdnsd/libmdnsd/mdnsd.h"
+#define UA_MAXMDNSRECVSOCKETS 8
 
 /**
  * TXT record:
@@ -88,7 +89,10 @@ struct UA_DiscoveryManager {
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
-    UA_SOCKET mdnsSocket;
+    UA_ConnectionManager *cm;
+    uintptr_t mdnsSendConnection;
+    uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
+    size_t mdnsRecvConnectionsSize;
     UA_Boolean mdnsMainSrvAdded;
 
     /* Full Domain Name of server itself. Used to detect if received mDNS
@@ -147,6 +151,7 @@ mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
 
 void startMulticastDiscoveryServer(UA_Server *server);
 void stopMulticastDiscoveryServer(UA_Server *server);
+void sendMulticastMessages(UA_DiscoveryManager *dm);
 
 UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
