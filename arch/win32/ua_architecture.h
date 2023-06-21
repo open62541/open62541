@@ -31,7 +31,7 @@
 # include <malloc.h>
 #endif
 
-#include <open62541/architecture_definitions.h>
+#include <open62541/config.h>
 
 #include <stdio.h>
 #include <errno.h>

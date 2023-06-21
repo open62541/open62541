@@ -853,7 +853,6 @@ if(UA_ENABLE_HISTORIZING)
 endif()
 
 set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/architecture_definitions.h
                      ${exported_headers}
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                      ${PROJECT_BINARY_DIR}/src_generated/open62541/nodeids.h

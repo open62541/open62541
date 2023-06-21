@@ -10,7 +10,7 @@
 #ifndef PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 #define PLUGINS_ARCH_POSIX_UA_ARCHITECTURE_H_
 
-#include <open62541/architecture_definitions.h>
+#include <open62541/config.h>
 
 #include <errno.h>
 #include <arpa/inet.h>
