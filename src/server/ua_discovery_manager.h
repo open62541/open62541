@@ -110,6 +110,11 @@ struct UA_DiscoveryManager {
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 };
 
+void
+UA_DiscoveryManager_setState(UA_Server *server,
+                             UA_DiscoveryManager *dm,
+                             UA_LifecycleState state);
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 /* Sends out a new mDNS package for the given server data. This Method is
