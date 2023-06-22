@@ -24,6 +24,7 @@
 #include "thread_wrapper.h"
 #include "historical_read_test_data.h"
 #include <stddef.h>
+#include <stdio.h>
 
 static UA_Server *server;
 static UA_HistoryDataGathering *gathering;

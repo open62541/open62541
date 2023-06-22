@@ -19,6 +19,7 @@
 #include <open62541/util.h>
 
 #include <signal.h>
+#include <stdio.h>
 
 #define USE_FILTER_OR_TYPEOF
 

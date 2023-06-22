@@ -10,6 +10,15 @@
 
 #include <open62541/plugin/eventloop.h>
 
+#include <limits.h>
+
+#if defined(_MSC_VER)
+# include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#else
+# include <unistd.h> /* ssize_t */
+#endif
+
 struct MQTTConnectionManager;
 typedef struct MQTTConnectionManager MQTTConnectionManager;
 

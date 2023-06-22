@@ -73,8 +73,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_POLLIN POLLIN
 #define UA_POLLOUT POLLOUT
 
-#define UA_ENABLE_LOG_COLORS
-
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_poll poll
@@ -105,15 +103,6 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_if_nametoindex if_nametoindex
 #endif
 
-/* Use the standard malloc */
-#include <stdlib.h>
-#ifndef UA_free
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
-#endif
-
 #include <stdio.h>
 #include <strings.h>
 #define UA_snprintf snprintf
@@ -131,58 +120,6 @@ void UA_sleep_ms(unsigned long ms);
     LOG; \
     errno = 0; \
 }
-
-#if UA_MULTITHREADING >= 100
-
-#include <pthread.h>
-
-typedef struct {
-    pthread_mutex_t mutex;
-    int mutexCounter;
-} UA_Lock;
-
-#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
-
-static UA_INLINE void
-UA_LOCK_INIT(UA_Lock *lock) {
-    pthread_mutex_init(&lock->mutex, NULL);
-    lock->mutexCounter = 0;
-}
-
-static UA_INLINE void
-UA_LOCK_DESTROY(UA_Lock *lock) {
-    pthread_mutex_destroy(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK(UA_Lock *lock) {
-    pthread_mutex_lock(&lock->mutex);
-    UA_assert(lock->mutexCounter == 0);
-    lock->mutexCounter++;
-}
-
-static UA_INLINE void
-UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(lock->mutexCounter == 1);
-    lock->mutexCounter--;
-    pthread_mutex_unlock(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
-}
-
-#else
-#define UA_EMPTY_STATEMENT                                                               \
-    do {                                                                                 \
-    } while(0)
-#define UA_LOCK_INIT(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK_DESTROY(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK(lock) UA_EMPTY_STATEMENT
-#define UA_UNLOCK(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK_ASSERT(lock, num) UA_EMPTY_STATEMENT
-#endif
 
 #if defined(__APPLE__) && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't

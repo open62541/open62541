@@ -16,6 +16,7 @@
 
 #include <float.h>
 #include <math.h>
+#include <stdio.h> /* for snprintf */
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
@@ -402,7 +403,7 @@ ENCODE_JSON(Float) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-        UA_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
+        snprintf(buffer, 200, "%.149g", (UA_Double)*src);
     }
 
     size_t len = strlen(buffer);
@@ -427,7 +428,7 @@ ENCODE_JSON(Double) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-        UA_snprintf(buffer, 2000, "%.1074g", *src);
+        snprintf(buffer, 2000, "%.1074g", *src);
     }
 
     size_t len = strlen(buffer);

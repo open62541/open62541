@@ -16,6 +16,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <stdio.h>
 
 static void
 addVariable(UA_Server *server) {

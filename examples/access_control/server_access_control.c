@@ -8,6 +8,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static UA_Boolean
 allowAddNode(UA_Server *server, UA_AccessControl *ac,

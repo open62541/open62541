@@ -5,6 +5,7 @@
 #include <open62541/plugin/eventloop.h>
 #include "testing_clock.h"
 #include <time.h>
+#include <stdio.h>
 #include <check.h>
 
 #define N_EVENTS 10000

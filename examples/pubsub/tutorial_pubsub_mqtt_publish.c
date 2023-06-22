@@ -44,6 +44,8 @@
 #include <open62541/server.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include <stdio.h>
+
 #define CONNECTION_NAME              "MQTT Publisher Connection"
 #define TRANSPORT_PROFILE_URI        "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"

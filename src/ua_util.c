@@ -488,6 +488,7 @@ UA_Guid_random(void) {
 
 /* Global malloc singletons */
 #ifdef UA_ENABLE_MALLOC_SINGLETON
+# include <stdlib.h>
 UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
 UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
 UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;

@@ -10,6 +10,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/util.h>
 
+#include <stdio.h>
 #include <signal.h>
 
 #ifdef _MSC_VER

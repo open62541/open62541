@@ -9,6 +9,10 @@
 #include "custom_memory_manager.h"
 
 #include <pthread.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>

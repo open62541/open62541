@@ -10,6 +10,7 @@
 #if defined(__linux__) || defined(__unix__)
 
 #include <syslog.h>
+#include <stdio.h>
 
 const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
