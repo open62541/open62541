@@ -35,7 +35,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # only one xml file
     # di as dependency
     elseif(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
-       OR MODEL STREQUAL "Scales" OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT"
+       OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT"
        OR MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
@@ -118,6 +118,17 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "machinery"
                 DEPENDS "ia"
+        )
+        elseif(MODEL STREQUAL "Scales")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+                DEPENDS "machinery"
+                DEPENDS "packml"
         )
     # Extra
     elseif(MODEL STREQUAL "DI")

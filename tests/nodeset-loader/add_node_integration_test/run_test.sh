@@ -521,6 +521,8 @@ add_node_integration_test "Safety" \
 
 add_node_integration_test "Scales" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
+    $UA_NODESET_PATH/Machinery/Opc.Ua.Machinery.NodeSet2.xml \
+    $UA_NODESET_PATH/PackML/Opc.Ua.PackML.NodeSet2.xml \
     $UA_NODESET_PATH/Scales/Opc.Ua.Scales.NodeSet2.xml
 
 add_node_integration_test "Sercos" \
