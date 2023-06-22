@@ -6,6 +6,7 @@
 
 #include <check.h>
 #include <time.h>
+#include <stdio.h>
 
 static UA_Server *server;
 

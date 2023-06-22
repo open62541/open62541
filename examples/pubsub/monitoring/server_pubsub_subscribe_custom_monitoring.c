@@ -29,6 +29,7 @@
 #include "../server/ua_server_internal.h"
 
 #include <stdio.h>
+#include <errno.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <time.h>

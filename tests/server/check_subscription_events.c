@@ -16,6 +16,7 @@
 #include "server/ua_subscription.h"
 
 #include <check.h>
+#include <stdio.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"

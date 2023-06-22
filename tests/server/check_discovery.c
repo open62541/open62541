@@ -9,6 +9,7 @@
 #include "server/ua_server_internal.h"
 
 #include <fcntl.h>
+#include <stdio.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"

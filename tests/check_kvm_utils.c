@@ -5,6 +5,7 @@
 #include "ua_util_internal.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "check.h"
 

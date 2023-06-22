@@ -7,6 +7,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define Publisher_ID 60
 

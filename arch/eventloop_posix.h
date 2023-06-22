@@ -14,6 +14,13 @@
 
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
+/* Include architecture-specific definitions */
+#if defined(UA_ARCHITECTURE_WIN32)
+#include "win32/ua_architecture.h"
+#elif defined(UA_ARCHITECTURE_POSIX)
+#include "posix/ua_architecture.h"
+#endif
+
 #include "common/ua_timer.h"
 #include "open62541_queue.h"
 

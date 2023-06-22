@@ -7,6 +7,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void

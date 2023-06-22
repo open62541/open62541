@@ -34,6 +34,9 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 
+#include <signal.h>
+#include "common.h"
+
 #ifndef WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
@@ -187,7 +190,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(100);
+            sleep_ms(100);
         }
     }
     return 0;

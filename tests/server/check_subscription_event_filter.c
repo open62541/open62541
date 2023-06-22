@@ -14,6 +14,7 @@
 #include <open62541/client_subscriptions.h>
 
 #include <check.h>
+#include <stdio.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"

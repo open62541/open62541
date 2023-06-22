@@ -407,7 +407,7 @@ END_TEST
 
 START_TEST(requestUnknownStartingTokenId){
     UA_fakeSleep(1000);
-    UA_sleep_ms(4000);
+    UA_realSleep(4000);
     UA_Client *sksClient = UA_Client_new();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;

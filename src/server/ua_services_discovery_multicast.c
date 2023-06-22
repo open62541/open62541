@@ -12,6 +12,14 @@
 
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
+#ifdef _WIN32
+# include <winsock2.h>
+#else
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <netdb.h>
+#endif
+
 typedef enum {
     UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
     UA_DISCOVERY_TLS     /* OPC UA HTTPS mapping */

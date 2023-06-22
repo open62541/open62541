@@ -9,6 +9,7 @@
 #include <open62541/client_highlevel.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 int main(void) {
     UA_Client *client = UA_Client_new();

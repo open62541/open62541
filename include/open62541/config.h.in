@@ -263,6 +263,12 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_free(ptr) UA_freeSingleton(ptr)
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
+#else
+# include <stdlib.h>
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
@@ -319,6 +325,96 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
+
+/**
+ * Locking for Multithreading
+ * -------------------------- */
+
+#if UA_MULTITHREADING < 100
+
+# define UA_LOCK_INIT(lock)
+# define UA_LOCK_DESTROY(lock)
+# define UA_LOCK(lock)
+# define UA_UNLOCK(lock)
+# define UA_LOCK_ASSERT(lock, num)
+
+#elif defined(UA_ARCHITECTURE_WIN32)
+
+typedef struct {
+    CRITICAL_SECTION mutex;
+    int mutexCounter;
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    InitializeCriticalSection(&lock->mutex);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    DeleteCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    EnterCriticalSection(&lock->mutex);
+    UA_assert(++(lock->mutexCounter) == 1);
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(--(lock->mutexCounter) == 0);
+    LeaveCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
+
+#elif defined(UA_ARCHITECTURE_POSIX)
+
+#include <pthread.h>
+
+typedef struct {
+    pthread_mutex_t mutex;
+    int mutexCounter;
+} UA_Lock;
+
+#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    pthread_mutex_init(&lock->mutex, NULL);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    pthread_mutex_destroy(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    pthread_mutex_lock(&lock->mutex);
+    UA_assert(lock->mutexCounter == 0);
+    lock->mutexCounter++;
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(lock->mutexCounter == 1);
+    lock->mutexCounter--;
+    pthread_mutex_unlock(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
+
 #endif
 
 /**
@@ -546,8 +642,5 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #else
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
-
-/* Include architecture-specific definitions */
-#include "${UA_ARCHITECTURE}/ua_architecture.h"
 
 #endif /* UA_CONFIG_H_ */
