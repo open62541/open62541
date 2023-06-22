@@ -171,6 +171,8 @@ isTrue(uint8_t expr) {
  * Utility Functions
  * ----------------- */
 
+#define UA_fileExists(X) ( access(X, 0) == 0)
+
 void
 UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);
 
