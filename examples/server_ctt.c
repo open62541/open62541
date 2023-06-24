@@ -356,6 +356,17 @@ outargMethod(UA_Server *server,
 
 static void
 setInformationModel(UA_Server *server) {
+    /* add a custom reference type */
+    UA_ReferenceTypeAttributes myRef = UA_ReferenceTypeAttributes_default;
+    myRef.description = UA_LOCALIZEDTEXT("", "my organize");
+    myRef.displayName = UA_LOCALIZEDTEXT("", "myOrganize");
+    const UA_QualifiedName myRefName = UA_QUALIFIEDNAME(1, "myOrganize");
+    const UA_NodeId myRefNodeId = UA_NODEID_STRING(1, "myOrganize");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+    UA_Server_addReferenceTypeNode(server, myRefNodeId, parentNodeId, parentReferenceNodeId,
+                                   myRefName, myRef, NULL, NULL);
+
     /* add a static variable node to the server */
     UA_VariableAttributes myVar = UA_VariableAttributes_default;
     myVar.description = UA_LOCALIZEDTEXT("en-US", "the answer");
@@ -367,8 +378,8 @@ setInformationModel(UA_Server *server) {
     UA_Variant_setScalar(&myVar.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     const UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
     const UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId, parentReferenceNodeId,
                               myIntegerName, baseDataVariableType, myVar, NULL, NULL);
 
@@ -467,6 +478,7 @@ setInformationModel(UA_Server *server) {
 #define MATRIXID 50003
 #define DEPTHID 50004
 #define SCALETESTID 40005
+#define DOUBLEREFID 40006
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.description = UA_LOCALIZEDTEXT("en-US", "Demo");
@@ -501,6 +513,17 @@ setInformationModel(UA_Server *server) {
     UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, SCALETESTID), UA_NODEID_NUMERIC(1, DEMOID),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "ScaleTest"),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+
+    /* Reference to this node from the "Demo" object both with "Organizes" and
+     * the "myOrganizes" subtype */
+    object_attr.description = UA_LOCALIZEDTEXT("en-US", "Double Refs");
+    object_attr.displayName = UA_LOCALIZEDTEXT("en-US", "Double Refs");
+    UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, DOUBLEREFID), UA_NODEID_NUMERIC(1, DEMOID),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Double Refs"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE), object_attr, NULL, NULL);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(1, DEMOID),
+                           UA_NODEID_STRING(1, "myOrganize"),
+                           UA_EXPANDEDNODEID_NUMERIC(1, DOUBLEREFID), true);
 
     /* Fill demo nodes for each type*/
     UA_UInt32 matrixDims[2] = {5, 5};
