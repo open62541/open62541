@@ -60,16 +60,6 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-    /* If the session has been activated before, the same (decoded)
-     * UserIdentityToken must be used. */
-    if(*sessionContext) {
-        UA_ExtensionObject *oldUserIdentityToken = *(UA_ExtensionObject**)sessionContext;
-        if(UA_order(userIdentityToken, oldUserIdentityToken,
-                    &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) != UA_ORDER_EQ)
-            return UA_STATUSCODE_BADUSERACCESSDENIED;
-        return UA_STATUSCODE_GOOD;
-    }
-
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
     if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
         /* Anonymous login */
@@ -133,25 +123,12 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
-    /* Login successful. Store the token in the context. */
-    UA_ExtensionObject *tokenCopy = UA_ExtensionObject_new();
-    if(!tokenCopy)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    UA_StatusCode res = UA_ExtensionObject_copy(userIdentityToken, tokenCopy);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_ExtensionObject_delete(tokenCopy);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    *sessionContext = tokenCopy;
-
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
-    if(sessionContext)
-        UA_ExtensionObject_delete((UA_ExtensionObject*)sessionContext);
 }
 
 static UA_UInt32
@@ -223,12 +200,7 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
-    if(oldSessionContext == newSessionContext)
-        return true;
-    if(oldSessionContext && newSessionContext)
-        return (UA_order(oldSessionContext, newSessionContext,
-                         &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) == UA_ORDER_EQ);
-    return false;
+    return true;
 }
 #endif
 
