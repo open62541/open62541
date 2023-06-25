@@ -15,9 +15,6 @@
 
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-#include <open62541/network_ws.h>
-#endif
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
@@ -479,34 +476,6 @@ UA_ServerConfig_setBasics_withPort(UA_ServerConfig* conf, UA_UInt16 portNumber) 
                    "Any remote certificate will be accepted.");
     return res;
 }
-
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                   UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey) {
-    /* Add a network layer */
-    UA_ServerNetworkLayer *tmp = (UA_ServerNetworkLayer *)
-        UA_realloc(conf->networkLayers,
-                   sizeof(UA_ServerNetworkLayer) * (1 + conf->networkLayersSize));
-    if(!tmp)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayers = tmp;
-
-    UA_ConnectionConfig config = UA_ConnectionConfig_default;
-    if(sendBufferSize > 0)
-        config.sendBufferSize = sendBufferSize;
-    if(recvBufferSize > 0)
-        config.recvBufferSize = recvBufferSize;
-
-    conf->networkLayers[conf->networkLayersSize] =
-        UA_ServerNetworkLayerWS(config, portNumber, certificate, privateKey);
-    if(!conf->networkLayers[conf->networkLayersSize].handle)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    conf->networkLayersSize++;
-
-    return UA_STATUSCODE_GOOD;
-}
-#endif
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
