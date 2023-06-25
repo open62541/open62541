@@ -508,6 +508,7 @@ struct ContinuationPoint {
      * between the calls to Browse/BrowseNext. */
     UA_NodePointer lastTarget;
     UA_Byte lastRefKindIndex;
+    UA_Boolean lastRefInverse;
 };
 
 ContinuationPoint *
@@ -639,6 +640,7 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     /* Store as last target. The itarget-id is a shallow copy for now. */
     cp->lastTarget = t->targetId;
     cp->lastRefKindIndex = bc->rk->referenceTypeIndex;
+    cp->lastRefInverse = bc->rk->isInverse;
 
     /* Abort if the status is not good. Also doesn't make a deep-copy of
      * cp->lastTarget after returning from here. */
@@ -662,6 +664,8 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
         /* If the continuation point was previously used, skip forward to the
          * last ReferenceType that was transmitted */
         if(bc->activeCP && rk->referenceTypeIndex != cp->lastRefKindIndex)
+            continue;
+        if(bc->activeCP && rk->isInverse != cp->lastRefInverse)
             continue;
 
         /* Reference in the right direction? */
@@ -743,10 +747,10 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
                 bc->status = UA_NodePointer_copy(cp->lastTarget, &cp->lastTarget);
             return;
         }
-
-        /* Reset last-target to prevent clearing it up */
-        UA_NodePointer_init(&cp->lastTarget);
     }
+
+    /* Reset last-target to prevent clearing it up */
+    UA_NodePointer_init(&cp->lastTarget);
 
     /* Browsing the node is done */
     bc->done = true;
@@ -915,6 +919,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
     cp2->lastTarget = cp.lastTarget; /* Move the (deep) copy */
     UA_NodePointer_init(&cp.lastTarget); /* No longer clear below (cleanup) */
     cp2->lastRefKindIndex = cp.lastRefKindIndex;
+    cp2->lastRefInverse = cp.lastRefInverse;
 
     /* Create a random bytestring via a Guid */
     ident = UA_Guid_new();
