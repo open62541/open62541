@@ -407,10 +407,6 @@ int main(int argc, char* argv[]) {
                                                        issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
 
-    #ifdef UA_ENABLE_WEBSOCKET_SERVER
-    UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, &certificate, &privateKey);
-    #endif
-
     if (encrypt_out_data) {
         if (encrypt_out_data->data)
             UA_free(encrypt_out_data->data);
