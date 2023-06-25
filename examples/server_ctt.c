@@ -1302,7 +1302,7 @@ int main(int argc, char **argv) {
         disableAnonymous(&config);
 
     /* Limit the number of SecureChannels and Sessions */
-    config.maxSecureChannels = 10;
+    config.maxSecureChannels = 40;
     config.maxSessions = 50;
 
     /* Revolve the SecureChannel token every 300 seconds */
