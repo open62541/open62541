@@ -1318,9 +1318,13 @@ int main(int argc, char **argv) {
     config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
     config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
 
-    /* Set Subscription limits */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Set Subscription limits */
     config.maxSubscriptions = 100;
+
+    /* Make the minimum lifetimecount larger.
+     * Otherwise we get unwanted timing effects in the CTT. */
+    config.lifeTimeCountLimits.min = 100;
 #endif
 
     /* If RequestTimestamp is '0', log the warning and proceed */
