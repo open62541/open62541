@@ -293,7 +293,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     if(request->clientCertificate.length > 0) {
-        UA_CertificateVerification *cv = &server->config.certificateVerification;
+        UA_CertificateVerification *cv = &server->config.sessionPKI;
         response->responseHeader.serviceResult =
             cv->verifyApplicationURI(cv, &request->clientCertificate,
                                      &request->clientDescription.applicationUri);

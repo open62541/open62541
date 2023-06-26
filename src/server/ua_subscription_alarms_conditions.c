@@ -3125,7 +3125,7 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_CertificateVerification *cv = &server->config.certificateVerification;
+    UA_CertificateVerification *cv = &server->config.sessionPKI;
     UA_DateTime getExpiryDateAndTime;
     if(cv == NULL && cv->getExpirationDate == NULL) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,

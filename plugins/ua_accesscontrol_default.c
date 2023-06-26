@@ -21,7 +21,6 @@ typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
     UA_UsernamePasswordLogin *usernamePasswordLogin;
-    UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
@@ -43,6 +42,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_ExtensionObject *userIdentityToken,
                         void **sessionContext) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* The empty token is interpreted as anonymous */
     UA_AnonymousIdentityToken anonToken;
@@ -110,12 +110,11 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         if(!UA_String_equal(&userToken->policyId, &certificate_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        if(!context->verifyX509.verifyCertificate)
+        if(!config->sessionPKI.verifyCertificate)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        UA_StatusCode res = context->verifyX509.
-            verifyCertificate(&context->verifyX509,
-                              &userToken->certificateData);
+       UA_StatusCode res = config->sessionPKI.
+            verifyCertificate(&config->sessionPKI, &userToken->certificateData);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
     } else {
@@ -246,9 +245,6 @@ static void clear_default(UA_AccessControl *ac) {
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
 
-        if(context->verifyX509.clear)
-            context->verifyX509.clear(&context->verifyX509);
-
         UA_free(ac->context);
         ac->context = NULL;
     }
@@ -257,7 +253,6 @@ static void clear_default(UA_AccessControl *ac) {
 UA_StatusCode
 UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
-                         UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
@@ -305,23 +300,6 @@ UA_AccessControl_default(UA_ServerConfig *config,
                     "AccessControl: Anonymous login is enabled");
     }
 
-    if(config->logging == NULL) {
-        config->logging = &config->logger;
-    }
-    /* Allow x509 certificates? Move the plugin over. */
-    if(verifyX509) {
-        context->verifyX509 = *verifyX509;
-        memset(verifyX509, 0, sizeof(UA_CertificateVerification));
-        if(context->verifyX509.logging == NULL) {
-            context->verifyX509.logging = &config->logging;
-        }
-    } else {
-        memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
-        context->verifyX509.logging = &config->logging;
-        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
-                    "AccessControl: x509 certificate user authentication is enabled");
-    }
-
     /* Copy username/password to the access control plugin */
     if(usernamePasswordLoginSize > 0) {
         context->usernamePasswordLogin = (UA_UsernamePasswordLogin*)
@@ -341,9 +319,9 @@ UA_AccessControl_default(UA_ServerConfig *config,
     size_t policies = 0;
     if(allowAnonymous)
         policies++;
-    if(verifyX509)
-        policies++;
     if(usernamePasswordLoginSize > 0)
+        policies++;
+    if(config->sessionPKI.verifyCertificate)
         policies++;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
@@ -359,7 +337,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         policies++;
     }
 
-    if(verifyX509) {
+    if(config->sessionPKI.verifyCertificate) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400

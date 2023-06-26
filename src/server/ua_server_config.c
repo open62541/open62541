@@ -71,8 +71,10 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     }
 
     /* Certificate Validation */
-    if(config->certificateVerification.clear)
-        config->certificateVerification.clear(&config->certificateVerification);
+    if(config->secureChannelPKI.clear)
+        config->secureChannelPKI.clear(&config->secureChannelPKI);
+    if(config->sessionPKI.clear)
+        config->sessionPKI.clear(&config->sessionPKI);
 
     /* Access Control */
     if(config->accessControl.clear)

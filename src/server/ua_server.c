@@ -448,8 +448,12 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
         /* re-set the logger pointer */
         server->config.logging = &server->config.logger;
     }
-    if(server->config.certificateVerification.logging == &config->logging)
-        server->config.certificateVerification.logging = &server->config.logging;
+    if(!server->config.secureChannelPKI.logging ||
+       server->config.secureChannelPKI.logging == &config->logging)
+        server->config.secureChannelPKI.logging = &server->config.logging;
+    if(!server->config.sessionPKI.logging ||
+       server->config.sessionPKI.logging == &config->logging)
+        server->config.sessionPKI.logging = &server->config.logging;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));
@@ -623,8 +627,8 @@ verifyServerApplicationURI(const UA_Server *server) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
         if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
             continue;
-        UA_StatusCode retval = server->config.certificateVerification.
-            verifyApplicationURI(&server->config.certificateVerification,
+        UA_StatusCode retval = server->config.secureChannelPKI.
+            verifyApplicationURI(&server->config.secureChannelPKI,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
 
