@@ -419,7 +419,7 @@ UA_X509_Store_CTX_Error_To_UAError (int opensslErr) {
             ret = UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
             break;
         case X509_V_ERR_CERT_REVOKED:
-            ret = UA_STATUSCODE_BADCERTIFICATEREVOKED;
+            ret = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             break;
         case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
         case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
