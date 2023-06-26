@@ -63,8 +63,8 @@ static void setup(void) {
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
 
-    config->certificateVerification.clear(&config->certificateVerification);
-    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateVerification_AcceptAll(&config->sessionPKI);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);

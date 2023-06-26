@@ -413,15 +413,20 @@ main(int argc, char **argv) {
         &config, port, &certificate, &privateKey, NULL, 0, NULL, 0, NULL, 0);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-    config.certificateVerification.clear(&config.certificateVerification);
 #ifdef UA_ENABLE_CERT_REJECTED_DIR
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
+    res |= UA_CertificateVerification_CertFolders(&config.secureChannelPKI,
+                                                  trustlistFolder, issuerlistFolder,
+                                                  revocationlistFolder, NULL);
+    res |= UA_CertificateVerification_CertFolders(&config.sessionPKI,
                                                  trustlistFolder, issuerlistFolder,
                                                  revocationlistFolder, NULL);
 #else
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder);
+    res |= UA_CertificateVerification_CertFolders(&config.secureChannelPKI,
+                                                  trustlistFolder, issuerlistFolder,
+                                                  revocationlistFolder);
+    res |= UA_CertificateVerification_CertFolders(&config.sessionPKI,
+                                                  trustlistFolder, issuerlistFolder,
+                                                  revocationlistFolder);
 #endif
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;

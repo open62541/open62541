@@ -389,10 +389,10 @@ static void setup(void) {
                                                        NULL, 0, NULL, 0, NULL, 0);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    config->certificateVerification.clear(&config->certificateVerification);
-    res = UA_CertificateVerification_CertFolders(&config->certificateVerification,
-                                                 NULL, NULL,
-                                                 NULL, ".");
+    res |= UA_CertificateVerification_CertFolders(&config->secureChannelPKI,
+                                                  NULL, NULL, NULL, ".");
+    res |= UA_CertificateVerification_CertFolders(&config->sessionPKI,
+                                                  NULL, NULL, NULL, ".");
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 #endif /* __linux__ */
 

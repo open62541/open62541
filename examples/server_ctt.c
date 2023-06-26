@@ -1007,13 +1007,19 @@ usage(void) {
 #else
                    "server_ctt <server-certificate.der> <private-key.der>\n"
 #ifndef __linux__
-                   "\t[--trustlist <tl1.ctl> <tl2.ctl> ... ]\n"
-                   "\t[--issuerlist <il1.der> <il2.der> ... ]\n"
-                   "\t[--revocationlist <rv1.crl> <rv2.crl> ...]\n"
+                   "\t[--secureChannelTrustList <tl1.ctl> <tl2.ctl> ... ]\n"
+                   "\t[--secureChannelIssuerList <il1.der> <il2.der> ... ]\n"
+                   "\t[--secureChannelRevocationList <rv1.crl> <rv2.crl> ...]\n"
+                   "\t[--sessionTrustList <tl1.ctl> <tl2.ctl> ... ]\n"
+                   "\t[--sessionIssuerList <il1.der> <il2.der> ... ]\n"
+                   "\t[--sessionRevocationList <rv1.crl> <rv2.crl> ...]\n"
 #else
-                   "\t[--trustlistFolder <folder>]\n"
-                   "\t[--issuerlistFolder <folder>]\n"
-                   "\t[--revocationlistFolder <folder>]\n"
+                   "\t[--secureChannelTrustListFolder <folder>]\n"
+                   "\t[--secureChannelIssuerListFolder <folder>]\n"
+                   "\t[--secureChannelRevocationListFolder <folder>]\n"
+                   "\t[--sessionTrustListFolder <folder>]\n"
+                   "\t[--sessionIssuerListFolder <folder>]\n"
+                   "\t[--sessionRevocationListFolder <folder>]\n"
 #endif
                    "\t[--enableUnencrypted]\n"
                    "\t[--enableOutdatedSecurityPolicy]\n"
@@ -1036,9 +1042,6 @@ int main(int argc, char **argv) {
             return EXIT_SUCCESS;
         }
     }
-
-    UA_ServerConfig config;
-    memset(&config, 0, sizeof(UA_ServerConfig));
 
     /* Load certificate */
     size_t pos = 1;
@@ -1074,16 +1077,25 @@ int main(int argc, char **argv) {
     UA_Boolean disableBasic256Sha256 = false;
 
 #ifndef __linux__
-    UA_ByteString trustList[100];
-    size_t trustListSize = 0;
-    UA_ByteString issuerList[100];
-    size_t issuerListSize = 0;
-    UA_ByteString revocationList[100];
-    size_t revocationListSize = 0;
+    UA_ByteString scTrustList[100];
+    size_t scTrustListSize = 0;
+    UA_ByteString scIssuerList[100];
+    size_t scIssuerListSize = 0;
+    UA_ByteString scRevocationList[100];
+    size_t scRevocationListSize = 0;
+    UA_ByteString sTrustList[100];
+    size_t sTrustListSize = 0;
+    UA_ByteString sIssuerList[100];
+    size_t sIssuerListSize = 0;
+    UA_ByteString sRevocationList[100];
+    size_t sRevocationListSize = 0;
 #else
-    const char *trustlistFolder = NULL;
-    const char *issuerlistFolder = NULL;
-    const char *revocationlistFolder = NULL;
+    const char *scTrustlistFolder = NULL;
+    const char *scIssuerlistFolder = NULL;
+    const char *scRevocationlistFolder = NULL;
+    const char *sTrustlistFolder = NULL;
+    const char *sIssuerlistFolder = NULL;
+    const char *sRevocationlistFolder = NULL;
 #endif /* __linux__ */
 
 #endif /* UA_ENABLE_ENCRYPTION */
@@ -1146,96 +1158,134 @@ int main(int argc, char **argv) {
         }
 
 #ifndef __linux__
-        if(strcmp(argv[pos], "--trustlist") == 0) {
+        if(strcmp(argv[pos], "--secureChannelTrustList") == 0) {
             filetype = 't';
             continue;
         }
 
-        if(strcmp(argv[pos], "--issuerlist") == 0) {
-            filetype = 'l';
+        if(strcmp(argv[pos], "--secureChannelIssuerList") == 0) {
+            filetype = 'i';
             continue;
         }
 
-        if(strcmp(argv[pos], "--revocationlist") == 0) {
+        if(strcmp(argv[pos], "--secureChannelRevocationList") == 0) {
             filetype = 'r';
             continue;
         }
 
+        if(strcmp(argv[pos], "--sessionTrustList") == 0) {
+            filetype = 'T';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--sessionIssuerList") == 0) {
+            filetype = 'I';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--sessionRevocationList") == 0) {
+            filetype = 'R';
+            continue;
+        }
+
+        UA_ByteString *list;
+        size_t *listSize;
         if(filetype == 't') {
-            if(trustListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Too many trust lists");
-                return EXIT_FAILURE;
-            }
-            trustList[trustListSize] = loadFile(argv[pos]);
-            if(trustList[trustListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Unable to load trust list %s", argv[pos]);
-                return EXIT_FAILURE;
-            }
-            trustListSize++;
-            continue;
+            list = scTrustList;
+            listSize = &scTrustListSize;
+        } else if(filetype == 'i') {
+            list = scIssuerList;
+            listSize = &scIssuerListSize;
+        } else if(filetype == 'r') {
+            list = scRevocationList;
+            listSize = &scRevocationListSize;
+        } else if(filetype == 'T') {
+            list = sTrustList;
+            listSize = &sTrustListSize;
+        } else if(filetype == 'I') {
+            list = sIssuerList;
+            listSize = &sIssuerListSize;
+        } else if(filetype == 'R') {
+            list = sRevocationList;
+            listSize = &sRevocationListSize;
+        } else {
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Unknown certificate list");
+            return EXIT_FAILURE;
         }
 
-        if(filetype == 'l') {
-            if(issuerListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Too many trust lists");
-                return EXIT_FAILURE;
-            }
-            issuerList[issuerListSize] = loadFile(argv[pos]);
-            if(issuerList[issuerListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Unable to load trust list %s", argv[pos]);
-                return EXIT_FAILURE;
-            }
-            issuerListSize++;
+        if(*listSize >= 100) {
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Certificate list too large");
+            return EXIT_FAILURE;
+        }
+        list[*listSize] = loadFile(argv[pos]);
+        if(list[*listSize].data == NULL) {
+            UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Unable to load certificate %s", argv[pos]);
             continue;
         }
+        scTrustListSize++;
+        continue;
 
-        if(filetype == 'r') {
-            if(revocationListSize >= 100) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Too many revocation lists");
-                return EXIT_FAILURE;
-            }
-            revocationList[revocationListSize] = loadFile(argv[pos]);
-            if(revocationList[revocationListSize].data == NULL) {
-                UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                             "Unable to load revocationlist %s", argv[pos]);
-                return EXIT_FAILURE;
-            }
-            revocationListSize++;
-            continue;
-        }
 #else /* __linux__ */
-        if(strcmp(argv[pos], "--trustlistFolder") == 0) {
+        if(strcmp(argv[pos], "--secureChannelTrustListFolder") == 0) {
             filetype = 't';
             continue;
         }
 
-        if(strcmp(argv[pos], "--issuerlistFolder") == 0) {
-            filetype = 'l';
+        if(strcmp(argv[pos], "--secureChannelIssuerListFolder") == 0) {
+            filetype = 'i';
             continue;
         }
 
-        if(strcmp(argv[pos], "--revocationlistFolder") == 0) {
+        if(strcmp(argv[pos], "--secureChannelRevocationListFolder") == 0) {
             filetype = 'r';
             continue;
         }
 
-        if(filetype == 't') {
-            trustlistFolder = argv[pos];
+        if(strcmp(argv[pos], "--sessionTrustListFolder") == 0) {
+            filetype = 'T';
             continue;
         }
 
-        if(filetype == 'l') {
-            issuerlistFolder = argv[pos];
+        if(strcmp(argv[pos], "--sessionIssuerListFolder") == 0) {
+            filetype = 'I';
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--sessionRevocationListFolder") == 0) {
+            filetype = 'R';
+            continue;
+        }
+
+        if(filetype == 't') {
+            scTrustlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'i') {
+            scIssuerlistFolder = argv[pos];
             continue;
         }
 
         if(filetype == 'r') {
-            revocationlistFolder = argv[pos];
+            scRevocationlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'T') {
+            sTrustlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'I') {
+            sIssuerlistFolder = argv[pos];
+            continue;
+        }
+
+        if(filetype == 'R') {
+            sRevocationlistFolder = argv[pos];
             continue;
         }
 #endif /* __linux__ */
@@ -1246,127 +1296,141 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    UA_Server *server = NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
-#ifdef UA_ENABLE_ENCRYPTION
-#ifndef __linux__
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#else /* On Linux we can monitor the certs folder and reload when changes are made */
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(&config, 4840,
-                                                       &certificate, &privateKey,
-                                                       NULL, 0, NULL, 0, NULL, 0);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-    config.certificateVerification.clear(&config.certificateVerification);
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder, NULL);
-#else
-    res = UA_CertificateVerification_CertFolders(&config.certificateVerification,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder);
-#endif
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#endif /* __linux__ */
-
-    if(!enableUnencr)
-        disableUnencrypted(&config);
-    if(!enableSec)
-        disableOutdatedSecurityPolicy(&config);
-
-    if(disableBasic128)
-        disableBasic128SecurityPolicy(&config);
-    if(disableBasic256)
-        disableBasic256SecurityPolicy(&config);
-    if(disableBasic256Sha256)
-        disableBasic256Sha256SecurityPolicy(&config);
-
-#else /* UA_ENABLE_ENCRYPTION */
-    UA_StatusCode res =
-        UA_ServerConfig_setMinimal(&config, 4840, &certificate);
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup;
-#endif /* UA_ENABLE_ENCRYPTION */
-
-    if(!enableAnon)
-        disableAnonymous(&config);
-
-    /* Limit the number of SecureChannels and Sessions */
-    config.maxSecureChannels = 40;
-    config.maxSessions = 50;
-
-    /* Revolve the SecureChannel token every 300 seconds */
-    config.maxSecurityTokenLifetime = 300000;
-
-    /* Set operation limits */
-    config.maxNodesPerRead = MAX_OPERATION_LIMIT;
-    config.maxNodesPerWrite = MAX_OPERATION_LIMIT;
-    config.maxNodesPerMethodCall = MAX_OPERATION_LIMIT;
-    config.maxNodesPerBrowse = MAX_OPERATION_LIMIT;
-    config.maxNodesPerRegisterNodes = MAX_OPERATION_LIMIT;
-    config.maxNodesPerTranslateBrowsePathsToNodeIds = MAX_OPERATION_LIMIT;
-    config.maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
-    config.maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-    /* Set Subscription limits */
-    config.maxSubscriptions = 100;
-
-    /* Make the minimum lifetimecount larger.
-     * Otherwise we get unwanted timing effects in the CTT. */
-    config.lifeTimeCountLimits.min = 100;
-#endif
-
-    /* If RequestTimestamp is '0', log the warning and proceed */
-    config.verifyRequestTimestamp = UA_RULEHANDLING_WARN;
-    if(enableTime)
-        config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
-
-    /* Override with a custom access control policy */
-    config.accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
-    UA_String_clear(&config.applicationDescription.applicationUri);
-    config.applicationDescription.applicationUri =
-        UA_String_fromChars("urn:open62541.server.application");
-
-    config.shutdownDelay = 5000.0; /* 5s */
-
-    server = UA_Server_newWithConfig(&config);
+    UA_Server *server = UA_Server_new();
     if(!server) {
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
 
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* Load PKI */
+#ifdef UA_ENABLE_ENCRYPTION
+    res = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+                                                         &certificate, &privateKey,
+                                                         NULL, 0, NULL, 0, NULL, 0);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#ifndef __linux__
+    res |= UA_CertificateVerification_Trustlist(&config->secureChannelPKI,
+                                                scTrustList, scTrustListSize,
+                                                scIssuerList, scIssuerListSize,
+                                                scRevocationList, scRevocationListSize);
+    res |= UA_CertificateVerification_Trustlist(&config->sessionPKI,
+                                                sTrustList, sTrustListSize,
+                                                sIssuerList, sIssuerListSize,
+                                                sRevocationList, sRevocationListSize);
+#else
+    /* On Linux we can monitor the certs folder and reload when changes are made */
+# ifdef UA_ENABLE_CERT_REJECTED_DIR
+    res |= UA_CertificateVerification_CertFolders(&config->secureChannelPKI,
+                                                 scTrustlistFolder, scIssuerlistFolder,
+                                                 scRevocationlistFolder, NULL);
+    res |= UA_CertificateVerification_CertFolders(&config->sessionPKI,
+                                                  sTrustlistFolder, sIssuerlistFolder,
+                                                  sRevocationlistFolder, NULL);
+# else
+    res |= UA_CertificateVerification_CertFolders(&config->secureChannelPKI,
+                                                  scTrustlistFolder, scIssuerlistFolder,
+                                                  scRevocationlistFolder);
+    res |= UA_CertificateVerification_CertFolders(&config->sessionPKI,
+                                                  sTrustlistFolder, sIssuerlistFolder,
+                                                  sRevocationlistFolder);
+# endif
+#endif /* __linux__ */
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    if(!enableUnencr)
+        disableUnencrypted(config);
+    if(!enableSec)
+        disableOutdatedSecurityPolicy(config);
+
+    if(disableBasic128)
+        disableBasic128SecurityPolicy(config);
+    if(disableBasic256)
+        disableBasic256SecurityPolicy(config);
+    if(disableBasic256Sha256)
+        disableBasic256Sha256SecurityPolicy(config);
+
+#else /* UA_ENABLE_ENCRYPTION */
+    res = UA_ServerConfig_setMinimal(config, 4840, &certificate);
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#endif /* UA_ENABLE_ENCRYPTION */
+
+    if(!enableAnon)
+        disableAnonymous(config);
+
+    /* Limit the number of SecureChannels and Sessions */
+    config->maxSecureChannels = 40;
+    config->maxSessions = 50;
+
+    /* Revolve the SecureChannel token every 300 seconds */
+    config->maxSecurityTokenLifetime = 300000;
+
+    /* Set operation limits */
+    config->maxNodesPerRead = MAX_OPERATION_LIMIT;
+    config->maxNodesPerWrite = MAX_OPERATION_LIMIT;
+    config->maxNodesPerMethodCall = MAX_OPERATION_LIMIT;
+    config->maxNodesPerBrowse = MAX_OPERATION_LIMIT;
+    config->maxNodesPerRegisterNodes = MAX_OPERATION_LIMIT;
+    config->maxNodesPerTranslateBrowsePathsToNodeIds = MAX_OPERATION_LIMIT;
+    config->maxNodesPerNodeManagement = MAX_OPERATION_LIMIT;
+    config->maxMonitoredItemsPerCall = MAX_OPERATION_LIMIT;
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Set Subscription limits */
+    config->maxSubscriptions = 100;
+
+    /* Make the minimum lifetimecount larger.
+     * Otherwise we get unwanted timing effects in the CTT. */
+    config->lifeTimeCountLimits.min = 100;
+#endif
+
+    /* If RequestTimestamp is '0', log the warning and proceed */
+    config->verifyRequestTimestamp = UA_RULEHANDLING_WARN;
+    if(enableTime)
+        config->verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
+
+    /* Override with a custom access control policy */
+    config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
+    UA_String_clear(&config->applicationDescription.applicationUri);
+    config->applicationDescription.applicationUri =
+        UA_String_fromChars("urn:open62541.server.application");
+
+    config->shutdownDelay = 5000.0; /* 5s */
+
+    UA_ServerConfig_addAllEndpoints(config);
+
     setInformationModel(server);
+
 
     /* run server */
     res = UA_Server_run(server, &running);
 
  cleanup:
-    if(server)
-        UA_Server_delete(server);
-    else
-        UA_ServerConfig_clean(&config);
+    UA_Server_delete(server);
 
     UA_ByteString_clear(&certificate);
 #if defined(UA_ENABLE_ENCRYPTION)
     UA_ByteString_clear(&privateKey);
 #ifndef __linux__
-    for(size_t i = 0; i < trustListSize; i++)
-        UA_ByteString_clear(&trustList[i]);
-    for(size_t i = 0; i < issuerListSize; i++)
-        UA_ByteString_clear(&issuerList[i]);
-    for(size_t i = 0; i < revocationListSize; i++)
-        UA_ByteString_clear(&revocationList[i]);
+    for(size_t i = 0; i < scTrustListSize; i++)
+        UA_ByteString_clear(&scTrustList[i]);
+    for(size_t i = 0; i < scIssuerListSize; i++)
+        UA_ByteString_clear(&scIssuerList[i]);
+    for(size_t i = 0; i < scRevocationListSize; i++)
+        UA_ByteString_clear(&scRevocationList[i]);
+
+    for(size_t i = 0; i < sTrustListSize; i++)
+        UA_ByteString_clear(&sTrustList[i]);
+    for(size_t i = 0; i < sIssuerListSize; i++)
+        UA_ByteString_clear(&sIssuerList[i]);
+    for(size_t i = 0; i < sRevocationListSize; i++)
+        UA_ByteString_clear(&sRevocationList[i]);
 #endif
 #endif
 

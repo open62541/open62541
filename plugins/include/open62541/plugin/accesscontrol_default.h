@@ -29,7 +29,6 @@ typedef struct {
 UA_EXPORT UA_StatusCode
 UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
-                         UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin);

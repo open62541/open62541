@@ -201,7 +201,9 @@ struct UA_ServerConfig {
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
 
-    UA_CertificateVerification certificateVerification;
+    /* Different sets of certificates are trusted for SecureChannel / Session */
+    UA_CertificateVerification secureChannelPKI;
+    UA_CertificateVerification sessionPKI;
 
     /**
      * See the section for :ref:`access-control
