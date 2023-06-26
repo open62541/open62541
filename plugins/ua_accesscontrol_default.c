@@ -117,7 +117,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             verifyCertificate(&context->verifyX509,
                               &userToken->certificateData);
         if(res != UA_STATUSCODE_GOOD)
-            return res;
+            return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
     } else {
         /* Unsupported token type */
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
