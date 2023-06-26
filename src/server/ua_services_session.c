@@ -418,7 +418,7 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
                void *channelContext, const UA_ByteString *serverNonce, const UA_SignatureData *signature) {
     /* Check for zero signature length */
     if(signature->signature.length == 0)
-        return UA_STATUSCODE_BADAPPLICATIONSIGNATUREINVALID;
+        return UA_STATUSCODE_BADUSERSIGNATUREINVALID;
 
     if(!securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -438,6 +438,8 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
     retval = securityPolicy->certificateSigningAlgorithm.
         verify(channelContext, &dataToVerify, &signature->signature);
     UA_ByteString_clear(&dataToVerify);
+    if(retval != UA_STATUSCODE_GOOD)
+        retval = UA_STATUSCODE_BADUSERSIGNATUREINVALID;
     return retval;
 }
 
