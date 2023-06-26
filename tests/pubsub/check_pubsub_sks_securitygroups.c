@@ -157,8 +157,10 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
     UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     ck_assert(UA_NodeId_equal(&sg->securityGroupNodeId, &securityGroupNodeId) == UA_TRUE);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     ck_assert(UA_NodeId_equal(&sg->securityGroupFolderId, &securityGroupParent) ==
               UA_TRUE);
+#endif
     ck_assert(UA_String_equal(&sg->securityGroupId, &config.securityGroupName) ==
               UA_TRUE);
     UA_UNLOCK(&server->serviceMutex);
