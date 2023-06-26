@@ -233,7 +233,7 @@ UA_atomic_xchg(void * volatile * addr, void *newptr) {
 static UA_INLINE void *
 UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
 #if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
-    return InterlockedCompareExchangePointer(addr, expected, newptr);
+    return InterlockedCompareExchangePointer(addr, newptr, expected);
 #elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
     return __sync_val_compare_and_swap(addr, expected, newptr);
 #else
