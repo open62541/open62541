@@ -1,0 +1,16 @@
+//see todo eventfilter parser oftype
+
+SELECT
+
+TYPEID i=2041 PATH "/Message",
+TYPEID i=2041 PATH "/Severity" ATTRIBUTE 13,
+PATH "/EventType" ATTRIBUTE 13
+
+WHERE
+
+OR(OFTYPE $3, OFTYPE $4)
+
+
+FOR
+$3:= ns=1;i=5001
+$4:= i=3035

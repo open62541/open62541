@@ -3,8 +3,8 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
+#include <open62541/plugin/pki_default.h>
 
 #include "common.h"
 
@@ -26,12 +26,17 @@ int main(int argc, char *argv[]) {
 #ifdef UA_ENABLE_ENCRYPTION
     char *certfile = NULL;
     char *keyfile = NULL;
+    char *trustList = NULL;
+#endif
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    char *certAuthFile = NULL;
+    char *keyAuthFile = NULL;
 #endif
 
     /* At least one argument is required for the server uri */
     if(argc <= 1) {
         usage();
-        return EXIT_FAILURE;
+        return 0;
     }
 
     /* Parse the arguments */
@@ -39,7 +44,7 @@ int main(int argc, char *argv[]) {
         if(strcmp(argv[argpos], "--help") == 0 ||
            strcmp(argv[argpos], "-h") == 0) {
             usage();
-            return EXIT_SUCCESS;
+            return 0;
         }
 
         if(argpos + 1 == argc) {
@@ -72,11 +77,17 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
+        if(strcmp(argv[argpos], "-trustList") == 0) {
+            argpos++;
+            trustList = argv[argpos];
+            continue;
+        }
+
         if(strcmp(argv[argpos], "-securityMode") == 0) {
             argpos++;
             if(sscanf(argv[argpos], "%i", (int*)&securityMode) != 1) {
                 usage();
-                return EXIT_FAILURE;
+                return 0;
             }
             continue;
         }
@@ -87,42 +98,93 @@ int main(int argc, char *argv[]) {
             continue;
         }
 #endif
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+        if(strcmp(argv[argpos], "-certAuth") == 0) {
+            argpos++;
+            certAuthFile = argv[argpos];
+            continue;
+        }
 
+        if(strcmp(argv[argpos], "-keyAuth") == 0) {
+            argpos++;
+            keyAuthFile = argv[argpos];
+            continue;
+        }
+#endif
         usage();
-        return EXIT_FAILURE;
+        return 0;
     }
 
     /* Create the server and set its config */
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
+    /* Set securityMode and securityPolicyUri */
+    cc->securityMode = securityMode;
+    cc->securityPolicyUri = securityPolicyUri;
+
 #ifdef UA_ENABLE_ENCRYPTION
     if(certfile) {
         UA_ByteString certificate = loadFile(certfile);
         UA_ByteString privateKey  = loadFile(keyfile);
-        UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                             NULL, 0, NULL, 0);
+        if(trustList) {
+            /* Load the trust list */
+            size_t trustListSize = 1;
+            UA_STACKARRAY(UA_ByteString, trustListAuth, trustListSize);
+            trustListAuth[0] = loadFile(trustList);
+            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                 trustListAuth, trustListSize, NULL, 0);
+            UA_ByteString_clear(&trustListAuth[0]);
+        }else {
+            /* If no trust list is passed, all certificates are accepted. */
+            UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                 NULL, 0, NULL, 0);
+            UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+        }
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
     } else {
         UA_ClientConfig_setDefault(cc);
+        cc->securityMode = UA_MESSAGESECURITYMODE_NONE;
+        UA_ByteString_clear(&cc->securityPolicyUri);
+        cc->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#None");
     }
 #else
     UA_ClientConfig_setDefault(cc);
 #endif
 
-    cc->securityMode = securityMode;
-    cc->securityPolicyUri = securityPolicyUri;
+    /* The application URI must be the same as the one in the certificate.
+     * The script for creating a self-created certificate generates a certificate
+     * with the Uri specified below.*/
+    UA_ApplicationDescription_clear(&cc->clientDescription);
+    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
+    cc->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
 
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(username)
-        retval = UA_Client_connectUsername(client, serverurl, username, password);
+    if(username) {
+        UA_ClientConfig_setAuthenticationUsername(cc, username, password);
+        retval = UA_Client_connect(client, serverurl);
+        /* Alternative */
+        //retval = UA_Client_connectUsername(client, serverurl, username, password);
+    }
+#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    else if(certAuthFile && certfile) {
+        UA_ByteString certificateAuth = loadFile(certAuthFile);
+        UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
+        UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+        retval = UA_Client_connect(client, serverurl);
+
+        UA_ByteString_clear(&certificateAuth);
+        UA_ByteString_clear(&privateKeyAuth);
+    }
+#endif
     else
         retval = UA_Client_connect(client, serverurl);
     if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
@@ -144,5 +206,5 @@ int main(int argc, char *argv[]) {
     /* Clean up */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

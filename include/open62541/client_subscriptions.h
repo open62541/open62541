@@ -161,6 +161,13 @@ typedef void (*UA_Client_EventNotificationCallback)
      UA_UInt32 monId, void *monContext,
      size_t nEventFields, UA_Variant *eventFields);
 
+/*create and monitor an event filter based on queries*/
+UA_StatusCode UA_EXPORT
+UA_Client_EventFilter_createSubscription(UA_Client *client,
+                                         UA_Client_EventNotificationCallback callback,
+                                         UA_ByteString *content,
+                                         UA_EventFilter *filter);
+
 /* Don't use to monitor the EventNotifier attribute */
 UA_CreateMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_createDataChanges(UA_Client *client,

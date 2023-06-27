@@ -1,0 +1,44 @@
+SELECT
+
+
+TYPEID ns=134;s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]
+
+WHERE
+
+OR($1, $2)
+
+FOR
+
+
+$2:= $"another" LE $19
+
+$"another":= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} "<=" TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH "/1:AnotherAnotherTest" ATTRIBUTE 23
+
+$19:= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} BETWEEN [FLOAT 17, TYPEID ns=12;i=12345 PATH "/1:AnotherAnotherTest"]
+
+$163:= TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH "/1:AnotherAnotherTest" ATTRIBUTE 23
+
+$"literal float":= FLOAT 17
+
+$"literal json":= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}
+
+$"element oper":= $"element operand"
+
+$"element operand":= $163
+
+$"element op":= $"element operand"
+
+
+$1:= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} INLIST [
+                                                                {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]},
+                                                                TYPEID ns=1;b="b3BlbjYyNTQxIQ==" PATH "/1:AnotherAnotherTest",
+                                                                ({"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}),
+                                                                STRING "tes tSt 3 ring",
+                                                                {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]},
+                                                                $"element op",
+                                                                $"element operand",
+                                                                EXPNODEID "svr=5;nsu=https://test.test.com;s=test"
+                                                             ]
+
+
+

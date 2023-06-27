@@ -1,0 +1,13 @@
+SELECT
+
+PATH "/Message",
+PATH "/0:Severity",
+PATH "/EventType"
+
+WHERE
+
+AND($4, TYPEID i=5000 PATH "/Severity" GREATERTHAN $"ref")
+
+FOR
+$"ref":= 99
+$4:= OFTYPE ns=1;i=5000

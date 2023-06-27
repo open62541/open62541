@@ -16,14 +16,12 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdlib.h>
 
 //If more sample events are needed, "addSampleEventTypes" and "setUpEvent" must be extended
 #define SAMPLE_EVENT_TYPES_COUNT 5
 
-static volatile UA_Boolean running = true;
-static UA_NodeId* eventTypes;
+static UA_NodeId eventTypes[SAMPLE_EVENT_TYPES_COUNT];
 
 static UA_StatusCode
 addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId requestedId, UA_NodeId* eventType) {
@@ -44,8 +42,6 @@ addEventType(UA_Server *server, char* name, UA_NodeId parentNodeId, UA_NodeId re
 
 static UA_StatusCode
 addSampleEventTypes(UA_Server *server) {
-    eventTypes = (UA_NodeId *)
-        UA_Array_new(SAMPLE_EVENT_TYPES_COUNT, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = addEventType(server, "SampleBaseEventType",
                                         UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
                                         UA_NODEID_NUMERIC(1, 5000),
@@ -296,26 +292,15 @@ addGenerateSingleCustomizedEventMethod(UA_Server *server) {
                             1, &inputArgument, 0, NULL, NULL, NULL);
 }
 
-static void stopHandler(int sig) {
-    running = false;
-}
-
 int main(int argc, char *argv[]) {
-    /* default server values */
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    //setup events
     addSampleEventTypes(server);
     addGenerateSampleEventsMethod(server);
     addGenerateSingleRandomEventMethod(server);
     addGenerateSingleCustomizedEventMethod(server);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

@@ -12,10 +12,11 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 UA_Boolean running = true;
 
-UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET};
+UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTNODESET_COUNT, UA_TYPES_TESTNODESET, UA_FALSE};
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
@@ -44,10 +45,13 @@ int main(int argc, char **argv)
     } else {
         UA_Variant out;
         UA_Variant_init(&out);
-        UA_Server_readValue(server, UA_NODEID_NUMERIC(2, 10002), &out);
+        // this will just get the namespace index, since it is already added to the server
+        UA_UInt16 nsIdx = UA_Server_addNamespace(server, "http://yourorganisation.org/test/");
+        UA_Server_readValue(server, UA_NODEID_NUMERIC(nsIdx, 10002), &out);
         UA_Point *p = (UA_Point *)out.data;
         printf("point 2d x: %f y: %f \n", p->x, p->y);
         retval = UA_Server_run(server, &running);
+        UA_free(p);
     }
 
     UA_Server_delete(server);

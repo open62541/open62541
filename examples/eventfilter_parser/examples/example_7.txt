@@ -1,0 +1,15 @@
+SELECT
+
+
+TYPEID ns=134;s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]
+
+WHERE
+
+
+OR(OR( ISNULL TYPEID ns=2;i=2000 PATH "/0:Severity" ATTRIBUTE 15 INDEX [1,9], FLOAT 17 LESSOREQUAL TYPEID b="b3BlbjYyNTQxIQ==" PATH "/7:OnlyPathSpecified" ATTRIBUTE 3 INDEX [1,4:7,90]), AND({"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} GREATERTHAN STRING "tes tSt 3 ring", ($6) GREATEROREQUAL STRING "tes tSt 3 ring" ))
+
+FOR
+
+$19:= NOT TYPEID ns=2;i=2000 PATH "/0:Severity" ATTRIBUTE 15 INDEX [1,9]
+
+$6:= (TYPEID ns=3;s="15 23" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]) LESSTHAN $19

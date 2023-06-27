@@ -3,10 +3,6 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
 
 /**
  * Using Alarms and Conditions Server
@@ -550,24 +546,12 @@ setUpEnvironment(UA_Server *server) {
 /**
  * It follows the main server code, making use of the above definitions. */
 
-static UA_Boolean running = true;
-static void stopHandler(int sig) {
-    running = false;
-}
-
 int main (void) {
-    /* default server values */
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    UA_StatusCode retval = setUpEnvironment(server);
+    setUpEnvironment(server);
 
-    if(retval == UA_STATUSCODE_GOOD)
-        retval = UA_Server_run(server, &running);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

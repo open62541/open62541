@@ -1,3 +1,0 @@
- in brackets < ... > -> yytext
-
-                        yycontext *yy

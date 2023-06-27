@@ -1,2 +1,0 @@
-add_example(wrap_event_filter event_filter_wrapper.c)
-add_dependencies(wrap_event_filter open62541-generator-ns-example)

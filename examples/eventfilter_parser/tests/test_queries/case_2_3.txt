@@ -1,0 +1,24 @@
+SELECT
+
+PATH "/Message",
+PATH "/Severity",
+PATH "/EventType"
+
+
+
+WHERE
+OR($"first branch", $"second branch")
+
+FOR
+$"first branch":= OR($"third branch", $"fourth branch")
+$"second branch":= OR($1, $2)
+$"third branch":= OR($3, $4)
+$"fourth branch":= OR($5, $6)
+
+$1:= OFTYPE ns=1;i=5000
+$2:= OFTYPE ns=1;i=5001
+$3:= OFTYPE ns=1;i=5002
+$4:= OFTYPE ns=1;i=5003
+$5:= OFTYPE ns=1;i=5004
+$6:= OFTYPE i=3035
+

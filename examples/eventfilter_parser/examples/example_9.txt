@@ -1,0 +1,19 @@
+
+SELECT
+
+
+TYPEID ns=134;s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]
+
+WHERE
+
+OR($1, $2)
+
+FOR
+
+$2:= OR($19, {"Type": 6,"Body": 27} "<=>" $"another")
+
+$"another":= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} -> TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH "/1:AnotherAnotherTest" ATTRIBUTE 23 INDEX [100,5:20]
+
+$19:= OFTYPE ns=10;s="Hel&,lo:Wor ld"
+
+$1:= AND($"another", $19)

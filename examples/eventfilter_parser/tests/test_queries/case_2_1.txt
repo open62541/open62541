@@ -1,0 +1,11 @@
+SELECT
+
+PATH "/Message",
+PATH "/Severity",
+PATH "/EventType"
+
+
+
+WHERE
+OR(OR(OR(OFTYPE ns=1;i=5002, OFTYPE ns=1;i=5003), OR(OFTYPE ns=1;i=5004, OFTYPE ns=0;i=3035)), OR(OFTYPE ns=1;i=5000, OFTYPE ns=1;i=5001))
+

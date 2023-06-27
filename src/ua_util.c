@@ -13,6 +13,8 @@
 #include "ua_util_internal.h"
 #include "base64.h"
 
+#include "../../deps/eventfilter_parser/eventfilterparser_functions.c"
+
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
@@ -34,6 +36,49 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_B
     }
     *number = n;
     return progress;
+}
+
+void clear_event_filter(UA_EventFilter *filter){
+    for(size_t i=0; i< filter->selectClausesSize; i++){
+        for(size_t j=0; j< filter->selectClauses[i].browsePathSize; j++){
+            UA_QualifiedName_clear(&filter->selectClauses[i].browsePath[j]);
+        }
+        UA_NodeId_clear(&filter->selectClauses[i].typeDefinitionId);
+        UA_String_clear(&filter->selectClauses[i].indexRange);
+        UA_SimpleAttributeOperand_clear(&filter->selectClauses[i]);
+    }
+    for(size_t i=0; i<filter->whereClause.elementsSize; i++){
+        for(size_t j=0; j< filter->whereClause.elements[i].filterOperandsSize; j++){
+            UA_ExtensionObject_clear(&filter->whereClause.elements[i].filterOperands[j]);
+        }
+        UA_ContentFilterElement_clear(&filter->whereClause.elements[i]);
+    }
+    UA_ContentFilter_clear(&filter->whereClause);
+    UA_EventFilter_clear(filter);
+}
+
+UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter){
+    //todo prüfen ob der input UA_bytestring direkt an stdin weitergeben kann
+    FILE *f = fopen("../../../deps/eventfilter_parser/temp.txt", "w");
+    fprintf(f, "%s", (char*) content->data);
+    fclose(f);
+    freopen("../../../deps/eventfilter_parser/temp.txt","r",stdin);
+    yycontext ctx;
+    memset(&ctx, 0, sizeof(yycontext));
+    while (yyparse(&ctx));
+    UA_ByteString_clear(content);
+    fclose(stdin);
+    UA_StatusCode retval;
+    if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
+        UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
+        clear_event_filter(&ctx.parsedFilter.filter);
+        yyrelease(&ctx);
+        return retval;
+    }
+    UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
+    clear_event_filter(&ctx.parsedFilter.filter);
+    yyrelease(&ctx);
+    return UA_STATUSCODE_GOOD;
 }
 
 size_t

@@ -1,1 +1,0 @@
-peg -Po target_name.peg.c target_name.peg

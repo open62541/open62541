@@ -10,6 +10,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 
@@ -33,7 +34,7 @@ int main(void) {
                          "Is the discovery server started? StatusCode %s",
                          UA_StatusCode_name(retval));
             UA_Client_delete(client);
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
         }
 
         // output all the returned/registered servers
@@ -54,6 +55,7 @@ int main(void) {
 
         UA_Array_delete(serverOnNetwork, serverOnNetworkSize,
                         &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+        UA_Client_delete(client);
     }
 
     /* Example for calling FindServers */

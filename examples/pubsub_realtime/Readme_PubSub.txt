@@ -116,27 +116,27 @@ The generated binaries are generated in build/bin/ folder
 TWO WAY COMMUNICATION
 ============================================================================================================
     For Ethernet(Without logs) For long run:
-    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority 98 - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
 
     For Ethernet:(With logs - Provide the counterdata and its time which helps to identify the roundtrip time): For Short run
-    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
     Note: Application will close after sending 100000 packets and you will get the logs in .csv files. To change the number of packets to capture for short run change the parameter #MAX_MEASUREMENTS define value in pubsub_TSN_publisher_multiple_thread and pubsub_TSN_loopback_single_thread
 
     For UDP(Without logs) For long run:
     For UDP only one change need to be done before running that is need to provide the interface ip address as an input for -interface option
-    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -subAppPriority 99 -pubAppPriority 98 - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -pubSubAppPriority 99  - Run in node 2
 
     For UDP:(With logs - Provide the counterdata and its time which helps to identify the roundtrip time): For Short run
-    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableBlockingSocket -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
+    ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress>  -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
     NOTE: Application will close after sending 100000 packets and you will get the logs in .csv files. To change the number of packets to capture for short run
     change the parameter #MAX_MEASUREMENTS define value in pubsub_TSN_publisher_multiple_thread and pubsub_TSN_loopback_single_thread
@@ -147,12 +147,12 @@ ONE WAY COMMUNICATION: For one way communication disable(comment) the macro TWO_
      Run steps for Ethernet:
     ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubAppPriority - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
      Run steps for UDP:
     ./pubsub_TSN_publisher_multiple_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubAppPriority - Run in node 1
 
-    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress> -disableSoTxtime -enableBlockingSocket -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
+    ./pubsub_TSN_loopback_single_thread -interface <VlanIpAddress> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -enableCsvLog -pubSubAppPriority 99  - Run in node 2
 
 NOTE: As we have mentioned previously for long run remove the option -enableCsvLog
 ============================================================================================================

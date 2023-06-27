@@ -57,19 +57,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/types.h>
-#include <sys/io.h>
 #include <getopt.h>
 
 /* For thread operations */
 #include <pthread.h>
 
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 
 #include "ua_pubsub.h"
 
@@ -147,7 +145,6 @@ static UA_Int32   qbvOffset            = DEFAULT_QBV_OFFSET;
 static UA_Boolean disableSoTxtime      = UA_TRUE;
 static UA_Boolean enableCsvLog         = UA_FALSE;
 static UA_Boolean consolePrint         = UA_FALSE;
-static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
@@ -378,21 +375,10 @@ addReaderGroup(UA_Server *server) {
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name    = UA_STRING("ReaderGroup");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    readerGroupConfig.subscribingInterval = cycleTimeInMsec;
-    /* Timeout is modified when blocking socket is enabled, and the default timeout is used when blocking socket is disabled */
-    if (enableBlockingSocket == UA_FALSE)
-        readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
-    else {
-        readerGroupConfig.enableBlockingSocket = UA_TRUE;
-        readerGroupConfig.timeout = 0;  //Blocking  socket
-    }
-
-    readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
 
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
 }
 
 /* Set SubscribedDataSet type to TargetVariables data type
@@ -611,11 +597,11 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
 #endif
-    connectionConfig.connectionProperties     = connectionOptions;
+    connectionConfig.connectionProperties.map = connectionOptions;
 #ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.mapSize = 2;
 #else
-    connectionConfig.connectionPropertiesSize = 1;
+    connectionConfig.connectionProperties.mapSize = 1;
 #endif
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
@@ -774,6 +760,7 @@ addWriterGroup(UA_Server *server) {
                                                               (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
@@ -1230,8 +1217,6 @@ static void usage(char *appname)
         " -disableSoTxtime            Do not use SO_TXTIME\n"
         " -enableCsvLog               Experimental: To log the data in csv files. Support up to 1 million samples\n"
         " -enableconsolePrint         Experimental: To print the data in console output. Support for higher cycle time\n"
-        " -enableBlockingSocket       Run application with blocking socket option. While using blocking socket option need to\n"
-        "                             run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, \
         DEFAULT_PUBAPP_THREAD_PRIORITY, \
@@ -1251,8 +1236,6 @@ int main(int argc, char **argv) {
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
-    UA_Server       *server              = UA_Server_new();
-    UA_ServerConfig *config              = UA_Server_getConfig(server);
     char            *interface           = NULL;
     UA_Int32         argInputs           = 0;
     UA_Int32         long_index          = 0;
@@ -1287,7 +1270,6 @@ int main(int argc, char **argv) {
         {"disableSoTxtime",      no_argument,       0, 'm'},
         {"enableCsvLog",         no_argument,       0, 'n'},
         {"enableconsolePrint",   no_argument,       0, 'o'},
-        {"enableBlockingSocket", no_argument,       0, 'p'},
         {"help",                 no_argument,       0, 'q'},
         {0,                      0,                 0,  0 }
     };
@@ -1339,10 +1321,6 @@ int main(int argc, char **argv) {
             case 'o':
                 consolePrint = UA_TRUE;
                 break;
-            case 'p':
-                /* TODO: Application need to be exited independently */
-                enableBlockingSocket = UA_TRUE;
-                break;
             case 'q':
                 usage(progname);
                 return -1;
@@ -1355,7 +1333,7 @@ int main(int argc, char **argv) {
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
-        return -1;
+        return 0;
     }
 
     if (cycleTimeInMsec < 0.125) {
@@ -1367,8 +1345,6 @@ int main(int argc, char **argv) {
 #ifdef TWO_WAY_COMMUNICATION
     /* The subscriber thread runs in a while loop so while running this application without blocking socket option
      * the running application should be run in the seperate core where no process running in it */
-    if (enableBlockingSocket == UA_FALSE)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Without blocking socket option the application will cause issues");
 #endif
 
     if (disableSoTxtime == UA_TRUE) {
@@ -1376,6 +1352,8 @@ int main(int argc, char **argv) {
        disableSoTxtime = UA_FALSE;
     }
 
+    UA_Server       *server              = UA_Server_new();
+    UA_ServerConfig *config              = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
@@ -1403,12 +1381,6 @@ int main(int argc, char **argv) {
         fpSubscriber                  = fopen(fileSubscribedData, "w");
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     /* Initialize arguments required for the thread to run */
     threadArgPubSub1 = (threadArgPubSub *) UA_malloc(sizeof(threadArgPubSub));
 
@@ -1422,19 +1394,12 @@ int main(int argc, char **argv) {
     addWriterGroup(server);
     addDataSetWriter(server);
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
-#ifdef TWO_WAY_COMMUNICATION
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
 
+#ifdef TWO_WAY_COMMUNICATION
     addPubSubConnectionSubscriber(server, &transportProfile, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
     threadArgPubSub1->server = server;
 

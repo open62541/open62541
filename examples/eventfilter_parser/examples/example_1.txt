@@ -1,0 +1,28 @@
+
+SELECT
+
+
+(TYPEID s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]),
+
+TYPEID ns=1;b="b3BlbjYyNTQxIQ==" PATH "/2:Severity/1:AnotherTest",
+
+TYPEID i=5 PATH "/1:AnotherAnotherTest" ATTRIBUTE 23,
+
+PATH "/2:FirstElement/ThirdElement" ATTRIBUTE 15 INDEX [1],
+
+PATH "/2:Severity"
+
+WHERE
+
+
+OR(OR({"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}, $19 ),AND(OR(PATH "/2:FirstElement/ThirdElement" ATTRIBUTE 15 INDEX [1],$10), $"another"))
+
+FOR
+
+$2:= $19 LESSTHAN $19
+
+$"another":= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]} INLIST [{"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}, TYPEID ns=1;b="b3BlbjYyNTQxIQ==" PATH "/1:AnotherAnotherTest"]
+
+$19:= ISNULL {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}
+
+$10:= {"Type": 3,"Body": [1,2,1,5],"Dimension": [2,2]}  BETWEEN [FLOAT 17, TYPEID ns=1234;g=09087e75-8e5e-499b-954f-f2a9603db28a PATH "/1:AnotherAnotherTest ATTRIBUTE 23"]

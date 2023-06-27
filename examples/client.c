@@ -7,6 +7,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 static void
@@ -38,9 +39,10 @@ int main(int argc, char *argv[]) {
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
     if(retval != UA_STATUSCODE_GOOD) {
+        printf("Could not get the endpoints\n");
         UA_Array_delete(endpointArray, endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
     printf("%i endpoints found\n", (int)endpointArraySize);
     for(size_t i=0;i<endpointArraySize;i++) {
@@ -49,13 +51,18 @@ int main(int argc, char *argv[]) {
                endpointArray[i].endpointUrl.data);
     }
     UA_Array_delete(endpointArray,endpointArraySize, &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-
+    UA_Client_delete(client);
+    
+    /* Create a client and connect */
+    client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     /* Connect to a server */
     /* anonymous connect would be: retval = UA_Client_connect(client, "opc.tcp://localhost:4840"); */
     retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
+        printf("Could not connect\n");
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     /* Browse some objects */

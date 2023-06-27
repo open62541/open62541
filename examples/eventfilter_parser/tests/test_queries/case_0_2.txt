@@ -1,0 +1,18 @@
+//see todo eventfilter parser oftype
+SELECT
+
+PATH "/Message",
+PATH "/Severity",
+PATH "/EventType"
+
+WHERE
+
+OR($1, $2)
+
+FOR
+
+$1:= OFTYPE $3
+$2:= OFTYPE $4
+$3:= ns=1;i=5001
+$4:= i=3035
+

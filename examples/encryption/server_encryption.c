@@ -50,21 +50,23 @@ int main(int argc, char* argv[]) {
             UA_STRING_STATIC("URI:urn:open62541.server.application")
         };
         UA_UInt32 lenSubjectAltName = 2;
-        UA_StatusCode statusCertGen =
-            UA_CreateCertificate(UA_Log_Stdout,
-                                 subject, lenSubject,
-                                 subjectAltName, lenSubjectAltName,
-                                 0, UA_CERTIFICATEFORMAT_DER,
-                                 &privateKey, &certificate);
+        UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+        UA_UInt16 expiresIn = 14;
+        UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                                 (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
+        UA_StatusCode statusCertGen = UA_CreateCertificate(
+            UA_Log_Stdout, subject, lenSubject, subjectAltName, lenSubjectAltName,
+            UA_CERTIFICATEFORMAT_DER, kvm, &privateKey, &certificate);
+        UA_KeyValueMap_delete(kvm);
 
         if(statusCertGen != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Generating Certificate failed: %s",
                 UA_StatusCode_name(statusCertGen));
-            return EXIT_FAILURE;
+            return EXIT_SUCCESS;
         }
 #else
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
 #endif
     }
 
@@ -95,10 +97,6 @@ int main(int argc, char* argv[]) {
                                                        issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
 
-    #ifdef UA_ENABLE_WEBSOCKET_SERVER
-    UA_ServerConfig_addNetworkLayerWS(UA_Server_getConfig(server), 7681, 0, 0, &certificate, &privateKey);
-    #endif
-
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
@@ -106,6 +104,9 @@ int main(int argc, char* argv[]) {
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
+    if(!running)
+        goto cleanup; /* received ctrl-c already */
+    
     retval = UA_Server_run(server, &running);
 
  cleanup:

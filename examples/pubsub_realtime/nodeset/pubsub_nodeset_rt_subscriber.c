@@ -35,7 +35,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #include "ua_pubsub.h"
 #include "open62541/namespace_example_subscriber_generated.h"
@@ -162,49 +161,6 @@ static void nanoSecondFieldConversion(struct timespec *timeSpecValue) {
 }
 
 /**
- * **Custom callback handling**
- *
- * Custom callback thread handling overwrites the default timer based
- * callback function with the custom (user-specified) callback interval. */
-/* Add a callback for cyclic repetition */
-static UA_StatusCode
-addPubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_ServerCallback callback,
-                             void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                             UA_UInt64 *callbackId) {
-    /* Initialize arguments required for the thread to run */
-    threadArg *threadArguments = (threadArg *) UA_malloc(sizeof(threadArg));
-
-    /* Pass the value required for the threads */
-    threadArguments->server      = server;
-    threadArguments->data        = data;
-    threadArguments->callback    = callback;
-    threadArguments->interval_ms = interval_ms;
-    threadArguments->callbackId  = callbackId;
-    /* Create the subscriber thread with the required priority and core affinity */
-    char threadNameSub[11] = "Subscriber";
-    subthreadID            = threadCreation(subPriority, pubSubCore, subscriber, threadNameSub, threadArguments);
-    return UA_STATUSCODE_GOOD;
-}
-
-static UA_StatusCode
-changePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId,
-                                UA_Double interval_ms, UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
-    /* Callback interval need not be modified as it is thread based implementation.
-     * The thread uses nanosleep for calculating cycle time and modification in
-     * nanosleep value changes cycle time */
-    return UA_STATUSCODE_GOOD;
-}
-
-/* Remove the callback added for cyclic repetition */
-static void
-removePubSubApplicationCallback(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId) {
-    if(callbackId && (pthread_join((pthread_t)callbackId, NULL) != 0))
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Pthread Join Failed thread: %lu\n", (long unsigned)callbackId);
-}
-
-/**
  * **External data source handling**
  *
  * If the external data source is written over the information model, the
@@ -269,9 +225,7 @@ addReaderGroup(UA_Server *server) {
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name   = UA_STRING("ReaderGroup1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
+
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
 }
@@ -636,18 +590,17 @@ int main(int argc, char **argv) {
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
-        return -1;
+        UA_Server_delete(server);
+        return 0;
     }
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(SUBSCRIBING_MAC_ADDRESS);
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     serverConfigStruct *serverConfig;
     serverConfig            = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
     serverConfig->ServerRun = server;

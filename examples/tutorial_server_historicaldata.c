@@ -10,25 +10,10 @@
 #include <open62541/plugin/historydatabase.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-#include <stdlib.h>
-
-static volatile UA_Boolean running = true;
-static void stopHandler(int sign) {
-    (void)sign;
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     /* We need a gathering for the plugin to constuct.
      * The UA_HistoryDataGathering is responsible to collect data and store it to the database.
@@ -49,7 +34,8 @@ int main(void) {
     attr.dataType = UA_TYPES[UA_TYPES_UINT32].typeId;
     /* We set the access level to also support history read
      * This is what will be reported to clients */
-    attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
+    attr.accessLevel =
+        UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
     /* We also set this node to historizing, so the server internals also know from it. */
     attr.historizing = true;
 
@@ -60,15 +46,11 @@ int main(void) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     UA_NodeId outNodeId;
     UA_NodeId_init(&outNodeId);
-    UA_StatusCode retval = UA_Server_addVariableNode(server,
-                                                     uint32NodeId,
-                                                     parentNodeId,
-                                                     parentReferenceNodeId,
-                                                     uint32Name,
-                                                     UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                     attr,
-                                                     NULL,
-                                                     &outNodeId);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, uint32NodeId, parentNodeId,
+                                  parentReferenceNodeId, uint32Name,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  attr, NULL, &outNodeId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                 "UA_Server_addVariableNode %s", UA_StatusCode_name(retval));
@@ -111,15 +93,17 @@ int main(void) {
 
     /* At the end we register the node for gathering data in the database. */
     retval = gathering.registerNodeId(server, gathering.context, &outNodeId, setting);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "registerNodeId %s", UA_StatusCode_name(retval));
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "registerNodeId %s", UA_StatusCode_name(retval));
 
     /* If you use UA_HISTORIZINGUPDATESTRATEGY_POLL, then start the polling.
      *
     retval = gathering.startPoll(server, gathering.context, &outNodeId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "startPoll %s", UA_StatusCode_name(retval));
     */
-    retval = UA_Server_run(server, &running);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_Server_run %s", UA_StatusCode_name(retval));
+    retval = UA_Server_runUntilInterrupt(server);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "UA_Server_run %s", UA_StatusCode_name(retval));
     /*
      * If you use UA_HISTORIZINGUPDATESTRATEGY_POLL, then stop the polling.
      *
@@ -128,5 +112,8 @@ int main(void) {
     */
 
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    UA_NodeId_clear(&outNodeId);
+    setting.historizingBackend.deleteMembers(&setting.historizingBackend);
+
+    return 0;
 }

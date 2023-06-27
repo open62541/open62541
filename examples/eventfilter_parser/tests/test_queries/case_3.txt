@@ -1,0 +1,13 @@
+SELECT
+
+PATH "/Message",
+PATH "/Severity",
+PATH "/EventType"
+
+WHERE
+AND(OFTYPE ns=1;i=5000, $1)
+
+FOR
+$1:=  AND($20, $30)
+$20:= UINT32 99 "==" UINT32 99
+$30:= TYPEID i=5000 PATH "/Severity" > UINT32 99

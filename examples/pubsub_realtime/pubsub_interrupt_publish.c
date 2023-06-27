@@ -20,7 +20,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #define ETH_PUBLISH_ADDRESS      "opc.eth://0a-00-27-00-00-08"
 #define ETH_INTERFACE            "enp0s8"
@@ -305,7 +304,6 @@ addPubSubConfiguration(UA_Server* server) {
 #endif
     UA_Server_addDataSetField(server, publishedDataSetIdent, &counterValue,
                               &dataSetFieldIdentCounter);
-
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -329,7 +327,7 @@ addPubSubConfiguration(UA_Server* server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 }
 
 static void
@@ -364,8 +362,6 @@ int main(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-
     addServerNodes(server);
     addPubSubConfiguration(server);
 
@@ -373,6 +369,7 @@ int main(void) {
     UA_StatusCode retval = UA_Server_run(server, &running);
 #if defined(PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS) || (PUBSUB_CONFIG_FASTPATH_STATIC_VALUES)
     if(staticValueSource != NULL) {
+        UA_DataValue_init(staticValueSource);
         UA_DataValue_delete(staticValueSource);
     }
 #endif

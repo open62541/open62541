@@ -1,6 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
+#include <open62541/plugin/log_stdout.h>
+#include <open62541/server.h>
+
 /**
  * Working with Objects and Object Types
  * -------------------------------------
@@ -55,12 +58,6 @@
  * setting constraints on the variable values as this is not the focus of this
  * tutorial and was already covered. */
 
-#include <open62541/plugin/log_stdout.h>
-#include <open62541/server.h>
-#include <open62541/server_config_default.h>
-
-#include <signal.h>
-
 static void
 manuallyDefinePump(UA_Server *server) {
     UA_NodeId pumpId; /* get the nodeid assigned by the server */
@@ -69,7 +66,8 @@ manuallyDefinePump(UA_Server *server) {
     UA_Server_addObjectNode(server, UA_NODEID_NULL,
                             UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
                             UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "Pump (Manual)"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                            UA_QUALIFIEDNAME(1, "Pump (Manual)"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
                             oAttr, NULL, &pumpId);
 
     UA_VariableAttributes mnAttr = UA_VariableAttributes_default;
@@ -79,7 +77,8 @@ manuallyDefinePump(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), mnAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              mnAttr, NULL, NULL);
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
     UA_String modelName = UA_STRING("Mega Pump 3000");
@@ -88,7 +87,8 @@ manuallyDefinePump(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ModelName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), modelAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              modelAttr, NULL, NULL);
 
     UA_VariableAttributes statusAttr = UA_VariableAttributes_default;
     UA_Boolean status = true;
@@ -97,7 +97,8 @@ manuallyDefinePump(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Status"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), statusAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              statusAttr, NULL, NULL);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     UA_Double rpm = 50.0;
@@ -106,7 +107,8 @@ manuallyDefinePump(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "MotorRPMs"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), rpmAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              rpmAttr, NULL, NULL);
 }
 
 /**
@@ -186,7 +188,8 @@ defineObjectTypes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ManufacturerName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), mnAttr, NULL, &manufacturerNameId);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              mnAttr, NULL, &manufacturerNameId);
     /* Make the manufacturer name mandatory */
     UA_Server_addReference(server, manufacturerNameId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
@@ -198,7 +201,8 @@ defineObjectTypes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, deviceTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "ModelName"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), modelAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              modelAttr, NULL, NULL);
 
     /* Define the object type for "Pump" */
     UA_ObjectTypeAttributes ptAttr = UA_ObjectTypeAttributes_default;
@@ -215,7 +219,8 @@ defineObjectTypes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "Status"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), statusAttr, NULL, &statusId);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              statusAttr, NULL, &statusId);
     /* Make the status variable mandatory */
     UA_Server_addReference(server, statusId,
                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASMODELLINGRULE),
@@ -227,7 +232,8 @@ defineObjectTypes(UA_Server *server) {
     UA_Server_addVariableNode(server, UA_NODEID_NULL, pumpTypeId,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "MotorRPMs"),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), rpmAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              rpmAttr, NULL, NULL);
 }
 
 /**
@@ -308,18 +314,8 @@ addPumpTypeConstructor(UA_Server *server) {
 
 /** It follows the main server code, making use of the above definitions. */
 
-static volatile UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
 int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     manuallyDefinePump(server);
     defineObjectTypes(server);
@@ -329,8 +325,7 @@ int main(void) {
     addPumpObjectInstance(server, "pump4");
     addPumpObjectInstance(server, "pump5");
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

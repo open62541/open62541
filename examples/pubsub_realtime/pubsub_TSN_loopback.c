@@ -25,17 +25,6 @@
  * in the RT path. Further, DataSetField will be accessed via direct pointer
  * access between the user interface and the Information Model.
  *
- * Another additional feature called the Blocking Socket is employed in the
- * Subscriber thread. This feature is optional and can be enabled or disabled
- * when running application by using command line argument
- * "-enableBlockingSocket". When using Blocking Socket, the Subscriber thread
- * remains in "blocking mode" until a message is received from every wake up
- * time of the thread. In other words, the timeout is overwritten and the thread
- * continuously waits for the message from every wake up time of the thread.
- * Once the message is received, the Subscriber thread updates the value in the
- * Information Model, sleeps up to wake up time and again waits for the next
- * message. This process is repeated until the application is terminated.
- *
  * To ensure realtime capabilities, Publisher uses ETF(Earliest Tx-time First)
  * to publish information at the calculated tranmission time over Ethernet.
  * Subscriber can be used with or without XDP(Xpress Data Processing) over
@@ -77,18 +66,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/types.h>
-#include <sys/io.h>
 #include <getopt.h>
 
 /* For thread operations */
 #include <pthread.h>
 
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <linux/if_link.h>
@@ -204,7 +192,6 @@ static UA_UInt32  xdpBindFlag          = XDP_COPY;
 static UA_Boolean disableSoTxtime      = true;
 static UA_Boolean enableCsvLog         = false;
 static UA_Boolean consolePrint         = false;
-static UA_Boolean enableBlockingSocket = false;
 static UA_Boolean signalTerm           = false;
 static UA_Boolean enableXdpSubscribe   = false;
 
@@ -466,8 +453,8 @@ addPubSubConnectionSubscriber(UA_Server *server,
     connectionOptions[3].key = UA_QUALIFIEDNAME(0, "xdpbindflag");
     UA_UInt32 bindflags = xdpBindFlag;
     UA_Variant_setScalar(&connectionOptions[3].value, &bindflags, &UA_TYPES[UA_TYPES_UINT16]);
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 4;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 4;
 
 
     UA_NetworkAddressUrlDataType networkAddressUrlsubscribe = *networkAddressUrlSubscriber;
@@ -493,16 +480,6 @@ addReaderGroup(UA_Server *server) {
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name    = UA_STRING("ReaderGroup");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    readerGroupConfig.subscribingInterval = cycleTimeInMsec;
-    /* Timeout is modified when blocking socket is enabled, and the default
-     * timeout is used when blocking socket is disabled */
-    if(enableBlockingSocket == false) {
-        /* As we run in 250us cycle time, modify default timeout (1ms) to 50us */
-        readerGroupConfig.timeout = 50;
-    } else {
-        readerGroupConfig.enableBlockingSocket = true;
-        readerGroupConfig.timeout = 0; /* Blocking socket */
-    }
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* Encryption settings */
@@ -511,12 +488,9 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 #endif
 
-    readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
-
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* Add the encryption key informaton */
@@ -750,8 +724,8 @@ addPubSubConnection(UA_Server *server, UA_NetworkAddressUrlDataType *networkAddr
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime,
                          &UA_TYPES[UA_TYPES_BOOLEAN]);
-    connectionConfig.connectionProperties = connectionOptions;
-    connectionConfig.connectionPropertiesSize = 2;
+    connectionConfig.connectionProperties.map = connectionOptions;
+    connectionConfig.connectionProperties.mapSize = 2;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -925,7 +899,7 @@ addWriterGroup(UA_Server *server) {
         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
@@ -1147,8 +1121,7 @@ void *subscriber(void *arg) {
         /* The Subscriber threads wakes up at the configured subscriber wake up
          * percentage (0%) of each cycle */
         clock_nanosleep(CLOCKID, TIMER_ABSTIME, &nextnanosleeptimeSub, NULL);
-        /* Receive and process the incoming data using the subcallback -
-         *  UA_ReaderGroup_subscribeCallback() */
+        /* Receive and process the incoming data */
         subCallback(server, currentReaderGroup);
         /* Calculation of the next wake up time by adding the interval with the
          * previous wake up time */
@@ -1457,8 +1430,6 @@ static void usage(char *appname) {
         " -disableSoTxtime        Do not use SO_TXTIME\n"
         " -enableCsvLog           Experimental: To log the data in csv files. Support up to 1 million samples\n"
         " -enableconsolePrint     Experimental: To print the data in console output. Support for higher cycle time\n"
-        " -enableBlockingSocket   Run application with blocking socket option. While using blocking socket option need to\n"
-        "                         run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
         " -enableXdpSubscribe     Enable XDP feature for subscriber. XDP_COPY and XDP_FLAGS_SKB_MODE is used by default. Not recommended to be enabled along with blocking socket.\n"
         " -xdpQueue        [num]  XDP queue value (default %d)\n"
         " -xdpFlagDrvMode         Use XDP in DRV mode\n"
@@ -1511,7 +1482,6 @@ int main(int argc, char **argv) {
         {"disableSoTxtime",      no_argument,       0, 'm'},
         {"enableCsvLog",         no_argument,       0, 'n'},
         {"enableconsolePrint",   no_argument,       0, 'o'},
-        {"enableBlockingSocket", no_argument,       0, 'p'},
         {"xdpQueue",             required_argument, 0, 'q'},
         {"xdpFlagDrvMode",       no_argument,       0, 'r'},
         {"xdpBindFlagZeroCopy",  no_argument,       0, 's'},
@@ -1567,10 +1537,6 @@ int main(int argc, char **argv) {
             case 'o':
                 consolePrint = true;
                 break;
-            case 'p':
-                /* TODO: Application need to be exited independently */
-                enableBlockingSocket = true;
-                break;
             case 'q':
                 xdpQueue = (UA_UInt32)atoi(optarg);
                 break;
@@ -1596,7 +1562,8 @@ int main(int argc, char **argv) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Need a network interface to run");
         usage(progname);
-        return -1;
+        UA_Server_delete(server);
+        return 0;
     }
 
     if(cycleTimeInMsec < 0.125) {
@@ -1604,15 +1571,6 @@ int main(int argc, char **argv) {
                      "%f Bad cycle time", cycleTimeInMsec);
         usage(progname);
         return -1;
-    }
-
-    if(enableBlockingSocket == true) {
-        if(enableXdpSubscribe == true) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                         "Cannot enable blocking socket and xdp at the same time");
-            usage(progname);
-            return -1;
-        }
     }
 
     if(xdpFlag == XDP_FLAGS_DRV_MODE || xdpBindFlag == XDP_ZEROCOPY) {
@@ -1669,13 +1627,6 @@ if(enableCsvLog)
     fpSubscriber = fopen(fileSubscribedData, "w");
 #endif
 
-/* It is possible to use multiple PubSubTransportLayers on runtime.
- * The correct factory is selected on runtime by the standard defined
- * PubSub TransportProfileUri's. */
-#if defined (PUBLISHER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
     /* Server is the new OPCUA model which has both publisher and subscriber
      * configuration. Add axis node and OPCUA pubsub client server counter
      * nodes. */
@@ -1694,20 +1645,12 @@ if(enableCsvLog)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
                                       &config->logger);
 #endif
-#if defined (PUBLISHER) && defined(SUBSCRIBER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
-
-#if defined(SUBSCRIBER) && !defined(PUBLISHER)
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#endif
 
 #if defined(SUBSCRIBER)
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 #endif
 
     serverConfigStruct *serverConfig;

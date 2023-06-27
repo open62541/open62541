@@ -1,0 +1,16 @@
+SELECT
+
+PATH "/0:Message",
+PATH "/Severity",
+PATH "/EventType"
+
+WHERE
+
+$"ContentFilterStructure"
+
+FOR
+
+$"ContentFilterStructure":= OR($1, $2)
+$1:= OFTYPE ns=1;i=5003
+$2:= OFTYPE i=3035
+

@@ -3,6 +3,17 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include <stdio.h>
+#include <errno.h>
+
+/* sleep_ms */
+#ifdef _WIN32
+# include <synchapi.h>
+# define sleep_ms(ms) Sleep(ms)
+#else
+# include <unistd.h>
+# define sleep_ms(ms) usleep(ms * 1000)
+#endif
 
 /* loadFile parses the certificate file.
  *
@@ -15,6 +26,7 @@ loadFile(const char *const path) {
     /* Open the file */
     FILE *fp = fopen(path, "rb");
     if(!fp) {
+        printf("failed to load the file %s \n", path);
         errno = 0; /* We read errno also from the tcp layer... */
         return fileContents;
     }

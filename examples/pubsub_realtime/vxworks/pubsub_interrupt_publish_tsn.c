@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *   Copyright (c) 2020 Wind River Systems, Inc.
+ *   Copyright (c) 2020, 2022 Wind River Systems, Inc.
  */
 
 #include <vxWorks.h>
@@ -19,9 +19,9 @@
 #include <tsnConfigLib.h>
 
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #define ETH_PUBLISH_ADDRESS     "opc.eth://01-00-5E-00-00-01"
 #define MILLI_AS_NANO_SECONDS   (1000 * 1000)
@@ -307,7 +307,7 @@ addPubSubConfiguration(UA_Server* server) {
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     writerGroupConfig.pubsubManagerCallback.addCustomCallback = addApplicationCallback;
-    writerGroupConfig.pubsubManagerCallback.changeCustomCallbackInterval = changeApplicationCallbackInterval;
+    writerGroupConfig.pubsubManagerCallback.changeCustomCallback = changeApplicationCallbackInterval;
     writerGroupConfig.pubsubManagerCallback.removeCustomCallback = removeApplicationPubSubCallback;
     UA_Server_addWriterGroup(server, connectionIdent,
                              &writerGroupConfig, &writerGroupIdent);
@@ -322,7 +322,7 @@ addPubSubConfiguration(UA_Server* server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 }
 
 static void
@@ -444,14 +444,7 @@ static void open62541ServerTask(void) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    config->pubsubTransportLayers = (UA_PubSubTransportLayer *)UA_malloc(sizeof(UA_PubSubTransportLayer));
-    if(config->pubsubTransportLayers == NULL) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Cannot allocate a UA_PubSubTransportLayer");
-        goto serverCleanup;
-    }
-    config->pubsubTransportLayers[0] = UA_PubSubTransportLayerEthernet();
-    config->pubsubTransportLayersSize++;
-
+	
     addServerNodes(server);
     addPubSubConfiguration(server);
 
