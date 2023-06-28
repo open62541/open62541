@@ -340,4 +340,11 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     return ret;
 }
 
+UA_EventLoop *
+UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c) {
+    if(c->config.eventLoop)
+        return c->config.eventLoop;
+    return server->config.eventLoop;
+}
+
 #endif /* UA_ENABLE_PUBSUB */
