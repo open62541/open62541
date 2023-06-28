@@ -49,9 +49,8 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
     if(writerGroup->publishCallbackId != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_EventLoop *el = server->config.eventLoop;
-    if(writerGroup->linkedConnection && writerGroup->linkedConnection->config.eventLoop)
-        el = writerGroup->linkedConnection->config.eventLoop;
+    UA_EventLoop *el =
+        UA_PubSubConnection_getEL(server, writerGroup->linkedConnection);
 
     UA_StatusCode retval =
         el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
@@ -77,9 +76,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup
 
 static void
 UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
-    UA_EventLoop *el = server->config.eventLoop;
-    if(wg->linkedConnection && wg->linkedConnection->config.eventLoop)
-        el = wg->linkedConnection->config.eventLoop;
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(wg->publishCallbackId != 0)
         el->removeCyclicCallback(el, wg->publishCallbackId);
     wg->publishCallbackId = 0;
