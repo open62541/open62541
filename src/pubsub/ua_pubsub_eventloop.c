@@ -454,7 +454,7 @@ UA_StatusCode
 UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
     if(!el) {
         UA_LOG_ERROR_CONNECTION(&server->config.logger, c, "No EventLoop configured");
         UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
@@ -701,7 +701,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR,
@@ -964,7 +964,7 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
     if(rg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "No EventLoop configured");
         UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR,
