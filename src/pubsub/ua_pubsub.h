@@ -191,6 +191,11 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c);
 void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
+/* Returns either the eventloop configured in the connection or, in its absence,
+ * for the server */
+UA_EventLoop *
+UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
+
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server,
                                    UA_PubSubConnection *connection,
