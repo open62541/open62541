@@ -42,34 +42,29 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 /* Add new publishCallback. The first execution is triggered directly after
  * creation. */
 UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already registered */
-    if(writerGroup->publishCallbackId != 0)
+    if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_EventLoop *el =
-        UA_PubSubConnection_getEL(server, writerGroup->linkedConnection);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
 
+    /* TODO: Send timer policy from writer group config */
     UA_StatusCode retval =
         el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
-                              server, writerGroup,
-                              writerGroup->config.publishingInterval,
+                              server, wg, wg->config.publishingInterval,
                               NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME /* TODO: Send
-                                                                          * timer policy
-                                                                          * from writer
-                                                                          * group
-                                                                          * config */,
-                              &writerGroup->publishCallbackId);
+                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                              &wg->publishCallbackId);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Run once after creation. The Publish callback itself takes the server
      * mutex. So we release it first. */
     UA_UNLOCK(&server->serviceMutex);
-    UA_WriterGroup_publishCallback(server, writerGroup);
+    UA_WriterGroup_publishCallback(server, wg);
     UA_LOCK(&server->serviceMutex);
     return retval;
 }
