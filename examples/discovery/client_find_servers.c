@@ -54,6 +54,7 @@ int main(void) {
 
         UA_Array_delete(serverOnNetwork, serverOnNetworkSize,
                         &UA_TYPES[UA_TYPES_SERVERONNETWORK]);
+        UA_Client_delete(client);
     }
 
     /* Example for calling FindServers */
