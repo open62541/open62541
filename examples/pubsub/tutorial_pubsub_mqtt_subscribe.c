@@ -386,24 +386,25 @@ int main(int argc, char **argv) {
     /* Add PubSubConnection */
     UA_StatusCode retval = addPubSubConnection(server, addressUrl);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add ReaderGroup to the created PubSubConnection */
     retval |= addReaderGroup(server, interval);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add DataSetReader to the created ReaderGroup */
     retval |= addDataSetReader(server);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add SubscribedVariables to the created DataSetReader */
     retval |= addSubscribedVariables(server, subscribedDataSetIdent);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     retval = UA_Server_runUntilInterrupt(server);
+cleanup:
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

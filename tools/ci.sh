@@ -381,6 +381,11 @@ function unit_tests_valgrind {
 
 function examples_valgrind {
     mkdir -p build; cd build; rm -rf *
+
+    # create certificates for the examples
+    python3 ../tools/certs/create_self-signed.py -c server 
+    python3 ../tools/certs/create_self-signed.py -c client 
+
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_ENABLE_DISCOVERY=ON \
@@ -408,31 +413,12 @@ function examples_valgrind {
     # Run each example with valgrind. Wait 10 seconds and send the SIGINT
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
-    FILES="./bin/examples/*"
-    for f in $FILES
-    do
-	    echo "Processing $f"
-	    valgrind --errors-for-leak-kinds=all --leak-check=full --error-exitcode=1 $f &
-        pid=$!
-	    sleep 10
-        # || true to ignore the error if the process is already dead
-	    kill -INT $pid || true
-
-        # wait for the process to terminate and check if the process is still running
-        sleep 5
-        if ps | grep "$pid"; then
-            echo $pid is still in the ps output. Must still be running.
-            # send the SIGINT signal again       
-            kill -INT $pid || true
-        fi
-        
-        # using a 20 second timeout with SIGTERM to kill the process if it is still running
-	    timeout 20s bash -c 'wait $pid || kill -TERM $pid' ; EXIT_CODE=$?
-	    if [[ $EXIT_CODE -ne 0 ]]; then
-		   echo "Processing $f failed with exit code $EXIT_CODE "
-		   exit $EXIT_CODE	
-	    fi
-    done
+    python3 ../tools/examples_with_valgrind.py
+    EXIT_CODE=$?
+    if [[ $EXIT_CODE -ne 0 ]]; then
+        echo "Processing failed with exit code $EXIT_CODE"
+        exit $EXIT_CODE
+    fi
 }
 
 ##############################
