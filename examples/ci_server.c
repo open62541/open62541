@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
         goto cleanup;   
 
 #endif
-    retval = UA_AccessControl_default(config, true, NULL,
+    retval = UA_AccessControl_default(config, true,
              &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 3, logins);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
