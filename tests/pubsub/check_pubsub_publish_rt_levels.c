@@ -5,7 +5,6 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
@@ -51,9 +50,9 @@ addMinimalPubSubConfiguration(void){
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 
     rtEventLoop = UA_EventLoop_new_POSIX(&server->config.logger);
@@ -83,6 +82,8 @@ static void teardown(void) {
     }
 
     UA_Server_delete(server);
+    rtEventLoop->logger = NULL; /* Don't access the logger that was removed with
+                                   the server */
     rtEventLoop->free(rtEventLoop);
 
     rtEventLoop = NULL;
@@ -99,55 +100,8 @@ static void teardown(void) {
     }
 }
 
-typedef struct {
-    UA_ByteString *buffer;
-    size_t offset;
-} UA_ReceiveContext;
-
-static UA_StatusCode
-recvTestFun(UA_PubSubChannel *channel, void *context,
-               const UA_ByteString *buffer) {
-    UA_ReceiveContext *ctx = (UA_ReceiveContext*)context;
-    memcpy(ctx->buffer->data + ctx->offset, buffer->data, buffer->length);
-    ctx->offset += buffer->length;
-    ctx->buffer->length = ctx->offset;
-    return UA_STATUSCODE_GOOD;
-}
-
-static void
-receiveSingleMessage(UA_ByteString buffer, UA_PubSubConnection *connection,
-                     UA_NetworkMessage *networkMessage) {
-    if(UA_ByteString_allocBuffer(&buffer, 512) != UA_STATUSCODE_GOOD) {
-        ck_abort_msg("Message buffer allocation failed!");
-        return;
-    }
-
-    if(!connection->channel) {
-        ck_abort_msg("No connection established");
-        return;
-    }
-
-    UA_ReceiveContext testCtx = {&buffer, 0};
-    UA_StatusCode retval =
-        connection->channel->receive(connection->channel, NULL,
-                                     recvTestFun, &testCtx, 1000000);
-    if(retval != UA_STATUSCODE_GOOD || buffer.length == 0) {
-        buffer.length = 512;
-        UA_ByteString_clear(&buffer);
-        ck_abort_msg("Expected message not received!");
-    }
-    memset(networkMessage, 0, sizeof(UA_NetworkMessage));
-    size_t currentPosition = 0;
-    UA_NetworkMessage_decodeBinary(&buffer, &currentPosition, networkMessage);
-    UA_ByteString_clear(&buffer);
-}
-
 START_TEST(PublishSingleFieldWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -185,20 +139,13 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
 
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_clear(&networkMessage);
+
+        UA_Server_run_iterate(server, false);
 } END_TEST
 
 START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
+
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -213,7 +160,9 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         writerGroupConfig.messageSettings.content.decoded.type =
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
-        ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
+        UA_StatusCode res = UA_Server_addWriterGroup(server, connectionIdentifier,
+                                                     &writerGroupConfig, &writerGroupIdent);
+        ck_assert(res == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -222,7 +171,7 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         /* Create Variant and configure as DataSetField source */
-        UA_String stringValue = UA_STRING_ALLOC("12345");
+        UA_String stringValue = UA_STRING("12345");
         staticSource1 = UA_DataValue_new();
         UA_Variant_setScalar(&staticSource1->value, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
         staticSource1->value.storageType = UA_VARIANT_DATA_NODELETE;
@@ -233,34 +182,12 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        memset(&networkMessage, 0, sizeof(networkMessage));
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        UA_String compareString = UA_STRING("12345");
-        ck_assert(UA_String_equal(((UA_String *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data), &compareString) == UA_TRUE);
-        UA_NetworkMessage_clear(&networkMessage);
-        compareString = UA_STRING("123456789");
-        stringValue.data = (UA_Byte *) UA_realloc(stringValue.data, 9);
-        stringValue.length = 9;
-        memcpy(stringValue.data, "123456789", 9);
-        UA_ByteString_init(&buffer);
-        memset(&networkMessage, 0, sizeof(networkMessage));
-        ck_assert(UA_Server_setWriterGroupDisabled(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert(UA_String_equal(((UA_String *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data), &compareString) == UA_TRUE);
-        UA_NetworkMessage_clear(&networkMessage);
-        UA_String_clear(&stringValue);
+
+        UA_Server_run_iterate(server, false);
     } END_TEST
 
 START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
@@ -297,10 +224,6 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
 
 START_TEST(PublishSingleFieldWithFixedOffsets) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -337,20 +260,12 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
 
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_clear(&networkMessage);
-    } END_TEST
+
+        UA_Server_run_iterate(server, false);
+} END_TEST
 
 START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -395,31 +310,11 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2000);
-        UA_NetworkMessage_clear(&networkMessage);
-        *intValue = (UA_UInt32) 1001;
-        *intValue2 = (UA_UInt32) 2001;
-        UA_ByteString_init(&buffer);
-        memset(&networkMessage, 0, sizeof(networkMessage));
-        ck_assert(UA_Server_setWriterGroupDisabled(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1001);
-        ck_assert(*((UA_UInt32 *) networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields[1].value.data) == 2001);
-        UA_NetworkMessage_clear(&networkMessage);
+        UA_Server_run_iterate(server, false);
 } END_TEST
 
 START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-        UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
-        ck_assert(connection);
-        UA_StatusCode rv = connection->channel->regist(connection->channel, NULL, NULL);
-        ck_assert(rv == UA_STATUSCODE_GOOD);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -456,12 +351,8 @@ START_TEST(PublishSingleFieldInCustomCallback) {
 
         ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        UA_ByteString buffer;
-        UA_ByteString_init(&buffer);
-        UA_NetworkMessage networkMessage;
-        receiveSingleMessage(buffer, connection, &networkMessage);
-        ck_assert((*((UA_UInt32 *)networkMessage.payload.dataSetPayload.dataSetMessages->data.keyFrameData.dataSetFields->value.data)) == 1000);
-        UA_NetworkMessage_clear(&networkMessage);
+
+        UA_Server_run_iterate(server, false);
 } END_TEST
 
 static UA_StatusCode
@@ -508,9 +399,9 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "test node");
         UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
         UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-        UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+        ck_assert_int_eq(UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                                   parentReferenceNodeId, myIntegerName,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId);
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId), UA_STATUSCODE_GOOD);
         ck_assert(!UA_NodeId_isNull(&variableNodeId));
         UA_Variant variant;
         UA_Variant_init(&variant);

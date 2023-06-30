@@ -11,6 +11,7 @@
  *    Copyright 2015-2016 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #ifndef UA_TYPES_H_
@@ -434,6 +435,7 @@ UA_INLINABLE(UA_NodeId
              UA_NODEID_NUMERIC(UA_UInt16 nsIndex,
                                UA_UInt32 identifier), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_NUMERIC;
     id.identifier.numeric = identifier;
@@ -443,6 +445,7 @@ UA_INLINABLE(UA_NodeId
 UA_INLINABLE(UA_NodeId
              UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
     id.identifier.string = UA_STRING(chars);
@@ -453,6 +456,7 @@ UA_INLINABLE(UA_NodeId
              UA_NODEID_STRING_ALLOC(UA_UInt16 nsIndex,
                                     const char *chars), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_STRING;
     id.identifier.string = UA_STRING_ALLOC(chars);
@@ -462,6 +466,7 @@ UA_INLINABLE(UA_NodeId
 UA_INLINABLE(UA_NodeId
              UA_NODEID_GUID(UA_UInt16 nsIndex, UA_Guid guid), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_GUID;
     id.identifier.guid = guid;
@@ -471,6 +476,7 @@ UA_INLINABLE(UA_NodeId
 UA_INLINABLE(UA_NodeId
              UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
     id.identifier.byteString = UA_BYTESTRING(chars);
@@ -481,6 +487,7 @@ UA_INLINABLE(UA_NodeId
              UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
                                         const char *chars), {
     UA_NodeId id;
+    memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
     id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
@@ -1132,6 +1139,13 @@ UA_DataType_isNumeric(const UA_DataType *type);
  * matching data type was found. */
 const UA_DataType UA_EXPORT *
 UA_findDataType(const UA_NodeId *typeId);
+
+/*
+ * Add custom data types to the search scope of UA_findDataType. */
+
+const UA_DataType UA_EXPORT *
+UA_findDataTypeWithCustom(const UA_NodeId *typeId,
+                          const UA_DataTypeArray *customTypes);
 
 /** The following functions are used for generic handling of data types. */
 

@@ -11,10 +11,6 @@
 
 #include "ua_pubsub_ns0.h"
 
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-#include "ua_pubsub_config.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 typedef struct {
@@ -24,13 +20,13 @@ typedef struct {
 } UA_NodePropertyContext;
 
 static UA_StatusCode
-writePubSubNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
+writePubSubNs0VariableArray(UA_Server *server, const UA_NodeId id, void *v,
                             size_t length, const UA_DataType *type) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
-    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
+    return writeValueAttribute(server, id, &var);
 }
 
 static UA_NodeId
@@ -176,8 +172,8 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                 pvd[counter].attributeId = UA_ATTRIBUTEID_VALUE;
                 pvd[counter].publishedVariable =
                     field->config.field.variable.publishParameters.publishedVariable;
-                //UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
-                //               &pvd[counter].publishedVariable);
+                UA_NodeId_copy(&field->config.field.variable.publishParameters.publishedVariable,
+                               &pvd[counter].publishedVariable);
                 counter++;
             }
             UA_Variant_setArray(&value, pvd, publishedDataSet->fieldSize,
@@ -631,39 +627,38 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                       UA_NODEID_NUMERIC(0, UA_NS0ID_NETWORKADDRESSURLTYPE),
                       &attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
 
-    addNode_finish(server, &server->adminSession, &connection->identifier);
+    retVal |= addNode_finish(server, &server->adminSession, &connection->identifier);
 
-    UA_NodeId addressNode, urlNode, interfaceNode, publisherIdNode,
-        connectionPropertieNode, transportProfileUri;
-    addressNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                      connection->identifier);
-    urlNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                  addressNode);
-    interfaceNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                        addressNode);
-    publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                        connection->identifier);
-    connectionPropertieNode = findSingleChildNode(server,
-                                                  UA_QUALIFIEDNAME(0, "ConnectionProperties"),
-                                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                                  connection->identifier);
-    transportProfileUri = findSingleChildNode(server,
-                                              UA_QUALIFIEDNAME(0, "TransportProfileUri"),
-                                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                              connection->identifier);
+    UA_NodeId addressNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            connection->identifier);
+    UA_NodeId urlNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
+    UA_NodeId interfaceNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkInterface"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), addressNode);
+    UA_NodeId publisherIdNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), connection->identifier);
+    UA_NodeId connectionPropertyNode =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                            connection->identifier);
+    UA_NodeId transportProfileUri =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            connection->identifier);
 
     if(UA_NodeId_isNull(&addressNode) || UA_NodeId_isNull(&urlNode) ||
        UA_NodeId_isNull(&interfaceNode) || UA_NodeId_isNull(&publisherIdNode) ||
-       UA_NodeId_isNull(&connectionPropertieNode) ||
+       UA_NodeId_isNull(&connectionPropertyNode) ||
        UA_NodeId_isNull(&transportProfileUri)) {
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    retVal |= writePubSubNs0VariableArray(server, connectionPropertieNode.identifier.numeric,
+    retVal |= writePubSubNs0VariableArray(server, connectionPropertyNode,
                                           connection->config.connectionProperties.map,
                                           connection->config.connectionProperties.mapSize,
                                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
@@ -1155,6 +1150,7 @@ addPublishedDataItemsAction(UA_Server *server,
 
     UA_DataSetFieldConfig dataSetFieldConfig;
     for(size_t j = 0; j < variablesToAddSize; ++j) {
+        /* Prepare the config */
         memset(&dataSetFieldConfig, 0, sizeof(UA_DataSetFieldConfig));
         dataSetFieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         dataSetFieldConfig.field.variable.fieldNameAlias = fieldNameAliases[j];
@@ -1716,34 +1712,28 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
     if(securityGroupConfig->securityGroupName.length <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    size_t sgNamelength = securityGroupConfig->securityGroupName.length;
-    char *sgName = (char *)UA_malloc(sgNamelength);
-    if(!sgName)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    memset(sgName, 0, sgNamelength);
-    memcpy(sgName, securityGroupConfig->securityGroupName.data,
-           securityGroupConfig->securityGroupName.length);
-    sgName[securityGroupConfig->securityGroupName.length] = '\0';
+    UA_QualifiedName browseName;
+    UA_QualifiedName_init(&browseName);
+    browseName.name = securityGroupConfig->securityGroupName;
 
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
-    object_attr.displayName = UA_LOCALIZEDTEXT("", sgName);
+    object_attr.displayName.text = securityGroupConfig->securityGroupName;
     UA_NodeId refType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
     UA_NodeId nodeType = UA_NODEID_NUMERIC(0, UA_NS0ID_SECURITYGROUPTYPE);
     retval = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NULL,
                      securityGroup->securityGroupFolderId, refType,
-                     UA_QUALIFIEDNAME(0, sgName), nodeType, &object_attr,
+                     browseName, nodeType, &object_attr,
                      &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL,
                      &securityGroup->securityGroupNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
-        UA_free(sgName);
         return retval;
     }
 
-    retval = updateSecurityGroupProperties(server, &securityGroup->securityGroupNodeId,
+    retval = updateSecurityGroupProperties(server,
+                                           &securityGroup->securityGroupNodeId,
                                            securityGroupConfig);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
@@ -2351,8 +2341,9 @@ initPubSubNS0(UA_Server *server) {
     UA_String profileArray[1];
     profileArray[0] = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
-    retVal |= writePubSubNs0VariableArray(server, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES,
-                                    profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
+    retVal |= writePubSubNs0VariableArray(server,
+           UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SUPPORTEDTRANSPORTPROFILES),
+                                          profileArray, 1, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS
     /* Add missing references */

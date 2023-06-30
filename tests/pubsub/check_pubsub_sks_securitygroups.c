@@ -8,7 +8,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -158,8 +157,10 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
     UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     ck_assert(UA_NodeId_equal(&sg->securityGroupNodeId, &securityGroupNodeId) == UA_TRUE);
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     ck_assert(UA_NodeId_equal(&sg->securityGroupFolderId, &securityGroupParent) ==
               UA_TRUE);
+#endif
     ck_assert(UA_String_equal(&sg->securityGroupId, &config.securityGroupName) ==
               UA_TRUE);
     UA_UNLOCK(&server->serviceMutex);
@@ -199,6 +200,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
                                           UA_QUALIFIEDNAME(0, "MaxPastKeyCount"), &value);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert(config.maxPastKeyCount == *(UA_UInt32 *)value.data);
+    UA_Variant_clear(&value);
 #endif /*UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 }
 END_TEST

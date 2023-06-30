@@ -35,7 +35,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #include "ua_pubsub.h"
 #include "open62541/namespace_example_subscriber_generated.h"
@@ -636,12 +635,11 @@ int main(int argc, char **argv) {
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
-        return -1;
+        UA_Server_delete(server);
+        return 0;
     }
     networkAddressUrlSub.networkInterface = UA_STRING(interface);
     networkAddressUrlSub.url              = UA_STRING(SUBSCRIBING_MAC_ADDRESS);
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
 
     addPubSubConnectionSubscriber(server, &networkAddressUrlSub);
     addReaderGroup(server);

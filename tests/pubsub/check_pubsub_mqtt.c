@@ -8,8 +8,6 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <open62541/plugin/pubsub_mqtt.h>
-
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -34,9 +32,9 @@ UA_DataSetReaderConfig readerConfig;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
     UA_Server_run_startup(server);
 
     //add connection
@@ -44,9 +42,8 @@ static void setup(void) {
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("Mqtt Connection");
     connectionConfig.transportProfileUri =
-        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt");
+        UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
     connectionConfig.enabled = UA_TRUE;
-
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(TEST_MQTT_SERVER)};
@@ -70,7 +67,8 @@ static void setup(void) {
     connectionConfig.connectionProperties.map = connectionOptions;
     connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
 
-    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    UA_StatusCode retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static void teardown(void) {
@@ -206,8 +204,15 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
         ck_assert(wg != 0);
+
+        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+            UA_Server_run_iterate(server, false);
+
         UA_WriterGroup_publishCallback(server, wg);
 
         /*---------------------------------------------------------------------*/

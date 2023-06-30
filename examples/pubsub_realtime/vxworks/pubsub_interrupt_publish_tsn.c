@@ -19,9 +19,9 @@
 #include <tsnConfigLib.h>
 
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
 
 #define ETH_PUBLISH_ADDRESS     "opc.eth://01-00-5E-00-00-01"
 #define MILLI_AS_NANO_SECONDS   (1000 * 1000)
@@ -445,8 +445,6 @@ static void open62541ServerTask(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
 	
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-
     addServerNodes(server);
     addPubSubConfiguration(server);
 

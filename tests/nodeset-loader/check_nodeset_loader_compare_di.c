@@ -15,6 +15,7 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -25,14 +26,19 @@ static void teardown(void) {
 }
 
 START_TEST(Server_compareDiNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config->customDataTypes);
 
+    UA_UInt16 nsIndex = UA_Server_addNamespace(server, "http://opcfoundation.org/UA/DI/");
+
     for(int i = 0; i < UA_TYPES_NODESETLOADER_DI_COUNT; ++i) {
+        UA_TYPES_NODESETLOADER_DI[i].typeId.namespaceIndex = nsIndex;
+        UA_TYPES_NODESETLOADER_DI[i].binaryEncodingId.namespaceIndex = nsIndex;
+
         const UA_DataType *compiledType = &UA_TYPES_NODESETLOADER_DI[i];
         const UA_DataType *loadedType = UA_Server_findDataType(server, &compiledType->typeId);
 

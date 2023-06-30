@@ -23,6 +23,9 @@
 
 _UA_BEGIN_DECLS
 
+struct UA_SecureChannel;
+typedef struct UA_SecureChannel UA_SecureChannel;
+
 /* The message header of the OPC UA binary protocol is structured as follows:
  *
  * - MessageType (3 Byte)
@@ -99,6 +102,7 @@ struct UA_SecureChannel {
     UA_SecureChannelState state;
     UA_SecureChannelRenewState renewState;
     UA_MessageSecurityMode securityMode;
+    UA_ShutdownReason shutdownReason;
     UA_ConnectionConfig config;
 
     /* Connection handling in the EventLoop */
@@ -160,7 +164,8 @@ struct UA_SecureChannel {
 void UA_SecureChannel_init(UA_SecureChannel *channel);
 
 /* Trigger the shutdown */
-void UA_SecureChannel_shutdown(UA_SecureChannel *channel);
+void UA_SecureChannel_shutdown(UA_SecureChannel *channel,
+                               UA_ShutdownReason shutdownReason);
 
 /* Eventual cleanup after the channel has closed. It is possible to call _init
  * on the channel afterwards to reset it to the fresh status. */

@@ -31,7 +31,7 @@
 # include <malloc.h>
 #endif
 
-#include <open62541/architecture_definitions.h>
+#include <open62541/config.h>
 
 #include <stdio.h>
 #include <errno.h>
@@ -199,8 +199,6 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 #define UA_UNLOCK(lock)
 #define UA_LOCK_ASSERT(lock, num)
 #endif
-
-#include <open62541/architecture_functions.h>
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 #if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)

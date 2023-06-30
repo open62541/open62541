@@ -57,19 +57,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <linux/types.h>
-#include <sys/io.h>
 #include <getopt.h>
 
 /* For thread operations */
 #include <pthread.h>
 
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 
 #include "ua_pubsub.h"
 
@@ -1251,8 +1249,6 @@ int main(int argc, char **argv) {
 
     UA_Int32         returnValue         = 0;
     UA_StatusCode    retval              = UA_STATUSCODE_GOOD;
-    UA_Server       *server              = UA_Server_new();
-    UA_ServerConfig *config              = UA_Server_getConfig(server);
     char            *interface           = NULL;
     UA_Int32         argInputs           = 0;
     UA_Int32         long_index          = 0;
@@ -1355,7 +1351,7 @@ int main(int argc, char **argv) {
     if (!interface) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Need a network interface to run");
         usage(progname);
-        return -1;
+        return 0;
     }
 
     if (cycleTimeInMsec < 0.125) {
@@ -1376,6 +1372,8 @@ int main(int argc, char **argv) {
        disableSoTxtime = UA_FALSE;
     }
 
+    UA_Server       *server              = UA_Server_new();
+    UA_ServerConfig *config              = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, PORT_NUMBER, NULL);
 
     UA_NetworkAddressUrlDataType networkAddressUrlPub;
@@ -1403,12 +1401,6 @@ int main(int argc, char **argv) {
         fpSubscriber                  = fopen(fileSubscribedData, "w");
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     /* Initialize arguments required for the thread to run */
     threadArgPubSub1 = (threadArgPubSub *) UA_malloc(sizeof(threadArgPubSub));
 
@@ -1424,12 +1416,6 @@ int main(int argc, char **argv) {
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
     UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 #ifdef TWO_WAY_COMMUNICATION
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
-#else
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
-#endif
-
     addPubSubConnectionSubscriber(server, &transportProfile, &networkAddressUrlSub);
     addReaderGroup(server);
     addDataSetReader(server);

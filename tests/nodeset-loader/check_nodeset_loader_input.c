@@ -15,6 +15,7 @@ int nodesetsNum = 0;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -26,8 +27,8 @@ static void teardown(void) {
 
 START_TEST(Server_loadInputNodesets) {
     for (int cnt = 0; cnt < nodesetsNum; cnt++) {
-        bool retVal = UA_Server_loadNodeset(server, nodesetPaths[cnt], NULL);
-        ck_assert_uint_eq(retVal, true);
+        UA_StatusCode retVal = UA_Server_loadNodeset(server, nodesetPaths[cnt], NULL);
+        ck_assert(UA_StatusCode_isGood(retVal));
     }
 }
 END_TEST

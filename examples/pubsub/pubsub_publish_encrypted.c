@@ -2,9 +2,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pubsub_ethernet.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
@@ -131,8 +130,6 @@ static int run(UA_String *transportProfile,
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);

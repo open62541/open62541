@@ -36,6 +36,7 @@ static void pauseServer(void) {
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     runServer();
@@ -117,7 +118,7 @@ START_TEST(SecureChannel_timeout_fail) {
 
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime + 1);
-    UA_realSleep(50 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
+    UA_realSleep(200 + 1); // UA_MAXTIMEOUT+1 wait to be sure UA_Server_run_iterate can be completely executed
 
     UA_Variant val;
     UA_Variant_init(&val);

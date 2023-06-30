@@ -72,6 +72,8 @@ typedef struct {
     cj5_token *tokens;
     unsigned int token_count;
     unsigned int max_tokens;
+
+    bool stop_early;
 } cj5__parser;
 
 static CJ5_INLINE bool
@@ -338,7 +340,8 @@ cj5__skip_comment(cj5__parser* parser) {
 
 cj5_result
 cj5_parse(const char *json5, unsigned int len,
-          cj5_token *tokens, unsigned int max_tokens) {
+          cj5_token *tokens, unsigned int max_tokens,
+          cj5_options *options) {
     cj5_result r;
     cj5__parser parser;
     memset(&parser, 0x0, sizeof(parser));
@@ -348,12 +351,15 @@ cj5_parse(const char *json5, unsigned int len,
     parser.tokens = tokens;
     parser.max_tokens = max_tokens;
 
+    if(options)
+        parser.stop_early = options->stop_early;
+
     unsigned short depth = 0; // Nesting depth zero means "outside the root object"
     char nesting[CJ5_MAX_NESTING]; // Contains either '\0', '{' or '[' for the
                                    // type of nesting at each depth. '\0'
                                    // indicates we are out of the root object.
     char next[CJ5_MAX_NESTING];    // Next content to parse: 'k' (key), ':', 'v'
-                                   // (value) or ',' (komma).
+                                   // (value) or ',' (comma).
     next[0] = 'v';  // The root is a "value" (object, array or primitive). If we
                     // detect a colon after the first value then everything is
                     // wrapped into a "virtual root object" and the parsing is
@@ -451,6 +457,12 @@ cj5_parse(const char *json5, unsigned int len,
             next[depth] = (depth == 0) ? 0 : ','; // zero if we step out the root
                                                   // object. then we do not look for
                                                   // another element.
+
+            // The first element was successfully parsed. Stop early or try to
+            // parse the full input string?
+            if(depth == 0 && parser.stop_early)
+                goto finish;
+
             break;
 
         case ':': // Colon (between key and value)
@@ -472,13 +484,20 @@ cj5_parse(const char *json5, unsigned int len,
         default: // Value or key
             if(next[depth] == 'v') {
                 cj5__parse_primitive(&parser); // Parse primitive value
-                if(nesting[depth] != 0) { // Parent is object or array
+                if(nesting[depth] != 0) {
+                    // Parent is object or array
                     if(token)
                         token->size++;
                     next[depth] = ',';
-                } else { // The current value was the root element. Don't look for
-                         // any next element.
+                } else {
+                    // The current value was the root element. Don't look for
+                    // any next element.
                     next[depth] = 0;
+
+                    // The first element was successfully parsed. Stop early or try to
+                    // parse the full input string?
+                    if(parser.stop_early)
+                        goto finish;
                 }
             } else if(next[depth] == 'k') {
                 cj5__parse_key(&parser);

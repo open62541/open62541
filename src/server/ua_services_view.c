@@ -508,6 +508,7 @@ struct ContinuationPoint {
      * between the calls to Browse/BrowseNext. */
     UA_NodePointer lastTarget;
     UA_Byte lastRefKindIndex;
+    UA_Boolean lastRefInverse;
 };
 
 ContinuationPoint *
@@ -639,9 +640,15 @@ browseReferencTargetCallback(void *context, UA_ReferenceTarget *t) {
     /* Store as last target. The itarget-id is a shallow copy for now. */
     cp->lastTarget = t->targetId;
     cp->lastRefKindIndex = bc->rk->referenceTypeIndex;
+    cp->lastRefInverse = bc->rk->isInverse;
 
-    /* Abort the iteration if the status is not good */
-    return (bc->status == UA_STATUSCODE_GOOD) ? NULL : (void*)0x01;
+    /* Abort if the status is not good. Also doesn't make a deep-copy of
+     * cp->lastTarget after returning from here. */
+    if(bc->status != UA_STATUSCODE_GOOD) {
+        UA_NodePointer_init(&cp->lastTarget);
+        return (void*)0x01;
+    }
+    return NULL;
 }
 
 /* Returns whether the node / continuationpoint is done */
@@ -657,6 +664,8 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
         /* If the continuation point was previously used, skip forward to the
          * last ReferenceType that was transmitted */
         if(bc->activeCP && rk->referenceTypeIndex != cp->lastRefKindIndex)
+            continue;
+        if(bc->activeCP && rk->isInverse != cp->lastRefInverse)
             continue;
 
         /* Reference in the right direction? */
@@ -685,9 +694,10 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
                 UA_ReferenceTargetTreeElem key;
                 key.target.targetId = cp->lastTarget;
                 key.targetIdHash = UA_ExpandedNodeId_hash(&lastEn);
-                ZIP_UNZIP(UA_ReferenceIdTree, &rk->targets.tree.idTree,
+                ZIP_UNZIP(UA_ReferenceIdTree,
+                          (UA_ReferenceIdTree*)&rk->targets.tree.idRoot,
                           &key, &left, &right);
-                rk->targets.tree.idTree = right;
+                rk->targets.tree.idRoot = right.root;
             } else {
                 /* Iterate over the array to find the match */
                 for(; nextTargetIndex < rk->targetsSize; nextTargetIndex++) {
@@ -704,6 +714,10 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
                 rk->targets.array = &rk->targets.array[nextTargetIndex];
                 rk->targetsSize -= nextTargetIndex;
             }
+
+            /* Clear cp->lastTarget before it gets overwritten in the following
+             * browse steps. */
+            UA_NodePointer_clear(&cp->lastTarget);
         }
 
         /* Iterate over all reference targets */
@@ -713,7 +727,7 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
         /* Undo the "skipping ahead" for the continuation point */
         if(bc->activeCP) {
             if(rk->hasRefTree) {
-                rk->targets.tree.idTree.root =
+                rk->targets.tree.idRoot =
                     ZIP_ZIP(UA_ReferenceIdTree, left.root, right.root);
             } else {
                 /* rk->targets.array = rk->targets.array[-nextTargetIndex]; */
@@ -726,13 +740,17 @@ browseWithNode(struct BrowseContext *bc, const UA_NodeHead *head ) {
 
         /* The iteration was aborted */
         if(res != NULL) {
-            /* Aborted with status code good. The continuation point picks up
-             * from the last target. Make a deep copy of the last target. */
+            /* Aborted with status code good -> the maximum number of browse
+             * results was reached. Make a deep copy of the last target for the
+             * continuation point. */
             if(bc->status == UA_STATUSCODE_GOOD)
                 bc->status = UA_NodePointer_copy(cp->lastTarget, &cp->lastTarget);
             return;
         }
     }
+
+    /* Reset last-target to prevent clearing it up */
+    UA_NodePointer_init(&cp->lastTarget);
 
     /* Browsing the node is done */
     bc->done = true;
@@ -898,8 +916,10 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         goto cleanup;
     cp2->maxReferences = cp.maxReferences;
     cp2->relevantReferences = cp.relevantReferences;
-    cp2->lastTarget = cp.lastTarget;
+    cp2->lastTarget = cp.lastTarget; /* Move the (deep) copy */
+    UA_NodePointer_init(&cp.lastTarget); /* No longer clear below (cleanup) */
     cp2->lastRefKindIndex = cp.lastRefKindIndex;
+    cp2->lastRefInverse = cp.lastRefInverse;
 
     /* Create a random bytestring via a Guid */
     ident = UA_Guid_new();
@@ -927,6 +947,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
         ContinuationPoint_clear(cp2);
         UA_free(cp2);
     }
+    UA_NodePointer_clear(&cp.lastTarget);
     UA_BrowseResult_clear(result);
     result->statusCode = retval;
 }
@@ -1084,17 +1105,12 @@ UA_Server_browseNext(UA_Server *server, UA_Boolean releaseContinuationPoint,
 /* TranslateBrowsePath */
 /***********************/
 
-/* Find all entries for that hash. There are duplicate for the possible hash
- * collisions. The exact browsename is checked afterwards. */
-static UA_StatusCode
-addBrowseHashTargetRecursive(UA_UInt32 browseNameHash, UA_ReferenceTargetTreeElem *elem,
-                             RefTree *next) {
-    if(!elem || elem->target.targetNameHash != browseNameHash)
-        return UA_STATUSCODE_GOOD;
-    UA_StatusCode res = RefTree_add(next, elem->target.targetId, NULL);
-    res |= addBrowseHashTargetRecursive(browseNameHash, elem->nameTreeEntry.left, next);
-    res |= addBrowseHashTargetRecursive(browseNameHash, elem->nameTreeEntry.right, next);
-    return res;
+/* Add all entries for the hash. There are possible duplicates due to hash
+ * collisions. The full browsename is checked afterwards. */
+static void *
+addBrowseHashTarget(void *context, UA_ReferenceTargetTreeElem *elem) {
+    RefTree *next = (RefTree*)context;
+    return (void*)(uintptr_t)RefTree_add(next, elem->target.targetId, NULL);
 }
 
 static UA_StatusCode
@@ -1183,10 +1199,10 @@ walkBrowsePathElement(UA_Server *server, UA_Session *session,
              * every node just once. */
 
             if(rk->hasRefTree) {
-                UA_ReferenceTargetTreeElem *elm =
-                    ZIP_FIND(UA_ReferenceNameTree, &rk->targets.tree.nameTree,
-                             &targetHashKey);
-                res = addBrowseHashTargetRecursive(browseNameHash, elm, next);
+                res = (UA_StatusCode)(uintptr_t)
+                    ZIP_ITER_KEY(UA_ReferenceNameTree,
+                                 (UA_ReferenceNameTree*)&rk->targets.tree.nameRoot,
+                                 &targetHashKey, addBrowseHashTarget, next);
                 if(res != UA_STATUSCODE_GOOD)
                     break;
             } else {

@@ -78,8 +78,12 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
     )
 
-if(LINUX)
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
+endif()
+
+if(UA_ENABLE_MQTT)
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
 endif()
 
 if(UA_ENABLE_HISTORIZING)
@@ -123,28 +127,8 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
 endif()
 
 if(UA_ENABLE_PUBSUB)
-  list(APPEND test_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp_multicast.c)
-  list(APPEND test_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_udp.c)
-    if(UA_ENABLE_PUBSUB_ETH_UADP)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_ethernet.h)
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_ethernet.c)
-
-        # Add ethernet_config.h to ensure the tests are rebuild when it changes
-        list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
-    endif()
-
-    if(UA_ENABLE_PUBSUB_MQTT)
-      list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt_pal.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/include/mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pubsub_mqtt.h
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.h
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt.c
-           ${PROJECT_SOURCE_DIR}/deps/mqtt-c/src/mqtt_pal.c
-           ${PROJECT_SOURCE_DIR}/plugins/ua_pubsub_mqtt.c
-           ${PROJECT_SOURCE_DIR}/plugins/mqtt/ua_mqtt-c_adapter.c)
-    endif()
+    # Add ethernet_config.h to ensure the tests are rebuild when it changes
+    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/tests/pubsub/ethernet_config.h)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)
@@ -163,7 +147,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     )
 endif()
 
-add_library(open62541-testplugins OBJECT ${test_plugin_sources} ${PROJECT_SOURCE_DIR}/arch/${UA_ARCHITECTURE}/ua_architecture_functions.c)
+add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_ENABLE_COVERAGE)
@@ -215,9 +199,12 @@ function(ua_add_test test_path_relative)
     string(REPLACE "/" ";" QUALIFIED_PATHNAME ${PATH_WITHOUT_EXTENSION})
     list(POP_BACK QUALIFIED_PATHNAME TEST_NAME)
 
-    add_executable(${TEST_NAME} ${test_path_relative} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    add_executable(${TEST_NAME} ${test_path_relative} ${ARGN} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(${TEST_NAME} ${LIBS})
     add_test_valgrind(${TEST_NAME} ${TESTS_BINARY_DIR}/${TEST_NAME})
+    if(UA_ENABLE_NODESET_INJECTOR)
+        set(UA_NODESETINJECTOR_TEST_NAMES ${TEST_NAME} ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
+    endif()
 endfunction()
 
 ua_add_test(check_types_builtin.c)
@@ -254,9 +241,14 @@ ua_add_test(check_eventloop.c)
 ua_add_test(check_eventloop_tcp.c)
 ua_add_test(check_eventloop_udp.c)
 ua_add_test(check_eventloop_interrupt.c)
-if(LINUX AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
+
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND NOT UA_ENABLE_UNIT_TESTS_MEMCHECK)
     # Requires raw socket capability, currently not possible with valgrind
     ua_add_test(check_eventloop_eth.c)
+endif()
+
+if(UA_ENABLE_MQTT)
+    ua_add_test(check_eventloop_mqtt.c)
 endif()
 
 # Test Server
@@ -286,8 +278,10 @@ endif()
 if(UA_ENABLE_SUBSCRIPTIONS)
   ua_add_test(server/check_services_subscriptions.c)
   ua_add_test(server/check_monitoreditem_filter.c)
+if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   ua_add_test(server/check_subscription_events.c)
   ua_add_test(server/check_subscription_event_filter.c)
+endif()
 endif()
 
 ua_add_test(server/check_nodestore.c)
@@ -313,10 +307,10 @@ endif()
 
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
+    ua_add_test(pubsub/check_pubsub_encoding_custom.c)
     ua_add_test(pubsub/check_pubsub_pds.c)
     ua_add_test(pubsub/check_pubsub_connection_udp.c)
     ua_add_test(pubsub/check_pubsub_publish.c)
-    ua_add_test(pubsub/check_pubsub_publish_uadp.c)
     ua_add_test(pubsub/check_pubsub_get_state.c)
     ua_add_test(pubsub/check_pubsub_udp_unicast.c)
     ua_add_test(pubsub/check_pubsub_publisherid.c)
@@ -329,7 +323,6 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_subscribe_config_freeze.c)
     ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
     ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
-    ua_add_test(pubsub/check_pubsub_multiple_layer.c)
 
     if(UA_ENABLE_PUBSUB_ENCRYPTION)
         ua_add_test(pubsub/check_pubsub_encryption.c)
@@ -338,10 +331,11 @@ if(UA_ENABLE_PUBSUB)
         ua_add_test(pubsub/check_pubsub_subscribe_encrypted.c)
         ua_add_test(pubsub/check_pubsub_encrypted_rt_levels.c)
         if(UA_ENABLE_PUBSUB_SKS)
-            ua_add_test(pubsub/check_pubsub_keystorage.c)
+            ua_add_test(pubsub/check_pubsub_sks_keystorage.c)
             ua_add_test(pubsub/check_pubsub_sks_push.c)
             ua_add_test(pubsub/check_pubsub_sks_pull.c)
             ua_add_test(pubsub/check_pubsub_sks_securitygroups.c)
+            ua_add_test(pubsub/check_pubsub_sks_client.c)
         endif()
     endif()
 
@@ -368,11 +362,9 @@ if(UA_ENABLE_PUBSUB)
 
         endif()
     endif()
-    if(UA_ENABLE_PUBSUB_MQTT)
-        if(NOT WIN32)
-            ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
-            ua_add_test(pubsub/check_pubsub_mqtt.c)
-        endif()
+    if(UA_ENABLE_MQTT)
+        ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
+        ua_add_test(pubsub/check_pubsub_mqtt.c)
     endif()
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
         ua_add_test(pubsub/check_pubsub_configuration.c)
@@ -399,6 +391,11 @@ ua_add_test(server/check_server_reverseconnect.c)
 # Test Client
 
 ua_add_test(client/check_client.c)
+ua_add_test(client/check_activateSession.c)
+if(UA_ENABLE_SUBSCRIPTIONS)
+    ua_add_test(client/check_subscriptionWithactivateSession.c)
+endif()
+ua_add_test(client/check_activateSessionAsync.c)
 ua_add_test(client/check_client_securechannel.c)
 ua_add_test(client/check_client_async.c)
 ua_add_test(client/check_client_async_connect.c)
@@ -416,9 +413,7 @@ endif()
 # Test Encryption and Authentication
 
 if(UA_ENABLE_ENCRYPTION)
-    add_executable(check_client_encryption client/check_client_encryption.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
-    target_link_libraries(check_client_encryption ${LIBS})
-    add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
+    ua_add_test(client/check_client_encryption.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
@@ -456,8 +451,10 @@ endif()
 
 # Tests for interfaces
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    add_executable(check_interfaces server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    ua_add_test(server/check_interfaces.c ${NODESET_COMPILER_OUTPUT_DIR}/namespace_tests_interfaces_generated.c)
     target_include_directories(check_interfaces PRIVATE ${NODESET_COMPILER_OUTPUT_DIR})
-    target_link_libraries(check_interfaces ${LIBS})
-    add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
+endif()
+
+if(UA_ENABLE_NODESET_INJECTOR)
+    set(UA_NODESETINJECTOR_TEST_NAMES ${UA_NODESETINJECTOR_TEST_NAMES} PARENT_SCOPE)
 endif()

@@ -474,7 +474,7 @@ __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
     item.nodeId = *nodeId;
     item.indexRange = indexRange;
     item.continuationPoint = continuationPoint;
-    item.dataEncoding = UA_QUALIFIEDNAME(0, "Default Binary");
+    item.dataEncoding = UA_QUALIFIEDNAME(0, "");
 
     UA_HistoryReadRequest request;
     UA_HistoryReadRequest_init(&request);
@@ -865,6 +865,8 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
+    UA_DataValue *dv = NULL;
+
     /* Check the ServiceResult */
     UA_StatusCode res = rr->responseHeader.serviceResult;
     if(res != UA_STATUSCODE_GOOD)
@@ -877,7 +879,7 @@ AttributeReadCallback(UA_Client *client, void *userdata,
     }
 
     /* A Value attribute */
-    UA_DataValue *dv = &rr->results[0];
+    dv = &rr->results[0];
     if(ctx->resultType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
         ctx->userCallback(client, ctx->userContext, requestId,
                           UA_STATUSCODE_GOOD, dv);

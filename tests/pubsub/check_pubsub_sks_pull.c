@@ -8,7 +8,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
@@ -31,6 +30,7 @@ UA_NodeId sgNodeId;
 UA_UInt32 maxKeyCount;
 UA_NodeId connection;
 UA_Boolean running;
+UA_ByteString allowedUsername;
 THREAD_HANDLE server_thread;
 
 THREAD_CALLBACK(serverloop) {
@@ -41,6 +41,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void
 addSecurityGroup(void) {
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId securityGroupParent =
         UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS);
     UA_NodeId outNodeId;
@@ -54,15 +55,13 @@ addSecurityGroup(void) {
 
     maxKeyCount = config.maxPastKeyCount + 1 + config.maxFutureKeyCount;
 
-    UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
+    retVal |= UA_Server_addSecurityGroup(sksServer, securityGroupParent, &config, &outNodeId);
     UA_String_copy(&config.securityGroupName, &securityGroupId);
 
-    UA_String allowedUsername = UA_STRING("user1");
-
-    UA_ByteString *username = UA_ByteString_new();
-    UA_ByteString_copy(&allowedUsername, username);
-    UA_Server_setNodeContext(sksServer, outNodeId, username);
-    UA_NodeId_copy(&outNodeId, &sgNodeId);
+    allowedUsername = UA_STRING("user1");
+    retVal |= UA_Server_setNodeContext(sksServer, outNodeId, &allowedUsername);
+    retVal |= UA_NodeId_copy(&outNodeId, &sgNodeId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 static UA_Boolean
@@ -70,14 +69,17 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
                               const UA_NodeId *sessionId, void *sessionContext,
                               const UA_NodeId *methodId, void *methodContext,
                               const UA_NodeId *objectId, void *objectContext) {
-    /* For the CTT, recognize whether two sessions are  */
-    if(objectContext && sessionContext) {
-        UA_ByteString *username = (UA_ByteString *)objectContext;
-        UA_ByteString *sessionUsername = (UA_ByteString *)sessionContext;
-        if(!UA_ByteString_equal(username, sessionUsername))
-            return false;
-    }
-    return true;
+    if(!objectContext)
+        return true;
+    if(!sessionContext)
+        return false;
+    UA_ExtensionObject *userIdentityToken = (UA_ExtensionObject*)sessionContext;
+    if(userIdentityToken->content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
+        return false;
+    UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken*)
+        userIdentityToken->content.decoded.data;
+    UA_ByteString *username = (UA_ByteString *)objectContext;
+    return UA_ByteString_equal(username, &token->userName);
 }
 
 static void
@@ -99,7 +101,7 @@ setup(void) {
     UA_ByteString *issuerList = NULL;
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
-
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     sksServer = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
     UA_ServerConfig_setDefaultWithSecurityPolicies(
@@ -110,8 +112,6 @@ setup(void) {
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
-
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -128,19 +128,21 @@ setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    UA_Server_addPubSubConnection(sksServer, &connectionConfig, &connection);
+    retVal |= UA_Server_addPubSubConnection(sksServer, &connectionConfig, &connection);
 
     /*User Access Control*/
     config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
 
     addSecurityGroup();
 
-    UA_Server_run_startup(sksServer);
+    retVal |= UA_Server_run_startup(sksServer);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     THREAD_CREATE(server_thread, serverloop);
 }
 
 static void
 teardown(void) {
+    UA_String_clear(&securityGroupId);
     running = false;
     THREAD_JOIN(server_thread);
     UA_Server_run_shutdown(sksServer);
@@ -185,11 +187,11 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
                     UA_UInt32 startingTokenId, UA_UInt32 requestedKeyCount) {
     UA_Variant *inputArguments = (UA_Variant *)UA_calloc(3, (sizeof(UA_Variant)));
 
-    UA_Variant_setScalarCopy(&inputArguments[0], &sksSecurityGroupId,
+    UA_Variant_setScalar(&inputArguments[0], &sksSecurityGroupId,
                              &UA_TYPES[UA_TYPES_STRING]);
-    UA_Variant_setScalarCopy(&inputArguments[1], &startingTokenId,
+    UA_Variant_setScalar(&inputArguments[1], &startingTokenId,
                              &UA_TYPES[UA_TYPES_UINT32]);
-    UA_Variant_setScalarCopy(&inputArguments[2], &requestedKeyCount,
+    UA_Variant_setScalar(&inputArguments[2], &requestedKeyCount,
                              &UA_TYPES[UA_TYPES_UINT32]);
 
     // Call method from client
@@ -204,7 +206,9 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
     item.methodId = UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_GETSECURITYKEYS);
     item.inputArguments = (UA_Variant *)inputArguments;
     item.inputArgumentsSize = 3;
-    return UA_Client_Service_call(client, callMethodRequestFromClient);
+    UA_CallResponse response = UA_Client_Service_call(client, callMethodRequestFromClient);
+    UA_free(inputArguments);
+    return response;
 }
 
 START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
@@ -219,6 +223,8 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(client);
 }
 END_TEST
 
@@ -231,6 +237,8 @@ START_TEST(getSecuritykeysBadNotFound) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -247,6 +255,8 @@ START_TEST(getSecuritykeysBadUserAccessDenied) {
     ck_assert_msg(response.results->statusCode == expectedCode,
                   "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -289,6 +299,8 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
     for(size_t i = 0; i < retKeyCount; i++) {
         ck_assert(UA_ByteString_equal(&keys[i], &UA_BYTESTRING_NULL) == UA_FALSE);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -321,7 +333,8 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
-
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -354,6 +367,8 @@ START_TEST(requestCurrentKeyOnly) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -385,6 +400,8 @@ START_TEST(requestPastKey) {
     ck_assert(firstItem->keyID == firstTokenId);
     ck_assert(UA_ByteString_equal(retKeys, &firstItem->key) == UA_TRUE);
     ck_assert(UA_ByteString_equal(retKeys, &sg->keyStorage->currentItem->key) != UA_TRUE);
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 
@@ -418,7 +435,8 @@ START_TEST(requestUnknownStartingTokenId){
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
-
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }END_TEST
 
 START_TEST(requestMaxFutureKeys) {
@@ -450,6 +468,8 @@ START_TEST(requestMaxFutureKeys) {
         ++firstTokenId;
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
+    UA_CallResponse_clear(&response);
+    UA_Client_delete(sksClient);
 }
 END_TEST
 

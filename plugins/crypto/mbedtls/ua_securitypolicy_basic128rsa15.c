@@ -170,7 +170,8 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     if(cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(cc->policyContext->localPrivateKey);
+    Basic128Rsa15_PolicyContext *pc = cc->policyContext;
+    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(pc->localPrivateKey);
     mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
 #if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
     size_t keylen = rsaContext->len;
@@ -178,7 +179,7 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     size_t keylen = mbedtls_rsa_get_len(rsaContext);
 #endif
     if(data->length % keylen != 0)
-            return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     size_t inOffset = 0;
     size_t outOffset = 0;
@@ -186,16 +187,11 @@ asym_decrypt_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
     unsigned char buf[512];
 
     while(inOffset < data->length) {
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
-                                         data->data + inOffset, rsaContext->len,
-                                         buf, &outLength, 512, NULL, NULL);
-#else
-        int mbedErr = mbedtls_pk_decrypt(&cc->policyContext->localPrivateKey,
+        int mbedErr = mbedtls_pk_decrypt(&pc->localPrivateKey,
                                          data->data + inOffset, keylen,
-                                         buf, &outLength, 512, NULL, NULL);
-#endif
-
+                                         buf, &outLength, 512,
+                                         mbedtls_ctr_drbg_random,
+                                         &pc->drbgContext);
         if(mbedErr)
             return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 

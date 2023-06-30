@@ -30,7 +30,6 @@ void
 UA_SecureChannel_init(UA_SecureChannel *channel) {
     /* Normal linked lists are initialized by zeroing out */
     memset(channel, 0, sizeof(UA_SecureChannel));
-    channel->state = UA_SECURECHANNELSTATE_FRESH;
     SIMPLEQ_INIT(&channel->completeChunks);
     SIMPLEQ_INIT(&channel->decryptedChunks);
 }
@@ -85,7 +84,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
 
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel) {
-    return (channel->state >= UA_SECURECHANNELSTATE_CONNECTING &&
+    return (channel->state > UA_SECURECHANNELSTATE_CLOSED &&
             channel->state < UA_SECURECHANNELSTATE_CLOSING);
 }
 
@@ -147,10 +146,14 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
 }
 
 void
-UA_SecureChannel_shutdown(UA_SecureChannel *channel) {
+UA_SecureChannel_shutdown(UA_SecureChannel *channel,
+                          UA_ShutdownReason shutdownReason) {
     /* No open socket or already closing -> nothing to do */
     if(!UA_SecureChannel_isConnected(channel))
         return;
+
+    /* Set the shutdown event for diagnostics */
+    channel->shutdownReason= shutdownReason;
 
     /* Trigger the async closing of the connection */
     UA_ConnectionManager *cm = channel->connectionManager;
@@ -583,7 +586,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     if(asymHeader.senderCertificate.length > 0) {
         if(channel->certificateVerification)
             res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification->context,
+                verifyCertificate(channel->certificateVerification,
                                   &asymHeader.senderCertificate);
         else
             res = UA_STATUSCODE_BADINTERNALERROR;
@@ -900,7 +903,7 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
     chunkPayload.data = &buffer->data[*offset];
     chunkPayload.length = hdr.messageSize;
 
-    if(msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
+    if(msgType == UA_MESSAGETYPE_RHE || msgType == UA_MESSAGETYPE_HEL || msgType == UA_MESSAGETYPE_ACK ||
        msgType == UA_MESSAGETYPE_ERR || msgType == UA_MESSAGETYPE_OPN) {
         if(chunkType != UA_CHUNKTYPE_FINAL)
             return UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;

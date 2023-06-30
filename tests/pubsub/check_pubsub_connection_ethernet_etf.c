@@ -5,7 +5,6 @@
  * Copyright (c) 2019 Kalycito Infotech Private Limited
  */
 
-#include <open62541/plugin/pubsub_ethernet.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <check.h>
@@ -25,9 +24,9 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerEthernet());
     UA_Server_run_startup(server);
 }
 

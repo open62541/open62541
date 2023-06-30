@@ -135,12 +135,14 @@ struct UA_Client {
     UA_SessionState oldSessionState;
     UA_StatusCode oldConnectStatus;
 
+    UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
-    UA_Boolean noSession;              /* Don't open a session */
-    UA_Boolean noReconnect;            /* Don't reconnect when the connection closes */
 
-    /* Connection */
-    UA_String endpointUrl;
+    /* The discoveryUrl can be different from the EndpointUrl in the client
+     * configuration. The EndpointUrl is used to connect initially, then the
+     * DiscoveryUrl is selected via FindServers. This triggers a reconnect if
+     * EndpointUrl != DiscoveryUrl. */
+    UA_String discoveryUrl;
 
     /* SecureChannel */
     UA_SecureChannel channel;
@@ -151,8 +153,8 @@ struct UA_Client {
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
     UA_UInt32 requestHandle;
-    UA_ByteString remoteNonce;
-    UA_ByteString localNonce;
+    UA_ByteString serverSessionNonce;
+    UA_ByteString clientSessionNonce;
 
     /* Connectivity check */
     UA_DateTime lastConnectivityCheck;
@@ -180,12 +182,11 @@ struct UA_Client {
 };
 
 UA_StatusCode
-__Client_AsyncServiceEx(UA_Client *client, const void *request,
-                        const UA_DataType *requestType,
-                        UA_ClientAsyncServiceCallback callback,
-                        const UA_DataType *responseType,
-                        void *userdata, UA_UInt32 *requestId,
-                        UA_UInt32 timeout);
+__Client_AsyncService(UA_Client *client, const void *request,
+                      const UA_DataType *requestType,
+                      UA_ClientAsyncServiceCallback callback,
+                      const UA_DataType *responseType,
+                      void *userdata, UA_UInt32 *requestId);
 
 void
 __Client_Service(UA_Client *client, const void *request,
@@ -203,8 +204,10 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 
+UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
+void processRHEMessage(UA_Client *client, const UA_ByteString *chunk);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
 void processOPNResponse(UA_Client *client, const UA_ByteString *message);

@@ -13,6 +13,7 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -23,9 +24,9 @@ static void teardown(void) {
 }
 
 START_TEST(Server_loadDiNodeset) {
-    bool retVal = UA_Server_loadNodeset(server,
+    UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "DI/Opc.Ua.Di.NodeSet2.xml", NULL);
-    ck_assert_uint_eq(retVal, true);
+    ck_assert(UA_StatusCode_isGood(retVal));
 }
 END_TEST
 

@@ -20,7 +20,7 @@ int main(int argc, const char *argv[]) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     for (int cnt = 1; cnt < argc; cnt++) {
-        if (!UA_Server_loadNodeset(server, argv[cnt], NULL)) {
+        if (UA_StatusCode_isBad(UA_Server_loadNodeset(server, argv[cnt], NULL))) {
             printf("Nodeset %s could not be loaded, exit\n", argv[cnt]);
             return EXIT_FAILURE;
         }

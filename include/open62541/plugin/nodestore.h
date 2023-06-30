@@ -18,7 +18,6 @@
  * / OPC UA services to interact with the information model. */
 
 #include <open62541/util.h>
-#include "ziptree.h"
 
 _UA_BEGIN_DECLS
 
@@ -325,12 +324,16 @@ typedef struct {
 typedef struct UA_ReferenceTargetTreeElem {
     UA_ReferenceTarget target;   /* Has to be the first entry */
     UA_UInt32 targetIdHash;      /* Hash of the targetId */
-    ZIP_ENTRY(UA_ReferenceTargetTreeElem) idTreeEntry;
-    ZIP_ENTRY(UA_ReferenceTargetTreeElem) nameTreeEntry;
+    struct {
+        struct UA_ReferenceTargetTreeElem *left;
+        struct UA_ReferenceTargetTreeElem *right;
+    } idTreeEntry;
+    struct {
+        struct UA_ReferenceTargetTreeElem *left;
+        struct UA_ReferenceTargetTreeElem *right;
+    } nameTreeEntry;
 } UA_ReferenceTargetTreeElem;
 
-typedef ZIP_HEAD(UA_ReferenceIdTree, UA_ReferenceTargetTreeElem) UA_ReferenceIdTree;
-typedef ZIP_HEAD(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem) UA_ReferenceNameTree;
 
 /* List of reference targets with the same reference type and direction. Uses
  * either an array or a tree structure. The SDK will not change the type of
@@ -345,10 +348,14 @@ typedef struct {
          * known to be small. */
         UA_ReferenceTarget *array;
 
-        /* Organize the references in a tree for fast lookup */
+        /* Organize the references in a tree for fast lookup. Use
+         * UA_Node_addReference and UA_Node_deleteReference to modify the
+         * tree-structure. The binary tree implementation (and absolute ordering
+         * / duplicate browseNames are allowed) are not exposed otherwise in the
+         * public API. */
         struct {
-            UA_ReferenceIdTree idTree;     /* Fast lookup based on the target id */
-            UA_ReferenceNameTree nameTree; /* Fast lookup based on the target browseName*/
+            UA_ReferenceTargetTreeElem *idRoot;   /* Lookup based on target id */
+            UA_ReferenceTargetTreeElem *nameRoot; /* Lookup based on browseName*/
         } tree;
     } targets;
     size_t targetsSize;

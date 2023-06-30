@@ -56,14 +56,15 @@ static void setup(void) {
     size_t revocationListSize = 0;
 
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
                                                    issuerList, issuerListSize,
                                                    revocationList, revocationListSize);
 
-    config->certificateVerification.clear(&config->certificateVerification);
-    UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateVerification_AcceptAll(&config->sessionPKI);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);

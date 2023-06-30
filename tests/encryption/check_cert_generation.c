@@ -15,6 +15,7 @@ UA_Server *server;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
 }
 
 static void teardown(void) {
@@ -33,12 +34,17 @@ START_TEST(certificate_generation) {
         UA_STRING_STATIC("URI:urn:open62541.server.application")
     };
     UA_UInt32 lenSubjectAltName = 2;
-    UA_StatusCode status =
-        UA_CreateCertificate(UA_Log_Stdout,
-                             subject, lenSubject,
-                             subjectAltName, lenSubjectAltName,
-                             0, UA_CERTIFICATEFORMAT_DER,
-                             &derPrivKey, &derCert);
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+    UA_UInt16 expiresIn = 14;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "expires-in-days"),
+                             (void *)&expiresIn, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 keyLength = 2048;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "key-size-bits"),
+                             (void *)&keyLength, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_StatusCode status = UA_CreateCertificate(
+        UA_Log_Stdout, subject, lenSubject, subjectAltName, lenSubjectAltName,
+        UA_CERTIFICATEFORMAT_DER, kvm, &derPrivKey, &derCert);
+    UA_KeyValueMap_delete(kvm);
     ck_assert(status == UA_STATUSCODE_GOOD);
     ck_assert(derPrivKey.length > 0);
     ck_assert(derCert.length > 0);

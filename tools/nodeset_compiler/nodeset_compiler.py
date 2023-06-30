@@ -13,6 +13,7 @@
 import logging
 import argparse
 import sys
+import xml.etree.ElementTree as etree
 from datatypes import NodeId
 from nodeset import *
 
@@ -120,11 +121,24 @@ for e in args.typesArray:
     if e not in tmp_list:
         tmp_list.append(e)
 args.typesArray = tmp_list
+
 def getTypesArray(nsIdx):
     if nsIdx < len(args.typesArray):
         return args.typesArray[nsIdx]
     else:
         return "UA_TYPES"
+
+def hasCustomDataType(xmlfile):
+    tree = etree.parse(xmlfile)
+    root = tree.getroot()
+
+    for elem in root.iter():
+        if elem.tag.endswith('UADataType'):
+            xmlfile.seek(0)
+            return True
+    # No custom data types found
+    xmlfile.seek(0)
+    return False
 
 for xmlfile in args.existing:
     if xmlfile.name in loadedFiles:
@@ -132,16 +146,23 @@ for xmlfile in args.existing:
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing (existing) " + str(xmlfile.name))
-    ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
-    nsCount +=1
+    if hasCustomDataType(xmlfile):
+        ns.addNodeSet(xmlfile, True, typesArray=getTypesArray(nsCount))
+        nsCount += 1
+        continue
+    ns.addNodeSet(xmlfile, True, typesArray="UA_TYPES")
+
 for xmlfile in args.infiles:
     if xmlfile.name in loadedFiles:
         logger.info("Skipping Nodeset since it is already loaded: {} ".format(xmlfile.name))
         continue
     loadedFiles.append(xmlfile.name)
     logger.info("Preprocessing " + str(xmlfile.name))
-    ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
-    nsCount +=1
+    if hasCustomDataType(xmlfile):
+        ns.addNodeSet(xmlfile, typesArray=getTypesArray(nsCount))
+        nsCount += 1
+        continue
+    ns.addNodeSet(xmlfile, typesArray="UA_TYPES")
 
 # # We need to notify the open62541 server of the namespaces used to be able to use i.e. ns=3
 # namespaceArrayNames = preProc.getUsedNamespaceArrayNames()

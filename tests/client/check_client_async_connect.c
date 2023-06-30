@@ -31,6 +31,7 @@ currentState(UA_Client *client, UA_SecureChannelState channelState,
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
@@ -87,8 +88,8 @@ START_TEST(Client_connect_async) {
     UA_BrowseRequest_clear(&bReq);
     ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    /* With default setting the client uses 4 requests to connect */
-    ck_assert_uint_eq(asyncCounter, 10-4);
+    /* With default setting the client uses 7 iterations to connect */
+    ck_assert_uint_eq(asyncCounter, 10-7);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);
@@ -115,16 +116,14 @@ START_TEST(Client_connect_async_abort) {
 
     for(int i = 0; i < UA_SECURECHANNELSTATE_CLOSING; i++) {
         abortState = (UA_SecureChannelState)i;
-        UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+        UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
 
         UA_SecureChannelState currentState;
         do {
             UA_Server_run_iterate(server, false);
             UA_Client_run_iterate(client, 5);
-            UA_Client_getState(client, &currentState, NULL, &retval);
-        } while(currentState != UA_SECURECHANNELSTATE_CLOSED &&
-                currentState != UA_SECURECHANNELSTATE_FRESH);
+            UA_Client_getState(client, &currentState, NULL, NULL);
+        } while(currentState != UA_SECURECHANNELSTATE_CLOSED);
     }
 
     UA_Client_delete(client);

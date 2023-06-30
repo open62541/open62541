@@ -98,7 +98,8 @@ START_TEST(SecureChannel_initAndDelete) {
     retval = UA_SecureChannel_setSecurityPolicy(&channel, &dummyPolicy, &dummyCertificate);
 
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected StatusCode to be good");
-    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_FRESH, "Expected state to be new/fresh");
+    ck_assert_msg(channel.state == UA_SECURECHANNELSTATE_CLOSED,
+                  "Expected state to be closed");
     ck_assert_msg(fCalled.newContext, "Expected newContext to have been called");
     ck_assert_msg(fCalled.makeCertificateThumbprint,
                   "Expected makeCertificateThumbprint to have been called");

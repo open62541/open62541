@@ -21,7 +21,6 @@ typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
     UA_UsernamePasswordLogin *usernamePasswordLogin;
-    UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
@@ -43,23 +42,27 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_ExtensionObject *userIdentityToken,
                         void **sessionContext) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
 
     /* The empty token is interpreted as anonymous */
+    UA_AnonymousIdentityToken anonToken;
+    UA_ExtensionObject tmpIdentity;
     if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        if(!context->allowAnonymous)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        /* No userdata atm */
-        *sessionContext = NULL;
-        return UA_STATUSCODE_GOOD;
+        UA_AnonymousIdentityToken_init(&anonToken);
+        UA_ExtensionObject_init(&tmpIdentity);
+        UA_ExtensionObject_setValueNoDelete(&tmpIdentity,
+                                            &anonToken,
+                                            &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+        userIdentityToken = &tmpIdentity;
     }
 
     /* Could the token be decoded? */
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-    /* Anonymous login */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
+    if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* Anonymous login */
         if(!context->allowAnonymous)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -71,17 +74,10 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
          * policyId == ANONYMOUS_POLICY */
         if(token->policyId.data && !UA_String_equal(&token->policyId, &anonymous_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        /* No userdata atm */
-        *sessionContext = NULL;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Username and password */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+    } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        /* Username and password */
         const UA_UserNameIdentityToken *userToken =
             (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-
         if(!UA_String_equal(&userToken->policyId, &username_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
@@ -96,48 +92,42 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Try to match username/pw */
         UA_Boolean match = false;
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+            if(UA_String_equal(&userToken->userName,
+                               &context->usernamePasswordLogin[i].username) &&
+               UA_String_equal(&userToken->password,
+                               &context->usernamePasswordLogin[i].password)) {
                 match = true;
                 break;
             }
         }
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
-
-        /* For the CTT, recognize whether two sessions are  */
-        UA_ByteString *username = UA_ByteString_new();
-        if(username)
-            UA_ByteString_copy(&userToken->userName, username);
-        *sessionContext = username;
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* x509 certificate */
-    if(userIdentityToken->content.decoded.type == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* x509 certificate */
         const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
             userIdentityToken->content.decoded.data;
 
         if(!UA_String_equal(&userToken->policyId, &certificate_policy))
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        if(!context->verifyX509.verifyCertificate)
+        if(!config->sessionPKI.verifyCertificate)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        return context->verifyX509.
-            verifyCertificate(context->verifyX509.context,
-                              &userToken->certificateData);
+       UA_StatusCode res = config->sessionPKI.
+            verifyCertificate(&config->sessionPKI, &userToken->certificateData);
+        if(res != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+    } else {
+        /* Unsupported token type */
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
-    /* Unsupported token type */
-    return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 closeSession_default(UA_Server *server, UA_AccessControl *ac,
                      const UA_NodeId *sessionId, void *sessionContext) {
-    if(sessionContext)
-        UA_ByteString_delete((UA_ByteString*)sessionContext);
 }
 
 static UA_UInt32
@@ -209,12 +199,7 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
-    if(oldSessionContext == newSessionContext)
-        return true;
-    if(oldSessionContext && newSessionContext)
-        return UA_ByteString_equal((UA_ByteString*)oldSessionContext,
-                                   (UA_ByteString*)newSessionContext);
-    return false;
+    return true;
 }
 #endif
 
@@ -260,9 +245,6 @@ static void clear_default(UA_AccessControl *ac) {
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
 
-        if(context->verifyX509.clear)
-            context->verifyX509.clear(&context->verifyX509);
-
         UA_free(ac->context);
         ac->context = NULL;
     }
@@ -271,7 +253,6 @@ static void clear_default(UA_AccessControl *ac) {
 UA_StatusCode
 UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
-                         UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
@@ -319,16 +300,6 @@ UA_AccessControl_default(UA_ServerConfig *config,
                     "AccessControl: Anonymous login is enabled");
     }
 
-    /* Allow x509 certificates? Move the plugin over. */
-    if(verifyX509) {
-        context->verifyX509 = *verifyX509;
-        memset(verifyX509, 0, sizeof(UA_CertificateVerification));
-    } else {
-        memset(&context->verifyX509, 0, sizeof(UA_CertificateVerification));
-        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_SERVER,
-                    "AccessControl: x509 certificate user authentication is enabled");
-    }
-
     /* Copy username/password to the access control plugin */
     if(usernamePasswordLoginSize > 0) {
         context->usernamePasswordLogin = (UA_UsernamePasswordLogin*)
@@ -348,9 +319,9 @@ UA_AccessControl_default(UA_ServerConfig *config,
     size_t policies = 0;
     if(allowAnonymous)
         policies++;
-    if(verifyX509)
-        policies++;
     if(usernamePasswordLoginSize > 0)
+        policies++;
+    if(config->sessionPKI.verifyCertificate)
         policies++;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
@@ -366,7 +337,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         policies++;
     }
 
-    if(verifyX509) {
+    if(config->sessionPKI.verifyCertificate) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400

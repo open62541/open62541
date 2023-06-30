@@ -246,18 +246,23 @@ class Value(object):
                 # The EncodingMask must be skipped.
                 if ebodypart.localName == "EncodingMask":
                     ebodypart = getNextElementNode(ebodypart)
+                    # No optional fields are set.
+                    if(ebodypart is None):
+                        members = []
 
-                # The SwitchField must be checked.
-                if ebodypart.localName == "SwitchField":
-                    # The switch field is the index of the available union fields starting with 1
-                    data = int(ebodypart.firstChild.data)
-                    if data == 0:
-                        # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
-                        members = []
-                    else:
-                        members = []
-                        members.append(enc.members[data-1])
-                        ebodypart = getNextElementNode(ebodypart)
+                # The SwitchField must be checked. ebodypart could be None if only optional fields are included
+                # in the ExtensionObject and none of them is set.
+                if(ebodypart is not None):
+                    if ebodypart.localName == "SwitchField":
+                        # The switch field is the index of the available union fields starting with 1
+                        data = int(ebodypart.firstChild.data)
+                        if data == 0:
+                            # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
+                            members = []
+                        else:
+                            members = []
+                            members.append(enc.members[data-1])
+                            ebodypart = getNextElementNode(ebodypart)
 
 
                 for e in members:
@@ -499,13 +504,17 @@ class Int32(Integer):
         # Extract <value> from string if possible
         if isinstance(self.value, string_types) and not self.__strIsInt(self.value):
             split = self.value.split('_')
-            if len(split) == 2 and self.__strIsInt(split[1]):
-                self.value = split[1]
+            if self.__strIsInt(split[len(split)-1]):
+                self.value = split[len(split)-1]
 
     @staticmethod
     def __strIsInt(strValue):
+        # 0_0 is not a valid number, but does not throw an error when converted to an integer.
+        # Therefore, this case must be checked separately.
         try:
             int(strValue)
+            if strValue[0:2] == '0_':
+                return False
             return True
         except:
             return False

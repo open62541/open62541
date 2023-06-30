@@ -266,11 +266,16 @@ createNS0_base(UA_Server *server) {
     /* Add BaseEventType */
     UA_ObjectTypeAttributes eventtype_attr = UA_ObjectTypeAttributes_default;
     eventtype_attr.displayName = UA_LOCALIZEDTEXT("", "BaseEventType");
-    ret |= ns0_addNode_raw(server, UA_NODECLASS_OBJECTTYPE,
-                           UA_NS0ID_BASEEVENTTYPE, "BaseEventType",
-                           &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES]);
-    ret |= ns0_addNode_finish(server, UA_NS0ID_BASEEVENTTYPE,
-                              UA_NS0ID_EVENTTYPESFOLDER, UA_NS0ID_ORGANIZES);
+    ret |= addNode(server, UA_NODECLASS_OBJECTTYPE,
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
+                   UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                   UA_NODEID_NULL, UA_QUALIFIEDNAME(0, "BaseEventType"),
+                   UA_NODEID_NULL,
+                   &eventtype_attr, &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], NULL, NULL);
+    ret |= addRef(server,
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_EVENTTYPESFOLDER),
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE), true);
 
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -647,12 +652,20 @@ readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionC
 }
 #endif /* defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS) */
 
-UA_StatusCode
+static UA_StatusCode
 writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
                       size_t length, const UA_DataType *type) {
     UA_Variant var;
     UA_Variant_init(&var);
     UA_Variant_setArray(&var, v, length, type);
+    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
+}
+
+static UA_StatusCode
+writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
+    UA_Variant var;
+    UA_Variant_init(&var);
+    UA_Variant_setScalar(&var, v, type);
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
 
@@ -739,14 +752,6 @@ minimalServerObject(UA_Server *server) {
 }
 
 #else
-
-static UA_StatusCode
-writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
-    UA_Variant var;
-    UA_Variant_init(&var);
-    UA_Variant_setScalar(&var, v, type);
-    return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
-}
 
 static void
 addModellingRules(UA_Server *server) {
@@ -1101,11 +1106,14 @@ initNS0(UA_Server *server) {
      * 1.03 in CTT (Base Inforamtion/Base Info Core Structure/ 001.js) In the
      * 1.04 specification this has been resolved by allowing to remove these
      * static nodes as well */
-    deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SERVERDIAGNOSTICSSUMMARY), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY), true);
 #endif
+
+    /* The sampling diagnostics array is optional
+     * TODO: Add support for this diagnostics */
+    deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SAMPLINGINTERVALDIAGNOSTICSARRAY), true);
 
 #ifndef UA_ENABLE_PUBSUB
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE), true);

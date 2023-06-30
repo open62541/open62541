@@ -81,34 +81,33 @@ UA_ServerConfig_setDefault(UA_ServerConfig *config) {
     return UA_ServerConfig_setMinimal(config, 4840, NULL);
 }
 
-/* Creates a new server config with no network layer and no endpoints.
+/* Creates a new server config with no security policies and no endpoints.
  *
  * It initializes reasonable defaults for many things, but does not
- * add any network layer, security policies and endpoints.
+ * add any security policies and endpoints.
  * Use the various UA_ServerConfig_addXxx functions to add them.
+ * The config will set the tcp network layer to the default port 4840 if the
+ * eventloop is not already set.
  *
  * @param conf The configuration to manipulate
  */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics(UA_ServerConfig *conf);
 
-#ifdef UA_ENABLE_WEBSOCKET_SERVER
-/* Adds a Websocket network layer with custom buffer sizes
+/* Creates a new server config with no security policies and no endpoints.
+ *
+ * It initializes reasonable defaults for many things, but does not
+ * add any security policies and endpoints.
+ * Use the various UA_ServerConfig_addXxx functions to add them.
+ * The config will set the tcp network layer to the given port if the
+ * eventloop is not already set.
  *
  * @param conf The configuration to manipulate
  * @param portNumber The port number for the tcp network layer
- * @param sendBufferSize The size in bytes for the network send buffer. Pass 0
- *        to use defaults.
- * @param recvBufferSize The size in bytes for the network receive buffer.
- *        Pass 0 to use defaults.
- * @param certificate  certificate data. Pass NULL to disable WS security
- * @param privateKey   privateKey data. Pass NULL to disable WS security
  */
-
 UA_EXPORT UA_StatusCode
-UA_ServerConfig_addNetworkLayerWS(UA_ServerConfig *conf, UA_UInt16 portNumber,
-                                  UA_UInt32 sendBufferSize, UA_UInt32 recvBufferSize, const UA_ByteString* certificate, const UA_ByteString* privateKey);
-#endif
+UA_ServerConfig_setBasics_withPort(UA_ServerConfig *conf,
+                                   UA_UInt16 portNumber);
 
 /* Adds the security policy ``SecurityPolicy#None`` to the server. A
  * server certificate may be supplied but is optional.

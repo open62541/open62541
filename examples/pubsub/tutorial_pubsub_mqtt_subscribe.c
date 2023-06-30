@@ -6,8 +6,8 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/server_pubsub.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pubsub_mqtt.h>
 
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
 #define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
@@ -85,44 +85,41 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     connectionConfig.publisherId.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 1
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    + LOGIN_OPTION_COUNT
-#endif
-#ifdef EXAMPLE_USE_MQTT_TLS
-    + TLS_OPTION_COUNT
-#endif
-    ;
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     + LOGIN_OPTION_COUNT */
+/* #endif */
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     + TLS_OPTION_COUNT */
+/* #endif */
 
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
-    size_t connectionOptionIndex = 0;
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
     UA_String mqttClientId = UA_STRING(MQTT_CLIENT_ID);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
+    connectionOptions[0].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
+    UA_Variant_setScalar(&connectionOptions[0].value, &mqttClientId, &UA_TYPES[UA_TYPES_STRING]);
 
-#ifdef EXAMPLE_USE_MQTT_LOGIN
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME);
-    UA_String mqttUsername = UA_STRING(MQTT_USERNAME);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]);
+/* #ifdef EXAMPLE_USE_MQTT_LOGIN */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USERNAME_OPTION_NAME); */
+/*     UA_String mqttUsername = UA_STRING(MQTT_USERNAME); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUsername, &UA_TYPES[UA_TYPES_STRING]); */
 
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME);
-    UA_String mqttPassword = UA_STRING(MQTT_PASSWORD);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]);
-#endif
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, PASSWORD_OPTION_NAME); */
+/*     UA_String mqttPassword = UA_STRING(MQTT_PASSWORD); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttPassword, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
-#ifdef EXAMPLE_USE_MQTT_TLS
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME);
-    UA_Boolean mqttUseTLS = true;
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]);
+/* #ifdef EXAMPLE_USE_MQTT_TLS */
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, USE_TLS_OPTION_NAME); */
+/*     UA_Boolean mqttUseTLS = true; */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttUseTLS, &UA_TYPES[UA_TYPES_BOOLEAN]); */
 
-    connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME);
-    UA_String mqttCaFile = UA_STRING(CA_FILE_PATH);
-    UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]);
-#endif
+/*     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, MQTT_CA_FILE_PATH_OPTION_NAME); */
+/*     UA_String mqttCaFile = UA_STRING(CA_FILE_PATH); */
+/*     UA_Variant_setScalar(&connectionOptions[connectionOptionIndex++].value, &mqttCaFile, &UA_TYPES[UA_TYPES_STRING]); */
+/* #endif */
 
     connectionConfig.connectionProperties.map = connectionOptions;
-    connectionConfig.connectionProperties.mapSize = connectionOptionIndex;
+    connectionConfig.connectionProperties.mapSize = 1;
 
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 
@@ -373,12 +370,11 @@ int main(int argc, char **argv) {
     int interval = SUBSCRIBE_INTERVAL;
 
     /* Return value initialized to Status Good */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
     /* Instantiate the PubSub SecurityPolicy */
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
@@ -386,30 +382,29 @@ int main(int argc, char **argv) {
                                       &config->logger);
 #endif
 
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerMQTT());
-
     /* API calls */
     /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, addressUrl);
+    UA_StatusCode retval = addPubSubConnection(server, addressUrl);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add ReaderGroup to the created PubSubConnection */
     retval |= addReaderGroup(server, interval);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add DataSetReader to the created ReaderGroup */
     retval |= addDataSetReader(server);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     /* Add SubscribedVariables to the created DataSetReader */
     retval |= addSubscribedVariables(server, subscribedDataSetIdent);
     if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+        goto cleanup;
 
     retval = UA_Server_runUntilInterrupt(server);
+cleanup:
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return EXIT_SUCCESS;
 }

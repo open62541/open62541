@@ -21,7 +21,7 @@ int main(int argc, char* argv[]) {
                      "<opc.tcp://host:port> "
                      "<client-certificate.der> <client-private-key.der> "
                      "[<trustlist1.crl>, ...]");
-        return EXIT_FAILURE;
+        return EXIT_SUCCESS;
     }
 
     const char *endpointUrl = argv[1];
@@ -44,6 +44,7 @@ int main(int argc, char* argv[]) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+    UA_String_clear(&cc->clientDescription.applicationUri);
     cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
     UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,

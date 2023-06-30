@@ -6,7 +6,6 @@
  * Copyright (c) 2021 Linutronix GmbH (Author: Kurt Kanzenbach)
  */
 
-#include <open62541/plugin/pubsub_udp.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
@@ -18,9 +17,9 @@ UA_Server *server = NULL;
 
 static void setup(void) {
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDPMP());
     UA_Server_run_startup(server);
 }
 
@@ -53,7 +52,7 @@ START_TEST(AddConnectionsWithMinimalValidIPv6Configuration){
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection");
-    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+    UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff00::1:5]:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -95,7 +94,7 @@ START_TEST(AddRemoveAddConnectionWithMinimalValidIPv6Configuration){
         UA_PubSubConnectionConfig connectionConfig;
         memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
         connectionConfig.name = UA_STRING("UADP Connection");
-        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff02::1:5]:4840/")};
+        UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL, UA_STRING("opc.udp://[ff00::1:5]:4840/")};
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                              &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
@@ -270,7 +269,6 @@ int main(void) {
     suite_add_tcase(s, tc_add_pubsub_connections_minimal_config);
     suite_add_tcase(s, tc_add_pubsub_connections_invalid_config);
     suite_add_tcase(s, tc_add_pubsub_connections_maximal_config);
-    //suite_add_tcase(s, tc_decode);
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

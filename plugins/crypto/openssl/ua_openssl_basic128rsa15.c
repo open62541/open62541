@@ -97,6 +97,55 @@ UA_Policy_Basic128Rsa15_Clear_Context (UA_SecurityPolicy *policy) {
     return;
 }
 
+static UA_StatusCode
+updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
+                                                const UA_ByteString newCertificate,
+                                                const UA_ByteString newPrivateKey) {
+    if(securityPolicy == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_Basic128Rsa15 *pc =
+        (Policy_Context_Basic128Rsa15 *)securityPolicy->policyContext;
+
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+
+    UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
+        &newCertificate, &securityPolicy->localCertificate);
+
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Set the new private key */
+    EVP_PKEY_free(pc->localPrivateKey);
+
+    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+
+    if(!pc->localPrivateKey) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto error;
+    }
+
+    UA_ByteString_clear(&pc->localCertThumbprint);
+
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                      &pc->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        goto error;
+    }
+
+    return retval;
+
+error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext != NULL)
+        UA_Policy_Basic128Rsa15_Clear_Context(securityPolicy);
+    return retval;
+}
+
 /* create the channel context */
 
 static UA_StatusCode
@@ -598,6 +647,8 @@ UA_SecurityPolicy_Basic128Rsa15 (UA_SecurityPolicy * policy,
         UA_ByteString_clear (&policy->localCertificate);
         return retval;
     }
+    policy->updateCertificateAndPrivateKey =
+        updateCertificateAndPrivateKey_sp_basic128rsa15;
     policy->clear = UA_Policy_Basic128Rsa15_Clear_Context;
 
     /* Use the same signature algorithm as the asymmetric component for

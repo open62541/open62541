@@ -1,4 +1,10 @@
-#include <open62541/plugin/pubsub_udp.h>
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
+ */
+
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
@@ -16,10 +22,9 @@ static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
 
     server = UA_Server_new();
-    assert(server != 0);
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    UA_ServerConfig_addPubSubTransportLayer(config, UA_PubSubTransportLayerUDP());
     UA_Server_run_startup(server);
 }
 
@@ -58,9 +63,6 @@ static void AddConnection(
     connectionConfig.publisherId.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
-    UA_LOCK(&server->serviceMutex);
-    ck_assert(UA_PubSubConnection_regist(server, opConnectionId, NULL) == UA_STATUSCODE_GOOD);
-    UA_UNLOCK(&server->serviceMutex);
 }
 
 /***************************************************************************************************/
@@ -307,7 +309,7 @@ START_TEST(Test_normal_operation) {
 
     ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
@@ -390,10 +392,10 @@ START_TEST(Test_corner_cases) {
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
     /* DataSetReader should be operational as well */
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
 
     /* test wrong nodeIds */
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_DataSetReader_getState(server, RGId_Conn1_RG1, &state));

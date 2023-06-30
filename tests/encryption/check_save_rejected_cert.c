@@ -359,6 +359,7 @@ static void setup(void) {
     privateKey.data = KEY_PEM_DATA;
 
     server = UA_Server_new();
+    ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
 #ifndef __linux__
@@ -375,7 +376,7 @@ static void setup(void) {
     size_t revocationListSize = 0;
 
     UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(*config, 4840,
+        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
                                                        &certificate, &privateKey,
                                                        trustList, trustListSize,
                                                        issuerList, issuerListSize,
@@ -388,10 +389,10 @@ static void setup(void) {
                                                        NULL, 0, NULL, 0, NULL, 0);
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 
-    config->certificateVerification.clear(&config->certificateVerification);
-    res = UA_CertificateVerification_CertFolders(&config->certificateVerification,
-                                                 NULL, NULL,
-                                                 NULL, ".");
+    res |= UA_CertificateVerification_CertFolders(&config->secureChannelPKI,
+                                                  NULL, NULL, NULL, ".");
+    res |= UA_CertificateVerification_CertFolders(&config->sessionPKI,
+                                                  NULL, NULL, NULL, ".");
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
 #endif /* __linux__ */
 

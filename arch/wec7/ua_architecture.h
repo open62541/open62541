@@ -70,6 +70,15 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 
+typedef struct pollfd {
+  SOCKET fd;
+  SHORT  events;
+  SHORT  revents;
+} WSAPOLLFD, *PWSAPOLLFD, *LPWSAPOLLFD;
+
+#define UA_POLLIN 0
+#define UA_POLLOUT 0
+
 #define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
 #define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
 
@@ -79,6 +88,7 @@ void UA_sleep_ms(unsigned long ms);
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_poll(fds,nfds,timeout) 1
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv recv
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
@@ -138,8 +148,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_UNLOCK(lock)
 #define UA_LOCK_ASSERT(lock, num)
 #endif
-
-#include <open62541/architecture_functions.h>
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 #if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)

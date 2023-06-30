@@ -127,7 +127,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
                 node.value = 0.0
             else: 
                 node.value = 0
-        if encRule is None or isinstance(encRule.member_type, EnumerationType):
+        if encRule is None:
             return prepend + " = (UA_" + node.__class__.__name__ + ") " + str(node.value) + ";"
         else:
             return prepend + " = (UA_" + encRule.member_type.name + ") " + str(node.value) + ";"

@@ -90,13 +90,13 @@ isTrue(uint8_t expr) {
 #ifdef UA_DEBUG_FILE_LINE_INFO
 #define UA_CHECK_LOG_INTERNAL(A, STATUSCODE, EVAL, LOG, LOGGER, CAT, MSG, ...)           \
     UA_MACRO_EXPAND(                                                                     \
-        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (%s:%d: statuscode: %s)", __VA_ARGS__,   \
+        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (%s:%d: StatusCode: %s)", __VA_ARGS__,   \
                         __FILE__, __LINE__, UA_StatusCode_name(STATUSCODE));             \
                  EVAL))
 #else
 #define UA_CHECK_LOG_INTERNAL(A, STATUSCODE, EVAL, LOG, LOGGER, CAT, MSG, ...)           \
     UA_MACRO_EXPAND(                                                                     \
-        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (statuscode: %s)", __VA_ARGS__,   \
+        UA_CHECK(A, LOG(LOGGER, CAT, "" MSG "%s (StatusCode: %s)", __VA_ARGS__,   \
                         UA_StatusCode_name(STATUSCODE));             \
                  EVAL))
 #endif
@@ -170,10 +170,6 @@ isTrue(uint8_t expr) {
 /**
  * Utility Functions
  * ----------------- */
-
-const UA_DataType *
-UA_findDataTypeWithCustom(const UA_NodeId *typeId,
-                          const UA_DataTypeArray *customTypes);
 
 void
 UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes);

@@ -96,8 +96,6 @@ int gethostname_ecos(char* name, size_t len);
 #define UA_LOCK_ASSERT(lock, num)
 #endif
 
-#include <open62541/architecture_functions.h>
-
 #endif /* PLUGINS_ARCH_ECOS_UA_ARCHITECTURE_H_ */
 
 #endif /* UA_ARCHITECTURE_ECOS */

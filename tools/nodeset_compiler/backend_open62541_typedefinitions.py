@@ -129,8 +129,8 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{%s, %s}" % (namespaceMap[datatype.namespaceUri], getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % (namespaceMap[datatype.namespaceUri],
+        typeid = "{%s, %s}" % ("0", getNodeidTypeAndId(datatype.nodeId))
+        binaryEncodingId = "{%s, %s}" % ("0",
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
@@ -423,7 +423,7 @@ _UA_BEGIN_DECLS
         if totalCount > 0:
 
             self.printh(
-                "extern UA_EXPORT const UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
+                "extern UA_EXPORT UA_DataType UA_" + self.parser.outname.upper() + "[UA_" + self.parser.outname.upper() + "_COUNT];")
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
@@ -499,7 +499,7 @@ _UA_END_DECLS
 
         if totalCount > 0:
             self.printc(
-                "const UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
+                "UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 
             for ns in self.filtered_types:
                 for i, t_name in enumerate(self.filtered_types[ns]):
