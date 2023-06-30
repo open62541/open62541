@@ -655,9 +655,20 @@ typedef UA_StatusCode (*UA_NodeIteratorCallback)(UA_NodeId childId, UA_Boolean i
                                                  UA_NodeId referenceTypeId, void *handle);
 #endif
 
+typedef struct{
+    UA_BrowseDirection direction;
+    UA_Boolean includeSubtypes;
+    UA_NodeId* refType;
+} UA_BrowseOptions;
+
 UA_StatusCode UA_EXPORT
-UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
-                               UA_NodeIteratorCallback callback, void *handle);
+UA_Client_forEachChildNodeCall_Ex(UA_Client *client, UA_NodeId parentNodeId,
+                               UA_NodeIteratorCallback callback, void *handle,
+                               const UA_BrowseOptions* options);
+
+/* Macro for compatibility with old version of function without UA_BrowseOptions structure */
+#define UA_Client_forEachChildNodeCall(client, parentNodeId, callback, handle) \
+    UA_Client_forEachChildNodeCall_Ex(client, parentNodeId, callback, handle, NULL);
 
 _UA_END_DECLS
 
