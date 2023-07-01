@@ -1206,12 +1206,7 @@ START_TEST(ReserveIdsMultipleTimes){
         const UA_UInt16 numRegWriterGroupIds = 3;
         const UA_UInt16 numRegDataSetWriterIds = 3;
         const UA_UInt16 firstId = 0x8000;
-#ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING        
-        const UA_UInt16 lastId = 0x8000 + 10;
-#else
         const UA_UInt16 lastId = UA_UINT16_MAX;
-        #pragma message "Running this test without enabling UA_ENABLE_REDUCED_ITERATIONS takes very long time."
-#endif
 
         UA_Variant regWriterGroupIds;
         UA_Variant regDataSetWriterIds;

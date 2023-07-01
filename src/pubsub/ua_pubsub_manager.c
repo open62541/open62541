@@ -22,9 +22,6 @@
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 #define UA_RESERVEID_FIRST_ID 0x8000
-#ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
-#define UA_RESERVEID_LAST_ID UA_RESERVEID_FIRST_ID + 10
-#endif
 
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
@@ -139,13 +136,8 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
         next_id = next_id_writer;
 
     for(;numberOfIds > 0;numberOfIds--) {
-#ifndef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
         if(next_id < UA_RESERVEID_FIRST_ID)
             next_id = UA_RESERVEID_FIRST_ID;
-#else
-        if(next_id > UA_RESERVEID_LAST_ID)
-            next_id = UA_RESERVEID_FIRST_ID;
-#endif
         is_free = UA_ReserveId_isFree(server, next_id, transportProfileUri, reserveIdType);
         if(is_free)
             break;
