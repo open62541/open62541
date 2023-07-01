@@ -14,7 +14,6 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pki_default.h>
 
-#include <signal.h>
 #include <stdlib.h>
 
 #include "common.h"
@@ -990,14 +989,6 @@ disableBasic256Sha256SecurityPolicy(UA_ServerConfig *config) {
 
 #endif
 
-UA_Boolean running = true;
-
-static void
-stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Received Ctrl-C");
-    running = 0;
-}
-
 static void
 usage(void) {
     UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -1032,9 +1023,7 @@ usage(void) {
 }
 
 int main(int argc, char **argv) {
-    signal(SIGINT, stopHandler); /* catches ctrl-c */
-    signal(SIGTERM, stopHandler);
-
+    /* Print help */
     for(int i = 1; i < argc; i++) {
         if(strcmp(argv[i], "--help") == 0 ||
            strcmp(argv[i], "-h") == 0) {
@@ -1409,7 +1398,7 @@ int main(int argc, char **argv) {
 
 
     /* run server */
-    res = UA_Server_run(server, &running);
+    res = UA_Server_runUntilInterrupt(server);
 
  cleanup:
     UA_Server_delete(server);
