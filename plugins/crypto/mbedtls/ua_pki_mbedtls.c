@@ -265,8 +265,8 @@ certificateVerification_verify(const UA_CertificateVerification *cv,
        ci->certificateTrustList.raw.len == 0 &&
        ci->certificateIssuerList.raw.len == 0 &&
        ci->certificateRevocationList.raw.len == 0) {
-        UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_SERVER,
-                       "PKI plugin unconfigured. Accepting the certificate.");
+        UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_USERLAND,
+                       "No certificate store configured. Accepting the certificate.");
         return UA_STATUSCODE_GOOD;
     }
 
