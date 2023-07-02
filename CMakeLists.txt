@@ -462,9 +462,6 @@ option(UA_ENABLE_MALLOC_SINGLETON
        "Use a global variable pointer for malloc (and free, ...) that can be switched at runtime" OFF)
 mark_as_advanced(UA_ENABLE_MALLOC_SINGLETON)
 
-option(UA_ENABLE_VALGRIND_INTERACTIVE "Enable dumping valgrind every iteration. CAUTION! SLOWDOWN!" OFF)
-mark_as_advanced(UA_ENABLE_VALGRIND_INTERACTIVE)
-
 option(UA_MSVC_FORCE_STATIC_CRT "Force linking with the static C-runtime library when compiling to static library with MSVC" ON)
 mark_as_advanced(UA_MSVC_FORCE_STATIC_CRT)
 
@@ -485,12 +482,6 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_SEMAPHORE)
 
 option(UA_ENABLE_UNIT_TESTS_MEMCHECK "Use Valgrind (Linux) or DrMemory (Windows) to detect memory leaks when running the unit tests" OFF)
 mark_as_advanced(UA_ENABLE_UNIT_TESTS_MEMCHECK)
-
-option(UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING "Reduce the number of iterations required for testing a feature (e.g. to roll over a counter)" OFF)
-mark_as_advanced(UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING)
-
-set(UA_VALGRIND_INTERACTIVE_INTERVAL 1000 CACHE STRING "The number of iterations to wait before creating the next dump")
-mark_as_advanced(UA_VALGRIND_INTERACTIVE_INTERVAL)
 
 # Build options for debugging
 option(UA_DEBUG "Enable assertions and additional functionality that should not be included in release builds" OFF)

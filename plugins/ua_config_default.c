@@ -58,13 +58,39 @@ struct InterruptContext {
 };
 
 static void
+shutdownServer(UA_Server *server, void *context) {
+    struct InterruptContext *ic = (struct InterruptContext*)context;
+    UA_ServerConfig *config = UA_Server_getConfig(ic->server);
+    UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+                "Stopping the server");
+    ic->running = false;
+}
+
+static void
 interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
                 void *context, const UA_KeyValueMap *parameters) {
     struct InterruptContext *ic = (struct InterruptContext*)context;
     UA_ServerConfig *config = UA_Server_getConfig(ic->server);
+
+    if(config->shutdownDelay <= 0.0) {
+        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+                    "Received SIGINT interrupt. Stopping the server.");
+        ic->running = false;
+        return;
+    }
+
     UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
-                "Received SIGINT interrupt. Stopping the server.");
-    ic->running = false;
+                "Received SIGINT interrupt. Stopping the server in %.2fs.",
+                config->shutdownDelay / 1000.0);
+
+    UA_UInt32 secondsTillShutdown = (UA_UInt32)(config->shutdownDelay / 1000.0);
+    UA_Variant val;
+    UA_Variant_setScalar(&val, &secondsTillShutdown, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_Server_writeValue(ic->server,
+              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN), val);
+    UA_Server_addTimedCallback(ic->server, shutdownServer, ic, UA_DateTime_nowMonotonic() +
+                               (UA_DateTime)(config->shutdownDelay * UA_DATETIME_MSEC),
+                               NULL);
 }
 
 UA_StatusCode

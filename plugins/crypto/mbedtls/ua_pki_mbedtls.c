@@ -604,6 +604,11 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     if(cv->logging == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Clear if the plugin is already initialized */
+    if(cv->clear)
+        cv->clear(cv);
+
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -678,6 +683,11 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     if(cv->logging == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Clear if the plugin is already initialized */
+    if(cv->clear)
+        cv->clear(cv);
+
     CertInfo *ci = (CertInfo*)UA_malloc(sizeof(CertInfo));
     if(!ci)
         return UA_STATUSCODE_BADOUTOFMEMORY;
