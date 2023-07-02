@@ -33,10 +33,6 @@
 #include "open62541/nodesetinjector.h"
 #endif
 
-#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
-#include <valgrind/memcheck.h>
-#endif
-
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -894,17 +890,7 @@ UA_Server_run(UA_Server *server, const volatile UA_Boolean *running) {
     UA_StatusCode retval = UA_Server_run_startup(server);
     UA_CHECK_STATUS(retval, return retval);
 
-#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
-    size_t loopCount = 0;
-#endif
     while(!testShutdownCondition(server)) {
-#ifdef UA_ENABLE_VALGRIND_INTERACTIVE
-        if(loopCount == 0) {
-            VALGRIND_DO_LEAK_CHECK;
-        }
-        ++loopCount;
-        loopCount %= UA_VALGRIND_INTERACTIVE_INTERVAL;
-#endif
         UA_Server_run_iterate(server, true);
         if(!*running) {
             if(setServerShutdown(server))

@@ -288,6 +288,29 @@ createNS0_base(UA_Server *server) {
 /****************/
 
 static UA_StatusCode
+writeStatus(UA_Server *server, const UA_NodeId *sessionId,
+            void *sessionContext, const UA_NodeId *nodeId,
+            void *nodeContext, const UA_NumericRange *range,
+            const UA_DataValue *value) {
+    if(range)
+        return UA_STATUSCODE_BADINDEXRANGEINVALID;
+
+    if(nodeId->identifier.numeric != UA_NS0ID_SERVER_SERVERSTATUS_SECONDSTILLSHUTDOWN)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Only the local user can write into this variable */
+    if(sessionId != &server->adminSession.sessionId)
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    if(!UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]))
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+
+    UA_UInt32 *endTime = (UA_UInt32*)value->value.data;
+    server->endTime = UA_DateTime_now() + (UA_DateTime)(*endTime * UA_DATETIME_SEC);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
 readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
            const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
            const UA_NumericRange *range, UA_DataValue *value) {
@@ -839,7 +862,7 @@ initNS0(UA_Server *server) {
     retVal |= writeValueRankAttribute(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERARRAY), 1);
 
     /* ServerStatus */
-    UA_DataSource serverStatus = {readStatus, NULL};
+    UA_DataSource serverStatus = {readStatus, writeStatus};
     retVal |= setVariableNode_dataSource(server,
                         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS), serverStatus);
 
