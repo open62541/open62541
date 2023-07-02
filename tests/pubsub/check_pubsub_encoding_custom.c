@@ -645,9 +645,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
-        UA_ExtensionObject *eo = &((UA_ExtensionObject*)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data)[i];
-        ck_assert(eo->content.decoded.type == &PointType);
-        Point *p2 = (Point*)eo->content.decoded.data;
+        ck_assert(m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.type == &PointType);
+        Point *p2 = &((Point*)m2.payload.dataSetPayload.dataSetMessages[0].data.deltaFrameData.deltaFrameFields[0].fieldValue.value.data)[i];
 
         // we need to cast floats to int to avoid comparison of floats
         // which may result into false results
@@ -711,9 +710,8 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     for (size_t i = 0; i < 10; i++) {
-        UA_ExtensionObject *eo = &((UA_ExtensionObject*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data)[i];
-        ck_assert(eo->content.decoded.type == &PointType);
-        Point *p2 = (Point*)eo->content.decoded.data;
+        ck_assert(m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.type == &PointType);
+        Point *p2 = &((Point*)m2.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value.data)[i];
 
         // we need to cast floats to int to avoid comparison of floats
         // which may result into false results

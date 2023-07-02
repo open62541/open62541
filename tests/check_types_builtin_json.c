@@ -5171,6 +5171,48 @@ START_TEST(UA_Variant_BooleanArray_json_decode) {
 }
 END_TEST
 
+START_TEST(UA_Variant_ExtensionObjectArray_json_decode) {
+    // given
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_ByteString buf = UA_STRING("{\"Type\":22,\"Body\":[{\"TypeId\":{\"Id\":1},\"Body\":false}, {\"TypeId\":{\"Id\":1},\"Body\":true}]}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+
+    UA_Boolean *testArray;
+    testArray = (UA_Boolean*)(out.data);
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    //decoded as False
+    ck_assert_int_eq(testArray[0], 0);
+    ck_assert_int_eq(testArray[1], 1);
+    ck_assert_uint_eq(out.arrayDimensionsSize, 0);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
+START_TEST(UA_Variant_MixedExtensionObjectArray_json_decode) {
+    // given
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_ByteString buf = UA_STRING("{\"Type\":22,\"Body\":[{\"TypeId\":{\"Id\":1},\"Body\":false}, {\"TypeId\":{\"Id\":2},\"Body\":1}]}");
+    // when
+
+    UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    //decoded as False
+    ck_assert_uint_eq(out.arrayDimensionsSize, 0);
+    ck_assert_uint_eq(out.arrayLength, 2);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_EXTENSIONOBJECT);
+    UA_Variant_clear(&out);
+}
+END_TEST
+
 START_TEST(UA_Variant_bad1_json_decode) {
     // given
     UA_Variant out;
@@ -5771,6 +5813,8 @@ static Suite *testSuite_builtin_json(void) {
     tcase_add_test(tc_json_decode, UA_VariantVariantArrayEmpty_json_decode);
     tcase_add_test(tc_json_decode, UA_VariantStringArray_WithoutDimension_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_BooleanArray_json_decode);
+    tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectArray_json_decode);
+    tcase_add_test(tc_json_decode, UA_Variant_MixedExtensionObjectArray_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_bad1_json_decode);
     tcase_add_test(tc_json_decode, UA_Variant_ExtensionObjectWrap_json_decode);
 
