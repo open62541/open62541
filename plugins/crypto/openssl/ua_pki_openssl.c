@@ -443,42 +443,51 @@ UA_X509_Store_CTX_Error_To_UAError (int opensslErr) {
 static UA_StatusCode
 UA_CertificateVerification_Verify (const UA_CertificateVerification *cv,
                                    const UA_ByteString * certificate) {
-    X509_STORE_CTX*       storeCtx;
-    X509_STORE*           store;
-    CertContext *         ctx;
-    UA_StatusCode         ret;
-    int                   opensslRet;
-    X509 *                certificateX509 = NULL;
+    X509_STORE_CTX *storeCtx = NULL;
+    X509_STORE *store = NULL;
+    CertContext *ctx = NULL;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
 
     if ((cv == NULL) || (cv->context == NULL)) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     ctx = (CertContext *) cv->context;
 
-    store = X509_STORE_new();
-    storeCtx = X509_STORE_CTX_new();
-
-    if (store == NULL || storeCtx == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto cleanup;
-    }
-#ifdef __linux__
-    ret = UA_ReloadCertFromFolder (ctx);
-    if (ret != UA_STATUSCODE_GOOD) {
-        goto cleanup;
-    }
-#endif
-
-    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
-    if (certificateX509 == NULL) {
+    /* Parse the certificate */
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    if(!certificateX509) {
         ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
         goto cleanup;
     }
 
+    /* Reload PKI folder */
+#ifdef __linux__
+    ret = UA_ReloadCertFromFolder (ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto cleanup;
+#endif
+
+    /* Accept the certificate without verification of no trust and issuer list
+     * are loaded */
+    if(sk_X509_CRL_num(ctx->skCrls) == 0 &&
+       sk_X509_num(ctx->skIssue) == 0 &&
+       sk_X509_num(ctx->skTrusted) == 0) {
+        UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_USERLAND,
+                       "No certificate store configured. Accepting the certificate.");
+        goto cleanup;
+    }
+
+    store = X509_STORE_new();
+    storeCtx = X509_STORE_CTX_new();
+    if(store == NULL || storeCtx == NULL) {
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
     X509_STORE_set_flags(store, 0);
-    opensslRet = X509_STORE_CTX_init (storeCtx, store, certificateX509,
-                                      ctx->skIssue);
-    if (opensslRet != 1) {
+    int opensslRet = X509_STORE_CTX_init(storeCtx, store, certificateX509,
+                                          ctx->skIssue);
+    if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto cleanup;
     }
@@ -579,16 +588,14 @@ UA_CertificateVerification_Verify (const UA_CertificateVerification *cv,
         /* Return expected OPCUA error code */
         ret = UA_X509_Store_CTX_Error_To_UAError (opensslRet);
     }
+
 cleanup:
-    if (store != NULL) {
-        X509_STORE_free (store);
-    }
-    if (storeCtx != NULL) {
-        X509_STORE_CTX_free (storeCtx);
-    }
-    if (certificateX509 != NULL) {
-        X509_free (certificateX509);
-    }
+    if(store)
+        X509_STORE_free(store);
+    if(storeCtx)
+        X509_STORE_CTX_free(storeCtx);
+    if(certificateX509)
+        X509_free(certificateX509);
     return ret;
 }
 

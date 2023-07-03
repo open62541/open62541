@@ -2157,6 +2157,147 @@ VariantDimension_decodeJson(ParseCtx *ctx, void *dst, const UA_DataType *type) {
     return Array_decodeJson(ctx, (void**)dst, dimType);
 }
 
+static const UA_DataType *
+unwrappedExtensionObjectType(ParseCtx *ctx) {
+    if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT)
+        return NULL;
+
+    unsigned int oldIndex = ctx->index; /* Save index to restore later */
+
+    /* Check the body array */
+    size_t searchArrayBody = 0;
+    status ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &searchArrayBody);
+    if(ret != UA_STATUSCODE_GOOD)
+        return NULL;
+
+    if(ctx->tokens[searchArrayBody].type != CJ5_TOKEN_ARRAY)
+        return NULL;
+    ctx->index = (unsigned int)searchArrayBody;
+
+    /* Return early for empty arrays */
+    size_t length = (size_t)ctx->tokens[ctx->index].size;
+    if(length == 0) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
+    ctx->index++; /* Go to first array member */
+    if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
+    /* Get the type NodeId */
+    UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
+    size_t searchTypeIdResult = 0;
+    ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
+    if(ret != UA_STATUSCODE_GOOD) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
+    ctx->index = (UA_UInt16)searchTypeIdResult;
+    ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    if(ret != UA_STATUSCODE_GOOD) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
+    const UA_DataType *typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
+    UA_NodeId_clear(&typeId);
+    if(!typeOfBody) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
+    /* Loop over all members and see if they have the correct type */
+    ctx->index = (unsigned int)(searchArrayBody + 1);
+
+    for(size_t i = 0; i < length; i++) {
+        /* Array element must be an object */
+        if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+
+        /* Check for non-JSON encoding */
+        unsigned int objectIndex = ctx->index;
+        size_t encodingPos = 0;
+        ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encodingPos);
+        if(ret == UA_STATUSCODE_GOOD) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+
+        /* Decode the type NodeId and compare */
+        ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
+        if(ret != UA_STATUSCODE_GOOD) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+        ctx->index = (UA_UInt16)searchTypeIdResult;
+        ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+        if(ret != UA_STATUSCODE_GOOD) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+        UA_Boolean sameType = UA_NodeId_equal(&typeId, &typeOfBody->typeId);
+        UA_NodeId_clear(&typeId);
+        if(!sameType) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+
+        /* Skip forward */
+        ctx->index = objectIndex;
+        skipObject(ctx);
+    }
+
+    ctx->index = oldIndex; /* Restore the index */
+    return typeOfBody;
+}
+
+static status
+Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataType *type) {
+    size_t *size_ptr = (size_t*) dst - 1; /* Save the length pointer of the array */
+    size_t length = (size_t)ctx->tokens[ctx->index].size;
+
+    /* Known from the previous unwrapping-check */
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_ARRAY);
+    UA_assert(length > 0);
+
+    ctx->index++; /* Go to first array member */
+
+    /* Allocate memory */
+    *dst = UA_calloc(length, type->memSize);
+    if(*dst == NULL)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Decode array members */
+    uintptr_t ptr = (uintptr_t)*dst;
+    for(size_t i = 0; i < length; i++) {
+        UA_assert(ctx->tokens[ctx->index].type == CJ5_TOKEN_OBJECT);
+
+        /* Get the body field and decode it */
+        DecodeEntry entries[3] = {
+            {UA_JSONKEY_TYPEID, NULL, NULL, false, NULL},
+            {UA_JSONKEY_BODY, (void*)ptr, NULL, false, type},
+            {UA_JSONKEY_ENCODING, NULL, NULL, false, NULL}
+        };
+        status ret = decodeFields(ctx, entries, 3); /* Also skips to the next object */
+        if(ret != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(*dst, i+1, type);
+            *dst = NULL;
+            return ret;
+        }
+        ptr += type->memSize;
+    }
+
+    *size_ptr = length; /* All good, set the size */
+    return UA_STATUSCODE_GOOD;
+}
+
 DECODE_JSON(Variant) {
     CHECK_OBJECT;
 
@@ -2164,7 +2305,7 @@ DECODE_JSON(Variant) {
     size_t searchResultType = 0;
     status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &searchResultType);
     if(ret != UA_STATUSCODE_GOOD) {
-        skipObject(ctx);
+         skipObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2234,6 +2375,18 @@ DECODE_JSON(Variant) {
             {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature)Array_decodeJson, false, dst->type},
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions, VariantDimension_decodeJson, false, NULL}
         };
+
+        /* Can we unwrap ExtensionObjects in the array? */
+        if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
+            const UA_DataType *unwrappedType = unwrappedExtensionObjectType(ctx);
+            if(unwrappedType) {
+                dst->type = unwrappedType;
+                entries[1].type = unwrappedType;
+                entries[1].function = (decodeJsonSignature)
+                    Array_decodeJsonUnwrapExtensionObject;
+            }
+        }
+
         size_t entriesCount = 3;
         if(!hasDimension)
             entriesCount = 2; /* Use the first 2 fields only */

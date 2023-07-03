@@ -260,7 +260,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 #endif
 
         /* Free the memory delayed to ensure nobody is accessing any more */
-        UA_EventLoop *el = server->config.eventLoop;
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
         c->dc.callback = delayedPubSubConnection_delete;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
@@ -338,6 +338,13 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             config->pubSubConfig.stateChangeCallback(server, &c->identifier, state, cause);
     }
     return ret;
+}
+
+UA_EventLoop *
+UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c) {
+    if(c->config.eventLoop)
+        return c->config.eventLoop;
+    return server->config.eventLoop;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

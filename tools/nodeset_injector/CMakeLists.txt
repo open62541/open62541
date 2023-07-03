@@ -212,6 +212,26 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
+    elseif(MODEL STREQUAL "PADIM")
+        ua_generate_nodeset_and_datatypes(
+                NAME "irdi"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.IRDI.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+        )
+
+        set(TMP_NSURI "http://opcfoundation.org/UA/${MODEL}/")
+        configure_file(${PROJECT_SOURCE_DIR}/tools/nodeset_injector/empty.bsd.template "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
+                FILE_BSD "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+                DEPENDS "irdi"
+        )
     else()
         MESSAGE(WARNING "The specified nodeset '${MODEL}' is not supported or is misspelled.")
     endif()

@@ -1,6 +1,17 @@
 This changelog reports changes visible through the public API. Internal refactorings and bug
 fixes are not reported here.
 
+2023-07-02 Jonas Green <jgr at hms.se>
+
+ * Decoding variant with array of structure
+
+   When decoding an array of structures the extension objects that
+   each structure is wrapped into is now unwrapped if the array 
+   contains only a single type. Previously the decoding API returned
+   an array of extension objects. If the array of extension objects 
+   has more than one type the decoding result will be an array of
+   extension objects.
+
 2022-12-03 Julius Pfrommer <julius.pfrommer at iosb.fraunhofer.de>
 
  * KeyValueMap in PubSub configuration

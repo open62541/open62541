@@ -498,11 +498,7 @@ UA_ServerConfig_setBasics(UA_ServerConfig* conf) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setBasics_withPort(UA_ServerConfig* conf, UA_UInt16 portNumber) {
-    UA_StatusCode res = setDefaultConfig(conf, portNumber);
-    UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
-                   "AcceptAll Certificate Verification. "
-                   "Any remote certificate will be accepted.");
-    return res;
+    return setDefaultConfig(conf, portNumber);
 }
 
 UA_EXPORT UA_StatusCode
@@ -617,10 +613,6 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         UA_ServerConfig_clean(config);
         return retval;
     }
-
-    UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                   "AcceptAll Certificate Verification. "
-                   "Any remote certificate will be accepted.");
 
     return UA_STATUSCODE_GOOD;
 }
@@ -942,9 +934,6 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         /* Certificate Verification that accepts every certificate. Can be
          * overwritten when the policy is specialized. */
         UA_CertificateVerification_AcceptAll(&config->certificateVerification);
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                       "AcceptAll Certificate Verification. "
-                       "Any remote certificate will be accepted.");
     }
 
     /* With encryption enabled, the applicationUri needs to match the URI from

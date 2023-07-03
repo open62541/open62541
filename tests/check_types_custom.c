@@ -390,14 +390,11 @@ START_TEST(parseCustomArray) {
     size_t offset = 0;
     retval = UA_decodeBinaryInternal(&buf, &offset, &var2, &UA_TYPES[UA_TYPES_VARIANT], &customDataTypes);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert(var2.type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    ck_assert(var2.type == &PointType);
     ck_assert_uint_eq(var2.arrayLength, 10);
 
     for (size_t i = 0; i < 10; i++) {
-        UA_ExtensionObject *eo = &((UA_ExtensionObject*)var2.data)[i];
-        ck_assert_int_eq(eo->encoding, UA_EXTENSIONOBJECT_DECODED);
-        ck_assert(eo->content.decoded.type == &PointType);
-        Point *p2 = (Point*)eo->content.decoded.data;
+        Point *p2 = &((Point*)var2.data)[i];
 
         // we need to cast floats to int to avoid comparison of floats
         // which may result into false results

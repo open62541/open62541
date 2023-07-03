@@ -312,10 +312,12 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
         typeArr = typesArray[-1]
         if typeArr != "UA_TYPES" and typeArr != "ns0":
             writec("/* Change namespaceIndex from current namespace */")
+            writec("#if " + typeArr + "_COUNT" + " > 0")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
             writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
             writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
             writec("}")
+            writec("#endif")
 
     # Add generated types to the server
     writec("\n/* Load custom datatype definitions into the server */")
