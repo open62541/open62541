@@ -1068,7 +1068,10 @@ responseFindServers(UA_Client *client, void *userdata,
      * returned server. */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
-        if(server->applicationType != UA_APPLICATIONTYPE_SERVER)
+        if (server->applicationType != UA_APPLICATIONTYPE_SERVER &&
+            server->applicationType != UA_APPLICATIONTYPE_CLIENTANDSERVER &&
+            server->applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER
+        )
             continue;
         if(server->discoveryUrlsSize == 0)
             continue;
