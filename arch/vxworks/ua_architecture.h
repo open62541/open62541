@@ -101,8 +101,6 @@
 #define UA_calloc calloc
 #define UA_realloc realloc
 
-#include <stdio.h>
-#define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \

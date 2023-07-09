@@ -123,7 +123,6 @@ typedef struct pollfd {
 #define UA_realloc realloc
 #endif
 
-#define UA_snprintf(source, size, string, ...) _snprintf_s(source, size, _TRUNCATE, string, __VA_ARGS__)
 #define UA_strncasecmp _strnicmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \

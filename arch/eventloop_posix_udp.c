@@ -81,7 +81,7 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* checked before */
-    UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
+    mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
@@ -809,7 +809,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     /* Set up the port string */
     char portstr[6];
-    UA_snprintf(portstr, 6, "%d", port);
+    mp_snprintf(portstr, 6, "%d", port);
 
     int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {

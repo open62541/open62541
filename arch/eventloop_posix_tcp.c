@@ -511,7 +511,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     /* Create a string for the port */
     char portstr[6];
-    UA_snprintf(portstr, sizeof(portstr), "%d", port);
+    mp_snprintf(portstr, sizeof(portstr), "%d", port);
 
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
@@ -730,7 +730,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
         UA_KeyValueMap_getScalar(params, TCPConfigParameters[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* existence is checked before */
-    UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
+    mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *addr = (const UA_String*)

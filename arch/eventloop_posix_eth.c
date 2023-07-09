@@ -105,8 +105,8 @@ isMulticastEthAddress(const UA_Byte *address) {
 
 static void
 setAddrString(unsigned char addrStr[18], unsigned char addr[ETHER_ADDR_LEN]) {
-    snprintf((char*)addrStr, 18, "%02x-%02x-%02x-%02x-%02x-%02x",
-             addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+    mp_snprintf((char*)addrStr, 18, "%02x-%02x-%02x-%02x-%02x-%02x",
+                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 }
 
 /* Return zero if parsing failed */

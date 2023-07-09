@@ -102,9 +102,7 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_if_nametoindex if_nametoindex
 #endif
 
-#include <stdio.h>
 #include <strings.h>
-#define UA_snprintf snprintf
 #define UA_strncasecmp strncasecmp
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
