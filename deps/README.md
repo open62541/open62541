@@ -20,3 +20,4 @@ The following third party libraries may be included -- depending on the activate
 | ziptree         | MPL 2.0          | Reusable zip tree implementation                |
 | mqtt-c          | MIT              | a portable MQTT client in C                     |
 | dtoa            | BSC (Boost)      | Printing of float numbers                       |
+| mp_printf       | MIT              | Our version of github:mpaland/printf            |
