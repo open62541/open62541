@@ -10,6 +10,7 @@
 #include <check.h>
 #include <time.h>
 
+#include "../../deps/mp_printf.h"
 #include "testing_clock.h"
 #include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
@@ -85,7 +86,7 @@ addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber,
     connectionConfig.name = UA_STRING("UADP Test Connection");
     char address[STR_BUFSIZE];
     memset(&address, 0, sizeof(address));
-    snprintf(address, STR_BUFSIZE, "opc.udp://%s:%d", host, portNumber);
+    mp_snprintf(address, STR_BUFSIZE, "opc.udp://%s:%d", host, portNumber);
     UA_NetworkAddressUrlDataType networkAddressUrl =
         {UA_STRING_NULL, UA_STRING(address)};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
@@ -142,7 +143,7 @@ setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedD
                  const char *dstHost, UA_UInt16 dstPort) {
     char dstAddress[STR_BUFSIZE];
     memset(&dstAddress, 0, sizeof(dstAddress));
-    snprintf(dstAddress, STR_BUFSIZE, "opc.udp://%s:%d", dstHost, dstPort);
+    mp_snprintf(dstAddress, STR_BUFSIZE, "opc.udp://%s:%d", dstHost, dstPort);
 
     UA_NodeId writerGroup;
     UA_NodeId dataSetWriter;

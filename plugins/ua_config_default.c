@@ -22,7 +22,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
-#include <stdio.h> /* For printf */
+#include "../deps/mp_printf.h"
 
 #ifdef _WIN32
 # include <winsock2.h>
@@ -401,8 +401,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         /* 1) Listen on all interfaces (also external). This must be the first
          * entry if this is desired. Otherwise some interfaces may be blocked
          * (already in use) with a hostname that is only locally reachable.*/
-        snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
-                 "opc.tcp://:%u", portNumber);
+        mp_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                    "opc.tcp://:%u", portNumber);
         serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
         serverUrlsSize++;
 
@@ -418,8 +418,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
         if(err == 0) {
-            snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
-                     "opc.tcp://%s:%u", hostnamestr, portNumber);
+            mp_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+                        "opc.tcp://%s:%u", hostnamestr, portNumber);
             serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
             serverUrlsSize++;
         }

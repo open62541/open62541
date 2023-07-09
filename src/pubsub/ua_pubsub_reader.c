@@ -724,7 +724,7 @@ UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parent
             vAttr.displayName.text = pDataSetReader->config.dataSetMetaData.fields[i].name;
             if(pDataSetReader->config.dataSetMetaData.fields[i].name.length < slen) {
                 slen = (UA_UInt16)pDataSetReader->config.dataSetMetaData.fields[i].name.length;
-                UA_snprintf(szTmpName, sizeof(szTmpName), "%.*s", (int)slen,
+                mp_snprintf(szTmpName, sizeof(szTmpName), "%.*s", (int)slen,
                             (const char*)pDataSetReader->config.dataSetMetaData.fields[i].name.data);
             }
 

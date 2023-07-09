@@ -840,7 +840,7 @@ START_TEST(UA_Double_pluszero_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "0";
+    char* result = "0.0";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -859,7 +859,7 @@ START_TEST(UA_Double_minuszero_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "0";
+    char* result = "0.0";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -954,7 +954,7 @@ START_TEST(UA_Float_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "1";
+    char* result = "1.0";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);

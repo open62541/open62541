@@ -10,6 +10,8 @@
 #include "ua_discovery_manager.h"
 #include "ua_services.h"
 
+#include "../deps/mp_printf.h"
+
 #if defined(UA_ENABLE_DISCOVERY) && defined(UA_ENABLE_DISCOVERY_MULTICAST)
 
 #ifdef _WIN32
@@ -579,7 +581,7 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
 
     size_t offset = 0;
     if(hostnameLen > 0) {
-        UA_snprintf(outServiceDomain, maxLen + 1, "%.*s-%.*s",
+        mp_snprintf(outServiceDomain, maxLen + 1, "%.*s-%.*s",
                     (int) servernameLen, (char *) servername->data,
                     (int) hostnameLen, (char *) hostname->data);
         offset = servernameLen + hostnameLen + 1;
@@ -589,11 +591,11 @@ createFullServiceDomain(char *outServiceDomain, size_t maxLen,
                 outServiceDomain[i] = '-';
         }
     } else {
-        UA_snprintf(outServiceDomain, maxLen + 1, "%.*s",
+        mp_snprintf(outServiceDomain, maxLen + 1, "%.*s",
                     (int) servernameLen, (char *) servername->data);
         offset = servernameLen;
     }
-    UA_snprintf(&outServiceDomain[offset], 24, "._opcua-tcp._tcp.local.");
+    mp_snprintf(&outServiceDomain[offset], 24, "._opcua-tcp._tcp.local.");
 }
 
 /* Check if mDNS already has an entry for given hostname and port combination */
@@ -736,7 +738,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
         listEntry->txtSet = true;
 
         UA_STACKARRAY(char, newUrl, 10 + hostnameLen + 8 + path->length + 1);
-        UA_snprintf(newUrl, 10 + hostnameLen + 8 + path->length + 1,
+        mp_snprintf(newUrl, 10 + hostnameLen + 8 + path->length + 1,
                     "opc.tcp://%.*s:%d%s%.*s", (int) hostnameLen,
                     hostname->data, port, path->length > 0 ? "/" : "",
                     (int) path->length, path->data);

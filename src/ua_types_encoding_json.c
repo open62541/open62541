@@ -16,12 +16,12 @@
 
 #include <float.h>
 #include <math.h>
-#include <stdio.h> /* for snprintf */
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
+#include "../deps/mp_printf.h"
 
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for JSON encoding
@@ -403,7 +403,7 @@ ENCODE_JSON(Float) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-        snprintf(buffer, 200, "%.149g", (UA_Double)*src);
+        mp_snprintf(buffer, 200, "%.149f", (UA_Double)*src);
     }
 
     size_t len = strlen(buffer);
@@ -428,7 +428,7 @@ ENCODE_JSON(Double) {
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
     } else {
-        snprintf(buffer, 2000, "%.1074g", *src);
+        mp_snprintf(buffer, 2000, "%.1074f", *src);
     }
 
     size_t len = strlen(buffer);
@@ -1646,7 +1646,7 @@ DECODE_JSON(Double) {
      * Maximum digit counts for select IEEE floating-point formats: 1074
      * Sanity check.
      */
-    if(tokenSize > 1075)
+    if(tokenSize > 2000)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     cj5_token_type tokenType = currentTokenType(ctx);

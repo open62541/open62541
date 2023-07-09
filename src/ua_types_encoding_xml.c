@@ -11,6 +11,7 @@
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/libc_time.h"
+#include "../deps/mp_printf.h"
 
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for XML encoding
@@ -126,7 +127,7 @@ ENCODE_XML(Float) {
         /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
          * Maximum digit counts for float: 149
          */
-        UA_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
+        mp_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
     }
 
     size_t len = strlen(buffer);
@@ -149,7 +150,7 @@ ENCODE_XML(Double) {
         /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
          * Maximum digit counts for double: 1074
          */
-        UA_snprintf(buffer, 2000, "%.1074g", *src);
+        mp_snprintf(buffer, 2000, "%.1074g", *src);
     }
 
     size_t len = strlen(buffer);

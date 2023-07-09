@@ -16,6 +16,8 @@
 #include "mdnsd/libmdnsd/sdtxt.h"
 #endif
 
+#include "../deps/mp_printf.h"
+
 #ifdef _WIN32
 /* inet_ntoa is deprecated on MSVC but used for compatibility */
 # define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -321,8 +323,9 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
                      "Cannot allocate char for discovery url. Out of memory.");
         return;
     }
-    UA_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
-             r->known.srv.name, r->known.srv.port);
+
+    mp_snprintf(newUrl, 10 + srvNameLen + 8, "opc.tcp://%.*s:%d", (int) srvNameLen,
+                r->known.srv.name, r->known.srv.port);
 
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
     UA_LOG_INFO(dm->logging, UA_LOGCATEGORY_SERVER,
