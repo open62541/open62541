@@ -525,7 +525,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(

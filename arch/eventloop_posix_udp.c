@@ -811,7 +811,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     char portstr[6];
     UA_snprintf(portstr, 6, "%d", port);
 
-    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
