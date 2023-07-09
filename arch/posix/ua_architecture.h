@@ -91,7 +91,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_listen listen
 #define UA_accept accept
 #define UA_connect connect
-#define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
 #define UA_ioctl ioctl
