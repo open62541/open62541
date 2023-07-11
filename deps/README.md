@@ -19,3 +19,4 @@ The following third party libraries may be included -- depending on the activate
 | pcg_basic       | Apache License 2 | Random Number Generation                        |
 | ziptree         | MPL 2.0          | Reusable zip tree implementation                |
 | mqtt-c          | MIT              | a portable MQTT client in C                     |
+| dtoa            | BSC (Boost)      | Printing of float numbers                       |
