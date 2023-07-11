@@ -19,7 +19,6 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     UA_RegisteredFD **fds_tmp = (UA_RegisteredFD**)
         UA_realloc(el->fds, sizeof(UA_RegisteredFD*) * (el->fdsSize + 1));
     if(!fds_tmp) {
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     el->fds = fds_tmp;
