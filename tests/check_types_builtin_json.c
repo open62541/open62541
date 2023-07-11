@@ -821,7 +821,7 @@ START_TEST(UA_Double_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "1.1233999999999999541699935434735380113124847412109375";
+    char* result = "1.1234";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
@@ -924,7 +924,7 @@ START_TEST(UA_Double_nan_json_encode) {
 END_TEST
 
 START_TEST(UA_Double_onesmallest_json_encode) {
-    UA_Double src = 1.0000000000000002220446049250313080847263336181640625;
+    UA_Double src = 1.0000000000000002;
     const UA_DataType *type = &UA_TYPES[UA_TYPES_DOUBLE];
     size_t size = UA_calcSizeJson((void *) &src, type, NULL);
 
@@ -935,7 +935,7 @@ START_TEST(UA_Double_onesmallest_json_encode) {
     ck_assert_int_eq(s, UA_STATUSCODE_GOOD);
 
     // then
-    char* result = "1.0000000000000002220446049250313080847263336181640625";
+    char* result = "1.0000000000000002";
     buf.data[size] = 0; /* zero terminate */
     ck_assert_str_eq(result, (char*)buf.data);
     UA_ByteString_clear(&buf);
