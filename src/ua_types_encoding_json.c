@@ -18,10 +18,10 @@
 #include <math.h>
 
 #include "../deps/itoa.h"
+#include "../deps/dtoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
 #include "../deps/libc_time.h"
-#include "../deps/mp_printf.h"
 
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for JSON encoding
@@ -46,22 +46,6 @@
 
 /* Have some slack at the end. E.g. for negative and very long years. */
 #define UA_JSON_DATETIME_LENGTH 40
-
-/* Max length of numbers for the allocation of temp buffers. Don't forget that
- * printf adds an additional \0 at the end!
- *
- * Sources:
- * https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
- *
- * UInt16: 3 + 1
- * SByte: 3 + 1
- * UInt32:
- * Int32:
- * UInt64:
- * Int64:
- * Float: 149 + 1
- * Double: 767 + 1
- */
 
 /************/
 /* Encoding */
@@ -395,20 +379,20 @@ ENCODE_JSON(Int64) {
 }
 
 ENCODE_JSON(Float) {
-    char buffer[200];
+    char buffer[32];
+    size_t len;
     if(*src != *src) {
         strcpy(buffer, "\"NaN\"");
+        len = strlen(buffer);
     } else if(*src == INFINITY) {
         strcpy(buffer, "\"Infinity\"");
+        len = strlen(buffer);
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
+        len = strlen(buffer);
     } else {
-        mp_snprintf(buffer, 200, "%.149f", (UA_Double)*src);
+        len = dtoa((UA_Double)*src, buffer);
     }
-
-    size_t len = strlen(buffer);
-    if(len == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
@@ -420,20 +404,20 @@ ENCODE_JSON(Float) {
 }
 
 ENCODE_JSON(Double) {
-    char buffer[2000];
+    char buffer[32];
+    size_t len;
     if(*src != *src) {
         strcpy(buffer, "\"NaN\"");
+        len = strlen(buffer);
     } else if(*src == INFINITY) {
         strcpy(buffer, "\"Infinity\"");
+        len = strlen(buffer);
     } else if(*src == -INFINITY) {
         strcpy(buffer, "\"-Infinity\"");
+        len = strlen(buffer);
     } else {
-        mp_snprintf(buffer, 2000, "%.1074f", *src);
+        len = dtoa(*src, buffer);
     }
-
-    size_t len = strlen(buffer);
-    if(len == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
 
     if(ctx->pos + len > ctx->end)
         return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
