@@ -289,8 +289,10 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = getSessionById(server, sessionId);
-    if(!session)
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
     UA_StatusCode res =
         UA_KeyValueMap_remove(session->attributes, key);
     UA_UNLOCK(&server->serviceMutex);

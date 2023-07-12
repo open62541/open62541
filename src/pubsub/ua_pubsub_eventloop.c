@@ -178,6 +178,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                   "No more space for an additional EventLoop connection");
         if(psc->cm)
             psc->cm->closeConnection(psc->cm, connectionId);
+        UA_UNLOCK(&server->serviceMutex);
         return;
     }
 

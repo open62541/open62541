@@ -1591,6 +1591,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
     if(!bpm) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
