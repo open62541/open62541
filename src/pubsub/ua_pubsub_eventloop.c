@@ -272,6 +272,8 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static UA_StatusCode
 UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
 
@@ -376,6 +378,8 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c) {
 
 static UA_StatusCode
 UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
 
@@ -557,6 +561,8 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static UA_StatusCode
 UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Already connected? */
     if(wg->sendChannel != 0)
         return UA_STATUSCODE_GOOD;
@@ -626,6 +632,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
 
 static UA_StatusCode
 UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PubSubConnection *c = wg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -887,6 +895,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static UA_StatusCode
 UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     UA_PubSubConnection *c = rg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
