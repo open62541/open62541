@@ -206,6 +206,8 @@ static void
 callWithMethodAndObject(UA_Server *server, UA_Session *session,
                         const UA_CallMethodRequest *request, UA_CallMethodResult *result,
                         const UA_MethodNode *method, const UA_ObjectNode *object) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Verify the object's NodeClass */
     if(object->head.nodeClass != UA_NODECLASS_OBJECT &&
        object->head.nodeClass != UA_NODECLASS_OBJECTTYPE) {

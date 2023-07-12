@@ -154,6 +154,7 @@ UA_StatusCode
 sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
                         UA_MonitoredItem *mon, UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);

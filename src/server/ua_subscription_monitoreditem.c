@@ -422,6 +422,8 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
 
 void
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(mon->registered)
         return;
 
@@ -461,6 +463,8 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
 static void
 UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(!mon->registered)
         return;
 

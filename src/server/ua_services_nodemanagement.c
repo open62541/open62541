@@ -592,6 +592,7 @@ copyChild(UA_Server *server, UA_Session *session,
           const UA_NodeId *destinationNodeId,
           const UA_ReferenceDescription *rd) {
     UA_assert(session);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Is there an existing child with the browsename? */
     UA_NodeId existingChild = UA_NODEID_NULL;
@@ -1018,6 +1019,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             const UA_AddNodesItem *item, UA_NodeId *outNewNodeId) {
     /* Do not check access for server */
     if(session != &server->adminSession && server->config.accessControl.allowAddNode) {
+        UA_LOCK_ASSERT(&server->serviceMutex, 1);
         UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
            allowAddNode(server, &server->config.accessControl,
@@ -1198,6 +1200,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
 static UA_StatusCode
 recursiveCallConstructors(UA_Server *server, UA_Session *session,
                           const UA_NodeId *nodeId, const UA_Node *type) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Browse the children */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -1768,6 +1772,8 @@ hasParentRef(const UA_NodeHead *head, const UA_ReferenceTypeSet *refSet,
 static void
 deconstructNodeSet(UA_Server *server, UA_Session *session,
                    UA_ReferenceTypeSet *hierarchRefsSet, RefTree *refTree) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Deconstruct the nodes based on the RefTree entries, parent nodes first */
     for(size_t i = 0; i < refTree->size; i++) {
         const UA_Node *member = UA_NODESTORE_GET(server, &refTree->targets[i].nodeId);
@@ -1920,6 +1926,8 @@ deleteNodeSet(UA_Server *server, UA_Session *session,
 static void
 deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
                     const UA_DeleteNodesItem *item, UA_StatusCode *result) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Do not check access for server */
     if(session != &server->adminSession && server->config.accessControl.allowDeleteNode) {
         UA_UNLOCK(&server->serviceMutex);
@@ -2072,6 +2080,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval) {
     (void)context;
     UA_assert(session);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check access rights */
     if(session != &server->adminSession && server->config.accessControl.allowAddReference) {
@@ -2245,6 +2254,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
     /* Do not check access for server */
     if(session != &server->adminSession &&
        server->config.accessControl.allowDeleteReference) {
+        UA_LOCK_ASSERT(&server->serviceMutex, 1);
         UA_UNLOCK(&server->serviceMutex);
         if (!server->config.accessControl.
                 allowDeleteReference(server, &server->config.accessControl,
