@@ -506,10 +506,15 @@ UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *event
             LIST_FOREACH(branch, &cond->conditionBranches, listEntry) {
                 if(!UA_ByteString_equal(&branch->lastEventId, eventId))
                     continue;
-                if(UA_NodeId_isNull(&branch->conditionBranchId))
-                    return UA_NodeId_copy(&cond->conditionId, outConditionBranchNodeId);
-                else
-                    return UA_NodeId_copy(&branch->conditionBranchId, outConditionBranchNodeId);
+                if(UA_NodeId_isNull(&branch->conditionBranchId)) {
+                    res = UA_NodeId_copy(&cond->conditionId, outConditionBranchNodeId);
+                    UA_UNLOCK(&server->serviceMutex);
+                    return res;
+                } else {
+                    res = UA_NodeId_copy(&branch->conditionBranchId, outConditionBranchNodeId);
+                    UA_UNLOCK(&server->serviceMutex);
+                    return res;
+                }
                 goto out;
             }
         }
