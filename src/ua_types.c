@@ -752,11 +752,17 @@ Variant_clear(UA_Variant *p, const UA_DataType *_) {
 
 static UA_StatusCode
 Variant_copy(UA_Variant const *src, UA_Variant *dst, const UA_DataType *_) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     size_t length = src->arrayLength;
     if(UA_Variant_isScalar(src))
         length = 1;
-    UA_StatusCode retval = UA_Array_copy(src->data, length,
-                                         &dst->data, src->type);
+    if(src->storageType == UA_VARIANT_DATA_NODELETE) {
+        dst->data = src->data;
+    } else {
+        retval = UA_Array_copy(src->data, length,
+                               &dst->data, src->type);
+    }
+    dst->storageType = src->storageType;
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     dst->arrayLength = src->arrayLength;
