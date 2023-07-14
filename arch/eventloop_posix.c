@@ -82,6 +82,7 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
     while(*prev) {
         if(*prev == dc) {
             *prev = (*prev)->next;
+            UA_UNLOCK(&el->elMutex);
             return;
         }
         prev = &(*prev)->next;
@@ -309,6 +310,7 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
                      "Cannot register the EventSource \"%.*s\": "
                      "already registered",
                      (int)es->name.length, (char*)es->name.data);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

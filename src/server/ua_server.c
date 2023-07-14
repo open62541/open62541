@@ -662,6 +662,8 @@ UA_Server_getStatistics(UA_Server *server) {
 
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(server->state == state)
         return;
     server->state = state;

@@ -29,7 +29,7 @@ git_describe_version = subprocess.check_output(["git", "describe", "--tags", "--
 # v1.2.3-5-g4538abcd-dirty
 # git_describe_version = "v1.2.3"
 
-m = re.match(r"^v([0-9]{1,4})(\.[0-9]{1,4}){0,2}(-(.*){1,100})?$", git_describe_version)
+m = re.match(r"^v([0-9]{1,4})(\.[0-9]{1,4})?(\.[0-9]{1,4})?(-(.*){1,100})?$", git_describe_version)
 version_major = m.group(1) if m.group(1) is not None else "0"
 version_minor = m.group(2).replace(".", "") if m.group(2) is not None else "0"
 version_patch = m.group(3).replace(".", "") if m.group(3) is not None else "0"

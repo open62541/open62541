@@ -75,6 +75,7 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     UA_UInt32 mask = head->writeMask;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     mask &= server->config.accessControl.
         getUserRightsMask(server, &server->config.accessControl,
@@ -99,6 +100,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
     UA_Byte retval = node->accessLevel;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
@@ -114,6 +116,7 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     UA_Boolean userExecutable = node->executable;
     userExecutable &=
@@ -157,6 +160,7 @@ static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
         UA_UNLOCK(&server->serviceMutex);
@@ -191,6 +195,7 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                  const UA_VariableNode *vn, UA_DataValue *v,
                                  UA_TimestampsToReturn timestamps,
                                  UA_NumericRange *rangeptr) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(!vn->value.dataSource.read)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
@@ -1407,6 +1412,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                         const UA_String *indexRange) {
     UA_assert(node != NULL);
     UA_assert(session != NULL);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Parse the range */
     UA_NumericRange range;
@@ -1836,8 +1842,6 @@ Service_Write(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
