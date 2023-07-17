@@ -825,6 +825,13 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
                        UA_StatusCode_name(retval));
     }
 
+    retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
     retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
@@ -836,13 +843,6 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate, &localPrivateKey);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                        UA_StatusCode_name(retval));
     }
 
@@ -1055,6 +1055,16 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        UA_StatusCode_name(retval));
     }
 
+    retval = UA_SecurityPolicy_Aes256Sha256RsaPss(&config->securityPolicies[config->securityPoliciesSize],
+                                                   localCertificate, privateKey, &config->logger);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
     retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
                                               localCertificate, privateKey, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
@@ -1072,16 +1082,6 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     } else {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    retval = UA_SecurityPolicy_Aes256Sha256RsaPss(&config->securityPolicies[config->securityPoliciesSize],
-                                                   localCertificate, privateKey, &config->logger);
-    if(retval == UA_STATUSCODE_GOOD) {
-        ++config->securityPoliciesSize;
-    } else {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                        UA_StatusCode_name(retval));
     }
 
@@ -1143,6 +1143,16 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
                        UA_StatusCode_name(retval));
     }
 
+    retval = UA_SecurityPolicy_Aes256Sha256RsaPss(&config->authSecurityPolicies[config->authSecurityPoliciesSize],
+                                                   certificateAuth, privateKeyAuth, &config->logger);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->authSecurityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
     retval = UA_SecurityPolicy_Basic256Sha256(&config->authSecurityPolicies[config->authSecurityPoliciesSize],
                                               certificateAuth, privateKeyAuth, &config->logger);
     if(retval == UA_STATUSCODE_GOOD) {
@@ -1160,16 +1170,6 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
     } else {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
-                       UA_StatusCode_name(retval));
-    }
-
-    retval = UA_SecurityPolicy_Aes256Sha256RsaPss(&config->authSecurityPolicies[config->authSecurityPoliciesSize],
-                                                   certificateAuth, privateKeyAuth, &config->logger);
-    if(retval == UA_STATUSCODE_GOOD) {
-        ++config->authSecurityPoliciesSize;
-    } else {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
-                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                        UA_StatusCode_name(retval));
     }
 
