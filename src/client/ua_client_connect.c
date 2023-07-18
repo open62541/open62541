@@ -1551,6 +1551,8 @@ initConnect(UA_Client *client) {
 
     /* Initialize the SecurityPolicy */
     initSecurityPolicy(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return;
 
     /* Extract hostname and port from the URL */
     UA_String hostname = UA_STRING_NULL;
@@ -1662,6 +1664,10 @@ connectSync(UA_Client *client) {
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     UA_LOCK(&client->clientMutex);
+    /* Reset the connectStatus. This should be the only place where we can
+     * recover from a bad connectStatus. */
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
     if(async)
         initConnect(client);
     else
@@ -1896,6 +1902,8 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.connectionId = 0;
 
     initSecurityPolicy(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     UA_EventLoop *el = client->config.eventLoop;
     if(!el) {
