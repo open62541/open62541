@@ -369,26 +369,15 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->endpointUrl, &newSession->diagnostics.endpointUrl);
 #endif
 
-    UA_ByteString_init(&response->serverCertificate);
-
-    if(server->config.endpointsSize > 0)
-       for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
-          if(response->serverEndpoints[i].securityMode==channel->securityMode &&
-             UA_ByteString_equal(&response->serverEndpoints[i].securityPolicyUri,
-                                 &channel->securityPolicy->policyUri) &&
-             UA_String_equal(&response->serverEndpoints[i].endpointUrl,
-                             &request->endpointUrl))
-          {
-             response->responseHeader.serviceResult |=
-                 UA_ByteString_copy(&response->serverEndpoints[i].serverCertificate,
-                                    &response->serverCertificate);
-          }
-       }
-
     /* Create a session nonce */
     response->responseHeader.serviceResult |= UA_Session_generateNonce(newSession);
     response->responseHeader.serviceResult |=
         UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
+
+    /* Return the server certificate */
+    response->responseHeader.serviceResult |=
+        UA_ByteString_copy(&server->config.serverCertificate,
+                           &response->serverCertificate);
 
     /* Sign the signature */
     response->responseHeader.serviceResult |=
