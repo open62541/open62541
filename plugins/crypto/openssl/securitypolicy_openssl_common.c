@@ -103,36 +103,34 @@ UA_copyCertificate (UA_ByteString * dst,
 }
 
 static UA_StatusCode
-UA_OpenSSL_RSA_Public_Verify (const UA_ByteString * message,
-                              const EVP_MD *        evpMd,
-                              X509 *                publicKeyX509,
-                              UA_Int16              padding,
-                              const UA_ByteString * signature
-                              ) {
-    EVP_MD_CTX *     mdctx        = NULL;
-    int              opensslRet;
-    EVP_PKEY_CTX *   evpKeyCtx;
-    EVP_PKEY *       evpPublicKey = NULL;
-    UA_StatusCode    ret;
+UA_OpenSSL_RSA_Public_Verify(const UA_ByteString *message,
+                             const EVP_MD *evpMd, X509 *publicKeyX509,
+                             UA_Int16 padding, const UA_ByteString *signature) {
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_create();
+    if(!mdctx)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    mdctx = EVP_MD_CTX_create ();
-    if (mdctx == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-    evpPublicKey = X509_get_pubkey (publicKeyX509);
-    if (evpPublicKey == NULL) {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    EVP_PKEY *evpPublicKey = X509_get_pubkey(publicKeyX509);
+    if(!evpPublicKey) {
         ret = UA_STATUSCODE_BADOUTOFMEMORY;
         goto errout;
     }
 
-    opensslRet = EVP_DigestVerifyInit (mdctx, &evpKeyCtx, evpMd, NULL,
-                                       evpPublicKey);
-    if (opensslRet != 1) {
+    EVP_PKEY_CTX *evpKeyCtx;
+    int opensslRet = EVP_DigestVerifyInit(mdctx, &evpKeyCtx, evpMd,
+                                          NULL, evpPublicKey);
+    if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
-    EVP_PKEY_CTX_set_rsa_padding (evpKeyCtx, padding);
+
+    opensslRet = EVP_PKEY_CTX_set_rsa_padding(evpKeyCtx, padding);
+    if(opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
     if(padding == RSA_PKCS1_PSS_PADDING) {
         opensslRet = EVP_PKEY_CTX_set_rsa_pss_saltlen(evpKeyCtx, RSA_PSS_SALTLEN_DIGEST);
         if(opensslRet != 1) {
@@ -140,30 +138,29 @@ UA_OpenSSL_RSA_Public_Verify (const UA_ByteString * message,
             goto errout;
         }
         opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, EVP_sha256());
-        if (opensslRet != 1) {
+        if(opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
         }
     }
+
     opensslRet = EVP_DigestVerifyUpdate (mdctx, message->data, message->length);
-    if (opensslRet != 1) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-    opensslRet = EVP_DigestVerifyFinal(mdctx, signature->data, signature->length);
-    if (opensslRet != 1) {
+    if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
-    ret = UA_STATUSCODE_GOOD;
+    opensslRet = EVP_DigestVerifyFinal(mdctx, signature->data, signature->length);
+    if(opensslRet != 1) {
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        goto errout;
+    }
+
 errout:
-    if (evpPublicKey != NULL) {
-        EVP_PKEY_free (evpPublicKey);
-    }
-    if (mdctx != NULL) {
-        EVP_MD_CTX_destroy (mdctx);
-    }
+    if(evpPublicKey)
+        EVP_PKEY_free(evpPublicKey);
+    if(mdctx)
+        EVP_MD_CTX_destroy(mdctx);
     return ret;
 }
 
@@ -843,16 +840,16 @@ UA_StatusCode
 UA_OpenSSL_RSA_PKCS1_V15_SHA1_Verify (const UA_ByteString * msg,
                                       X509 *                publicKeyX509,
                                       const UA_ByteString * signature) {
-    return UA_OpenSSL_RSA_Public_Verify (msg, EVP_sha1(), publicKeyX509,
-                                         NID_sha1, signature);
+    return UA_OpenSSL_RSA_Public_Verify(msg, EVP_sha1(), publicKeyX509,
+                                        RSA_PKCS1_PADDING, signature);
 }
 
 UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA1_Sign (const UA_ByteString * message,
                                     EVP_PKEY * privateKey,
                                     UA_ByteString *       outSignature) {
-    return UA_Openssl_RSA_Private_Sign (message, privateKey, EVP_sha1(),
-                                        NID_sha1, outSignature);
+    return UA_Openssl_RSA_Private_Sign(message, privateKey, EVP_sha1(),
+                                       RSA_PKCS1_PADDING, outSignature);
 }
 
 static UA_Openssl_P_SHA1_Ctx *
