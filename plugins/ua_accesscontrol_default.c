@@ -69,17 +69,29 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
             userIdentityToken->content.decoded.data;
 
-        /* Compatibility notice: Siemens OPC Scout v10 provides an empty
+        /* Match the beginnig of the PolicyId.
+         * Compatibility notice: Siemens OPC Scout v10 provides an empty
          * policyId. This is not compliant. For compatibility, assume that empty
          * policyId == ANONYMOUS_POLICY */
-        if(token->policyId.data && !UA_String_equal(&token->policyId, &anonymous_policy))
+        if(token->policyId.data &&
+           (token->policyId.length < anonymous_policy.length ||
+            strncmp((const char*)token->policyId.data,
+                    (const char*)anonymous_policy.data,
+                    anonymous_policy.length) != 0)) {
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
     } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         /* Username and password */
-        const UA_UserNameIdentityToken *userToken =
-            (UA_UserNameIdentityToken*)userIdentityToken->content.decoded.data;
-        if(!UA_String_equal(&userToken->policyId, &username_policy))
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            userIdentityToken->content.decoded.data;
+
+        /* Match the beginnig of the PolicyId */
+        if(userToken->policyId.length < username_policy.length ||
+           strncmp((const char*)userToken->policyId.data,
+                   (const char*)username_policy.data,
+                   username_policy.length) != 0) {
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
 
         /* The userToken has been decrypted by the server before forwarding
          * it to the plugin. This information can be used here. */
@@ -107,8 +119,13 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
             userIdentityToken->content.decoded.data;
 
-        if(!UA_String_equal(&userToken->policyId, &certificate_policy))
+        /* Match the beginnig of the PolicyId */
+        if(userToken->policyId.length < certificate_policy.length ||
+           strncmp((const char*)userToken->policyId.data,
+                   (const char*)certificate_policy.data,
+                   certificate_policy.length) != 0) {
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
 
         if(!config->sessionPKI.verifyCertificate)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
