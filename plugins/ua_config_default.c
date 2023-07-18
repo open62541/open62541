@@ -180,6 +180,8 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
+const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
+
 static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
             const UA_SecurityPolicy *securityPolicy,
@@ -217,6 +219,19 @@ addEndpoint(UA_ServerConfig *conf,
                             &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
     if(retval == UA_STATUSCODE_GOOD)
         endpoint->userIdentityTokensSize = conf->accessControl.userTokenPoliciesSize;
+
+    /* Append the SecurityMode to the usertokenpolicy PolicyId */
+    for(size_t i = 0; i < endpoint->userIdentityTokensSize; i++) {
+        UA_UserTokenPolicy *utp = &endpoint->userIdentityTokens[i];
+        size_t newLen = utp->policyId.length + strlen(securityModeStrs[securityMode]);
+        UA_Byte *newString = (UA_Byte*)UA_realloc(utp->policyId.data, newLen);
+        memcpy(&newString[utp->policyId.length], securityModeStrs[securityMode],
+               strlen(securityModeStrs[securityMode]));
+        if(!newString)
+            continue;
+        utp->policyId.data = newString;
+        utp->policyId.length = newLen;
+    }
 
     retval |= UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
     endpoint->transportProfileUri =
