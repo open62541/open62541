@@ -362,6 +362,11 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
+    /* If the session name is empty, use the generated SessionId */
+    if(newSession->sessionName.length == 0)
+        response->responseHeader.serviceResult |=
+            UA_NodeId_print(&newSession->sessionId, &newSession->sessionName);
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->serverUri, &newSession->diagnostics.serverUri);
