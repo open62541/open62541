@@ -742,11 +742,10 @@ activateSessionAsync(UA_Client *client) {
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
 
-    /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
-     * string. With an X509IdentityToken, the policy-Id is already set. */
-    if(client->config.userTokenPolicy.tokenType != UA_USERTOKENTYPE_CERTIFICATE)
-        retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
-                                (UA_String*)request.userIdentityToken.content.decoded.data);
+    /* Set the correct PolicyId from the endpoint */
+    UA_String_clear((UA_String*)request.userIdentityToken.content.decoded.data);
+    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
+                            (UA_String*)request.userIdentityToken.content.decoded.data);
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */

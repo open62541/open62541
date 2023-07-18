@@ -1115,7 +1115,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 UA_StatusCode
 UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
-                                   UA_ByteString certificateAuth, UA_ByteString privateKeyAuth) {
+                                      UA_ByteString certificateAuth,
+                                      UA_ByteString privateKeyAuth) {
 #ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                    "Certificate authentication with LibreSSL as crypto backend is not supported.");
@@ -1125,7 +1126,8 @@ UA_ClientConfig_setAuthenticationCert(UA_ClientConfig *config,
     UA_X509IdentityToken* identityToken = UA_X509IdentityToken_new();
     if(!identityToken)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    identityToken->policyId = UA_STRING_ALLOC("open62541-certificate-policy");
+    /* Don't set identityToken->policyId. This is taken from the appropriate
+     * endpoint at runtime. */
     UA_StatusCode retval = UA_ByteString_copy(&certificateAuth, &identityToken->certificateData);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
