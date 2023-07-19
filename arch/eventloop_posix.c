@@ -8,6 +8,7 @@
 
 #include "eventloop_posix.h"
 #include "open62541/plugin/eventloop.h"
+#include "open62541/plugin/eventloop_base_funcs.h"
 
 /*********/
 /* Timer */
@@ -121,108 +122,73 @@ processDelayed(UA_EventLoopPOSIX *el) {
 /***********************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
-    UA_LOCK(&el->eventLoop.elMutex);
-
-    if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
-       el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED) {
-        UA_UNLOCK(&el->eventLoop.elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "Starting the EventLoop");
-
+UA_start_EventLoop_posix(UA_EventLoop *el,
+                    void *user_arg) {
 #ifdef UA_HAVE_EPOLL
-    el->epollfd = epoll_create1(0);
-    if(el->epollfd == -1) {
+    UA_EventLoopPOSIX *posixEl = (UA_EventLoopPOSIX *)user_arg;
+    posixEl->epollfd = epoll_create1(0);
+    if(posixEl->epollfd == -1) {
         UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+           UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_NETWORK,
                           "Eventloop\t| Could not create the epoll socket (%s)",
                           errno_str));
-        UA_UNLOCK(&el->eventLoop.elMutex);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
+#else
+    (void)el;
+    (void)user_arg;
 #endif
-
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_EventSource *es = el->eventLoop.eventSources;
-    while(es) {
-        UA_UNLOCK(&el->eventLoop.elMutex);
-        res |= es->start(es);
-        UA_LOCK(&el->eventLoop.elMutex);
-        es = es->next;
-    }
-
-    /* Dirty-write the state that is const "from the outside" */
-    *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
-        UA_EVENTLOOPSTATE_STARTED;
-
-    UA_UNLOCK(&el->eventLoop.elMutex);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
-static void
-checkClosed(UA_EventLoopPOSIX *el) {
-    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
+static UA_StatusCode
+UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 
-    UA_EventSource *es = el->eventLoop.eventSources;
-    while(es) {
-        if(es->state != UA_EVENTSOURCESTATE_STOPPED)
-            return;
-        es = es->next;
-    }
+    return UA_EventLoop_start(&el->eventLoop,
+                              UA_start_EventLoop_posix, el);
+}
 
+static UA_StatusCode
+UA_check_stopped_EventLoop_posix(UA_EventLoop *el,
+                                 void *user_arg) {
+
+    UA_EventLoopPOSIX *posixEl = (UA_EventLoopPOSIX *)user_arg;
+
+    (void)el;
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedCallbacks != NULL)
-        return;
+    if(posixEl->delayedCallbacks != NULL)
+        return UA_STATUSCODE_GOODCALLAGAIN;
 
-    /* Dirty-write the state that is const "from the outside" */
-    *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
-        UA_EVENTLOOPSTATE_STOPPED;
+    return UA_STATUSCODE_GOOD;
+}
 
+static UA_StatusCode
+UA_stop_EventLoop_posix(UA_EventLoop *el,
+                        void *user_arg) {
+
+
+    (void)el;
     /* Close the epoll/IOCP socket once all EventSources have shut down */
 #ifdef UA_HAVE_EPOLL
-    close(el->epollfd);
+    UA_EventLoopPOSIX *posixEl = (UA_EventLoopPOSIX *)user_arg;
+    close(posixEl->epollfd);
+#else
+    (void)user_arg;
 #endif
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "The EventLoop has stopped");
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
-    UA_LOCK(&el->eventLoop.elMutex);
 
-    if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "The EventLoop is not running, cannot be stopped");
-        UA_UNLOCK(&el->eventLoop.elMutex);
-        return;
-    }
+    UA_EventLoop_stop(&el->eventLoop, NULL, NULL);
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "Stopping the EventLoop");
-
-    /* Set to STOPPING to prevent "normal use" */
-    *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
-        UA_EVENTLOOPSTATE_STOPPING;
-
-    /* Stop all event sources (asynchronous) */
-    UA_EventSource *es = el->eventLoop.eventSources;
-    for(; es; es = es->next) {
-        if(es->state == UA_EVENTSOURCESTATE_STARTING ||
-           es->state == UA_EVENTSOURCESTATE_STARTED) {
-            UA_UNLOCK(&el->eventLoop.elMutex);
-            es->stop(es);
-            UA_LOCK(&el->eventLoop.elMutex);
-        }
-    }
-
-    /* Set to STOPPED if all EventSources are STOPPED */
-    checkClosed(el);
-
-    UA_UNLOCK(&el->eventLoop.elMutex);
+    UA_EventLoop_check_stopped(&el->eventLoop,
+                               UA_check_stopped_EventLoop_posix,
+                               UA_stop_EventLoop_posix,
+                               el);
 }
 
 static UA_StatusCode
@@ -287,78 +253,18 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
 
     /* Check if the last EventSource was successfully stopped */
-    if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
-        checkClosed(el);
+    if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING) {
+        UA_UNLOCK(&el->eventLoop.elMutex);
+        UA_EventLoop_check_stopped(&el->eventLoop,
+                                   UA_check_stopped_EventLoop_posix,
+                                   UA_stop_EventLoop_posix,
+                                   el);
+        UA_LOCK(&el->eventLoop.elMutex);
+    }
 
     el->executing = false;
     UA_UNLOCK(&el->eventLoop.elMutex);
     return rv;
-}
-
-/*****************************/
-/* Registering Event Sources */
-/*****************************/
-
-static UA_StatusCode
-UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *el,
-                                      UA_EventSource *es) {
-    UA_LOCK(&el->elMutex);
-
-    /* Already registered? */
-    if(es->state != UA_EVENTSOURCESTATE_FRESH) {
-        UA_LOG_ERROR(el->logger, UA_LOGCATEGORY_NETWORK,
-                     "Cannot register the EventSource \"%.*s\": "
-                     "already registered",
-                     (int)es->name.length, (char*)es->name.data);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Add to linked list */
-    es->next = el->eventSources;
-    el->eventSources = es;
-
-    es->eventLoop = el;
-    es->state = UA_EVENTSOURCESTATE_STOPPED;
-
-    /* Start if the entire EventLoop is started */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(el->state == UA_EVENTLOOPSTATE_STARTED)
-        res = es->start(es);
-
-    UA_UNLOCK(&el->elMutex);
-    return res;
-}
-
-static UA_StatusCode
-UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *el,
-                                        UA_EventSource *es) {
-    UA_LOCK(&el->elMutex);
-
-    if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Cannot deregister the EventSource %.*s: "
-                       "Has to be stopped first",
-                       (int)es->name.length, es->name.data);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Remove from the linked list */
-    UA_EventSource **s = &el->eventSources;
-    while(*s) {
-        if(*s == es) {
-            *s = es->next;
-            break;
-        }
-        s = &(*s)->next;
-    }
-
-    /* Set the state to non-registered */
-    es->state = UA_EVENTSOURCESTATE_FRESH;
-
-    UA_UNLOCK(&el->elMutex);
-    return UA_STATUSCODE_GOOD;
 }
 
 /***************/
@@ -388,43 +294,31 @@ UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
 /*************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
-    UA_LOCK(&el->eventLoop.elMutex);
+UA_free_EventLoop_posix(UA_EventLoop *el,
+                        void *user_arg) {
 
-    /* Check if the EventLoop can be deleted */
-    if(el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED &&
-       el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Cannot delete a running EventLoop");
-        UA_UNLOCK(&el->eventLoop.elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Deregister and delete all the EventSources */
-    while(el->eventLoop.eventSources) {
-        UA_EventSource *es = el->eventLoop.eventSources;
-        UA_UNLOCK(&el->eventLoop.elMutex);
-        UA_EventLoopPOSIX_deregisterEventSource(&el->eventLoop, es);
-        UA_LOCK(&el->eventLoop.elMutex);
-        es->free(es);
-    }
+    UA_EventLoopPOSIX *posixEl = (UA_EventLoopPOSIX *)user_arg;
 
     /* Remove the repeated timed callbacks */
-    UA_Timer_clear(&el->timer);
+    UA_Timer_clear(&posixEl->timer);
 
     /* Process remaining delayed callbacks */
-    processDelayed(el);
+    processDelayed(posixEl);
 
 #ifdef _WIN32
     /* Stop the Windows networking subsystem */
     WSACleanup();
 #endif
 
-    /* Clean up */
-    UA_UNLOCK(&el->eventLoop.elMutex);
-    UA_LOCK_DESTROY(&el->eventLoop.elMutex);
-    UA_free(el);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
+
+    return UA_EventLoop_free(&el->eventLoop,
+                             UA_free_EventLoop_posix,
+                             el);
 }
 
 UA_EventLoop *
@@ -465,8 +359,8 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
     el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
 
-    el->eventLoop.registerEventSource = UA_EventLoopPOSIX_registerEventSource;
-    el->eventLoop.deregisterEventSource = UA_EventLoopPOSIX_deregisterEventSource;
+    el->eventLoop.registerEventSource = UA_EventLoop_registerEventSource;
+    el->eventLoop.deregisterEventSource = UA_EventLoop_deregisterEventSource;
 
     return &el->eventLoop;
 }

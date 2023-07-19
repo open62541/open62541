@@ -120,6 +120,7 @@ GET_PROPERTY(ua_architecture_headers_beginning GLOBAL PROPERTY UA_ARCHITECTURE_H
 GET_PROPERTY(ua_architecture_sources GLOBAL PROPERTY UA_ARCHITECTURE_SOURCES)
 
 set(ua_architecture_sources ${ua_architecture_sources}
+    ${PROJECT_SOURCE_DIR}/arch/eventloop_base_funcs.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h
@@ -857,6 +858,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop_base_funcs.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${historizing_exported_headers}
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h

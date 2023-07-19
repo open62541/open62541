@@ -197,7 +197,7 @@ struct UA_EventLoop {
     UA_StatusCode
     (*registerEventSource)(UA_EventLoop *el, UA_EventSource *es);
 
-    /* Stops the EventSource before deregistrering it */
+    /* Stops the EventSource before deregistering it */
     UA_StatusCode
     (*deregisterEventSource)(UA_EventLoop *el, UA_EventSource *es);
 
