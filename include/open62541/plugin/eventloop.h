@@ -200,6 +200,12 @@ struct UA_EventLoop {
     /* Stops the EventSource before deregistrering it */
     UA_StatusCode
     (*deregisterEventSource)(UA_EventLoop *el, UA_EventSource *es);
+
+#if UA_MULTITHREADING >= 100
+    /* Lock that can be used in callback function implementations. The user of
+       the EventLoop should not use this lock. */
+    UA_Lock elMutex;
+#endif
 };
 
 /**

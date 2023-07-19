@@ -107,10 +107,6 @@ typedef struct {
     UA_RegisteredFD **fds;
     size_t fdsSize;
 #endif
-
-#if UA_MULTITHREADING >= 100
-    UA_Lock elMutex;
-#endif
 } UA_EventLoopPOSIX;
 
 /*

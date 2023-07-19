@@ -473,7 +473,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
 /* Test if the ConnectionManager can be stopped */
 static void
 UDP_checkStopped(UA_POSIXConnectionManager *pcm) {
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+    UA_LOCK_ASSERT(&pcm->cm.eventSource.eventLoop->elMutex, 1);
 
     if(pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
@@ -489,7 +489,7 @@ UDP_checkStopped(UA_POSIXConnectionManager *pcm) {
 static void
 UDP_close(UA_POSIXConnectionManager *pcm, UDP_FD *conn) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Closing connection",
@@ -504,12 +504,12 @@ UDP_close(UA_POSIXConnectionManager *pcm, UDP_FD *conn) {
     pcm->fdsSize--;
 
     /* Signal closing to the application */
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_CLOSING,
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     /* Close the socket */
     int ret = UA_close(conn->rfd.fd);
@@ -537,9 +537,9 @@ UDP_delayedClose(void *application, void *context) {
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "UDP %u\t| Delayed closing of the connection",
                  (unsigned)conn->rfd.fd);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
     UDP_close(pcm, conn);
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
 }
 
 /* Gets called when a socket receives data or closes */
@@ -547,7 +547,7 @@ static void
 UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                              short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Activity on the socket",
@@ -631,12 +631,12 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
                  sourceAddr, sourcePort);
 
     /* Callback to the application layer */
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     conn->applicationCB(&pcm->cm, (uintptr_t)conn->rfd.fd,
                         conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &kvm, response);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 }
 
 static UA_StatusCode
@@ -675,7 +675,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Get logging information */
     char hoststr[UA_MAXHOSTNAME_LENGTH];
@@ -778,12 +778,12 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     pcm->fdsSize++;
 
     /* Register the listen socket in the application */
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newudpfd->rfd.fd,
                        application, &newudpfd->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -793,7 +793,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+    UA_LOCK_ASSERT(&pcm->cm.eventSource.eventLoop->elMutex, 1);
 
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
@@ -839,7 +839,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 static void
 UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     if(rfd->dc.callback) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -867,17 +867,17 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
     UA_FD fd = (UA_FD)connectionId;
 
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
     UA_RegisteredFD *rfd = ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!rfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "UDP\t| Cannot close UDP connection %u - not found",
                        (unsigned)connectionId);
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UDP_shutdown(cm, rfd);
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -888,13 +888,13 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
 
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     /* Look up the registered UDP socket */
     UA_FD fd = (UA_FD)connectionId;
     UDP_FD *conn = (UDP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         UA_ByteString_clear(buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -923,7 +923,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                     "UDP %u\t| Send failed with error %s",
                                     (unsigned)connectionId, errno_str));
                     UDP_shutdownConnection(cm, connectionId);
-                    UA_UNLOCK(&el->elMutex);
+                    UA_UNLOCK(&el->eventLoop.elMutex);
                     UA_ByteString_clear(buf);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
@@ -943,7 +943,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         "UDP %u\t| Send failed with error %s",
                                         (unsigned)connectionId, errno_str));
                         UDP_shutdownConnection(cm, connectionId);
-                        UA_UNLOCK(&el->elMutex);
+                        UA_UNLOCK(&el->eventLoop.elMutex);
                         UA_ByteString_clear(buf);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
@@ -954,7 +954,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     } while(nWritten < buf->length);
 
     /* Free the buffer */
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     UA_ByteString_clear(buf);
     return UA_STATUSCODE_GOOD;
 }
@@ -1029,7 +1029,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
                        UA_ConnectionManager_connectionCallback connectionCallback,
                        UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
@@ -1105,11 +1105,11 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
 
     /* Signal the connection as opening. The connection fully opens in the next
      * iteration of the EventLoop */
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock, application,
                        &conn->context, UA_CONNECTIONSTATE_ESTABLISHED,
                        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -1120,7 +1120,7 @@ UDP_openReceiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Get the port */
     const UA_UInt16 *port = (const UA_UInt16*)
@@ -1172,13 +1172,13 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Cannot open a connection for a "
                      "ConnectionManager that is not started");
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1188,7 +1188,7 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                                         &UDPConfigParameters[1],
                                         UDP_PARAMETERSSIZE-1, params);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return res;
     }
 
@@ -1213,7 +1213,7 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         res = UDP_openSendConnection(pcm, params, application, context,
                                      connectionCallback, validate);
     }
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     return res;
 }
 
@@ -1224,14 +1224,14 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| To start the ConnectionManager, "
                      "it has to be registered in an EventLoop and not started");
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1252,7 +1252,7 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 
  finish:
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     return res;
 }
 
@@ -1267,7 +1267,7 @@ static void
 UDP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "UDP\t| Shutting down the ConnectionManager");
@@ -1282,7 +1282,7 @@ UDP_eventSourceStop(UA_ConnectionManager *cm) {
      * don't check if there is no rfd at all) */
     UDP_checkStopped(pcm);
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
 }
 
 static UA_StatusCode

@@ -62,7 +62,7 @@ static void deactivateSignal(UA_RegisteredSignal *rs);
 static void
 handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     UA_RegisteredSignal *rs = (UA_RegisteredSignal*)rfd;
     struct signalfd_siginfo fdsi;
@@ -78,16 +78,16 @@ handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event)
                  "Interrupt %u\t| Received a signal %u",
                  (unsigned)rfd->fd, fdsi.ssi_signo);
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     rs->signalCallback((UA_InterruptManager *)es, (uintptr_t)rfd->fd,
                        rs->context, &UA_KEYVALUEMAP_NULL);
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 }
 
 static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     if(rs->active)
         return;
@@ -139,7 +139,7 @@ activateSignal(UA_RegisteredSignal *rs) {
 static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Only dectivate if active */
     if(!rs->active)
@@ -205,7 +205,7 @@ static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Register the signal on the OS level */
     if(rs->active)
@@ -228,7 +228,7 @@ static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Only dectivate if active */
     if(!rs->active)
@@ -250,7 +250,7 @@ deactivateSignal(UA_RegisteredSignal *rs) {
 static void
 executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     /* Re-arm the socket for the next signal by reading from it */
     char buf[128];
@@ -267,10 +267,10 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
     TAILQ_FOREACH_SAFE(rs, &singletonIM->triggered, triggeredEntry, rs_tmp) {
         TAILQ_REMOVE(&singletonIM->triggered, rs, triggeredEntry);
         rs->triggered = false;
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         rs->signalCallback(&singletonIM->im, (uintptr_t)rs->signal,
                            rs->context, &UA_KEYVALUEMAP_NULL);
-        UA_LOCK(&el->elMutex);
+        UA_LOCK(&el->eventLoop.elMutex);
     }
 }
 
@@ -288,7 +288,7 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     /* Was the signal already registered? */
     int signal = (int)interruptHandle;
@@ -302,14 +302,14 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Interrupt\t| Signal %u already registered",
                        (unsigned)interruptHandle);
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Create and populate the new context object */
     rs = (UA_RegisteredSignal *)UA_calloc(1, sizeof(UA_RegisteredSignal));
     if(!rs) {
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -328,7 +328,7 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
     if(pim->im.eventSource.state == UA_EVENTSOURCESTATE_STARTED)
         activateSignal(rs);
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -336,7 +336,7 @@ static void
 deregisterPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)im->eventSource.eventLoop;
     UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager *)im;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     int signal = (int)interruptHandle;
     UA_RegisteredSignal *rs;
@@ -350,7 +350,7 @@ deregisterPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle) {
         UA_free(rs);
     }
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
 }
 
 #ifdef _WIN32
@@ -383,14 +383,14 @@ pair(SOCKET fds[2]) {
 static UA_StatusCode
 startPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     /* Check the state */
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| To start the InterruptManager, "
                      "it has to be registered in an EventLoop and not started");
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -411,7 +411,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "Interrupt\t| Could not open the pipe for "
                           "self-signaling (%s)", errno_str));
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -426,7 +426,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
                                "Interrupt\t| Could mark pipe for "
                                "self-signaling as non-blocking(%s)",
                                errno_str));
-            UA_UNLOCK(&el->elMutex);
+            UA_UNLOCK(&el->eventLoop.elMutex);
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -447,7 +447,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
                      "Interrupt\t| Could not register the InterruptManager socket");
         UA_close(pipefd[0]);
         UA_close(pipefd[1]);
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 #endif
@@ -461,17 +461,17 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     /* Set the EventSource to the started state */
     es->state = UA_EVENTSOURCESTATE_STARTED;
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 stopPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
-    UA_LOCK(&el->elMutex);
+    UA_LOCK(&el->eventLoop.elMutex);
 
     if(es->state != UA_EVENTSOURCESTATE_STARTED) {
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&el->eventLoop.elMutex);
         return;
     }
 
@@ -495,13 +495,13 @@ stopPOSIXInterruptManager(UA_EventSource *es) {
     /* Immediately set to stopped */
     es->state = UA_EVENTSOURCESTATE_STOPPED;
 
-    UA_UNLOCK(&el->elMutex);
+    UA_UNLOCK(&el->eventLoop.elMutex);
 }
 
 static UA_StatusCode
 freePOSIXInterruptmanager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->eventLoop.elMutex, 1);
 
     if(es->state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
