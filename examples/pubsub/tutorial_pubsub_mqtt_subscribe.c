@@ -17,7 +17,6 @@
 #define SUBSCRIBER_METADATAQUEUENAME  "MetaDataTopic"
 #define SUBSCRIBER_METADATAUPDATETIME 0
 #define BROKER_ADDRESS_URL            "opc.mqtt://127.0.0.1:1883"
-#define SUBSCRIBE_INTERVAL            500
 
 // Uncomment the following line to enable MQTT login for the example
 // #define EXAMPLE_USE_MQTT_LOGIN
@@ -134,7 +133,7 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
  * is removed. All network message related filters are only available in the DataSetReader. */
 /* Add ReaderGroup to the created connection */
 static UA_StatusCode
-addReaderGroup(UA_Server *server,  int interval) {
+addReaderGroup(UA_Server *server) {
     if(server == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -143,7 +142,6 @@ addReaderGroup(UA_Server *server,  int interval) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
-    readerGroupConfig.subscribingInterval = interval;
     if(useJson)
         readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
@@ -366,8 +364,6 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
 
 int main(int argc, char **argv) {
     char *addressUrl = BROKER_ADDRESS_URL;
-    //char *topic = SUBSCRIBER_TOPIC;
-    int interval = SUBSCRIBE_INTERVAL;
 
     /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();
@@ -389,7 +385,7 @@ int main(int argc, char **argv) {
         goto cleanup;
 
     /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server, interval);
+    retval |= addReaderGroup(server);
     if (retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 

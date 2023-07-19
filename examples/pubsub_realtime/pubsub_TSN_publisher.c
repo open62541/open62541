@@ -476,7 +476,6 @@ addReaderGroup(UA_Server *server) {
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name    = UA_STRING("ReaderGroup1");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
-    readerGroupConfig.subscribingInterval = cycleTimeInMsec;
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* Encryption settings */

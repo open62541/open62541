@@ -779,7 +779,6 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 typedef struct {
     UA_String name;
     /* non std. field */
-    UA_Duration subscribingInterval; // Callback interval for subscriber: set the least publishingInterval value of all DSRs in this RG
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
     UA_KeyValueMap groupProperties;
