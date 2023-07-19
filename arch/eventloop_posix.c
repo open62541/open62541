@@ -300,52 +300,52 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 /*****************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPOSIX_registerEventSource(UA_EventLoop *el,
                                       UA_EventSource *es) {
-    UA_LOCK(&el->eventLoop.elMutex);
+    UA_LOCK(&el->elMutex);
 
     /* Already registered? */
     if(es->state != UA_EVENTSOURCESTATE_FRESH) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(el->logger, UA_LOGCATEGORY_NETWORK,
                      "Cannot register the EventSource \"%.*s\": "
                      "already registered",
                      (int)es->name.length, (char*)es->name.data);
-        UA_UNLOCK(&el->eventLoop.elMutex);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Add to linked list */
-    es->next = el->eventLoop.eventSources;
-    el->eventLoop.eventSources = es;
+    es->next = el->eventSources;
+    el->eventSources = es;
 
-    es->eventLoop = &el->eventLoop;
+    es->eventLoop = el;
     es->state = UA_EVENTSOURCESTATE_STOPPED;
 
     /* Start if the entire EventLoop is started */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(el->eventLoop.state == UA_EVENTLOOPSTATE_STARTED)
+    if(el->state == UA_EVENTLOOPSTATE_STARTED)
         res = es->start(es);
 
-    UA_UNLOCK(&el->eventLoop.elMutex);
+    UA_UNLOCK(&el->elMutex);
     return res;
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoop *el,
                                         UA_EventSource *es) {
-    UA_LOCK(&el->eventLoop.elMutex);
+    UA_LOCK(&el->elMutex);
 
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        UA_LOG_WARNING(el->logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot deregister the EventSource %.*s: "
                        "Has to be stopped first",
                        (int)es->name.length, es->name.data);
-        UA_UNLOCK(&el->eventLoop.elMutex);
+        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Remove from the linked list */
-    UA_EventSource **s = &el->eventLoop.eventSources;
+    UA_EventSource **s = &el->eventSources;
     while(*s) {
         if(*s == es) {
             *s = es->next;
@@ -357,7 +357,7 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
     /* Set the state to non-registered */
     es->state = UA_EVENTSOURCESTATE_FRESH;
 
-    UA_UNLOCK(&el->eventLoop.elMutex);
+    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -404,7 +404,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
         UA_UNLOCK(&el->eventLoop.elMutex);
-        UA_EventLoopPOSIX_deregisterEventSource(el, es);
+        UA_EventLoopPOSIX_deregisterEventSource(&el->eventLoop, es);
         UA_LOCK(&el->eventLoop.elMutex);
         es->free(es);
     }
@@ -465,12 +465,8 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
     el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
 
-    el->eventLoop.registerEventSource =
-        (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_registerEventSource;
-    el->eventLoop.deregisterEventSource =
-        (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_deregisterEventSource;
+    el->eventLoop.registerEventSource = UA_EventLoopPOSIX_registerEventSource;
+    el->eventLoop.deregisterEventSource = UA_EventLoopPOSIX_deregisterEventSource;
 
     return &el->eventLoop;
 }
