@@ -782,7 +782,6 @@ typedef struct {
     UA_PubSub_CallbackLifecycle pubsubManagerCallback;
     /* non std. field */
     UA_Duration subscribingInterval; // Callback interval for subscriber: set the least publishingInterval value of all DSRs in this RG
-    UA_Boolean enableBlockingSocket; // To enable or disable blocking socket option
     UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
     UA_KeyValueMap groupProperties;
