@@ -778,8 +778,8 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId s
 /* ReaderGroup configuration */
 typedef struct {
     UA_String name;
+
     /* non std. field */
-    UA_UInt32 timeout; // Timeout for receive to wait for the packets
     UA_PubSubRTLevel rtLevel;
     UA_KeyValueMap groupProperties;
     UA_PubSubEncodingType encodingMimeType;
