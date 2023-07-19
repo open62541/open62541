@@ -221,7 +221,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING("ReaderGroup1");
-        readerGroupConfig.subscribingInterval = SUBSCRIBE_INTERVAL;
 
         /* configure the mqtt publish topic */
         UA_BrokerWriterGroupTransportDataType brokerTransportSettingsSubscriber;

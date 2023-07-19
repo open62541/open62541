@@ -112,10 +112,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return retval;
     }
 
-    /* Check user configured params and define it accordingly */
-    if(newGroup->config.subscribingInterval <= 0.0)
-        newGroup->config.subscribingInterval = 5; /* Set default to 5 ms */
-
     newGroup->linkedConnection = connection;
 
     /* Add to the connection */
