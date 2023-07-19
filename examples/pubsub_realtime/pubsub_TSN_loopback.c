@@ -489,10 +489,6 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 #endif
 
-    readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
-    readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
-
     UA_Server_addReaderGroup(server, connectionIdentSubscriber, &readerGroupConfig,
                              &readerGroupIdentifier);
 
