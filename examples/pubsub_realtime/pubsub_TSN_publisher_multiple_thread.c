@@ -145,7 +145,6 @@ static UA_Int32   qbvOffset            = DEFAULT_QBV_OFFSET;
 static UA_Boolean disableSoTxtime      = UA_TRUE;
 static UA_Boolean enableCsvLog         = UA_FALSE;
 static UA_Boolean consolePrint         = UA_FALSE;
-static UA_Boolean enableBlockingSocket = UA_FALSE;
 static UA_Boolean signalTerm           = UA_FALSE;
 
 /* Variables corresponding to PubSub connection creation,
@@ -377,14 +376,6 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name    = UA_STRING("ReaderGroup");
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     readerGroupConfig.subscribingInterval = cycleTimeInMsec;
-    /* Timeout is modified when blocking socket is enabled, and the default timeout is used when blocking socket is disabled */
-    if (enableBlockingSocket == UA_FALSE)
-        readerGroupConfig.timeout = 50;  // As we run in 250us cycle time, modify default timeout (1ms) to 50us
-    else {
-        readerGroupConfig.enableBlockingSocket = UA_TRUE;
-        readerGroupConfig.timeout = 0;  //Blocking  socket
-    }
-
     readerGroupConfig.pubsubManagerCallback.addCustomCallback = addPubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.changeCustomCallback = changePubSubApplicationCallback;
     readerGroupConfig.pubsubManagerCallback.removeCustomCallback = removePubSubApplicationCallback;
@@ -1228,8 +1219,6 @@ static void usage(char *appname)
         " -disableSoTxtime            Do not use SO_TXTIME\n"
         " -enableCsvLog               Experimental: To log the data in csv files. Support up to 1 million samples\n"
         " -enableconsolePrint         Experimental: To print the data in console output. Support for higher cycle time\n"
-        " -enableBlockingSocket       Run application with blocking socket option. While using blocking socket option need to\n"
-        "                             run both the Publisher and Loopback application. Otherwise application will not terminate.\n"
         "\n",
         appname, DEFAULT_CYCLE_TIME, DEFAULT_SOCKET_PRIORITY, \
         DEFAULT_PUBAPP_THREAD_PRIORITY, \
@@ -1283,7 +1272,6 @@ int main(int argc, char **argv) {
         {"disableSoTxtime",      no_argument,       0, 'm'},
         {"enableCsvLog",         no_argument,       0, 'n'},
         {"enableconsolePrint",   no_argument,       0, 'o'},
-        {"enableBlockingSocket", no_argument,       0, 'p'},
         {"help",                 no_argument,       0, 'q'},
         {0,                      0,                 0,  0 }
     };
@@ -1335,10 +1323,6 @@ int main(int argc, char **argv) {
             case 'o':
                 consolePrint = UA_TRUE;
                 break;
-            case 'p':
-                /* TODO: Application need to be exited independently */
-                enableBlockingSocket = UA_TRUE;
-                break;
             case 'q':
                 usage(progname);
                 return -1;
@@ -1363,8 +1347,6 @@ int main(int argc, char **argv) {
 #ifdef TWO_WAY_COMMUNICATION
     /* The subscriber thread runs in a while loop so while running this application without blocking socket option
      * the running application should be run in the seperate core where no process running in it */
-    if (enableBlockingSocket == UA_FALSE)
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Without blocking socket option the application will cause issues");
 #endif
 
     if (disableSoTxtime == UA_TRUE) {
