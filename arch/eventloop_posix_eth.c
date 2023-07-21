@@ -11,6 +11,8 @@
 #include "eventloop_posix.h"
 #include "eventloop_common.h"
 
+#ifdef UA_ARCHITECTURE_POSIX
+
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
 #include <linux/if_packet.h>
@@ -909,3 +911,5 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
     cm->cm.closeConnection = ETH_shutdownConnection;
     return &cm->cm;
 }
+
+#endif /* defined(UA_ARCHITECTURE_POSIX) */
