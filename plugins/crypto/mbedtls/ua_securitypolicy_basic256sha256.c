@@ -212,7 +212,7 @@ asym_decrypt_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
     if(cc == NULL || data == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
     return mbedtls_decrypt_rsaOaep(&cc->policyContext->localPrivateKey,
-                                   &cc->policyContext->drbgContext, data);
+                                   &cc->policyContext->drbgContext, data, MBEDTLS_MD_SHA1);
 }
 
 static size_t
@@ -772,7 +772,7 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy, const UA_ByteString 
     UA_SecurityPolicySignatureAlgorithm *sym_signatureAlgorithm =
         &symmetricModule->cryptoModule.signatureAlgorithm;
     sym_signatureAlgorithm->uri =
-        UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha1\0");
+        UA_STRING("http://www.w3.org/2000/09/xmldsig#hmac-sha2-256\0");
     sym_signatureAlgorithm->verify =
         (UA_StatusCode (*)(void *, const UA_ByteString *, const UA_ByteString *))sym_verify_sp_basic256sha256;
     sym_signatureAlgorithm->sign =

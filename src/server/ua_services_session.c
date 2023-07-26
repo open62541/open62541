@@ -190,9 +190,9 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     UA_SignatureData *signatureData = &response->serverSignature;
 
     /* Prepare the signature */
-    size_t signatureSize = securityPolicy->certificateSigningAlgorithm.
+    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&securityPolicy->certificateSigningAlgorithm.uri,
+    UA_StatusCode retval = UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
                                           &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
@@ -209,7 +209,7 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
-    retval = securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         sign(channel->channelContext, &dataToSign, &signatureData->signature);
 
     /* Clean up */
@@ -362,6 +362,11 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->sessionName, &newSession->sessionName);
 
+    /* If the session name is empty, use the generated SessionId */
+    if(newSession->sessionName.length == 0)
+        response->responseHeader.serviceResult |=
+            UA_NodeId_print(&newSession->sessionId, &newSession->sessionName);
+
 #ifdef UA_ENABLE_DIAGNOSTICS
     response->responseHeader.serviceResult |=
         UA_String_copy(&request->serverUri, &newSession->diagnostics.serverUri);
@@ -369,26 +374,15 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_String_copy(&request->endpointUrl, &newSession->diagnostics.endpointUrl);
 #endif
 
-    UA_ByteString_init(&response->serverCertificate);
-
-    if(server->config.endpointsSize > 0)
-       for(size_t i = 0; i < response->serverEndpointsSize; ++i) {
-          if(response->serverEndpoints[i].securityMode==channel->securityMode &&
-             UA_ByteString_equal(&response->serverEndpoints[i].securityPolicyUri,
-                                 &channel->securityPolicy->policyUri) &&
-             UA_String_equal(&response->serverEndpoints[i].endpointUrl,
-                             &request->endpointUrl))
-          {
-             response->responseHeader.serviceResult |=
-                 UA_ByteString_copy(&response->serverEndpoints[i].serverCertificate,
-                                    &response->serverCertificate);
-          }
-       }
-
     /* Create a session nonce */
     response->responseHeader.serviceResult |= UA_Session_generateNonce(newSession);
     response->responseHeader.serviceResult |=
         UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
+
+    /* Return the server certificate */
+    response->responseHeader.serviceResult |=
+        UA_ByteString_copy(&server->config.serverCertificate,
+                           &response->serverCertificate);
 
     /* Sign the signature */
     response->responseHeader.serviceResult |=
@@ -435,7 +429,7 @@ checkSignature(const UA_Server *server, const UA_SecurityPolicy *securityPolicy,
     memcpy(dataToVerify.data, localCertificate->data, localCertificate->length);
     memcpy(dataToVerify.data + localCertificate->length,
            serverNonce->data, serverNonce->length);
-    retval = securityPolicy->certificateSigningAlgorithm.
+    retval = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         verify(channelContext, &dataToVerify, &signature->signature);
     UA_ByteString_clear(&dataToVerify);
     if(retval != UA_STATUSCODE_GOOD)

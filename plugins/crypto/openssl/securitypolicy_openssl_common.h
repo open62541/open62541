@@ -30,6 +30,12 @@ UA_StatusCode
 UA_OpenSSL_RSA_PKCS1_V15_SHA256_Verify(const UA_ByteString *msg,
                                        X509 *publicKeyX509,
                                        const UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_RSA_PSS_SHA256_Verify (const UA_ByteString * msg,
+                                  X509 *publicKeyX509,
+                                  const UA_ByteString * signature);
+
 UA_StatusCode
 UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
                                          UA_ByteString *pThumbprint,
@@ -37,11 +43,21 @@ UA_Openssl_X509_GetCertificateThumbprint(const UA_ByteString *certficate,
 UA_StatusCode
 UA_Openssl_RSA_Oaep_Decrypt(UA_ByteString *data,
                             EVP_PKEY *privateKey);
+
+UA_StatusCode
+UA_Openssl_RSA_Oaep_Sha2_Decrypt (UA_ByteString *data,
+                            EVP_PKEY *privateKey);
+
 UA_StatusCode
 UA_Openssl_RSA_OAEP_Encrypt(UA_ByteString *data, /* The data that is encrypted.
                                                     The encrypted data will overwrite
                                                     the data that was supplied.  */
                              size_t paddingSize, X509 *publicX509);
+
+UA_StatusCode
+UA_Openssl_RSA_OAEP_SHA2_Encrypt (UA_ByteString * data,
+                                  size_t          paddingSize,
+                                  X509 *          publicX509);
 
 UA_StatusCode
 UA_Openssl_Random_Key_PSHA256_Derive(const UA_ByteString *secret,
@@ -55,6 +71,11 @@ UA_StatusCode
 UA_Openssl_RSA_PKCS1_V15_SHA256_Sign(const UA_ByteString *data,
                                      EVP_PKEY *privateKey,
                                      UA_ByteString *outSignature);
+
+UA_StatusCode
+UA_Openssl_RSA_PSS_SHA256_Sign (const UA_ByteString * message,
+                                EVP_PKEY * privateKey,
+                                UA_ByteString *       outSignature);
 
 UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
