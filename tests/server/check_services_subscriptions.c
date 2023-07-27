@@ -10,6 +10,7 @@
 #include "server/ua_subscription.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #include "testing_clock.h"
 

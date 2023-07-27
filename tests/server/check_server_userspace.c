@@ -6,6 +6,7 @@
 #include <open62541/types.h>
 
 #include <check.h>
+#include <stdlib.h>
 
 #ifdef __clang__
 //required for ck_assert_ptr_eq and const casting

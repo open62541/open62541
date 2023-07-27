@@ -12,6 +12,7 @@
 #include "ua_types_encoding_binary.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
 

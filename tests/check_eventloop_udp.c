@@ -9,6 +9,7 @@
 
 #include "testing_clock.h"
 #include <time.h>
+#include <stdlib.h>
 #include <check.h>
 
 static UA_EventLoop *el;

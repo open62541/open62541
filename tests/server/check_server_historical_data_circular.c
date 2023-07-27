@@ -17,6 +17,7 @@
 #include <open62541/server_config_default.h>
 
 #include <check.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #include "server/ua_server_internal.h"

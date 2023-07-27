@@ -9,6 +9,7 @@
 
 #include "ua_util_internal.h"
 
+#include <stdlib.h>
 #include <check.h>
 #include <float.h>
 #include <math.h>
