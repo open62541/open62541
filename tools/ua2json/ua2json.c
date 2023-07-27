@@ -5,23 +5,12 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include <open62541/types.h>
-#include <stdio.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+
+#include <stdio.h>
+#include <unistd.h>
 
 /* Internal headers */
 #include "ua_pubsub_networkmessage.h"
