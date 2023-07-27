@@ -61,9 +61,9 @@ START_TEST(Server_loadTestNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_TESTNODESET_DIR "testnodeset.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
-    size_t nsIndex = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
-    ck_assert(nsIndex != (size_t)-1);
+    size_t nsIndex = LONG_MAX;
+    retVal = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     testNamespaceIndex = (UA_UInt16) nsIndex;
 }
 END_TEST

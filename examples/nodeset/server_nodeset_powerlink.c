@@ -29,12 +29,10 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     /* create nodes from nodeset */
-    size_t idx = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
-    if(idx != (size_t) -1) {
+    size_t idx = LONG_MAX;
+    UA_StatusCode retval = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
+    if(retval != UA_STATUSCODE_GOOD) {
         retval = namespace_di_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -43,9 +41,8 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
-    idx = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/POWERLINK/"), &idx);
-    if(idx != (size_t) -1) {
+    retval = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/POWERLINK/"), &idx);
+    if(retval != UA_STATUSCODE_GOOD) {
         retval = namespace_powerlink_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
