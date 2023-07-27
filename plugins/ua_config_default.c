@@ -269,16 +269,16 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* Logging */
     if(!conf->logger.log)
-        conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_TRACE);
+        conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
     if(conf->logging == NULL)
         conf->logging = &conf->logger;
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
         conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
-        if(conf->eventLoop == NULL) {
-           return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
+        if(conf->eventLoop == NULL)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
+
         conf->externalEventLoop = false;
 
         /* Add the TCP connection manager */
@@ -962,9 +962,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(config->secureChannelLifeTime == 0)
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
-    if(!config->logger.log) {
+    if(!config->logger.log)
         config->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
-    }
     if(config->logging == NULL)
         config->logging = &config->logger;
 
