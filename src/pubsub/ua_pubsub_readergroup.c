@@ -91,14 +91,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(!rgc->pubsubManagerCallback.addCustomCallback &&
-       rgc->enableBlockingSocket) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
-                                  "Adding ReaderGroup failed, blocking socket "
-                                  "functionality only supported in customcallback");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
     if(connection->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
                                   "Adding ReaderGroup failed. "
@@ -119,18 +111,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         UA_free(newGroup);
         return retval;
     }
-
-    /* Check user configured params and define it accordingly */
-    if(newGroup->config.subscribingInterval <= 0.0)
-        newGroup->config.subscribingInterval = 5; /* Set default to 5 ms */
-
-    if(newGroup->config.enableBlockingSocket)
-        newGroup->config.timeout = 0; /* Set timeout to 0 for blocking socket */
-
-    if((!newGroup->config.enableBlockingSocket) && (!newGroup->config.timeout))
-        newGroup->config.timeout = 1000; /* Set default to 1ms channel timeout
-                                          * when non-blocking socket allows with
-                                          * zero timeout */
 
     newGroup->linkedConnection = connection;
 
