@@ -15,29 +15,11 @@ static void reverseConnectStateCallback(UA_Server *server, UA_UInt64 handle,
 int main(void) {
     UA_Server *server = UA_Server_new();
 
-    /*UA_Server_run_startup(server); */
-
     UA_UInt64 handle = 0;
     UA_Server_addReverseConnect(server, UA_STRING("opc.tcp://localhost:4841"),
                                 reverseConnectStateCallback, (void *)123456, &handle);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    /* Test remove */
-    /*for (int i = 0; i < 10000; ++i) {
-        retval = UA_Server_run_iterate(server, true);
-
-        if (i == 8000)
-            UA_Server_removeReverseConnect(server, handle);
-
-        if (!running)
-            break;
-    }
-
-    UA_Server_run_shutdown(server);*/
-
     UA_Server_runUntilInterrupt(server);
-
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }
