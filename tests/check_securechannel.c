@@ -11,9 +11,11 @@
 #include "ua_types_encoding_binary.h"
 #include "ua_util_internal.h"
 
-#include "check.h"
 #include "testing_networklayers.h"
 #include "testing_policy.h"
+
+#include <stdlib.h>
+#include <check.h>
 
 #define UA_BYTESTRING_STATIC(s) {sizeof(s)-1, (UA_Byte*)(s)}
 
