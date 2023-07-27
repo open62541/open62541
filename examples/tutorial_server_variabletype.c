@@ -84,7 +84,8 @@ addVariableFail(UA_Server *server) {
     /* Prepare the node attributes */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vAttr.valueRank = UA_VALUERANK_SCALAR; /* a scalar. this is not allowed per the variable type */
+    vAttr.valueRank = UA_VALUERANK_SCALAR; /* a scalar. this is not allowed per
+                                            * the variable type */
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable (fail)");
     UA_String s = UA_STRING("2dpoint?");
     UA_Variant_setScalar(&vAttr.value, &s, &UA_TYPES[UA_TYPES_STRING]);
@@ -116,14 +117,11 @@ writeVariable(UA_Server *server) {
 
 int main(void) {
     UA_Server *server = UA_Server_new();
-
     addVariableType2DPoint(server);
     addVariable(server);
     addVariableFail(server);
     writeVariable(server);
-
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

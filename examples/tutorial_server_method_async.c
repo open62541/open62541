@@ -35,6 +35,7 @@
 #include <open62541/server.h>
 
 #include <signal.h>
+#include <malloc.h>
 #include "common.h"
 
 #ifndef WIN32
@@ -217,12 +218,12 @@ int main(void) {
     addHelloWorldMethod1(globalServer);
 	addHelloWorldMethod2(globalServer);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(globalServer);
+    UA_Server_runUntilInterrupt(globalServer);
 
     /* Shutdown the thread */
     running = false;
     THREAD_JOIN(hThread);
 
     UA_Server_delete(globalServer);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

@@ -102,9 +102,9 @@ int main(void) {
     retval = gathering.startPoll(server, gathering.context, &outNodeId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "startPoll %s", UA_StatusCode_name(retval));
     */
-    retval = UA_Server_runUntilInterrupt(server);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "UA_Server_run %s", UA_StatusCode_name(retval));
+
+    UA_Server_runUntilInterrupt(server);
+
     /*
      * If you use UA_HISTORIZINGUPDATESTRATEGY_POLL, then stop the polling.
      *
@@ -116,6 +116,5 @@ int main(void) {
 
     setting.historizingBackend.deleteMembers(&setting.historizingBackend);
     UA_NodeId_clear(&outNodeId);
-
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

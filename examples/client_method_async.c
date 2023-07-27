@@ -221,7 +221,7 @@ main(int argc, char *argv[]) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Not connected. Retrying to connect in 1 second");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* Endless loop runAsync */
@@ -232,5 +232,5 @@ main(int argc, char *argv[]) {
     /* Clean up */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return EXIT_SUCCESS;
+    return 0;
 }
