@@ -100,9 +100,9 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
     UA_SignatureData *sd = &request->clientSignature;
 
     /* Prepare the clientSignature */
-    size_t signatureSize = sp->certificateSigningAlgorithm.
+    size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&sp->certificateSigningAlgorithm.uri,
+    UA_StatusCode retval = UA_String_copy(&sp->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
                                           &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -127,7 +127,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = sp->certificateSigningAlgorithm.sign(channel->channelContext,
+    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.sign(channel->channelContext,
                                                   &dataToSign, &sd->signature);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -150,9 +150,9 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
     if(retval != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    size_t userTokenSignatureSize = utpSecurityPolicy->certificateSigningAlgorithm.
+    size_t userTokenSignatureSize = utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
         getLocalSignatureSize(tempChannelContext);
-    retval = UA_String_copy(&utpSecurityPolicy->certificateSigningAlgorithm.uri,
+    retval = UA_String_copy(&utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
                             &utsd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -177,7 +177,7 @@ if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
            channel->remoteCertificate.length);
     memcpy(userTokenSign.data + channel->remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = utpSecurityPolicy->certificateSigningAlgorithm.sign(tempChannelContext,
+    retval = utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.sign(tempChannelContext,
                                                   &userTokenSign, &utsd->signature);
     /* Clean up */
     UA_ByteString_clear(&userTokenSign);
@@ -316,7 +316,7 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
            client->clientSessionNonce.length);
 
-    retval = sp->certificateSigningAlgorithm.verify(channel->channelContext, &dataToVerify,
+    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.verify(channel->channelContext, &dataToVerify,
                                                     &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
@@ -742,11 +742,10 @@ activateSessionAsync(UA_Client *client) {
         request.userIdentityToken.encoding = UA_EXTENSIONOBJECT_DECODED;
     }
 
-    /* Set the policy-Id from the endpoint. Every IdentityToken starts with a
-     * string. With an X509IdentityToken, the policy-Id is already set. */
-    if(client->config.userTokenPolicy.tokenType != UA_USERTOKENTYPE_CERTIFICATE)
-        retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
-                                (UA_String*)request.userIdentityToken.content.decoded.data);
+    /* Set the correct PolicyId from the endpoint */
+    UA_String_clear((UA_String*)request.userIdentityToken.content.decoded.data);
+    retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
+                            (UA_String*)request.userIdentityToken.content.decoded.data);
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */
@@ -1552,6 +1551,8 @@ initConnect(UA_Client *client) {
 
     /* Initialize the SecurityPolicy */
     initSecurityPolicy(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return;
 
     /* Extract hostname and port from the URL */
     UA_String hostname = UA_STRING_NULL;
@@ -1663,6 +1664,10 @@ connectSync(UA_Client *client) {
 UA_StatusCode
 __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     UA_LOCK(&client->clientMutex);
+    /* Reset the connectStatus. This should be the only place where we can
+     * recover from a bad connectStatus. */
+    client->connectStatus = UA_STATUSCODE_GOOD;
+
     if(async)
         initConnect(client);
     else
@@ -1897,6 +1902,8 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.connectionId = 0;
 
     initSecurityPolicy(client);
+    if(client->connectStatus != UA_STATUSCODE_GOOD)
+        return client->connectStatus;
 
     UA_EventLoop *el = client->config.eventLoop;
     if(!el) {

@@ -28,6 +28,8 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 # endif
 #endif
 
+    UA_ByteString_clear(&config->serverCertificate);
+
     /* Stop and delete the EventLoop */
     UA_EventLoop *el = config->eventLoop;
     if(el && !config->externalEventLoop) {

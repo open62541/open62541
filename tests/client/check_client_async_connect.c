@@ -89,7 +89,7 @@ START_TEST(Client_connect_async) {
     ck_assert_uint_eq(connected, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     /* With default setting the client uses 7 iterations to connect */
-    ck_assert_uint_eq(asyncCounter, 10-7);
+    ck_assert_uint_eq(asyncCounter, 5);
     UA_Client_disconnectAsync(client);
     while(connected) {
         UA_Server_run_iterate(server, false);

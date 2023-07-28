@@ -49,15 +49,24 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
-
-    /* TODO: Send timer policy from writer group config */
-    UA_StatusCode retval =
-        el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
-                              server, wg, wg->config.publishingInterval,
-                              NULL /* TODO: use basetime */,
-                              UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(wg->config.pubsubManagerCallback.addCustomCallback) {
+        /* Use configured mechanism for cyclic callbacks */
+        wg->config.pubsubManagerCallback.
+            addCustomCallback(server, wg->identifier,
+                              (UA_ServerCallback)UA_WriterGroup_publishCallback,
+                              wg, wg->config.publishingInterval,
+                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                               &wg->publishCallbackId);
+    } else {
+        /* Use EventLoop for cyclic callbacks */
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+        retval = el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
+                                       server, wg, wg->config.publishingInterval,
+                                       NULL /* TODO: use basetime */,
+                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                       &wg->publishCallbackId);
+    }
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -71,9 +80,15 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
 
 static void
 UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
-    if(wg->publishCallbackId != 0)
+    if(wg->publishCallbackId == 0)
+        return;
+    if(wg->config.pubsubManagerCallback.removeCustomCallback) {
+        wg->config.pubsubManagerCallback.
+            removeCustomCallback(server, wg->identifier, wg->publishCallbackId);
+    } else {
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
         el->removeCyclicCallback(el, wg->publishCallbackId);
+    }
     wg->publishCallbackId = 0;
 }
 

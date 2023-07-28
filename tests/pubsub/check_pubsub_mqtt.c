@@ -223,7 +223,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING("ReaderGroup1");
-        readerGroupConfig.subscribingInterval = SUBSCRIBE_INTERVAL;
 
         /* configure the mqtt publish topic */
         UA_BrokerWriterGroupTransportDataType brokerTransportSettingsSubscriber;
@@ -252,8 +251,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
-        UA_UInt32 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT32];
+        UA_UInt16 publisherIdentifier = 2234;
+        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
         readerConfig.publisherId.data = &publisherIdentifier;
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;

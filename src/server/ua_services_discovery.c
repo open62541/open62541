@@ -172,6 +172,20 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         response->servers = NULL;
     }
 #endif
+
+    if(request->endpointUrl.length > 0 && response->servers != NULL) {
+        for(size_t i = 0; i < response->serversSize; i++) {
+            UA_Array_delete(response->servers[i].discoveryUrls,
+                            response->servers[i].discoveryUrlsSize,
+                            &UA_TYPES[UA_TYPES_STRING]);
+            response->servers[i].discoveryUrls = NULL;
+            response->servers[i].discoveryUrlsSize = 0;
+            response->responseHeader.serviceResult |=
+                UA_Array_appendCopy((void**)&response->servers[i].discoveryUrls,
+                                    &response->servers[i].discoveryUrlsSize,
+                                    &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+        }
+    }
 }
 
 void

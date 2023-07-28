@@ -192,7 +192,7 @@ static void AddDataSetReader(
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING(pName);
-    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt16*) &PublisherId, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt32*) &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
     readerConfig.messageReceiveTimeout = MessageReceiveTimeout;

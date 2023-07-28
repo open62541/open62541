@@ -638,6 +638,9 @@ UA_CertificateVerification_VerifyApplicationURI (const UA_CertificateVerificatio
         UA_LOG_ERROR(*(cv->logging), UA_LOGCATEGORY_USERLAND, "Error processing X509 Certificate");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
+    
+    UA_String_init(&subjectURI);
+    
     for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
          GENERAL_NAME * value = sk_GENERAL_NAME_value (pNames, i);
          if (value->type == GEN_URI) {
