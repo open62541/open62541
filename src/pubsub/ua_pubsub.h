@@ -27,6 +27,64 @@
 #include <ua_pubsub_keystorage.h>
 #endif
 
+/**
+ * 
+ *  PubSub Components Interation Table
+ * 
+ *  Following table captures the behaviour of components expected during specific state changes and also the integrations which is expected between the components.
+ * 
+ * 
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+| Component/State    |                     |         Disabled               |            Paused                |       Pre-Operational                |     Operational               |      Error                    |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |                     | Channels for ReaderGroup and   |    No changes to channel         | Connection are initiated for         | Connection are initiated for  | Channels for ReaderGroup      |
+|                    |      Channel        | WriterGroup are closed         |                                  | any registerd Reader or Writergroups | any additional registered     | and WriterGroup are closed    |
+|                    |                     |                                |                                  |                                      | Reader or Writergroups        |                               |
+|     Connection     +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |    PubSubCallback   | Callback are Deregistered for  | Callback are Deregistered for    | Callback for send and recv           | Callback for send and recv    | Callback are Deregistered for |
+|                    |                     | send and recv channels         | send and recv channels           | channels are registered              | channels are registered       | send and recv channels        |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |      Triggers       |   ReaderGroup->Disable         |       No trigger required        |      No trigger required             |  ReaderGroup->Preoperational  |  ReaderGroup->Error           |
+|                    |                     |   WriterGroup->Disable         |                                  |                                      |  WriterGroup->Preoperational  |  WriterGroup->Error           |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |                     |       No changes to channel    |    No changes to channel         | WriterGroup Connection should        | The WriterGroup connection    | No changes to channel         |
+|                    |      Channel        |                                |                                  | be initiated                         | must have been opened         |                               |
+|                    |                     |                                |                                  |                                      | successfully                  |                               |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|    WriterGroup     |    PubSubCallback   | Publish callback is            |     No changes to callback       |        No changes to callback        | Publish callback is           | Publish callback is           |
+|                    |                     | deregistered                   |                                  |                                      | registered                    | deregistered                  |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |                     |   DataSetWriter -> Disabled    |     No trigger required          |      No trigger required             | DataSetWriter->PreOperational |  DataSetWriter->Error         |
+|                    |      Triggers       |                                |                                  |                                      | Requires the Security Keys    |                               |
+|                    |                     |                                |                                  |                                      | to be set                     |                               |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |                     |                                |                                  | ReaderGroup Connection should        | The ReaderGroup connection    |                               |
+|                    |      Channel        |   No changes to channel        |      No changes to channel       | be initiated                         | must have been opened         |    No changes to channel      |
+|                    |                     |                                |                                  |                                      | successfully                  |                               |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|    ReaderGroup     |    PubSubCallback   |                                                                                 No callback required                                                                     |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |    Triggers         |   DataSetReader -> Disabled    |     No trigger required          |      No trigger required             |  DataSetReader-> Operational  |  DataSetReader->Error         |
+|                    |                     |                                |  Only state variable is changed  |                                      |                               |                               |
+|                    |                     |                                |  when entering from Disable      |                                      |                               |                               |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |        Channel      |                                                                                No changes to channel                                                                     |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|    DataSetWriter   |    PubSubCallback   |                                                                                No callback required                                                                      |
+|                    +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |    Triggers         |    No trigger required         |     No trigger required          |       DataSetWriter->Operational     |  No trigger required          |  No trigger required          |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |      Channel        |                                                                          Channels handled in ReaderGroup                                                                 |
+|                    +---------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+|                    |    PubSubCallback   |                                                                                No callback required                                                                      |
+|    DataSetReader   +---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+|                    |    Triggers         |    No trigger required         |     No trigger required          |      no triggers                     |                               |                               |
+|                    |                     |                                |                                  | On receipt of first packet from both |  No trigger required          |  No trigger required          |
+|                    |                     |                                |                                  | ReaderGroup and Reader are pushed to |                               |                               |
+|                    |                     |                                |                                  | Operational state                    |                               |                               |
++--------------------+---------------------+--------------------------------+----------------------------------+--------------------------------------+-------------------------------+-------------------------------+
+**/
+
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
@@ -253,6 +311,7 @@ typedef struct UA_DataSetWriter {
 #endif
     UA_UInt16 actualDataSetMessageSequenceCount;
     UA_Boolean configurationFrozen;
+    UA_UInt64  pubSubStateTimerId;
 } UA_DataSetWriter;
 
 UA_StatusCode
@@ -398,7 +457,6 @@ UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
                               UA_PubSubState state,
                               UA_StatusCode cause);
-
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
@@ -409,6 +467,10 @@ UA_WriterGroup_publishCallback(UA_Server *server,
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
                             const UA_WriterGroupConfig *config);
+
+UA_StatusCode
+UA_WriterGroup_enableWriterGroup(UA_Server *server,
+                                 const UA_NodeId writerGroup);
 
 #define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WRITERGROUP, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \

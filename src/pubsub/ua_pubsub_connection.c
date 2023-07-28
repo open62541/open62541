@@ -276,6 +276,10 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    /* Make the connection disabled */
+    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED,
+                                             UA_STATUSCODE_GOOD);
+
     UA_PubSubConnection_delete(server, psc);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
@@ -318,7 +322,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             /* Called also if the connection is already operational. We might to
              * open an additional recv connection, etc. Sets the new state
              * internally. */
-            if(oldState != UA_PUBSUBSTATE_OPERATIONAL)
+            if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL || oldState == UA_PUBSUBSTATE_OPERATIONAL)
+                c->state = UA_PUBSUBSTATE_OPERATIONAL;
+            else
                 c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
             ret = UA_PubSubConnection_connect(server, c);
             if(ret != UA_STATUSCODE_GOOD)

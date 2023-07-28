@@ -89,7 +89,7 @@ addTestWriterGroup(UA_String securitygroupId){
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retval |= UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    UA_Server_enableWriterGroup(server, writerGroup);
 }
 
 static void
@@ -110,7 +110,7 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_setReaderGroupOperational(server, readerGroup);
+    UA_Server_enableReaderGroup(server, readerGroup);
 }
 
 static UA_PubSubKeyStorage*

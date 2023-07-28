@@ -182,16 +182,18 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* Connection open, set to operational if not already done */
+    if(psc->state != UA_PUBSUBSTATE_OPERATIONAL)
+        UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL,
+                                           UA_STATUSCODE_GOOD); 
+
     /* No message received */
     if(!recv || msg.length == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
 
-    /* Connection open, set to operational if not already done */
-    if(psc->state != UA_PUBSUBSTATE_OPERATIONAL)
-        UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
+    
 
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
@@ -708,7 +710,12 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
     /* Is this a WriterGroup with custom TransportSettings beyond the
      * PubSubConnection? */
     if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+    {
+        if(wg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
         return UA_STATUSCODE_GOOD;
+    }
+        
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {

@@ -108,7 +108,8 @@ addWriterGroup(UA_Server *server) {
         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
+
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroupIdent, 1, signingKey, encryptingKey, kn);

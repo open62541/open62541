@@ -552,7 +552,12 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
+
+UA_DEPRECATED UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setWriterGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
+
+#define UA_Server_setWriterGroupOperational(server, writerGroup) UA_Server_enableWriterGroup(server, writerGroup)
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setWriterGroupDisabled(UA_Server *server, const UA_NodeId writerGroup);
@@ -608,6 +613,10 @@ UA_Server_addDataSetWriter(UA_Server *server,
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
                                  UA_DataSetWriterConfig *config);
+
+
+UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dataSetWriterIdent);
 
 /* Get state of DataSetWriter */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
@@ -734,6 +743,10 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                  UA_PubSubState *state);
 
+/* Enable DataSetReader*/
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dataSetReaderIdentifier);
+
 typedef struct {
     UA_String name;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
@@ -841,7 +854,12 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId readerGroupId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId readerGroupId);
+UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_DEPRECATED UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setReaderGroupOperational(UA_Server *server, const UA_NodeId writerGroup);
+
+#define UA_Server_setReaderGroupOperational(server, writerGroup) UA_Server_enableReaderGroup(server, writerGroup)
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId);
@@ -957,6 +975,12 @@ UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,
                        UA_Server_sksPullRequestCallback callback, void *context);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setReaderGroupActivateKey(UA_Server *server, const UA_NodeId readerGroupId);
+
+UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_Server_setWriterGroupActivateKey(UA_Server *server, const UA_NodeId writerGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 

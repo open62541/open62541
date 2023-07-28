@@ -600,7 +600,7 @@ int main(int argc, char **argv) {
     addReaderGroup(server);
     addDataSetReader(server);
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     serverConfigStruct *serverConfig;
     serverConfig            = (serverConfigStruct*)UA_malloc(sizeof(serverConfigStruct));
     serverConfig->ServerRun = server;

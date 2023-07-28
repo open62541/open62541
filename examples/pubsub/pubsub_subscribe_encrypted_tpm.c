@@ -91,13 +91,10 @@ addReaderGroup(UA_Server *server) {
 
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
     // TODO security token not necessary for readergroup (extracted from security-header)
     UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, signingKey, encryptingKey, kn);
-
-    // TODO setOperational MUST be after setting keys
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 
     return retval;
 }

@@ -69,10 +69,10 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 
 static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
-    if(sksPullRequestStatus == UA_STATUSCODE_GOOD)
-        UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
     if(sksPullRequestStatus != UA_STATUSCODE_GOOD)
         running = false;
+
+    UA_Server_setReaderGroupActivateKey(server, readerGroupIdentifier);
 }
 
 /**
@@ -104,7 +104,7 @@ addReaderGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
 
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-
+    retval |= UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     /* We need to set the sks client before setting Reader/Writer Group into operational
      * because it will fetch the initial set of keys. The sks client is required to set
      * once per security group on publisher/subscriber application.*/

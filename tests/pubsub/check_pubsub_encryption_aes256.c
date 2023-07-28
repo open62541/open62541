@@ -68,12 +68,12 @@ START_TEST(SinglePublishDataSetField) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-    UA_Server_setWriterGroupOperational(server, writerGroup1);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
     writerGroupConfig.publishingInterval = 50;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
-    UA_Server_setWriterGroupOperational(server, writerGroup2);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup2);
     writerGroupConfig.name = UA_STRING("WriterGroup 3");
     writerGroupConfig.publishingInterval = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
@@ -82,7 +82,7 @@ START_TEST(SinglePublishDataSetField) {
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup3);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup3);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PublishedDataSetConfig pdsConfig;

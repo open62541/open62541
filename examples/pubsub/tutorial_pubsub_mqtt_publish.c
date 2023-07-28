@@ -285,9 +285,8 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 
     writerGroupConfig.transportSettings = transportSettings;
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
-    if (retval == UA_STATUSCODE_GOOD)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
 #ifdef UA_ENABLE_JSON_ENCODING
     if (useJson) {

@@ -767,7 +767,7 @@ static int run(UA_String *transportProfile,
     /* Add the new WriterGroup to an existing Connection. */
     UA_NodeId writerGroupIdent;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
     // DataSetWriter ID 1 with Variant Encoding

@@ -331,7 +331,8 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
     (void)cause;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
-        break;
+        rg->state = UA_PUBSUBSTATE_PAUSED;
+        return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_PAUSED:
         return UA_STATUSCODE_GOOD;
     case UA_PUBSUBSTATE_OPERATIONAL:
@@ -347,42 +348,68 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
 }
 
 static UA_StatusCode
+UA_ReaderGroup_setPubSubState_preoperational(UA_Server *server,
+                                            UA_ReaderGroup *rg,
+                                            UA_StatusCode cause) {
+    switch(rg->state) {
+        case UA_PUBSUBSTATE_DISABLED:
+        case UA_PUBSUBSTATE_PAUSED:
+            rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
+            UA_StatusCode ret =
+                UA_PubSubConnection_setPubSubState(server, pubSubConnection,
+                                                UA_PUBSUBSTATE_OPERATIONAL,
+                                                UA_STATUSCODE_GOOD);
+            if(ret != UA_STATUSCODE_GOOD ||
+            (pubSubConnection->state != UA_PUBSUBSTATE_OPERATIONAL &&
+                pubSubConnection->state != UA_PUBSUBSTATE_PREOPERATIONAL)) {
+                UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+                                        "Connection not operational");
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+
+            /* Connect if the ReaderGroup has dedicated connections */
+            if(rg->recvChannelsSize == 0)
+                ret = UA_ReaderGroup_connect(server, rg);
+            if(ret != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "Could not connect");
+                UA_PubSubConnection_setPubSubState(server, pubSubConnection,
+                                                UA_PUBSUBSTATE_ERROR, ret);
+            }
+
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            return UA_STATUSCODE_GOOD;
+        case UA_PUBSUBSTATE_ERROR:
+            break;
+        default:
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "Unknown PubSub state!");
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+static UA_StatusCode
 UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
                                           UA_ReaderGroup *rg,
                                           UA_StatusCode cause) {
-    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
-    UA_StatusCode ret =
-        UA_PubSubConnection_setPubSubState(server, pubSubConnection,
-                                           UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
-    if(ret != UA_STATUSCODE_GOOD ||
-       (pubSubConnection->state != UA_PUBSUBSTATE_OPERATIONAL &&
-        pubSubConnection->state != UA_PUBSUBSTATE_PREOPERATIONAL)) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
-                                   "Connection not operational");
-        return UA_STATUSCODE_BADINTERNALERROR;
+    
+
+    /* Set to operational as this should be called after receipt of first message */
+    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+    {
+        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
+
+        /* Set all readers operational */
+        UA_DataSetReader *dsr;
+        LIST_FOREACH(dsr, &rg->readers, listEntry) {
+            UA_DataSetReader_setPubSubState(server, dsr,
+                                            UA_PUBSUBSTATE_OPERATIONAL, cause);
+        }
     }
-
-    /* Connect if the ReaderGroup has dedicated connections */
-    if(rg->recvChannelsSize == 0)
-        ret = UA_ReaderGroup_connect(server, rg);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "Could not connect");
-        UA_PubSubConnection_setPubSubState(server, pubSubConnection,
-                                           UA_PUBSUBSTATE_ERROR, ret);
-    }
-
-    /* Set to preoperational until the first message was received */
-    if(rg->state != UA_PUBSUBSTATE_OPERATIONAL)
-        rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
-    /* Set all readers operational */
-    UA_DataSetReader *dsr;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(server, dsr,
-                                        UA_PUBSUBSTATE_OPERATIONAL, cause);
-    }
-
+       
     return UA_STATUSCODE_GOOD;
 }
 
@@ -429,6 +456,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
         case UA_PUBSUBSTATE_PAUSED:
             ret = UA_ReaderGroup_setPubSubState_paused(server, readerGroup, cause);
             break;
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+            ret = UA_ReaderGroup_setPubSubState_preoperational(server, readerGroup, cause);
+            break;
         case UA_PUBSUBSTATE_OPERATIONAL:
             ret = UA_ReaderGroup_setPubSubState_operational(server, readerGroup, cause);
             break;
@@ -453,14 +483,15 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
     return ret;
 }
 
+#ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode
-UA_Server_setReaderGroupOperational(UA_Server *server,
+UA_Server_setReaderGroupActivateKey(UA_Server *server,
                                     const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(rg) {
-#ifdef UA_ENABLE_PUBSUB_SKS
+
         if(rg->keyStorage && rg->keyStorage->currentItem) {
             UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
                 server, rg->identifier, rg->config.securityGroupId);
@@ -469,8 +500,21 @@ UA_Server_setReaderGroupOperational(UA_Server *server,
                 return retval;
             }
         }
+
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
 #endif
-        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
+
+UA_StatusCode
+UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+    if(rg)
+    {
+        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_PREOPERATIONAL,
                                             UA_STATUSCODE_GOOD);
     }
     UA_UNLOCK(&server->serviceMutex);
@@ -478,8 +522,7 @@ UA_Server_setReaderGroupOperational(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_setReaderGroupDisabled(UA_Server *server,
-                                 const UA_NodeId readerGroupId) {
+UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId){
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);

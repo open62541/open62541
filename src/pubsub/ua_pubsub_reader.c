@@ -237,17 +237,16 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     if(readerIdentifier)
         UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
 
-    /* Set the ReaderGroup state after finalizing the configuration */
+    /* Set the DataSetReader state after finalizing the configuration */
     if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL ||
        readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
         retVal = UA_DataSetReader_setPubSubState(server, newDataSetReader, readerGroup->state,
                                         UA_STATUSCODE_GOOD);
         if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
+            UA_LOG_ERROR_READER(&server->config.logger, newDataSetReader,
                                      "Add DataSetReader failed, setPubSubState failed");
         }
     }
-
 
     return UA_STATUSCODE_GOOD;
 }
@@ -519,6 +518,37 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
     return res;
 }
 
+UA_StatusCode
+UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dataSetReaderIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_DataSetReader* dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+
+    if(!dsr) {
+        UA_UNLOCK(&server->serviceMutex);
+        return ret;
+    }
+
+    UA_NodeId rgId = dsr->linkedReaderGroup;
+    UA_ReaderGroup* readerGroup = UA_ReaderGroup_findRGbyId(server, rgId);
+    if(readerGroup->state == UA_PUBSUBSTATE_OPERATIONAL ||
+       readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+    ret = UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_PREOPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
+    if(ret != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
+                                    "Enable DataSetReader failed, setPubSubState failed");
+        }
+    }
+    else {
+        ret = UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_PAUSED,
+                                              UA_STATUSCODE_GOOD);
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
 static UA_StatusCode
 UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -528,6 +558,7 @@ UA_DataSetReader_setState_disabled(UA_Server *server, UA_DataSetReader *dsr) {
     case UA_PUBSUBSTATE_PAUSED:
         dsr->state = UA_PUBSUBSTATE_DISABLED;
         return UA_STATUSCODE_GOOD;
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         /* Stop MessageReceiveTimeout timer */
@@ -571,10 +602,10 @@ UA_DataSetReader_setPubSubState(UA_Server *server,
             ret = UA_DataSetReader_setState_disabled(server, dataSetReader);
             break;
         case UA_PUBSUBSTATE_PAUSED:
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
+            dataSetReader->state = state;
             break;
-        case UA_PUBSUBSTATE_OPERATIONAL:
         case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
         case UA_PUBSUBSTATE_ERROR:
             dataSetReader->state = state;
             break;
@@ -927,6 +958,11 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
          *     }
          * } */
         return;
+    }
+
+    /* Message is valid, if DSR is preoperational, we can change it to operational*/
+    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL){
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
     }
 
     if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
