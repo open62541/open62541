@@ -5,10 +5,6 @@ ua_include_directories(${PROJECT_SOURCE_DIR}/src) # to have access to ua_securec
 
 add_subdirectory(posix)
 add_subdirectory(win32)
-add_subdirectory(freertosLWIP)
-add_subdirectory(vxworks)
-add_subdirectory(eCos)
-add_subdirectory(wec7)
 
 SET(UA_ARCH_EXTRA_INCLUDES "" CACHE STRING "Folders to include from the architecture")
 mark_as_advanced(UA_ARCH_EXTRA_INCLUDES)
