@@ -96,7 +96,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_shutdown shutdown
 #define UA_socket socket
-#define UA_bind bind
 #define UA_listen listen
 #define UA_accept accept
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
