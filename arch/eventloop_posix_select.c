@@ -84,12 +84,12 @@ setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errs
 
         /* Add to the fd_sets */
         if(el->fds[i]->listenEvents & UA_FDEVENT_IN)
-            UA_fd_set(currentFD, readset);
+            FD_SET(currentFD, readset);
         if(el->fds[i]->listenEvents & UA_FDEVENT_OUT)
-            UA_fd_set(currentFD, writeset);
+            FD_SET(currentFD, writeset);
 
         /* Always return errors */
-        UA_fd_set(currentFD, errset);
+        FD_SET(currentFD, errset);
 
         /* Highest fd? */
         if(currentFD > highestfd || highestfd == UA_INVALID_FD)
@@ -140,11 +140,11 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
         /* Error Event */
         short event = 0;
-        if(UA_fd_isset(fd, &readset)) {
+        if(FD_ISSET(fd, &readset)) {
             event = UA_FDEVENT_IN;
-        } else if(UA_fd_isset(fd, &writeset)) {
+        } else if(FD_ISSET(fd, &writeset)) {
             event = UA_FDEVENT_OUT;
-        } else if(UA_fd_isset(fd, &errset)) {
+        } else if(FD_ISSET(fd, &errset)) {
             event = UA_FDEVENT_ERR;
         } else {
             continue;

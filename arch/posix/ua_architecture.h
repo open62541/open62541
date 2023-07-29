@@ -37,20 +37,6 @@
 
 #include <netinet/tcp.h>
 
-/* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using
- * musl libc (e.g. Docker Alpine) */
-#if  defined(__OpenBSD__) || \
-    (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
-     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
-    !defined(__GNU_LIBRARY__))
-# define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-#else
-# define UA_fd_set(fd, fds) FD_SET(fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
-#endif
-
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1

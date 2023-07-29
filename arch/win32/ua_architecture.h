@@ -58,9 +58,6 @@ typedef SSIZE_T ssize_t;
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
 
-#define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
-#define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
-
 #ifdef UNDER_CE
 # define errno
 #endif
