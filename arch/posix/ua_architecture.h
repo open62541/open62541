@@ -14,28 +14,21 @@
 
 #include <errno.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
-#include <sys/types.h>
 #include <net/if.h>
 #include <poll.h>
-
 #include <fcntl.h>
-#include <unistd.h> // read, write, close
+#include <unistd.h>
 
-#ifdef __QNX__
-# include <sys/socket.h>
-#endif
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 # include <sys/param.h>
 # if defined(BSD)
-#  include<sys/socket.h>
+#  include <sys/socket.h>
 # endif
 #endif
-
-#include <netinet/tcp.h>
 
 #define UA_IPV6 1
 #define UA_SOCKET int

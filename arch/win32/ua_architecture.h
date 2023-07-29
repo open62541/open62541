@@ -16,23 +16,9 @@
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
-/* Assume that Windows versions are newer than Windows XP */
-#if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
-# undef WINVER
-# undef _WIN32_WINDOWS
-# undef _WIN32_WINNT
-# define WINVER 0x0600
-# define _WIN32_WINDOWS 0x0600
-# define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
-#endif
-
-#include <stdlib.h>
-#if defined(_WIN32) && !defined(__clang__)
-# include <malloc.h>
-#endif
-
 #include <open62541/config.h>
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
@@ -44,9 +30,6 @@
 typedef SSIZE_T ssize_t;
 #endif
 
-// Windows does not support ansi colors
-// #define UA_ENABLE_LOG_COLORS
-
 #define UA_IPV6 1
 #define UA_SOCKET SOCKET
 #define UA_INVALID_SOCKET INVALID_SOCKET
@@ -57,10 +40,6 @@ typedef SSIZE_T ssize_t;
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
-
-#ifdef UNDER_CE
-# define errno
-#endif
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
@@ -80,21 +59,19 @@ typedef SSIZE_T ssize_t;
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+
 # if defined(__WINCRYPT_H__) && defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #  error "Wincrypt is not compatible with LibreSSL"
 # endif
-# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 /* Hack: Prevent Wincrypt-Includes */
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 #  define __WINCRYPT_H__
 # endif
-
 # include <iphlpapi.h>
-
 # ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 #  undef __WINCRYPT_H__
 # endif
-
-# define UA_if_nametoindex if_nametoindex
 #endif
 
 #ifdef maxStringLength //defined in mingw64
