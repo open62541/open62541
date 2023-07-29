@@ -235,7 +235,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Try to accept a new connection */
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_FD newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
+    UA_FD newsockfd = accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
         if(UA_ERRNO == UA_INTERRUPTED)
@@ -355,7 +355,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Create the server socket */
-    UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    UA_FD listenSocket = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -435,7 +435,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Start listening */
-    if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
+    if(listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s)",
@@ -549,7 +549,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                                                  connectionCallback);
         ai = ai->ai_next;
     }
-    UA_freeaddrinfo(res);
+    freeaddrinfo(res);
 
     return total_result;
 }

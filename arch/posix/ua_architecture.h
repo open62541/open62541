@@ -55,18 +55,11 @@
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
-#define UA_htonl htonl
-#define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
-#define UA_socket socket
-#define UA_listen listen
-#define UA_accept accept
 #define UA_connect connect
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
-#define UA_ioctl ioctl
-#define UA_freeaddrinfo freeaddrinfo
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex

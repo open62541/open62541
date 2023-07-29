@@ -316,7 +316,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Get the number of available bytes */
     int bytes_available = 0;
-    UA_ioctl(rfd->fd, FIONREAD, &bytes_available);
+    ioctl(rfd->fd, FIONREAD, &bytes_available);
     if(bytes_available <= 0)
         return;
 
@@ -617,9 +617,9 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     ETH_FD *conn = NULL;
     UA_FD sockfd;
     if(listen && *listen)
-        sockfd = UA_socket(PF_PACKET, SOCK_RAW, htons(etherType));
+        sockfd = socket(PF_PACKET, SOCK_RAW, htons(etherType));
     else
-        sockfd = UA_socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
+        sockfd = socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
     if(sockfd == -1) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "ETH\t| Could not create a raw Ethernet socket (are you root?)");
