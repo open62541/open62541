@@ -430,7 +430,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
     sll.sll_family = AF_PACKET;
     sll.sll_protocol = htons(etherType);
     sll.sll_ifindex = ifindex;
-    if(UA_bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
+    if(bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Immediately register for listen events. Don't have to wait for a

@@ -424,7 +424,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Bind socket to address */
-    int ret = UA_bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+    int ret = bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,

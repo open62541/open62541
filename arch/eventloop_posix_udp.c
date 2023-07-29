@@ -718,7 +718,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Bind socket to the address */
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
