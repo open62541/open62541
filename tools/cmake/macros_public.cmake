@@ -1,3 +1,4 @@
+set(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 
 # --------------- Generate NodeIDs header ---------------------
 #

@@ -16,6 +16,23 @@
 #define UA_OPEN62541_VERSION "${OPEN62541_VERSION}"
 
 /**
+ * Architecture
+ * ------------
+ * Define one of the following. */
+
+#cmakedefine UA_ARCHITECTURE_WIN32
+#cmakedefine UA_ARCHITECTURE_POSIX
+
+/* Select default architecture if none is selected */
+#if !defined(UA_ARCHITECtURE_WIN32) && !defined(UA_ARCHITECtURE_POSIX)
+# ifdef _WIN32
+#  define UA_ARCHITECTURE_WIN32
+# else
+#  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+/**
  * Feature Options
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
@@ -104,15 +121,6 @@
 #  define _UA_END_DECLS }
 # else
 #  define _UA_END_DECLS
-# endif
-#endif
-
-/* Select default architecture if non is selected through CMake or compiler define */
-#if ${UA_ARCHITECTURES_NODEF}
-# ifdef _WIN32
-#  define UA_ARCHITECTURE_WIN32
-# else
-#  define UA_ARCHITECTURE_POSIX
 # endif
 #endif
 
