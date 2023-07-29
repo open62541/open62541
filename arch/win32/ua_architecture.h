@@ -67,19 +67,16 @@ typedef SSIZE_T ssize_t;
 #define UA_poll(fds,nfds,timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
-#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
-#define UA_htonl htonl
-#define UA_ntohl ntohl
+#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
+    sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
 #define UA_close closesocket
-#define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
-#define UA_socket socket
-#define UA_listen listen
-#define UA_accept accept
+#define UA_select(nfds, readfds, writefds, exceptfds, timeout) \
+    select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
-#define UA_getsockopt(sockfd, level, optname, optval, optlen) getsockopt(sockfd, level, optname, (char*) (optval), optlen)
-#define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
-#define UA_ioctl
-#define UA_freeaddrinfo freeaddrinfo
+#define UA_getsockopt(sockfd, level, optname, optval, optlen) \
+    getsockopt(sockfd, level, optname, (char*) (optval), optlen)
+#define UA_setsockopt(sockfd, level, optname, optval, optlen) \
+    setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
