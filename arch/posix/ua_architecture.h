@@ -21,14 +21,6 @@
 #include <sys/types.h>
 #include <net/if.h>
 #include <poll.h>
-#ifdef UA_sleep_ms
-void UA_sleep_ms(unsigned long ms);
-#else
-# include <unistd.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
-#endif
-
-#define OPTVAL_TYPE int
 
 #include <fcntl.h>
 #include <unistd.h> // read, write, close
@@ -59,8 +51,6 @@ void UA_sleep_ms(unsigned long ms);
 # define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
 #endif
 
-#define UA_access access
-
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
@@ -79,13 +69,10 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
-#define UA_recvfrom recvfrom
-#define UA_recvmsg recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
-#define UA_shutdown shutdown
 #define UA_socket socket
 #define UA_listen listen
 #define UA_accept accept
@@ -94,15 +81,10 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_setsockopt setsockopt
 #define UA_ioctl ioctl
 #define UA_freeaddrinfo freeaddrinfo
-#define UA_gethostname gethostname
-#define UA_getsockname getsockname
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
 #endif
-
-#include <strings.h>
-#define UA_strncasecmp strncasecmp
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 
