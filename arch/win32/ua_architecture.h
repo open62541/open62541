@@ -40,25 +40,8 @@
 #include <ws2tcpip.h>
 #include <basetsd.h>
 
-#if defined (_MSC_VER) || defined(__clang__)
-# ifndef UNDER_CE
-#  include <io.h> //access
-#  define UA_access _access
-# endif
-#else
-# include <unistd.h> //access and tests
-# define UA_access access
-#endif
-
 #ifndef _SSIZE_T_DEFINED
 typedef SSIZE_T ssize_t;
-#endif
-
-#define OPTVAL_TYPE int
-#ifdef UA_sleep_ms
-void UA_sleep_ms(unsigned long ms);
-#else
-# define UA_sleep_ms(X) Sleep(X)
 #endif
 
 // Windows does not support ansi colors
@@ -88,13 +71,10 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
 #define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
-#define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
-#define UA_recvmsg
 #define UA_htonl htonl
 #define UA_ntohl ntohl
 #define UA_close closesocket
 #define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
-#define UA_shutdown shutdown
 #define UA_socket socket
 #define UA_listen listen
 #define UA_accept accept
@@ -103,8 +83,6 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_ioctl
 #define UA_freeaddrinfo freeaddrinfo
-#define UA_gethostname gethostname
-#define UA_getsockname getsockname
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
@@ -128,8 +106,6 @@ void UA_sleep_ms(unsigned long ms);
 #ifdef maxStringLength //defined in mingw64
 # undef maxStringLength
 #endif
-
-#define UA_strncasecmp _strnicmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = NULL; \
