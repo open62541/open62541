@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2022 (c) Robert Mak, KEBA 
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include <open62541/client.h>

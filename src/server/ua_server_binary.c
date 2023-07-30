@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include <open62541/transport_generated.h>

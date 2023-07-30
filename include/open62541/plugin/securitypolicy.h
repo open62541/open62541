@@ -5,6 +5,7 @@
  *    Copyright 2017-2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #ifndef UA_PLUGIN_SECURITYPOLICY_H_

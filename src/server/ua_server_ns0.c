@@ -10,6 +10,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include "open62541/namespace0_generated.h"

@@ -17,6 +17,7 @@
  *    Copyright 2018 (c) Kalycito Infotech Private Limited
  *    Copyright 2020 (c) Christian von Arnim, ISW University of Stuttgart
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include <open62541/transport_generated.h>

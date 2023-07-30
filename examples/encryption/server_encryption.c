@@ -3,6 +3,7 @@
  *
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  *
  */
 

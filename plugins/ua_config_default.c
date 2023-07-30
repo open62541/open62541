@@ -11,6 +11,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include <open62541/client.h>

@@ -1,6 +1,9 @@
-//
-// Created by mark on 10.05.22.
-//
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
+ *
+ */
 
 #include <open62541/endpoint.h>
 #include <open62541/plugin/securitypolicy.h>

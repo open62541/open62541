@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * Copyright 2021 (c) basysKom GmbH <opensource@basyskom.com>
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #include <namespace_tests_interfaces_generated.h>

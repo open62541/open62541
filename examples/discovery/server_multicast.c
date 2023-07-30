@@ -2,6 +2,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
+ *
  */
 
 /*

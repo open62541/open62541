@@ -1,5 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
- * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
+ *
+ */
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>

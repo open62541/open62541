@@ -1,6 +1,9 @@
-//
-// Created by mark on 11.05.22.
-//
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ *
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
+ *
+ */
 
 #ifndef OPEN62541_ENDPOINT_H
 #define OPEN62541_ENDPOINT_H

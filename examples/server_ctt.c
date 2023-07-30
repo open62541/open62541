@@ -3,6 +3,7 @@
  *
  * Copyright 2019 (c) Kalycito Infotech Private Limited
  * Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ * Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  */
 
 #ifdef _MSC_VER

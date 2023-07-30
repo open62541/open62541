@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Kai Huebl)
  *
  */
 
