@@ -218,21 +218,18 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
  * The following functions can be used to read a single node historically.
  * Use the regular service to read several nodes at once. */
 
-#ifdef UA_ENABLE_HISTORIZING
 typedef UA_Boolean
 (*UA_HistoricalIteratorCallback)(UA_Client *client,
                                  const UA_NodeId *nodeId,
                                  UA_Boolean moreDataAvailable,
                                  const UA_ExtensionObject *data, void *callbackContext);
 
-#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode UA_EXPORT
 UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
                                 const UA_HistoricalIteratorCallback callback,
                                 UA_DateTime startTime, UA_DateTime endTime,
                                 UA_String indexRange, const UA_EventFilter filter, UA_UInt32 numValuesPerNode,
                                 UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 UA_StatusCode UA_EXPORT
 UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
@@ -241,14 +238,12 @@ UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
                              UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
                              UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
 
-#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode UA_EXPORT
 UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
                                   const UA_HistoricalIteratorCallback callback,
                                   UA_DateTime startTime, UA_DateTime endTime,
                                   UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 numValuesPerNode,
                                   UA_TimestampsToReturn timestampsToReturn, void *callbackContext);
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 UA_StatusCode UA_EXPORT
 UA_Client_HistoryUpdate_insert(UA_Client *client,
@@ -270,8 +265,6 @@ UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
                                   const UA_NodeId *nodeId,
                                   UA_DateTime startTimestamp,
                                   UA_DateTime endTimestamp);
-
-#endif // UA_ENABLE_HISTORIZING
 
 /**
  * Write Attributes
@@ -458,12 +451,10 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
  * Method Calling
  * ^^^^^^^^^^^^^^ */
 
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 UA_Client_call(UA_Client *client, const UA_NodeId objectId,
                const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
                size_t *outputSize, UA_Variant **output);
-#endif
 
 /**
  * Node Management

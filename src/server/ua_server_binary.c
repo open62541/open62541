@@ -823,7 +823,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     }
 #endif
 
-#if UA_MULTITHREADING >= 100
+#if UA_MULTITHREADING >= 100 && defined(UA_ENABLE_METHODCALLS)
     /* The call request might not be answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         UA_Boolean finished = true;

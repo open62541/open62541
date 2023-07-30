@@ -16,8 +16,6 @@
 
 #include "ua_client_internal.h"
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
-
 /*****************/
 /* Subscriptions */
 /*****************/
@@ -1378,5 +1376,3 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
         client->currentlyOutStandingPublishRequests++;
     }
 }
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
