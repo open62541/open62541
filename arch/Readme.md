@@ -1,54 +1,31 @@
-# open62541 Architectures 
+# open62541 Architecture Support
 
-The `arch` folder contains all the architecture-specific code for a given operating system.
+This folder contains all the architecture-specific code for different operating systems.
+The arch-specific code covers:
 
-The list of supported architectures is also available as a CMake option.
+- System clock
+- EventLoop (Networking, Interrupt handling (optional))
+
+Currently open62541 supports
+
+- Windows
+- POSIX (Linux, BSD, Mac, etc.)
+
+Previously (until v1.3) there was additional support for:
+
+- freeRTOS
+- vxWorks
+- WEC7
+- eCos
+
+We strive to recover support for these.
+The main effort of porting is forking the EventLoop implementation.
 
 ## Adding new architectures
 
 To port to a new architecture you should follow these steps:
 
-1. Create a folder with your architecture, let's call it new_arch
-
-2. In the CMakeLists.txt file located next to this file, add `add_subdirectory(new_arch)` at the end of it
-
-3. Create a CMakeLists.txt file in the new_arch folder
-
-4. Use the following template for it (remember that when you see new_arch you should replace with the name of your architecture)
-    ```C
-    # ---------------------------------------------------
-    # ---- Beginning of the CMakeLists.txt template -----
-    # ---------------------------------------------------
-    
-    SET(SOURCE_GROUP ${SOURCE_GROUP}\\new_arch)
-    
-    ua_add_architecture("new_arch")
-    
-    if("${UA_ARCHITECTURE}" STREQUAL "new_arch")
-    
-        ua_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-        ua_add_architecture_file(${CMAKE_CURRENT_SOURCE_DIR}/ua_clock.c)
-        
-        #
-        # Add here below all the things that are specific for your architecture
-        #
-        
-        #You can use the following available CMake functions:
-         
-        #ua_include_directories() include some directories specific to your architecture when compiling the open62541 stack
-        #ua_architecture_remove_definitions() remove compiler flags from the general ../../CMakeLists.txt file that won't work with your architecture
-        #ua_architecture_add_definitions() add compiler flags that your architecture needs
-        #ua_architecture_append_to_library() add libraries to be linked to the open62541 that are needed by your architecture
-        #ua_add_architecture_header() add header files to compilation (Don't add the file ua_architecture.h)
-        #ua_add_architecture_file() add .c files to compilation    
-        
-    endif()
-    
-    # ---------------------------------------------------
-    # ---- End of the CMakeLists.txt template -----
-    # ---------------------------------------------------
-    ```
-5. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
+1. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
 
    * UA_DateTime UA_DateTime_now(void);
    
@@ -56,28 +33,13 @@ To port to a new architecture you should follow these steps:
    
    * UA_DateTime UA_DateTime_nowMonotonic(void);
 
-6. Create a file in the folder new_arch called ua_architecture.h
+2. Fork the EventLoop code (the default is POSIX) and adjust to your architecture
 
-7. Use the following template for it:  
+3. Add your architecture to the list in /include/open62541/config.h.in
 
-   * Change YEAR, YOUR_NAME and YOUR_COMPANY in the header
-   
-   * Change NEW_ARCH at the beginning in PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ for your own name in uppercase  
-   
-    ```C
-    /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
-     * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
-     *
-     *    Copyright YEAR (c) YOUR_NAME, YOUR_COMPANY
-     */
-    
-    #ifndef PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_
-    #define PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_
-    
-    /*
-     * Define and include all that's needed for your architecture
-     */
-    
-    #endif /* PLUGINS_ARCH_NEW_ARCH_UA_ARCHITECTURE_H_ */
-    
-    ```
+4. Add the architecture and the new files to /CMakeLists.txt
+
+You can also use a custom architecture implementation outside of the library build.
+For that, set UA_ARCHITECTURE=none in the cmake setting.
+Then no architecture-specific code will be included in the open62541 library itself.
+You have to link in your custom clock and EventLoop implementation only for the final binary.
