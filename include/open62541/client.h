@@ -197,7 +197,6 @@ typedef struct {
      * attempt to recreate a healthy connection. */
     void (*inactivityCallback)(UA_Client *client);
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Number of PublishResponse queued up in the server */
     UA_UInt16 outStandingPublishRequests;
 
@@ -208,7 +207,6 @@ typedef struct {
     void (*subscriptionInactivityCallback)(UA_Client *client,
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
-#endif
 
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
@@ -520,7 +518,6 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
                       size_t *registeredServersSize,
                       UA_ApplicationDescription **registeredServers);
 
-#ifdef UA_ENABLE_DISCOVERY
 /* Get a list of all known server in the network. Only supported by LDS servers.
  *
  * @param client to use. Must be connected to the same endpoint given in
@@ -544,7 +541,6 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
                                size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
                                size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
-#endif
 
 /**
  * .. _client-services:
@@ -583,7 +579,6 @@ UA_Client_Service_write(UA_Client *client, const UA_WriteRequest request) {
 /*
 * Historical Access Service Set
 * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-#ifdef UA_ENABLE_HISTORIZING
 static UA_INLINE UA_THREADSAFE UA_HistoryReadResponse
 UA_Client_Service_historyRead(UA_Client *client, const UA_HistoryReadRequest request) {
     UA_HistoryReadResponse response;
@@ -599,12 +594,10 @@ UA_Client_Service_historyUpdate(UA_Client *client, const UA_HistoryUpdateRequest
         &response, &UA_TYPES[UA_TYPES_HISTORYUPDATERESPONSE]);
     return response;
 }
-#endif
 
 /*
  * Method Service Set
  * ^^^^^^^^^^^^^^^^^^ */
-#ifdef UA_ENABLE_METHODCALLS
 static UA_INLINE UA_THREADSAFE UA_CallResponse
 UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
     UA_CallResponse response;
@@ -612,7 +605,6 @@ UA_Client_Service_call(UA_Client *client, const UA_CallRequest request) {
                         &response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     return response;
 }
-#endif
 
 /*
  * NodeManagement Service Set

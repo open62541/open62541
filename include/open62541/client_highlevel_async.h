@@ -514,7 +514,6 @@ UA_Client_writeUserExecutableAttribute_async(UA_Client *client, const UA_NodeId 
 /**
  * Method Calling
  * ^^^^^^^^^^^^^^ */
-#ifdef UA_ENABLE_METHODCALLS
 UA_StatusCode UA_EXPORT
 __UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                        const UA_NodeId methodId, size_t inputSize,
@@ -533,7 +532,6 @@ UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                                   (UA_ClientAsyncServiceCallback)callback, userdata,
                                   reqId);
 }
-#endif
 
 /**
  * Node Management

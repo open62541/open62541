@@ -29,8 +29,6 @@ _UA_BEGIN_DECLS
 /* Subscriptions Handling */
 /**************************/
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 typedef struct UA_Client_NotificationsAckNumber {
     LIST_ENTRY(UA_Client_NotificationsAckNumber) listEntry;
     UA_SubscriptionAcknowledgement subAck;
@@ -86,8 +84,6 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /**********/
 /* Client */
@@ -163,12 +159,10 @@ struct UA_Client {
     UA_AsyncServiceList asyncServiceCalls;
 
     /* Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(, UA_Client_Subscription) subscriptions;
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
-#endif
 
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before
