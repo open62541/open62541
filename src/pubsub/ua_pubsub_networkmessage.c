@@ -633,67 +633,49 @@ UA_PayloadHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
 
 static UA_StatusCode
 UA_ExtendedNetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
-                            UA_NetworkMessage* dst) {
+                                             UA_NetworkMessage* dst) {
     UA_StatusCode rv;
 
-    // Timestamp
+    /* Timestamp*/
     if(dst->timestampEnabled) {
         rv = UA_DateTime_decodeBinary(src, offset, &dst->timestamp);
-        UA_CHECK_STATUS(rv, goto error);
+        UA_CHECK_STATUS(rv, return rv);
     }
 
-    // Picoseconds
+    /* Picoseconds */
     if(dst->picosecondsEnabled) {
         rv = UA_UInt16_decodeBinary(src, offset, &dst->picoseconds);
-        UA_CHECK_STATUS(rv, goto error);
+        UA_CHECK_STATUS(rv, return rv);
     }
 
-    // PromotedFields
-    if(dst->promotedFieldsEnabled) {
-        // Size
-        UA_UInt16 promotedFieldsSize = 0;
-        rv = UA_UInt16_decodeBinary(src, offset, &promotedFieldsSize);
-        UA_CHECK_STATUS(rv, goto error);
+    /* PromotedFields */
+    if(UA_LIKELY(!dst->promotedFieldsEnabled))
+        return UA_STATUSCODE_GOOD;
 
-        // promotedFieldsSize: here size in Byte, not the number of objects!
-        if(promotedFieldsSize > 0) {
-            // store offset, later compared with promotedFieldsSize
-            size_t offsetEnd = (*offset) + promotedFieldsSize;
+    UA_UInt16 promotedFieldsSize = 0; /* Size in bytes, not in number of fields */
+    rv = UA_UInt16_decodeBinary(src, offset, &promotedFieldsSize);
+    UA_CHECK_STATUS(rv, return rv);
+    if(promotedFieldsSize == 0)
+        return UA_STATUSCODE_GOOD;
 
-            unsigned int counter = 0;
-            do {
-                if(counter == 0) {
-                    dst->promotedFields = (UA_Variant*)UA_malloc(UA_TYPES[UA_TYPES_VARIANT].memSize);
-                    UA_CHECK_MEM(dst->promotedFields,
-                                 return UA_STATUSCODE_BADOUTOFMEMORY);
-                    // set promotedFieldsSize to the number of objects
-                    dst->promotedFieldsSize = (UA_UInt16) (counter + 1);
-                } else {
-                    dst->promotedFields = (UA_Variant*)
-                        UA_realloc(dst->promotedFields,
-                                   (size_t) UA_TYPES[UA_TYPES_VARIANT].memSize * (counter + 1));
-                    UA_CHECK_MEM(dst->promotedFields,
-                                 return UA_STATUSCODE_BADOUTOFMEMORY);
-                    // set promotedFieldsSize to the number of objects
-                    dst->promotedFieldsSize = (UA_UInt16) (counter + 1);
-                }
+    size_t offsetEnd = (*offset) + promotedFieldsSize;
+    unsigned int counter = 0;
+    do {
+        UA_Variant *tmp = (UA_Variant*)
+            UA_realloc(dst->promotedFields, (size_t)
+                       UA_TYPES[UA_TYPES_VARIANT].memSize * (counter + 1));
+        UA_CHECK_MEM(tmp, return UA_STATUSCODE_BADOUTOFMEMORY);
+        dst->promotedFields = tmp;
+        dst->promotedFieldsSize = (UA_UInt16) (counter + 1);
 
-                UA_Variant_init(&dst->promotedFields[counter]);
-                rv = UA_Variant_decodeBinary(src, offset, &dst->promotedFields[counter]);
-                UA_CHECK_STATUS(rv, goto error);
+        UA_Variant_init(&dst->promotedFields[counter]);
+        rv = UA_Variant_decodeBinary(src, offset, &dst->promotedFields[counter]);
+        UA_CHECK_STATUS(rv, return rv);
 
-                counter++;
-            } while ((*offset) < offsetEnd);
-        }
-    }
+        counter++;
+    } while(*offset < offsetEnd);
+
     return UA_STATUSCODE_GOOD;
-
-error:
-    if(dst->promotedFields) {
-        UA_free(dst->promotedFields);
-        dst->promotedFields = NULL;
-    }
-    return rv;
 }
 
 static UA_StatusCode
