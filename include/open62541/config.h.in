@@ -378,8 +378,8 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_LIKELY(x) __builtin_expect((x), 1)
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
-# define UA_LIKELY(x) x
-# define UA_UNLIKELY(x) x
+# define UA_LIKELY(x) (x)
+# define UA_UNLIKELY(x) (x)
 #endif
 
 /**
