@@ -265,6 +265,12 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token);
 UA_Session *
 getSessionById(UA_Server *server, const UA_NodeId *sessionId);
 
+const UA_Session *
+UA_Server_GetFirstSession(UA_Server *server);
+
+const UA_Session *
+UA_Server_GetNextSession(UA_Server *server, const UA_Session *session);
+
 /*****************/
 /* Node Handling */
 /*****************/

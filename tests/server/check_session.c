@@ -9,6 +9,7 @@
 #include <open62541/types.h>
 
 #include "server/ua_services.h"
+#include "server/ua_server_internal.h"
 #include "client/ua_client_internal.h"
 
 #include <check.h>
@@ -113,6 +114,46 @@ START_TEST(Session_updateLifetime_ShallWork) {
 }
 END_TEST
 
+START_TEST(Session_getSessions) { 
+    // first client
+    UA_Client* client1 = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client1));
+    UA_StatusCode retval1 = UA_Client_connect(client1, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval1, UA_STATUSCODE_GOOD);
+
+    // second client
+    UA_Client* client2 = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client2));
+    UA_StatusCode retval2 = UA_Client_connect(client2, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval2, UA_STATUSCODE_GOOD);
+
+    UA_LOCK(&server->serviceMutex);
+    const UA_Session* session = UA_Server_GetFirstSession(server);
+    ck_assert_ptr_eq(session, &server->sessions.lh_first->session);
+    UA_UNLOCK(&server->serviceMutex);
+
+    UA_LOCK(&server->serviceMutex);
+    const UA_Session* session2 = UA_Server_GetNextSession(server, session);
+    session_list_entry* currentSessionListEntry = server->sessions.lh_first;
+    ck_assert_ptr_eq(session2, &(LIST_NEXT(currentSessionListEntry, pointers)->session));
+    UA_UNLOCK(&server->serviceMutex);
+
+    // disconnect the first client
+    UA_Client_disconnect(client1);
+    UA_Client_delete(client1);
+
+    // check if the activeSessionCount get updated 
+    ck_assert_int_eq(server->activeSessionCount,1);
+
+    // disconnect the second client
+    UA_Client_disconnect(client2);
+    UA_Client_delete(client2);
+
+    // check if the activeSessionCount get updated 
+    ck_assert_int_eq(server->activeSessionCount,0);
+
+} END_TEST
+
 static Suite* testSuite_Session(void) {
     Suite *s = suite_create("Session");
     TCase *tc_session = tcase_create("Core");
@@ -120,6 +161,7 @@ static Suite* testSuite_Session(void) {
     tcase_add_test(tc_session, Session_close_before_activate);
     tcase_add_test(tc_session, Session_init_ShallWork);
     tcase_add_test(tc_session, Session_updateLifetime_ShallWork);
+    tcase_add_test(tc_session, Session_getSessions);
     suite_add_tcase(s,tc_session);
     return s;
 }

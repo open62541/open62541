@@ -178,6 +178,32 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
     return NULL;
 }
 
+const UA_Session *
+UA_Server_GetFirstSession(UA_Server *server) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    if (server->sessions.lh_first != NULL) {
+        return &server->sessions.lh_first->session;
+    }
+    return NULL;
+}
+
+const UA_Session *
+UA_Server_GetNextSession(UA_Server *server, const UA_Session *session) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    session_list_entry * currentSessionListEntry = server->sessions.lh_first;
+
+    while (currentSessionListEntry != NULL) {
+        if (&currentSessionListEntry->session == session) {
+            if (currentSessionListEntry->pointers.le_next != NULL) {
+                return &(LIST_NEXT(currentSessionListEntry, pointers)->session);
+            }
+            return NULL;
+        }
+        currentSessionListEntry = LIST_NEXT(currentSessionListEntry, pointers);
+    }
+    return NULL;
+}
+
 static UA_StatusCode
 signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
                           const UA_CreateSessionRequest *request,
