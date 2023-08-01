@@ -429,6 +429,18 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
 
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
+
+#ifdef _WIN32
+    /* Start the WSA networking subsystem on Windows */
+    WSADATA wsaData;
+    int iResult = WSAStartup(MAKEWORD(2,2), &wsaData);
+    if (iResult != 0) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_EVENTLOOP,
+                       "Initializing the WSA subsystem failed: %d", iResult);
+        return NULL;
+    }
+#endif
+
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)
         UA_calloc(1, sizeof(UA_EventLoopPOSIX));
     if(!el)
@@ -437,11 +449,6 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
-#ifdef _WIN32
-    /* Start the WSA networking subsystem on Windows */
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
 
     /* Set the public EventLoop content */
     el->eventLoop.logger = logger;
