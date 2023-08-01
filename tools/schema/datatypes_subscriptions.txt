@@ -55,3 +55,4 @@ TransferSubscriptionsRequest
 TransferSubscriptionsResponse
 SetTriggeringRequest
 SetTriggeringResponse
+TimeZoneDataType

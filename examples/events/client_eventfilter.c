@@ -19,6 +19,7 @@
 #include <open62541/util.h>
 
 #include <signal.h>
+#include <stdio.h>
 
 #define USE_FILTER_OR_TYPEOF
 
@@ -376,7 +377,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("Usage: tutorial_client_event_filter <opc.tcp://server-url>\n");
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     UA_Client *client = UA_Client_new();
@@ -386,7 +387,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* Create a subscription */
@@ -396,8 +397,9 @@ int main(int argc, char *argv[]) {
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
+
     UA_UInt32 subId = response.subscriptionId;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
 
@@ -422,7 +424,7 @@ int main(int argc, char *argv[]) {
     retval = setupWhereClauses(&filter.whereClause, 3, 4);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
 
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -437,11 +439,13 @@ int main(int argc, char *argv[]) {
 
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(result.statusCode));
+                    "Could not add the MonitoredItem with %s",
+                    UA_StatusCode_name(result.statusCode));
         goto cleanup;
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Monitoring 'Root->Objects->Server', id %u", response.subscriptionId);
+                    "Monitoring 'Root->Objects->Server', id %u",
+                    response.subscriptionId);
     }
 
     monId = result.monitoredItemId;
@@ -453,10 +457,12 @@ int main(int argc, char *argv[]) {
 cleanup:
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
-    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
+    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT,
+                    &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize,
+                    &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

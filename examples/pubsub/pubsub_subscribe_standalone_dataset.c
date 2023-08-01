@@ -14,8 +14,8 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-
 #include <signal.h>
+#include <stdio.h>
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;

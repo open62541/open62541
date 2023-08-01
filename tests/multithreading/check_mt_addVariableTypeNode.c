@@ -7,6 +7,8 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <check.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "thread_wrapper.h"
 #include "mt_testing.h"
 

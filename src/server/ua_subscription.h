@@ -23,7 +23,6 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "common/ua_timer.h"
 #include "ua_util_internal.h"
 
 _UA_BEGIN_DECLS

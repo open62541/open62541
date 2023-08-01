@@ -12,7 +12,9 @@
 #include "ua_types_encoding_binary.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "testing_networklayers.h"
 #include "testing_policy.h"
@@ -43,7 +45,7 @@ START_TEST(readSpeed) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     for(size_t i = 0; i < READNODES; i++) {
         char varName[20];
-        UA_snprintf(varName, 20, "Variable %u", (UA_UInt32)i);
+        snprintf(varName, 20, "Variable %u", (UA_UInt32)i);
         UA_NodeId myNodeId = UA_NODEID_STRING(1, varName);
         UA_QualifiedName myName = UA_QUALIFIEDNAME(1, varName);
         retval = UA_Server_addVariableNode(server, myNodeId, parentNodeId,
@@ -112,7 +114,7 @@ START_TEST(readSpeedWithEncoding) {
     UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
     for(size_t i = 0; i < READNODES; i++) {
         char varName[20];
-        UA_snprintf(varName, 20, "Variable %u", (UA_UInt32)i);
+        snprintf(varName, 20, "Variable %u", (UA_UInt32)i);
         UA_NodeId myNodeId = UA_NODEID_STRING(1, varName);
         UA_QualifiedName myName = UA_QUALIFIEDNAME(1, varName);
         retval = UA_Server_addVariableNode(server, myNodeId, parentNodeId,

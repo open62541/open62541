@@ -81,7 +81,7 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* checked before */
-    UA_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
+    mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
@@ -299,7 +299,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValue
                        const UA_Logger *logger) {
     IpMulticastRequest ipMulticastRequest;
     ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
-    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
+    ipMulticastRequest.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
 
     /* Use a defined network interface */
     const UA_String *netif = (const UA_String*)
@@ -346,7 +346,7 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
                          const UA_Logger *logger) {
     IpMulticastRequest ipMulticastRequest;
     ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
-    ipMulticastRequest.ipv4.imr_interface.s_addr = UA_htonl(INADDR_ANY); /* default ANY */
+    ipMulticastRequest.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
 
     /* Use a defined interface */
     const UA_String *netif = (const UA_String*)
@@ -694,7 +694,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Create the listen socket */
-    UA_FD listenSocket = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_FD listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -718,7 +718,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Bind socket to the address */
-    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -809,9 +809,9 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     /* Set up the port string */
     char portstr[6];
-    UA_snprintf(portstr, 6, "%d", port);
+    mp_snprintf(portstr, 6, "%d", port);
 
-    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
@@ -831,7 +831,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
             break;
         ai = ai->ai_next;
     }
-    UA_freeaddrinfo(res);
+    freeaddrinfo(res);
     return rv;
 }
 
@@ -1040,7 +1040,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
                                             portStr, &info, el->eventLoop.logger);
     if(error < 0 || info == NULL) {
         if(info != NULL) {
-            UA_freeaddrinfo(info);
+            freeaddrinfo(info);
         }
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -1063,7 +1063,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
         registerSocketAndDestinationForSend(params, hostname, info,
                                             error, conn, &newSock,
                                             el->eventLoop.logger);
-    UA_freeaddrinfo(info);
+    freeaddrinfo(info);
     if(validate && res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "UDP %u\t| Connection validated to \"%s\" on port %s",

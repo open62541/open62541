@@ -34,6 +34,10 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 
+#include <signal.h>
+#include <malloc.h>
+#include "common.h"
+
 #ifndef WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
@@ -187,7 +191,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(100);
+            sleep_ms(100);
         }
     }
     return 0;
@@ -214,12 +218,12 @@ int main(void) {
     addHelloWorldMethod1(globalServer);
 	addHelloWorldMethod2(globalServer);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(globalServer);
+    UA_Server_runUntilInterrupt(globalServer);
 
     /* Shutdown the thread */
     running = false;
     THREAD_JOIN(hThread);
 
     UA_Server_delete(globalServer);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

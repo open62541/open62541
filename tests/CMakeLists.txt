@@ -59,6 +59,7 @@ endif()
 
 # Use different plugins for testing
 set(test_plugin_sources
+    ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c

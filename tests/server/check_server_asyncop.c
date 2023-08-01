@@ -14,6 +14,7 @@
 #include "thread_wrapper.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Boolean running;
 THREAD_HANDLE server_thread;
@@ -22,11 +23,11 @@ static size_t clientCounter;
 
 static UA_StatusCode
 methodCallback(UA_Server *serverArg,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+               const UA_NodeId *sessionId, void *sessionHandle,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 

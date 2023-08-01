@@ -16,23 +16,9 @@
 # define _CRT_SECURE_NO_WARNINGS
 #endif
 
-/* Assume that Windows versions are newer than Windows XP */
-#if defined(__MINGW32__) && (!defined(WINVER) || WINVER < 0x501)
-# undef WINVER
-# undef _WIN32_WINDOWS
-# undef _WIN32_WINNT
-# define WINVER 0x0600
-# define _WIN32_WINDOWS 0x0600
-# define _WIN32_WINNT 0x0600 //windows vista version, which included InepPton
-#endif
-
-#include <stdlib.h>
-#if defined(_WIN32) && !defined(__clang__)
-# include <malloc.h>
-#endif
-
 #include <open62541/config.h>
 
+#include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
 #include <winsock2.h>
@@ -40,29 +26,9 @@
 #include <ws2tcpip.h>
 #include <basetsd.h>
 
-#if defined (_MSC_VER) || defined(__clang__)
-# ifndef UNDER_CE
-#  include <io.h> //access
-#  define UA_access _access
-# endif
-#else
-# include <unistd.h> //access and tests
-# define UA_access access
-#endif
-
 #ifndef _SSIZE_T_DEFINED
 typedef SSIZE_T ssize_t;
 #endif
-
-#define OPTVAL_TYPE int
-#ifdef UA_sleep_ms
-void UA_sleep_ms(unsigned long ms);
-#else
-# define UA_sleep_ms(X) Sleep(X)
-#endif
-
-// Windows does not support ansi colors
-// #define UA_ENABLE_LOG_COLORS
 
 #define UA_IPV6 1
 #define UA_SOCKET SOCKET
@@ -75,77 +41,42 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
 
-#define UA_fd_set(fd, fds) FD_SET((UA_SOCKET)fd, fds)
-#define UA_fd_isset(fd, fds) FD_ISSET((UA_SOCKET)fd, fds)
-
-#ifdef UNDER_CE
-# define errno
-#endif
-
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
 #define UA_poll(fds,nfds,timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
 #define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
 #define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
-#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
-#define UA_recvfrom(sockfd, buf, len, flags, src_addr, addrlen) recvfrom(sockfd, (char*)(buf), (int)(len), flags, src_addr, addrlen)
-#define UA_recvmsg
-#define UA_htonl htonl
-#define UA_ntohl ntohl
+#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
+    sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
 #define UA_close closesocket
-#define UA_select(nfds, readfds, writefds, exceptfds, timeout) select((int)(nfds), readfds, writefds, exceptfds, timeout)
-#define UA_shutdown shutdown
-#define UA_socket socket
-#define UA_bind bind
-#define UA_listen listen
-#define UA_accept accept
+#define UA_select(nfds, readfds, writefds, exceptfds, timeout) \
+    select((int)(nfds), readfds, writefds, exceptfds, timeout)
 #define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
-#define UA_getaddrinfo getaddrinfo
-#define UA_getsockopt(sockfd, level, optname, optval, optlen) getsockopt(sockfd, level, optname, (char*) (optval), optlen)
-#define UA_setsockopt(sockfd, level, optname, optval, optlen) setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
-#define UA_ioctl
-#define UA_freeaddrinfo freeaddrinfo
-#define UA_gethostname gethostname
-#define UA_getsockname getsockname
+#define UA_getsockopt(sockfd, level, optname, optval, optlen) \
+    getsockopt(sockfd, level, optname, (char*) (optval), optlen)
+#define UA_setsockopt(sockfd, level, optname, optval, optlen) \
+    setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
 #define UA_inet_pton InetPton
 
 #if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+
 # if defined(__WINCRYPT_H__) && defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #  error "Wincrypt is not compatible with LibreSSL"
 # endif
-# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 /* Hack: Prevent Wincrypt-Includes */
+# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 #  define __WINCRYPT_H__
 # endif
-
 # include <iphlpapi.h>
-
 # ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
 #  undef __WINCRYPT_H__
 # endif
-
-# define UA_if_nametoindex if_nametoindex
 #endif
 
 #ifdef maxStringLength //defined in mingw64
 # undef maxStringLength
 #endif
-
-/* Use the standard malloc */
-#ifndef UA_free
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
-#endif
-
-#ifdef __CODEGEARC__
-#define _snprintf_s(a,b,c,...) snprintf(a,b,__VA_ARGS__)
-#endif
-
-/* 3rd Argument is the string */
-#define UA_snprintf(source, size, ...) _snprintf_s(source, size, _TRUNCATE, __VA_ARGS__)
-#define UA_strncasecmp _strnicmp
 
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
     char *errno_str = NULL; \
@@ -157,48 +88,6 @@ void UA_sleep_ms(unsigned long ms);
     LocalFree(errno_str); \
 }
 #define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
-
-#if UA_MULTITHREADING >= 100
-
-typedef struct {
-    CRITICAL_SECTION mutex;
-    int mutexCounter;
-} UA_Lock;
-
-static UA_INLINE void
-UA_LOCK_INIT(UA_Lock *lock) {
-    InitializeCriticalSection(&lock->mutex);
-    lock->mutexCounter = 0;
-}
-
-static UA_INLINE void
-UA_LOCK_DESTROY(UA_Lock *lock) {
-    DeleteCriticalSection(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK(UA_Lock *lock) {
-    EnterCriticalSection(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
-}
-
-static UA_INLINE void
-UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
-    LeaveCriticalSection(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
-}
-#else
-#define UA_LOCK_INIT(lock)
-#define UA_LOCK_DESTROY(lock)
-#define UA_LOCK(lock)
-#define UA_UNLOCK(lock)
-#define UA_LOCK_ASSERT(lock, num)
-#endif
 
 /* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
 #if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)

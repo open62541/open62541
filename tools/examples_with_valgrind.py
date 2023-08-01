@@ -95,7 +95,8 @@ blacklist = {
         "client_encryption":1,
         "client_historical":1,
         "client_subscription_loop":1,
-        "client_method_async":1
+        "client_method_async":1,
+        "pubsub_subscribe_encrypted":1
 }
 
 # Run each example with valgrind.

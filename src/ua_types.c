@@ -144,6 +144,19 @@ UA_String_isEmpty(const UA_String *s) {
     return (s->length == 0 || s->data == NULL);
 }
 
+static UA_Byte
+lowercase(UA_Byte c) {
+	if(((int)c) - 'A' < 26) return c | 32;
+	return c;
+}
+
+static int
+casecmp(const UA_Byte *l, const UA_Byte *r, size_t n) {
+	if(!n--) return 0;
+	for(; *l && *r && n && (*l == *r || lowercase(*l) == lowercase(*r)); l++, r++, n--);
+	return lowercase(*l) - lowercase(*r);
+}
+
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
  * ASCII strings, and not UTF8! */
 UA_Boolean
@@ -155,8 +168,7 @@ UA_String_equal_ignorecase(const UA_String *s1, const UA_String *s2) {
     if(s2->data == NULL)
         return false;
 
-    //FIXME this currently does not handle UTF8
-    return UA_strncasecmp((const char*)s1->data, (const char*)s2->data, s1->length) == 0;
+    return casecmp(s1->data, s2->data, s1->length) == 0;
 }
 
 static UA_StatusCode

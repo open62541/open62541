@@ -727,13 +727,22 @@ typedef struct {
     UA_PubSubRtEncoding expectedEncoding;
 } UA_DataSetReaderConfig;
 
-/* Update configuration to the dataSetReader */
+/* Copy the configuration of DataSetReader */
+UA_EXPORT UA_StatusCode
+UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
+                            UA_DataSetReaderConfig *dst);
+
+/* Clear the configuration of a DataSetReader */
+UA_EXPORT void
+UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
+
+/* Update configuration to the DataSetReader */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
                                      const UA_DataSetReaderConfig *config);
 
-/* Get configuration of the dataSetReader */
+/* Get the configuration (copy) of the DataSetReader */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
                                   UA_DataSetReaderConfig *config);

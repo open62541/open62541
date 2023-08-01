@@ -576,13 +576,6 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
 
-/* Copy the configuration of DataSetReader */
-UA_StatusCode UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
-                                          UA_DataSetReaderConfig *dst);
-
-/* Clear the configuration of a DataSetReader */
-void UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
-
 /* Copy the configuration of Target Variables */
 UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src,
                                       UA_TargetVariables *dst);

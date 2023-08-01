@@ -1534,8 +1534,6 @@ START_TEST(Client_subscription_transfer) {
     ck_assert_uint_eq(monResponse.statusCode, UA_STATUSCODE_GOOD);
     }
 
-    UA_sleep_ms(1000);
-
     /* Create a second client */
     UA_Client *client2 = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client2));
@@ -1561,7 +1559,7 @@ START_TEST(Client_subscription_transfer) {
         UA_Client_run_iterate(client, 1);
         UA_Client_run_iterate(client2, 1);
 
-        UA_sleep_ms(100);
+        UA_fakeSleep(100);
     }
 
     /* Delete */

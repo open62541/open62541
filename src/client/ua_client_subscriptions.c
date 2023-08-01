@@ -16,7 +16,11 @@
 
 #include "ua_client_internal.h"
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
+struct UA_Client_MonitoredItem_ForDelete {
+    UA_Client *client;
+    UA_Client_Subscription *sub;
+    UA_UInt32 *monitoredItemId;
+};
 
 /*****************/
 /* Subscriptions */
@@ -1378,5 +1382,3 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client) {
         client->currentlyOutStandingPublishRequests++;
     }
 }
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */

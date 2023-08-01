@@ -17,7 +17,7 @@
 
 #ifdef UA_ENABLE_DISCOVERY
 
-#include "ua_client_internal.h"
+#include <open62541/client.h>
 
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
@@ -570,7 +570,10 @@ UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(UA_SecureChannel_isConnected(&client->channel)) {
+    /* The client is already connected */
+    UA_SecureChannelState scState = UA_SECURECHANNELSTATE_CLOSED;
+    UA_Client_getState(client, &scState, NULL, NULL);
+    if(scState != UA_SECURECHANNELSTATE_CLOSED) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINVALIDSTATE;
     }

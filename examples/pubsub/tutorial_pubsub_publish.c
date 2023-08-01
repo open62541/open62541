@@ -28,6 +28,8 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
+#include <stdio.h>
+
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 
 static void

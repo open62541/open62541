@@ -16,6 +16,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <stdio.h>
 
 static void
 addVariable(UA_Server *server) {
@@ -132,8 +133,7 @@ int main(void) {
     writeVariable(server);
     writeWrongVariable(server);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

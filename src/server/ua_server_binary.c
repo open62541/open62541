@@ -823,7 +823,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     }
 #endif
 
-#if UA_MULTITHREADING >= 100
+#if UA_MULTITHREADING >= 100 && defined(UA_ENABLE_METHODCALLS)
     /* The call request might not be answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_CALLREQUEST]) {
         UA_Boolean finished = true;
@@ -1550,8 +1550,8 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     }
 
     /* Set up the reverse connection */
-    reverse_connect_context *newContext =
-        (reverse_connect_context *)calloc(1, sizeof(reverse_connect_context));
+    reverse_connect_context *newContext = (reverse_connect_context *)
+        UA_calloc(1, sizeof(reverse_connect_context));
     if(!newContext)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -1610,7 +1610,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
         } else {
             setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
             UA_String_clear(&rev->hostname);
-            free(rev);
+            UA_free(rev);
         }
         result = UA_STATUSCODE_GOOD;
         break;
@@ -1658,7 +1658,7 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CLOSED);
             LIST_REMOVE(context, next);
             UA_String_clear(&context->hostname);
-            free(context);
+            UA_free(context);
 
             /* Check if the Binary Protocol Manager is stopped */
             if(bpm->sc.state == UA_LIFECYCLESTATE_STOPPING &&
@@ -1836,7 +1836,7 @@ UA_BinaryProtocolManager_stop(UA_Server *server,
             LIST_REMOVE(rev, next);
             setReverseConnectState(server, rev, UA_SECURECHANNELSTATE_CLOSED);
             UA_String_clear(&rev->hostname);
-            free(rev);
+            UA_free(rev);
         }
     }
 

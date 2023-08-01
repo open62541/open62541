@@ -9,13 +9,16 @@
 #include "server/ua_server_internal.h"
 
 #include <fcntl.h>
+#include <stdio.h>
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 #ifndef WIN32
 #include <sys/stat.h>
 #endif
+
 #include <check.h>
+#include <stdlib.h>
 
 #ifndef _WIN32
 #include <sys/stat.h>

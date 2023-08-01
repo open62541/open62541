@@ -6,13 +6,9 @@
  *    Copyright 2017 (c) Thomas Stalder
  */
 
-#ifdef UA_ARCHITECTURE_WIN32
-
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include <open62541/types.h>
+
+#ifdef UA_ARCHITECTURE_WIN32
 
 #include <time.h>
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */

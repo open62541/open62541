@@ -19,6 +19,8 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
 
 const UA_ByteString UA_SECURITY_POLICY_BASIC128_URI =
     {56, (UA_Byte *)"http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15"};

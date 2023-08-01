@@ -105,8 +105,8 @@ isMulticastEthAddress(const UA_Byte *address) {
 
 static void
 setAddrString(unsigned char addrStr[18], unsigned char addr[ETHER_ADDR_LEN]) {
-    snprintf((char*)addrStr, 18, "%02x-%02x-%02x-%02x-%02x-%02x",
-             addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
+    mp_snprintf((char*)addrStr, 18, "%02x-%02x-%02x-%02x-%02x-%02x",
+                addr[0], addr[1], addr[2], addr[3], addr[4], addr[5]);
 }
 
 /* Return zero if parsing failed */
@@ -316,7 +316,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 
     /* Get the number of available bytes */
     int bytes_available = 0;
-    UA_ioctl(rfd->fd, FIONREAD, &bytes_available);
+    ioctl(rfd->fd, FIONREAD, &bytes_available);
     if(bytes_available <= 0)
         return;
 
@@ -430,7 +430,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
     sll.sll_family = AF_PACKET;
     sll.sll_protocol = htons(etherType);
     sll.sll_ifindex = ifindex;
-    if(UA_bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
+    if(bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Immediately register for listen events. Don't have to wait for a
@@ -617,9 +617,9 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     ETH_FD *conn = NULL;
     UA_FD sockfd;
     if(listen && *listen)
-        sockfd = UA_socket(PF_PACKET, SOCK_RAW, htons(etherType));
+        sockfd = socket(PF_PACKET, SOCK_RAW, htons(etherType));
     else
-        sockfd = UA_socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
+        sockfd = socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
     if(sockfd == -1) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "ETH\t| Could not create a raw Ethernet socket (are you root?)");

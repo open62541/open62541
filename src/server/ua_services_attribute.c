@@ -575,6 +575,15 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 #endif
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
+
+    case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+    case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+    case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
+    case UA_ATTRIBUTEID_ACCESSLEVELEX:
+        /* TODO: Add support for the attributes from the 1.04 spec */
+        retval = UA_STATUSCODE_BADNOTSUPPORTED;
+        break;
+
     default:
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
