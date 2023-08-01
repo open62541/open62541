@@ -25,9 +25,6 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub.h"
-#include "../server/ua_server_internal.h"
-
 #include <stdio.h>
 #include <errno.h>
 #include <signal.h>
