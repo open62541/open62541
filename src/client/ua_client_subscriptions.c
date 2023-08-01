@@ -16,6 +16,12 @@
 
 #include "ua_client_internal.h"
 
+struct UA_Client_MonitoredItem_ForDelete {
+    UA_Client *client;
+    UA_Client_Subscription *sub;
+    UA_UInt32 *monitoredItemId;
+};
+
 /*****************/
 /* Subscriptions */
 /*****************/

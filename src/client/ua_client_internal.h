@@ -34,10 +34,7 @@ typedef struct UA_Client_NotificationsAckNumber {
     UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
-struct UA_Client_MonitoredItem;
-typedef struct UA_Client_MonitoredItem UA_Client_MonitoredItem;
-
-struct UA_Client_MonitoredItem {
+typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
@@ -48,7 +45,7 @@ struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
-};
+} UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
 typedef struct MonitorItemsTree MonitorItemsTree;
@@ -65,12 +62,6 @@ typedef struct UA_Client_Subscription {
     UA_DateTime lastActivity;
     MonitorItemsTree monitoredItems;
 } UA_Client_Subscription;
-
-struct UA_Client_MonitoredItem_ForDelete {
-    UA_Client *client;
-    UA_Client_Subscription *sub;
-    UA_UInt32 *monitoredItemId;
-};
 
 void
 __Client_Subscriptions_clean(UA_Client *client);
