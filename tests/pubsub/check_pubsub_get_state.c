@@ -491,8 +491,8 @@ START_TEST(Test_error_case) {
     /* close the connection socket to generate error*/
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
-       if (UA_NodeId_equal(&tmpConnection->identifier, &ConnId_1)) {
-            UA_close((int)tmpConnection->sendChannel);
+       if(UA_NodeId_equal(&tmpConnection->identifier, &ConnId_1)) {
+           close((int)tmpConnection->sendChannel);
        }
     }
 
