@@ -1128,9 +1128,9 @@ UDP_openReceiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* checked before */
 
-    /* Get the hostname configuration */
+    /* Get the hostname configuration from local interface */
     const UA_Variant *addrs =
-        UA_KeyValueMap_get(params, UDPConfigParameters[UDP_PARAMINDEX_ADDR].name);
+        UA_KeyValueMap_get(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name);
     size_t addrsSize = 0;
     if(addrs) {
         UA_assert(addrs->type == &UA_TYPES[UA_TYPES_STRING]);
