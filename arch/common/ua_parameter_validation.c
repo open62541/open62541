@@ -5,7 +5,7 @@
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_common.h"
+#include "ua_parameter_validation.h"
 
 UA_StatusCode
 UA_KeyValueRestriction_validate(const UA_Logger *logger,

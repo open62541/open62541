@@ -9,7 +9,8 @@
  */
 
 #include "eventloop_posix.h"
-#include "eventloop_common.h"
+#include "common/ua_parameter_validation.h"
+#include "../deps/mp_printf.h"
 
 #ifdef UA_ARCHITECTURE_POSIX
 

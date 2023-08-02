@@ -960,14 +960,14 @@ if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
          ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/ua_parameter_validation.h
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h)
 
     list(APPEND architecture_sources
          ${PROJECT_SOURCE_DIR}/arch/posix/ua_clock.c
          ${PROJECT_SOURCE_DIR}/arch/win32/ua_clock.c
          ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/common/ua_parameter_validation.c
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c

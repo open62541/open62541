@@ -7,7 +7,8 @@
  */
 
 #include "eventloop_posix.h"
-#include "eventloop_common.h"
+#include "common/ua_parameter_validation.h"
+#include "../deps/mp_printf.h"
 
 /* Configuration parameters */
 #define TCP_PARAMETERSSIZE 5

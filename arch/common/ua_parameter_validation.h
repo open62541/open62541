@@ -6,8 +6,8 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#ifndef UA_EVENTLOOP_COMMON_H_
-#define UA_EVENTLOOP_COMMON_H_
+#ifndef UA_PARAMETER_VALIDATION_H_
+#define UA_PARAMETER_VALIDATION_H_
 
 #include <open62541/plugin/eventloop.h>
 
@@ -34,4 +34,4 @@ UA_KeyValueRestriction_validate(const UA_Logger *logger,
 
 _UA_END_DECLS
 
-#endif /* UA_EVENTLOOP_COMMON_H_ */
+#endif /* UA_PARAMETER_VALIDATION_H_ */

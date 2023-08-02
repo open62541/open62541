@@ -7,13 +7,14 @@
  */
 
 #include "eventloop_posix.h"
-#include "eventloop_common.h"
+#include "common/ua_parameter_validation.h"
+#include "../deps/mp_printf.h"
 
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
 #if UA_IPV6
-#   define IPV6_PREFIX_MASK 0xFF
-#   define IPV6_MULTICAST_PREFIX 0xFF
+# define IPV6_PREFIX_MASK 0xFF
+# define IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
 /* Configuration parameters */
