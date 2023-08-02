@@ -10,6 +10,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/util.h>
 
+#include <stdio.h>
 #include <signal.h>
 
 #ifdef _MSC_VER
@@ -109,7 +110,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("Usage: tutorial_client_events <opc.tcp://server-url>\n");
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     UA_Client *client = UA_Client_new();
@@ -121,7 +122,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -132,7 +133,7 @@ int main(int argc, char *argv[]) {
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
     UA_UInt32 subId = response.subscriptionId;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
@@ -154,7 +155,6 @@ int main(int argc, char *argv[]) {
     item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
 
     UA_UInt32 monId = 0;
-
     UA_MonitoredItemCreateResult result =
         UA_Client_MonitoredItems_createEvent(client, subId,
                                              UA_TIMESTAMPSTORETURN_BOTH, item,
@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
     monId = result.monitoredItemId;
 
     while(running)
-        retval = UA_Client_run_iterate(client, 100);
+        UA_Client_run_iterate(client, 100);
 
     /* Delete the subscription */
  cleanup:
@@ -183,5 +183,5 @@ int main(int argc, char *argv[]) {
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

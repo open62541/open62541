@@ -12,6 +12,7 @@
 ** fuzzed input.
 */
 #include <base64.h>
+#include <malloc.h>
 
 extern "C" int
 LLVMFuzzerTestOneInput(uint8_t *data, size_t size) {

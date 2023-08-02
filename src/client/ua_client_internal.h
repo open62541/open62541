@@ -20,7 +20,6 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
-#include "common/ua_timer.h"
 #include "ua_util_internal.h"
 #include "ziptree.h"
 
@@ -30,17 +29,12 @@ _UA_BEGIN_DECLS
 /* Subscriptions Handling */
 /**************************/
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 typedef struct UA_Client_NotificationsAckNumber {
     LIST_ENTRY(UA_Client_NotificationsAckNumber) listEntry;
     UA_SubscriptionAcknowledgement subAck;
 } UA_Client_NotificationsAckNumber;
 
-struct UA_Client_MonitoredItem;
-typedef struct UA_Client_MonitoredItem UA_Client_MonitoredItem;
-
-struct UA_Client_MonitoredItem {
+typedef struct UA_Client_MonitoredItem {
     ZIP_ENTRY(UA_Client_MonitoredItem) zipfields;
     UA_UInt32 monitoredItemId;
     UA_UInt32 clientHandle;
@@ -51,7 +45,7 @@ struct UA_Client_MonitoredItem {
         UA_Client_EventNotificationCallback eventCallback;
     } handler;
     UA_Boolean isEventMonitoredItem; /* Otherwise a DataChange MoniitoredItem */
-};
+} UA_Client_MonitoredItem;
 
 ZIP_HEAD(MonitorItemsTree, UA_Client_MonitoredItem);
 typedef struct MonitorItemsTree MonitorItemsTree;
@@ -69,12 +63,6 @@ typedef struct UA_Client_Subscription {
     MonitorItemsTree monitoredItems;
 } UA_Client_Subscription;
 
-struct UA_Client_MonitoredItem_ForDelete {
-    UA_Client *client;
-    UA_Client_Subscription *sub;
-    UA_UInt32 *monitoredItemId;
-};
-
 void
 __Client_Subscriptions_clean(UA_Client *client);
 
@@ -87,8 +75,6 @@ __Client_Subscriptions_backgroundPublish(UA_Client *client);
 
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
-
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 /**********/
 /* Client */
@@ -164,12 +150,10 @@ struct UA_Client {
     UA_AsyncServiceList asyncServiceCalls;
 
     /* Subscriptions */
-#ifdef UA_ENABLE_SUBSCRIPTIONS
     LIST_HEAD(, UA_Client_NotificationsAckNumber) pendingNotificationsAcks;
     LIST_HEAD(, UA_Client_Subscription) subscriptions;
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
-#endif
 
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before

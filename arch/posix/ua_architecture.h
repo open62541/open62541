@@ -14,52 +14,21 @@
 
 #include <errno.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
-#include <sys/types.h>
 #include <net/if.h>
 #include <poll.h>
-#ifdef UA_sleep_ms
-void UA_sleep_ms(unsigned long ms);
-#else
-# include <unistd.h>
-# define UA_sleep_ms(X) usleep(X * 1000)
-#endif
-
-#define OPTVAL_TYPE int
-
 #include <fcntl.h>
-#include <unistd.h> // read, write, close
+#include <unistd.h>
 
-#ifdef __QNX__
-# include <sys/socket.h>
-#endif
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 # include <sys/param.h>
 # if defined(BSD)
-#  include<sys/socket.h>
+#  include <sys/socket.h>
 # endif
 #endif
-
-#include <netinet/tcp.h>
-
-/* unsigned int for windows and workaround to a glibc bug */
-/* Additionally if GNU_LIBRARY is not defined, it may be using
- * musl libc (e.g. Docker Alpine) */
-#if  defined(__OpenBSD__) || \
-    (defined(__GNU_LIBRARY__) && (__GNU_LIBRARY__ <= 6) && \
-     (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 16) || \
-    !defined(__GNU_LIBRARY__))
-# define UA_fd_set(fd, fds) FD_SET((unsigned int)fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET((unsigned int)fd, fds)
-#else
-# define UA_fd_set(fd, fds) FD_SET(fd, fds)
-# define UA_fd_isset(fd, fds) FD_ISSET(fd, fds)
-#endif
-
-#define UA_access access
 
 #define UA_IPV6 1
 #define UA_SOCKET int
@@ -73,51 +42,21 @@ void UA_sleep_ms(unsigned long ms);
 #define UA_POLLIN POLLIN
 #define UA_POLLOUT POLLOUT
 
-#define UA_ENABLE_LOG_COLORS
-
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
 #define UA_poll poll
 #define UA_send send
 #define UA_recv recv
 #define UA_sendto sendto
-#define UA_recvfrom recvfrom
-#define UA_recvmsg recvmsg
-#define UA_htonl htonl
-#define UA_ntohl ntohl
 #define UA_close close
 #define UA_select select
-#define UA_shutdown shutdown
-#define UA_socket socket
-#define UA_bind bind
-#define UA_listen listen
-#define UA_accept accept
 #define UA_connect connect
-#define UA_getaddrinfo getaddrinfo
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
-#define UA_ioctl ioctl
-#define UA_freeaddrinfo freeaddrinfo
-#define UA_gethostname gethostname
-#define UA_getsockname getsockname
 #define UA_inet_pton inet_pton
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
 #endif
-
-/* Use the standard malloc */
-#include <stdlib.h>
-#ifndef UA_free
-# define UA_free free
-# define UA_malloc malloc
-# define UA_calloc calloc
-# define UA_realloc realloc
-#endif
-
-#include <stdio.h>
-#include <strings.h>
-#define UA_snprintf snprintf
-#define UA_strncasecmp strncasecmp
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
 
@@ -131,58 +70,6 @@ void UA_sleep_ms(unsigned long ms);
     LOG; \
     errno = 0; \
 }
-
-#if UA_MULTITHREADING >= 100
-
-#include <pthread.h>
-
-typedef struct {
-    pthread_mutex_t mutex;
-    int mutexCounter;
-} UA_Lock;
-
-#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
-
-static UA_INLINE void
-UA_LOCK_INIT(UA_Lock *lock) {
-    pthread_mutex_init(&lock->mutex, NULL);
-    lock->mutexCounter = 0;
-}
-
-static UA_INLINE void
-UA_LOCK_DESTROY(UA_Lock *lock) {
-    pthread_mutex_destroy(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK(UA_Lock *lock) {
-    pthread_mutex_lock(&lock->mutex);
-    UA_assert(lock->mutexCounter == 0);
-    lock->mutexCounter++;
-}
-
-static UA_INLINE void
-UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(lock->mutexCounter == 1);
-    lock->mutexCounter--;
-    pthread_mutex_unlock(&lock->mutex);
-}
-
-static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
-}
-
-#else
-#define UA_EMPTY_STATEMENT                                                               \
-    do {                                                                                 \
-    } while(0)
-#define UA_LOCK_INIT(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK_DESTROY(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK(lock) UA_EMPTY_STATEMENT
-#define UA_UNLOCK(lock) UA_EMPTY_STATEMENT
-#define UA_LOCK_ASSERT(lock, num) UA_EMPTY_STATEMENT
-#endif
 
 #if defined(__APPLE__) && defined(_SYS_QUEUE_H_)
 //  in some compilers there's already a _SYS_QUEUE_H_ which is included first and doesn't

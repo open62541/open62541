@@ -275,11 +275,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     if(UA_ENABLE_PUBSUB_MONITORING)
-        if(CMAKE_SYSTEM MATCHES "Linux")
-            add_example(server_pubsub_subscribe_custom_monitoring pubsub/monitoring/server_pubsub_subscribe_custom_monitoring.c)
-        else(NOT (CMAKE_SYSTEM MATCHES "Linux"))
-            message(WARNING "PubSub subscriber monitoring example build needs LINUX OS. Skip build.")
-        endif()
+        add_example(server_pubsub_subscribe_custom_monitoring pubsub/server_pubsub_subscribe_custom_monitoring.c)
     endif()
 endif()
 

@@ -10,6 +10,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #define DISCOVERY_SERVER_ENDPOINT "opc.tcp://localhost:4840"
 

@@ -6,7 +6,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
 
-#include "check.h"
+#include <check.h>
+#include <stdlib.h>
+
 #include "testing_clock.h"
 
 UA_Server *server = NULL;

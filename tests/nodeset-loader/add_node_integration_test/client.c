@@ -4,6 +4,8 @@
 
 #include "ua_types_encoding_xml.h"
 
+#include <signal.h>
+#include <stdlib.h>
 #include <stdio.h>
 
 #define MIN_ARGUMENTS_NUM 3

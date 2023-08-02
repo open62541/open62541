@@ -14,6 +14,8 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include "common.h"
+
 #include <signal.h>
 #include <stdlib.h>
 
@@ -130,7 +132,7 @@ main(void) {
                          "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
-            UA_sleep_ms(1000);
+            sleep_ms(1000);
             continue;
         }
 

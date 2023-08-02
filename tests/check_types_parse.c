@@ -6,7 +6,8 @@
 #include <open62541/types_generated_handling.h>
 #include "open62541/util.h"
 
-#include "check.h"
+#include <stdlib.h>
+#include <check.h>
 
 START_TEST(base64) {
     UA_ByteString test1 = UA_BYTESTRING("abc123\nopen62541");

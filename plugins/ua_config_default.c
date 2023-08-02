@@ -22,6 +22,14 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
+#include "../deps/mp_printf.h"
+
+#ifdef _WIN32
+# include <winsock2.h>
+#else
+# include <unistd.h>
+#endif
+
 /* Struct initialization works across ANSI C/C99/C++ if it is done when the
  * variable is first declared. Assigning values to existing structs is
  * heterogeneous across the three. */
@@ -393,7 +401,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         /* 1) Listen on all interfaces (also external). This must be the first
          * entry if this is desired. Otherwise some interfaces may be blocked
          * (already in use) with a hostname that is only locally reachable.*/
-        UA_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+        mp_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
                     "opc.tcp://:%u", portNumber);
         serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
         serverUrlsSize++;
@@ -404,13 +412,13 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         WSADATA wsaData;
         WSAStartup(MAKEWORD(2, 2), &wsaData);
 #endif
-        int err = UA_gethostname(hostnamestr, sizeof(hostnamestr));
+        int err = gethostname(hostnamestr, sizeof(hostnamestr));
 #ifdef _WIN32
         WSACleanup();
 #endif
 
         if(err == 0) {
-            UA_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
+            mp_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
                         "opc.tcp://%s:%u", hostnamestr, portNumber);
             serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
             serverUrlsSize++;

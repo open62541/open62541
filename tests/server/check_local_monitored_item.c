@@ -10,9 +10,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
 
-#include <stddef.h>
+#include <check.h>
+#include <stdlib.h>
 
-#include "check.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 

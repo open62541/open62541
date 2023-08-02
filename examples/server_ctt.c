@@ -15,6 +15,7 @@
 #include <open62541/plugin/pki_default.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "common.h"
 
@@ -217,8 +218,8 @@ readRandomStringData (UA_Server *server,
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    char randomName[12];
-    UA_snprintf(randomName, 12, "Random%u", UA_UInt32_random());
+    char randomName[32];
+    sprintf(randomName, "Random%u", UA_UInt32_random());
     UA_String toggle = UA_STRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &toggle, &UA_TYPES[UA_TYPES_STRING]);
     value->hasValue = true;
@@ -281,8 +282,8 @@ readByteString (UA_Server *server,
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    char randomName[8];
-    UA_snprintf(randomName, 8, "%u%u", UA_UInt32_random(), UA_UInt32_random());
+    char randomName[32];
+    sprintf(randomName, "%u%u", UA_UInt32_random(), UA_UInt32_random());
     UA_ByteString randomByte = UA_BYTESTRING(randomName);
     UA_Variant_setScalarCopy(&value->value, &randomByte, &UA_TYPES[UA_TYPES_BYTESTRING]);
     value->hasValue = true;
@@ -534,8 +535,8 @@ setInformationModel(UA_Server *server) {
         UA_VariableAttributes attr = UA_VariableAttributes_default;
         attr.dataType = UA_TYPES[type].typeId;
 #ifndef UA_ENABLE_TYPEDESCRIPTION
-        char name[15];
-        UA_snprintf(name, 15, "%02d", type);
+        char name[32];
+        sprintf(name, "%02d", type);
         attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
 #else
@@ -621,8 +622,8 @@ setInformationModel(UA_Server *server) {
 
     id = DEPTHID; // running id in namespace 0 - Start with Matrix NODE
     for(UA_UInt32 i = 1; i <= 20; i++) {
-        char name[15];
-        UA_snprintf(name, 15, "depth%u", i);
+        char name[32];
+        sprintf(name, "depth%u", i);
         object_attr.description = UA_LOCALIZEDTEXT("en-US", name);
         object_attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
         UA_Server_addObjectNode(server, UA_NODEID_NUMERIC(1, id + i),
@@ -703,9 +704,9 @@ setInformationModel(UA_Server *server) {
         for(size_t j = 0; j < 100; j++) {
             char name[32];
 #ifndef UA_ENABLE_TYPEDESCRIPTION
-            UA_snprintf(name, 20, "%02d - %i", type, scale_i);
+            sprintf(name, "%02d - %i", type, scale_i);
 #else
-            UA_snprintf(name, 20, "%s - %i", UA_TYPES[type].typeName, scale_i);
+            sprintf(name, "%s - %i", UA_TYPES[type].typeName, scale_i);
 #endif
             attr.displayName = UA_LOCALIZEDTEXT("en-US", name);
             UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);

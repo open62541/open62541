@@ -162,8 +162,6 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
     return retval;
 }
 
-#ifdef UA_ENABLE_DISCOVERY
-
 UA_StatusCode
 UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
                                UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
@@ -221,5 +219,3 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
         UA_Client_disconnect(client);
     return retval;
 }
-
-#endif

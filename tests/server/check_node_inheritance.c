@@ -7,6 +7,7 @@
 #include "server/ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_UInt32 valueToBeInherited = 42;

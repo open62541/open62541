@@ -16,6 +16,23 @@
 #define UA_OPEN62541_VERSION "${OPEN62541_VERSION}"
 
 /**
+ * Architecture
+ * ------------
+ * Define one of the following. */
+
+#cmakedefine UA_ARCHITECTURE_WIN32
+#cmakedefine UA_ARCHITECTURE_POSIX
+
+/* Select default architecture if none is selected */
+#if !defined(UA_ARCHITECtURE_WIN32) && !defined(UA_ARCHITECtURE_POSIX)
+# ifdef _WIN32
+#  define UA_ARCHITECTURE_WIN32
+# else
+#  define UA_ARCHITECTURE_POSIX
+# endif
+#endif
+
+/**
  * Feature Options
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
@@ -38,7 +55,6 @@
 #cmakedefine UA_ENABLE_DIAGNOSTICS
 #cmakedefine UA_ENABLE_HISTORIZING
 #cmakedefine UA_ENABLE_PARSING
-#cmakedefine UA_ENABLE_EXPERIMENTAL_HISTORIZING
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_EVENTS
 #cmakedefine UA_ENABLE_JSON_ENCODING
 #cmakedefine UA_ENABLE_XML_ENCODING
@@ -104,15 +120,6 @@
 #  define _UA_END_DECLS }
 # else
 #  define _UA_END_DECLS
-# endif
-#endif
-
-/* Select default architecture if non is selected through CMake or compiler define */
-#if ${UA_ARCHITECTURES_NODEF}
-# ifdef _WIN32
-#  define UA_ARCHITECTURE_WIN32
-# else
-#  define UA_ARCHITECTURE_POSIX
 # endif
 #endif
 
@@ -263,6 +270,12 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_free(ptr) UA_freeSingleton(ptr)
 # define UA_calloc(num, size) UA_callocSingleton(num, size)
 # define UA_realloc(ptr, size) UA_reallocSingleton(ptr, size)
+#else
+# include <stdlib.h>
+# define UA_free free
+# define UA_malloc malloc
+# define UA_calloc calloc
+# define UA_realloc realloc
 #endif
 
 /* Stack-allocation of memory. Use C99 variable-length arrays if possible.
@@ -319,6 +332,96 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
     } UA_CTASTR(static_assertion_failed_,__COUNTER__)
 #else /* Everybody else */
 # define UA_STATIC_ASSERT(cond,msg) typedef char static_assertion_##msg[(cond)?1:-1]
+#endif
+
+/**
+ * Locking for Multithreading
+ * -------------------------- */
+
+#if UA_MULTITHREADING < 100
+
+# define UA_LOCK_INIT(lock)
+# define UA_LOCK_DESTROY(lock)
+# define UA_LOCK(lock)
+# define UA_UNLOCK(lock)
+# define UA_LOCK_ASSERT(lock, num)
+
+#elif defined(UA_ARCHITECTURE_WIN32)
+
+typedef struct {
+    CRITICAL_SECTION mutex;
+    int mutexCounter;
+} UA_Lock;
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    InitializeCriticalSection(&lock->mutex);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    DeleteCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    EnterCriticalSection(&lock->mutex);
+    UA_assert(++(lock->mutexCounter) == 1);
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(--(lock->mutexCounter) == 0);
+    LeaveCriticalSection(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
+
+#elif defined(UA_ARCHITECTURE_POSIX)
+
+#include <pthread.h>
+
+typedef struct {
+    pthread_mutex_t mutex;
+    int mutexCounter;
+} UA_Lock;
+
+#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
+
+static UA_INLINE void
+UA_LOCK_INIT(UA_Lock *lock) {
+    pthread_mutex_init(&lock->mutex, NULL);
+    lock->mutexCounter = 0;
+}
+
+static UA_INLINE void
+UA_LOCK_DESTROY(UA_Lock *lock) {
+    pthread_mutex_destroy(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK(UA_Lock *lock) {
+    pthread_mutex_lock(&lock->mutex);
+    UA_assert(lock->mutexCounter == 0);
+    lock->mutexCounter++;
+}
+
+static UA_INLINE void
+UA_UNLOCK(UA_Lock *lock) {
+    UA_assert(lock->mutexCounter == 1);
+    lock->mutexCounter--;
+    pthread_mutex_unlock(&lock->mutex);
+}
+
+static UA_INLINE void
+UA_LOCK_ASSERT(UA_Lock *lock, int num) {
+    UA_assert(lock->mutexCounter == num);
+}
+
 #endif
 
 /**
@@ -546,14 +649,5 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 #else
 # define UA_BINARY_OVERLAYABLE_FLOAT 0
 #endif
-
-/**
- * File access
- * ----------- */
-
-#define UA_fileExists(X) ( UA_access(X, 0) == 0)
-
-/* Include architecture-specific definitions */
-#include "${UA_ARCHITECTURE}/ua_architecture.h"
 
 #endif /* UA_CONFIG_H_ */

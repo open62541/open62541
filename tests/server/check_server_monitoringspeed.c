@@ -10,6 +10,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
 

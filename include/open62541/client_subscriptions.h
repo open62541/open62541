@@ -9,8 +9,6 @@
 
 _UA_BEGIN_DECLS
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS
-
 /**
  * .. _client-subscriptions:
  *
@@ -283,8 +281,6 @@ UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
         &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE],
         userdata, requestId);
 }
-
-#endif
 
 _UA_END_DECLS
 

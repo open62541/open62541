@@ -20,8 +20,8 @@
  */
 
 #include <open62541/client_subscriptions.h>
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <open62541/plugin/log_stdout.h>
 
 static void
 dataChangeNotificationCallback(UA_Server *server, UA_UInt32 monitoredItemId,
@@ -39,7 +39,8 @@ addMonitoredItemToCurrentTimeVariable(UA_Server *server) {
         UA_MonitoredItemCreateRequest_default(currentTimeNodeId);
     monRequest.requestedParameters.samplingInterval = 100.0; /* 100 ms interval */
     UA_Server_createDataChangeMonitoredItem(server, UA_TIMESTAMPSTORETURN_SOURCE,
-                                            monRequest, NULL, dataChangeNotificationCallback);
+                                            monRequest, NULL,
+                                            dataChangeNotificationCallback);
 }
 
 /** It follows the main server code, making use of the above definitions. */
@@ -49,8 +50,7 @@ int main(void) {
 
     addMonitoredItemToCurrentTimeVariable(server);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

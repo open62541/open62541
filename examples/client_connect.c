@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     /* At least one argument is required for the server uri */
     if(argc <= 1) {
         usage();
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* Parse the arguments */
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
         if(strcmp(argv[argpos], "--help") == 0 ||
            strcmp(argv[argpos], "-h") == 0) {
             usage();
-            return EXIT_SUCCESS;
+            return 0;
         }
 
         if(argpos + 1 == argc) {
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
             argpos++;
             if(sscanf(argv[argpos], "%i", (int*)&securityMode) != 1) {
                 usage();
-                return EXIT_FAILURE;
+                return 0;
             }
             continue;
         }
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
         }
 #endif
         usage();
-        return EXIT_FAILURE;
+        return 0;
     }
 
     /* Create the server and set its config */
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
@@ -206,5 +206,5 @@ int main(int argc, char *argv[]) {
     /* Clean up */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

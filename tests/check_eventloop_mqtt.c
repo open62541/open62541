@@ -11,6 +11,7 @@
 
 #include "testing_clock.h"
 #include <time.h>
+#include <stdlib.h>
 #include <check.h>
 
 unsigned int messageCount = 0;

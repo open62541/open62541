@@ -30,6 +30,7 @@
 #include <open62541/server_config_default.h>
 
 #include <signal.h>
+#include <stdio.h>
 
 UA_NodeId connectionIdent, publishedDataSetIdent, writerGroupIdent;
 

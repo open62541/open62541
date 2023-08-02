@@ -3,8 +3,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ua_timer.h"
-#include "check.h"
 
+#include <check.h>
+#include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
 
