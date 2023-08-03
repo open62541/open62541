@@ -39,7 +39,10 @@ static void * membufCalloc(size_t nelem, size_t elsize) {
 }
 
 static void * (membufRealloc)(void *ptr, size_t size) {
-    size_t orig_size = ((size_t*)ptr)[-1];
+    size_t orig_size = 0;
+    if(ptr) {
+       orig_size = ((size_t*)ptr)[-1];
+    }
     if(size <= orig_size)
         return ptr;
     void *mem = membufMalloc(size);
