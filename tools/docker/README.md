@@ -15,5 +15,5 @@ To build the container locally use:
 ```bash
 git clone https://github.com/open62541/open62541
 cd open62541
-docker build -f docker/Dockerfile .
+docker build -f tools/docker/Dockerfile .
 ```
