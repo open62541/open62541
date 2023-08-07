@@ -21,6 +21,8 @@ typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
     UA_UsernamePasswordLogin *usernamePasswordLogin;
+    UA_UsernamePasswordLoginCallback loginCallback;
+    void *loginContext;
     UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
@@ -95,11 +97,18 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 
         /* Try to match username/pw */
         UA_Boolean match = false;
-        for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+        if(context->loginCallback) {
+            if(context->loginCallback(&userToken->userName, &userToken->password,
+               context->usernamePasswordLoginSize, context->usernamePasswordLogin,
+               sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
                 match = true;
-                break;
+        } else {
+            for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
+                if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
+                   UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+                    match = true;
+                    break;
+                }
             }
         }
         if(!match)
@@ -399,3 +408,24 @@ UA_AccessControl_default(UA_ServerConfig *config,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
+    UA_Boolean allowAnonymous, UA_CertificateVerification *verifyX509,
+    const UA_ByteString *userTokenPolicyUri, size_t usernamePasswordLoginSize,
+    const UA_UsernamePasswordLogin *usernamePasswordLogin,
+    UA_UsernamePasswordLoginCallback loginCallback, void *loginContext)
+{
+    AccessControlContext *context;
+    UA_StatusCode sc;
+
+    sc = UA_AccessControl_default(config, allowAnonymous, verifyX509,
+        userTokenPolicyUri, usernamePasswordLoginSize, usernamePasswordLogin);
+    if (sc != UA_STATUSCODE_GOOD)
+        return sc;
+
+    context = (AccessControlContext *)config->accessControl.context;
+    context->loginCallback = loginCallback;
+    context->loginContext = loginContext;
+
+    return UA_STATUSCODE_GOOD;
+}
