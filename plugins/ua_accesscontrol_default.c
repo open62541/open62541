@@ -19,8 +19,8 @@
 
 typedef struct {
     UA_Boolean allowAnonymous;
-    size_t usernamePasswordLoginSize;
-    UA_UsernamePasswordLogin *usernamePasswordLogin;
+    UA_LoginCallback loginCallback;
+    void *loginContext;
     UA_CertificateVerification verifyX509;
 } AccessControlContext;
 
@@ -95,12 +95,10 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
 
         /* Try to match username/pw */
         UA_Boolean match = false;
-        for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-               UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+        if(context->loginCallback) {
+            if(context->loginCallback(&userToken->userName, &userToken->password,
+               context->loginContext) == UA_STATUSCODE_GOOD)
                 match = true;
-                break;
-            }
         }
         if(!match)
             return UA_STATUSCODE_BADUSERACCESSDENIED;
@@ -253,13 +251,6 @@ static void clear_default(UA_AccessControl *ac) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
 
     if (context) {
-        for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-            UA_String_clear(&context->usernamePasswordLogin[i].username);
-            UA_String_clear(&context->usernamePasswordLogin[i].password);
-        }
-        if(context->usernamePasswordLoginSize > 0)
-            UA_free(context->usernamePasswordLogin);
-
         if(context->verifyX509.clear)
             context->verifyX509.clear(&context->verifyX509);
 
@@ -273,8 +264,8 @@ UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
                          UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
-                         size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin) {
+                         UA_LoginCallback loginCallback, void *loginContext)
+{
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
                    "AccessControl: Unconfigured AccessControl. Users have all permissions.");
     UA_AccessControl *ac = &config->accessControl;
@@ -329,20 +320,8 @@ UA_AccessControl_default(UA_ServerConfig *config,
                     "AccessControl: x509 certificate user authentication is enabled");
     }
 
-    /* Copy username/password to the access control plugin */
-    if(usernamePasswordLoginSize > 0) {
-        context->usernamePasswordLogin = (UA_UsernamePasswordLogin*)
-            UA_malloc(usernamePasswordLoginSize * sizeof(UA_UsernamePasswordLogin));
-        if(!context->usernamePasswordLogin)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        context->usernamePasswordLoginSize = usernamePasswordLoginSize;
-        for(size_t i = 0; i < usernamePasswordLoginSize; i++) {
-            UA_String_copy(&usernamePasswordLogin[i].username,
-                           &context->usernamePasswordLogin[i].username);
-            UA_String_copy(&usernamePasswordLogin[i].password,
-                           &context->usernamePasswordLogin[i].password);
-        }
-    }
+    context->loginCallback = loginCallback;
+    context->loginContext = loginContext;
 
     /* Set the allowed policies */
     size_t policies = 0;
@@ -350,7 +329,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         policies++;
     if(verifyX509)
         policies++;
-    if(usernamePasswordLoginSize > 0)
+    if(loginCallback)
         policies++;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
@@ -382,7 +361,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         policies++;
     }
 
-    if(usernamePasswordLoginSize > 0) {
+    if(loginCallback) {
         ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
         ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
 #if UA_LOGLEVEL <= 400
@@ -398,4 +377,3 @@ UA_AccessControl_default(UA_ServerConfig *config,
     }
     return UA_STATUSCODE_GOOD;
 }
-

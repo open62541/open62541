@@ -115,11 +115,6 @@ createEndpoint(UA_ServerConfig *conf, UA_EndpointDescription *endpoint,
     return UA_STATUSCODE_GOOD;
 }
 
-static const size_t usernamePasswordsSize = 2;
-static UA_UsernamePasswordLogin usernamePasswords[2] = {
-    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
-    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
-
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf) {
     if(!conf)
@@ -458,7 +453,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     /* Initialize the Access Control plugin */
     retval = UA_AccessControl_default(config, true, NULL,
                                       &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
-                                      usernamePasswordsSize, usernamePasswords);
+                                      NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -711,7 +706,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                   revocationList, revocationListSize);
     retval |= UA_AccessControl_default(conf, true, &accessControlVerification,
                 &conf->securityPolicies[conf->securityPoliciesSize-1].policyUri,
-                usernamePasswordsSize, usernamePasswords);
+                NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
         return retval;

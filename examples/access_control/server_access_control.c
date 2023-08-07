@@ -52,6 +52,26 @@ static UA_UsernamePasswordLogin logins[2] = {
     {UA_STRING_STATIC("paula"), UA_STRING_STATIC("paula123")}
 };
 
+static UA_StatusCode
+loginCallback(const UA_String *userName, const UA_ByteString *password,
+    void *loginContext)
+{
+    UA_Boolean match = false;
+
+    for(size_t i = 0; i < sizeof(logins) / sizeof(logins[0]); i++) {
+        /*
+         * XXX String compare is not constant time.
+         * XXX Clear text password is bad security practice.
+         */
+        if(UA_String_equal(userName, &logins[i].username) &&
+           UA_String_equal(password, &logins[i].password)) {
+                match = true;
+        }
+    }
+
+    return match ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADUSERACCESSDENIED;
+}
+
 int main(void) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
@@ -63,7 +83,8 @@ int main(void) {
     /* Disable anonymous logins, enable two user/password logins */
     config->accessControl.clear(&config->accessControl);
     UA_StatusCode retval = UA_AccessControl_default(config, false, NULL,
-             &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 2, logins);
+        &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+        loginCallback, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 

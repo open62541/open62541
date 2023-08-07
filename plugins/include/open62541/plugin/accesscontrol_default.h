@@ -18,6 +18,10 @@ typedef struct {
     UA_String password;
 } UA_UsernamePasswordLogin;
 
+typedef UA_StatusCode (*UA_LoginCallback)
+    (const UA_String *userName, const UA_ByteString *password,
+    void *loginContext);
+
 /* Default access control. The log-in can be anonymous or username-password. A
  * logged-in user has all access rights.
  *
@@ -28,8 +32,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
                          UA_CertificateVerification *verifyX509,
                          const UA_ByteString *userTokenPolicyUri,
-                         size_t usernamePasswordLoginSize,
-                         const UA_UsernamePasswordLogin *usernamePasswordLogin);
+                         UA_LoginCallback loginCallback, void *loginContext);
 
 _UA_END_DECLS
 
