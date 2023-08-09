@@ -7,6 +7,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]
+        build_name: [
+          "Debug Build & Unit Tests (gcc)",
+          "Debug Build & Unit Tests (gcc, 32bit)",
+          "Debug Build & Unit Tests without Subscriptions (gcc)",
+          "Debug Build & Unit Tests with Diagnostics (gcc)",
+          "Debug Build & Unit Tests with multithreading (gcc)",
+          "Debug Build & Unit Tests with Alarms&Conditions (gcc)",
+          "Debug Build & Unit Tests (clang)",
+          "Debug Build & Unit Tests (tcc)",
+          "Encryption (MbedTLS) Build & Unit Tests (gcc)",
+          "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)",
+          "PubSub SKS Build & Unit Tests (gcc)",
+          "Encryption (OpenSSL) Build & Unit Tests (gcc)",
+          "Encryption (LibreSSL) Build & Unit Tests (gcc)",
+          "TPM Tool Build",
+          "Release Build",
+          "Amalgamation Build",
+          "Amalgamation Build with Multithreading",
+          "Valgrind Build & Unit Tests with MbedTLS (gcc)",
+          "Valgrind Build & Unit Tests with OpenSSL (gcc)",
+          "Valgrind Examples with MbedTLS (gcc)",
+          "Valgrind Examples with OpenSSL (gcc)",
+          "Clang Static Analyzer",
+          "Build All Companion Specifications"
+          ]
         include:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
@@ -85,10 +111,10 @@ jobs:
           - build_name: "Release Build"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: build_release
-          - build_name: Amalgamation Build
+          - build_name: "Amalgamation Build"
             cmd_deps: ""
             cmd_action: build_amalgamation
-          - build_name: Amalgamation Build with Multithreading
+          - build_name: "Amalgamation Build with Multithreading"
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
           - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
@@ -109,10 +135,11 @@ jobs:
           - build_name: "Build All Companion Specifications"
             cmd_deps: ""
             cmd_action: build_all_companion_specs
-    name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+
+    name: ${{matrix.os}}-${{matrix.build_name}}
+    runs-on: ${{matrix.os}}  
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
     - name: Install Dependencies
