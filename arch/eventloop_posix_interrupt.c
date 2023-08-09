@@ -6,6 +6,7 @@
  */
 
 #include "eventloop_posix.h"
+#include "../deps/open62541_queue.h"
 #include <signal.h>
 
 /* Different implementation approaches:
