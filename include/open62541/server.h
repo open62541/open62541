@@ -454,7 +454,7 @@ UA_Server_run_startup(UA_Server *server);
  *
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
- *        Otherwise, the timouts for the networklayers are set to zero.
+ *        Otherwise, the timeouts for the networklayers are set to zero.
  *        The default max wait time is 200ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
