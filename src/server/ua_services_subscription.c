@@ -306,6 +306,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
             UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
     }
 
+    /* Set the maxTime if a timeout hint is defined */
+    entry->maxTime = UA_INT64_MAX;
+    if(request->requestHeader.timeoutHint > 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        entry->maxTime = el->dateTime_nowMonotonic(el) +
+            (request->requestHeader.timeoutHint * UA_DATETIME_MSEC);
+    }
+
     /* Queue the publish response. It will be dequeued in a repeated publish
      * callback. This can also be triggered right now for a late
      * subscription. */

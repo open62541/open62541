@@ -451,10 +451,34 @@ delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
  * done. */
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
-    /* Dequeue a response */
+    /* Get a response */
     UA_PublishResponseEntry *pre = NULL;
-    if(sub->session)
-        pre = UA_Session_dequeuePublishReq(sub->session);
+    if(sub->session) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+        do {
+            /* Dequeue the oldest response */
+            pre = UA_Session_dequeuePublishReq(sub->session);
+            if(!pre)
+                break;
+
+            /* Check if the TimeoutHint is still valid. Otherwise return with a bad
+             * statuscode and continue. */
+            if(pre->maxTime < nowMonotonic) {
+                UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                                     "Publish request %u has timed out", pre->requestId);
+
+                pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
+                pre->response.responseHeader.timestamp = UA_DateTime_now();
+                sendResponse(server, sub->session, sub->session->header.channel,
+                             pre->requestId, (UA_Response *)&pre->response,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+                UA_PublishResponse_clear(&pre->response);
+                UA_free(pre);
+                pre = NULL;
+            }
+        } while(!pre);
+    }
 
     /* Update the LifetimeCounter */
     if(pre) {
