@@ -475,9 +475,13 @@ Array_decodeBinary(void *UA_RESTRICT *UA_RESTRICT dst, size_t *out_length,
 
     /* Filter out arrays that can obviously not be decoded, because the message
      * is too small for the array length. This prevents the allocation of very
-     * long arrays for bogus messages.*/
+     * long arrays for bogus messages.
+     *
+     * The worst known case (so far) is UA_DataValue. It has
+     * sizeof(UA_DataValue) == 80 and an empty DataValue is encoded with just
+     * one byte. We use 128 as the smallest power of 2 larger than 80. */
     size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((type->memSize * length) / 32) <= ctx->end,
+    UA_CHECK(ctx->pos + ((type->memSize * length) / 128) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Allocate memory */

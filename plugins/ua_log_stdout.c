@@ -31,12 +31,14 @@
 # define ANSI_COLOR_RESET   ""
 #endif
 
+static
 const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_GREEN "info",
                                 ANSI_COLOR_YELLOW "warn",
                                 ANSI_COLOR_RED "error",
                                 ANSI_COLOR_MAGENTA "fatal"};
-const char *logCategoryNames[UA_LOGCATEGORIES] =
+static const char *
+logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
