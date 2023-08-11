@@ -8,8 +8,7 @@
 #include "eventloop_common.h"
 
 UA_StatusCode
-UA_KeyValueRestriction_validate(const UA_Logger *logger,
-                                const char *logprefix,
+UA_KeyValueRestriction_validate(const UA_Logger *logger, const char *logprefix,
                                 const UA_KeyValueRestriction *restrictions, size_t restrictionsSize,
                                 const UA_KeyValueMap *map) {
     for(size_t i = 0; i < restrictionsSize; i++) {
