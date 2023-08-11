@@ -342,8 +342,8 @@ UA_StatusCode
 UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                             UA_UInt32 sequenceNumber);
 
-UA_Boolean
-UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session);
+void
+UA_Session_ensurePublishQueueSpace(UA_Server *server, UA_Session *session);
 
 /* Forward declaration for A&C used in ua_server_internal.h" */
 struct UA_ConditionSource;
