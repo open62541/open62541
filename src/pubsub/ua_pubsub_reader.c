@@ -90,8 +90,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         }
         return UA_STATUSCODE_GOOD;
     } else {
-        if(reader->config.publisherId.type != &UA_TYPES[UA_TYPES_UINT32] &&
-           msg->publisherId.uint32 != *(UA_UInt32*)reader->config.publisherId.data)
+        if (!publisherIdIsMatching(msg, reader->config.publisherId))
             return UA_STATUSCODE_BADNOTFOUND;
 
         if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {

@@ -246,16 +246,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Handle too many subscriptions to free resources before trying to allocate
      * resources for the new publish request. If the limit has been reached the
-     * oldest publish request shall be responded */
-    if((server->config.maxPublishReqPerSession != 0) &&
-       (session->responseQueueSize >= server->config.maxPublishReqPerSession)) {
-        if(!UA_Session_reachedPublishReqLimit(server, session)) {
-            sendServiceFault(session->header.channel, requestId,
-                             request->requestHeader.requestHandle,
-                             UA_STATUSCODE_BADINTERNALERROR);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
+     * oldest publish request are returned with an error message. */
+    UA_Session_ensurePublishQueueSpace(server, session);
 
     /* Allocate the response to store it in the retransmission queue */
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
@@ -304,6 +296,14 @@ Service_Publish(UA_Server *server, UA_Session *session,
         /* Remove the acked transmission from the retransmission queue */
         response->results[i] =
             UA_Subscription_removeRetransmissionMessage(sub, ack->sequenceNumber);
+    }
+
+    /* Set the maxTime if a timeout hint is defined */
+    entry->maxTime = UA_INT64_MAX;
+    if(request->requestHeader.timeoutHint > 0) {
+        UA_EventLoop *el = server->config.eventLoop;
+        entry->maxTime = el->dateTime_nowMonotonic(el) +
+            (request->requestHeader.timeoutHint * UA_DATETIME_MSEC);
     }
 
     /* Queue the publish response. It will be dequeued in a repeated publish

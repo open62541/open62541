@@ -211,7 +211,7 @@ getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
 
 UA_PublishResponseEntry*
 UA_Session_dequeuePublishReq(UA_Session *session) {
-    UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
+    UA_PublishResponseEntry *entry = SIMPLEQ_FIRST(&session->responseQueue);
     if(entry) {
         SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
         session->responseQueueSize--;

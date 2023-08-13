@@ -451,10 +451,34 @@ delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
  * done. */
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
-    /* Dequeue a response */
+    /* Get a response */
     UA_PublishResponseEntry *pre = NULL;
-    if(sub->session)
-        pre = UA_Session_dequeuePublishReq(sub->session);
+    if(sub->session) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+        do {
+            /* Dequeue the oldest response */
+            pre = UA_Session_dequeuePublishReq(sub->session);
+            if(!pre)
+                break;
+
+            /* Check if the TimeoutHint is still valid. Otherwise return with a bad
+             * statuscode and continue. */
+            if(pre->maxTime < nowMonotonic) {
+                UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                                     "Publish request %u has timed out", pre->requestId);
+
+                pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
+                pre->response.responseHeader.timestamp = UA_DateTime_now();
+                sendResponse(server, sub->session, sub->session->header.channel,
+                             pre->requestId, (UA_Response *)&pre->response,
+                             &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+                UA_PublishResponse_clear(&pre->response);
+                UA_free(pre);
+                pre = NULL;
+            }
+        } while(!pre);
+    }
 
     /* Update the LifetimeCounter */
     if(pre) {
@@ -667,46 +691,30 @@ UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
     UA_Subscription_publish(server, sub);
 }
 
-UA_Boolean
-UA_Session_reachedPublishReqLimit(UA_Server *server, UA_Session *session) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Reached number of publish request limit");
+void
+UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
+    if(server->config.maxPublishReqPerSession == 0)
+        return;
 
-    /* Dequeue a response */
-    UA_PublishResponseEntry *pre = UA_Session_dequeuePublishReq(session);
+    while(session->responseQueueSize >= server->config.maxPublishReqPerSession) {
+        /* Dequeue a response */
+        UA_PublishResponseEntry *pre = UA_Session_dequeuePublishReq(session);
+        UA_assert(pre != NULL); /* There must be a pre as session->responseQueueSize > 0 */
 
-    /* Cannot publish without a response */
-    if(!pre) {
-        UA_LOG_FATAL_SESSION(&server->config.logger, session,
-                             "No publish requests available");
-        return false;
+        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                             "Sending out a publish response triggered by too many publish requests");
+
+        /* Send the response. This response has no related subscription id */
+        UA_PublishResponse *response = &pre->response;
+        response->responseHeader.timestamp = UA_DateTime_now();
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+
+        /* Free the response */
+        UA_PublishResponse_clear(response);
+        UA_free(pre);
     }
-
-    /* <-- The point of no return --> */
-
-    UA_PublishResponse *response = &pre->response;
-    UA_NotificationMessage *message = &response->notificationMessage;
-
-    /* Set up the response. Note that this response has no related subscription id */
-    response->responseHeader.timestamp = UA_DateTime_now();
-    response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
-    response->subscriptionId = 0;
-    response->moreNotifications = false;
-    message->publishTime = response->responseHeader.timestamp;
-    message->sequenceNumber = 0;
-    response->availableSequenceNumbersSize = 0;
-
-    /* Send the response */
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
-                         "Sending out a publish response triggered by too many publish requests");
-    sendResponse(server, session, session->header.channel, pre->requestId,
-                 (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
-
-    /* Free the response */
-    UA_Array_delete(response->results, response->resultsSize, &UA_TYPES[UA_TYPES_UINT32]);
-    UA_free(pre); /* no need for UA_PublishResponse_clear */
-
-    return true;
 }
 
 static void
