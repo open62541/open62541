@@ -32,7 +32,10 @@ modification history
 #include "ua_openssl_version_abstraction.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
-#define RSA_DECRYPT_BUFFER_LENGTH 2048  /* bytes */    
+#define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
+
+/* Cast to prevent warnings in LibreSSL */
+#define SHA256EVP() ((EVP_MD *)(uintptr_t)EVP_sha256())
 
 
 /** P_SHA256 Context */
@@ -137,7 +140,7 @@ UA_OpenSSL_RSA_Public_Verify(const UA_ByteString *message,
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
         }
-        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, SHA256EVP());
         if(opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
@@ -257,11 +260,11 @@ UA_Openssl_RSA_Private_Decrypt (UA_ByteString *      data,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(withSha256) {
-        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, SHA256EVP());
         if (opensslRet != 1) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
-        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, SHA256EVP());
         if (opensslRet != 1) {
             return UA_STATUSCODE_BADINTERNALERROR;
         }
@@ -342,12 +345,12 @@ UA_Openssl_RSA_Public_Encrypt  (const UA_ByteString * message,
         goto errout;
     }
     if(withSha256) {
-        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_oaep_md(ctx, SHA256EVP());
         if (opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
         }
-        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, SHA256EVP());
         if (opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
@@ -585,7 +588,7 @@ UA_Openssl_RSA_Private_Sign (const UA_ByteString * message,
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
         }
-        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, EVP_sha256());
+        opensslRet = EVP_PKEY_CTX_set_rsa_mgf1_md(evpKeyCtx, SHA256EVP());
         if (opensslRet != 1) {
             ret = UA_STATUSCODE_BADINTERNALERROR;
             goto errout;
