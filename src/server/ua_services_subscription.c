@@ -82,7 +82,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Create the subscription */
-    UA_Subscription *sub= UA_Subscription_new();
+    UA_Subscription *sub = UA_Subscription_new();
     if(!sub) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing CreateSubscriptionRequest failed");
@@ -138,7 +138,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",
                              sub->publishingInterval,
-                             (long unsigned)sub->notificationsPerPublish);}
+                             (long unsigned)sub->notificationsPerPublish);
+}
 
 void
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
@@ -170,9 +171,10 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     /* Change the repeated callback to the new interval. This cannot fail as the
      * CallbackId must exist. */
     if(sub->publishCallbackId > 0 &&
-       sub->publishingInterval != oldPublishingInterval)
+       sub->publishingInterval != oldPublishingInterval) {
         changeRepeatedCallbackInterval(server, sub->publishCallbackId,
                                        sub->publishingInterval);
+    }
 
     /* If the priority has changed, re-enter the subscription to the
      * priority-ordered queue in the session. */
