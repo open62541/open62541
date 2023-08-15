@@ -346,6 +346,12 @@ Service_Publish(UA_Server *server, UA_Session *session,
                 TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
             else
                 TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
+
+            /* After publishing a late subscription (which only happens from here), reset
+             * the cyclic callback to use the current time as the new basetime.
+             * The publishing interval stays the same. */
+            changeRepeatedCallbackInterval(server, late->publishCallbackId,
+                                           late->publishingInterval);
         }
 
         /* In case of an error we might not have used the publish request that
