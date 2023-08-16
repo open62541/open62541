@@ -6,13 +6,11 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdlib.h>
 
 /* possible options: PUBSUB_CONFIG_FASTPATH_NONE, PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS, PUBSUB_CONFIG_FASTPATH_STATIC_VALUES */
 #define PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS
 #define PUBSUB_CONFIG_PUBLISH_CYCLE_MS 100
-#define PUBSUB_CONFIG_PUBLISH_CYCLES 1000000
 #define PUBSUB_CONFIG_FIELD_COUNT 10
 
 /**
@@ -30,15 +28,8 @@
  * freeze, the NetworkMessages and DataSetMessages will be calculated and buffered. During the publish cycle these buffers will only be updated.
  */
 
-
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 valueStore[PUBSUB_CONFIG_FIELD_COUNT];
-
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
 
 /* The following PubSub configuration does not differ from the 'normal' configuration */
 static void
@@ -68,8 +59,6 @@ valueUpdateCallback(UA_Server *server, void *data) {
 #if defined PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS || defined PUBSUB_CONFIG_FASTPATH_STATIC_VALUES
     for(int i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; ++i)
         valueStore[i] = valueStore[i] + 1;
-    if(valueStore[0] > PUBSUB_CONFIG_PUBLISH_CYCLES)
-        running = false;
 #endif
 #if defined PUBSUB_CONFIG_FASTPATH_NONE
     for(size_t i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++){
@@ -85,17 +74,12 @@ valueUpdateCallback(UA_Server *server, void *data) {
             UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Failed to update publish value. Node number: %zu", i);
             continue;
         }
-        if(i == 0 && *intValue  > PUBSUB_CONFIG_PUBLISH_CYCLES)
-            running = false;
         UA_Variant_clear(&value);
     }
 #endif
 }
 
 int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
@@ -186,6 +170,7 @@ int main(void) {
         UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent);
     }
 #endif
+
     /* The PubSub configuration is currently editable and the publish callback is not running */
     writerGroupConfig.publishingInterval = PUBSUB_CONFIG_PUBLISH_CYCLE_MS;
     UA_Server_updateWriterGroupConfig(server, writerGroupIdent, &writerGroupConfig);
@@ -197,8 +182,7 @@ int main(void) {
     UA_UInt64 callbackId;
     UA_Server_addRepeatedCallback(server, valueUpdateCallback, NULL, PUBSUB_CONFIG_PUBLISH_CYCLE_MS, &callbackId);
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval |= UA_Server_run(server, &running);
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
 
