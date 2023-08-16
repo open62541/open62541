@@ -466,7 +466,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             if(pre->maxTime < nowMonotonic) {
                 UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                                      "Publish request %u has timed out", pre->requestId);
-
                 pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
                 sendResponse(server, sub->session, sub->session->header.channel,
                              pre->requestId, (UA_Response *)&pre->response,
@@ -634,9 +633,10 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     sub->currentKeepAliveCount = 0;
 
     /* Free the response */
-    if(retransmission)
+    if(retransmission) {
         /* NotificationMessage was moved into retransmission queue */
         UA_NotificationMessage_init(&response->notificationMessage);
+    }
     response->availableSequenceNumbers = NULL;
     response->availableSequenceNumbersSize = 0;
     UA_PublishResponse_clear(&pre->response);
@@ -749,28 +749,18 @@ Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                               "Register subscription publishing callback");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     if(sub->publishCallbackId > 0)
         return UA_STATUSCODE_GOOD;
-
-    UA_StatusCode retval =
-        addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
-                            sub, sub->publishingInterval, &sub->publishCallbackId);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
-
-    UA_assert(sub->publishCallbackId > 0);
-    return UA_STATUSCODE_GOOD;
+    return addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
+                               sub, sub->publishingInterval, &sub->publishCallbackId);
 }
 
 void
 Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                               "Unregister subscription publishing callback");
-
     if(sub->publishCallbackId == 0)
         return;
-
     removeCallback(server, sub->publishCallbackId);
     sub->publishCallbackId = 0;
 }
