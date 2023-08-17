@@ -540,7 +540,7 @@ START_TEST(Test_basic) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_DISABLED);
 
-    /* state change to operational of WriterGroup */
+    /* state change to operational of ReaderGroup */
     ExpectedCallbackCnt = 2;
     pExpectedComponentCallbackIds[0] = DSRId_Conn2_RG1_DSR1;
     pExpectedComponentCallbackIds[1] = RGId_Conn2_RG1;
@@ -567,11 +567,14 @@ START_TEST(Test_basic) {
 
     ValidatePublishSubscribe(VarId_Conn1_WG1, VarId_Conn2_RG1_DSR1, 44, (UA_UInt32) PublishingInterval_Conn1WG1, 3);
 
+    ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
-    /* there should not be a callback notification for MessageReceiveTimeout */
-    ck_assert(CallbackCnt == 0);
+    /* check that callback has been called for reader group */
+    ck_assert_int_eq(1, CallbackCnt);
+    CallbackCnt = 0;
 
     /* now we disable the publisher WriterGroup and check if a MessageReceiveTimeout occurs at Subscriber */
     ExpectedCallbackCnt = 2;
@@ -604,7 +607,7 @@ START_TEST(Test_basic) {
 
     /* state of ReaderGroup should still be ok */
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
      /* but DataSetReader state shall be error */
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
@@ -2003,7 +2006,7 @@ START_TEST(Test_fast_path) {
 
     /* state of ReaderGroup should still be ok */
     ck_assert(UA_Server_ReaderGroup_getState(server, RGId_Conn2_RG1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
      /* but DataSetReader state shall be error */
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn2_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);

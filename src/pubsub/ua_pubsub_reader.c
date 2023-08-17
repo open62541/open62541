@@ -1099,9 +1099,12 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
     if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup,
-                                      UA_PUBSUBSTATE_OPERATIONAL,
-                                      UA_STATUSCODE_GOOD);
+        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
+                                                     readerGroup->state, UA_STATUSCODE_GOOD);
+        }
     }
     LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
         UA_StatusCode res =
@@ -1160,9 +1163,12 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
     /* If pre-operational, set to operational after the first message was
      * processed */
     if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rv = UA_ReaderGroup_setPubSubState(server, rg,
-                                           UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
+        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
+                                                     rg->state, UA_STATUSCODE_GOOD);
+        }
     }
 
     return rv;
