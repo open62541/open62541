@@ -381,7 +381,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Return the server certificate */
     response->responseHeader.serviceResult |=
-        UA_ByteString_copy(&server->config.serverCertificate,
+        UA_ByteString_copy(&channel->securityPolicy->localCertificate,
                            &response->serverCertificate);
 
     /* Sign the signature */
