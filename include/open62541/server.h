@@ -95,7 +95,6 @@ struct UA_ServerConfig {
      * certificate. */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
-    UA_ByteString serverCertificate;
 
     /**
      * Server Lifecycle
