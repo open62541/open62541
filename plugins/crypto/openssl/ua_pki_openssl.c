@@ -675,9 +675,8 @@ UA_CertificateVerification_VerifyApplicationURI (const UA_CertificateVerificatio
 static UA_StatusCode
 UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime, 
                                  UA_ByteString *certificate) {
-    const unsigned char * pData;
-    pData = certificate->data;
-    X509 * x509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    const unsigned char *pData = certificate->data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
     if (x509 == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -687,6 +686,7 @@ UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
 
     struct tm dtTime;
     ASN1_TIME_to_tm(not_after, &dtTime);
+    X509_free(x509);
 
     struct mytm dateTime;
     memset(&dateTime, 0, sizeof(struct mytm));
@@ -698,10 +698,8 @@ UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     dateTime.tm_sec = dtTime.tm_sec;
 
     long long sec_epoch = __tm_to_secs(&dateTime);
-
     *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
     *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
-
     return UA_STATUSCODE_GOOD;
 }
 #endif
