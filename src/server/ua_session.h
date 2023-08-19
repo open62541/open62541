@@ -43,6 +43,7 @@ typedef struct {
     UA_Boolean        activated;
     void             *sessionHandle; /* pointer assigned in userland-callback */
     UA_NodeId         sessionId;
+    UA_String         clientUserIdOfSession;
     UA_UInt32         maxRequestMessageSize;
     UA_UInt32         maxResponseMessageSize;
     UA_Double         timeout; /* in ms */
