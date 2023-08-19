@@ -522,10 +522,14 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         if(!UA_String_equal(&desc->securityPolicyUri, &channel->securityPolicy->policyUri))
             continue;
 
-        /* Match the UserTokenType */
+        /* Match the UserTokenType
+         * Use the UserTokenPolicies configured in the AccessControl plugin.
+         * They override the configuration in the Endpoint.
+         *
+         * TODO: Allow different UserTokenPolicies for different endpoints. */
         const UA_DataType *tokenDataType = identityToken->content.decoded.type;
-        for(size_t j = 0; j < desc->userIdentityTokensSize; j++) {
-            const UA_UserTokenPolicy *pol = &desc->userIdentityTokens[j];
+        for(size_t j = 0; j < server->config.accessControl.userTokenPoliciesSize; j++) {
+            const UA_UserTokenPolicy *pol = &server->config.accessControl.userTokenPolicies[j];
 
             /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
              * UserIdentityToken should be treated as Anonymous */
@@ -536,7 +540,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                 return;
             }
 
-            /* Expect decoded content */
+            /* Expect decoded content if not anonymous */
             if(!tokenDataType)
                 continue;
 
@@ -849,7 +853,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
-    /* Store the ClientUserId */
+    /* Store the ClientUserId. tokenType can be NULL for the anonymous user. */
     UA_String_clear(&session->clientUserIdOfSession);
     const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
     if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
