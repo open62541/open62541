@@ -572,40 +572,33 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 }
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-static UA_StatusCode
+static void
 saveClientUserId(const UA_ExtensionObject *userIdentityToken,
-                 UA_SessionSecurityDiagnosticsDataType *diag) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+                 UA_SessionSecurityDiagnosticsDataType *ssd) {
+    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED &&
+       userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return;
 
-    UA_String_clear(&diag->clientUserIdOfSession);
-    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED)
-        return UA_STATUSCODE_GOOD;
-
-    if(userIdentityToken->content.decoded.type ==
-       &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        /* String of length 0 */
-    } else if(userIdentityToken->content.decoded.type ==
-       &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+    UA_String_clear(&ssd->clientUserIdOfSession);
+    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
+    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
         const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
             userIdentityToken->content.decoded.data;
-        res = UA_String_copy(&userToken->userName, &diag->clientUserIdOfSession);
-    } else if(userIdentityToken->content.decoded.type ==
-       &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        UA_String_copy(&userToken->userName, &ssd->clientUserIdOfSession);
+    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
         /* TODO: return the X509 Subject Name of the certificate */
-    } else {
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
 
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
+    /* TODO: Handle issued token */
 
-    return UA_Array_appendCopy((void**)&diag->clientUserIdHistory,
-                               &diag->clientUserIdHistorySize,
-                               &diag->clientUserIdOfSession,
-                               &UA_TYPES[UA_TYPES_STRING]);
+    UA_StatusCode res =
+        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                            &ssd->clientUserIdHistorySize,
+                            &ssd->clientUserIdOfSession,
+                            &UA_TYPES[UA_TYPES_STRING]);
+    (void)res;
 }
 #endif
-
 
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
