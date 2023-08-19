@@ -575,10 +575,6 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 static void
 saveClientUserId(const UA_ExtensionObject *userIdentityToken,
                  UA_SessionSecurityDiagnosticsDataType *ssd) {
-    if(userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED &&
-       userIdentityToken->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-        return;
-
     UA_String_clear(&ssd->clientUserIdOfSession);
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
     if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
@@ -666,6 +662,15 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(!ed) {
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         goto rejected;
+    }
+
+    /* Check that the usertoken was correctly decoded.
+     * We still have to check for individual types downstream. */
+    if(req->userIdentityToken.encoding != UA_EXTENSIONOBJECT_DECODED &&
+       req->userIdentityToken.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE &&
+       req->userIdentityToken.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+        resp->responseHeader.serviceResult = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        goto securityRejected;
     }
 
     /* If it is a UserNameIdentityToken, the password may be encrypted */
