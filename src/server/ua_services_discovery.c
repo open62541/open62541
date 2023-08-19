@@ -240,23 +240,23 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         if(!usable)
             continue;
 
+
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
-            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j],
-                                                  &response->endpoints[pos]);
-            UA_String_clear(&response->endpoints[pos].endpointUrl);
+            UA_EndpointDescription *respEP = &response->endpoints[pos];
+            retval |= UA_EndpointDescription_copy(&server->config.endpoints[j], respEP);
+            UA_String_clear(&respEP->endpointUrl);
             if(use_discovery) {
                 retval |=
                     UA_String_copy(&server->config.applicationDescription.discoveryUrls[i],
-                                   &response->endpoints[pos].endpointUrl);
+                                   &respEP->endpointUrl);
             } else {
                 /* Mirror back the requested EndpointUrl and also add it to the
                  * array of discovery urls */
-                retval |= UA_String_copy(endpointUrl, &response->endpoints[pos].endpointUrl);
-                retval |=
-                    UA_Array_appendCopy((void**)&response->endpoints[pos].server.discoveryUrls,
-                                        &response->endpoints[pos].server.discoveryUrlsSize,
-                                        endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+                retval |= UA_String_copy(endpointUrl, &respEP->endpointUrl);
+                retval |= UA_Array_appendCopy((void**)&respEP->server.discoveryUrls,
+                                              &respEP->server.discoveryUrlsSize,
+                                              endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
             }
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
