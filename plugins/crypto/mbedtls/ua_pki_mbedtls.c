@@ -572,7 +572,6 @@ getCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     UA_DateTimeStruct ts;
     ts.year = (UA_Int16)publicKey.valid_to.year;
     ts.month = (UA_UInt16)publicKey.valid_to.mon;
@@ -583,9 +582,8 @@ getCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     ts.milliSec = 0;
     ts.microSec = 0;
     ts.nanoSec = 0;
-
     *expiryDateTime = UA_DateTime_fromStruct(ts);
-
+    mbedtls_x509_crt_free(&publicKey);
     return UA_STATUSCODE_GOOD;
 }
 
