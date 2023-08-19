@@ -572,7 +572,6 @@ getCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
     if(mbedErr)
         return UA_STATUSCODE_BADINTERNALERROR;
-
     UA_DateTimeStruct ts;
     ts.year = (UA_Int16)publicKey.valid_to.year;
     ts.month = (UA_UInt16)publicKey.valid_to.mon;
@@ -583,10 +582,26 @@ getCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     ts.milliSec = 0;
     ts.microSec = 0;
     ts.nanoSec = 0;
-
     *expiryDateTime = UA_DateTime_fromStruct(ts);
-
+    mbedtls_x509_crt_free(&publicKey);
     return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+getCertificate_SubjectName(UA_String *subjectName,
+                           UA_ByteString *certificate) {
+    mbedtls_x509_crt publicKey;
+    mbedtls_x509_crt_init(&publicKey);
+    int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
+    if(mbedErr)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    char buf[1024];
+    int res = mbedtls_x509_dn_gets(buf, 1024, &publicKey.subject);
+    mbedtls_x509_crt_free(&publicKey);
+    if(res < 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_String tmp = {(size_t)res, (UA_Byte*)buf};
+    return UA_String_copy(&tmp, subjectName);
 }
 
 UA_StatusCode
@@ -622,6 +637,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
     cv->getExpirationDate = getCertificate_ExpirationDate;
+    cv->getSubjectName = getCertificate_SubjectName;
 
     int err;
     UA_ByteString data;

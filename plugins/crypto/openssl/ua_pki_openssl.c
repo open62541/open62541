@@ -675,9 +675,8 @@ UA_CertificateVerification_VerifyApplicationURI (const UA_CertificateVerificatio
 static UA_StatusCode
 UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime, 
                                  UA_ByteString *certificate) {
-    const unsigned char * pData;
-    pData = certificate->data;
-    X509 * x509 = d2i_X509 (NULL, &pData, (long) certificate->length);
+    const unsigned char *pData = certificate->data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
     if (x509 == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -687,6 +686,7 @@ UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
 
     struct tm dtTime;
     ASN1_TIME_to_tm(not_after, &dtTime);
+    X509_free(x509);
 
     struct mytm dateTime;
     memset(&dateTime, 0, sizeof(struct mytm));
@@ -698,13 +698,25 @@ UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime,
     dateTime.tm_sec = dtTime.tm_sec;
 
     long long sec_epoch = __tm_to_secs(&dateTime);
-
     *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
     *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
-
     return UA_STATUSCODE_GOOD;
 }
 #endif
+
+static UA_StatusCode
+UA_GetCertificate_SubjectName(UA_String *subjectName,
+                              UA_ByteString *certificate) {
+    const unsigned char *pData = certificate->data;
+    X509 *x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
+    if(!x509)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    X509_NAME *sn = X509_get_subject_name(x509);
+    *subjectName = UA_STRING(X509_NAME_oneline(sn, NULL, 0));
+    X509_free(x509);
+    return UA_STATUSCODE_GOOD;
+}
+
 /* main entry */
 
 UA_StatusCode
@@ -744,6 +756,7 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
 #ifdef UA_ENABLE_ENCRYPTION_OPENSSL
     cv->getExpirationDate     = UA_GetCertificate_ExpirationDate;
 #endif
+    cv->getSubjectName = UA_GetCertificate_SubjectName;
     
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,

@@ -244,7 +244,7 @@ addEndpoint(UA_ServerConfig *conf,
     retval |= UA_String_copy(&securityPolicy->policyUri, &endpoint->securityPolicyUri);
     endpoint->transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
-    retval |= UA_String_copy(&conf->serverCertificate, &endpoint->serverCertificate);
+    retval |= UA_String_copy(&securityPolicy->localCertificate, &endpoint->serverCertificate);
     retval |= UA_ApplicationDescription_copy(&conf->applicationDescription,
                                              &endpoint->server);
 
@@ -887,10 +887,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         UA_ServerConfig_clean(conf);
         return retval;
     }
-
-    retval = UA_ByteString_copy(certificate, &conf->serverCertificate);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
     retval = UA_CertificateVerification_Trustlist(&conf->sessionPKI,
                                                   trustList, trustListSize,

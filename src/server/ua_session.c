@@ -44,6 +44,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->header.authenticationToken);
+    UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
@@ -251,11 +252,12 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
 
 /* Session Attributes */
 
-#define UA_PROTECTEDATTRIBUTESSIZE 3
+#define UA_PROTECTEDATTRIBUTESSIZE 4
 static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = {
     {0, UA_STRING_STATIC("localeIds")},
     {0, UA_STRING_STATIC("clientDescription")},
-    {0, UA_STRING_STATIC("sessionName")}
+    {0, UA_STRING_STATIC("sessionName")},
+    {0, UA_STRING_STATIC("clientUserId")}
 };
 
 static UA_Boolean
@@ -326,6 +328,11 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
     } else if(UA_QualifiedName_equal(&key, &protectedAttributes[2])) {
         /* Return session name */
         UA_Variant_setScalar(&localAttr, &session->sessionName,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[3])) {
+        /* Return client user id */
+        UA_Variant_setScalar(&localAttr, &session->clientUserIdOfSession,
                              &UA_TYPES[UA_TYPES_STRING]);
         attr = &localAttr;
     } else {

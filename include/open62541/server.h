@@ -95,7 +95,6 @@ struct UA_ServerConfig {
      * certificate. */
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
-    UA_ByteString serverCertificate;
 
     /**
      * Server Lifecycle
@@ -544,6 +543,7 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
  * - 0:localeIds [UA_String]: List of preferred languages (read-only)
  * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
  * - 0:sessionName [String] Client-defined name of the session (read-only)
+ * - 0:clientUserId [String] User identifier used to activate the session (read-only)
  */
 
 /* Returns a shallow copy of the attribute. Don't _clear or _delete the value

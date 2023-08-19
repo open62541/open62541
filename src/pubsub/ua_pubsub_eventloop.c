@@ -523,14 +523,16 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
-        /* Reset the connection channel */
-        wg->sendChannel = 0;
+        if(wg->sendChannel == connectionId) {
+            /* Reset the connection channel */
+            wg->sendChannel = 0;
 
-        /* PSC marked for deletion and the last EventLoop connection has closed */
-        if(wg->deleteFlag) {
-            UA_WriterGroup_remove(server, wg);
-            UA_UNLOCK(&server->serviceMutex);
-            return;
+            /* PSC marked for deletion and the last EventLoop connection has closed */
+            if(wg->deleteFlag) {
+                UA_WriterGroup_remove(server, wg);
+                UA_UNLOCK(&server->serviceMutex);
+                return;
+            }
         }
 
         /* Reconnect automatically if the connection was operational. This sets
@@ -568,6 +570,13 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Already connected? */
     if(wg->sendChannel != 0)
+        return UA_STATUSCODE_GOOD;
+
+    /* Check if address is available in TransportSettings */
+    if(((wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+         wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+        wg->config.transportSettings.content.decoded.type ==
+        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE]))
         return UA_STATUSCODE_GOOD;
 
     /* Unpack the TransportSettings */
