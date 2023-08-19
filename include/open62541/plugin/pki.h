@@ -49,6 +49,9 @@ struct UA_CertificateVerification {
     UA_StatusCode (*getExpirationDate)(UA_DateTime *expiryDateTime, 
                                        UA_ByteString *certificate);
 
+    UA_StatusCode (*getSubjectName)(UA_String *subjectName,
+                                    UA_ByteString *certificate);
+
     /* Delete the certificate verification context */
     void (*clear)(UA_CertificateVerification *cv);
 

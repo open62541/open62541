@@ -857,7 +857,12 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
             req->userIdentityToken.content.decoded.data;
         UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
     } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-        /* TODO: extract the X509 Subject Name of the certificate */
+        UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        if(server->config.sessionPKI.getSubjectName)
+            server->config.sessionPKI.
+                getSubjectName(&session->clientUserIdOfSession,
+                               &userCertToken->certificateData);
     } else {
         /* TODO: Handle issued token */
     }
