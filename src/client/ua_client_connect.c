@@ -1053,7 +1053,7 @@ responseFindServers(UA_Client *client, void *userdata,
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
             if(UA_String_equal(&client->config.endpointUrl, &server->discoveryUrls[j])) {
                 UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                            "The initially defined EndpointURL %.*s"
+                            "The initially defined EndpointURL %.*s "
                             "is valid for the server",
                             (int)client->config.endpointUrl.length,
                             client->config.endpointUrl.data);
