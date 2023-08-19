@@ -571,31 +571,6 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
     }
 }
 
-#ifdef UA_ENABLE_DIAGNOSTICS
-static void
-saveClientUserId(const UA_ExtensionObject *userIdentityToken,
-                 UA_SessionSecurityDiagnosticsDataType *ssd) {
-    UA_String_clear(&ssd->clientUserIdOfSession);
-    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
-            userIdentityToken->content.decoded.data;
-        UA_String_copy(&userToken->userName, &ssd->clientUserIdOfSession);
-    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-        /* TODO: return the X509 Subject Name of the certificate */
-    }
-
-    /* TODO: Handle issued token */
-
-    UA_StatusCode res =
-        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
-                            &ssd->clientUserIdHistorySize,
-                            &ssd->clientUserIdOfSession,
-                            &UA_TYPES[UA_TYPES_STRING]);
-    (void)res;
-}
-#endif
-
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
  * the Certificate used to create the original SecureChannel. In addition, the
@@ -874,23 +849,40 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         server->serverDiagnosticsSummary.cumulatedSessionCount++;
     }
 
+    /* Store the ClientUserId */
+    UA_String_clear(&session->clientUserIdOfSession);
+    const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
+    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            req->userIdentityToken.content.decoded.data;
+        UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
+    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* TODO: extract the X509 Subject Name of the certificate */
+    } else {
+        /* TODO: Handle issued token */
+    }
+
 #ifdef UA_ENABLE_DIAGNOSTICS
-    saveClientUserId(&req->userIdentityToken,
-                     &session->securityDiagnostics);
-    UA_String_clear(&session->securityDiagnostics.authenticationMechanism);
+    /* Add the ClientUserId to the diagnostics history */
+    UA_SessionSecurityDiagnosticsDataType *ssd = &session->securityDiagnostics;
+    UA_StatusCode res =
+        UA_Array_appendCopy((void**)&ssd->clientUserIdHistory,
+                            &ssd->clientUserIdHistorySize,
+                            &ssd->clientUserIdOfSession,
+                            &UA_TYPES[UA_TYPES_STRING]);
+    (void)res;
+
+    /* Store the auth mechanism */
+    UA_String_clear(&ssd->authenticationMechanism);
     switch(utp->tokenType) {
     case UA_USERTOKENTYPE_ANONYMOUS:
-        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Anonymous");
-        break;
+        ssd->authenticationMechanism = UA_STRING_ALLOC("Anonymous"); break;
     case UA_USERTOKENTYPE_USERNAME:
-        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("UserName");
-        break;
+        ssd->authenticationMechanism = UA_STRING_ALLOC("UserName"); break;
     case UA_USERTOKENTYPE_CERTIFICATE:
-        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("Certificate");
-        break;
+        ssd->authenticationMechanism = UA_STRING_ALLOC("Certificate"); break;
     case UA_USERTOKENTYPE_ISSUEDTOKEN:
-        session->securityDiagnostics.authenticationMechanism = UA_STRING_ALLOC("IssuedToken");
-        break;
+        ssd->authenticationMechanism = UA_STRING_ALLOC("IssuedToken"); break;
     default: break;
     }
 #endif
