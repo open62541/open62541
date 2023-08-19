@@ -892,8 +892,11 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
+    /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(&server->config.logger, session,
-                        "ActivateSession: Session activated");
+                        "ActivateSession: Session activated with ClientUserId \"%.*s\"",
+                        (int)session->clientUserIdOfSession.length,
+                        session->clientUserIdOfSession.data);
     return;
 
 securityRejected:
