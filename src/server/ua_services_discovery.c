@@ -240,11 +240,29 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         if(!usable)
             continue;
 
-
         /* Copy into the results */
         for(size_t i = 0; i < clone_times; ++i) {
             UA_EndpointDescription *respEP = &response->endpoints[pos];
             retval |= UA_EndpointDescription_copy(&server->config.endpoints[j], respEP);
+
+            /* Set the UserTokenPolicies from the AccessControl plugin.
+             * TODO: Allow different instances of the AccessControl plugin
+             *       per Endpoint. */
+            UA_Array_delete(respEP->userIdentityTokens, respEP->userIdentityTokensSize,
+                            &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+            respEP->userIdentityTokens = NULL;
+            respEP->userIdentityTokensSize = 0;
+            UA_StatusCode res =
+                UA_Array_copy(server->config.accessControl.userTokenPolicies,
+                              server->config.accessControl.userTokenPoliciesSize,
+                              (void **)&respEP->userIdentityTokens,
+                              &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+            if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+                respEP->userIdentityTokensSize =
+                    server->config.accessControl.userTokenPoliciesSize;
+            retval |= res;
+
+            /* Set the EndpointURL */
             UA_String_clear(&respEP->endpointUrl);
             if(use_discovery) {
                 retval |=
