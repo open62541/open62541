@@ -13,6 +13,7 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -24,6 +25,11 @@
 /* This server is configured to the Compliance Testing Tools (CTT) against. The
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
+
+static const size_t usernamePasswordsSize = 2;
+static UA_UsernamePasswordLogin usernamePasswords[2] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
 
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
@@ -1384,6 +1390,11 @@ int main(int argc, char **argv) {
     config->verifyRequestTimestamp = UA_RULEHANDLING_WARN;
     if(enableTime)
         config->verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
+
+    /* Instatiate a new AccessControl plugin that knows username/pw */
+    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
+    UA_AccessControl_default(config, true, &sp->policyUri,
+                             usernamePasswordsSize, usernamePasswords);
 
     /* Override with a custom access control policy */
     config->accessControl.getUserAccessLevel = getUserAccessLevel_disallowSpecific;
