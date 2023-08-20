@@ -49,8 +49,9 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
     /* Callback into userland access control */
     if(server->config.accessControl.closeSession) {
         UA_UNLOCK(&server->serviceMutex);
-        server->config.accessControl.closeSession(server, &server->config.accessControl,
-                                                  &session->sessionId, session->sessionHandle);
+        server->config.accessControl.
+            closeSession(server, &server->config.accessControl,
+                         &session->sessionId, session->sessionHandle);
         UA_LOCK(&server->serviceMutex);
     }
 
@@ -120,7 +121,8 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
-        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session, "Session has timed out");
+        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session,
+                            "Session has timed out");
         UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
     }
 }
@@ -190,23 +192,25 @@ signCreateSessionResponse(UA_Server *server, UA_SecureChannel *channel,
     UA_SignatureData *signatureData = &response->serverSignature;
 
     /* Prepare the signature */
-    size_t signatureSize = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
-                                          &signatureData->algorithm);
+    const UA_SecurityPolicySignatureAlgorithm *signAlg =
+        &securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm;
+    size_t signatureSize = signAlg->getLocalSignatureSize(channel->channelContext);
+    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &signatureData->algorithm);
     retval |= UA_ByteString_allocBuffer(&signatureData->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Allocate a temp buffer */
-    size_t dataToSignSize = request->clientCertificate.length + request->clientNonce.length;
+    size_t dataToSignSize =
+        request->clientCertificate.length + request->clientNonce.length;
     UA_ByteString dataToSign;
     retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval; /* signatureData->signature is cleaned up with the response */
 
     /* Sign the signature */
-    memcpy(dataToSign.data, request->clientCertificate.data, request->clientCertificate.length);
+    memcpy(dataToSign.data, request->clientCertificate.data,
+           request->clientCertificate.length);
     memcpy(dataToSign.data + request->clientCertificate.length,
            request->clientNonce.data, request->clientNonce.length);
     retval = securityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
