@@ -957,6 +957,7 @@ static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    (void)el;
 
     UA_LOCK(&el->elMutex);
 
