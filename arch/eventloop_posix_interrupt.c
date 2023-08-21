@@ -62,6 +62,7 @@ static void deactivateSignal(UA_RegisteredSignal *rs);
 static void
 handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
     UA_RegisteredSignal *rs = (UA_RegisteredSignal*)rfd;
@@ -335,6 +336,7 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
 static void
 deregisterPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)im->eventSource.eventLoop;
+    (void)el;
     UA_POSIXInterruptManager *pim = (UA_POSIXInterruptManager *)im;
     UA_LOCK(&el->elMutex);
 
@@ -383,6 +385,7 @@ pair(SOCKET fds[2]) {
 static UA_StatusCode
 startPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
+    (void)el;
     UA_LOCK(&el->elMutex);
 
     /* Check the state */
@@ -468,6 +471,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
 static void
 stopPOSIXInterruptManager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
+    (void)el;
     UA_LOCK(&el->elMutex);
 
     if(es->state != UA_EVENTSOURCESTATE_STARTED) {
@@ -501,6 +505,7 @@ stopPOSIXInterruptManager(UA_EventSource *es) {
 static UA_StatusCode
 freePOSIXInterruptmanager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
+    (void)el;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
     if(es->state >= UA_EVENTSOURCESTATE_STARTING) {

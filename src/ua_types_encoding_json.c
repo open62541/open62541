@@ -57,10 +57,6 @@
 #define ENCODE_DIRECT_JSON(SRC, TYPE) \
     TYPE##_encodeJson(ctx, (const UA_##TYPE*)SRC, NULL)
 
-/* Forward declarations */
-UA_String UA_DateTime_toJSON(UA_DateTime t);
-ENCODE_JSON(ByteString);
-
 static status UA_FUNC_ATTR_WARN_UNUSED_RESULT
 writeChar(CtxJson *ctx, char c) {
     if(ctx->pos >= ctx->end)

@@ -489,6 +489,16 @@ filterEvent(UA_Server *server, UA_Session *session,
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
 
+/* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
+ * available. Otherwise use any encrypted SecurityPolicy. */
+UA_SecurityPolicy *
+getDefaultEncryptedSecurityPolicy(UA_Server *server);
+
+UA_StatusCode
+setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
+                         UA_String *profileUris, size_t profileUrisSize,
+                         UA_EndpointDescription **arr, size_t *arrSize);
+
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
                            size_t browsePathSize, const UA_QualifiedName *browsePath);

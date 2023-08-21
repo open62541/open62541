@@ -188,6 +188,10 @@ struct UA_ServerConfig {
     size_t securityPoliciesSize;
     UA_SecurityPolicy* securityPolicies;
 
+    /* Endpoints with combinations of SecurityPolicy and SecurityMode. If the
+     * UserIdentityToken array of the Endpoint is not set, then it will be
+     * filled by the server for all UserTokenPolicies that are configured in the
+     * AccessControl plugin. */
     size_t endpointsSize;
     UA_EndpointDescription *endpoints;
 
