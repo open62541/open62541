@@ -589,6 +589,13 @@ function(ua_generate_nodeset_and_datatypes)
         endif()
     endif()
 
+    # Verify that the csv file is in need of repair and then repair it.
+    if(UA_GEN_FILE_CSV AND NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
+        execute_process(COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/extend_siome_nodeset.py
+                        --xml ${UA_GEN_FILE_NS}
+                        --csv ${UA_GEN_FILE_CSV})
+    endif()
+
     if(NOT "${UA_GEN_FILE_BSD}" STREQUAL "")
         set(NAMESPACE_MAP_DEPENDS "${UA_GEN_NAMESPACE_MAP}")
 
