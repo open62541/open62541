@@ -538,6 +538,11 @@ add_executable(check_client client/check_client.c $<TARGET_OBJECTS:open62541-obj
 target_link_libraries(check_client ${LIBS})
 add_test_valgrind(client ${TESTS_BINARY_DIR}/check_client)
 
+add_executable(check_client_discovery client/check_client_discovery.c
+               $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+target_link_libraries(check_client_discovery ${LIBS})
+add_test_valgrind(client ${TESTS_BINARY_DIR}/check_client_discovery)
+
 add_executable(check_client_securechannel client/check_client_securechannel.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
 target_link_libraries(check_client_securechannel ${LIBS})
 add_test_valgrind(client_securechannel ${TESTS_BINARY_DIR}/check_client_securechannel)
