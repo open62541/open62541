@@ -516,17 +516,14 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             *tokenSp = channel->securityPolicy;
             if(pol->securityPolicyUri.length > 0)
                 *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-#ifdef UA_ENABLE_ENCRYPTION
             if(!*tokenSp || (*tokenSp)->localCertificate.length == 0 ||
                UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))
                 *tokenSp = getDefaultEncryptedSecurityPolicy(server);
-#endif
             return;
         }
     }
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 static UA_StatusCode
 decryptUserNamePW(UA_Server *server, UA_Session *session,
                   const UA_SecurityPolicy *sp,
@@ -672,7 +669,6 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     UA_LOCK(&server->serviceMutex);
     return res;
 }
-#endif
 
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
@@ -748,7 +744,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         goto rejected;
     }
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
         /* If it is a UserNameIdentityToken, the password may be encrypted */
        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
@@ -771,7 +766,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
            goto securityRejected;
     }
-#endif
 
     /* Callback into userland access control */
     UA_UNLOCK(&server->serviceMutex);

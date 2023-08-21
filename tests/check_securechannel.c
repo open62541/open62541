@@ -163,8 +163,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone) {
 }
 END_TEST
 
-#ifdef UA_ENABLE_ENCRYPTION
-
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign) {
     // Configure our channel correctly for OPN messages and setup dummy message
     UA_OpenSecureChannelResponse dummyResponse;
@@ -193,18 +191,12 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt) {
     ck_assert_msg(fCalled.asym_sign, "Expected message to have been signed but it was not");
 }END_TEST
 
-#endif /* UA_ENABLE_ENCRYPTION */
-
 START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     UA_OpenSecureChannelResponse dummyResponse;
     createDummyResponse(&dummyResponse);
 
     /* Enable encryption for the SecureChannel */
-#ifdef UA_ENABLE_ENCRYPTION
     testChannel.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-#else
-    testChannel.securityMode = UA_MESSAGESECURITYMODE_NONE;
-#endif
 
     UA_UInt32 requestId = UA_UInt32_random();
 
@@ -228,7 +220,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
                                       &asymSecurityHeader.securityPolicyUri),
                   "Expected securityPolicyUri to be equal to the one used by the secureChannel");
 
-#ifdef UA_ENABLE_ENCRYPTION
     ck_assert_msg(UA_ByteString_equal(&dummyCertificate, &asymSecurityHeader.senderCertificate),
                   "Expected the certificate to be equal to the one used  by the secureChannel");
 
@@ -242,7 +233,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     for(size_t i = offset; i < header.messageSize; ++i) {
         sentData.data[i] = (UA_Byte)((sentData.data[i] - 1) % (UA_BYTE_MAX + 1));
     }
-#endif
 
     UA_SequenceHeader sequenceHeader;
     retval = UA_decodeBinaryInternal(&sentData, &offset, &sequenceHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER], NULL);
@@ -262,7 +252,6 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     ck_assert_msg(memcmp(&sentResponse, &dummyResponse, sizeof(UA_OpenSecureChannelResponse)) == 0,
                   "Expected the sent response to be equal to the one supplied to the send function");
 
-#ifdef UA_ENABLE_ENCRYPTION
     UA_Byte paddingByte = sentData.data[offset];
     size_t paddingSize = (size_t)paddingByte;
 
@@ -273,14 +262,11 @@ START_TEST(SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid) {
     }
 
     ck_assert_msg(sentData.data[offset + paddingSize + 1] == '*', "Expected first byte of signature");
-#endif
 
     UA_AsymmetricAlgorithmSecurityHeader_clear(&asymSecurityHeader);
     UA_SequenceHeader_clear(&sequenceHeader);
     UA_OpenSecureChannelResponse_clear(&sentResponse);
 } END_TEST
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits) {
     keySizes.asym_rmt_enc_key_size = 4096;
@@ -373,8 +359,6 @@ START_TEST(Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLarg
     UA_OpenSecureChannelResponse_clear(&sentResponse);
 }END_TEST
 
-#endif /* UA_ENABLE_ENCRYPTION */
-
 START_TEST(SecureChannel_sendSymmetricMessage) {
     // initialize dummy message
     UA_ReadRequest dummyMessage;
@@ -402,8 +386,6 @@ START_TEST(SecureChannel_sendSymmetricMessage_modeNone) {
     ck_assert_msg(!fCalled.sym_sign, "Expected message to not have been signed");
     ck_assert_msg(!fCalled.sym_enc, "Expected message to not have been encrypted");
 } END_TEST
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 START_TEST(SecureChannel_sendSymmetricMessage_modeSign) {
     // initialize dummy message
@@ -435,8 +417,6 @@ START_TEST(SecureChannel_sendSymmetricMessage_modeSignAndEncrypt)
     ck_assert_msg(fCalled.sym_sign, "Expected message to have been signed");
     ck_assert_msg(fCalled.sym_enc, "Expected message to have been encrypted");
 } END_TEST
-
-#endif /* UA_ENABLE_ENCRYPTION */
 
 START_TEST(SecureChannel_sendSymmetricMessage_invalidParameters) {
     // initialize dummy message
@@ -556,12 +536,10 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeInvalid);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeNone);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_sentDataIsValid);
-#ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSign);
     tcase_add_test(tc_sendAsymmetricOPNMessage, SecureChannel_sendAsymmetricOPNMessage_SecurityModeSignAndEncrypt);
     tcase_add_test(tc_sendAsymmetricOPNMessage,
                    Securechannel_sendAsymmetricOPNMessage_extraPaddingPresentWhenKeyLargerThan2048Bits);
-#endif
     suite_add_tcase(s, tc_sendAsymmetricOPNMessage);
 
     TCase *tc_sendSymmetricMessage = tcase_create("Test sendSymmetricMessage function");
@@ -571,10 +549,8 @@ testSuite_SecureChannel(void) {
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_invalidParameters);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeNone);
-#ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSign);
     tcase_add_test(tc_sendSymmetricMessage, SecureChannel_sendSymmetricMessage_modeSignAndEncrypt);
-#endif
     suite_add_tcase(s, tc_sendSymmetricMessage);
 
     TCase *tc_processBuffer = tcase_create("Test chunk assembly");

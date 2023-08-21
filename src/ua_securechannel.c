@@ -268,12 +268,10 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
      * since we are using asymmetric communication to exchange keys and thus
      * need to encrypt. */
-#ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
-#endif
 
     /* The total message length */
     pre_sig_length = (uintptr_t)buf_pos - (uintptr_t)buf.data;
@@ -289,11 +287,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
                              securityHeaderLength, requestId, &encryptedLength);
     UA_CHECK_STATUS(res, goto error);
 
-#ifdef UA_ENABLE_ENCRYPTION
     res = signAndEncryptAsym(channel, pre_sig_length, &buf,
                              securityHeaderLength, total_length);
     UA_CHECK_STATUS(res, goto error);
-#endif
 
     /* Send the message, the buffer is freed in the network layer */
     buf.length = encryptedLength;
@@ -381,13 +377,11 @@ sendSymmetricChunk(UA_MessageContext *mc) {
                          (long unsigned int)
                          ((uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data));
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         padChunk(channel, &sp->symmetricModule.cryptoModule,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
-#endif
 
     /* Compute the total message length */
     pre_sig_length = (uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data;
@@ -413,11 +407,9 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     res = encodeHeadersSym(mc, total_length);
     UA_CHECK_STATUS(res, goto error);
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Sign and encrypt the messge */
     res = signAndEncryptSym(mc, pre_sig_length, total_length);
     UA_CHECK_STATUS(res, goto error);
-#endif
 
     /* Send the chunk. The buffer is freed in the network layer. If sending goes
      * wrong, the connection is removed in the next iteration of the

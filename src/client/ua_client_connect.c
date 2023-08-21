@@ -45,7 +45,6 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
@@ -54,7 +53,6 @@ getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     }
     return NULL;
 }
-#endif
 
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
@@ -85,8 +83,6 @@ isFullyConnected(UA_Client *client) {
 
     return true;
 }
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 /* Function to create a signature using remote certificate and nonce */
 static UA_StatusCode
@@ -321,8 +317,6 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     UA_ByteString_clear(&dataToVerify);
     return retval;
 }
-
-#endif
 
 /***********************/
 /* Open the Connection */
@@ -747,14 +741,12 @@ activateSessionAsync(UA_Client *client) {
     retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
                             (UA_String*)request.userIdentityToken.content.decoded.data);
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */
     const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
     if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
         userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
     retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
     retval |= signActivateSessionRequest(client, &client->channel, &request);
-#endif
 
     if(retval == UA_STATUSCODE_GOOD)
         retval = __Client_AsyncService(client, &request,
@@ -1138,7 +1130,6 @@ createSessionCallback(UA_Client *client, void *userdata,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* Verify the session response was created with the same certificate as
@@ -1154,7 +1145,6 @@ createSessionCallback(UA_Client *client, void *userdata,
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
-#endif
 
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->serverSessionNonce);
@@ -1365,7 +1355,7 @@ verifyClientSecurechannelHeader(void *application, UA_SecureChannel *channel,
  * SecurityPolicies */
 static void
 verifyClientApplicationURI(const UA_Client *client) {
-#if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
+#if UA_LOGLEVEL <= 400
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         if(!sp->localCertificate.data) {

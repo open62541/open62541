@@ -121,9 +121,7 @@ struct UA_ConditionSource {
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
 #define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
 
-#ifdef UA_ENABLE_ENCRYPTION
 #define CONDITION_FIELD_EXPIRATION_LIMIT                       "ExpirationLimit"
-#endif
 
 #define LOCALE                                                 "en"
 #define LOCALE_NULL                                             ""
@@ -166,9 +164,7 @@ static const UA_QualifiedName fieldHighHighLimitQN = STATIC_QN(CONDITION_FIELD_H
 static const UA_QualifiedName fieldEngineeringUnitsQN = STATIC_QN(CONDITION_FIELD_ENGINEERINGUNITS);
 static const UA_QualifiedName fieldExpirationDateQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_DATE);
 
-#ifdef UA_ENABLE_ENCRYPTION
 static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_LIMIT);
-#endif
 
 #define CONDITION_ASSERT_RETURN_RETVAL(retval, logMessage, deleteFunction)                \
     {                                                                                     \
@@ -2205,7 +2201,6 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                                                twoStateVariableIdQN);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Add  optional property for certificate expiration alarm type*/
     UA_NodeId certificateConditionTypeId =
         UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE);
@@ -2221,7 +2216,6 @@ setStandardConditionFields(UA_Server *server, const UA_NodeId* condition,
                                              &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
 
     }
-#endif
 
 #endif /* CONDITIONOPTIONALFIELDS_SUPPORT */
 
