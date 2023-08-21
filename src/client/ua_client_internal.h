@@ -158,6 +158,7 @@ struct UA_Client {
 #endif
 };
 
+UA_StatusCode connectSync(UA_Client *client); /* Only exposed for unit tests */
 void notifyClientState(UA_Client *client);
 void processERRResponse(UA_Client *client, const UA_ByteString *chunk);
 void processACKResponse(UA_Client *client, const UA_ByteString *chunk);
