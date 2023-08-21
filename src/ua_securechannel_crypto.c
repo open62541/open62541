@@ -213,7 +213,6 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     *buf_start += calculateAsymAlgSecurityHeaderLength(channel);
     *buf_start += UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH;
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
@@ -239,10 +238,7 @@ hideBytesAsym(const UA_SecureChannel *channel, UA_Byte **buf_start,
     size_t paddingBytes = (UA_LIKELY(!extraPadding)) ? 1u : 2u;
     *buf_end = *buf_start + (max_blocks * plainTextBlockSize) -
         UA_SECURECHANNEL_SEQUENCEHEADER_LENGTH - paddingBytes;
-#endif
 }
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 /* Assumes that pos can be advanced to the end of the current block */
 void
@@ -347,8 +343,6 @@ signAndEncryptSym(UA_MessageContext *messageContext,
         encrypt(channel->channelContext, &dataToEncrypt);
 }
 
-#endif /* UA_ENABLE_ENCRYPTION */
-
 void
 setBufPos(UA_MessageContext *mc) {
     /* Forward the data pointer so that the payload is encoded after the message
@@ -357,7 +351,6 @@ setBufPos(UA_MessageContext *mc) {
     mc->buf_pos = &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_TOTALLENGTH];
     mc->buf_end = &mc->messageBuffer.data[mc->messageBuffer.length];
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(mc->channel->securityMode == UA_MESSAGESECURITYMODE_NONE)
         return;
 
@@ -392,7 +385,6 @@ setBufPos(UA_MessageContext *mc) {
                          (long unsigned)mc->messageBuffer.length,
                          (long unsigned)((uintptr_t)mc->buf_end -
                                          (uintptr_t)mc->messageBuffer.data));
-#endif
 }
 
 /****************************/

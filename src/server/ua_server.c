@@ -613,7 +613,6 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPol
     return NULL;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
 static UA_StatusCode
@@ -638,7 +637,6 @@ verifyServerApplicationURI(const UA_Server *server) {
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif
 
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
@@ -725,10 +723,8 @@ UA_Server_run_startup(UA_Server *server) {
     UA_LOCK(&server->serviceMutex);
 
     /* Does the ApplicationURI match the local certificates? */
-#ifdef UA_ENABLE_ENCRYPTION
     retVal = verifyServerApplicationURI(server);
     UA_CHECK_STATUS(retVal, UA_UNLOCK(&server->serviceMutex); return retVal);
-#endif
 
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
