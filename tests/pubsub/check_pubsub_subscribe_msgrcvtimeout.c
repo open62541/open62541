@@ -902,6 +902,8 @@ START_TEST(Test_different_timeouts) {
     /* check that callback has been called for writer and reader groups and datasets */
     ck_assert_int_eq(ExpectedCallbackCnt, CallbackCnt);
     CallbackCnt = 0;
+    /* disable callback cnt check */
+    ExpectedCallbackCnt = 0;
 
     /* check that all dataset writers- and readers are operational */
     UA_PubSubState state = UA_PUBSUBSTATE_DISABLED;
@@ -927,6 +929,7 @@ START_TEST(Test_different_timeouts) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "disable writergroup");
     ExpectedCallbackCnt = 2;
+    CallbackCnt = 0;
     pExpectedComponentCallbackIds[0] = DsWId_Conn1_WG1_DS1;
     pExpectedComponentCallbackIds[1] = WGId_Conn1_WG1;
     ExpectedCallbackStatus = UA_STATUSCODE_BADRESOURCEUNAVAILABLE;
