@@ -96,10 +96,10 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
     UA_SignatureData *sd = &request->clientSignature;
 
     /* Prepare the clientSignature */
-    size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&sp->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
-                                          &sd->algorithm);
+    const UA_SecurityPolicySignatureAlgorithm *signAlg =
+        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
+    size_t signatureSize = signAlg->getLocalSignatureSize(channel->channelContext);
+    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -123,8 +123,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.sign(channel->channelContext,
-                                                  &dataToSign, &sd->signature);
+    retval = signAlg->sign(channel->channelContext, &dataToSign, &sd->signature);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -135,9 +134,11 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
             request->userIdentityToken.content.decoded.data;
 
         /* Get the correct securityPolicy for authentication */
-        UA_SecurityPolicy* utpSecurityPolicy;
-        utpSecurityPolicy =
+        UA_SecurityPolicy *utpSecurityPolicy =
             getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
+
+        const UA_SecurityPolicySignatureAlgorithm *utpSignAlg =
+            &utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm;
 
         /* We need a channel context with the user certificate in order to reuse
          * the code for signing. */
@@ -148,11 +149,8 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
         if(retval != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADINTERNALERROR;
 
-        size_t userTokenSignatureSize =
-            utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
-            getLocalSignatureSize(tempChannelContext);
-        retval = UA_String_copy(&utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
-                                &utsd->algorithm);
+        size_t userTokenSignatureSize = utpSignAlg->getLocalSignatureSize(tempChannelContext);
+        retval = UA_String_copy(&utpSignAlg->uri, &utsd->algorithm);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
@@ -176,8 +174,8 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
                channel->remoteCertificate.length);
         memcpy(userTokenSign.data + channel->remoteCertificate.length,
                client->serverSessionNonce.data, client->serverSessionNonce.length);
-        retval = utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.sign(tempChannelContext,
-                                                                                          &userTokenSign, &utsd->signature);
+        retval = utpSignAlg->sign(tempChannelContext, &userTokenSign, &utsd->signature);
+
         /* Clean up */
         UA_ByteString_clear(&userTokenSign);
         utpSecurityPolicy->channelModule.deleteContext(tempChannelContext);
@@ -316,8 +314,10 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
            client->clientSessionNonce.length);
 
-    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.verify(channel->channelContext, &dataToVerify,
-                                                    &response->serverSignature.signature);
+    const UA_SecurityPolicySignatureAlgorithm *signAlg =
+        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
+    retval = signAlg->verify(channel->channelContext, &dataToVerify,
+                             &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
 }
