@@ -8,6 +8,12 @@
 
 #include <check.h>
 
+#define CHK_UNLOCK(pMutex, cond) \
+if (!(cond)) {                     \
+   UA_UNLOCK(pMutex);            \
+   ck_assert(cond);              \
+}                                \
+
 static UA_Server *server = NULL;
 
 /* global variables to check PubSubStateChangeCallback */
@@ -412,7 +418,7 @@ static void PubSubStateChangeCallback_basic (UA_Server *hostServer,
                                 UA_NodeId *pubsubComponentId,
                                 UA_PubSubState state,
                                 UA_StatusCode reason) {
-    ck_assert(hostServer == server);
+    CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
@@ -423,17 +429,17 @@ static void PubSubStateChangeCallback_basic (UA_Server *hostServer,
     UA_String_clear(&strId);
 
     if(ExpectedCallbackStateChange == UA_PUBSUBSTATE_OPERATIONAL) {
-        ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL ||
-                  state == UA_PUBSUBSTATE_PREOPERATIONAL);
+        CHK_UNLOCK(&hostServer->serviceMutex, state == UA_PUBSUBSTATE_OPERATIONAL ||
+                   state == UA_PUBSUBSTATE_PREOPERATIONAL);
     } else {
-        ck_assert(ExpectedCallbackStateChange == state);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStateChange == state);
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
                 "Callback Cnt = %u", CallbackCnt);
 
     if(ExpectedCallbackCnt > 0) {
-        ck_assert(CallbackCnt <= ExpectedCallbackCnt);
+        CHK_UNLOCK(&hostServer->serviceMutex, CallbackCnt <= ExpectedCallbackCnt);
         /* UA_String_init(&strId); */
         /* UA_NodeId_print(&(pExpectedComponentCallbackIds[CallbackCnt]), &strId); */
         /* UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): " */
@@ -729,7 +735,7 @@ START_TEST(Test_basic) {
 static void
 PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                              UA_PubSubState state, UA_StatusCode reason) {
-    ck_assert(hostServer == server);
+    CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server);
 
     /* Disable some checks during shutdown */
     if(!runtime)
@@ -744,18 +750,18 @@ PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *p
     UA_String_clear(&strId);
 
     if(ExpectedCallbackStateChange == UA_PUBSUBSTATE_OPERATIONAL) {
-        ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL ||
-                  state == UA_PUBSUBSTATE_PREOPERATIONAL);
+        CHK_UNLOCK(&hostServer->serviceMutex, state == UA_PUBSUBSTATE_OPERATIONAL ||
+                   state == UA_PUBSUBSTATE_PREOPERATIONAL);
     } else {
-        ck_assert(ExpectedCallbackStateChange == state);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStateChange == state);
     }
-    ck_assert(ExpectedCallbackStatus == reason);
+    CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStatus == reason);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
         "Callback Cnt = %u", CallbackCnt);
 
     if(ExpectedCallbackCnt > 0) {
-        ck_assert(CallbackCnt <= ExpectedCallbackCnt);
+        CHK_UNLOCK(&hostServer->serviceMutex, CallbackCnt <= ExpectedCallbackCnt);
         /* UA_String_init(&strId); */
         /* UA_NodeId_print(&(pExpectedComponentCallbackIds[CallbackCnt]), &strId); */
         /* UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): " */
@@ -964,7 +970,7 @@ static void
 PubSubStateChangeCallback_wrong_timeout (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                          UA_PubSubState state, UA_StatusCode reason) {
 
-    ck_assert(hostServer == server);
+    CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
@@ -1082,7 +1088,7 @@ START_TEST(Test_wrong_timeout) {
 /* static void */
 /* PubSubStateChangeCallback_many_components(UA_Server *hostServer, UA_NodeId *pubsubComponentId, */
 /*                                           UA_PubSubState state, UA_StatusCode reason) { */
-/*     ck_assert(hostServer == server); */
+/*     CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server); */
 
 /*     if(!runtime) */
 /*         return; */
@@ -1095,7 +1101,7 @@ START_TEST(Test_wrong_timeout) {
 /*     UA_String_clear(&strId); */
 
 /*     if(ExpectedCallbackCnt > 0) { */
-/*         ck_assert(CallbackCnt <= ExpectedCallbackCnt); */
+/*         CHK_UNLOCK(&hostServer->serviceMutex, CallbackCnt <= ExpectedCallbackCnt); */
 /*         UA_String_init(&strId); */
 /*         UA_NodeId_print(&(pExpectedComponentCallbackIds[CallbackCnt]), &strId); */
 /*         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): " */
@@ -1104,16 +1110,16 @@ START_TEST(Test_wrong_timeout) {
 /*     } */
 
 /*     if(ExpectedCallbackStateChange == UA_PUBSUBSTATE_OPERATIONAL) { */
-/*         ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || */
+/*         CHK_UNLOCK(&hostServer->serviceMutex, state == UA_PUBSUBSTATE_OPERATIONAL || */
 /*                   state == UA_PUBSUBSTATE_PREOPERATIONAL); */
 /*     } else { */
-/*         ck_assert(ExpectedCallbackStateChange == state); */
+/*         CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStateChange == state); */
 /*     } */
 
-/*     ck_assert(reason == ExpectedCallbackStatus); */
+/*     CHK_UNLOCK(&hostServer->serviceMutex, reason == ExpectedCallbackStatus); */
 /*     if (ExpectedCallbackStateChange == UA_PUBSUBSTATE_ERROR) { */
 /*         /\*  On error we want to verify the order of DataSetReader timeouts *\/ */
-/*         ck_assert(UA_NodeId_equal(pubsubComponentId, &pExpectedComponentCallbackIds[CallbackCnt]) == UA_TRUE); */
+/*         CHK_UNLOCK(&hostServer->serviceMutex, UA_NodeId_equal(pubsubComponentId, &pExpectedComponentCallbackIds[CallbackCnt]) == UA_TRUE); */
 /*     } /\* when the state is set back to operational we cannot verify the order of StateChanges, because we */
 /*             cannot know which DataSetReader will be operational first *\/ */
 /*     CallbackCnt++; */
@@ -1663,7 +1669,7 @@ START_TEST(Test_wrong_timeout) {
 static void
 PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                         UA_PubSubState state, UA_StatusCode reason) {
-    ck_assert(hostServer == server);
+    CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server);
 
     if(!runtime)
         return;
@@ -1678,8 +1684,8 @@ PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsub
     UA_String_clear(&strId);
 
     if (UA_NodeId_equal(pubsubComponentId, &ExpectedCallbackComponentNodeId) == UA_TRUE) {
-        ck_assert(ExpectedCallbackStateChange == state);
-        ck_assert(ExpectedCallbackStatus == reason);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStateChange == state);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStatus == reason);
         CallbackCnt++;
     }
 }
@@ -1849,7 +1855,7 @@ START_TEST(Test_add_remove) {
 static void
 PubSubStateChangeCallback_fast_path (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
                                      UA_PubSubState state, UA_StatusCode reason) {
-    ck_assert(hostServer == server);
+    CHK_UNLOCK(&hostServer->serviceMutex, hostServer == server);
 
     UA_String strId;
     UA_String_init(&strId);
@@ -1863,8 +1869,8 @@ PubSubStateChangeCallback_fast_path (UA_Server *hostServer, UA_NodeId *pubsubCom
         if(state == UA_PUBSUBSTATE_PREOPERATIONAL &&
            ExpectedCallbackStateChange == UA_PUBSUBSTATE_OPERATIONAL)
             state = UA_PUBSUBSTATE_OPERATIONAL;
-        ck_assert(ExpectedCallbackStateChange == state);
-        ck_assert(ExpectedCallbackStatus == reason);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStateChange == state);
+        CHK_UNLOCK(&hostServer->serviceMutex, ExpectedCallbackStatus == reason);
         CallbackCnt++;
     }
 }
