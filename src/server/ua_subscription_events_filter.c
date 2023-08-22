@@ -864,14 +864,13 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_Variant *op1 = &ctx->stack[ctx->top++];
     UA_StatusCode res = resolveOperand(ctx, &elm->filterOperands[0], op0);
     UA_CHECK_STATUS(res, return res);
-    for(size_t i = 1; i < elm->filterOperandsSize; i++) {
+    for(size_t i = 1; i < elm->filterOperandsSize && !found; i++) {
         res = resolveOperand(ctx, &elm->filterOperands[i], op1);
-        UA_CHECK_STATUS(res, continue);
+        if(res != UA_STATUSCODE_GOOD)
+            continue;
         if(op0->type == op1->type &&
-           UA_order(op0->data, op1->data, op0->type) == UA_ORDER_EQ) {
+           UA_order(op0->data, op1->data, op0->type) == UA_ORDER_EQ)
             found = true;
-            break;
-        }
         UA_Variant_clear(op1);
     }
     ctx->results[index] = t2v((found) ? UA_TERNARY_TRUE: UA_TERNARY_FALSE);
