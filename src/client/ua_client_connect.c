@@ -1023,6 +1023,27 @@ createSessionAsync(UA_Client *client) {
 static UA_StatusCode
 initConnect(UA_Client *client);
 
+/* A workaround if the DiscoveryUrl returned by the FindServers service doesn't work.
+ * Then default back to the initial EndpointUrl and pretend that was returned
+ * by FindServers. */
+static void
+fixBadDiscoveryUrl(UA_Client* client) {
+    if(client->connectStatus == UA_STATUSCODE_GOOD)
+        return;
+    if(client->discoveryUrl.length == 0 ||
+       UA_String_equal(&client->discoveryUrl, &client->endpointUrl))
+        return;
+
+    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "The DiscoveryUrl returned by the FindServers service (%.*s) could not be "
+                   "connected. Trying with the original EndpointUrl.",
+                   (int)client->discoveryUrl.length, client->discoveryUrl.data);
+
+    UA_String_clear(&client->discoveryUrl);
+    UA_String_copy(&client->endpointUrl, &client->discoveryUrl);
+    client->connectStatus = UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 connectIterate(UA_Client *client, UA_UInt32 timeout) {
     UA_LOG_TRACE(&client->config.logger, UA_LOGCATEGORY_CLIENT,
@@ -1094,13 +1115,16 @@ connectIterate(UA_Client *client, UA_UInt32 timeout) {
             client->connection.close(&client->connection);
             client->connection.free(&client->connection);
         }
+        fixBadDiscoveryUrl(client);
         return client->connectStatus;
     case UA_SECURECHANNELSTATE_ACK_RECEIVED:
         client->connectStatus = sendOPNAsync(client, false);
+        fixBadDiscoveryUrl(client);
         return client->connectStatus;
     case UA_SECURECHANNELSTATE_HEL_SENT:
     case UA_SECURECHANNELSTATE_OPN_SENT:
         client->connectStatus = receiveResponseAsync(client, timeout);
+        fixBadDiscoveryUrl(client);
         return client->connectStatus;
     default:
         break;
