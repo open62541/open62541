@@ -167,12 +167,12 @@ isNodeInTree(UA_Server *server, const UA_NodeId *leafNode,
              const UA_NodeId *nodeToFind,
              const UA_ReferenceTypeSet *relevantRefs) {
     struct IsNodeInTreeContext ctx;
+    memset(&ctx, 0, sizeof(struct IsNodeInTreeContext));
     ctx.server = server;
     ctx.nodeToFind = UA_NodePointer_fromNodeId(nodeToFind);
-    ctx.parents.root = NULL;
     ctx.relevantRefs = *relevantRefs;
-    ctx.depth = 0;
     UA_ReferenceTarget tmpTarget;
+    memset(&tmpTarget, 0, sizeof(UA_ReferenceTarget));
     tmpTarget.targetId = UA_NodePointer_fromNodeId(leafNode);
     return (isNodeInTreeIterateCallback(&ctx, &tmpTarget) != NULL);
 }
