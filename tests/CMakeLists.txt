@@ -277,6 +277,14 @@ add_executable(check_server_callbacks server/check_server_callbacks.c $<TARGET_O
 target_link_libraries(check_server_callbacks ${LIBS})
 add_test_valgrind(server_callbacks ${TESTS_BINARY_DIR}/check_server_callbacks)
 
+add_executable(check_server_password server/check_server_password.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+target_link_libraries(check_server_password ${LIBS} -lcrypt)
+else()
+target_link_libraries(check_server_password ${LIBS})
+endif()
+add_test_valgrind(server_password ${TESTS_BINARY_DIR}/check_server_password)
+
 if (UA_MULTITHREADING GREATER_EQUAL 100)
     add_executable(check_mt_addVariableNode multithreading/check_mt_addVariableNode.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_mt_addVariableNode ${LIBS})
