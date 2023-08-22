@@ -176,14 +176,16 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
 UA_StatusCode
 UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
                           const UA_NodeId *event) {
-    UA_Notification *notification = UA_Notification_new();
-    if(!notification)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
+    /* Get the filter */
     if(mon->parameters.filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
         return UA_STATUSCODE_BADFILTERNOTALLOWED;
     UA_EventFilter *eventFilter = (UA_EventFilter*)
         mon->parameters.filter.content.decoded.data;
+
+    /* Allocate memory for the notification */
+    UA_Notification *notification = UA_Notification_new();
+    if(!notification)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* The MonitoredItem must be attached to a Subscription. This code path is
      * not taken for local MonitoredItems (once they are enabled for Events). */
