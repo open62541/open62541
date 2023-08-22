@@ -1662,8 +1662,7 @@ connectSync(UA_Client *client) {
 }
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, UA_Boolean async) {
-    UA_LOCK(&client->clientMutex);
+connectInternal(UA_Client *client, UA_Boolean async) {
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
@@ -1673,6 +1672,22 @@ __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     else
         connectSync(client);
     notifyClientState(client);
+    return client->connectStatus;
+}
+
+UA_StatusCode
+connectSecureChannel(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true;
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    return connectInternal(client, false);
+}
+
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async) {
+    UA_LOCK(&client->clientMutex);
+    connectInternal(client, async);
     UA_UNLOCK(&client->clientMutex);
     return client->connectStatus;
 }
