@@ -628,7 +628,7 @@ verifyServerApplicationURI(const UA_Server *server) {
                                  &server->config.applicationDescription.applicationUri);
 
         UA_CHECK_STATUS_ERROR(retval, return retval, &server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "The configured ApplicationURI \"%.*s\"does not match the "
+                       "The configured ApplicationURI \"%.*s\" does not match the "
                        "ApplicationURI specified in the certificate for the "
                        "SecurityPolicy %.*s",
                        (int)server->config.applicationDescription.applicationUri.length,
