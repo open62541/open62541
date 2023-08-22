@@ -188,6 +188,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 
+UA_StatusCode connectInternal(UA_Client *client, UA_Boolean async);
+UA_StatusCode connectSecureChannel(UA_Client *client, const char *endpointUrl);
 UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);
