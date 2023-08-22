@@ -864,13 +864,11 @@ responseFindServers(UA_Client *client, void *userdata,
         }
     }
 
-    /* The current EndpointURL is not usable. Pick the first DiscoveryUrl of a
+    /* The current EndpointURL is not usable. Pick the first "opc.tcp" DiscoveryUrl of a
      * returned server. */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
         if(server->applicationType != UA_APPLICATIONTYPE_SERVER)
-            continue;
-        if(server->discoveryUrlsSize == 0)
             continue;
 
         /* Filter by the ApplicationURI if defined */
@@ -879,23 +877,35 @@ responseFindServers(UA_Client *client, void *userdata,
                             &server->applicationUri))
             continue;
 
-        /* Use this DiscoveryUrl in the client */
-        UA_String_clear(&client->discoveryUrl);
-        client->discoveryUrl = server->discoveryUrls[0];
-        UA_String_init(&server->discoveryUrls[0]);
+        for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
+            /* Try to parse the DiscoveryUrl. This weeds out http schemas (etc.)
+             * and invalid DiscoveryUrls in general. */
+            UA_String hostname, path;
+            UA_UInt16 port;
+            UA_StatusCode res =
+                UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname,
+                                    &port, &path);
+            if(res != UA_STATUSCODE_GOOD)
+                continue;
 
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Use the EndpointURL %.*s returned from FindServers",
-                    (int)client->discoveryUrl.length,
-                    client->discoveryUrl.data);
+            /* Use this DiscoveryUrl in the client */
+            UA_String_clear(&client->discoveryUrl);
+            client->discoveryUrl = server->discoveryUrls[j];
+            UA_String_init(&server->discoveryUrls[j]);
 
-        /* Close the SecureChannel to build it up new with the correct
-         * EndpointURL in the HEL/ACK handshake */
-        closeSecureChannel(client);
-        return;
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Use the EndpointURL %.*s returned from FindServers",
+                        (int)client->discoveryUrl.length, client->discoveryUrl.data);
+
+            /* Close the SecureChannel to build it up new with the correct
+             * EndpointURL in the HEL/ACK handshake */
+            closeSecureChannel(client);
+            return;
+        }
     }
 
-    /* Could not find a suitable server. Try to continue. */
+    /* Could not find a suitable server. Try to continue with the
+     * original EndpointURL. */
     UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "FindServers did not returned a suitable DiscoveryURL. "
                    "Continue with the EndpointURL %.*s.",
