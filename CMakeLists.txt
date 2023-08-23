@@ -1233,17 +1233,6 @@ ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS} ${UA_NODESET_FILE_DA}
                     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
                     DEPENDS_TARGET "open62541-generator-types")
 
-# stack protector and optimization needs to be disabled for the huge ns0 file, otherwise debian packaging fails due to long build times.
-# We also disable optimization on Appveyor builds, since they take almost an hour otherwise
-if(UA_PACK_DEBIAN OR (NOT "$ENV{APPVEYOR}" STREQUAL "") OR (
-        (CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo") AND (
-            # List of compilers which have problems with the huge ns0 optimization
-            (("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang") AND (CMAKE_C_COMPILER_VERSION VERSION_LESS 7.0))
-        )
-   ))
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
-endif()
-
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
     cmake_minimum_required(VERSION 3.20)
@@ -1306,6 +1295,7 @@ if(UA_ENABLE_AMALGAMATION)
     add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
 else()
     add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
     add_custom_target(open62541-code-generation DEPENDS
                       open62541-generator-types
@@ -1321,7 +1311,11 @@ else()
         add_coverage(open62541-object)
     endif()
 
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+    # stack protector and optimization are disabled for the huge ns0 file
+    if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
+        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
+                                    PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+    endif()
 
     add_library(open62541-plugins OBJECT ${plugin_sources} ${architecture_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
