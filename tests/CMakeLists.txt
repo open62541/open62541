@@ -394,20 +394,18 @@ ua_add_test(server/check_server_reverseconnect.c)
 # Test Client
 
 ua_add_test(client/check_client.c)
+ua_add_test(client/check_client_discovery.c)
 ua_add_test(client/check_activateSession.c)
-if(UA_ENABLE_SUBSCRIPTIONS)
-    ua_add_test(client/check_subscriptionWithactivateSession.c)
-endif()
 ua_add_test(client/check_activateSessionAsync.c)
 ua_add_test(client/check_client_securechannel.c)
 ua_add_test(client/check_client_async.c)
 ua_add_test(client/check_client_async_connect.c)
+ua_add_test(client/check_client_highlevel.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
   ua_add_test(client/check_client_subscriptions.c)
+  ua_add_test(client/check_subscriptionWithactivateSession.c)
 endif()
-
-ua_add_test(client/check_client_highlevel.c)
 
 if(UA_ENABLE_HISTORIZING)
     ua_add_test(client/check_client_historical_data.c)
