@@ -10,6 +10,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "open62541/namespace0_generated.h"
@@ -567,6 +568,41 @@ readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
 
 #ifdef UA_GENERATED_NAMESPACE_ZERO
 static UA_StatusCode
+readOperationLimits(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                        const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                        const UA_NumericRange *range,
+                        UA_DataValue *value) {
+    UA_StatusCode retval;
+    UA_NodeId compareNodeMaxNodesPerRead = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD);
+    UA_NodeId compareNodeMaxNodesPerWrite = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE);
+    UA_NodeId compareNodeMaxNodesPerMethodCall = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL);
+    UA_NodeId compareNodeMaxNodesPerBrowse = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE);
+    UA_NodeId compareNodeMaxNodesPerRegisterNodes = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES);
+    UA_NodeId compareNodeMaxNodesPerTranslateBrowsePathsToNodeIds = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS);
+    UA_NodeId compareNodeMaxNodesPerNodeManagement = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT);
+    UA_NodeId compareNodeMaxNodesMonitoredItemsPerCall = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL);
+
+    if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerRead)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerWrite)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerMethodCall)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerBrowse)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerRegisterNodes)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerTranslateBrowsePathsToNodeIds)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerNodeManagement)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
+    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesMonitoredItemsPerCall)){
+        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+    }
+    return retval;
+}
+
+static UA_StatusCode
 readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                const UA_NumericRange *range,
@@ -1010,36 +1046,37 @@ initNS0(UA_Server *server) {
                                                    samplingInterval);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRead */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD,
-                               &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_DataSource operationLimitRead = {readOperationLimits, NULL};
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - maxNodesPerWrite */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE,
-                               &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerMethodCall */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL,
-                               &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerBrowse */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE,
-                               &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerRegisterNodes */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES,
-                               &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerTranslateBrowsePathsToNodeIds */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS,
-                               &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxNodesPerNodeManagement */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT,
-                               &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT),
+                                        operationLimitRead);
 
     /* ServerCapabilities - OperationLimits - MaxMonitoredItemsPerCall */
-    retVal |= writeNs0Variable(server, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL,
-                               &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+    retVal = setVariableNode_dataSource(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL),
+                                        operationLimitRead);
 
     /* Remove unused operation limit components */
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERHISTORYREADDATA), true);
