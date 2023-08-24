@@ -772,6 +772,8 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         dsr->config.dataSetMetaData.fieldsSize;
 
     size_t offset = 0;
+    /* start iteration from beginning of rawFields buffer */
+    msg->data.keyFrameData.rawFields.length = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
@@ -1131,14 +1133,11 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
 
     /* Decode using the non-rt decoding */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, pos, nm);
-    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes);
-    rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
         return rv;
     }
-
     /* Check if the message was intended for this reader */
     rv = UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
     if(rv != UA_STATUSCODE_GOOD) {
@@ -1147,6 +1146,13 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    rv = UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
+    rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        UA_free(nm);
+        return rv;
     }
 
     /* Compute and store the offsets necessary to decode */

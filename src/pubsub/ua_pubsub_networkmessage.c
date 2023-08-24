@@ -772,7 +772,7 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_Net
 }
 
 UA_StatusCode
-UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes) {
+UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes, UA_DataSetMetaDataType *dsm) {
 
     // Payload
     if(dst->networkMessageType != UA_NETWORKMESSAGE_DATASET)
@@ -800,12 +800,13 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
     if(count == 1)
         rv = UA_DataSetMessage_decodeBinary(src, offset,
                                             &dst->payload.dataSetPayload.dataSetMessages[0],
-                                            0, customTypes);
+                                            0, customTypes, dsm);
     else {
         for(UA_Byte i = 0; i < count; i++) {
             rv = UA_DataSetMessage_decodeBinary(src, offset,
                                                 &dst->payload.dataSetPayload.dataSetMessages[i],
-                                                dst->payload.dataSetPayload.sizes[i], customTypes);
+                                                dst->payload.dataSetPayload.sizes[i], customTypes,
+                                                dsm);
         }
     }
     UA_CHECK_STATUS(rv, return rv);
@@ -859,7 +860,7 @@ UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(src, offset, dst);
     UA_CHECK_STATUS(rv, return rv);
 
-    rv = UA_NetworkMessage_decodePayload(src, offset, dst, customTypes);
+    rv = UA_NetworkMessage_decodePayload(src, offset, dst, customTypes, NULL);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_decodeFooters(src, offset, dst);
@@ -1399,7 +1400,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 }
 
 UA_StatusCode
-UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_DataSetMessage* dst, UA_UInt16 dsmSize, const UA_DataTypeArray *customTypes) {
+UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_DataSetMessage* dst, UA_UInt16 dsmSize, const UA_DataTypeArray *customTypes, UA_DataSetMetaDataType *dsm) {
     size_t initialOffset = *offset;
     memset(dst, 0, sizeof(UA_DataSetMessage));
     UA_StatusCode rv = UA_DataSetMessageHeader_decodeBinary(src, offset, &dst->header);
@@ -1441,11 +1442,40 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset, UA_Data
                 dst->data.keyFrameData.rawFields.data = &src->data[*offset];
                 dst->data.keyFrameData.rawFields.length = dsmSize;
                 if(dsmSize == 0){
-                    //TODO calculate the length of the DSM-Payload for a single DSM
-                    //Problem: Size is not set and MetaData information are needed.
-                    //Increase offset to avoid endless chunk loop. Needs to be fixed when
-                    //pubsub security footer and signatur is enabled.
-                    *offset += 1500;
+                    if(dsm != NULL) {
+                        size_t tmpOffset = 0;
+                        // calculate the length of the DSM-Payload for a single DSM
+                        dst->data.keyFrameData.fieldCount = (UA_UInt16)dsm->fieldsSize;
+                        for(size_t i = 0; i < dsm->fieldsSize; i++) {
+                            /* TODO The datatype reference should be part of the internal
+                             * pubsub configuration to avoid the time-expensive lookup */
+                            const UA_DataType *type =
+                                UA_findDataTypeWithCustom(&dsm->fields[i].dataType,
+                                                          customTypes);
+                            dst->data.keyFrameData.rawFields.length += type->memSize;
+                            UA_STACKARRAY(UA_Byte, value, type->memSize);
+                            rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
+                                                         &tmpOffset, value, type, NULL);
+                            UA_CHECK_STATUS(rv, return rv); 
+                            if(dsm->fields[i].maxStringLength != 0) {
+                                if(type->typeKind == UA_DATATYPEKIND_STRING ||
+                                    type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                                    UA_ByteString *bs = (UA_ByteString *) value;
+                                    //check if length < maxStringLength, The types ByteString and String are equal in their base definition
+                                    size_t lengthDifference = dsm->fields[i].maxStringLength - bs->length;
+                                    tmpOffset += lengthDifference;
+                                    dst->data.keyFrameData.rawFields.length += lengthDifference;
+                                }
+                            }
+                        }
+                        *offset += tmpOffset;
+                    } else {
+                        //TODO calculate the length of the DSM-Payload for a single DSM
+                        //Problem: Size is not set and MetaData information are needed.
+                        //Increase offset to avoid endless chunk loop. Needs to be fixed when
+                        //pubsub security footer and signatur is enabled.
+                        *offset += 1500;
+                    }
                 } else {
                     *offset += (dsmSize - (*offset - initialOffset));
                 }
@@ -1573,8 +1603,12 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     return 0;
                 nmo = &offsetBuffer->offsets[pos];
                 nmo->offset = size;
-                nmo->content.value = *v;
-                nmo->content.value.value.storageType = UA_VARIANT_DATA_NODELETE;
+                if(p->data.keyFrameData.dataSetFields != NULL) {
+                    nmo->content.value = *v;
+                    nmo->content.value.value.storageType = UA_VARIANT_DATA_NODELETE;
+                } else {
+                   UA_DataValue_init(&nmo->content.value);
+                }
             }
 
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
@@ -1582,28 +1616,39 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
                 size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT]);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-                if(offsetBuffer) {
-                    if(!v->value.type->pointerFree)
-                        return 0; /* only integer types for now */
-                    /* Count the memory size of the specific field */
-                    offsetBuffer->rawMessageLength += v->value.type->memSize;
-                    nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
-                }
-                size += UA_calcSizeBinary(v->value.data, v->value.type);
+                if(p->data.keyFrameData.dataSetFields != NULL) {
+                    if(offsetBuffer) {
+                        if(!v->value.type->pointerFree)
+                            return 0; /* only integer types for now */
+                        /* Count the memory size of the specific field */
+                        offsetBuffer->rawMessageLength += v->value.type->memSize;
+                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                    }
+                    size += UA_calcSizeBinary(v->value.data, v->value.type);
 
-                /* Handle zero-padding for strings with max-string-length.
-                 * Currently not supported for strings that are a part of larger
-                 * structures. */
-                UA_FieldMetaData *fmd =
-                    &p->data.keyFrameData.dataSetMetaDataType->fields[i];
-                if(fmd->maxStringLength != 0 &&
-                   (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
-                    v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
-                    /* Check if length < maxStringLength, The types ByteString
-                     * and String are equal in their base definition */
-                    size_t lengthDifference = fmd->maxStringLength -
-                        ((UA_String *)v->value.data)->length;
-                    size += lengthDifference;
+                    /* Handle zero-padding for strings with max-string-length.
+                     * Currently not supported for strings that are a part of larger
+                     * structures. */
+                    UA_FieldMetaData *fmd =
+                        &p->data.keyFrameData.dataSetMetaDataType->fields[i];
+                    if(fmd->maxStringLength != 0 &&
+                       (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                        v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+                        /* Check if length < maxStringLength, The types ByteString
+                         * and String are equal in their base definition */
+                        size_t lengthDifference = fmd->maxStringLength -
+                            ((UA_String *)v->value.data)->length;
+                        size += lengthDifference;
+                    }
+                } else {
+                    /* get length calculated in UA_DataSetMessage_decodeBinary */
+                    if(offsetBuffer) {
+                        offsetBuffer->rawMessageLength = p->data.keyFrameData.rawFields.length;
+                        nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
+                    }
+                    size += p->data.keyFrameData.rawFields.length;
+                    /* no iteration needed */
+                    break;
                 }
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 if(offsetBuffer)
