@@ -290,6 +290,9 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
                                 UA_NetworkMessage *dst);
 
 UA_StatusCode
+UA_NetworkMessage_decodeHeadersRT(const UA_ByteString *src, UA_NetworkMessage *dst);
+
+UA_StatusCode
 UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset,
                                 UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes,
                                 UA_DataSetMetaDataType *dsm);
