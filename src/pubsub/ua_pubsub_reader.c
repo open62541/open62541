@@ -1141,16 +1141,7 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
         UA_free(nm);
         return rv;
     }
-    /* Check if the message was intended for this reader */
-    rv = UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_READER(&server->config.logger, reader,
-                           "PubSub receive. Message intended for a different reader.");
-        UA_NetworkMessage_clear(nm);
-        UA_free(nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    rv = UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
+    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
     rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
@@ -1216,14 +1207,6 @@ decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
             return;
         }
 
-        /* Check the decoded message is intended for this reader */
-        rv = UA_DataSetReader_checkIdentifier(server, nm, dsr, readerGroup->config);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive. Message intended for a different reader.");
-            continue;
-        }
-
     process:
         /* Process for this reader */
         UA_DataSetReader_process(server, readerGroup, dsr,
@@ -1242,50 +1225,63 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
     useMembufAlloc();
 #endif
 
-    /* Decrypt */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    UA_Boolean decrypted = false;
+#endif
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-
-    size_t payLoadPosition = 0;
-    UA_StatusCode rv =
-        UA_NetworkMessage_decodeHeaders(buf, &payLoadPosition, &currentNetworkMessage);
+    /* Decode headers necessary for checking identifier */
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeadersRT(buf, &currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
                               "PubSub receive. decoding headers failed");
         goto done;
     }
 
-    rv = verifyAndDecryptNetworkMessage(&server->config.logger, buf, &payLoadPosition,
-                                        &currentNetworkMessage, readerGroup);
-    UA_NetworkMessage_clear(&currentNetworkMessage);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
-                              "Subscribe failed. verify and decrypt network "
-                              "message failed.");
-        goto done;
-    }
-#endif
-
     /* Process for all readers in the ReaderGroup. Each reader might wait for a
      * different PublisherId. So the offsets are different for each. */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &readerGroup->readers, listEntry) {
+        /* Check the message is intended for this reader */
+        rv = UA_DataSetReader_checkIdentifier(server, &currentNetworkMessage, dsr, readerGroup->config);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_READER(&server->config.logger, dsr,
+                               "PubSub receive. Message intended for a different reader.");
+            continue;
+        }
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+        if(!decrypted) {
+            size_t payLoadPosition = 0;
+            /* Decode complete headers to use securityHeader information */
+            UA_NetworkMessage_clear(&currentNetworkMessage);
+            rv = UA_NetworkMessage_decodeHeaders(buf, &payLoadPosition, &currentNetworkMessage);
+            if(rv != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
+                                      "PubSub receive. decoding headers failed");
+                goto done;
+            }
+            /* Decrypt */
+            rv = verifyAndDecryptNetworkMessage(&server->config.logger, buf, &payLoadPosition,
+                                                &currentNetworkMessage, readerGroup);
+            if(rv != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
+                                       "Subscribe failed. verify and decrypt network "
+                                       "message failed.");
+                goto done;
+            }
+            decrypted = true;
+        }
+#endif
         decodeAndProcessRT(server, readerGroup, dsr, buf);
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
  done:
-#endif
+    UA_NetworkMessage_clear(&currentNetworkMessage);
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useNormalAlloc();
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     return (rv == UA_STATUSCODE_GOOD);
-#else
-    return true;
-#endif
 }
 
 #endif /* UA_ENABLE_PUBSUB */
