@@ -52,13 +52,13 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     UA_StatusCode res =
         sendResponse(server, session, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
-    UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "Async Response for Req# %" PRIu32 " failed "
                                "with StatusCode %s", ar->requestId,
                                UA_StatusCode_name(res));
     }
+    UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
 }
 
 /* Integrate operation result in the AsyncResponse and send out the response if
@@ -427,6 +427,49 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
     }
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_UInt32
+UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
+    UA_LOCK(&server->serviceMutex);
+    UA_AsyncManager *am = &server->asyncManager;
+
+    /* Loop over the queue of dispatched ops */
+    UA_AsyncOperation *op = NULL, *op_tmp = NULL;
+    TAILQ_FOREACH_SAFE(op, &am->dispatchedQueue, pointers, op_tmp) {
+        if(op->parent->requestHandle != requestHandle ||
+           !UA_NodeId_equal(&session->sessionId, &op->parent->sessionId))
+            continue;
+
+        /* Set status and put it into the result queue */
+        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
+        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+
+        /* Also set the status of the overall response */
+        op->parent->response.callResponse.responseHeader.
+            serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+    }
+
+    /* Idem for waiting ops */
+    TAILQ_FOREACH_SAFE(op, &am->newQueue, pointers, op_tmp) {
+        if(op->parent->requestHandle != requestHandle ||
+           !UA_NodeId_equal(&session->sessionId, &op->parent->sessionId))
+            continue;
+
+        /* Mark as timed out and put it into the result queue */
+        op->response.statusCode = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        TAILQ_REMOVE(&am->newQueue, op, pointers);
+        TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
+
+        op->parent->response.callResponse.responseHeader.
+            serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+
+    /* Process messages that have all ops completed */
+    return processAsyncResults(server);
 }
 
 #endif
