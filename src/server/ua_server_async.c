@@ -17,43 +17,48 @@ UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
     UA_free(ar);
 }
 
-static UA_StatusCode
+static void
 UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
     /* Get the session */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_Session* session = getSessionById(server, &ar->sessionId);
-    UA_SecureChannel* channel = NULL;
-    UA_ResponseHeader *responseHeader = NULL;
     if(!session) {
-        res = UA_STATUSCODE_BADSESSIONIDINVALID;
+        UA_String sessionId = UA_STRING_NULL;
+        UA_NodeId_print(&ar->sessionId, &sessionId);
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_InsertMethodResponse: Session is gone");
-        goto clean_up;
+                       "Async Service: Session %.*s no longer exists",
+                       (int)sessionId.length, sessionId.data);
+        UA_String_clear(&sessionId);
+        UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+        return;
     }
 
     /* Check the channel */
-    channel = session->header.channel;
+    UA_SecureChannel *channel = session->header.channel;
     if(!channel) {
-        res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_InsertMethodResponse: Channel is gone");
-        goto clean_up;
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Async Service Response cannot be sent. "
+                               "No SecureChannel for the session.");
+        UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
+        return;
     }
 
-    /* Okay, here we go, send the UA_CallResponse */
-    responseHeader = (UA_ResponseHeader*)
+    /* Set the request handle */
+    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)
         &ar->response.callResponse.responseHeader;
     responseHeader->requestHandle = ar->requestHandle;
-    res = sendResponse(server, session, channel, ar->requestId,
-                       (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                 "UA_Server_SendResponse: Response for Req# %" PRIu32 " sent", ar->requestId);
 
- clean_up:
-    /* Remove from the AsyncManager */
+    /* Send the Response */
+    UA_StatusCode res =
+        sendResponse(server, session, channel, ar->requestId,
+                     (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
-    return res;
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+                               "Async Response for Req# %" PRIu32 " failed "
+                               "with StatusCode %s", ar->requestId,
+                               UA_StatusCode_name(res));
+    }
 }
 
 /* Integrate operation result in the AsyncResponse and send out the response if
