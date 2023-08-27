@@ -93,6 +93,12 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
                               const UA_CallMethodRequest *opRequest);
 
+/* Send out the response with status set. Also removes all outstanding
+ * operations from the dispatch queue. The queuelock needs to be taken before
+ * calling _cancel. */
+UA_UInt32
+UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
+
 typedef void (*UA_AsyncServiceOperation)(UA_Server *server, UA_Session *session,
                                          UA_UInt32 requestId, UA_UInt32 requestHandle,
                                          size_t opIndex, const void *requestOperation,
