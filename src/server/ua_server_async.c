@@ -63,16 +63,16 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 
 /* Integrate operation result in the AsyncResponse and send out the response if
  * it is ready. */
-static void
+static UA_Boolean
 integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
                          UA_AsyncOperation *ao) {
+    UA_LOCK_ASSERT(&am->queueLock, 1);
+
     /* Grab the open request, so we can continue to construct the response */
     UA_AsyncResponse *ar = ao->parent;
 
     /* Reduce the number of open results */
-    UA_LOCK(&am->queueLock);
     ar->opCountdown -= 1;
-    UA_UNLOCK(&am->queueLock);
 
     UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
                  "Return result in the server thread with %" PRIu32 " remaining",
@@ -82,33 +82,32 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     ar->response.callResponse.results[ao->index] = ao->response;
     UA_CallMethodResult_init(&ao->response);
 
-    /* Are we done with all operations? */
-    if(ar->opCountdown == 0) {
-        UA_LOCK(&server->serviceMutex);
+    /* Done with all operations -> send the response */
+    UA_Boolean done = (ar->opCountdown == 0);
+    if(done)
         UA_AsyncManager_sendAsyncResponse(am, server, ar);
-        UA_UNLOCK(&server->serviceMutex);
-    }
+    return done;
 }
 
 /* Process all operations in the result queue -> move content over to the
- * AsyncResponse. This is only done by the server thread. */
-static void
-processAsyncResults(UA_Server *server, void *data) {
+ * AsyncResponse. This is only done by the server thread. Returns the nmber of
+ * completed async sesponses. */
+static UA_UInt32
+processAsyncResults(UA_Server *server) {
+    UA_UInt32 count = 0;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_AsyncManager *am = &server->asyncManager;
-    while(true) {
-        UA_LOCK(&am->queueLock);
-        UA_AsyncOperation *ao = TAILQ_FIRST(&am->resultQueue);
-        if(ao)
-            TAILQ_REMOVE(&am->resultQueue, ao, pointers);
-        UA_UNLOCK(&am->queueLock);
-        if(!ao)
-            break;
-        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_CallMethodResponse: Got Response: OKAY");
-        integrateOperationResult(am, server, ao);
+    UA_AsyncOperation *ao;
+    UA_LOCK(&am->queueLock);
+    while((ao = TAILQ_FIRST(&am->resultQueue))) {
+        TAILQ_REMOVE(&am->resultQueue, ao, pointers);
+        if(integrateOperationResult(am, server, ao))
+            count++;
         UA_AsyncOperation_delete(ao);
         am->opsCount--;
     }
+    UA_UNLOCK(&am->queueLock);
+    return count;
 }
 
 /* Check if any operations have timed out */
@@ -155,7 +154,9 @@ checkTimeouts(UA_Server *server, void *_) {
     UA_UNLOCK(&am->queueLock);
 
     /* Integrate async results and send out complete responses */
-    processAsyncResults(server, NULL);
+    UA_LOCK(&server->serviceMutex);
+    processAsyncResults(server);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 void
