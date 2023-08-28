@@ -362,7 +362,15 @@ sendRequest(UA_Client *client, const void *request,
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
     rr->authenticationToken = client->authenticationToken;
     rr->timestamp = UA_DateTime_now();
-    rr->requestHandle = ++client->requestHandle;
+
+    /* Create a unique handle >100,000 if not manually defined. The handle is
+     * not necessarily unique when manually defined and used to cancel async
+     * service requests. */
+    if(rr->requestHandle == 0) {
+        if(UA_UNLIKELY(client->requestHandle < 100000))
+            client->requestHandle = 100000;
+        rr->requestHandle = ++client->requestHandle;
+    }
 
     /* Set the timeout hint if not manually defined */
     if(rr->timeoutHint == 0)
@@ -625,6 +633,7 @@ __Client_Service(UA_Client *client, const void *request,
     ac.requestId = requestId;
     ac.start = UA_DateTime_nowMonotonic(); /* Start timeout after sending */
     ac.timeout = rh->timeoutHint;
+    ac.requestHandle = rh->requestHandle;
     if(ac.timeout == 0)
         ac.timeout = UA_UINT32_MAX; /* 0 -> unlimited */
 
@@ -809,6 +818,7 @@ __Client_AsyncService(UA_Client *client, const void *request,
     ac->syncResponse = NULL;
     ac->start = UA_DateTime_nowMonotonic();
     ac->timeout = rh->timeoutHint;
+    ac->requestHandle = rh->requestHandle;
     if(ac->timeout == 0)
         ac->timeout = UA_UINT32_MAX; /* 0 -> unlimited */
 
@@ -834,6 +844,47 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
     UA_StatusCode res =
         __Client_AsyncService(client, request, requestType, callback, responseType,
                               userdata, requestId);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+static UA_StatusCode
+cancelByRequestHandle(UA_Client *client, UA_UInt32 requestHandle, UA_UInt32 *cancelCount) {
+    UA_CancelRequest creq;
+    UA_CancelRequest_init(&creq);
+    creq.requestHandle = requestHandle;
+    UA_CancelResponse cresp;
+    UA_CancelResponse_init(&cresp);
+    __Client_Service(client, &creq, &UA_TYPES[UA_TYPES_CANCELREQUEST],
+                     &cresp, &UA_TYPES[UA_TYPES_CANCELRESPONSE]);
+    if(cancelCount)
+        *cancelCount = cresp.cancelCount;
+    UA_StatusCode res = cresp.responseHeader.serviceResult;
+    UA_CancelResponse_clear(&cresp);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_cancelByRequestHandle(UA_Client *client, UA_UInt32 requestHandle,
+                                UA_UInt32 *cancelCount) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = cancelByRequestHandle(client, requestHandle, cancelCount);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_cancelByRequestId(UA_Client *client, UA_UInt32 requestId,
+                            UA_UInt32 *cancelCount) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    AsyncServiceCall *ac;
+    LIST_FOREACH(ac, &client->asyncServiceCalls, pointers) {
+        if(ac->requestId != requestId)
+            continue;
+        res = cancelByRequestHandle(client, ac->requestHandle, cancelCount);
+        break;
+    }
     UA_UNLOCK(&client->clientMutex);
     return res;
 }
