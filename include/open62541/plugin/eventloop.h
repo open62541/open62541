@@ -549,7 +549,7 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * - 0:priority [int32]: Set the socket priority for sending (cf. SO_PRIORITY)
  * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
  * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
- * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
+ * - 0:dei [bool]: 1-bit drop eligible indicator (optional for send connections).
  *
  * Send Parameters:
  * No additional parameters for sending over an Ethernet connection defined. */
