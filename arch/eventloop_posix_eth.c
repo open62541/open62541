@@ -18,7 +18,7 @@
 #include <linux/if_packet.h>
 
 /* Configuration parameters */
-#define ETH_PARAMETERSSIZE 8
+#define ETH_PARAMETERSSIZE 9
 #define ETH_PARAMINDEX_ADDR 0
 #define ETH_PARAMINDEX_LISTEN 1
 #define ETH_PARAMINDEX_IFACE 2
@@ -27,6 +27,7 @@
 #define ETH_PARAMINDEX_PCP 5
 #define ETH_PARAMINDEX_DEI 6
 #define ETH_PARAMINDEX_PROMISCUOUS 7
+#define ETH_PARAMINDEX_PRIORITY 8
 
 static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
@@ -37,6 +38,7 @@ static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("pcp")}, &UA_TYPES[UA_TYPES_BYTE], false, true, false},
     {{0, UA_STRING_STATIC("dei")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("promiscuous")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("priority")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
     /* Duplicated address parameter with a scalar value required. For the send-socket case. */
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], true, true, false},
 };
@@ -550,8 +552,23 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
 
     /* Generate the Ethernet header */
     conn->headerSize = setETHHeader(conn->header, dest, source, etherType,
-                                  vid, pcp, eid, &conn->lengthOffset);
+                                    vid, pcp, eid, &conn->lengthOffset);
 
+    /* Set the send priority if defined */
+    const UA_Int32 *soPriority = (const UA_Int32*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_PRIORITY].name,
+                                 &UA_TYPES[UA_TYPES_INT32]);
+    if(soPriority) {
+        int prioRes = setsockopt(conn->rfd.fd, SOL_SOCKET, SO_PRIORITY,
+                                 soPriority, sizeof(int));
+        if(prioRes != 0) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+               UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                            "setsockopt SO_PRIORITY failed with error %s", errno_str));
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                 "ETH %u\t| Opened an Ethernet send socket",
