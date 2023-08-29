@@ -40,8 +40,9 @@ UA_EventLoopPOSIX_addCyclicCallback(UA_EventLoop *public_el,
                                     UA_UInt64 *callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     return UA_Timer_addRepeatedCallback(&el->timer, cb, application,
-                                        data, interval_ms, baseTime,
-                                        timerPolicy, callbackId);
+                                        data, interval_ms,
+                                        public_el->dateTime_nowMonotonic(public_el),
+                                        baseTime, timerPolicy, callbackId);
 }
 
 static UA_StatusCode
@@ -51,9 +52,9 @@ UA_EventLoopPOSIX_modifyCyclicCallback(UA_EventLoop *public_el,
                                        UA_DateTime *baseTime,
                                        UA_TimerPolicy timerPolicy) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    return UA_Timer_changeRepeatedCallback(&el->timer, callbackId,
-                                           interval_ms, baseTime,
-                                           timerPolicy);
+    return UA_Timer_changeRepeatedCallback(&el->timer, callbackId, interval_ms,
+                                           public_el->dateTime_nowMonotonic(public_el),
+                                           baseTime, timerPolicy);
 }
 
 static void
