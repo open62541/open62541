@@ -20,6 +20,9 @@ UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
 static void
 UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&am->queueLock, 1);
+
     /* Get the session */
     UA_Session* session = getSessionById(server, &ar->sessionId);
     if(!session) {
@@ -66,6 +69,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 static UA_Boolean
 integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
                          UA_AsyncOperation *ao) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOCK_ASSERT(&am->queueLock, 1);
 
     /* Grab the open request, so we can continue to construct the response */
@@ -94,9 +98,11 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
  * completed async sesponses. */
 static UA_UInt32
 processAsyncResults(UA_Server *server) {
-    UA_UInt32 count = 0;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_AsyncManager *am = &server->asyncManager;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&am->queueLock, 0);
+
+    UA_UInt32 count = 0;
     UA_AsyncOperation *ao;
     UA_LOCK(&am->queueLock);
     while((ao = TAILQ_FIRST(&am->resultQueue))) {
@@ -431,8 +437,10 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_AsyncManager *am = &server->asyncManager;
+
+    UA_LOCK(&am->queueLock);
 
     /* Loop over the queue of dispatched ops */
     UA_AsyncOperation *op = NULL, *op_tmp = NULL;
@@ -466,7 +474,7 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
     }
 
-    UA_UNLOCK(&server->serviceMutex);
+    UA_UNLOCK(&am->queueLock);
 
     /* Process messages that have all ops completed */
     return processAsyncResults(server);
