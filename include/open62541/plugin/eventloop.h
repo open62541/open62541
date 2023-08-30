@@ -91,7 +91,10 @@ struct UA_EventLoop {
      * The configuration should be set before the EventLoop is started */
 
     const UA_Logger *logger;
-    UA_KeyValueMap *params; /* See the implementation-specific documentation */
+
+    /* See the implementation-specific documentation for possible parameters.
+     * The params map is cleaned up when the EventLoop is _free'd. */
+    UA_KeyValueMap params;
 
     /* EventLoop Lifecycle
      * ~~~~~~~~~~~~~~~~~~~~
