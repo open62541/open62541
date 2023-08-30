@@ -134,6 +134,34 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "Starting the EventLoop");
 
+    /* Setting the clock source */
+    const UA_Int32 *cs = (const UA_Int32*)
+        UA_KeyValueMap_getScalar(&el->eventLoop.params,
+                                 UA_QUALIFIEDNAME(0, "clock-source"),
+                                 &UA_TYPES[UA_TYPES_INT32]);
+    const UA_Int32 *csm = (const UA_Int32*)
+        UA_KeyValueMap_getScalar(&el->eventLoop.params,
+                                 UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
+                                 &UA_TYPES[UA_TYPES_INT32]);
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    el->clockSource = CLOCK_REALTIME;
+    if(cs)
+        el->clockSource = *cs;
+
+# ifdef CLOCK_MONOTONIC_RAW
+    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
+# else
+    el->clockSourceMonotonic = CLOCK_MONOTONIC;
+# endif
+    if(csm)
+        el->clockSourceMonotonic = *csm;
+#else
+    if(cs || csm) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "Eventloop\t| Cannot set a custom clock source");
+    }
+#endif
+
 #ifdef UA_HAVE_EPOLL
     el->epollfd = epoll_create1(0);
     if(el->epollfd == -1) {
@@ -366,21 +394,39 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 /* Time Domain */
 /***************/
 
-/* No special synchronization with an external source, just use the globally
- * defined functions. */
-
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+    struct timespec ts;
+    int res = clock_gettime(pel->clockSource, &ts);
+    if(UA_UNLIKELY(res != 0))
+        return 0;
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
+#else
     return UA_DateTime_now();
+#endif
 }
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+    struct timespec ts;
+    int res = clock_gettime(pel->clockSourceMonotonic, &ts);
+    if(UA_UNLIKELY(res != 0))
+        return 0;
+    /* Also add the unix epoch for the monotonic clock. So we get a "normal"
+     * output when a "normal" source is configured. */
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
+#else
     return UA_DateTime_nowMonotonic();
+#endif
 }
 
 static UA_Int64
 UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
+    /* TODO: Fix for custom clock sources */
     return UA_DateTime_localTimeUtcOffset();
 }
 
