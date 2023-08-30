@@ -109,6 +109,12 @@ typedef struct {
      * "run" method */
     UA_Boolean executing;
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    /* Clocks for the eventloop's time domain */
+    UA_Int32 clockSource;
+    UA_Int32 clockSourceMonotonic;
+#endif
+
 #if defined(UA_HAVE_EPOLL)
     UA_FD epollfd;
 #else

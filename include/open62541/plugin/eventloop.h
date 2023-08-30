@@ -125,18 +125,25 @@ struct UA_EventLoop {
     /* EventLoop Time Domain
      * ~~~~~~~~~~~~~~~~~~~~~
      * Each EventLoop instance can manage its own time domain. This affects the
-     * execution of timed/cyclic callbacks and time-based sending of network
-     * packets (if this is implemented). Managing independent time domains is
-     * important when different parts of a system a synchronized to different
-     * external (network-wide) clocks.
+     * execution of timed callbacks and time-based sending of network packets.
+     * Managing independent time domains is important when different parts of
+     * the same system are synchronized to different external master clocks.
+     *
+     * Each EventLoop uses a "normal" and a "monotonic" clock. The monotonic
+     * clock does not (necessarily) conform to the current wallclock date. But
+     * its time intervals are more precise. So it is used for all internally
+     * scheduled events of the EventLoop (e.g. timed callbacks and time-based
+     * sending of network packets). The normal and monotonic clock sources can
+     * be configured via parameters before starting the EventLoop. See the
+     * architecture-specific documentation for that.
      *
      * Note that the logger configured in the EventLoop generates timestamps
-     * internally as well. If the logger uses a different time domain than the
+     * independently. If the logger uses a different time domain than the
      * EventLoop, discrepancies may appear in the logs.
      *
-     * The time domain of the EventLoop is exposed via the following functons.
-     * See `open62541/types.h` for the documentation of their equivalent
-     * globally defined functions. */
+     * The EventLoop clocks can be read via the following functons. See
+     * `open62541/types.h` for the documentation of their equivalent globally
+     * defined functions. */
 
     UA_DateTime (*dateTime_now)(UA_EventLoop *el);
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
@@ -420,13 +427,22 @@ struct UA_InterruptManager {
     (*deregisterInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle);
 };
 
-/**
- * POSIX-Specific Implementation
- * -----------------------------
- * The POSIX compatibility of WIN32 is 'close enough'. So a joint implementation
- * is provided. */
-
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
+/**
+ * POSIX EventLop Implementation
+ * -----------------------------
+ * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
+ * is provided.
+ *
+ * Configuration parameters (only Linux and BSDs, must be set before start to
+ * take effect):
+ * - 0:clock-source [int32]: Clock source (default: CLOCK_REALTIME).
+ * - 0:clock-source-monotonic [int32]: Clock source used for time intervals. A
+ *     non-monotonic source can be used as well. But expect accordingly longer
+ *     sleep-times for timed events when the clock is set to the past. See the
+ *     man-page of "clock_gettime" on how to get a clock source id for a
+ *     character-device such as /dev/ptp0. (default: CLOCK_MONOTONIC_RAW)*/
 
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
