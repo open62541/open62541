@@ -421,6 +421,8 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     WSACleanup();
 #endif
 
+    UA_KeyValueMap_clear(&el->eventLoop.params);
+
     /* Clean up */
     UA_UNLOCK(&el->elMutex);
     UA_LOCK_DESTROY(&el->elMutex);
