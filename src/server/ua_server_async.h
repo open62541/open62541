@@ -54,10 +54,12 @@ struct UA_AsyncResponse {
 };
 
 typedef TAILQ_HEAD(UA_AsyncOperationQueue, UA_AsyncOperation) UA_AsyncOperationQueue;
+typedef TAILQ_HEAD(UA_AsyncResponseQueue, UA_AsyncResponse) UA_AsyncResponseQueue;
 
 typedef struct {
     /* Requests / Responses */
-    TAILQ_HEAD(, UA_AsyncResponse) asyncResponses;
+	UA_Lock asyncResponsesLock;
+	UA_AsyncResponseQueue asyncResponses;
     size_t asyncResponsesCount;
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
@@ -110,6 +112,14 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
                                         const UA_DataType *responseOperationsType,
                                         UA_AsyncResponse **ar)
 UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Get the most recently created async response */
+UA_AsyncResponse*
+UA_Server_getLastAsyncResponse(UA_Server *server);
+
+/* Send async response to client. */
+UA_StatusCode
+UA_Server_sendAsyncResponse(UA_Server *server, UA_AsyncResponse *ar);
 
 #endif /* UA_MULTITHREADING >= 100 */
 
