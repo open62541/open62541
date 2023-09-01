@@ -16,9 +16,10 @@
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
 #include <linux/if_packet.h>
+#include <linux/net_tstamp.h> /* txtime */
 
 /* Configuration parameters */
-#define ETH_PARAMETERSSIZE 9
+#define ETH_PARAMETERSSIZE 14
 #define ETH_PARAMINDEX_ADDR 0
 #define ETH_PARAMINDEX_LISTEN 1
 #define ETH_PARAMINDEX_IFACE 2
@@ -28,6 +29,11 @@
 #define ETH_PARAMINDEX_DEI 6
 #define ETH_PARAMINDEX_PROMISCUOUS 7
 #define ETH_PARAMINDEX_PRIORITY 8
+#define ETH_PARAMINDEX_TXTIME_ENABLE 9
+#define ETH_PARAMINDEX_TXTIME_FLAGS 10
+#define ETH_PARAMINDEX_TXTIME 11
+#define ETH_PARAMINDEX_TXTIME_PICO 12
+#define ETH_PARAMINDEX_TXTIME_DROP 13
 
 static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
@@ -39,6 +45,11 @@ static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("dei")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("promiscuous")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("priority")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("txtime-enable")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("txtime-flags")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("txtime")}, &UA_TYPES[UA_TYPES_DATETIME], false, true, false},
+    {{0, UA_STRING_STATIC("txtime-pico")}, &UA_TYPES[UA_TYPES_UINT16], false, true, false},
+    {{0, UA_STRING_STATIC("txtime-drop-late")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     /* Duplicated address parameter with a scalar value required. For the send-socket case. */
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], true, true, false},
 };
@@ -62,6 +73,8 @@ typedef struct {
     unsigned char header[UA_ETH_MAXHEADERLENGTH];
     unsigned char headerSize;
     unsigned char lengthOffset; /* No length field if zero */
+
+    UA_Boolean txtimeEnabled;
 } ETH_FD;
 
 /* The format of a Ethernet address is six groups of hexadecimal digits,
@@ -570,6 +583,40 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         }
     }
 
+    /* Enable txtime sending */
+    const UA_Boolean *txtime_enable = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_TXTIME_ENABLE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    const UA_UInt32 *txtime_flags = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_TXTIME_FLAGS].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(txtime_enable && *txtime_enable) {
+#ifndef SO_TXTIME
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "ETH %u\t| txtime feature not supported",
+                       (unsigned)conn->rfd.fd);
+#else
+        struct sock_txtime so_txtime_val;
+        memset(&so_txtime_val, 0, sizeof(struct sock_txtime));
+        so_txtime_val.clockid = el->clockSourceMonotonic;
+        so_txtime_val.flags = SOF_TXTIME_REPORT_ERRORS;
+        if(txtime_flags)
+            so_txtime_val.flags = *txtime_flags;
+        if(setsockopt(conn->rfd.fd, SOL_SOCKET, SO_TXTIME,
+                      &so_txtime_val, sizeof(so_txtime_val)) == 0) {
+            conn->txtimeEnabled = true;
+        } else {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+               UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                              "ETH %u\t| Could not enable txtime (%s)",
+                              (unsigned)conn->rfd.fd, errno_str));
+        }
+#endif
+    }
+
+    /* Done creating the socket */
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                 "ETH %u\t| Opened an Ethernet send socket",
                 (unsigned)conn->rfd.fd);
@@ -757,6 +804,74 @@ ETH_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef SO_TXTIME
+static ssize_t
+send_txtime(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap *params,
+            UA_DateTime txtime, const char *bytes, size_t bytesSize) {
+    /* Get additiona parameters */
+    const UA_UInt16 *txtime_pico = (const UA_UInt16*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_TXTIME_PICO].name,
+                                 &UA_TYPES[UA_TYPES_UINT16]);
+    const UA_Boolean *txtime_drop = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_TXTIME_DROP].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+#ifndef SCM_DROP_IF_LATE
+    if(txtime_drop) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "ETH %u\t| txtime drop_if_late not supported on the current system",
+                     (unsigned)conn->rfd.fd);
+        return 0;
+    }
+#endif
+
+
+    /* Transform from 100ns since 1601 to ns since the Unix Epoch */
+    UA_UInt64 transmission_time = (UA_UInt64)
+        (txtime - UA_DATETIME_UNIX_EPOCH) * 100;
+    if(txtime_pico)
+        transmission_time += (*txtime_pico) / 1000;
+
+    /* Structure for scattering or gathering of input/output */
+    struct iovec inputOutputVec;
+    inputOutputVec.iov_base = (void*)(uintptr_t)bytes;
+    inputOutputVec.iov_len  = bytesSize;
+
+    /* Specify the transmission time in the CMSG. */
+    char dataPacket[CMSG_SPACE(sizeof(uint64_t))
+#ifdef SCM_DROP_IF_LATE
+                    + CMSG_SPACE(sizeof(uint8_t))
+#endif
+                    ];
+    struct msghdr message;
+    memset(&message, 0, sizeof(struct msghdr));
+    message.msg_control    = dataPacket;
+    message.msg_controllen = sizeof(dataPacket);
+    message.msg_name       = (struct sockaddr*)&conn->sll;
+    message.msg_namelen    = sizeof(conn->sll);
+    message.msg_iov        = &inputOutputVec;
+    message.msg_iovlen     = 1;
+
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&message);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type  = SCM_TXTIME;
+    cmsg->cmsg_len   = CMSG_LEN(sizeof(__u64));
+    *((__u64*)CMSG_DATA(cmsg)) = transmission_time;
+
+#ifdef SCM_DROP_IF_LATE
+    cmsg = CMSG_NXTHDR(&message, cmsg);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_DROP_IF_LATE;
+    cmsg->cmsg_len = CMSG_LEN(sizeof(uint8_t));
+    *((uint8_t*)CMSG_DATA(cmsg)) = (!txtime_drop || *txtime_drop) ? 1: 0;
+#endif
+
+    /* Send */
+    return sendmsg(conn->rfd.fd, &message, 0);
+}
+#endif
+
 static UA_StatusCode
 ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
@@ -782,6 +897,19 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         *ethLength = htons((UA_UInt16)(buf->length - conn->headerSize));
     }
 
+    /* Was a txtime configured? */
+    const UA_DateTime *txtime = (const UA_DateTime*)
+        UA_KeyValueMap_getScalar(params, ETHConfigParameters[ETH_PARAMINDEX_TXTIME].name,
+                                 &UA_TYPES[UA_TYPES_DATETIME]);
+    if(txtime && !conn->txtimeEnabled) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "ETH %u\t| txtime was not configured for the connection",
+                     (unsigned)connectionId);
+        UA_UNLOCK(&el->elMutex);
+        UA_ByteString_clear(buf);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
@@ -797,8 +925,17 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                          "ETH %u\t| Attempting to send", (unsigned)connectionId);
             size_t bytes_to_send = buf->length - nWritten;
-            n = UA_sendto(conn->rfd.fd, (const char*)buf->data + nWritten, bytes_to_send,
-                          flags, (struct sockaddr*)&conn->sll, sizeof(conn->sll));
+#ifdef SO_TXTIME
+            if(txtime) {
+                n = send_txtime(el, conn, params, *txtime,
+                                (const char*)buf->data + nWritten, bytes_to_send);
+            } else
+#endif
+            {
+                n = UA_sendto(conn->rfd.fd,
+                              (const char*)buf->data + nWritten, bytes_to_send,
+                              flags, (struct sockaddr*)&conn->sll, sizeof(conn->sll));
+            }
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED &&
