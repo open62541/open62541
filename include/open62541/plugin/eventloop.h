@@ -570,8 +570,26 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
  * - 0:dei [bool]: 1-bit drop eligible indicator (optional for send connections).
  *
- * Send Parameters:
- * No additional parameters for sending over an Ethernet connection defined. */
+ * Sending with a txtime (for Time-Sensitive Networking) is possible on recent
+ * Linux kernels, If enabled for the socket, then a txtime parameters can be
+ * passed to `sendWithConnection`. Note that the clock source for txtime sending
+ * is the monotonic clock source set for the entire EventLoop. Check the
+ * EventLoop parameters for how to set that e.g. to a PTP clock source.
+ *
+ * The txtime configuration uses Linux conventions:
+ * - 0:txtime-enable [bool]: Enable sending with a txtime for the connection
+ *                           (default: false).
+ * - 0:txtime-flags [uint32]: txtime flags set for the socket (default:
+ *                            SOF_TXTIME_REPORT_ERRORS).
+ *
+ * Send Parameters (only with txtime enabled for the connection):
+ * - 0:txtime [datetime]: Time when the message is sent out (Datetime has 100ns
+ *                        precision) for the "monotonic" clock source of the
+ *                        EventLoop.
+ * - 0:txtime-pico [uint16]: Picoseconds added to the txtime timestamp
+ *                           (default: 0).
+ * - 0:txtime-drop-late [bool]: Drop message if it cannot be sent in time
+ *                              (default: true). */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 
