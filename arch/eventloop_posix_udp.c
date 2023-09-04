@@ -17,20 +17,26 @@
 #endif
 
 /* Configuration parameters */
-#define UDP_PARAMETERSSIZE 10
-#define UDP_PARAMINDEX_RECVBUF 0
-#define UDP_PARAMINDEX_LISTEN 1
-#define UDP_PARAMINDEX_ADDR 2
-#define UDP_PARAMINDEX_PORT 3
-#define UDP_PARAMINDEX_INTERFACE 4
-#define UDP_PARAMINDEX_TTL 5
-#define UDP_PARAMINDEX_LOOPBACK 6
-#define UDP_PARAMINDEX_REUSE 7
-#define UDP_PARAMINDEX_SOCKPRIO 8
-#define UDP_PARAMINDEX_VALIDATE 9
 
-static UA_KeyValueRestriction UDPConfigParameters[UDP_PARAMETERSSIZE] = {
+#define UDP_MANAGERPARAMS 2
+
+static UA_KeyValueRestriction udpManagerParams[UDP_MANAGERPARAMS] = {
     {{0, UA_STRING_STATIC("recv-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false},
+    {{0, UA_STRING_STATIC("send-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
+};
+
+#define UDP_PARAMETERSSIZE 9
+#define UDP_PARAMINDEX_LISTEN 0
+#define UDP_PARAMINDEX_ADDR 1
+#define UDP_PARAMINDEX_PORT 2
+#define UDP_PARAMINDEX_INTERFACE 3
+#define UDP_PARAMINDEX_TTL 4
+#define UDP_PARAMINDEX_LOOPBACK 5
+#define UDP_PARAMINDEX_REUSE 6
+#define UDP_PARAMINDEX_SOCKPRIO 7
+#define UDP_PARAMINDEX_VALIDATE 8
+
+static UA_KeyValueRestriction udpConnectionParams[UDP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, true},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
@@ -78,14 +84,14 @@ getHostAndPortFromParams(const UA_KeyValueMap *params,
                          char *hostname, char *portStr, const UA_Logger *logger) {
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* checked before */
     mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *host = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_ADDR].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_ADDR].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!host) {
         UA_LOG_DEBUG(logger, UA_LOGCATEGORY_NETWORK,
@@ -262,26 +268,26 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
 
     /* Set socket settings from the parameters */
     const UA_UInt32 *messageTTL = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_TTL].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_TTL].name,
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(messageTTL)
         res |= setTimeToLive(socket, *messageTTL, ai_family, logger);
 
     const UA_Boolean *enableLoopback = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_LOOPBACK].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_LOOPBACK].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(enableLoopback)
         res |= setLoopBackData(socket, *enableLoopback, ai_family, logger);
 
     const UA_Boolean *enableReuse = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_REUSE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_REUSE].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(enableReuse)
         res |= setReuseAddress(socket, *enableReuse, logger);
 
 #ifdef __linux__
     const UA_UInt32 *socketPriority = (const UA_UInt32*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_SOCKPRIO].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_SOCKPRIO].name,
                                  &UA_TYPES[UA_TYPES_UINT32]);
     if(socketPriority)
         res |= setSocketPriority(socket, *socketPriority, logger);
@@ -303,7 +309,7 @@ setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValue
 
     /* Use a defined network interface */
     const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_INTERFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(netif) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
@@ -350,7 +356,7 @@ setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sock
 
     /* Use a defined interface */
     const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_INTERFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(netif) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
@@ -392,7 +398,7 @@ setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sock
 
     /* Bind to a defined interface */
     const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_INTERFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(netif) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
@@ -432,7 +438,7 @@ setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValu
 
     /* Use a defined network interface */
     const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_INTERFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(netif) {
         UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
@@ -895,7 +901,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UDP_FD *conn = (UDP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_ByteString_clear(buf);
+        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -924,7 +930,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                     (unsigned)connectionId, errno_str));
                     UA_UNLOCK(&el->elMutex);
                     UDP_shutdownConnection(cm, connectionId);
-                    UA_ByteString_clear(buf);
+                    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
 
@@ -944,7 +950,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         (unsigned)connectionId, errno_str));
                         UDP_shutdownConnection(cm, connectionId);
                         UA_UNLOCK(&el->elMutex);
-                        UA_ByteString_clear(buf);
+                        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
                 } while(poll_ret <= 0);
@@ -955,7 +961,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Free the buffer */
     UA_UNLOCK(&el->elMutex);
-    UA_ByteString_clear(buf);
+    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1124,13 +1130,13 @@ UDP_openReceiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
 
     /* Get the port */
     const UA_UInt16 *port = (const UA_UInt16*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* checked before */
 
     /* Get the hostname configuration */
     const UA_Variant *addrs =
-        UA_KeyValueMap_get(params, UDPConfigParameters[UDP_PARAMINDEX_ADDR].name);
+        UA_KeyValueMap_get(params, udpConnectionParams[UDP_PARAMINDEX_ADDR].name);
     size_t addrsSize = 0;
     if(addrs) {
         UA_assert(addrs->type == &UA_TYPES[UA_TYPES_STRING]);
@@ -1185,8 +1191,8 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     /* Check the parameters */
     UA_StatusCode res =
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        &UDPConfigParameters[1],
-                                        UDP_PARAMETERSSIZE-1, params);
+                                        udpConnectionParams,
+                                        UDP_PARAMETERSSIZE, params);
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
@@ -1194,14 +1200,14 @@ UDP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     UA_Boolean validate = false;
     const UA_Boolean *validationValue = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_VALIDATE].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_VALIDATE].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(validationValue)
         validate = *validationValue;
 
     UA_Boolean listen = false;
     const UA_Boolean *listenValue = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_LISTEN].name,
+        UA_KeyValueMap_getScalar(params, udpConnectionParams[UDP_PARAMINDEX_LISTEN].name,
                                  &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(listenValue)
         listen = *listenValue;
@@ -1238,13 +1244,13 @@ UDP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Check the parameters */
     UA_StatusCode res =
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "UDP",
-                                        UDPConfigParameters, 1,
+                                        udpManagerParams, UDP_MANAGERPARAMS,
                                         &cm->eventSource.params);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
     /* Allocate the rx buffer */
-    res = UA_EventLoopPOSIX_allocateRXBuffer(pcm);
+    res = UA_EventLoopPOSIX_allocateStaticBuffers(pcm);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
@@ -1296,6 +1302,7 @@ UDP_eventSourceDelete(UA_ConnectionManager *cm) {
     }
 
     UA_ByteString_clear(&pcm->rxBuffer);
+    UA_ByteString_clear(&pcm->txBuffer);
     UA_KeyValueMap_clear(&cm->eventSource.params);
     UA_String_clear(&cm->eventSource.name);
     UA_free(cm);

@@ -87,9 +87,9 @@ ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
 typedef struct {
     UA_ConnectionManager cm;
 
-    /* Reused receive buffer. The size is configured via
-     * the recv-bufsize parameter.*/
+    /* Statically allocated buffers */
     UA_ByteString rxBuffer;
+    UA_ByteString txBuffer;
 
     /* Sorted tree of the FDs */
     size_t fdsSize;
@@ -149,7 +149,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
 /* Helper functions between EventSources */
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm);
+UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm);
 
 UA_StatusCode
 UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
