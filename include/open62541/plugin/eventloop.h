@@ -464,12 +464,13 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * socket is reused for each new connection. But the key-value parameters for
  * the first callback are different between server and client connections.
  *
- * The following list defines the parameters and their type. Note that some
- * parameters are only set for the first callback when a new connection opens.
- *
- * Configuration parameters for the entire ConnectionManager:
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
  * - 0:address [string | array of string]: Hostname or IPv4/v6 address for the
@@ -501,13 +502,15 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * The configuration parameters have to set before calling _start to take
  * effect.
  *
- * Configuration Parameters:
- *
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
- *
  * - 0:listen [boolean]: Use the connection for listening or for sending
  *       (default: false)
  * - 0:address [string | string array]: Hostname (or IPv4/v6 address) for
@@ -533,7 +536,6 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *       provided parameters (default: false)
  *
  * Connection Callback Paramters:
- *
  * - 0:remote-address [string]: Contains the remote IP address.
  * - 0:remote-port [uint16]: Contains the remote port.
  *
@@ -548,8 +550,13 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * Listens on the network and manages UDP connections. This should be available
  * for all architectures.
  *
- * The configuration parameters have to set before calling _start to take
- * effect.
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
  * - 0:listen [bool]: The connection is either for sending or for listening

@@ -531,18 +531,30 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      uintptr_t connectionId,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
-    return UA_ByteString_allocBuffer(buf, bufSize);
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    if(pcm->txBuffer.length == 0)
+        return UA_ByteString_allocBuffer(buf, bufSize);
+    if(pcm->txBuffer.length < bufSize)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *buf = pcm->txBuffer;
+    buf->length = bufSize;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
-    UA_ByteString_clear(buf);
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    if(pcm->txBuffer.data == buf->data)
+        UA_ByteString_init(buf);
+    else
+        UA_ByteString_clear(buf);
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm) {
+UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
@@ -552,9 +564,18 @@ UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm) {
         rxBufSize = *configRxBufSize;
     if(pcm->rxBuffer.length != rxBufSize) {
         UA_ByteString_clear(&pcm->rxBuffer);
-        return UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
+        res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
-    return UA_STATUSCODE_GOOD;
+
+    const UA_UInt32 *txBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(txBufSize && pcm->txBuffer.length != *txBufSize) {
+        UA_ByteString_clear(&pcm->txBuffer);
+        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, *txBufSize);
+    }
+    return res;
 }
 
 /* Socket Handling */
