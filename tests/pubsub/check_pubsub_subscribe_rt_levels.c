@@ -648,6 +648,12 @@ static void PublishSubscribeWithWriteCallback_Helper(
     ServerDoProcess((UA_UInt32) writerGroupConfig.publishingInterval, 3);
     ck_assert_uint_eq(*publisherData, sSubscriberWriteValue);
 
+    /* set new publisher data and test again to verify buffered message handling */
+    *publisherData = 44;
+    sSubscriberWriteValue = 0;
+    ServerDoProcess((UA_UInt32) writerGroupConfig.publishingInterval, 3);
+    ck_assert_uint_eq(*publisherData, sSubscriberWriteValue);
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, writerGroupIdent));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, readerGroupIdentifier));
 
