@@ -702,7 +702,7 @@ copyChild(UA_Server *server, UA_Session *session,
         UA_Node_deleteReferencesSubset(node, &reftypes_skipped);
 
         /* Add the node to the nodestore */
-        UA_NodeId newNodeId;
+        UA_NodeId newNodeId = UA_NODEID_NULL;
         retval = UA_NODESTORE_INSERT(server, node, &newNodeId);
         /* node = NULL; The pointer is no longer valid */
         if(retval != UA_STATUSCODE_GOOD)
