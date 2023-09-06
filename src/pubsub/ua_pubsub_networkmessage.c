@@ -803,13 +803,13 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_Net
         UA_CHECK_STATUS(rv, return rv);
     }
 
+    rv = UA_ExtendedNetworkMessageHeader_decodeBinary(src, offset, dst);
+    UA_CHECK_STATUS(rv, return rv);
+
     if (dst->securityEnabled) {
         rv = UA_SecurityHeader_decodeBinary(src, offset, dst);
         UA_CHECK_STATUS(rv, return rv);
     }
-
-    rv = UA_ExtendedNetworkMessageHeader_decodeBinary(src, offset, dst);
-    UA_CHECK_STATUS(rv, return rv);
 
     return UA_STATUSCODE_GOOD;
 }
