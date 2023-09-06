@@ -934,3 +934,44 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
         UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
                                        UA_SHUTDOWNREASON_CLOSE);
 }
+
+void Service_Cancel(UA_Server *server, UA_Session *session,
+                    const UA_CancelRequest *request,
+                    UA_CancelResponse *response) {
+    /* If multithreading is disabled, then there are no async services. If all
+     * services are answered "right away", then there are no services that can
+     * be cancelled. */
+#if UA_MULTITHREADING >= 100
+    response->cancelCount = UA_AsyncManager_cancel(server, session, request->requestHandle);
+#endif
+
+    /* Publish requests for Subscriptions are stored separately */
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    UA_PublishResponseEntry *pre, *pre_tmp;
+    UA_PublishResponseEntry *prev = NULL;
+    SIMPLEQ_FOREACH_SAFE(pre, &session->responseQueue, listEntry, pre_tmp) {
+        /* Skip entry and set as the previous entry that is kept in the list */
+        if(pre->response.responseHeader.requestHandle != request->requestHandle) {
+            prev = pre;
+            continue;
+        }
+
+        /* Dequeue */
+        if(prev)
+            SIMPLEQ_REMOVE_AFTER(&session->responseQueue, prev, listEntry);
+        else
+            SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
+        session->responseQueueSize--;
+
+        /* Send response and clean up */
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
+        sendResponse(server, session, session->header.channel, pre->requestId,
+                     (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        UA_PublishResponse_clear(&pre->response);
+        UA_free(pre);
+
+        /* Increase the CancelCount */
+        response->cancelCount++;
+    }
+#endif
+}

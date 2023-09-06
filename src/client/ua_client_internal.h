@@ -82,7 +82,9 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client);
 
 typedef struct AsyncServiceCall {
     LIST_ENTRY(AsyncServiceCall) pointers;
-    UA_UInt32 requestId;
+    UA_UInt32 requestId;     /* Unique id */
+    UA_UInt32 requestHandle; /* Potentially non-unique if manually defined in
+                              * the request header*/
     UA_ClientAsyncServiceCallback callback;
     const UA_DataType *responseType;
     void *userdata;
@@ -132,13 +134,14 @@ struct UA_Client {
 
     /* SecureChannel */
     UA_SecureChannel channel;
-    UA_UInt32 requestId;
+    UA_UInt32 requestId; /* Unique, internally defined for each request */
     UA_DateTime nextChannelRenewal;
 
     /* Session */
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
-    UA_UInt32 requestHandle;
+    UA_UInt32 requestHandle; /* Unique handles >100,000 are generated if the
+                              * request header contains a zero-handle. */
     UA_ByteString serverSessionNonce;
     UA_ByteString clientSessionNonce;
 
@@ -188,6 +191,8 @@ processServiceResponse(void *application, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 
+UA_StatusCode connectInternal(UA_Client *client, UA_Boolean async);
+UA_StatusCode connectSecureChannel(UA_Client *client, const char *endpointUrl);
 UA_Boolean isFullyConnected(UA_Client *client);
 void connectSync(UA_Client *client);
 void notifyClientState(UA_Client *client);

@@ -730,6 +730,10 @@ minimalServerObject(UA_Server *server) {
                               UA_NS0ID_SERVER, UA_NS0ID_HASCOMPONENT,
                               UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
 
+    retval |= addVariableNode(server, "StartTime", UA_NS0ID_SERVER_SERVERSTATUS_STARTTIME,
+                              UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
+                              UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);
+
     retval |= addVariableNode(server, "CurrentTime", UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME,
                               UA_NS0ID_SERVER_SERVERSTATUS, UA_NS0ID_HASCOMPONENT,
                               UA_VALUERANK_SCALAR, UA_NS0ID_BASEDATATYPE);

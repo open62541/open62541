@@ -364,7 +364,7 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
 
     for(size_t cnt = 0; cnt < def->fieldsSize; cnt++) {
         const UA_DataTypeMember *m = &type->members[cnt];
-        def->fields[cnt].valueRank = (m->isArray) ? 1 : -1;
+        def->fields[cnt].valueRank = (m->isArray) ? UA_VALUERANK_ONE_DIMENSION : UA_VALUERANK_SCALAR;
         def->fields[cnt].arrayDimensions = NULL;
         def->fields[cnt].arrayDimensionsSize = 0;
         def->fields[cnt].name = UA_STRING((char *)(uintptr_t)m->memberName);

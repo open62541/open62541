@@ -172,7 +172,9 @@ void Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
  * ^^^^^^^^^^^^^^
  * Used to cancel outstanding Service requests. Successfully cancelled service
  * requests shall respond with Bad_RequestCancelledByClient. */
-/* Not Implemented */
+void Service_Cancel(UA_Server *server, UA_Session *session,
+                    const UA_CancelRequest *request,
+                    UA_CancelResponse *response);
 
 /**
  * NodeManagement Service Set

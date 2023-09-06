@@ -89,11 +89,11 @@ UA_Client_getEndpoints(UA_Client *client, const char *serverUrl,
     UA_StatusCode retval;
     const UA_String url = UA_STRING((char*)(uintptr_t)serverUrl);
     if(!connected) {
-        UA_UNLOCK(&client->clientMutex);
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
-        if(retval != UA_STATUSCODE_GOOD)
+        retval = connectSecureChannel(client, serverUrl);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_UNLOCK(&client->clientMutex);
             return retval;
-        UA_LOCK(&client->clientMutex);
+        }
     }
     retval = getEndpointsInternal(client, url, endpointDescriptionsSize,
                                   endpointDescriptions);
@@ -121,11 +121,11 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        UA_UNLOCK(&client->clientMutex);
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
-        if(retval != UA_STATUSCODE_GOOD)
+        retval = connectSecureChannel(client, serverUrl);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_UNLOCK(&client->clientMutex);
             return retval;
-        UA_LOCK(&client->clientMutex);
+        }
     }
 
     /* Prepare the request */
@@ -179,11 +179,11 @@ UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
 
     UA_StatusCode retval;
     if(!connected) {
-        UA_UNLOCK(&client->clientMutex);
-        retval = UA_Client_connectSecureChannel(client, serverUrl);
-        if(retval != UA_STATUSCODE_GOOD)
+        retval = connectSecureChannel(client, serverUrl);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOCK(&client->clientMutex);
             return retval;
-        UA_LOCK(&client->clientMutex);
+        }
     }
 
     /* Prepare the request */
