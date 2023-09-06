@@ -726,27 +726,18 @@ UA_Client_Service_queryNext(UA_Client *client,
  * ---------------------
  * All OPC UA services are asynchronous in nature. So several service calls can
  * be made without waiting for the individual responses. Depending on the
- * server's priorities responses may come in a different ordering than sent.
+ * server's priorities responses may come in a different ordering than sent. Use
+ * the typed wrappers for async service requests instead of
+ * `__UA_Client_AsyncService` directly. See :ref:`client_async`. However, the
+ * general mechanism of async service calls is explained here.
  *
- * As noted in :ref:`the client overview<client>` currently no means
- * of handling asynchronous events automatically is provided. However, some
- * synchronous function calls will trigger handling, but to ensure this
- * happens a client should periodically call `UA_Client_run_iterate`
- * explicitly.
+ * Connection and session management are performed in `UA_Client_run_iterate`,
+ * so to keep a connection healthy any client needs to consider how and when it
+ * is appropriate to do the call. This is especially true for the periodic
+ * renewal of a SecureChannel's SecurityToken which is designed to have a
+ * limited lifetime and will invalidate the connection if not renewed.
  *
- * Connection and session management are also performed in
- * `UA_Client_run_iterate`, so to keep a connection healthy any client needs to
- * consider how and when it is appropriate to do the call.
- * This is especially true for the periodic renewal of a SecureChannel's
- * SecurityToken which is designed to have a limited lifetime and will
- * invalidate the connection if not renewed.
- *
- * Use the typed wrappers instead of `__UA_Client_AsyncService` directly. See
- * :ref:`client_async`. However, the general mechanism of async service calls is
- * explained here.
- */
-
-/* We say that an async service call has been dispatched once
+ * We say that an async service call has been dispatched once
  * __UA_Client_AsyncService returns UA_STATUSCODE_GOOD. If there is an error
  * after an async service has been dispatched, the callback is called with an
  * "empty" response where the StatusCode has been set accordingly. This is also
@@ -754,13 +745,18 @@ UA_Client_Service_queryNext(UA_Client *client,
  * is emptied.
  *
  * The StatusCode received when the client is shutting down is
- * UA_STATUSCODE_BADSHUTDOWN.
+ * UA_STATUSCODE_BADSHUTDOWN. The StatusCode received when the client doesn't
+ * receive response after the specified in config->timeout (can be overridden
+ * via the "timeoutHint" in the request header) is UA_STATUSCODE_BADTIMEOUT.
  *
- * The StatusCode received when the client doesn't receive response after the
- * specified in config->timeout (can be overridden via the "timeoutHint" in the
- * request header) is UA_STATUSCODE_BADTIMEOUT.
- *
- * The userdata and requestId arguments can be NULL. */
+ * The userdata and requestId arguments can be NULL. The (optional) requestId
+ * output can be used to cancel the service while it is still pending. The
+ * requestId is unique for each service request. Alternatively the requestHandle
+ * can be manually set (non necessarily unique) in the request header for full
+ * service call. This can be used to cancel all outstanding requests using that
+ * handle together. Note that the client will auto-generate a requestHandle
+ * >100,000 if none is defined. Avoid these when manually setting a requetHandle
+ * in the requestHeader to avoid clashes. */
 
 typedef void (*UA_ClientAsyncServiceCallback)(UA_Client *client, void *userdata,
                                               UA_UInt32 requestId, void *response);
@@ -771,6 +767,19 @@ __UA_Client_AsyncService(UA_Client *client, const void *request,
                          UA_ClientAsyncServiceCallback callback,
                          const UA_DataType *responseType,
                          void *userdata, UA_UInt32 *requestId);
+
+/* Cancel all dispatched requests with the given requestHandle.
+ * The number if cancelled requests is returned by the server.
+ * The output argument cancelCount is not set if NULL. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_cancelByRequestHandle(UA_Client *client, UA_UInt32 requestHandle,
+                                UA_UInt32 *cancelCount);
+
+/* Map the requestId to the requestHandle used for that request and call the
+ * Cancel service for that requestHandle. */
+UA_EXPORT UA_THREADSAFE UA_StatusCode
+UA_Client_cancelByRequestId(UA_Client *client, UA_UInt32 requestId,
+                            UA_UInt32 *cancelCount);
 
 /* Set new userdata and callback for an existing request.
  *
