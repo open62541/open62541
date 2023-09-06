@@ -580,7 +580,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     /* Validate the parameters */
     UA_StatusCode res =
         UA_KeyValueRestriction_validate(el->eventLoop.logger, "ETH", ETHConfigParameters,
-                                        ETH_PARAMETERSSIZE, params);
+                                        ethParams, params);
     if(res != UA_STATUSCODE_GOOD) {
         UA_UNLOCK(&el->elMutex);
         return res;
