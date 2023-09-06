@@ -10,6 +10,7 @@
 
 #include "server/ua_services.h"
 #include "client/ua_client_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -28,9 +29,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -43,8 +43,7 @@ static void teardown(void) {
 }
 
 START_TEST(Session_close_before_activate) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

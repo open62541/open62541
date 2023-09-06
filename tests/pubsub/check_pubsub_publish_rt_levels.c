@@ -8,6 +8,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include <server/ua_server_internal.h>
@@ -53,10 +54,8 @@ addMinimalPubSubConfiguration(void){
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
     rtEventLoop = UA_EventLoop_new_POSIX(&server->config.logger);

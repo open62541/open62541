@@ -10,6 +10,7 @@
 #include <open62541/types.h>
 
 #include "ua_pubsub.h"
+#include "test_helpers.h"
 
 #include <check.h>
 
@@ -17,7 +18,7 @@ UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(server);

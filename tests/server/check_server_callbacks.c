@@ -7,6 +7,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include "thread_wrapper.h"
+#include "test_helpers.h"
 
 #include <stdlib.h>
 #include <check.h>
@@ -223,7 +224,7 @@ THREAD_CALLBACK(serverloop) {
 }
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
@@ -244,8 +245,7 @@ static void teardown(void) {
 }
 
 START_TEST(client_readValueCallbackAttribute) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -262,8 +262,7 @@ START_TEST(client_readValueCallbackAttribute) {
 END_TEST
 
 START_TEST(client_readMultipleAttributes) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -302,8 +301,7 @@ START_TEST(client_readMultipleAttributes) {
 END_TEST
 
 START_TEST(client_writeValueCallbackAttribute) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -325,8 +323,7 @@ START_TEST(client_writeValueCallbackAttribute) {
 END_TEST
 
 START_TEST(client_writeMultipleAttributes) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -366,8 +363,7 @@ START_TEST(client_writeMultipleAttributes) {
 END_TEST
 
 START_TEST(client_writePressureNoAccess) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -391,8 +387,7 @@ START_TEST(client_writePressureNoAccess) {
 END_TEST
 
 START_TEST(client_readPressureNoAccess) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

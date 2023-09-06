@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "thread_wrapper.h"
+#include "test_helpers.h"
 
 UA_Server *server;
 UA_Boolean running;
@@ -25,8 +26,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    server = UA_Server_newForUnitTest();
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -39,8 +39,7 @@ static void teardown(void) {
 }
 
 START_TEST(Client_connect_badEndpointUrl) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     /* Use the internal API to force a bad DiscoveryUrl */
     UA_String_clear(&client->config.endpointUrl);

@@ -14,27 +14,22 @@
 #include <check.h>
 #include <assert.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 
 static UA_Server *server = NULL;
 
 /***************************************************************************************************/
 static void setup(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
-
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
 /***************************************************************************************************/
 static void teardown(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
-
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }

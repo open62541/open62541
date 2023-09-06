@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -27,19 +28,16 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         publishedDataSet1, publishedDataSet2, dataSetWriter1, dataSetWriter2, dataSetWriter3;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
-
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       &config->logger);
 
-    retVal |= UA_Server_run_startup(server);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     //add 2 connections
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));

@@ -7,6 +7,7 @@
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
 #include "testing_clock.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -38,9 +39,8 @@ static void teardown(void) {
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
     /* VariableNode */

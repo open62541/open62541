@@ -18,6 +18,7 @@
 #include <stdio.h>
 
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
 static UA_Server *server;
@@ -193,10 +194,9 @@ static void setup(void){
         exit(1);
     }
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
@@ -204,8 +204,7 @@ static void setup(void){
     THREAD_CREATE(server_thread, serverloop);
 
     /* Setup Client */
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s",

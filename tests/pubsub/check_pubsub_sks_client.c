@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
@@ -136,7 +137,7 @@ skssetup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    sksServer = UA_Server_new();
+    sksServer = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
     UA_ServerConfig_setDefaultWithSecurityPolicies(
         config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
@@ -165,7 +166,7 @@ skssetup(void) {
 static void
 publishersetup(void) {
     running = true;
-    publisherApp = UA_Server_new();
+    publisherApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(publisherApp);
     retVal |= UA_ServerConfig_setMinimal(config, 4841, NULL);
@@ -195,7 +196,7 @@ publishersetup(void) {
 static void
 subscribersetup(void) {
     running = true;
-    subscriberApp = UA_Server_new();
+    subscriberApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(subscriberApp);
     retVal |= UA_ServerConfig_setMinimal(config, 4842, NULL);
@@ -576,7 +577,7 @@ END_TEST
 
 START_TEST(SetInvalidSKSClient) {
     addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
     int retryCnt = 0;
     UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
@@ -595,10 +596,8 @@ END_TEST
 START_TEST(SetInvalidSKSEndpointUrl) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     retval = addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
-
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp:[invalid:host]:4840", sksPullRequestCallback_publisher, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADTCPENDPOINTURLINVALID,
                   "Expected Statuscode to be BADTCPENDPOINTURLINVALID, but failed with: %s ",
@@ -610,10 +609,8 @@ END_TEST
 START_TEST(SetWrongSKSEndpointUrl) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     retval = addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
-
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp://WrongHost:4840", sksPullRequestCallback_publisher, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED,
                   "Expected Statuscode to be BADCONNECTIONCLOSED, but failed with: %s ",

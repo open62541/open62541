@@ -3,6 +3,7 @@
 #include <open62541/types.h>
 
 #include "ua_types_encoding_xml.h"
+#include "test_helpers.h"
 
 #include <signal.h>
 #include <stdlib.h>
@@ -21,8 +22,7 @@ int main(int argc, char *argv[]) {
 
     printf("Connecting to server.\n");
 
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     const size_t cNoOfReconnectTries = 10;
     size_t iteration = 0;

@@ -11,6 +11,7 @@
 #include <check.h>
 #include <time.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
@@ -92,7 +93,7 @@ static void addVariables(void) {
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     config = UA_Server_getConfig(server);

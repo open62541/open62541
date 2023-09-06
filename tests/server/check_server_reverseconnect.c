@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "test_helpers.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -63,12 +64,10 @@ static void setup(void) {
     reverseConnectHandle = 0;
     numClientCallbackCalled = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     UA_Client_getConfig(client)->stateCallback = clientStateCallback;
 }
 

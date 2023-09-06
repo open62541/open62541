@@ -14,6 +14,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include "test_helpers.h"
 #include "testing_clock.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
@@ -180,12 +181,11 @@ hexstr_to_char(const char *hexstr) {
 
 static void
 setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     SecurityGroupId = UA_STRING("TestSecurityGroup");
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
 
+    UA_ServerConfig *config = &server->config;
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;

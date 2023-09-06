@@ -12,6 +12,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -61,7 +62,7 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 
     /* Instatiate a new AccessControl plugin that knows username/pw */
@@ -102,7 +103,7 @@ START_TEST(ClientConfig_Copy){
 END_TEST
 
 START_TEST(Client_connect) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
@@ -114,8 +115,7 @@ START_TEST(Client_connect) {
 END_TEST
 
 START_TEST(Client_connect_username) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 
@@ -127,9 +127,7 @@ START_TEST(Client_connect_username) {
 END_TEST
 
 START_TEST(Client_endpoints) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_EndpointDescription* endpointArray = NULL;
     size_t endpointArraySize = 0;
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
@@ -151,9 +149,7 @@ START_TEST(Client_endpoints_empty) {
      *
      * See https://github.com/open62541/open62541/issues/775
      */
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -178,8 +174,7 @@ START_TEST(Client_endpoints_empty) {
 END_TEST
 
 START_TEST(Client_read) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -200,8 +195,7 @@ START_TEST(Client_read) {
 END_TEST
 
 START_TEST(Client_renewSecureChannel) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -227,8 +221,7 @@ START_TEST(Client_renewSecureChannel) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 START_TEST(Client_renewSecureChannelWithActiveSubscription) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->secureChannelLifeTime = 60000;
 
@@ -268,8 +261,7 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
 #endif
 
 START_TEST(Client_reconnect) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -317,8 +309,7 @@ START_TEST(Client_reconnect) {
 END_TEST
 
 START_TEST(Client_delete_without_connect) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert(client != NULL);
     UA_Client_delete(client);
 }
@@ -330,8 +321,7 @@ START_TEST(Client_activateSessionClose) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(server->sessionCount, 1);
@@ -365,8 +355,7 @@ START_TEST(Client_activateSessionTimeout) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -410,9 +399,8 @@ START_TEST(Client_activateSessionLocaleIds) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
 
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);

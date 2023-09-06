@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 #ifndef WIN32
@@ -79,7 +80,7 @@ setup_lds(void) {
     *running_lds = true;
 
     UA_assert(server_lds == NULL);
-    server_lds = UA_Server_new();
+    server_lds = UA_Server_newForUnitTest();
     configure_lds_server(server_lds);
 
     UA_Server_run_startup(server_lds);
@@ -117,7 +118,7 @@ setup_register(void) {
     running_register = UA_Boolean_new();
     *running_register = true;
 
-    server_register = UA_Server_new();
+    server_register = UA_Server_newForUnitTest();
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
     UA_ServerConfig_setMinimal(config_register, 16664, NULL);
 
@@ -146,8 +147,7 @@ teardown_register(void) {
 
 static void
 registerServer(void) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Client *clientRegister = UA_Client_newForUnitTest();
 
     UA_StatusCode retval =
         UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
@@ -160,8 +160,7 @@ registerServer(void) {
 
 static void
 unregisterServer(void) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Client *clientRegister = UA_Client_newForUnitTest();
 
     UA_StatusCode retval =
         UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
@@ -188,8 +187,7 @@ Server_register_semaphore(void) {
     fclose(fp);
 #endif
 
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Client *clientRegister = UA_Client_newForUnitTest();
 
     UA_StatusCode retval =
         UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
@@ -211,8 +209,7 @@ Server_unregister_semaphore(void) {
 static void
 Server_register_periodic(void) {
     ck_assert(clientRegisterRepeated == NULL);
-    clientRegisterRepeated = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegisterRepeated));
+    clientRegisterRepeated = UA_Client_newForUnitTest();
     ck_assert(clientRegisterRepeated != NULL);
 
     // periodic register every minute, first register immediately
@@ -240,8 +237,7 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
              const UA_String expectedNames[],
              const char *filterUri,
              const char *filterLocale) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
@@ -307,8 +303,7 @@ static void
 FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerNamesSize,
                       const char *filterUri, const char *filterLocale,
                       const char** filterCapabilities, size_t filterCapabilitiesSize) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
@@ -407,9 +402,7 @@ static void
 GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfileUri,
                      const UA_String *expectedEndpointUrls,
                      size_t expectedEndpointUrlsSize) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
 
     UA_EndpointDescription* endpointArray = NULL;
@@ -542,14 +535,14 @@ Client_find_registered(void) {
 }
 
 START_TEST(Server_new_delete) {
-    UA_Server *pServer = UA_Server_new();
+    UA_Server *pServer = UA_Server_newForUnitTest();
     configure_lds_server(pServer);
     UA_Server_delete(pServer);
 }
 END_TEST
 
 START_TEST(Server_new_shutdown_delete) {
-    UA_Server *pServer = UA_Server_new();
+    UA_Server *pServer = UA_Server_newForUnitTest();
     configure_lds_server(pServer);
     UA_StatusCode retval = UA_Server_run_shutdown(pServer);
     ck_assert_uint_ne(retval, UA_STATUSCODE_GOOD);
