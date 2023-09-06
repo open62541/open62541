@@ -38,6 +38,9 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 
 static UA_Boolean
 publisherIdIsMatching(UA_NetworkMessage *msg, UA_Variant publisherId) {
+    if(!msg->publisherIdEnabled) {
+        return true;
+    }
     switch(msg->publisherIdType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             return (publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
