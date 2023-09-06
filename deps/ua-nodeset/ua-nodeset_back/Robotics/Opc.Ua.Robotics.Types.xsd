@@ -1,0 +1,84 @@
+<xs:schema
+  xmlns:DI="http://opcfoundation.org/UA/DI/Types.xsd"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:tns="http://opcfoundation.org/UA/Robotics/Types.xsd"
+  targetNamespace="http://opcfoundation.org/UA/Robotics/Types.xsd"
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/DI/Types.xsd" />
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+
+  <xs:simpleType  name="ExecutionModeEnumeration">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CYCLE_0" />
+      <xs:enumeration value="CONTINUOUS_1" />
+      <xs:enumeration value="STEP_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ExecutionModeEnumeration" type="tns:ExecutionModeEnumeration" />
+
+  <xs:complexType name="ListOfExecutionModeEnumeration">
+    <xs:sequence>
+      <xs:element name="ExecutionModeEnumeration" type="tns:ExecutionModeEnumeration" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfExecutionModeEnumeration" type="tns:ListOfExecutionModeEnumeration" nillable="true"></xs:element>
+
+  <xs:simpleType  name="MotionDeviceCategoryEnumeration">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="OTHER_0" />
+      <xs:enumeration value="ARTICULATED_ROBOT_1" />
+      <xs:enumeration value="SCARA_ROBOT_2" />
+      <xs:enumeration value="CARTESIAN_ROBOT_3" />
+      <xs:enumeration value="SPHERICAL_ROBOT_4" />
+      <xs:enumeration value="PARALLEL_ROBOT_5" />
+      <xs:enumeration value="CYLINDRICAL_ROBOT_6" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="MotionDeviceCategoryEnumeration" type="tns:MotionDeviceCategoryEnumeration" />
+
+  <xs:complexType name="ListOfMotionDeviceCategoryEnumeration">
+    <xs:sequence>
+      <xs:element name="MotionDeviceCategoryEnumeration" type="tns:MotionDeviceCategoryEnumeration" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfMotionDeviceCategoryEnumeration" type="tns:ListOfMotionDeviceCategoryEnumeration" nillable="true"></xs:element>
+
+  <xs:simpleType  name="AxisMotionProfileEnumeration">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="OTHER_0" />
+      <xs:enumeration value="ROTARY_1" />
+      <xs:enumeration value="ROTARY_ENDLESS_2" />
+      <xs:enumeration value="LINEAR_3" />
+      <xs:enumeration value="LINEAR_ENDLESS_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="AxisMotionProfileEnumeration" type="tns:AxisMotionProfileEnumeration" />
+
+  <xs:complexType name="ListOfAxisMotionProfileEnumeration">
+    <xs:sequence>
+      <xs:element name="AxisMotionProfileEnumeration" type="tns:AxisMotionProfileEnumeration" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfAxisMotionProfileEnumeration" type="tns:ListOfAxisMotionProfileEnumeration" nillable="true"></xs:element>
+
+  <xs:simpleType  name="OperationalModeEnumeration">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="OTHER_0" />
+      <xs:enumeration value="MANUAL_REDUCED_SPEED_1" />
+      <xs:enumeration value="MANUAL_HIGH_SPEED_2" />
+      <xs:enumeration value="AUTOMATIC_3" />
+      <xs:enumeration value="AUTOMATIC_EXTERNAL_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="OperationalModeEnumeration" type="tns:OperationalModeEnumeration" />
+
+  <xs:complexType name="ListOfOperationalModeEnumeration">
+    <xs:sequence>
+      <xs:element name="OperationalModeEnumeration" type="tns:OperationalModeEnumeration" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfOperationalModeEnumeration" type="tns:ListOfOperationalModeEnumeration" nillable="true"></xs:element>
+
+</xs:schema>

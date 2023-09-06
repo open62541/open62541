@@ -1,0 +1,43 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/Weihenstephan/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/Weihenstephan/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="WSOperatingModeEnumerationType">
+        <xs:annotation>
+            <xs:documentation>The operating mode provides information about the nature and extent of the intervention on the control equipment by the operators, and also via feedback from the equipment (DIN 19 237). This value must be coded in bit form or be documented as an integer for machines which are components of bottling systems:</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Off_1"/>
+            <xs:enumeration value="Manual_2"/>
+            <xs:enumeration value="Semi-automatic_4"/>
+            <xs:enumeration value="Automatic_8"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WSOperatingModeEnumerationType" name="WSOperatingModeEnumerationType"/>
+    <xs:complexType name="ListOfWSOperatingModeEnumerationType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WSOperatingModeEnumerationType" name="WSOperatingModeEnumerationType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWSOperatingModeEnumerationType" name="ListOfWSOperatingModeEnumerationType" nillable="true"/>
+    <xs:simpleType name="WSProgramEnumerationType">
+        <xs:annotation>
+            <xs:documentation>The program is a consequent sequence of control instructions for a self-contained application-oriented function (DIN 19237). For bottling machines, bits or documented integer numbers must be used for machine operation with the following programs:</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Undefined (No Program)_0"/>
+            <xs:enumeration value="Production_1"/>
+            <xs:enumeration value="Start Up_2"/>
+            <xs:enumeration value="Run Down_4"/>
+            <xs:enumeration value="Clean_8"/>
+            <xs:enumeration value="Changeover_16"/>
+            <xs:enumeration value="Maintenance_32"/>
+            <xs:enumeration value="Break_64"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WSProgramEnumerationType" name="WSProgramEnumerationType"/>
+    <xs:complexType name="ListOfWSProgramEnumerationType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WSProgramEnumerationType" name="WSProgramEnumerationType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWSProgramEnumerationType" name="ListOfWSProgramEnumerationType" nillable="true"/>
+</xs:schema>
