@@ -13,6 +13,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 
@@ -31,9 +32,8 @@ UA_NodeId parentReferenceNodeId;
 UA_NodeId outNodeId;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);
@@ -198,9 +198,8 @@ START_TEST(Server_LocalMonitoredItem_CustomType) {
 END_TEST
 
 static void setupIndexRange(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_StatusCode retval = UA_Server_run_startup(server);
     ASSERT_STATUSCODE(retval, UA_STATUSCODE_GOOD);

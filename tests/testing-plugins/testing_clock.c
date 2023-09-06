@@ -7,7 +7,7 @@
 
 /* To avoid zero timestamp value in header, the testingClock
  * is assigned with non-zero timestamp to pass unit tests */
-UA_DateTime testingClock = 0x5C8F735D;
+static UA_DateTime testingClock = 0x5C8F735D;
 
 UA_DateTime UA_DateTime_now(void) {
     return testingClock;
@@ -41,4 +41,8 @@ UA_realSleep(UA_UInt32 duration) {
     sleepValue.tv_nsec = (int)ns;
     nanosleep(&sleepValue, NULL);
 #endif
+}
+
+UA_DateTime UA_DateTime_nowMonotonic_fake(UA_EventLoop *el) {
+    return testingClock;
 }

@@ -14,6 +14,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -30,9 +31,8 @@ currentState(UA_Client *client, UA_SecureChannelState channelState,
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
@@ -50,9 +50,8 @@ asyncBrowseCallback(UA_Client *Client, void *userdata,
 
 START_TEST(Client_connect_async) {
     UA_StatusCode retval;
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
     UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
@@ -109,9 +108,8 @@ abortSecureChannelConnect(UA_Client *client, UA_SecureChannelState channelState,
 
 /* Abort the connection by calling disconnect */
 START_TEST(Client_connect_async_abort) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
     cc->stateCallback = abortSecureChannelConnect;
 
     for(int i = 0; i < UA_SECURECHANNELSTATE_CLOSING; i++) {
@@ -131,9 +129,8 @@ START_TEST(Client_connect_async_abort) {
 END_TEST
 
 START_TEST(Client_no_connection) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
     UA_StatusCode retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
@@ -163,9 +160,8 @@ START_TEST(Client_no_connection) {
 END_TEST
 
 START_TEST(Client_without_run_iterate) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
     UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
@@ -175,9 +171,8 @@ END_TEST
 
 START_TEST(Client_run_iterate) {
     UA_StatusCode retval;
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(cc);
     cc->stateCallback = currentState;
     connected = false;
     retval = UA_Client_connectAsync(client, "opc.tcp://localhost:4840");

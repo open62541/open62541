@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -20,11 +21,9 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
 #define publishedDataSet2Name "PublishedDataSet 2"
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     UA_Server_run_startup(server);
     //add 2 connections

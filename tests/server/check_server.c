@@ -11,6 +11,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,9 +22,8 @@
 static UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 }
 
 static void teardown(void) {

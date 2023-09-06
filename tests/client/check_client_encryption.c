@@ -22,6 +22,7 @@
 
 #include "../encryption/certificates.h"
 #include "check.h"
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
@@ -55,7 +56,7 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -102,7 +103,7 @@ START_TEST(encryption_reconnect_session) {
     ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */
-    client = UA_Client_new();
+    client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,

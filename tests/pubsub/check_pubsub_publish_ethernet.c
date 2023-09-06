@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 #include <check.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
@@ -31,7 +32,7 @@ UA_NodeId connection_test;
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);

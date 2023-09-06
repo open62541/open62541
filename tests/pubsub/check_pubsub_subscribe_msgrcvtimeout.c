@@ -3,6 +3,7 @@
 #include <open62541/plugin/log_stdout.h>
 
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub.h"
 
@@ -56,7 +57,9 @@ static void setup(void) {
     ExpectedCallbackCnt = 0;
     clearExpected();
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
+    ck_assert(server != NULL);
+
     UA_StatusCode res = UA_Server_run_startup(server);
     ck_assert(UA_STATUSCODE_GOOD == res);
 

@@ -8,6 +8,7 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include "test_helpers.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -33,10 +34,8 @@ UA_NodeId writerGroupIdent;
 UA_DataSetReaderConfig readerConfig;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
     //add connection

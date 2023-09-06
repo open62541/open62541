@@ -10,7 +10,9 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel_async.h>
 #include <open62541/plugin/log_stdout.h>
+
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
 #include <check.h>
@@ -47,10 +49,9 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     clientCounter = 0;
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
 
     UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
@@ -90,10 +91,7 @@ static void teardown(void) {
 }
 
 START_TEST(Async_call) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -153,10 +151,7 @@ START_TEST(Async_call) {
 } END_TEST
 
 START_TEST(Async_timeout) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -199,10 +194,7 @@ START_TEST(Async_timeout) {
 } END_TEST
 
 START_TEST(Async_cancel) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -229,10 +221,7 @@ START_TEST(Async_cancel) {
 } END_TEST
 
 START_TEST(Async_cancel_multiple) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -268,10 +257,7 @@ START_TEST(Async_cancel_multiple) {
 
 /* Force a timeout when the operation is checked out with the worker */
 START_TEST(Async_timeout_worker) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

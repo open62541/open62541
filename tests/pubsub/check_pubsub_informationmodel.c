@@ -12,6 +12,7 @@
 #include <open62541/types_generated.h>
 
 #include "ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <math.h>
 #include <string.h>
@@ -25,11 +26,9 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
         dataSetWriter4, readerGroup1, dataSetReader1;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_Server_run_startup(server);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
