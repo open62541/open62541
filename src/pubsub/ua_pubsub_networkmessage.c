@@ -772,26 +772,6 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset, UA_Net
 }
 
 UA_StatusCode
-UA_NetworkMessage_decodeHeadersRT(const UA_ByteString *src, UA_NetworkMessage *dst) {
-
-    size_t offset = 0;
-    UA_StatusCode rv = UA_NetworkMessageHeader_decodeBinary(src, &offset, dst);
-    UA_CHECK_STATUS(rv, return rv);
-
-    if(dst->groupHeaderEnabled) {
-        rv = UA_GroupHeader_decodeBinary(src, &offset, dst);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-
-    if(dst->payloadHeaderEnabled) {
-        rv = UA_PayloadHeader_decodeBinary(src, &offset, dst);
-        UA_CHECK_STATUS(rv, return rv);
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
 UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes, UA_DataSetMetaDataType *dsm) {
 
     // Payload
