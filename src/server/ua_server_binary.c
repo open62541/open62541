@@ -280,8 +280,12 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *requestType = &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_CLOSESESSIONRESPONSE];
         break;
+    case UA_NS0ID_CANCELREQUEST_ENCODING_DEFAULTBINARY:
+        *service = (UA_Service)Service_Cancel;
+        *requestType = &UA_TYPES[UA_TYPES_CANCELREQUEST];
+        *responseType = &UA_TYPES[UA_TYPES_CANCELRESPONSE];
+        break;
     case UA_NS0ID_READREQUEST_ENCODING_DEFAULTBINARY:
-        *service = NULL;
         *service = (UA_Service)Service_Read;
         *requestType = &UA_TYPES[UA_TYPES_READREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_READRESPONSE];

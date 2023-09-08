@@ -118,3 +118,5 @@ ServerDiagnosticsSummaryDataType
 RedundancySupport
 KeyValuePair
 NamingRuleType
+CancelRequest
+CancelResponse

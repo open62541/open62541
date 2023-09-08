@@ -779,7 +779,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
     client->endpointsHandshake = false;
 
     UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                 "Received FindServersResponse");
+                 "Received GetEndpointsResponse");
 
     UA_GetEndpointsResponse *resp = (UA_GetEndpointsResponse*)response;
 
@@ -1059,7 +1059,7 @@ responseFindServers(UA_Client *client, void *userdata,
         }
     }
 
-    /* The current EndpointURL is not usable. Pick the first DiscoveryUrl of a
+    /* The current EndpointURL is not usable. Pick the first "opc.tcp" DiscoveryUrl of a
      * returned server. */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
@@ -1068,8 +1068,6 @@ responseFindServers(UA_Client *client, void *userdata,
             server->applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER
         )
             continue;
-        if(server->discoveryUrlsSize == 0)
-            continue;
 
         /* Filter by the ApplicationURI if defined */
         if(client->config.applicationUri.length > 0 &&
@@ -1077,23 +1075,35 @@ responseFindServers(UA_Client *client, void *userdata,
                             &server->applicationUri))
             continue;
 
-        /* Use this DiscoveryUrl in the client */
-        UA_String_clear(&client->discoveryUrl);
-        client->discoveryUrl = server->discoveryUrls[0];
-        UA_String_init(&server->discoveryUrls[0]);
+        for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
+            /* Try to parse the DiscoveryUrl. This weeds out http schemas (etc.)
+             * and invalid DiscoveryUrls in general. */
+            UA_String hostname, path;
+            UA_UInt16 port;
+            UA_StatusCode res =
+                UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname,
+                                    &port, &path);
+            if(res != UA_STATUSCODE_GOOD)
+                continue;
 
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                    "Use the EndpointURL %.*s returned from FindServers",
-                    (int)client->discoveryUrl.length,
-                    client->discoveryUrl.data);
+            /* Use this DiscoveryUrl in the client */
+            UA_String_clear(&client->discoveryUrl);
+            client->discoveryUrl = server->discoveryUrls[j];
+            UA_String_init(&server->discoveryUrls[j]);
 
-        /* Close the SecureChannel to build it up new with the correct
-         * EndpointURL in the HEL/ACK handshake */
-        closeSecureChannel(client);
-        return;
+            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                        "Use the EndpointURL %.*s returned from FindServers",
+                        (int)client->discoveryUrl.length, client->discoveryUrl.data);
+
+            /* Close the SecureChannel to build it up new with the correct
+             * EndpointURL in the HEL/ACK handshake */
+            closeSecureChannel(client);
+            return;
+        }
     }
 
-    /* Could not find a suitable server. Try to continue. */
+    /* Could not find a suitable server. Try to continue with the
+     * original EndpointURL. */
     UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                    "FindServers did not returned a suitable DiscoveryURL. "
                    "Continue with the EndpointURL %.*s.",
@@ -1219,6 +1229,27 @@ createSessionAsync(UA_Client *client) {
                      "error code %s", UA_StatusCode_name(res));
 
     return res;
+}
+
+/* A workaround if the DiscoveryUrl returned by the FindServers service doesn't work.
+ * Then default back to the initial EndpointUrl and pretend that was returned
+ * by FindServers. */
+static void
+fixBadDiscoveryUrl(UA_Client* client) {
+    if(client->connectStatus == UA_STATUSCODE_GOOD)
+        return;
+    if(client->discoveryUrl.length == 0 ||
+       UA_String_equal(&client->discoveryUrl, &client->config.endpointUrl))
+        return;
+
+    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+                   "The DiscoveryUrl returned by the FindServers service (%.*s) could not be "
+                   "connected. Trying with the original EndpointUrl.",
+                   (int)client->discoveryUrl.length, client->discoveryUrl.data);
+
+    UA_String_clear(&client->discoveryUrl);
+    UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
+    client->connectStatus = UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -1506,6 +1537,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Trigger the next action from our end to fully open up the connection */
  continue_connect:
+    fixBadDiscoveryUrl(client);
     if(!isFullyConnected(client))
         connectActivity(client);
 
@@ -1516,6 +1548,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
  refuse_connection:
     client->connectStatus = UA_STATUSCODE_BADCONNECTIONREJECTED;
+    fixBadDiscoveryUrl(client);
     notifyClientState(client);
     UA_UNLOCK(&client->clientMutex);
 }
@@ -1656,8 +1689,7 @@ connectSync(UA_Client *client) {
 }
 
 UA_StatusCode
-__UA_Client_connect(UA_Client *client, UA_Boolean async) {
-    UA_LOCK(&client->clientMutex);
+connectInternal(UA_Client *client, UA_Boolean async) {
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
@@ -1667,6 +1699,22 @@ __UA_Client_connect(UA_Client *client, UA_Boolean async) {
     else
         connectSync(client);
     notifyClientState(client);
+    return client->connectStatus;
+}
+
+UA_StatusCode
+connectSecureChannel(UA_Client *client, const char *endpointUrl) {
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->noSession = true;
+    UA_String_clear(&cc->endpointUrl);
+    cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
+    return connectInternal(client, false);
+}
+
+UA_StatusCode
+__UA_Client_connect(UA_Client *client, UA_Boolean async) {
+    UA_LOCK(&client->clientMutex);
+    connectInternal(client, async);
     UA_UNLOCK(&client->clientMutex);
     return client->connectStatus;
 }

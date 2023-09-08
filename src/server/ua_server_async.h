@@ -62,7 +62,10 @@ typedef struct {
 
     /* Operations for the workers. The queues are all FIFO: Put in at the tail,
      * take out at the head.*/
-    UA_Lock queueLock;
+    UA_Lock queueLock; /* Either take this lock free-standing (with no other
+                        * locks). Or take server->serviceMutex first and then
+                        * the queueLock. Never take the server->serviceMutex
+                        * when the queueLock is already acquired (deadlock)! */
     UA_AsyncOperationQueue newQueue;        /* New operations for the workers */
     UA_AsyncOperationQueue dispatchedQueue; /* Operations taken by a worker. When a result is
                                              * returned, we search for the op here to see if it
@@ -92,6 +95,12 @@ UA_StatusCode
 UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
                               const UA_CallMethodRequest *opRequest);
+
+/* Send out the response with status set. Also removes all outstanding
+ * operations from the dispatch queue. The queuelock needs to be taken before
+ * calling _cancel. */
+UA_UInt32
+UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle);
 
 typedef void (*UA_AsyncServiceOperation)(UA_Server *server, UA_Session *session,
                                          UA_UInt32 requestId, UA_UInt32 requestHandle,

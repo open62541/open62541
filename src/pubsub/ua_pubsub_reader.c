@@ -38,6 +38,9 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 
 static UA_Boolean
 publisherIdIsMatching(UA_NetworkMessage *msg, UA_Variant publisherId) {
+    if(!msg->publisherIdEnabled) {
+        return true;
+    }
     switch(msg->publisherIdType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             return (publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
@@ -803,6 +806,8 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         dsr->config.dataSetMetaData.fieldsSize;
 
     size_t offset = 0;
+    /* start iteration from beginning of rawFields buffer */
+    msg->data.keyFrameData.rawFields.length = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
@@ -918,6 +923,17 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
                          UA_DataSetReader *dsr, UA_DataSetMessage *msg) {
     if(!dsr || !rg || !msg || !server)
         return;
+
+    /* Received a (first) message for the Reader.
+     * Transition from PreOperational to Operational. */
+    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+        dsr->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &dsr->identifier,
+                                                     dsr->state, UA_STATUSCODE_GOOD);
+        }
+    }
 
     /* Check the metadata, to see if this reader is configured for a heartbeat */
     if(dsr->config.dataSetMetaData.fieldsSize == 0 &&
@@ -1135,9 +1151,12 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
     if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup,
-                                      UA_PUBSUBSTATE_OPERATIONAL,
-                                      UA_STATUSCODE_GOOD);
+        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
+                                                     readerGroup->state, UA_STATUSCODE_GOOD);
+        }
     }
     LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
         UA_StatusCode res =
@@ -1164,14 +1183,11 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
 
     /* Decode using the non-rt decoding */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, pos, nm);
-    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes);
-    rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
         return rv;
     }
-
     /* Check if the message was intended for this reader */
     rv = UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
     if(rv != UA_STATUSCODE_GOOD) {
@@ -1180,6 +1196,13 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    rv = UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
+    rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_NetworkMessage_clear(nm);
+        UA_free(nm);
+        return rv;
     }
 
     /* Compute and store the offsets necessary to decode */
@@ -1196,9 +1219,12 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
     /* If pre-operational, set to operational after the first message was
      * processed */
     if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rv = UA_ReaderGroup_setPubSubState(server, rg,
-                                           UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
+        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
+                                                     rg->state, UA_STATUSCODE_GOOD);
+        }
     }
 
     return rv;
@@ -1259,6 +1285,17 @@ decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                   UA_ByteString *buf) {
+    /* Received a (first) message for the ReaderGroup.
+     * Transition from PreOperational to Operational. */
+    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
+                                                     readerGroup->state, UA_STATUSCODE_GOOD);
+        }
+    }
+
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
