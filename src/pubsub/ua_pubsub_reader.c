@@ -924,6 +924,17 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
     if(!dsr || !rg || !msg || !server)
         return;
 
+    /* Received a (first) message for the Reader.
+     * Transition from PreOperational to Operational. */
+    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+        dsr->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &dsr->identifier,
+                                                     dsr->state, UA_STATUSCODE_GOOD);
+        }
+    }
+
     /* Check the metadata, to see if this reader is configured for a heartbeat */
     if(dsr->config.dataSetMetaData.fieldsSize == 0 &&
        dsr->config.dataSetMetaData.configurationVersion.majorVersion == 0 &&
@@ -1274,6 +1285,17 @@ decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
                                   UA_ByteString *buf) {
+    /* Received a (first) message for the ReaderGroup.
+     * Transition from PreOperational to Operational. */
+    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
+                                                     readerGroup->state, UA_STATUSCODE_GOOD);
+        }
+    }
+
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
