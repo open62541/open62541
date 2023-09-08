@@ -1194,7 +1194,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
     memset(matches, 0, sizeof(UA_Boolean)* readerGroup->readersCount); /* Pacify warning */
 #endif
 
-    /* Decode headers necessary for checking identifier */
+    /* Decode headers necessary for checking identifier. This can use malloc.
+     * So enable membufAlloc if you need RT timings. */
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, &pos, &currentNetworkMessage);
