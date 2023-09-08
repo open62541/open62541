@@ -1174,46 +1174,6 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
     return rv;
 }
 
-static void
-decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                   UA_DataSetReader *dsr, UA_ByteString *buf) {
-    size_t currentPosition = 0;
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_NetworkMessage *nm = dsr->bufferedMessage.nm;
-    if(!nm) {
-        /* This is the first message being received for the RT fastpath. Prepare
-         * the offset buffer and set operational. */
-        rv = prepareOffsetBuffer(server, readerGroup, dsr, buf, &currentPosition);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive failed. Could not decode with "
-                               "status code %s.", UA_StatusCode_name(rv));
-            return;
-        }
-
-        /* Process and continue decoding (now using the prepared offsets) */
-        nm = dsr->bufferedMessage.nm;
-        goto process;
-    }
-
-    while(currentPosition < buf->length) {
-        /* Decode with offset information and update the networkMessage */
-        rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage,
-                                                       buf, &currentPosition);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive failed. Could not decode with "
-                               "status code %s.", UA_StatusCode_name(rv));
-            return;
-        }
-
-    process:
-        /* Process for this reader */
-        UA_DataSetReader_process(server, readerGroup, dsr,
-                                 nm->payload.dataSetPayload.dataSetMessages);
-    }
-}
-
 /*******************************/
 /* Realtime Message Processing */
 /*******************************/
@@ -1272,7 +1232,30 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
             decrypted = true;
         }
 #endif
-        decodeAndProcessRT(server, readerGroup, dsr, buf);
+
+        /* Decode message. If this fails for one reader, abort overall. */
+        size_t currentPosition = 0;
+        UA_NetworkMessage *nm = dsr->bufferedMessage.nm;
+        if(!nm) {
+            /* This is the first message being received for the RT fastpath. Prepare
+             * the offset buffer and set operational. */
+            rv = prepareOffsetBuffer(server, readerGroup, dsr, buf, &currentPosition);
+            nm = dsr->bufferedMessage.nm;
+        } else {
+            /* Decode with offset information and update the networkMessage */
+            rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage,
+                                                           buf, &currentPosition);
+        }
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_READER(&server->config.logger, dsr,
+                               "PubSub decoding failed. Could not decode with "
+                               "status code %s.", UA_StatusCode_name(rv));
+            goto done;
+        }
+
+        /* Process for this reader */
+        UA_DataSetReader_process(server, readerGroup, dsr,
+                                 dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
     }
 
  done:
