@@ -615,7 +615,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         if(MSVC)
             message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
         endif()
-        check_add_cc_flag("-m32") # GCC and Clang, possibly more
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
