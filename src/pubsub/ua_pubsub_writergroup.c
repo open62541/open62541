@@ -1288,6 +1288,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
 
     UA_DataSetWriter *dsw;
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, writerGroup->linkedConnection);
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
         if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
@@ -1316,7 +1317,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         /* There is no promoted field -> send right away */
         if(pds && pds->promotedFieldsCount > 0) {
-            writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
+            writerGroup->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
             sendNetworkMessage(server, writerGroup, connection, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 1);
 
@@ -1340,7 +1341,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     for(size_t i = 0; i < dsmCount; i += nmDsmCount) {
         /* How many dsm are batched in this iteration? */
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
-        writerGroup->lastPublishTimeStamp = UA_DateTime_nowMonotonic();
+        writerGroup->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
         /* Send the batched messages */
         sendNetworkMessage(server, writerGroup, connection, &dsmStore[i],
                            &dsWriterIds[i], nmDsmCount);
