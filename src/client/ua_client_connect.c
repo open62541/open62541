@@ -518,7 +518,8 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
      * standard */
-    client->nextChannelRenewal = UA_DateTime_nowMonotonic()
+    UA_EventLoop *el = client->config.eventLoop;
+    client->nextChannelRenewal = el->dateTime_nowMonotonic(el)
             + (UA_DateTime) (response.securityToken.revisedLifetime
                     * (UA_Double) UA_DATETIME_MSEC * 0.75);
 
@@ -619,10 +620,13 @@ UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
        client->channel.renewState == UA_SECURECHANNELRENEWSTATE_SENT ||
-       client->nextChannelRenewal > UA_DateTime_nowMonotonic())
+       client->nextChannelRenewal > now)
         return UA_STATUSCODE_GOODCALLAGAIN;
 
     sendOPNAsync(client, true);
@@ -1645,7 +1649,11 @@ void
 connectSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    /* EventLoop is started. Otherwise initConnect would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* Initialize the connection */
@@ -1654,10 +1662,6 @@ connectSync(UA_Client *client) {
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
-    /* EventLoop is started. Otherwise initConnect would have failed. */
-    UA_EventLoop *el = client->config.eventLoop;
-    UA_assert(el);
-
     /* Run the EventLoop until connected, connect fail or timeout. Write the
      * iterate result to the connectStatus. So we do not attempt to restore a
      * failed connection during the sync connect. */
@@ -1665,7 +1669,7 @@ connectSync(UA_Client *client) {
           !isFullyConnected(client)) {
 
         /* Timeout -> abort */
-        now = UA_DateTime_nowMonotonic();
+        now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
@@ -1723,7 +1727,11 @@ static UA_StatusCode
 activateSessionSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* Try to activate */
@@ -1731,14 +1739,11 @@ activateSessionSync(UA_Client *client) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
-    UA_EventLoop *el = client->config.eventLoop;
-    UA_assert(el);
     while(client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
           client->connectStatus == UA_STATUSCODE_GOOD) {
 
         /* Timeout -> abort */
-        now = UA_DateTime_nowMonotonic();
+        now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
