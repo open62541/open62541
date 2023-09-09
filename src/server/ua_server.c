@@ -726,6 +726,11 @@ UA_Server_run_startup(UA_Server *server) {
     retVal = verifyServerApplicationURI(server);
     UA_CHECK_STATUS(retVal, UA_UNLOCK(&server->serviceMutex); return retVal);
 
+#if UA_MULTITHREADING >= 100
+    /* Add regulare callback for async operation processing */
+    UA_AsyncManager_start(&server->asyncManager, server);
+#endif
+
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
                                  NULL, 1000.0, &server->houseKeepingCallbackId);
@@ -829,6 +834,11 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Set to stopping and notify the application */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
+
+#if UA_MULTITHREADING >= 100
+    /* Stop regular callback for async operation processing */
+    UA_AsyncManager_stop(&server->asyncManager, server);
+#endif
 
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {

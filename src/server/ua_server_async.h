@@ -77,6 +77,8 @@ typedef struct {
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
+void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
+void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
 UA_StatusCode
