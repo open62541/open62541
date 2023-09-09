@@ -173,17 +173,23 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->dispatchedQueue);
     TAILQ_INIT(&am->resultQueue);
     UA_LOCK_INIT(&am->queueLock);
+}
 
-    /* Add a regular callback for cleanup and sending finished responses at a
-     * 100s interval. */
+void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
+    /* Add a regular callback for checking timeouts and sending finished
+     * responses at a 100ms interval. */
     addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
                         NULL, 100.0, &am->checkTimeoutCallbackId);
 }
 
+void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
+    /* Add a regular callback for checking timeouts and sending finished
+     * responses at a 100ms interval. */
+    removeCallback(server, am->checkTimeoutCallbackId);
+}
+
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
-    removeCallback(server, am->checkTimeoutCallbackId);
-
     UA_AsyncOperation *ar, *ar_tmp;
 
     /* Clean up queues */
