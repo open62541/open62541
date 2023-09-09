@@ -316,8 +316,8 @@ UA_Server_delete(UA_Server *server) {
 static void
 serverHouseKeeping(UA_Server *server, void *_) {
     UA_LOCK(&server->serviceMutex);
-    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
-    UA_Server_cleanupSessions(server, nowMonotonic);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_Server_cleanupSessions(server, el->dateTime_nowMonotonic(el));
     UA_UNLOCK(&server->serviceMutex);
 }
 

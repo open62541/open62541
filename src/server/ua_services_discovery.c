@@ -553,8 +553,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
     // copy the data from the request into the list
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
+    registeredServer_entry->lastSeen = nowMonotonic;
     responseHeader->serviceResult = retval;
 }
 

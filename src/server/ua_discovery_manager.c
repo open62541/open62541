@@ -91,7 +91,8 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
 
     /* TimedOut gives the last DateTime at which we must have seen the
      * registered server. Otherwise it is timed out. */
-    UA_DateTime timedOut = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime timedOut = el->dateTime_nowMonotonic(el);
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
