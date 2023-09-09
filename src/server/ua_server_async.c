@@ -349,16 +349,12 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
      *
      * TODO: Add a tree-structure for the dispatch queue. The linear lookup does
      * not scale. */
-    UA_Boolean found = false;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->dispatchedQueue, pointers) {
-        if(op == ao) {
-            found = true;
+        if(op == ao)
             break;
-        }
     }
-
-    if(!found) {
+    if(!op) {
         UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: The operation has timed out");
         UA_UNLOCK(&am->queueLock);
