@@ -210,9 +210,9 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
 
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_DateTime dateTimeToNextKey = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
     UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime dateTimeToNextKey = el->dateTime_nowMonotonic(el) +
+        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
     return el->addTimedCallback(el, (UA_Callback)callback, server, keyStorage,
                                 dateTimeToNextKey, callbackID);
 }
@@ -395,7 +395,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                          UA_StatusCode_name(retval));
         }
     } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
         /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
         UA_DateTime dateTimeToNextGetSecurityKeys =

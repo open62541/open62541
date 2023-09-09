@@ -130,7 +130,8 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
     if(nextCurrentItem)
         keyStorage->currentItem = nextCurrentItem;
 
-    securityGroup->baseTime = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    securityGroup->baseTime = el->dateTime_nowMonotonic(el);
 
     /* We allocated memory for data with allocBuffer so now we free it */
     UA_ByteString_clear(&newKey);
@@ -181,7 +182,8 @@ initializeKeyStorageWithKeys(UA_Server *server, UA_SecurityGroup *securityGroup)
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    securityGroup->baseTime = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    securityGroup->baseTime = el->dateTime_nowMonotonic(el);
     retval = addRepeatedCallback(server, (UA_ServerCallback)updateSKSKeyStorage,
                                  securityGroup, securityGroup->config.keyLifeTime,
                                  &securityGroup->callbackId);

@@ -2197,8 +2197,9 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return retval;
 
     /*TimeToNextKey*/
+    UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime baseTime = sg->baseTime;
-    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
+    UA_DateTime currentTime = el->dateTime_nowMonotonic(el);
     UA_Duration interval = sg->config.keyLifeTime;
     UA_Duration timeToNextKey =
         (UA_Duration)((currentTime - baseTime) / UA_DATETIME_MSEC);

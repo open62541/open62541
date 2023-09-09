@@ -915,7 +915,8 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
-        dsr->lastHeartbeatReceived = UA_DateTime_nowMonotonic();
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
+        dsr->lastHeartbeatReceived = el->dateTime_nowMonotonic(el);
         return;
     }
 
