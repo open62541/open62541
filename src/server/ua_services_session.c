@@ -142,7 +142,9 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
             continue;
 
         /* Session has timed out */
-        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
+        if(now > current->session.validTill) {
             UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
@@ -165,7 +167,9 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
             continue;
 
         /* Session has timed out */
-        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
+        if(now > current->session.validTill) {
             UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
@@ -251,7 +255,10 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
         UA_Session_attachToSecureChannel(&newentry->session, channel);
-    UA_Session_updateLifetime(&newentry->session);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_Session_updateLifetime(&newentry->session, nowMonotonic);
 
     /* Add to the server */
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
@@ -711,7 +718,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Has the session timed out? */
-    if(session->validTill < UA_DateTime_nowMonotonic()) {
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    if(session->validTill < now) {
         UA_LOG_WARNING_SESSION(&server->config.logger, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -825,7 +834,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Update the Session lifetime */
-    UA_Session_updateLifetime(session);
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_Session_updateLifetime(session, nowMonotonic);
 
     /* Activate the session */
     if(!session->activated) {

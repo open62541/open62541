@@ -668,14 +668,15 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session) {
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_SessionHeader *sh;
     SLIST_FOREACH(sh, &channel->sessions, next) {
         if(!UA_NodeId_equal(token, &sh->authenticationToken))
             continue;
         UA_Session *current = (UA_Session*)sh;
         /* Has the session timed out? */
-        if(current->validTill < now) {
+        if(current->validTill < nowMonotonic) {
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return UA_STATUSCODE_BADSESSIONCLOSED;
         }
@@ -814,7 +815,9 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     }
 
     /* Update the session lifetime */
-    UA_Session_updateLifetime(session);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_Session_updateLifetime(session, nowMonotonic);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
@@ -1138,7 +1141,8 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
      * is caught if the client is unresponsive.
      *
      * TODO: Make this a configuration option */
-    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    entry->channel.securityToken.createdAt = el->dateTime_nowMonotonic(el);
     entry->channel.securityToken.revisedLifetime = 10000; /* 10s should be enough */
 
     /* Add to the server's list */
@@ -1333,7 +1337,8 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
     UA_LOCK(&server->serviceMutex);
 
-    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     channel_entry *entry;
     TAILQ_FOREACH(entry, &bpm->channels, pointers) {
         /* Compute the timeout date of the SecurityToken */

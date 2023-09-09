@@ -272,9 +272,11 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
      * and then into the MonitoredItem. UA_MonitoredItem_ensureQueueSpace
      * (called within UA_Notification_enqueueMon) assumes the notification is
      * already in the Subscription's publishing queue. */
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING ||
        (mon->monitoringMode == UA_MONITORINGMODE_SAMPLING &&
-        mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
+        mon->triggeredUntil > nowMonotonic)) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
@@ -311,7 +313,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
          * published as well. (Falsely) assume that the publishing cycle has
          * started right now, so that we don't have to loop over MonitoredItems
          * to deactivate the triggering after the publishing cycle. */
-        triggeredMon->triggeredUntil = UA_DateTime_nowMonotonic() +
+        triggeredMon->triggeredUntil = nowMonotonic +
             (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
 
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,

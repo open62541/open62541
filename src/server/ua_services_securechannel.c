@@ -36,9 +36,10 @@ UA_SecureChannelManager_open(UA_Server *server, UA_SecureChannel *channel,
     /* Set the initial SecurityToken. Set the alternative token that is moved to
      * the primary token when the first symmetric message triggers a token
      * revolve. Lifetime 0 -> set the maximum possible lifetime */
+    UA_EventLoop *el = server->config.eventLoop;
     channel->renewState = UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER;
     channel->altSecurityToken.tokenId = generateSecureChannelTokenId(server);
-    channel->altSecurityToken.createdAt = UA_DateTime_nowMonotonic();
+    channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
         (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
         server->config.maxSecurityTokenLifetime : request->requestedLifetime;
@@ -88,9 +89,10 @@ UA_SecureChannelManager_renew(UA_Server *server, UA_SecureChannel *channel,
 
     /* Create a new SecurityToken. Will be switched over when the first message
      * is received. The ChannelId is left unchanged. */
+    UA_EventLoop *el = server->config.eventLoop;
     channel->altSecurityToken = channel->securityToken;
     channel->altSecurityToken.tokenId = generateSecureChannelTokenId(server);
-    channel->altSecurityToken.createdAt = UA_DateTime_nowMonotonic();
+    channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
         (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
         server->config.maxSecurityTokenLifetime : request->requestedLifetime;
