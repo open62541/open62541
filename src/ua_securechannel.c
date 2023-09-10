@@ -644,7 +644,8 @@ error:
 }
 
 static UA_StatusCode
-unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
+unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
+                 UA_DateTime nowMonotonic) {
     UA_CHECK_MEM(channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
 
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
@@ -664,7 +665,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 #endif
 
     /* Check (and revolve) the SecurityToken */
-    res = checkSymHeader(channel, tokenId);
+    res = checkSymHeader(channel, tokenId, nowMonotonic);
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
@@ -784,7 +785,8 @@ persistIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
  * queue will be cleared for the next message. */
 static UA_StatusCode
 processChunks(UA_SecureChannel *channel, void *application,
-              UA_ProcessMessageCallback callback) {
+              UA_ProcessMessageCallback callback,
+              UA_DateTime nowMonotonic) {
     UA_Chunk *chunk;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     while((chunk = SIMPLEQ_FIRST(&channel->completeChunks))) {
@@ -804,7 +806,7 @@ processChunks(UA_SecureChannel *channel, void *application,
             if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
                 res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
             else
-                res = unpackPayloadMSG(channel, chunk);
+                res = unpackPayloadMSG(channel, chunk, nowMonotonic);
         } else {
             chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
             chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
@@ -930,7 +932,8 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
 UA_StatusCode
 UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer) {
+                               const UA_ByteString *buffer,
+                               UA_DateTime nowMonotonic) {
     /* Prepend the incomplete last chunk. This is usually done in the
      * networklayer. But we test for a buffered incomplete chunk here again to
      * work around "lazy" network layers. */
@@ -964,7 +967,7 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
 
     /* Process whatever we can. Chunks of completed and processed messages are
      * removed. */
-    res = processChunks(channel, application, callback);
+    res = processChunks(channel, application, callback, nowMonotonic);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Persist full chunks that still point to the buffer. Can only return

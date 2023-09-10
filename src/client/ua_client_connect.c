@@ -1513,9 +1513,12 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
 
     /* Received a message. Process the message with the SecureChannel. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_StatusCode res =
         UA_SecureChannel_processBuffer(&client->channel, client,
-                                       processServiceResponse, &msg);
+                                       processServiceResponse,
+                                       &msg, nowMonotonic);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                      "Processing the message returned the error code %s",
