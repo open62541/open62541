@@ -1259,8 +1259,11 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
+    UA_EventLoop *el = bpm->server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     retval = UA_SecureChannel_processBuffer(channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+                                            processSecureChannelMessage,
+                                            &msg, nowMonotonic);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
@@ -1723,8 +1726,11 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* The connection is fully opened and we have a SecureChannel.
      * Process the received buffer */
+    UA_EventLoop *el = bpm->server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     retval = UA_SecureChannel_processBuffer(context->channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+                                            processSecureChannelMessage,
+                                            &msg, nowMonotonic);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, context->channel,
                                "Processing the message failed with error %s",

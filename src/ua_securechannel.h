@@ -281,7 +281,8 @@ typedef UA_StatusCode
 UA_StatusCode
 UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer);
+                               const UA_ByteString *buffer,
+                               UA_DateTime nowMonotonic);
 
 /* Internal methods in ua_securechannel_crypto.h */
 
@@ -314,7 +315,8 @@ void
 setBufPos(UA_MessageContext *mc);
 
 UA_StatusCode
-checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId);
+checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
+               UA_DateTime nowMonotonic);
 
 UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
