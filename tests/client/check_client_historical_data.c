@@ -85,6 +85,7 @@ static void setup(void) {
     resetReceiveBuffer();
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Default(1);
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     config->historyDatabase = UA_HistoryDatabase_default(*gathering);
 #endif
 
