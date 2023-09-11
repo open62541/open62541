@@ -137,6 +137,7 @@ UA_ChannelModule_New_Context (const UA_SecurityPolicy * securityPolicy,
     if (context->remoteCertificateX509 == NULL) {
         UA_ByteString_clear (&context->remoteCertificate); 
         UA_free (context);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     context->policyContext = (Policy_Context_Basic256Sha256 *) 
