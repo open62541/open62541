@@ -89,6 +89,7 @@ START_TEST(ClientConfig_Copy){
     UA_ClientConfig srcConfig;
     memset(&srcConfig, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&srcConfig);
+    srcConfig.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
 
     UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -104,7 +105,6 @@ END_TEST
 
 START_TEST(Client_connect) {
     UA_Client *client = UA_Client_newForUnitTest();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
 
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
