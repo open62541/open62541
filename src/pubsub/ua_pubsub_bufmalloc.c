@@ -6,6 +6,7 @@
  */
 
 #include "ua_pubsub_bufmalloc.h"
+#include <stdlib.h> /* for malloc, ...*/
 
 #define MALLOCMEMBUFSIZE 16384
 
