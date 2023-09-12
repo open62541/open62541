@@ -13,6 +13,7 @@
 #define _XOPEN_SOURCE 500
 #endif /* __STDC_VERSION__ */
 
+#include <errno.h>
 #include <signal.h>
 #include <stdio.h>
 #include <time.h>

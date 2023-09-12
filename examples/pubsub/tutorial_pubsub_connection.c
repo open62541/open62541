@@ -6,6 +6,8 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
+#include <stdlib.h>
+
 /**
  * The PubSub connection example demonstrate the PubSub TransportLayer configuration and
  * the dynamic creation of PubSub Connections on runtime.
