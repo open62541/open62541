@@ -16,6 +16,7 @@
 
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
 
@@ -729,4 +730,94 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 }
 
 #endif
+
+UA_StatusCode
+UA_PKI_decryptPemWithPassword(UA_ByteString privateKey, UA_ByteString *derOutput,
+                                  UA_PKI_PrivateKeyPasswordCallback passwordCallback,
+                                     void *callbackContext)
+{
+    if (!derOutput) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if (!passwordCallback ||
+       // Magic number for DER encoded keys
+       (privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)) {
+        UA_ByteString_copy(&privateKey, derOutput);
+         return UA_STATUSCODE_GOOD;
+    }
+
+    UA_ByteString nullTerminatedKey = UA_mbedTLS_CopyDataFormatAware(&privateKey);
+
+    mbedtls_pk_context key;
+    mbedtls_pk_init(&key);
+    UA_Boolean loadSuccess = false;
+
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    int err = mbedtls_pk_parse_key(&key, nullTerminatedKey.data, nullTerminatedKey.length, NULL, 0);
+#else
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    int err = mbedtls_pk_parse_key(&key, nullTerminatedKey.data, nullTerminatedKey.length, NULL, 0, mbedtls_entropy_func, &entropy);
+#endif
+
+    if (err) {
+        if (err == MBEDTLS_ERR_PK_PASSWORD_REQUIRED) {
+            UA_PrivateKeyPasswordState state = UA_PRIVATEKEYPASSWORDSTATE_INITIAL;
+             UA_Boolean doRetry = false;
+
+             do {
+                doRetry = false;
+                UA_ByteString password = passwordCallback( state, &doRetry, callbackContext);
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+                err = mbedtls_pk_parse_key(&key, nullTerminatedKey.data, nullTerminatedKey.length, password.data, password.length);
+#else
+                err = mbedtls_pk_parse_key(&key, nullTerminatedKey.data, nullTerminatedKey.length, password.data, password.length,
+                                           mbedtls_entropy_func, &entropy);
+#endif
+                UA_ByteString_clear(&password);
+
+                if (!err) {
+                    loadSuccess = true;
+                    break;
+                }
+
+                state = UA_PRIVATEKEYPASSWORDSTATE_WRONG;
+             } while (doRetry);
+        } else {
+             /* If this happens, there is something wrong with the PK file */
+#if MBEDTLS_VERSION_NUMBER < 0x02060000 || MBEDTLS_VERSION_NUMBER >= 0x03000000
+             mbedtls_entropy_free(&entropy);
+#endif
+             return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+    } else {
+        loadSuccess = true;
+    }
+
+    UA_ByteString_clear(&nullTerminatedKey);
+
+#if MBEDTLS_VERSION_NUMBER < 0x02060000 || MBEDTLS_VERSION_NUMBER >= 0x03000000
+    mbedtls_entropy_free(&entropy);
+#endif
+
+    if (loadSuccess) {
+        unsigned char buffer[16000];
+        memset(buffer, 0, sizeof(buffer));
+        err = mbedtls_pk_write_key_der(&key, buffer, sizeof(buffer));
+        mbedtls_pk_free(&key);
+
+        if (err > 0) {
+            UA_ByteString temp = UA_BYTESTRING_NULL;
+            temp.length = err;
+            temp.data = buffer + sizeof(buffer) - err;
+            UA_ByteString_copy(&temp, derOutput);
+        }
+
+        return err > 0 ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
 #endif

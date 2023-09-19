@@ -209,6 +209,15 @@ typedef struct {
     UA_String sessionName;
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* If the private key is in PEM format and password protected,
+     * this callback is called during initialization to get the password
+     * to decrypt the private key.
+     * The callback must be set before invoking UA_ClientConfig_setDefaultEncryption(). */
+    UA_PKI_PrivateKeyPasswordCallback privateKeyPasswordCallback;
+    void *privateKeyPasswordCallbackContext;
+#endif
 } UA_ClientConfig;
 
 /**
