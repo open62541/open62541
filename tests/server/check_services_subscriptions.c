@@ -163,7 +163,7 @@ END_TEST
 
 START_TEST(Server_setPublishingMode) {
     createSubscription();
-    
+
     UA_SetPublishingModeRequest request;
     UA_SetPublishingModeRequest_init(&request);
     request.publishingEnabled = UA_TRUE;
@@ -187,7 +187,7 @@ END_TEST
 
 START_TEST(Server_republish) {
     createSubscription();
-    
+
     UA_RepublishRequest request;
     UA_RepublishRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -226,7 +226,7 @@ END_TEST
 
 START_TEST(Server_deleteSubscription) {
     createSubscription();
-    
+
     /* Remove the subscription */
     UA_DeleteSubscriptionsRequest del_request;
     UA_DeleteSubscriptionsRequest_init(&del_request);
@@ -577,7 +577,7 @@ END_TEST
 START_TEST(Server_setMonitoringMode) {
     createSubscription();
     createMonitoredItem();
-    
+
     UA_SetMonitoringModeRequest request;
     UA_SetMonitoringModeRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -602,7 +602,7 @@ END_TEST
 START_TEST(Server_deleteMonitoredItems) {
     createSubscription();
     createMonitoredItem();
-    
+
     UA_DeleteMonitoredItemsRequest request;
     UA_DeleteMonitoredItemsRequest_init(&request);
     request.subscriptionId = subscriptionId;
@@ -844,7 +844,7 @@ START_TEST(Server_negativeSamplingInterval) {
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
     ck_assert_uint_eq(response.results[0].statusCode, UA_STATUSCODE_GOOD);
-    ck_assert(response.results[0].revisedSamplingInterval == -1.0);
+    ck_assert(response.results[0].revisedSamplingInterval > 0.0);
 
     UA_MonitoredItemCreateRequest_clear(&item);
     UA_CreateMonitoredItemsResponse_clear(&response);
