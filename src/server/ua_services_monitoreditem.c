@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2016-2017 (c) Florian Palm
@@ -96,7 +96,7 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
-    
+
     /* Get the MonitoredItem */
     UA_MonitoredItem *mon = UA_Subscription_getMonitoredItem(sub, request->triggeringItemId);
     if(!mon) {
@@ -223,7 +223,7 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
             UA_NODESTORE_RELEASE(server, node);
         }
     }
-        
+
     /* Adjust sampling interval */
     if(params->samplingInterval < 0.0) {
         /* A negative number indicates that the sampling interval is the
@@ -238,8 +238,10 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                        mon->subscription->publishingInterval,
                                        params->samplingInterval);
             if(params->samplingInterval == mon->subscription->publishingInterval) {
-                /* The publishing interval is valid also for sampling. The
-                 * standard says any negative number is interpreted as -1.*/
+               /* The publishing interval is valid also for sampling. Set sampling
+                * interval to -1 to sample the monitored item in the publish
+                * callback. The revised sampling interval of the response will be
+                * set to the publishing interval.*/
                 params->samplingInterval = -1.0;
             }
         }
@@ -500,6 +502,14 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->revisedQueueSize = newMon->parameters.queueSize;
     result->monitoredItemId = newMon->monitoredItemId;
 
+    /* If the sampling interval is negative (the sampling callback is called
+     * from within the publishing callback), return the publishing interval of
+     * the Subscription. Note that we only use the cyclic callback of the
+     * Subscription. So if the Subscription publishing interval is modified,
+     * this also impacts this MonitoredItem. */
+    if(result->revisedSamplingInterval < 0.0 && cmc->sub)
+        result->revisedSamplingInterval = cmc->sub->publishingInterval;
+
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
@@ -627,6 +637,14 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Remove the overflow bits if the queue has now a size of 1 */
     UA_MonitoredItem_removeOverflowInfoBits(mon);
+
+    /* If the sampling interval is negative (the sampling callback is called
+     * from within the publishing callback), return the publishing interval of
+     * the Subscription. Note that we only use the cyclic callback of the
+     * Subscription. So if the Subscription publishing interval is modified,
+     * this also impacts this MonitoredItem. */
+    if(result->revisedSamplingInterval < 0.0 && mon->subscription)
+        result->revisedSamplingInterval = mon->subscription->publishingInterval;
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                              "MonitoredItem %" PRIi32 " | "
