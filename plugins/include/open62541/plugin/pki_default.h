@@ -47,6 +47,16 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 #endif
 #endif
 
+/* Attempts to load privateKey and writes a DER encoded private key to derOutput.
+ * If the key is PEM encoded and password protected, the password callback
+ * is called to get the password to decrypt the private key.
+ * A DER private key input is just copied without any loading operation involved.
+ * The content of derOutput must be cleared after use. */
+UA_EXPORT UA_StatusCode
+UA_PKI_decryptPemWithPassword(UA_ByteString privateKey, UA_ByteString *derOutput,
+                              UA_PKI_PrivateKeyPasswordCallback passwordCallback,
+                              void *callbackContext);
+
 #endif
 
 _UA_END_DECLS

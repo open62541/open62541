@@ -30,6 +30,20 @@ _UA_BEGIN_DECLS
  * The lifecycle of the plugin is attached to a server or client config. The
  * ``clear`` method is called automatically when the config is destroyed. */
 
+/* Enum and functions for the private key password */
+typedef enum  {
+    UA_PRIVATEKEYPASSWORDSTATE_INITIAL = 0,
+    UA_PRIVATEKEYPASSWORDSTATE_WRONG = 1,
+} UA_PrivateKeyPasswordState;
+
+/* This callback is called when UA_PKI_decryptPemWithPassword is called and detects
+ * a password protected private key in the PEM format.
+ * If a wrong password is encountered, the callback will be called repeatedly until
+ * doRetry is set to false. */
+typedef UA_String (*UA_PKI_PrivateKeyPasswordCallback)(UA_PrivateKeyPasswordState state,
+                                                       UA_Boolean *doRetry,
+                                                       void *context);
+
 struct UA_CertificateVerification;
 typedef struct UA_CertificateVerification UA_CertificateVerification;
 

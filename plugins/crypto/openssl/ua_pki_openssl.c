@@ -834,4 +834,95 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
+struct PrivateKeyPasswordCallbackUserData {
+    UA_PKI_PrivateKeyPasswordCallback callback;
+    void *callbackContext;
+    UA_PrivateKeyPasswordState state;
+    UA_Boolean retry;
+    UA_Boolean callbackWasCalled;
+};
+
+static int PrivateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
+    (void) rwflag;
+
+    struct PrivateKeyPasswordCallbackUserData *context = (struct PrivateKeyPasswordCallbackUserData *) userdata;
+
+    size_t passwordSize = 0;
+
+    if (context && context->callback) {
+        UA_String password = context->callback(context->state, &context->retry, context->callbackContext);
+        context->callbackWasCalled = true;
+
+        if (password.length) {
+            if (password.length <= (size_t) size) {
+                memcpy(buf, password.data, password.length);
+                passwordSize = password.length;
+            }
+            UA_String_clear(&password);
+        }
+    }
+
+    return (int) passwordSize;
+}
+
+UA_StatusCode UA_PKI_decryptPemWithPassword(UA_ByteString privateKey, UA_ByteString *derOutput,
+                                     UA_PKI_PrivateKeyPasswordCallback passwordCallback,
+                                     void *callbackContext)
+{
+    if (!derOutput) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if (!passwordCallback ||
+       // Magic number for DER encoded keys
+       (privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)) {
+        UA_ByteString_copy(&privateKey, derOutput);
+
+        return UA_STATUSCODE_GOOD;
+    }
+
+    struct PrivateKeyPasswordCallbackUserData userData;
+    userData.callback = passwordCallback;
+    userData.callbackContext = callbackContext;
+    userData.retry = false;
+    userData.state = UA_PRIVATEKEYPASSWORDSTATE_INITIAL;
+
+    do {
+        userData.retry = false;
+        userData.callbackWasCalled = false;
+
+        EVP_PKEY *pkey = NULL;
+
+        BIO *bio = NULL;
+        bio = BIO_new_mem_buf((void *) privateKey.data, (int) privateKey.length);
+        pkey = PEM_read_bio_PrivateKey(bio, NULL, PrivateKeyPasswordCallback, &userData);
+
+        BIO_free(bio);
+
+        if (pkey) {
+            unsigned char *data = NULL;
+            const int numBytes = i2d_PrivateKey(pkey, &data);
+
+            EVP_PKEY_free(pkey);
+
+            if (numBytes > 0) {
+                derOutput->length = (size_t)numBytes;
+                derOutput->data = data;
+                return UA_STATUSCODE_GOOD;
+            }
+
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        if (!userData.callbackWasCalled) {
+            /* If this happens, there is something wrong with the PK file */
+            return UA_STATUSCODE_BADINVALIDARGUMENT;
+        }
+
+        userData.state = UA_PRIVATEKEYPASSWORDSTATE_WRONG;
+    } while(userData.retry);
+
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
+
 #endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

@@ -1167,8 +1167,16 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
 
+    UA_ByteString decryptedPrivateKey = UA_BYTESTRING_NULL;
+    const UA_StatusCode keySuccess = UA_PKI_decryptPemWithPassword(privateKey, &decryptedPrivateKey,
+                                                                config->privateKeyPasswordCallback,
+                                                                config->privateKeyPasswordCallbackContext);
+
+    if (keySuccess != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
-                                             localCertificate, privateKey, config->logging);
+                                             localCertificate, decryptedPrivateKey, config->logging);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -1178,7 +1186,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
-                                        localCertificate, privateKey, config->logging);
+                                        localCertificate, decryptedPrivateKey, config->logging);
+
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -1188,7 +1197,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Aes256Sha256RsaPss(&config->securityPolicies[config->securityPoliciesSize],
-                                                  localCertificate, privateKey, config->logging);
+                                                  localCertificate, decryptedPrivateKey, config->logging);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -1198,7 +1207,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
-                                              localCertificate, privateKey, config->logging);
+                                              localCertificate, decryptedPrivateKey, config->logging);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -1208,7 +1217,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     }
 
     retval = UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
-                                                   localCertificate, privateKey, config->logging);
+                                                   localCertificate, decryptedPrivateKey, config->logging);
     if(retval == UA_STATUSCODE_GOOD) {
         ++config->securityPoliciesSize;
     } else {
@@ -1216,6 +1225,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+    UA_ByteString_clear(&decryptedPrivateKey);
 
     if(config->securityPoliciesSize == 0) {
         UA_free(config->securityPolicies);
