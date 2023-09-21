@@ -1277,17 +1277,20 @@ UA_Event_staticWhereClauseValidation(UA_Server *server,
                         UA_STATUSCODE_BADFILTEROPERANDINVALID;
                     break;
                 }
-                UA_LiteralOperand *literalOperand =
-                    (UA_LiteralOperand *)ef.filterOperands[0]
-                        .content.decoded.data;
+
+                const UA_LiteralOperand *lit = (const UA_LiteralOperand *)
+                    ef.filterOperands[0].content.decoded.data;
+                if(!UA_Variant_hasScalarType(&lit->value, &UA_TYPES[UA_TYPES_NODEID])) {
+                    er->statusCode = UA_STATUSCODE_BADFILTEROPERANDINVALID;
+                    break;
+                }
+                const UA_NodeId *ofTypeId = (const UA_NodeId*)lit->value.data;
 
                 /* Make sure the &pOperand->nodeId is a subtype of BaseEventType */
                 UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
-                if(!isNodeInTree_singleRef(
-                    server, (UA_NodeId *)literalOperand->value.data, &baseEventTypeId,
-                    UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
-                    er->statusCode =
-                        UA_STATUSCODE_BADNODEIDINVALID;
+                if(!isNodeInTree_singleRef(server, ofTypeId, &baseEventTypeId,
+                                           UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
+                    er->statusCode = UA_STATUSCODE_BADNODEIDINVALID;
                     break;
                 }
                 er->statusCode = UA_STATUSCODE_GOOD;
