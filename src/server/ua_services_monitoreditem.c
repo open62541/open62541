@@ -282,7 +282,8 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 checkEventFilterParam(UA_Server *server, UA_Session *session,
                       const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params){
+                      UA_MonitoringParameters *params,
+                      UA_MonitoredItemCreateResult *result) {
     if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return UA_STATUSCODE_GOOD;
 
@@ -296,36 +297,66 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
     if(eventFilter->selectClausesSize > 128)
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
 
-    //check the where clause for logical consistency
-    if(eventFilter->whereClause.elementsSize != 0) {
-        UA_ContentFilterResult contentFilterResult;
-        UA_Event_staticWhereClauseValidation(server, &eventFilter->whereClause,
-                                             &contentFilterResult);
-        for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
-            if(contentFilterResult.elementResults[i].statusCode != UA_STATUSCODE_GOOD){
-                //ToDo currently we return the first non good status code, check if
-                //we can use the detailed contentFilterResult later
-                UA_StatusCode whereResult =
-                    contentFilterResult.elementResults[i].statusCode;
-                UA_ContentFilterResult_clear(&contentFilterResult);
-                return whereResult;
-            }
-        }
-        UA_ContentFilterResult_clear(&contentFilterResult);
-    }
-    //check the select clause for logical consistency
+    UA_ContentFilterResult contentFilterResult;
+    UA_Event_staticWhereClauseValidation(server, &eventFilter->whereClause,
+                                         &contentFilterResult);
+
     UA_StatusCode selectClauseValidationResult[128];
     UA_Event_staticSelectClauseValidation(server,eventFilter,
                                           selectClauseValidationResult);
+
+    //check the where clause for logical consistency
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < contentFilterResult.elementResultsSize; ++i) {
+        if(contentFilterResult.elementResults[i].statusCode != UA_STATUSCODE_GOOD){
+            //ToDo currently we return the first non good status code, check if
+            //we can use the detailed contentFilterResult later
+            res = contentFilterResult.elementResults[i].statusCode;
+            break;
+        }
+    }
+
+    //check the select clause for logical consistency
     for(size_t i = 0; i < eventFilter->selectClausesSize; ++i){
         //ToDo currently we return the first non good status code, check if
         //we can use the detailed status code list later
         if(selectClauseValidationResult[i] != UA_STATUSCODE_GOOD){
-            return selectClauseValidationResult[i];
+            res = selectClauseValidationResult[i];
+            break;
         }
     }
 
-    return UA_STATUSCODE_GOOD;
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_ContentFilterResult_clear(&contentFilterResult);
+        return res;
+    }
+
+    /* Create the EventFilterResult output */
+    UA_EventFilterResult *efr = UA_EventFilterResult_new();
+    if(!efr) {
+        UA_ContentFilterResult_clear(&contentFilterResult);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    efr->whereClauseResult = contentFilterResult;
+    /* UA_ContentFilterResult_init(&contentFilterResult); */
+
+    efr->selectClauseResults = (UA_StatusCode*)
+        UA_Array_new(eventFilter->selectClausesSize,
+                     &UA_TYPES[UA_TYPES_STATUSCODE]);
+    if(!efr->selectClauseResults) {
+        UA_EventFilterResult_delete(efr);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    efr->selectClauseResultsSize = eventFilter->selectClausesSize;
+    memcpy(efr->selectClauseResults, selectClauseValidationResult,
+           sizeof(UA_StatusCode) * efr->selectClauseResultsSize);
+
+    UA_ExtensionObject_setValue(&result->filterResult, efr,
+                                &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+
+    return res;
 }
 #endif
 
@@ -471,7 +502,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                         &newMon->parameters);
+                                                &newMon->parameters, result);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,

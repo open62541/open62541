@@ -480,16 +480,19 @@ START_TEST(selectFilterValidation) {
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
+    UA_MonitoredItemCreateResult_clear(&createResult);
 
     filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "");
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_MonitoredItemCreateResult_clear(&createResult);
 
     UA_QualifiedName_delete(&filter.selectClauses->browsePath[0]);
     filter.selectClauses->browsePath = NULL;
     filter.selectClauses->browsePathSize = 0;
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
+    UA_MonitoredItemCreateResult_clear(&createResult);
     UA_EventFilter_clear(&filter);
 } END_TEST
 
