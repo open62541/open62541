@@ -13,6 +13,7 @@
 #include "open62541/namespace_plc_generated.h"
 
 #include <signal.h>
+#include <limits.h>
 #include <stdlib.h>
 
 UA_Boolean running = true;
