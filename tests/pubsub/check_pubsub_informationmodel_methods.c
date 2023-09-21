@@ -1273,8 +1273,6 @@ START_TEST(ReserveIdsMultipleTimes){
          * (warning: value stored in 'retVal' is never read). */
         CallReserveIds(client, &transportProfileUri, 1, 1,
             &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
-        CallReserveIds(client, &transportProfileUri, 1, 1,
-                &defaultPublisherId, &regWriterGroupIds, &regDataSetWriterIds);
         /* TODO: Currently Part 14 doesn't define what should happen if the ID cannot be reserved.
          * There is an open Mantis issue #8415. */
 //        ck_assert(UA_StatusCode_isBad(retVal));

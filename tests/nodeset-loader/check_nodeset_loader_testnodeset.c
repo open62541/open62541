@@ -8,6 +8,7 @@
 #include <open62541/types.h>
 
 #include "check.h"
+#include <limits.h>
 #include "testing_clock.h"
 #include "unistd.h"
 
