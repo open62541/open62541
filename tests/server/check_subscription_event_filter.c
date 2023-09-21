@@ -603,6 +603,36 @@ START_TEST(ofTypeOperatorValidation) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
+START_TEST(ofTypeOperatorValidation_failure) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupOfTypeFilter(&filter.whereClause.elements[0]);
+
+    UA_Variant literalContent;
+    UA_NodeId *nodeId = UA_NodeId_new();
+    UA_NodeId_init(nodeId);
+    *nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+
+    /* setup event */
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDINVALID);
+    UA_MonitoredItemCreateResult_clear(&createResult);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
 START_TEST(orTypeOperatorValidation) {
 
 } END_TEST
@@ -814,6 +844,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, selectFilterValidation);
     tcase_add_test(tc_server, notOperatorValidation);
     tcase_add_test(tc_server, ofTypeOperatorValidation);
+    tcase_add_test(tc_server, ofTypeOperatorValidation_failure);
     tcase_add_test(tc_server, orTypeOperatorValidation);
     tcase_add_test(tc_server, andTypeOperatorValidation);
     tcase_add_test(tc_server, equalOperatorValidation);
