@@ -25,9 +25,10 @@ General Project Info:
 [![Open Hub Project Status](https://www.openhub.net/p/open62541/widgets/project_thin_badge.gif)](https://www.openhub.net/p/open62541/)
 [![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
 
-### Features and Certification
+## Features
 
-open62541 implements the OPC UA binary protocol stack as well as a client and server SDK. The final server binaries can be well under 100kb, depending on the selected features and the size of the information model.
+open62541 implements an OPC UA SDK with support for servers, clients and PubSub (publish-subscribe) communication.
+See the [features overview](FEATURES.md) for full details.
 
 - Communication Stack
   - OPC UA binary protocol
@@ -50,7 +51,16 @@ open62541 implements the OPC UA binary protocol stack as well as a client and se
   - UADP Binary protocol with UDP-multicast or Ethernet communication
   - PubSub JSON encoding
 
-### Official Certification
+## Commercial Use and Official Support
+
+open62541 is licensed under the MPLv2. That is, changes to files under MPLv2 fall under the same open-source license.
+But the library can be combined with private development from separate files, also if a static binary is produced, without the license affecting the private files.
+See the full [license document](LICENSE) for details.
+
+**Fraunhofer IOSB** maintains open62541 and also provides **[official commercial support](https://www.iosb.fraunhofer.de/en/projects-and-products/open62541.html)**.
+Additional commercial service providers are listed on [open62541.org](https://www.open62541.org/).
+
+## Official Certification
 
 The sample server (server_ctt) built using open62541 v1.0 is in conformance with the 'Micro Embedded Device Server' Profile of OPC Foundation supporting OPC UA client/server communication, subscriptions, method calls and security (encryption) with the security policies 'Basic128Rsa15', 'Basic256' and 'Basic256Sha256' and the facets 'method server' and 'node management'. See https://open62541.org/certified-sdk for more details.
 
@@ -72,6 +82,31 @@ The CTT configuration and results are tracked at https://github.com/open62541/op
 
 See the page on [open62541 Features](FEATURES.md) for an in-depth look at the support for the conformance units that make up the OPC UA profiles.
   
+## Documentation and Support
+
+A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
+Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
+To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
+
+The overall open62541 community handles public support requests on Github and the mailing list.
+For individual discussion and support, use the following channels:
+
+- [Mailing List](https://groups.google.com/d/forum/open62541)
+- [Issue Tracker](https://github.com/open62541/open62541/issues)
+- [Pull Requests](https://github.com/open62541/open62541/pulls)
+
+We want to foster an open and welcoming community. Please take our [code of conduct](CODE_OF_CONDUCT.md) into regard.
+
+## Development
+
+As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
+
+- [Report bugs](https://github.com/open62541/open62541/issues)
+- Improve the [documentation](http://open62541.org/doc/current)
+- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
+
+For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop.
+
 ### Dependencies
 
 On most systems, open62541 requires the C standard library only. For dependencies during the build process, see the following list and the [build documentation](https://www.open62541.org/doc/master/building.html) for details.
@@ -96,58 +131,6 @@ We emphasize code quality. The following quality metrics are continuously checke
 - Zero issues indicated by clang-analyzer, clang-tidy, cpp-check and the Codacy static code analysis tools
 - Zero unresolved issues from fuzzing the library in Google's oss-fuzz infrastructure
 - Zero issues indicated by Valgrind (Linux), DrMemory (Windows) and Clang AddressSanitizer / MemorySanitizer for the CTT tests, unit tests and fuzzing
-
-### Documentation and Support
-
-A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
-Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
-To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
-
-For individual discussion and support, use the following channels:
-
-- the [mailing list](https://groups.google.com/d/forum/open62541)
-- our [IRC channel](http://webchat.freenode.net/?channels=%23open62541)
-- the [bugtracker](https://github.com/open62541/open62541/issues)
-
-We want to foster an open and welcoming community. Please take our [code of conduct](CODE_OF_CONDUCT.md) into regard.
-
-Jointly with the overall open62541 community, the core maintainers steer the long-term development. The current core maintainers are (as of April 2018, in alphabetical order):
-
-- Chris-Paul Iatrou (Dresden University of Technology, Chair for Process Control Systems Engineering)
-- Florian Palm (RWTH Aachen University, Chair of Process Control Engineering)
-- Julius Pfrommer (Fraunhofer IOSB, Karlsruhe)
-- Stefan Profanter (fortiss, Munich)
-
-### Docker container
-
-Official docker container builds are available on [Docker Cloud](https://cloud.docker.com/u/open62541/repository/registry-1.docker.io/open62541/open62541)
-
-More information can be found in the [Docker README](tools/docker/README.md)
-
-## Support & Development
-
-### Commercial Support
-
-The open62541 community handles support requests for the open source library and its development. Custom development and individual support is provided by commercial partners that are affiliated with open62541:
-
-- [Kalycito Infotech, Tamil Nadu, INDIA](https://www.kalycito.com/landing/open62541-commercial-partner) for embedded and realtime IIoT applications (Contact: enterprise.services@kalycito.com)
-- [basysKom GmbH, Darmstadt, Germany](https://www.basyskom.com/) Software Engineering for Embedded Systems. (Contact: info@basysKom.com) 
-
-For custom development that shall eventually become part of the open62541 library, please keep one of the core maintainers in the loop. Again, please note that all changes to files that are already licensed under the MPLv2 automatically become MPLv2 as well. Static linking of the open62541 library with code under a different license is possible. All architecture-specific code is implemented in the form of exchangeable plugins under a very permissible CC0 license.
-
-### Development
-
-As an open source project, new contributors are encouraged to help improve open62541. The file [CONTRIBUTING.md](CONTRIBUTING.md) aggregates good practices that we expect for code contributions. The following are good starting points for new contributors:
-
-- [Report bugs](https://github.com/open62541/open62541/issues)
-- Improve the [documentation](http://open62541.org/doc/current)
-- Work on issues marked as "[good first issue](https://github.com/open62541/open62541/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)"
-
-### Success Stories and Users of open62541
-
-A list of projects and companies using our open62541 stack can be found in our Wiki:
-
-https://github.com/open62541/open62541/wiki/References-to-open62541
 
 ## Installation and code usage
 
