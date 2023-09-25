@@ -572,32 +572,36 @@ readOperationLimits(UA_Server *server, const UA_NodeId *sessionId, void *session
                         const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                         const UA_NumericRange *range,
                         UA_DataValue *value) {
-    UA_StatusCode retval;
-    UA_NodeId compareNodeMaxNodesPerRead = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD);
-    UA_NodeId compareNodeMaxNodesPerWrite = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE);
-    UA_NodeId compareNodeMaxNodesPerMethodCall = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL);
-    UA_NodeId compareNodeMaxNodesPerBrowse = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE);
-    UA_NodeId compareNodeMaxNodesPerRegisterNodes = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES);
-    UA_NodeId compareNodeMaxNodesPerTranslateBrowsePathsToNodeIds = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS);
-    UA_NodeId compareNodeMaxNodesPerNodeManagement = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT);
-    UA_NodeId compareNodeMaxNodesMonitoredItemsPerCall = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL);
-
-    if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerRead)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerWrite)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerMethodCall)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerBrowse)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerRegisterNodes)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerTranslateBrowsePathsToNodeIds)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesPerNodeManagement)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
-    } else if(UA_NodeId_equal(nodeid, &compareNodeMaxNodesMonitoredItemsPerCall)){
-        retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(nodeid->identifierType != UA_NODEIDTYPE_NUMERIC)
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    switch(nodeid->identifier.numeric) {
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREAD:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRead, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERWRITE:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerWrite, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERMETHODCALL:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerMethodCall, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERBROWSE:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerBrowse, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERREGISTERNODES:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerRegisterNodes, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERTRANSLATEBROWSEPATHSTONODEIDS:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerTranslateBrowsePathsToNodeIds, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXNODESPERNODEMANAGEMENT:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxNodesPerNodeManagement, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        case UA_NS0ID_SERVER_SERVERCAPABILITIES_OPERATIONLIMITS_MAXMONITOREDITEMSPERCALL:
+            retval = UA_Variant_setScalarCopy(&value->value, &server->config.maxMonitoredItemsPerCall, &UA_TYPES[UA_TYPES_UINT32]);
+            break;
+        default:
+            retval = UA_STATUSCODE_BADNOTSUPPORTED;
     }
     return retval;
 }
