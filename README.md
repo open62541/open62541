@@ -15,8 +15,7 @@ Build Status:
 
 Code Quality:
 
-[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
-[![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
+[![Code Scanning](https://github.com/open62541/open62541/actions/workflows/codeql.yml/badge.svg)](https://github.com/open62541/open62541/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
 
@@ -30,26 +29,26 @@ General Project Info:
 open62541 implements an OPC UA SDK with support for servers, clients and PubSub (publish-subscribe) communication.
 See the [features overview](FEATURES.md) for full details.
 
-- Communication Stack
-  - OPC UA binary protocol
-  - OPC UA JSON encoding
-  - Secure communication with encrypted messages
-  - Exchangeable network layer (plugin) for using custom networking APIs (e.g. on embedded targets)
-  - Support for generating data types from standard XML definitions
+- Core Stack
+  - OPC UA binary and JSON encoding
+  - TCP-based OPC UA SecureChannel
+  - Custom data types (generated from XML definitions)
+  - Portable C99 -- architecture-specific code is encapsulated behind standard interfaces
+  - Highly configurable with default plugins for encryption (OpenSSL, mbedTLS), access control, historizing, logging, etc.
 - Server
-  - Support for all OPC UA node types
-  - Access control for individual nodes
-  - Support for generating server-side information models from standard XML definitions (nodesets)
-  - Support for adding and removing nodes and references also at runtime.
-  - Support for inheritance and instantiation of object- and variable-types (custom constructor/destructor, instantiation of child nodes)
-  - Support for subscriptions/monitoreditems (data change notifications and events)
+  - Support for all OPC UA services (except the Query service -- not implemented by any SDK)
+  - Support for generating information models from standard XML definitions (Nodeset Compiler)
+  - Support for adding and removing nodes and references at runtime
+  - Support for subscriptions (data-change and event notifications)
 - Client
-  - All OPC UA services supported
-  - Asynchronous service requests
+  - Support for all OPC UA services
+  - Support for asynchronous service requests
   - Background handling of subscriptions
-- Publish/Subscribe
-  - UADP Binary protocol with UDP-multicast or Ethernet communication
-  - PubSub JSON encoding
+- PubSub
+  - PubSub message encoding (binary and JSON)
+  - Transport over UDP-multicast, Ethernet, MQTT
+  - Runtime configuration via the information model
+  - Configurable realtime fast-path
 
 ## Commercial Use and Official Support
 
