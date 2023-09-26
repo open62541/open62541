@@ -75,8 +75,13 @@
  * |                |       |                    |enabled         |                    |Operational     |                |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
  * |ReaderGroup     |Trigger|Manual disable      |RG enabled &&   |RG enabled &&       |RG enabled &&   |Internal error  |
- * |                |       |                    |PubSubConnection|PubSubConnection    |PubSubConnection|                |
- * |                |       |                    |not enabled     |Pre-Operational     |Operational     |                |
+ * |                |       |                    |PubSubConnection|(PubSubConnection   |PubSubConnection|                |
+ * |                |       |                    |not enabled     |Pre-Operational ||  |Operational &&  |                |
+ * |                |       |                    |                |RG-connection not   |RG-connection   |                |
+ * |                |       |                    |                |fully established)  |established     |                |
+ * |                +-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |                |Action |RG connection       |RG connection   |RG connection       |RG connection   |RG connection   |
+ * |                |       |disconnected        |disconnected    |connected           |connected       |disconnected    |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
  * |DataSetReader   |Trigger|Manual disable      |DSR enabled &&  |DSR enabled && RG   |DSR enabled &&  |Internal error  |
  * |                |       |                    |RG not enabled  |Pre-Operational     |RG Operational  |                |
@@ -697,10 +702,8 @@ UA_StatusCode
 UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server,
-                              UA_ReaderGroup *readerGroup,
-                              UA_PubSubState state,
-                              UA_StatusCode cause);
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
+                              UA_PubSubState targetState);
 
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,

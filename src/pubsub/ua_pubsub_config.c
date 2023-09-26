@@ -505,8 +505,7 @@ createReaderGroup(UA_Server *server,
 
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
     if(res == UA_STATUSCODE_GOOD && rg)
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
-                                      UA_STATUSCODE_GOOD);
+        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
     return res;
 }

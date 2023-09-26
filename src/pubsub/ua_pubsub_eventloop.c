@@ -556,7 +556,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     wg->sendChannel = connectionId;
 
     /* Connection open, set to operational if not already done */
-    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+    if(wg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
                                       UA_STATUSCODE_GOOD);
     
@@ -836,7 +836,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
 
         /* Reconnect if still operational */
-        UA_ReaderGroup_setPubSubState(server, rg, rg->state, UA_STATUSCODE_GOOD);
+        UA_ReaderGroup_setPubSubState(server, rg, rg->state);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -853,20 +853,13 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* The connection has opened - set the ReaderGroup to operational */
+    UA_ReaderGroup_setPubSubState(server, rg, rg->state);
+
     /* No message received */
     if(msg.length == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
-    }
-
-    /* Received the first message - set to operational */
-    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
-                                                     rg->state, UA_STATUSCODE_GOOD);
-        }
     }
 
     if(rg->state != UA_PUBSUBSTATE_OPERATIONAL) {
@@ -994,8 +987,6 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "No EventLoop configured");
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR,
-                                      UA_STATUSCODE_BADINTERNALERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -1011,8 +1002,6 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
     if(!cm || (c->cm && cm != c->cm)) {
         UA_LOG_ERROR_CONNECTION(&server->config.logger, c,
                                 "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1020,14 +1009,8 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
     c->json = profile->json;
 
     /* Connect */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectReaderGroup)
-        res = profile->connectReaderGroup(server, rg);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR, res);
-        return res;
-    }
-
+        return profile->connectReaderGroup(server, rg);
     return UA_STATUSCODE_GOOD;
 }
 
