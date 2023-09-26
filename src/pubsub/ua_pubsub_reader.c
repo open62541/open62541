@@ -492,14 +492,14 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
 }
 
 UA_StatusCode
-UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dsrId,
                                  UA_PubSubState *state) {
     if(!server || !state)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
     if(dsr) {
         res = UA_STATUSCODE_GOOD;
         *state = dsr->state;
@@ -509,15 +509,31 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dataSetReaderIdent
 }
 
 UA_StatusCode
-UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dataSetReaderIdentifier) {
+UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
     if(!dsr) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    UA_StatusCode ret = UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_StatusCode ret =
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    if(!dsr) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode ret =
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_DISABLED);
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
