@@ -540,7 +540,7 @@ typedef struct UA_DataSetReader {
     UA_NodeId linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
-    UA_PubSubState state; /* non std */
+    UA_PubSubState state;
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
@@ -589,11 +589,10 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
                                     const UA_FieldTargetVariable *targetVariables);
 
+/* Returns an error reason if the target state is `Error` */
 UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server,
-                                UA_DataSetReader *dataSetReader,
-                                UA_PubSubState state,
-                                UA_StatusCode cause);
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
+                                UA_PubSubState targetState);
 
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
