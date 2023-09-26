@@ -101,8 +101,8 @@ option(UA_ENABLE_METHODCALLS "Enable the Method service set" ON)
 option(UA_ENABLE_SUBSCRIPTIONS "Enable subscriptions support" ON)
 option(UA_ENABLE_SUBSCRIPTIONS_EVENTS "Enable event monitoring" ON)
 option(UA_ENABLE_DA "Enable OPC UA DataAccess (Part 8) definitions" ON)
-option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" OFF)
-option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" OFF)
+option(UA_ENABLE_HISTORIZING "Enable basic support for historical access (client and server)" ON)
+option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
@@ -307,7 +307,6 @@ mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
 
 #General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
-option(UA_ENABLE_PUBSUB_DELTAFRAMES "Enable sending of delta frames with only the changes" OFF)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
@@ -331,13 +330,6 @@ if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS "Enable PubSub informationmodel methods" OFF)
-if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
-    if(NOT UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-        message(FATAL_ERROR "PubSub information model methods cannot be used with disabled PubSub information model.")
-    endif()
-endif()
-
 option(UA_ENABLE_PUBSUB_FILE_CONFIG "Enable loading PubSub Config from file extension" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_FILE_CONFIG)
 if(UA_ENABLE_PUBSUB_FILE_CONFIG)
@@ -351,6 +343,14 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 if(UA_ENABLE_PUBSUB_MONITORING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub monitoring cannot be used with PubSub function disabled")
+    endif()
+endif()
+
+option(UA_ENABLE_PUBSUB_ETH_UADP "Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on EtherType B62C." OFF)
+mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
+if(UA_ENABLE_PUBSUB_ETH_UADP)
+    if(NOT UA_ENABLE_PUBSUB)
+	    message(FATAL_ERROR "For UA_ENABLE_PUBSUB_ETH_UADP PubSub needs to be enabled")
     endif()
 endif()
 
@@ -491,6 +491,10 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS AND (NOT UA_ENABLE_SUBSCRIPTIONS))
     set(UA_ENABLE_SUBSCRIPTIONS_EVENTS OFF)
 endif()
 
+if(UA_ENABLE_HISTORIZING AND (NOT UA_ENABLE_SUBSCRIPTIONS))
+    MESSAGE(FATAL_ERROR "UA_ENABLE_HISTORIZING needs Subscriptions enabled")
+endif()
+
 ######################
 # External Libraries #
 ######################
@@ -615,7 +619,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         if(MSVC)
             message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
         endif()
-        check_add_cc_flag("-m32") # GCC and Clang, possibly more
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
@@ -1002,6 +1006,12 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
+# For file based server configuration
+if(UA_ENABLE_JSON_ENCODING)
+    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_config_json.c)
+endif()
+
 if(UA_ENABLE_HISTORIZING)
     list(APPEND plugin_headers
          ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/historydata/history_data_backend.h
@@ -1208,7 +1218,7 @@ if(UA_ENABLE_AMALGAMATION)
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                               ${exported_headers} ${plugin_headers} 
+                               ${exported_headers} ${plugin_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${plugin_headers})
 

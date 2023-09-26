@@ -175,6 +175,7 @@ struct UA_ServerConfig {
 
     /**
      * The following settings are specific to OPC UA with TCP transport. */
+    UA_Boolean tcpEnabled;
     UA_UInt32 tcpBufSize;    /* Max length of sent and received chunks (packets)
                               * (default: 64kB) */
     UA_UInt32 tcpMaxMsgSize; /* Max length of messages
@@ -291,6 +292,7 @@ struct UA_ServerConfig {
     /**
      * Subscriptions
      * ^^^^^^^^^^^^^ */
+    UA_Boolean subscriptionsEnabled;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Limits for Subscriptions */
     UA_UInt32 maxSubscriptions;
@@ -339,6 +341,7 @@ struct UA_ServerConfig {
     /**
      * PubSub
      * ^^^^^^ */
+    UA_Boolean pubsubEnabled;
 #ifdef UA_ENABLE_PUBSUB
     UA_PubSubConfiguration pubSubConfig;
 #endif
@@ -346,6 +349,7 @@ struct UA_ServerConfig {
     /**
      * Historical Access
      * ^^^^^^^^^^^^^^^^^ */
+    UA_Boolean historizingEnabled;
 #ifdef UA_ENABLE_HISTORIZING
     UA_HistoryDatabase historyDatabase;
 

@@ -21,9 +21,7 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 #include "ua_types_encoding_binary.h"
-#endif
 
 static void pubSubStateCallback(UA_Server *server, void *data);
 
@@ -330,24 +328,23 @@ UA_DataSetWriter_create(UA_Server *server,
         newDataSetWriter->connectedDataSetVersion =
             currentDataSetContext->dataSetMetaData.configurationVersion;
 
-    #ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
-        /* Initialize the queue for the last values */
-        if(currentDataSetContext->fieldSize > 0) {
-            newDataSetWriter->lastSamples = (UA_DataSetWriterSample*)
-                UA_calloc(currentDataSetContext->fieldSize, sizeof(UA_DataSetWriterSample));
-            if(!newDataSetWriter->lastSamples) {
-                UA_DataSetWriterConfig_clear(&newDataSetWriter->config);
-                UA_free(newDataSetWriter);
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            }
-            newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
-            for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
-                UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
-                newDataSetWriter->lastSamples[i].valueChanged = false;
+        if(server->config.pubSubConfig.enableDeltaFrames) {
+            /* Initialize the queue for the last values */
+            if(currentDataSetContext->fieldSize > 0) {
+                newDataSetWriter->lastSamples = (UA_DataSetWriterSample*)
+                    UA_calloc(currentDataSetContext->fieldSize, sizeof(UA_DataSetWriterSample));
+                if(!newDataSetWriter->lastSamples) {
+                    UA_DataSetWriterConfig_clear(&newDataSetWriter->config);
+                    UA_free(newDataSetWriter);
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                }
+                newDataSetWriter->lastSamplesCount = currentDataSetContext->fieldSize;
+                for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
+                    UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
+                    newDataSetWriter->lastSamples[i].valueChanged = false;
+                }
             }
         }
-    #endif
-
         /* Connect PublishedDataSet with DataSetWriter */
         newDataSetWriter->connectedDataSet = currentDataSetContext->identifier;
     } else {
@@ -528,15 +525,15 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     UA_NodeId_clear(&dataSetWriter->linkedWriterGroup);
     UA_NodeId_clear(&dataSetWriter->connectedDataSet);
 
-    /* Delete lastSamples store */
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
-    for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
-        UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+    if(server->config.pubSubConfig.enableDeltaFrames) {
+        /* Delete lastSamples store */
+        for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
+            UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+        }
+        UA_free(dataSetWriter->lastSamples);
+        dataSetWriter->lastSamples = NULL;
+        dataSetWriter->lastSamplesCount = 0;
     }
-    UA_free(dataSetWriter->lastSamples);
-    dataSetWriter->lastSamples = NULL;
-    dataSetWriter->lastSamplesCount = 0;
-#endif
 
     UA_free(dataSetWriter);
     return UA_STATUSCODE_GOOD;
@@ -560,7 +557,6 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
 /*********************************************************/
 
 /* Compare two variants. Internally used for value change detection. */
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_Boolean
 valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     if(!oldValue || !newValue)
@@ -612,7 +608,6 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     UA_ByteString_clear(&newValueEncoding);
     return compareResult;
 }
-#endif
 
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
@@ -676,12 +671,11 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dfv->hasServerPicoseconds = false;
 
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
-        /* Update lastValue store */
-        UA_DataValue_clear(&dataSetWriter->lastSamples[counter].value);
-        UA_DataValue_copy(dfv, &dataSetWriter->lastSamples[counter].value);
-#endif
-
+        if(server->config.pubSubConfig.enableDeltaFrames) {
+            /* Update lastValue store */
+            UA_DataValue_clear(&dataSetWriter->lastSamples[counter].value);
+            UA_DataValue_copy(dfv, &dataSetWriter->lastSamples[counter].value);
+        }
         counter++;
     }
     return UA_STATUSCODE_GOOD;
@@ -689,7 +683,6 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
 /* the input message is already initialized and that the method 
  * must not be called twice for the same message */
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
                                                  UA_DataSetMessage *dataSetMessage,
@@ -776,7 +769,6 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif
 
 /* Generate a DataSetMessage for the given writer. */
 UA_StatusCode
@@ -955,50 +947,48 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
 
     /* JSON does not differ between deltaframes and keyframes, only keyframes
      * are currently used. */
-    if(dsm) {
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
+    if(dsm && server->config.pubSubConfig.enableDeltaFrames) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
-    if(dataSetWriter->connectedDataSetVersion.majorVersion !=
-       currentDataSet->dataSetMetaData.configurationVersion.majorVersion ||
-       dataSetWriter->connectedDataSetVersion.minorVersion !=
-       currentDataSet->dataSetMetaData.configurationVersion.minorVersion) {
-        /* Remove old samples */
-        for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
-            UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+        if(dataSetWriter->connectedDataSetVersion.majorVersion !=
+           currentDataSet->dataSetMetaData.configurationVersion.majorVersion ||
+           dataSetWriter->connectedDataSetVersion.minorVersion !=
+           currentDataSet->dataSetMetaData.configurationVersion.minorVersion) {
+            /* Remove old samples */
+            for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
+                UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
 
-        /* Realloc PDS dependent memory */
-        dataSetWriter->lastSamplesCount = currentDataSet->fieldSize;
-        UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
-            UA_realloc(dataSetWriter->lastSamples,
-                       sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
-        if(!newSamplesArray)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        dataSetWriter->lastSamples = newSamplesArray;
-        memset(dataSetWriter->lastSamples, 0,
-               sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
+            /* Realloc PDS dependent memory */
+            dataSetWriter->lastSamplesCount = currentDataSet->fieldSize;
+            UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
+                UA_realloc(dataSetWriter->lastSamples,
+                           sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
+            if(!newSamplesArray)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
+            dataSetWriter->lastSamples = newSamplesArray;
+            memset(dataSetWriter->lastSamples, 0,
+                   sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
 
-        dataSetWriter->connectedDataSetVersion =
-            currentDataSet->dataSetMetaData.configurationVersion;
-        UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
-                                                       dataSetWriter);
-        dataSetWriter->deltaFrameCounter = 0;
-        return UA_STATUSCODE_GOOD;
-    }
+            dataSetWriter->connectedDataSetVersion =
+                currentDataSet->dataSetMetaData.configurationVersion;
+            UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
+                                                           dataSetWriter);
+            dataSetWriter->deltaFrameCounter = 0;
+            return UA_STATUSCODE_GOOD;
+        }
 
-    /* The standard defines: if a PDS contains only one fields no delta messages
-     * should be generated because they need more memory than a keyframe with 1
-     * field. */
-    if(currentDataSet->fieldSize > 1 && dataSetWriter->deltaFrameCounter > 0 &&
-       dataSetWriter->deltaFrameCounter <= dataSetWriter->config.keyFrameCount) {
-        UA_PubSubDataSetWriter_generateDeltaFrameMessage(server, dataSetMessage,
-                                                         dataSetWriter);
-        dataSetWriter->deltaFrameCounter++;
-        return UA_STATUSCODE_GOOD;
-    }
+        /* The standard defines: if a PDS contains only one fields no delta messages
+         * should be generated because they need more memory than a keyframe with 1
+         * field. */
+        if(currentDataSet->fieldSize > 1 && dataSetWriter->deltaFrameCounter > 0 &&
+           dataSetWriter->deltaFrameCounter <= dataSetWriter->config.keyFrameCount) {
+            UA_PubSubDataSetWriter_generateDeltaFrameMessage(server, dataSetMessage,
+                                                             dataSetWriter);
+            dataSetWriter->deltaFrameCounter++;
+            return UA_STATUSCODE_GOOD;
+        }
 
-    dataSetWriter->deltaFrameCounter = 1;
-#endif
+        dataSetWriter->deltaFrameCounter = 1;
     }
 
     return UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,

@@ -220,8 +220,9 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
     }
     UA_StatusCode expectedCode = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
     UA_CallResponse response = callGetSecurityKeys(client, securityGroupId, 1, 1);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
     UA_Client_delete(client);
@@ -234,8 +235,9 @@ START_TEST(getSecuritykeysBadNotFound) {
     UA_String badSecurityGroupId = UA_STRING("BadSecurityGroupId");
     UA_StatusCode expectedCode = UA_STATUSCODE_BADNOTFOUND;
     UA_CallResponse response = callGetSecurityKeys(sksClient, badSecurityGroupId, 1, 1);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
     UA_Client_delete(sksClient);
@@ -252,8 +254,9 @@ START_TEST(getSecuritykeysBadUserAccessDenied) {
     /* set SecurityGroupNodeContext to username
         compare the SGNodeContext with sessioncontext in getUserExecutableOnObject
     */
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
     UA_Client_delete(sksClient);
@@ -267,8 +270,9 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
     UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, 1, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -312,8 +316,9 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
     UA_UInt32 reqkeyCount = 1;
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -347,8 +352,9 @@ START_TEST(requestCurrentKeyOnly) {
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -382,8 +388,9 @@ START_TEST(requestPastKey) {
     UA_UInt32 reqStartingTokenId = 1;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -415,8 +422,9 @@ START_TEST(requestUnknownStartingTokenId){
     UA_UInt32 reqStartingTokenId = UA_UINT32_MAX;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -448,8 +456,9 @@ START_TEST(requestMaxFutureKeys) {
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 

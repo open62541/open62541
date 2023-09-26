@@ -225,6 +225,12 @@ struct UA_PubSubConfiguration {
     void (*stateChangeCallback)(UA_Server *server, UA_NodeId *id,
                                 UA_PubSubState state, UA_StatusCode status);
 
+    UA_Boolean enableDeltaFrames;
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    UA_Boolean enableInformationModelMethods;
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* PubSub security policies */
     size_t securityPoliciesSize;

@@ -288,12 +288,10 @@ UA_PubSubConnection_setPubSubState(UA_Server *server,
 /*              DataSetWriter                 */
 /**********************************************/
 
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 typedef struct UA_DataSetWriterSample {
     UA_Boolean valueChanged;
     UA_DataValue value;
 } UA_DataSetWriterSample;
-#endif
 
 typedef struct UA_DataSetWriter {
     UA_PubSubComponentEnumType componentType;
@@ -304,11 +302,12 @@ typedef struct UA_DataSetWriter {
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
     UA_PubSubState state;
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
+
+    /* Deltaframes */
     UA_UInt16 deltaFrameCounter; /* count of sent deltaFrames */
     size_t lastSamplesCount;
     UA_DataSetWriterSample *lastSamples;
-#endif
+
     UA_UInt16 actualDataSetMessageSequenceCount;
     UA_Boolean configurationFrozen;
     UA_UInt64  pubSubStateTimerId;

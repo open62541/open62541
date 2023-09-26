@@ -11,6 +11,7 @@
 #include "tests/namespace_tests_testnodeset_generated.h"
 #include "tests/types_tests_testnodeset_generated_handling.h"
 #include "namespace_tests_di_generated.h"
+#include <limits.h>
 #include "unistd.h"
 
 UA_Server *server = NULL;
@@ -34,9 +35,9 @@ static void teardown(void) {
 START_TEST(Server_addTestNodeset) {
     UA_StatusCode retval = namespace_tests_testnodeset_generated(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    size_t nsIndex = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
-    ck_assert(nsIndex != (size_t)-1);
+    size_t nsIndex = LONG_MAX;
+    retval = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     testNamespaceIndex = (UA_UInt16) nsIndex;
 }
 END_TEST

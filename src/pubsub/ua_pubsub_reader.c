@@ -20,9 +20,7 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_DELTAFRAMES
 #include "ua_types_encoding_binary.h"
-#endif
 
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
 #include "ua_pubsub_bufmalloc.h"
@@ -1188,16 +1186,7 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
         UA_free(nm);
         return rv;
     }
-    /* Check if the message was intended for this reader */
-    rv = UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
-    if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_READER(&server->config.logger, reader,
-                           "PubSub receive. Message intended for a different reader.");
-        UA_NetworkMessage_clear(nm);
-        UA_free(nm);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    rv = UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
+    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
     rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
@@ -1230,54 +1219,6 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
     return rv;
 }
 
-static void
-decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                   UA_DataSetReader *dsr, UA_ByteString *buf) {
-    size_t currentPosition = 0;
-    UA_StatusCode rv = UA_STATUSCODE_GOOD;
-    UA_NetworkMessage *nm = dsr->bufferedMessage.nm;
-    if(!nm) {
-        /* This is the first message being received for the RT fastpath. Prepare
-         * the offset buffer and set operational. */
-        rv = prepareOffsetBuffer(server, readerGroup, dsr, buf, &currentPosition);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive failed. Could not decode with "
-                               "status code %s.", UA_StatusCode_name(rv));
-            return;
-        }
-
-        /* Process and continue decoding (now using the prepared offsets) */
-        nm = dsr->bufferedMessage.nm;
-        goto process;
-    }
-
-    while(currentPosition < buf->length) {
-        /* Decode with offset information and update the networkMessage */
-        rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage,
-                                                       buf, &currentPosition);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive failed. Could not decode with "
-                               "status code %s.", UA_StatusCode_name(rv));
-            return;
-        }
-
-        /* Check the decoded message is intended for this reader */
-        rv = UA_DataSetReader_checkIdentifier(server, nm, dsr, readerGroup->config);
-        if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(&server->config.logger, dsr,
-                               "PubSub receive. Message intended for a different reader.");
-            continue;
-        }
-
-    process:
-        /* Process for this reader */
-        UA_DataSetReader_process(server, readerGroup, dsr,
-                                 nm->payload.dataSetPayload.dataSetMessages);
-    }
-}
-
 /*******************************/
 /* Realtime Message Processing */
 /*******************************/
@@ -1300,50 +1241,109 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
     useMembufAlloc();
 #endif
 
-    /* Decrypt */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    size_t i = 0;
+    size_t pos = 0;
+    UA_Boolean match = false;
+    UA_DataSetReader *dsr;
+    UA_STACKARRAY(UA_Boolean, matches, readerGroup->readersCount);
+#ifdef __clang_analyzer__
+    memset(matches, 0, sizeof(UA_Boolean)* readerGroup->readersCount); /* Pacify warning */
+#endif
+
+    /* Decode headers necessary for checking identifier. This can use malloc.
+     * So enable membufAlloc if you need RT timings. */
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
-
-    size_t payLoadPosition = 0;
-    UA_StatusCode rv =
-        UA_NetworkMessage_decodeHeaders(buf, &payLoadPosition, &currentNetworkMessage);
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, &pos, &currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
                               "PubSub receive. decoding headers failed");
-        goto done;
+        goto error;
     }
 
-    rv = verifyAndDecryptNetworkMessage(&server->config.logger, buf, &payLoadPosition,
+    /* Check if the message is intended for each reader individually */
+    LIST_FOREACH(dsr, &readerGroup->readers, listEntry) {
+        rv = UA_DataSetReader_checkIdentifier(server, &currentNetworkMessage, dsr, readerGroup->config);
+        matches[i] = (rv == UA_STATUSCODE_GOOD);
+        i++;
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_READER(&server->config.logger, dsr,
+                               "PubSub receive. Message intended for a different reader.");
+            continue;
+        }
+        match = true;
+    }
+    if(!match)
+        goto error;
+    UA_assert(i == readerGroup->readersCount);
+
+    /* Decrypt the message once for all readers */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    /* Keep pos to right after the header */
+    rv = verifyAndDecryptNetworkMessage(&server->config.logger, buf, &pos,
                                         &currentNetworkMessage, readerGroup);
-    UA_NetworkMessage_clear(&currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
-                              "Subscribe failed. verify and decrypt network "
-                              "message failed.");
-        goto done;
+                                   "Subscribe failed. verify and decrypt network "
+                                   "message failed.");
+        goto error;
     }
 #endif
 
-    /* Process for all readers in the ReaderGroup. Each reader might wait for a
-     * different PublisherId. So the offsets are different for each. */
-    UA_DataSetReader *dsr;
-    LIST_FOREACH(dsr, &readerGroup->readers, listEntry) {
-        decodeAndProcessRT(server, readerGroup, dsr, buf);
-    }
-
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
- done:
-#endif
+    /* Reset back to the normal malloc before processing the message.
+     * Any changes from here may be persisted longer than this.
+     * The userland (from callbacks) might rely on that. */
+    UA_NetworkMessage_clear(&currentNetworkMessage);
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useNormalAlloc();
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    return (rv == UA_STATUSCODE_GOOD);
-#else
-    return true;
+    /* Decode message for every reader. If this fails for one reader, abort overall. */
+    i = 0;
+    LIST_FOREACH(dsr, &readerGroup->readers, listEntry) {
+        UA_assert(i < readerGroup->readersCount);
+        UA_Boolean match = matches[i];
+        i++;
+        if(!match)
+            continue;
+
+        pos = 0; /* reset */
+        if(!dsr->bufferedMessage.nm) {
+            /* This is the first message being received for the RT fastpath.
+             * Prepare the offset buffer and set operational. */
+            rv = prepareOffsetBuffer(server, readerGroup, dsr, buf, &pos);
+        } else {
+            /* Decode with offset information and update the networkMessage */
+            rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage, buf, &pos);
+        }
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_READER(&server->config.logger, dsr,
+                               "PubSub decoding failed. Could not decode with "
+                               "status code %s.", UA_StatusCode_name(rv));
+            return false;
+        }
+    }
+
+    /* Process the decoded messages */
+    i = 0;
+    LIST_FOREACH(dsr, &readerGroup->readers, listEntry) {
+        UA_assert(i < readerGroup->readersCount);
+        UA_Boolean match = matches[i];
+        i++;
+        if(!match)
+            continue;
+        UA_DataSetReader_process(server, readerGroup, dsr,
+                                 dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
+    }
+
+    return match;
+
+ error:
+    UA_NetworkMessage_clear(&currentNetworkMessage);
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+    useNormalAlloc();
 #endif
+    return false;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
