@@ -307,8 +307,7 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, dataSetReader,
-                                            UA_PUBSUBSTATE_DISABLED, cause);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, dataSetReader->state);
         }
         rg->state = UA_PUBSUBSTATE_DISABLED;
         break;
@@ -405,8 +404,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
         /* Set all readers operational */
         UA_DataSetReader *dsr;
         LIST_FOREACH(dsr, &rg->readers, listEntry) {
-            UA_DataSetReader_setPubSubState(server, dsr,
-                                            UA_PUBSUBSTATE_OPERATIONAL, cause);
+            UA_DataSetReader_setPubSubState(server, dsr, dsr->state);
         }
     }
        
@@ -426,8 +424,7 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_OPERATIONAL:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
         LIST_FOREACH(dataSetReader, &rg->readers, listEntry){
-            UA_DataSetReader_setPubSubState(server, dataSetReader, UA_PUBSUBSTATE_ERROR,
-                                            cause);
+            UA_DataSetReader_setPubSubState(server, dataSetReader, dataSetReader->state);
         }
         break;
     case UA_PUBSUBSTATE_ERROR:
