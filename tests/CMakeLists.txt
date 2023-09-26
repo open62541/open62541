@@ -360,10 +360,7 @@ if(UA_ENABLE_PUBSUB)
 
     if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
         ua_add_test(pubsub/check_pubsub_informationmodel.c)
-        if(UA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS)
-            ua_add_test(pubsub/check_pubsub_informationmodel_methods.c)
-
-        endif()
+        ua_add_test(pubsub/check_pubsub_informationmodel_methods.c)
     endif()
     if(UA_ENABLE_MQTT)
         ua_add_test(pubsub/check_pubsub_connection_mqtt.c)
