@@ -66,7 +66,9 @@ try {
                 -DUA_ENABLE_PUBSUB:BOOL=ON `
                 -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
                 -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON `
-                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON `
+                -DUA_FORCE_WERROR=ON `
+                ..
         & cmake --build . --config Debug
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -90,7 +92,9 @@ try {
             -DUA_BUILD_EXAMPLES:BOOL=OFF  `
             -DUA_ENABLE_AMALGAMATION:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
-            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption ..
+            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
+            -DUA_FORCE_WERROR=ON `
+            ..
     & cmake --build . --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -113,7 +117,9 @@ try {
             -DUA_ENABLE_PUBSUB:BOOL=ON `
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
-            -DUA_NAMESPACE_ZERO:STRING=FULL ..
+            -DUA_FORCE_WERROR=ON `
+            -DUA_NAMESPACE_ZERO:STRING=FULL `
+            ..
     & cmake --build . --config Debug
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
@@ -131,7 +137,9 @@ try {
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
-            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
+            -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
+            -DUA_FORCE_WERROR=ON `
+            ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
@@ -156,7 +164,9 @@ try {
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-dynamic" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
-            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
+            -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
+            -DUA_FORCE_WERROR=ON `
+            ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
