@@ -6,50 +6,38 @@ open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows
 
 The library is [available](https://github.com/open62541/open62541/releases) in standard source and binary form. In addition, the single-file source distribution merges the entire library into a single .c and .h file that can be easily added to existing projects. Example server and client implementations can be found in the [/examples](examples/) directory or further down on this page.
 
-## Project Information
-
-Build Status:
-
+[![Open Hub Project Status](https://www.openhub.net/p/open62541/widgets/project_thin_badge.gif)](https://www.openhub.net/p/open62541/)
 [![Build Status](https://dev.azure.com/open62541/open62541/_apis/build/status/open62541.open62541?branchName=master)](https://dev.azure.com/open62541/open62541/_build/latest?definitionId=1&branchName=master)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/open62541/open62541?branch=master&svg=true)](https://ci.appveyor.com/project/open62541/open62541/branch/master)
-
-Code Quality:
-
-[![Code Quality: Cpp](https://img.shields.io/lgtm/grade/cpp/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/context:cpp)
-[![Total Alerts](https://img.shields.io/lgtm/alerts/g/open62541/open62541.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/open62541/open62541/alerts)
-[![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
+[![Code Scanning](https://github.com/open62541/open62541/actions/workflows/codeql.yml/badge.svg)](https://github.com/open62541/open62541/actions/workflows/codeql.yml)
 [![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/open62541.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:open62541)
-
-General Project Info:
-
-[![Open Hub Project Status](https://www.openhub.net/p/open62541/widgets/project_thin_badge.gif)](https://www.openhub.net/p/open62541/)
-[![Overall Downloads](https://img.shields.io/github/downloads/open62541/open62541/total.svg)](https://github.com/open62541/open62541/releases)
+[![codecov](https://codecov.io/gh/open62541/open62541/branch/master/graph/badge.svg)](https://codecov.io/gh/open62541/open62541)
 
 ## Features
 
 open62541 implements an OPC UA SDK with support for servers, clients and PubSub (publish-subscribe) communication.
 See the [features overview](FEATURES.md) for full details.
 
-- Communication Stack
-  - OPC UA binary protocol
-  - OPC UA JSON encoding
-  - Secure communication with encrypted messages
-  - Exchangeable network layer (plugin) for using custom networking APIs (e.g. on embedded targets)
-  - Support for generating data types from standard XML definitions
+- Core Stack
+  - OPC UA binary and JSON encoding
+  - TCP-based OPC UA SecureChannel
+  - Custom data types (generated from XML definitions)
+  - Portable C99 -- architecture-specific code is encapsulated behind standard interfaces
+  - Highly configurable with default plugins for encryption (OpenSSL, mbedTLS), access control, historizing, logging, etc.
 - Server
-  - Support for all OPC UA node types
-  - Access control for individual nodes
-  - Support for generating server-side information models from standard XML definitions (nodesets)
-  - Support for adding and removing nodes and references also at runtime.
-  - Support for inheritance and instantiation of object- and variable-types (custom constructor/destructor, instantiation of child nodes)
-  - Support for subscriptions/monitoreditems (data change notifications and events)
+  - Support for all OPC UA services (except the Query service -- not implemented by any SDK)
+  - Support for generating information models from standard XML definitions (Nodeset Compiler)
+  - Support for adding and removing nodes and references at runtime
+  - Support for subscriptions (data-change and event notifications)
 - Client
-  - All OPC UA services supported
-  - Asynchronous service requests
+  - Support for all OPC UA services
+  - Support for asynchronous service requests
   - Background handling of subscriptions
-- Publish/Subscribe
-  - UADP Binary protocol with UDP-multicast or Ethernet communication
-  - PubSub JSON encoding
+- PubSub
+  - PubSub message encoding (binary and JSON)
+  - Transport over UDP-multicast, Ethernet, MQTT
+  - Runtime configuration via the information model
+  - Configurable realtime fast-path
 
 ## Commercial Use and Official Support
 
@@ -57,8 +45,8 @@ open62541 is licensed under the MPLv2. That is, changes to files under MPLv2 fal
 But the library can be combined with private development from separate files, also if a static binary is produced, without the license affecting the private files.
 See the full [license document](LICENSE) for details.
 
-**Fraunhofer IOSB** maintains open62541 and also provides **[official commercial support](https://www.iosb.fraunhofer.de/en/projects-and-products/open62541.html)**.
-Additional commercial service providers are listed on [open62541.org](https://www.open62541.org/).
+**Fraunhofer IOSB** maintains open62541 and provides **[official commercial support](https://www.iosb.fraunhofer.de/en/projects-and-products/open62541.html)**.
+Additional service providers are listed on [open62541.org](https://www.open62541.org/).
 
 ## Official Certification
 
@@ -84,9 +72,8 @@ See the page on [open62541 Features](FEATURES.md) for an in-depth look at the su
   
 ## Documentation and Support
 
-A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org/doc/current.
+A general introduction to OPC UA and the open62541 documentation can be found at http://open62541.org.
 Past releases of the library can be downloaded at https://github.com/open62541/open62541/releases.
-To use the latest improvements, download a nightly build of the *single-file distribution* (the entire library merged into a single source and header file) from http://open62541.org/releases. Nightly builds of MSVC binaries of the library are available [here](https://ci.appveyor.com/project/open62541/open62541/build/artifacts).
 
 The overall open62541 community handles public support requests on Github and the mailing list.
 For individual discussion and support, use the following channels:
