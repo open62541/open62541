@@ -326,8 +326,7 @@ UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server,
                                 UA_DataSetWriter *dataSetWriter,
-                                UA_PubSubState state,
-                                UA_StatusCode cause);
+                                UA_PubSubState state);
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,

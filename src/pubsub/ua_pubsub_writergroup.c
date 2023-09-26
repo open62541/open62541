@@ -773,8 +773,7 @@ UA_WriterGroup_setPubSubState_disable(UA_Server *server,
             UA_WriterGroup_removePublishCallback(server, writerGroup);
 
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED,
-                                                UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+                UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_DISABLED);
             }
             break;
         default:
@@ -809,7 +808,7 @@ UA_WriterGroup_setPubSubState_operational(UA_Server *server,
         UA_WriterGroup_removePublishCallback(server, writerGroup);
         LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry) {
             UA_DataSetWriter_setPubSubState(server, dataSetWriter,
-                                            UA_PUBSUBSTATE_PREOPERATIONAL, cause);
+                                            UA_PUBSUBSTATE_OPERATIONAL);
         }
 
         UA_WriterGroup_addPublishCallback(server, writerGroup);
@@ -870,8 +869,7 @@ UA_WriterGroup_setPubSubState_error(UA_Server *server,
             UA_WriterGroup_removePublishCallback(server, writerGroup);
 
             LIST_FOREACH(dataSetWriter, &writerGroup->writers, listEntry){
-                UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR,
-                                                UA_STATUSCODE_GOOD);
+                UA_DataSetWriter_setPubSubState(server, dataSetWriter, UA_PUBSUBSTATE_ERROR);
             }
             break;
          default:
@@ -1396,8 +1394,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(!heartbeat && !pds) {
             UA_LOG_ERROR_WRITER(&server->config.logger, dsw,
                                 "PubSub Publish: PublishedDataSet not found");
-            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR,
-                                            UA_STATUSCODE_BADINTERNALERROR);
+            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
             continue;
         }
 
@@ -1408,7 +1405,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_WRITER(&server->config.logger, dsw,
                          "PubSub Publish: DataSetMessage creation failed");
-            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR, res);
+            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
             continue;
         }
 
