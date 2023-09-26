@@ -136,7 +136,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     newDataSetReader->linkedReaderGroup = readerGroup->identifier;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    retVal = addDataSetReaderRepresentation(server, newDataSetReader);
+    UA_StatusCode retVal = addDataSetReaderRepresentation(server, newDataSetReader);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, readerGroup,
                                  "Add DataSetReader failed, addDataSetReaderRepresentation failed");
