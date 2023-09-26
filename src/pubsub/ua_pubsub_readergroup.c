@@ -388,7 +388,7 @@ UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
 }
 
 UA_StatusCode
-UA_Server_setReaderGroupDisabled(UA_Server *server, const UA_NodeId readerGroupId){
+UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
