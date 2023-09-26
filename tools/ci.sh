@@ -22,7 +22,8 @@ fi
 
 function cpplint {
     mkdir -p build; cd build; rm -rf *
-    cmake ..
+    cmake -DUA_FORCE_WERROR=ON \
+          ..
     make ${MAKEOPTS} cpplint
 }
 
@@ -34,6 +35,7 @@ function build_docs {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make doc
 }
@@ -46,6 +48,7 @@ function build_docs_pdf {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make doc doc_pdf
 }
@@ -62,6 +65,7 @@ function build_tpm_tool {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -77,6 +81,7 @@ function build_release {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -97,6 +102,7 @@ function build_amalgamation {
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -113,6 +119,7 @@ function build_amalgamation_mt {
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=100 \
           ..
     make ${MAKEOPTS}
@@ -143,6 +150,7 @@ function unit_tests {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -163,6 +171,7 @@ function unit_tests_32 {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_32BIT=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
           #-DUA_ENABLE_PUBSUB_ETH_UADP=ON \ # TODO: Enable this
     make ${MAKEOPTS}
@@ -177,6 +186,7 @@ function unit_tests_nosub {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_HISTORIZING=OFF \
           -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -198,6 +208,7 @@ function unit_tests_diag {
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -212,6 +223,7 @@ function unit_tests_mt {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -227,7 +239,8 @@ function unit_tests_alarms {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-	      -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+              -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
@@ -242,6 +255,7 @@ function unit_tests_encryption {
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -260,6 +274,7 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -280,6 +295,7 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
@@ -307,6 +323,7 @@ function unit_tests_with_coverage {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -333,6 +350,7 @@ function unit_tests_valgrind {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
@@ -371,6 +389,7 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 
@@ -402,6 +421,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     scan-build-11 --status-bugs make ${MAKEOPTS}
 }
@@ -415,6 +435,7 @@ function build_all_companion_specs {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_FORCE_WERROR=ON \
           -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;ISA95-JOBCONTROL\;OpenSCS\;DEXPI\;AMB\;AutoID\;POWERLINK\;IA\;Machinery\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
