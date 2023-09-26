@@ -814,11 +814,9 @@ addPubSubConnectionLocked(UA_Server *server,
             continue;
         if(pubSubConnection->enabled) {
             UA_ReaderGroup_freezeConfiguration(server, rg);
-            UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL,
-                                          UA_STATUSCODE_GOOD);
+            UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
-            UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED,
-                                          UA_STATUSCODE_BADINTERNALERROR);
+            UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED);
         }
     }
 
