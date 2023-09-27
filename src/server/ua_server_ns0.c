@@ -1023,7 +1023,7 @@ initNS0(UA_Server *server) {
     UA_String profileArray[3];
     UA_UInt16 profileArraySize = 0;
 #define ADDPROFILEARRAY(x) profileArray[profileArraySize++] = UA_STRING(x)
-    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/MicroEmbeddedDevice");
+    ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/StandardUA2017");
 #ifdef UA_ENABLE_NODEMANAGEMENT
     ADDPROFILEARRAY("http://opcfoundation.org/UA-Profile/Server/NodeManagement");
 #endif
