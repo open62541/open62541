@@ -222,7 +222,21 @@ addEndpoint(UA_ServerConfig *conf,
     endpoint->transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
     endpoint->securityMode = securityMode;
-    endpoint->securityLevel = (UA_Byte)securityMode;
+
+    /* A numeric value that indicates how secure the EndpointDescription is compared to other EndpointDescriptions
+     * for the same Server. A value of 0 indicates that the EndpointDescription is not recommended and is only
+     * supported for backward compatibility. A higher value indicates better security. */
+    UA_String noneuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    UA_String basic128uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+    UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+    if(UA_String_equal(&securityPolicy->policyUri, &noneuri) ||
+       UA_String_equal(&securityPolicy->policyUri, &basic128uri) ||
+       UA_String_equal(&securityPolicy->policyUri, &basic256uri)) {
+        endpoint->securityLevel = 0;
+    } else {
+        endpoint->securityLevel = 1;
+    }
+
     UA_StatusCode retval = UA_String_copy(&securityPolicy->policyUri,
                                           &endpoint->securityPolicyUri);
 
