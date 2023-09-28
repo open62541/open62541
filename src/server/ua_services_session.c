@@ -460,9 +460,13 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         }
 
         /* Match the UserTokenType */
+        UA_String noneuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
         const UA_DataType *tokenDataType = identityToken->content.decoded.type;
         for(size_t j = 0; j < identPoliciesSize ; j++) {
             const UA_UserTokenPolicy *pol = &identPolicies[j];
+
+            if(!UA_String_equal(&desc->securityPolicyUri, &noneuri) && !UA_String_equal(&desc->securityPolicyUri, &pol->securityPolicyUri))
+                continue;
 
             /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
              * UserIdentityToken should be treated as Anonymous */

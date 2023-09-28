@@ -1458,8 +1458,7 @@ int main(int argc, char **argv) {
         config->verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
     /* Instatiate a new AccessControl plugin that knows username/pw */
-    UA_String aes128Sha256RsaOaep = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
-    UA_AccessControl_default(config, enableAnonymous, &aes128Sha256RsaOaep,
+    UA_AccessControl_default(config, enableAnonymous, NULL,
                              usernamePasswordsSize, usernamePasswords);
 
     /* Override with a custom access control policy */
