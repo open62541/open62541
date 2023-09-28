@@ -321,16 +321,20 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
     if(ed->userIdentityTokensSize > 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Copy the UserTokenPolicies from the AccessControl plugin
+    /* Copy the UserTokenPolicies from the AccessControl plugin, but only the matching ones to the securityPolicyUri.
      * TODO: Different instances of the AccessControl plugin per Endpoint */
-    UA_StatusCode res =
-        UA_Array_copy(server->config.accessControl.userTokenPolicies,
-                      server->config.accessControl.userTokenPoliciesSize,
-                      (void **)&ed->userIdentityTokens,
-                      &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    ed->userIdentityTokensSize = server->config.accessControl.userTokenPoliciesSize;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < server->config.accessControl.userTokenPoliciesSize; i++) {
+        UA_UserTokenPolicy *utp = &server->config.accessControl.userTokenPolicies[i];
+        if(UA_String_equal(&ed->securityPolicyUri, &utp->securityPolicyUri)) {
+             res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
+                                &ed->userIdentityTokensSize,
+                                utp,
+                                &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+            if(res != UA_STATUSCODE_GOOD)
+                return res;
+        }
+    }
 
     for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
         /* Use the securityPolicy of the SecureChannel. But not if the

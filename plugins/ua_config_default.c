@@ -657,8 +657,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     }
 
     /* Initialize the Access Control plugin */
-    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
-    retval = UA_AccessControl_default(config, true, &sp->policyUri, 0, NULL);
+    retval = UA_AccessControl_default(config, true, NULL, 0, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
@@ -976,8 +975,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_SecurityPolicy *sp = &conf->securityPolicies[conf->securityPoliciesSize-1];
-        retval = UA_AccessControl_default(conf, true, &sp->policyUri, 0, NULL);
+        retval = UA_AccessControl_default(conf, true, NULL, 0, NULL);
     }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
@@ -1027,8 +1025,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
     retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
 
     if(retval == UA_STATUSCODE_GOOD) {
-        UA_SecurityPolicy *sp = &conf->securityPolicies[conf->securityPoliciesSize-1];
-        retval = UA_AccessControl_default(conf, false, &sp->policyUri, 0, NULL);
+        retval = UA_AccessControl_default(conf, false, NULL, 0, NULL);
     }
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(conf);
