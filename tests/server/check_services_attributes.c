@@ -511,6 +511,20 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(ReadSingleAttributeAccessLevelExWithoutTimestamp) {
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_ACCESSLEVELEX;
+
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert_uint_eq(0, resp.value.arrayLength);
+    ck_assert(&UA_TYPES[UA_TYPES_UINT32] == resp.value.type);
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 START_TEST(ReadSingleAttributeUserAccessLevelWithoutTimestamp) {
     UA_ReadValueId rvi;
     UA_ReadValueId_init(&rvi);
@@ -948,6 +962,18 @@ START_TEST(WriteSingleAttributeAccessLevel) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
+START_TEST(WriteSingleAttributeAccessLevelEx) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Byte testValue = 0;
+    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
+    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_ACCESSLEVELEX;
+    wValue.value.hasValue = true;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
 START_TEST(WriteSingleAttributeMinimumSamplingInterval) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -1114,6 +1140,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeValueRankWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeArrayDimensionsWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeAccessLevelWithoutTimestamp);
+    tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeAccessLevelExWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeUserAccessLevelWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeMinimumSamplingIntervalWithoutTimestamp);
     tcase_add_test(tc_readSingleAttributes, ReadSingleAttributeHistorizingWithoutTimestamp);
@@ -1149,6 +1176,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRank);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeArrayDimensions);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevel);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeAccessLevelEx);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeMinimumSamplingInterval);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeHistorizing);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeExecutable);
