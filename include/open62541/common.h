@@ -106,6 +106,7 @@ typedef enum {
 #define UA_WRITEMASK_VALUERANK               (0x01u << 19u)
 #define UA_WRITEMASK_WRITEMASK               (0x01u << 20u)
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01u << 21u)
+#define UA_WRITEMASK_ACCESSLEVELEX           (0x01u << 25u)
 
 /**
  * .. _valuerank-defines:

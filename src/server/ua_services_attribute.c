@@ -522,6 +522,16 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         retval = UA_Variant_setScalarCopy(&v->value, &node->variableNode.accessLevel,
                                           &UA_TYPES[UA_TYPES_BYTE]);
         break;
+    case UA_ATTRIBUTEID_ACCESSLEVELEX:
+        CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
+        /* The normal AccessLevelEx contains the lowest 8 bits from the normal AccessLevel.
+         * In our case, all other bits are zero. */
+        const UA_Byte accessLevel = *((const UA_Byte*)(&node->variableNode.accessLevel));
+        UA_UInt32 accessLevelEx = accessLevel & 0xFF;
+        retval = UA_Variant_setScalarCopy(&v->value, &accessLevelEx,
+                                          &UA_TYPES[UA_TYPES_UINT32]);
+
+        break;
     case UA_ATTRIBUTEID_USERACCESSLEVEL: {
         CHECK_NODECLASS(UA_NODECLASS_VARIABLE);
         UA_Byte userAccessLevel = getUserAccessLevel(server, session, &node->variableNode);
@@ -581,9 +591,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
-    case UA_ATTRIBUTEID_ACCESSLEVELEX:
         /* TODO: Add support for the attributes from the 1.04 spec */
-        retval = UA_STATUSCODE_BADNOTSUPPORTED;
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
 
     default:
@@ -1790,6 +1799,12 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
         CHECK_USERWRITEMASK(UA_WRITEMASK_ACCESSLEVEL);
         CHECK_DATATYPE_SCALAR(BYTE);
         node->variableNode.accessLevel = *(const UA_Byte*)value;
+        break;
+    case UA_ATTRIBUTEID_ACCESSLEVELEX:
+        CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
+        CHECK_USERWRITEMASK(UA_WRITEMASK_ACCESSLEVELEX);
+        CHECK_DATATYPE_SCALAR(UINT32);
+        node->variableNode.accessLevel = (UA_Byte)(*(const UA_UInt32*)value & 0xFF);
         break;
     case UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL:
         CHECK_NODECLASS_WRITE(UA_NODECLASS_VARIABLE);
