@@ -257,6 +257,16 @@ UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId node
                                          UA_ClientAsyncReadAccessLevelAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
 
+/* Read a single AccessLevelEx attribute */
+typedef void
+(*UA_ClientAsyncReadAccessLevelExAttributeCallback)(UA_Client *client, void *userdata,
+                                                    UA_UInt32 requestId, UA_StatusCode status,
+                                                    UA_UInt32 *accessLevelEx);
+UA_StatusCode UA_EXPORT
+UA_Client_readAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_ClientAsyncReadAccessLevelExAttributeCallback callback,
+                                           void *userdata, UA_UInt32 *requestId);
+
 /* Read a single UserAccessLevel attribute */
 typedef void
 (*UA_ClientAsyncReadUserAccessLevelAttributeCallback)(UA_Client *client, void *userdata,
@@ -462,6 +472,15 @@ UA_Client_writeAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nod
                                           void *userdata, UA_UInt32 *reqId) {
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                             outAccessLevel, &UA_TYPES[UA_TYPES_BYTE],
+                                            callback, userdata, reqId);
+}
+static UA_INLINE UA_StatusCode
+UA_Client_writeAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                            const UA_UInt32 *outAccessLevelEx,
+                                            UA_ClientAsyncServiceCallback callback,
+                                            void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                            outAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
 }
 static UA_INLINE UA_StatusCode

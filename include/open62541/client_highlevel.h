@@ -171,6 +171,13 @@ UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
 }
 
 static UA_INLINE UA_StatusCode
+UA_Client_readAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                     UA_UInt32 *outAccessLevelEx) {
+    return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                     outAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32]);
+}
+
+static UA_INLINE UA_StatusCode
 UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        UA_Byte *outUserAccessLevel) {
     return __UA_Client_readAttribute(client, &nodeId,
@@ -404,6 +411,13 @@ UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
                                     const UA_Byte *newAccessLevel) {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                       newAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+static UA_INLINE UA_StatusCode
+UA_Client_writeAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                      UA_UInt32 *newAccessLevelEx) {
+    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                      newAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32]);
 }
 
 static UA_INLINE UA_StatusCode
