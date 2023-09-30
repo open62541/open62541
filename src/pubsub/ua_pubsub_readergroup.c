@@ -302,6 +302,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
+        UA_ReaderGroup_disconnect(rg);
+        rg->hasReceived = false;
         break;
 
         /* Enabled */
@@ -312,26 +314,23 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
            connection->state == UA_PUBSUBSTATE_ERROR) {
             rg->state = UA_PUBSUBSTATE_PAUSED; /* Connection is disabled -> paused */
         } else {
-            rg->state = connection->state;     /* Connection is enabled -> same state */
+            /* Pre-operational until a message was received */
+            rg->state = connection->state;
+            if(rg->state == UA_PUBSUBSTATE_OPERATIONAL && !rg->hasReceived)
+                rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
+            /* Connect RG-specific connections. For example for MQTT. */
+            ret = UA_ReaderGroup_connect(server, rg);
+            if(ret != UA_STATUSCODE_GOOD)
+                rg->state = UA_PUBSUBSTATE_ERROR;
         }
         break;
 
     default:
         rg->state = UA_PUBSUBSTATE_ERROR;
         ret = UA_STATUSCODE_BADINTERNALERROR;
-        break;
-    }
-
-    /* Connect RG-specific connections. For example for MQTT. If we open a
-     * connection async, the state is reset to PreOperational until the
-     * connection is fully open. */
-    if(rg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        ret = UA_ReaderGroup_connect(server, rg);
-        if(ret != UA_STATUSCODE_GOOD)
-            rg->state = UA_PUBSUBSTATE_ERROR;
-    } else {
         UA_ReaderGroup_disconnect(rg);
+        break;
     }
 
     /* Inform application about state change */
@@ -607,55 +606,57 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
     return res;
 }
 
-static void
-processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
-                         UA_DataSetReader *reader, UA_NetworkMessage *msg) {
-    UA_Byte totalDataSets = 1;
-    if(msg->payloadHeaderEnabled)
-        totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
-
-    for(UA_Byte i = 0; i < totalDataSets; i++) {
-        /* Map dataset reader to dataset message since multiple dataset reader
-         * may read this network message. Otherwise the dataset message may be
-         * written to the wrong dataset reader. */
-        if(!msg->payloadHeaderEnabled ||
-           (reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i])) {
-            UA_LOG_DEBUG_READER(&server->config.logger, reader,
-                                "Process Msg with DataSetReader!");
-            UA_DataSetReader_process(server, readerGroup, reader,
-                                     &msg->payload.dataSetPayload.dataSetMessages[i]);
-        }
-    }
-}
-
 UA_Boolean
 UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
                        UA_NetworkMessage *nm) {
-    UA_Boolean processed = false;
-    UA_DataSetReader *reader;
+    /* Check if the ReaderGroup is enabled */
+    if(readerGroup->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        return false;
 
-    /* Received a (first) message for the ReaderGroup.
-     * Transition from PreOperational to Operational. */
-    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
-                                                     readerGroup->state, UA_STATUSCODE_GOOD);
-        }
-    }
-    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-        UA_StatusCode res =
-            UA_DataSetReader_checkIdentifier(server, nm, reader, readerGroup->config);
+    /* Safe iteration. The current Reader might be deleted in the ReaderGroup
+     * _setPubSubState callback. */
+    UA_Boolean processed = false;
+    UA_DataSetReader *reader, *reader_tmp;
+    LIST_FOREACH_SAFE(reader, &readerGroup->readers, listEntry, reader_tmp) {
+        UA_StatusCode res = UA_DataSetReader_checkIdentifier(server, nm, reader,
+                                                             readerGroup->config);
         if(res != UA_STATUSCODE_GOOD)
             continue;
+
+        /* Check if the reader is enabled */
+        if(reader->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           reader->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+
+        /* Update the ReaderGroup state if this is the first received message */
+        if(!readerGroup->hasReceived) {
+            readerGroup->hasReceived = true;
+            UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+        }
+
+        /* The message was processed by at least one reader */
         processed = true;
-        readerGroup->hasReceived = true;
-        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
-        processMessageWithReader(server, readerGroup, reader, nm);
+
+        /* No payload header. The message ontains a single DataSetMessage that
+         * is processed by every Reader. */
+        if(!nm->payloadHeaderEnabled) {
+            UA_DataSetReader_process(server, readerGroup, reader,
+                                     nm->payload.dataSetPayload.dataSetMessages);
+            continue;
+        }
+
+        /* Process only the payloads where the WriterId from the header is expected */
+        UA_DataSetPayloadHeader *ph = &nm->payloadHeader.dataSetPayloadHeader;
+        for(UA_Byte i = 0; i < ph->count; i++) {
+            if(reader->config.dataSetWriterId == ph->dataSetWriterIds[i]) {
+                UA_DataSetReader_process(server, readerGroup, reader,
+                                         &nm->payload.dataSetPayload.dataSetMessages[i]);
+            }
+        }
     }
+
     return processed;
 }
-
 
 #endif /* UA_ENABLE_PUBSUB */
