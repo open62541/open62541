@@ -643,6 +643,7 @@ struct UA_ReaderGroup {
 
     UA_PubSubState state;
     UA_Boolean configurationFrozen;
+    UA_Boolean hasReceived; /* Received a message since the last _connect */
 
     /* The ConnectionManager pointer is stored in the Connection. The channels 
      * are either stored here or in the Connection, but never both. */
