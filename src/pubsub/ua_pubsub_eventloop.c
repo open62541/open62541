@@ -193,8 +193,6 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    
-
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
