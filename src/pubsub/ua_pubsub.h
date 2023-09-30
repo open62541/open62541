@@ -433,6 +433,9 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg);
 UA_StatusCode
 UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg);
 
+UA_Boolean
+UA_WriterGroup_canConnect(UA_WriterGroup *wg);
+
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              UA_UInt32 securityTokenId,
@@ -456,8 +459,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
-                              UA_PubSubState state,
-                              UA_StatusCode cause);
+                              UA_PubSubState targetState);
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 

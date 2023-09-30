@@ -287,7 +287,8 @@ UA_DataSetWriter_create(UA_Server *server,
 #endif
 
     /* Enable, depending on the state of the WriterGroup */
-    UA_DataSetWriter_setPubSubState(server, newDataSetWriter, wg->state);
+    UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
+                                    UA_PUBSUBSTATE_OPERATIONAL);
 
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
