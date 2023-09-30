@@ -346,7 +346,7 @@ createWriterGroup(UA_Server *server,
     res = UA_WriterGroup_create(server, connectionIdent, &config, &writerGroupIdent);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
     if(wg)
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createWriterGroup] "

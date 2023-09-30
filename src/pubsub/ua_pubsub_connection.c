@@ -229,8 +229,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
     UA_WriterGroup *writerGroup, *tmpWriterGroup;
     LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED);
         UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
         UA_WriterGroup_remove(server, writerGroup);
     }
@@ -310,8 +309,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                 UA_ReaderGroup_setPubSubState(server, readerGroup, state);
             }
             LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-                UA_WriterGroup_setPubSubState(server, writerGroup, state,
-                                              UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+                UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
             }
             break;
 

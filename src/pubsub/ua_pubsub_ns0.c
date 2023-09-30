@@ -776,11 +776,9 @@ addPubSubConnectionLocked(UA_Server *server,
             continue;
         if(pubSubConnection->enabled) {
             UA_WriterGroup_freezeConfiguration(server, wg);
-            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_PREOPERATIONAL,
-                                          UA_STATUSCODE_GOOD);
+            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
-            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED,
-                                          UA_STATUSCODE_BADINTERNALERROR);
+            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
         }
     }
 

@@ -554,9 +554,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     wg->sendChannel = connectionId;
 
     /* Connection open, set to operational if not already done */
-    if(wg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
-                                      UA_STATUSCODE_GOOD);
+    UA_WriterGroup_setPubSubState(server, wg, wg->state);
     
     /* Send-channels don't receive messages */
     UA_UNLOCK(&server->serviceMutex);
@@ -710,25 +708,14 @@ UA_StatusCode
 UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Already connected */
-    if(wg->sendChannel != 0)
+    /* Check if already connected or no WG TransportSettings */
+    if(!UA_WriterGroup_canConnect(wg))
         return UA_STATUSCODE_GOOD;
-
-    /* Is this a WriterGroup with custom TransportSettings beyond the
-     * PubSubConnection? */
-    if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
-    {
-        if(wg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-            UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL, UA_STATUSCODE_GOOD);
-        return UA_STATUSCODE_GOOD;
-    }
-        
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg, "No EventLoop configured");
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -753,21 +740,8 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
     c->json = profile->json;
 
     /* Connect */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectWriterGroup)
-        res = profile->connectWriterGroup(server, wg);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR, res);
-        return res;
-    }
-
-    /* Set to preoperational. Set the state "manually" to avoid recursion. Also
-     * this is the only place to set pre-operational for PubSubConnections. The
-     * state will be set to operational in the network callback when the
-     * connection has fully opened. */
-    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
-        wg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
+        return profile->connectWriterGroup(server, wg);
     return UA_STATUSCODE_GOOD;
 }
 
