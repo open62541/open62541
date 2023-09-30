@@ -22,12 +22,12 @@
 
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
-            if(UA_NodeId_equal(&identifier, &readerGroup->identifier))
-                return readerGroup;
+    UA_ReaderGroup *rg;
+    UA_PubSubConnection *psc;
+    TAILQ_FOREACH(psc, &server->pubSubManager.connections, listEntry) {
+        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
+            if(UA_NodeId_equal(&identifier, &rg->identifier))
+                return rg;
         }
     }
     return NULL;
@@ -35,12 +35,12 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
 
 UA_DataSetReader *
 UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        UA_ReaderGroup* readerGroup = NULL;
-        LIST_FOREACH(readerGroup, &pubSubConnection->readerGroups, listEntry) {
-            UA_DataSetReader *tmpReader;
-            LIST_FOREACH(tmpReader, &readerGroup->readers, listEntry) {
+    UA_ReaderGroup *rg;
+    UA_PubSubConnection *psc;
+    UA_DataSetReader *tmpReader;
+    TAILQ_FOREACH(psc, &server->pubSubManager.connections, listEntry) {
+        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
+            LIST_FOREACH(tmpReader, &rg->readers, listEntry) {
                 if(UA_NodeId_equal(&tmpReader->identifier, &identifier))
                     return tmpReader;
             }
@@ -237,13 +237,10 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
 UA_StatusCode
 UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_ReaderGroup* readerGroup =
-        UA_ReaderGroup_findRGbyId(server, groupIdentifier);
-    if(!readerGroup) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_StatusCode res = UA_ReaderGroup_remove(server, readerGroup);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, groupIdentifier);
+    if(rg)
+        res = UA_ReaderGroup_remove(server, rg);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -278,8 +275,7 @@ UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifie
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-    UA_ReaderGroup *rg =
-        UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(rg) {
         *state = rg->state;
         ret = UA_STATUSCODE_GOOD;
@@ -300,6 +296,10 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
 
     switch(rg->state) {
         /* Disabled */
+    default:
+        rg->state = UA_PUBSUBSTATE_ERROR;
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        /* fallthrough */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         UA_ReaderGroup_disconnect(rg);
@@ -312,7 +312,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_OPERATIONAL:
         if(connection->state == UA_PUBSUBSTATE_DISABLED ||
            connection->state == UA_PUBSUBSTATE_ERROR) {
-            rg->state = UA_PUBSUBSTATE_PAUSED; /* Connection is disabled -> paused */
+            /* Connection is disabled -> paused */
+            rg->state = UA_PUBSUBSTATE_PAUSED;
         } else {
             /* Pre-operational until a message was received */
             rg->state = connection->state;
@@ -324,12 +325,6 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
             if(ret != UA_STATUSCODE_GOOD)
                 rg->state = UA_PUBSUBSTATE_ERROR;
         }
-        break;
-
-    default:
-        rg->state = UA_PUBSUBSTATE_ERROR;
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        UA_ReaderGroup_disconnect(rg);
         break;
     }
 
@@ -359,7 +354,6 @@ UA_Server_setReaderGroupActivateKey(UA_Server *server,
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
     if(rg) {
-
         if(rg->keyStorage && rg->keyStorage->currentItem) {
             UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
                 server, rg->identifier, rg->config.securityGroupId);
@@ -368,7 +362,6 @@ UA_Server_setReaderGroupActivateKey(UA_Server *server,
                 return retval;
             }
         }
-
     }
     UA_UNLOCK(&server->serviceMutex);
     return ret;
@@ -561,12 +554,10 @@ UA_StatusCode
 UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
                                          const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_StatusCode res = UA_ReaderGroup_freezeConfiguration(server, rg);
+    if(rg)
+        res = UA_ReaderGroup_freezeConfiguration(server, rg);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -596,12 +587,10 @@ UA_StatusCode
 UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
                                            const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(!rg) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_StatusCode res = UA_ReaderGroup_unfreezeConfiguration(server, rg);
+    if(rg)
+        res = UA_ReaderGroup_unfreezeConfiguration(server, rg);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
