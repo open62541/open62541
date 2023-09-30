@@ -1066,54 +1066,6 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
-static void
-processMessageWithReader(UA_Server *server, UA_ReaderGroup *readerGroup,
-                         UA_DataSetReader *reader, UA_NetworkMessage *msg) {
-    UA_Byte totalDataSets = 1;
-    if(msg->payloadHeaderEnabled)
-        totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
-
-    for(UA_Byte i = 0; i < totalDataSets; i++) {
-        /* Map dataset reader to dataset message since multiple dataset reader
-         * may read this network message. Otherwise the dataset message may be
-         * written to the wrong dataset reader. */
-        if(!msg->payloadHeaderEnabled ||
-           (reader->config.dataSetWriterId == msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i])) {
-            UA_LOG_DEBUG_READER(&server->config.logger, reader,
-                                "Process Msg with DataSetReader!");
-            UA_DataSetReader_process(server, readerGroup, reader,
-                                     &msg->payload.dataSetPayload.dataSetMessages[i]);
-        }
-    }
-}
-
-UA_Boolean
-UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
-                       UA_NetworkMessage *nm) {
-    UA_Boolean processed = false;
-    UA_DataSetReader *reader;
-
-    /* Received a (first) message for the ReaderGroup.
-     * Transition from PreOperational to Operational. */
-    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
-                                                     readerGroup->state, UA_STATUSCODE_GOOD);
-        }
-    }
-    LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-        UA_StatusCode res =
-            UA_DataSetReader_checkIdentifier(server, nm, reader, readerGroup->config);
-        if(res != UA_STATUSCODE_GOOD)
-            continue;
-        processed = true;
-        processMessageWithReader(server, readerGroup, reader, nm);
-    }
-    return processed;
-}
-
 /********************************************************************************
  * Functionality related to decoding, decrypting and processing network messages
  * as a subscriber
