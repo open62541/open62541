@@ -19,6 +19,8 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "open62541/client.h"
+#include "open62541/client_config_default.h"
 
 #define MAX_OPERATION_LIMIT 10000
 
@@ -33,6 +35,8 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
+static UA_Client *ldsClientRegister;
+static UA_UInt64 ldsCallbackId;
 
 /* Custom AccessControl policy that disallows access to one specific node */
 static UA_Byte
@@ -849,6 +853,25 @@ setInformationModel(UA_Server *server) {
 #endif
 }
 
+#ifdef UA_ENABLE_DISCOVERY
+static void configureLdsRegistration(UA_Server *server){
+    ldsClientRegister = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(ldsClientRegister));
+
+    // periodic server register after 1 Minutes, delay first register for 500ms
+    UA_StatusCode retval =
+        UA_Server_addPeriodicServerRegisterCallback(server, ldsClientRegister, "opc.tcp://localhost:4840",
+                                                    60 * 1000, 500, &ldsCallbackId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create periodic job for server register. StatusCode %s",
+                     UA_StatusCode_name(retval));
+        UA_Client_disconnect(ldsClientRegister);
+        UA_Client_delete(ldsClientRegister);
+    }
+}
+#endif
+
 static void
 disableAnonymous(UA_ServerConfig *config) {
     for(size_t i = 0; i < config->endpointsSize; i++) {
@@ -1304,7 +1327,7 @@ int main(int argc, char **argv) {
 
     /* Load PKI */
 #ifdef UA_ENABLE_ENCRYPTION
-    res = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+    res = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4841,
                                                          &certificate, &privateKey,
                                                          NULL, 0, NULL, 0, NULL, 0);
     if(res != UA_STATUSCODE_GOOD)
@@ -1352,7 +1375,7 @@ int main(int argc, char **argv) {
         disableBasic256Sha256SecurityPolicy(config);
 
 #else /* UA_ENABLE_ENCRYPTION */
-    res = UA_ServerConfig_setMinimal(config, 4840, &certificate);
+    res = UA_ServerConfig_setMinimal(config, 4841, &certificate);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* UA_ENABLE_ENCRYPTION */
@@ -1408,11 +1431,20 @@ int main(int argc, char **argv) {
 
     setInformationModel(server);
 
+#ifdef UA_ENABLE_DISCOVERY
+
+    configureLdsRegistration(server);
+
+#endif
 
     /* run server */
     res = UA_Server_runUntilInterrupt(server);
 
  cleanup:
+    UA_Server_removeCallback(server, ldsCallbackId);
+    UA_Server_unregister_discovery(server, ldsClientRegister);
+    UA_Client_disconnect(ldsClientRegister);
+    UA_Client_delete(ldsClientRegister);
     UA_Server_delete(server);
 
     UA_ByteString_clear(&certificate);
