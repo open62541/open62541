@@ -183,9 +183,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Connection open, set to operational if not already done */
-    if(psc->state != UA_PUBSUBSTATE_OPERATIONAL)
-        UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD); 
+    UA_PubSubConnection_setPubSubState(server, psc, psc->state, UA_STATUSCODE_GOOD);
 
     /* No message received */
     if(!recv || msg.length == 0) {
