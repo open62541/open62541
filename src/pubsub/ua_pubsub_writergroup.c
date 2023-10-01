@@ -53,8 +53,6 @@ UA_WriterGroup_canConnect(UA_WriterGroup *wg) {
     return true;
 }
 
-/* Add new publishCallback. The first execution is triggered directly after
- * creation. */
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -66,7 +64,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wg->config.pubsubManagerCallback.addCustomCallback) {
         /* Use configured mechanism for cyclic callbacks */
-        wg->config.pubsubManagerCallback.
+        retval = wg->config.pubsubManagerCallback.
             addCustomCallback(server, wg->identifier,
                               (UA_ServerCallback)UA_WriterGroup_publishCallback,
                               wg, wg->config.publishingInterval,
@@ -81,14 +79,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
                                        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                                        &wg->publishCallbackId);
     }
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
 
-    /* Run once after creation. The Publish callback itself takes the server
-     * mutex. So we release it first. */
-    UA_UNLOCK(&server->serviceMutex);
-    UA_WriterGroup_publishCallback(server, wg);
-    UA_LOCK(&server->serviceMutex);
     return retval;
 }
 
