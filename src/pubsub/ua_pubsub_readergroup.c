@@ -332,8 +332,10 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     if(rg->state != oldState) {
         UA_ServerConfig *pConfig = &server->config;
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
+            UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
                 stateChangeCallback(server, &rg->identifier, rg->state, ret);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 
