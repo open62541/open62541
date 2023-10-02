@@ -342,10 +342,8 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 
-    if (UA_ENABLE_PUBSUB_MONITORING)
-        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION) #ToDO: Multiple Receive handling for PubsubEncryption
-            ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
-        endif()
+    if(UA_ENABLE_PUBSUB_MONITORING)
+       ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
     endif()
 
     if(UA_ENABLE_PUBSUB_ETH_UADP)
