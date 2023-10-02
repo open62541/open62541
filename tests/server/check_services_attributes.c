@@ -965,7 +965,7 @@ START_TEST(WriteSingleAttributeAccessLevel) {
 START_TEST(WriteSingleAttributeAccessLevelEx) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_Byte testValue = 0;
+    UA_UInt32 testValue = 0;
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_UINT32]);
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_ACCESSLEVELEX;
