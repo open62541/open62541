@@ -508,11 +508,13 @@ UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCo
 
 static void
 monitoringReceiveTimeoutOnce(UA_Server *server, void *data) {
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetReader *reader = (UA_DataSetReader*)data;
     reader->msgRcvTimeoutTimerCallback(server, reader);
     UA_EventLoop *el = server->config.eventLoop;
     el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
     reader->msgRcvTimeoutTimerId = 0;
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static UA_StatusCode

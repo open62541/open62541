@@ -167,8 +167,10 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
     if(dsw->state != oldState) {
         UA_ServerConfig *config = &server->config;
         if(config->pubSubConfig.stateChangeCallback != 0) {
+            UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.
                 stateChangeCallback(server, &dsw->identifier, dsw->state, res);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 
