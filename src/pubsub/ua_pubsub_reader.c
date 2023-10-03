@@ -388,14 +388,16 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
     if(dsr->config.messageReceiveTimeout != config->messageReceiveTimeout) {
         /* Update message receive timeout timer interval */
         dsr->config.messageReceiveTimeout = config->messageReceiveTimeout;
-        res = server->config.pubSubConfig.monitoringInterface.
-            updateMonitoringInterval(server, dsr->identifier,
-                                     UA_PUBSUB_COMPONENT_DATASETREADER,
-                                     UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-                                     dsr);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_READER(&server->config.logger, dsr,
-                                "Update DataSetReader message receive timeout timer failed.");
+        if(dsr->msgRcvTimeoutTimerId != 0) {
+            res = server->config.pubSubConfig.monitoringInterface.
+                updateMonitoringInterval(server, dsr->identifier,
+                                         UA_PUBSUB_COMPONENT_DATASETREADER,
+                                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
+                                         dsr);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR_READER(&server->config.logger, dsr,
+                                    "Update DataSetReader message receive timeout timer failed.");
+            }
         }
     }
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
@@ -1055,6 +1057,11 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
                             "input param is not of type DataSetReader");
         return;
     }
+
+    /* Don't signal an error if we don't expect messages to arrive */
+    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        return;
 
     UA_LOG_DEBUG_READER(&server->config.logger, dsr,
                         "UA_DataSetReader_handleMessageReceiveTimeout(): "
