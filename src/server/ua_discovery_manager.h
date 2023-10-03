@@ -77,9 +77,7 @@ struct UA_DiscoveryManager {
 
     UA_UInt64 discoveryCallbackId;
 
-    /* Taken from the server config during startup */
-    UA_Logger *logging;
-    const UA_ServerConfig *serverConfig;
+    UA_Server *server; /* backpointer */
 
     LIST_HEAD(, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks;
     LIST_HEAD(, registeredServer_list_entry) registeredServers;

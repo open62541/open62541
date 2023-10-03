@@ -82,7 +82,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
         return UA_STATUSCODE_BADALREADYEXISTS;
     }
 
-    UA_LOG_DEBUG(dm->logging, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: Add entry to ServersOnNetwork: %s (%*.s)",
                  fqdnMdnsRecord, (int)serverNameLen, serverName);
 
@@ -106,7 +106,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     dm->serverOnNetworkRecordIdCounter++;
     if(dm->serverOnNetworkRecordIdCounter == 0)
         dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = dm->server->config.eventLoop;
     listEntry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* add to hash */
@@ -144,7 +144,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
         /* todo: malloc may fail: return a statuscode */
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
         if(!adapter_addresses) {
-            UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "GetAdaptersAddresses out of memory");
             adapter_addresses = NULL;
             break;
@@ -166,7 +166,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
         }
 
         /* Unexpected error */
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "GetAdaptersAddresses returned an unexpected error. "
                      "Not setting mDNS A records.");
         UA_free(adapter_addresses);
@@ -183,7 +183,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                                                     const char *fqdnMdnsRecord,
                                                     const char *serverName,
                                                     size_t serverNameLen) {
-    UA_LOG_DEBUG(dm->logging, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Multicast DNS: Remove entry from ServersOnNetwork: %s (%*.s)",
                  fqdnMdnsRecord, (int)serverNameLen, serverName);
 
@@ -260,7 +260,7 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
             if (!entry->pathTmp) {
                 entry->pathTmp = (char*)UA_malloc(pathLen+1);
                 if (!entry->pathTmp) {
-                    UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                    UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                                  "Cannot alloc memory for mDNS srv path");
                     return;
                 }
@@ -320,7 +320,7 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
     /* opc.tcp://[servername]:[port][path] */
     char *newUrl = (char*)UA_malloc(10 + srvNameLen + 8 + 1);
     if (!newUrl) {
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot allocate char for discovery url. Out of memory.");
         return;
     }
@@ -329,7 +329,7 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
                 r->known.srv.name, r->known.srv.port);
 
     entry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
-    UA_LOG_INFO(dm->logging, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Multicast DNS: found server: %.*s",
                 (int)entry->serverOnNetwork.discoveryUrl.length,
                 (char*)entry->serverOnNetwork.discoveryUrl.data);
@@ -379,7 +379,7 @@ mdns_record_received(const struct resource *r, void *data) {
 
     /* Check that the ttl is positive */
     if(r->ttl == 0) {
-        UA_LOG_INFO(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                     "Multicast DNS: remove server (TTL=0): %.*s",
                     (int)entry->serverOnNetwork.discoveryUrl.length,
                     entry->serverOnNetwork.discoveryUrl.data);
@@ -389,7 +389,7 @@ mdns_record_received(const struct resource *r, void *data) {
     }
 
     /* Update lastSeen */
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = dm->server->config.eventLoop;
     entry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* TXT and SRV are already set */
@@ -430,7 +430,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
         if(path[0] == '/') {
             allocPath = (char*)UA_malloc(pathLen+1);
             if(!allocPath) {
-                UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                              "Cannot alloc memory for txt path");
                 return;
             }
@@ -439,7 +439,7 @@ mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain, const ch
         } else {
             allocPath = (char*)UA_malloc(pathLen + 2);
             if(!allocPath) {
-                UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                              "Cannot alloc memory for txt path");
                 return;
             }
@@ -583,7 +583,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     struct ifaddrs *ifaddr;
     struct ifaddrs *ifa;
     if(getifaddrs(&ifaddr) == -1) {
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return;
     }
@@ -617,15 +617,15 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
 void
 mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
                         const char *localDomain) {
-    if(dm->serverConfig->mdnsIpAddressListSize == 0) {
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+    if(dm->server->config.mdnsIpAddressListSize == 0) {
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "If UA_HAS_GETIFADDR is false, config.mdnsIpAddressList must be set");
         return;
     }
 
-    for(size_t i=0; i< dm->serverConfig->mdnsIpAddressListSize; i++) {
+    for(size_t i=0; i< dm->server->config.mdnsIpAddressListSize; i++) {
         mdns_set_address_record_if(dm, fullServiceDomain, localDomain,
-                                   (char*)&dm->serverConfig->mdnsIpAddressList[i], 4);
+                                   (char*)&dm->server->config.mdnsIpAddressList[i], 4);
     }
 }
 
