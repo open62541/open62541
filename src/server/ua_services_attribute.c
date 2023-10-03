@@ -1149,22 +1149,27 @@ void
 adjustValueType(UA_Server *server, UA_Variant *value,
                 const UA_NodeId *targetDataTypeId) {
     /* If the value is empty, there is nothing we can do here */
-    if(!value->type)
+    const UA_DataType *type = value->type;
+    if(!type)
         return;
 
     /* Unwrap ExtensionObject arrays if they all contain the same DataType */
     unwrapEOArray(server, value);
 
-    const UA_DataType *targetDataType = UA_findDataTypeWithCustom(targetDataTypeId, server->config.customDataTypes);
-    if(!targetDataType) {
-        /* Type might not have been found, if it's a non-NS0 type or an abstract type. */
+    /* The target type is already achieved. No adjustment needed. */
+    if(UA_NodeId_equal(&type->typeId, targetDataTypeId))
         return;
-    }
+
+    /* Find the target type */
+    const UA_DataType *targetType =
+        UA_findDataTypeWithCustom(targetDataTypeId, server->config.customDataTypes);
+    if(!targetType)
+        return;
 
     /* A string is written to a byte array. the valuerank and array dimensions
      * are checked later */
-    if(targetDataType == &UA_TYPES[UA_TYPES_BYTE] &&
-       value->type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+    if(targetType == &UA_TYPES[UA_TYPES_BYTE] &&
+       type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
        UA_Variant_isScalar(value)) {
         UA_ByteString *str = (UA_ByteString*)value->data;
         value->type = &UA_TYPES[UA_TYPES_BYTE];
@@ -1175,14 +1180,14 @@ adjustValueType(UA_Server *server, UA_Variant *value,
 
     /* An enum was sent as an int32, or an opaque type as a bytestring. This
      * is detected with the typeKind indicating the "true" datatype. */
-    UA_DataTypeKind te1 = typeEquivalence(targetDataType);
-    UA_DataTypeKind te2 = typeEquivalence(value->type);
+    UA_DataTypeKind te1 = typeEquivalence(targetType);
+    UA_DataTypeKind te2 = typeEquivalence(type);
     if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
-        value->type = targetDataType;
+        value->type = targetType;
         return;
     }
 
-    /* No more possible equivalencies */
+    /* Add more possible type adjustments here. What are they? */
 }
 
 static UA_StatusCode
@@ -1423,14 +1428,11 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Type checking. May change the type of adjustedValue */
     const char *reason;
-    if(value->hasValue && value->value.type &&
-       !compatibleValue(server, session, &node->dataType, node->valueRank,
-                        node->arrayDimensionsSize, node->arrayDimensions,
-                        &adjustedValue.value, rangeptr, &reason)) {
+    if(value->hasValue && value->value.type) {
         /* Try to correct the type */
         adjustValueType(server, &adjustedValue.value, &node->dataType);
 
-        /* Recheck the type */
+        /* Check the type */
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr, &reason)) {
