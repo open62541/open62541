@@ -1443,14 +1443,11 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
 
     /* Type checking. May change the type of editableValue */
     const char *reason;
-    if(value->hasValue && value->value.type &&
-       !compatibleValue(server, session, &node->dataType, node->valueRank,
-                        node->arrayDimensionsSize, node->arrayDimensions,
-                        &adjustedValue.value, rangeptr, &reason)) {
+    if(value->hasValue && value->value.type) {
         /* Try to correct the type */
         adjustValueType(server, &adjustedValue.value, &node->dataType);
 
-        /* Recheck the type */
+        /* Check the type */
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr, &reason)) {
