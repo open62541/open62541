@@ -103,7 +103,6 @@ START_TEST(Client_highlevel_async_readValue) {
 
 START_TEST(Client_read_async) {
         UA_Client *client = UA_Client_newForUnitTest();
-        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
