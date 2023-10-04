@@ -592,6 +592,43 @@ UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config) {
 }
 
 UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config) {
+    UA_String noneuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    UA_String basic128uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
+    UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
+
+    /* Delete all predefined endpoints. */
+    if(config->endpointsSize > 0) {
+        for(size_t i = 0; i < config->endpointsSize; ++i)
+            UA_EndpointDescription_clear(&config->endpoints[i]);
+
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+        config->endpointsSize = 0;
+    }
+
+    /* Populate the endpoints */
+    for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
+        /* Skip the None and all deprecated policies */
+        if(UA_String_equal(&config->securityPolicies[i].policyUri, &noneuri) ||
+           UA_String_equal(&config->securityPolicies[i].policyUri, &basic128uri) ||
+           UA_String_equal(&config->securityPolicies[i].policyUri, &basic256uri)) {
+            continue;
+        }
+        UA_StatusCode retval =
+            addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+        retval = addEndpoint(config, &config->securityPolicies[i],
+                             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT UA_StatusCode
 UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNumber,
                                        const UA_ByteString *certificate,
                                        UA_UInt32 sendBufferSize,
@@ -864,6 +901,43 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
     return UA_STATUSCODE_GOOD;
 }
 
+/* Always returns UA_STATUSCODE_GOOD. Logs a warning if policies could not be added. */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey) {
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                UA_UInt16 portNumber,
@@ -896,10 +970,6 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
 
     retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
-        return retval;
-    }
 
     if(retval == UA_STATUSCODE_GOOD) {
         UA_SecurityPolicy *sp = &conf->securityPolicies[conf->securityPoliciesSize-1];
@@ -915,6 +985,58 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         UA_ServerConfig_clean(conf);
         return retval;
     }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
+                                               UA_UInt16 portNumber,
+                                               const UA_ByteString *certificate,
+                                               const UA_ByteString *privateKey,
+                                               const UA_ByteString *trustList,
+                                               size_t trustListSize,
+                                               const UA_ByteString *issuerList,
+                                               size_t issuerListSize,
+                                               const UA_ByteString *revocationList,
+                                               size_t revocationListSize) {
+    UA_StatusCode retval = setDefaultConfig(conf, portNumber);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+
+    retval = UA_CertificateVerification_Trustlist(&conf->sessionPKI,
+                                                  trustList, trustListSize,
+                                                  issuerList, issuerListSize,
+                                                  revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_CertificateVerification_Trustlist(&conf->secureChannelPKI,
+                                                  trustList, trustListSize,
+                                                  issuerList, issuerListSize,
+                                                  revocationList, revocationListSize);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        UA_SecurityPolicy *sp = &conf->securityPolicies[conf->securityPoliciesSize-1];
+        retval = UA_AccessControl_default(conf, false, &sp->policyUri, 0, NULL);
+    }
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+
+    retval = UA_ServerConfig_addAllSecureEndpoints(conf);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_ServerConfig_clean(conf);
+        return retval;
+    }
+    conf->securityPolicyNoneDiscoveryOnly = true;
 
     return UA_STATUSCODE_GOOD;
 }
