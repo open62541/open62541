@@ -589,7 +589,7 @@ UA_CertificateVerification_VerifyApplicationURI (void *                verificat
 
     const unsigned char * pData;
     X509 *                certificateX509;
-    UA_String             subjectURI;
+    UA_String             subjectURI = UA_STRING_NULL;
     GENERAL_NAMES *       pNames;
     int                   i;
     UA_StatusCode         ret;
