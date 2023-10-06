@@ -72,12 +72,11 @@ function(set_open62541_version)
         set(OPEN62541_VER_LABEL "${GIT_VERSION_LABEL}" PARENT_SCOPE)
         set(OPEN62541_VER_COMMIT ${OPEN62541_VERSION} PARENT_SCOPE)
     else()
-        # Final fallback: Just use a bogus version string that is semantically older
-        # than anything else and spit out a warning to the developer.
-        set(OPEN62541_VERSION "v0.0.0-unknown" PARENT_SCOPE)
-        set(OPEN62541_VER_MAJOR 0 PARENT_SCOPE)
-        set(OPEN62541_VER_MINOR 0 PARENT_SCOPE)
-        set(OPEN62541_VER_PATCH 0 PARENT_SCOPE)
+        # Final fallback
+        set(OPEN62541_VERSION "v1.2.9-unknown" PARENT_SCOPE)
+        set(OPEN62541_VER_MAJOR 1 PARENT_SCOPE)
+        set(OPEN62541_VER_MINOR 2 PARENT_SCOPE)
+        set(OPEN62541_VER_PATCH 9 PARENT_SCOPE)
         set(OPEN62541_VER_LABEL "-unknown" PARENT_SCOPE)
         set(OPEN62541_VER_COMMIT "undefined" PARENT_SCOPE)
         message(WARNING "Failed to determine OPEN62541_VERSION from repository tags. Using default version \"${OPEN62541_VERSION}\".")
