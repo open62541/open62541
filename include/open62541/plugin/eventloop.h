@@ -582,6 +582,9 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * - 0:password [string]: Password to use (default: none)
  * - 0:keep-alive [uint16]: Number of seconds for the keep-alive (ping)
  *                          (default: 400).
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * - 0:topic [string]: Topic to which the connection is associated (required).
  * - 0:subscribe [bool]: Subscribe to the topic (default: false).
