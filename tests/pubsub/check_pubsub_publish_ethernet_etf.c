@@ -79,7 +79,6 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     ck_assert(connection);
-    assert(connection->sendChannel != 0);
 
     /* Add a writer group to enable the connection */
     UA_WriterGroupConfig writerGroupConfig;
@@ -144,6 +143,20 @@ START_TEST(EthernetSendWithVLANTag) {
     connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
     ck_assert(connection);
 
+    /* Add a writer group to enable the connection */
+    UA_WriterGroupConfig writerGroupConfig;
+    memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+    writerGroupConfig.name = UA_STRING("WriterGroup 1");
+    writerGroupConfig.publishingInterval = 10;
+    UA_NodeId localWriterGroup;
+    UA_StatusCode retVal =
+        UA_Server_addWriterGroup(server, connection_test,
+                                 &writerGroupConfig, &localWriterGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_setWriterGroupOperational(server, localWriterGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
     /* TODO: Encapsulate ETF config in transportSettings */
     /* UA_ExtensionObject transportSettings; */
     /* memset(&transportSettings, 0, sizeof(UA_ExtensionObject)); */
@@ -162,9 +175,8 @@ START_TEST(EthernetSendWithVLANTag) {
                                        testBuffer.length);
     memcpy(networkBuffer.data, testBuffer.data, testBuffer.length);
 
-    UA_StatusCode retVal = connection->cm->
-        sendWithConnection(connection->cm, connection->sendChannel,
-                           &UA_KEYVALUEMAP_NULL, &networkBuffer);
+    retVal = connection->cm->sendWithConnection(connection->cm, connection->sendChannel,
+                                                &UA_KEYVALUEMAP_NULL, &networkBuffer);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
