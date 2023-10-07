@@ -484,6 +484,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
         }
 
         struct packet_mreq mreq;
+        memset(&mreq, 0, sizeof(struct packet_mreq));
         mreq.mr_ifindex = ifindex;
         mreq.mr_type = PACKET_MR_MULTICAST;
         mreq.mr_alen = ETH_ALEN;
