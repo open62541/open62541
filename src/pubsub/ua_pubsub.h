@@ -186,7 +186,8 @@ void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
+                            UA_Boolean validate);
 
 void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
@@ -370,7 +371,8 @@ void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg,
+                       UA_Boolean validate);
 
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
@@ -607,7 +609,7 @@ UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate);
 
 void
 UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);

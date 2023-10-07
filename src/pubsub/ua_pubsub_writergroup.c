@@ -778,7 +778,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                                                         UA_PUBSUBSTATE_OPERATIONAL, cause);
                     }
 
-                    ret = UA_WriterGroup_connect(server, writerGroup);
+                    ret = UA_WriterGroup_connect(server, writerGroup, false);
                     if(ret != UA_STATUSCODE_GOOD) {
                         UA_WriterGroup_setPubSubState(server, writerGroup,
                                                         UA_PUBSUBSTATE_ERROR, ret);

@@ -365,7 +365,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
 
     /* Connect if the ReaderGroup has dedicated connections */
     if(rg->recvChannelsSize == 0)
-        ret = UA_ReaderGroup_connect(server, rg);
+        ret = UA_ReaderGroup_connect(server, rg, false);
     if(ret != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "Could not connect");
         UA_PubSubConnection_setPubSubState(server, pubSubConnection,

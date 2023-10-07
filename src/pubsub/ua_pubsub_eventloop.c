@@ -15,19 +15,24 @@
 /********************/
 
 static UA_StatusCode
-UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
+                               UA_Boolean validate);
 
 static UA_StatusCode
-UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
+                               UA_Boolean validate);
 
 static UA_StatusCode
-UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
+                           UA_Boolean validate);
 
 static UA_StatusCode
-UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
+                           UA_Boolean validate);
 
 static UA_StatusCode
-UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
+                                 UA_Boolean validate);
 
 #define UA_PUBSUB_PROFILES_SIZE 4
 
@@ -35,9 +40,12 @@ typedef struct  {
     UA_String profileURI;
     UA_String protocol;
     UA_Boolean json;
-    UA_StatusCode (*connect)(UA_Server *server, UA_PubSubConnection *c);
-    UA_StatusCode (*connectWriterGroup)(UA_Server *server, UA_WriterGroup *wg);
-    UA_StatusCode (*connectReaderGroup)(UA_Server *server, UA_ReaderGroup *rg);
+    UA_StatusCode (*connect)(UA_Server *server, UA_PubSubConnection *c,
+                             UA_Boolean validate);
+    UA_StatusCode (*connectWriterGroup)(UA_Server *server, UA_WriterGroup *wg,
+                                        UA_Boolean validate);
+    UA_StatusCode (*connectReaderGroup)(UA_Server *server, UA_ReaderGroup *rg,
+                                        UA_Boolean validate);
 } ProfileMapping;
 
 static ProfileMapping transportProfiles[UA_PUBSUB_PROFILES_SIZE] = {
@@ -163,7 +171,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
         if(psc->state == UA_PUBSUBSTATE_OPERATIONAL)
-            UA_PubSubConnection_connect(server, psc);
+            UA_PubSubConnection_connect(server, psc, false);
 
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -272,7 +280,8 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c) {
+UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
+                               UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -290,7 +299,6 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Set up the connection parameters */
     UA_Boolean listen = true;
-    UA_Boolean validate = false;
     UA_Boolean reuse = true;
     UA_Boolean loopback = true;
     UA_KeyValuePair kvp[7];
@@ -378,7 +386,8 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c) {
 }
 
 static UA_StatusCode
-UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
+UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
+                               UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -397,7 +406,6 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
     /* Set up the connection parameters.
      * TDOD: Complete the considered parameters. VID, PCP, etc. */
     UA_Boolean listen = true;
-    UA_Boolean validate = false;
     UA_KeyValuePair kvp[4];
     UA_KeyValueMap kvm = {4, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
@@ -412,15 +420,6 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Open recv channels */
     if(c->recvChannelsSize == 0) {
-        /* Validate only if no ReaderGroup configured */
-        validate = (c->readerGroupsSize == 0);
-        if(validate) {
-            UA_LOG_INFO_CONNECTION(&server->config.logger, c,
-                                   "No ReaderGroups configured. "
-                                   "Only validate the connection parameters "
-                                   "instead of opening a receiving channel.");
-        }
-
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
@@ -433,15 +432,6 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Open send channels */
     if(c->sendChannel == 0) {
-        /* Validate only if no WriterGroup configured */
-        validate = (c->writerGroupsSize == 0);
-        if(validate) {
-            UA_LOG_INFO_CONNECTION(&server->config.logger, c,
-                                   "No WriterGroups configured. "
-                                   "Only validate the connection parameters "
-                                   "instead of opening a channel for sending.");
-        }
-
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
@@ -456,7 +446,8 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c) {
+UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
+                            UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
@@ -494,8 +485,8 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c) {
     /* Connect */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connect)
-        res = profile->connect(server, c);
-    if(res != UA_STATUSCODE_GOOD)
+        res = profile->connect(server, c, validate);
+    if(res != UA_STATUSCODE_GOOD && !validate)
         UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR, res);
     return res;
 }
@@ -538,7 +529,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
         if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
-            UA_WriterGroup_connect(server, wg);
+            UA_WriterGroup_connect(server, wg, false);
 
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -563,11 +554,12 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
+UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
+                                 UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already connected? */
-    if(wg->sendChannel != 0)
+    if(wg->sendChannel != 0 && !validate)
         return UA_STATUSCODE_GOOD;
 
     /* Check if address is available in TransportSettings */
@@ -613,19 +605,21 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Set up the connection parameters */
     UA_Boolean listen = false;
-    UA_KeyValuePair kvp[4];
-    UA_KeyValueMap kvm = {3, kvp};
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {4, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     kvp[1].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&kvp[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     kvp[2].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&kvp[2].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
     if(!UA_String_isEmpty(&addressUrl->networkInterface)) {
-        kvp[3].key = UA_QUALIFIEDNAME(0, "interface");
-        UA_Variant_setScalar(&kvp[3].value, &addressUrl->networkInterface,
+        kvp[4].key = UA_QUALIFIEDNAME(0, "interface");
+        UA_Variant_setScalar(&kvp[4].value, &addressUrl->networkInterface,
                              &UA_TYPES[UA_TYPES_STRING]);
-        kvm.mapSize = 4;
+        kvm.mapSize++;
     }
 
     /* Connect */
@@ -641,7 +635,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg) {
 }
 
 static UA_StatusCode
-UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg) {
+UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
+                           UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubConnection *c = wg->linkedConnection;
@@ -674,8 +669,8 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg) {
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */
     UA_Boolean listen = false;
-    UA_KeyValuePair kvp[4];
-    UA_KeyValueMap kvm = {4, kvp};
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {5, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
@@ -685,6 +680,8 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg) {
     kvp[3].key = UA_QUALIFIEDNAME(0, "topic");
     UA_Variant_setScalar(&kvp[3].value, &transportSettings->queueName,
                          &UA_TYPES[UA_TYPES_STRING]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
     UA_UNLOCK(&server->serviceMutex);
@@ -707,11 +704,11 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
 }
 
 UA_StatusCode
-UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
+UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already connected */
-    if(wg->sendChannel != 0)
+    if(wg->sendChannel != 0 && !validate)
         return UA_STATUSCODE_GOOD;
 
     /* Is this a WriterGroup with custom TransportSettings beyond the
@@ -750,8 +747,8 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
     /* Connect */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectWriterGroup)
-        res = profile->connectWriterGroup(server, wg);
-    if(res != UA_STATUSCODE_GOOD) {
+        res = profile->connectWriterGroup(server, wg, validate);
+    if(res != UA_STATUSCODE_GOOD && !validate) {
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR, res);
         return res;
     }
@@ -760,7 +757,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg) {
      * this is the only place to set pre-operational for PubSubConnections. The
      * state will be set to operational in the network callback when the
      * connection has fully opened. */
-    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL && !validate)
         wg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
     return UA_STATUSCODE_GOOD;
@@ -904,7 +901,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg) {
+UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
+                           UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubConnection *c = rg->linkedConnection;
@@ -937,8 +935,8 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg) {
     /* Set up the connection parameters.
      * TODO: Complete the MQTT parameters. */
     UA_Boolean listen = true;
-    UA_KeyValuePair kvp[4];
-    UA_KeyValueMap kvm = {4, kvp};
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {5, kvp};
     kvp[0].key = UA_QUALIFIEDNAME(0, "address");
     UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
     kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
@@ -948,6 +946,8 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg) {
     kvp[3].key = UA_QUALIFIEDNAME(0, "topic");
     UA_Variant_setScalar(&kvp[3].value, &transportSettings->queueName,
                          &UA_TYPES[UA_TYPES_STRING]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Connect */
     UA_UNLOCK(&server->serviceMutex);
@@ -972,11 +972,11 @@ UA_ReaderGroup_disconnect(UA_ReaderGroup *rg) {
 }
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
+UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already connected */
-    if(rg->recvChannelsSize != 0)
+    if(rg->recvChannelsSize != 0 && !validate)
         return UA_STATUSCODE_GOOD;
 
     /* Is this a ReaderGroup with custom TransportSettings beyond the
@@ -1015,8 +1015,8 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg) {
     /* Connect */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectReaderGroup)
-        res = profile->connectReaderGroup(server, rg);
-    if(res != UA_STATUSCODE_GOOD) {
+        res = profile->connectReaderGroup(server, rg, validate);
+    if(res != UA_STATUSCODE_GOOD && !validate) {
         UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR, res);
         return res;
     }
