@@ -63,7 +63,6 @@ function build_tpm_tool {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_ENCRYPTION_TPM2=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
@@ -99,7 +98,6 @@ function build_amalgamation {
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
@@ -116,7 +114,6 @@ function build_amalgamation_mt {
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
@@ -146,7 +143,6 @@ function unit_tests {
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
@@ -173,7 +169,6 @@ function unit_tests_32 {
           -DUA_FORCE_32BIT=ON \
           -DUA_FORCE_WERROR=ON \
           ..
-          #-DUA_ENABLE_PUBSUB_ETH_UADP=ON \ # TODO: Enable this
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
@@ -205,7 +200,6 @@ function unit_tests_diag {
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
@@ -318,7 +312,6 @@ function unit_tests_with_coverage {
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
@@ -386,7 +379,6 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \

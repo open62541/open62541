@@ -356,7 +356,7 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 
-    if(UA_ENABLE_PUBSUB_ETH_UADP)
+    if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)
         ua_add_test(pubsub/check_pubsub_publish_ethernet.c)
         ua_add_test(pubsub/check_pubsub_connection_ethernet_etf.c)

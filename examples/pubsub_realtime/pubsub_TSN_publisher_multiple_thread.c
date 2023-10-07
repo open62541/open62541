@@ -128,13 +128,8 @@
 /* Set server running as true */
 UA_Boolean        runningServer           = UA_TRUE;
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
 char*             pubUri               = DEFAULT_PUBLISHING_MAC_ADDRESS;
 char*             subUri               = DEFAULT_SUBSCRIBING_MAC_ADDRESS;
-#else
-char*             pubUri               = DEFAULT_PUBLISHER_MULTICAST_ADDRESS;
-char*             subUri               = DEFAULT_SUBSCRIBER_MULTICAST_ADDRESS;
-#endif
 static UA_Double  cycleTimeInMsec      = DEFAULT_CYCLE_TIME;
 static UA_Int32   socketPriority       = DEFAULT_SOCKET_PRIORITY;
 static UA_Int32   pubAppPriority       = DEFAULT_PUBAPP_THREAD_PRIORITY;
@@ -584,24 +579,14 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType                        = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.uint16                     = PUBLISHER_ID;
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     /* Connection options are given as Key/Value Pairs - Sockprio and Txtime */
     UA_KeyValuePair connectionOptions[2];
-#else
-    UA_KeyValuePair connectionOptions[1];
-#endif
     connectionOptions[0].key = UA_QUALIFIEDNAME(0, "sockpriority");
     UA_Variant_setScalar(&connectionOptions[0].value, &socketPriority, &UA_TYPES[UA_TYPES_UINT32]);
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     connectionOptions[1].key = UA_QUALIFIEDNAME(0, "enablesotxtime");
     UA_Variant_setScalar(&connectionOptions[1].value, &disableSoTxtime, &UA_TYPES[UA_TYPES_BOOLEAN]);
-#endif
     connectionConfig.connectionProperties.map = connectionOptions;
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     connectionConfig.connectionProperties.mapSize = 2;
-#else
-    connectionConfig.connectionProperties.mapSize = 1;
-#endif
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -1366,11 +1351,7 @@ int main(int argc, char **argv) {
     networkAddressUrlSub.url              = UA_STRING(subUri);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ETH_UADP
     transportProfile = UA_STRING(ETH_TRANSPORT_PROFILE);
-#else
-    transportProfile = UA_STRING(UDP_TRANSPORT_PROFILE);
-#endif
 
     if (enableCsvLog)
         fpPublisher                   = fopen(filePublishedData, "w");
