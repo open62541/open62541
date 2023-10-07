@@ -397,17 +397,17 @@ UA_AccessControl_default(UA_ServerConfig *config,
 
 UA_StatusCode
 UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
-    UA_Boolean allowAnonymous, UA_CertificateVerification *verifyX509,
-    const UA_ByteString *userTokenPolicyUri, size_t usernamePasswordLoginSize,
-    const UA_UsernamePasswordLogin *usernamePasswordLogin,
-    UA_UsernamePasswordLoginCallback loginCallback, void *loginContext)
-{
+                                          UA_Boolean allowAnonymous,
+                                          const UA_ByteString *userTokenPolicyUri,
+                                          size_t usernamePasswordLoginSize,
+                                          const UA_UsernamePasswordLogin *usernamePasswordLogin,
+                                          UA_UsernamePasswordLoginCallback loginCallback,
+                                          void *loginContext) {
     AccessControlContext *context;
-    UA_StatusCode sc;
-
-    sc = UA_AccessControl_default(config, allowAnonymous, verifyX509,
-        userTokenPolicyUri, usernamePasswordLoginSize, usernamePasswordLogin);
-    if (sc != UA_STATUSCODE_GOOD)
+    UA_StatusCode sc =
+        UA_AccessControl_default(config, allowAnonymous, userTokenPolicyUri,
+                                 usernamePasswordLoginSize, usernamePasswordLogin);
+    if(sc != UA_STATUSCODE_GOOD)
         return sc;
 
     context = (AccessControlContext *)config->accessControl.context;
