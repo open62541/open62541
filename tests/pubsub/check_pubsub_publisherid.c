@@ -361,8 +361,8 @@ static void ValidatePublishSubscribe(
         }
     }
 
-    UA_Boolean done = true;
-    while(done) {
+    UA_Boolean done = false;
+    while(!done) {
         UA_fakeSleep(Sleep_ms);
         UA_Server_run_iterate(server, true);
         done = true;
@@ -378,10 +378,9 @@ static void ValidatePublishSubscribe(
                 UA_Variant SubscribedNodeData;
                 UA_Variant_init(&SubscribedNodeData);
                 UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
-                done = (tmpValue == *(UA_Int32 *)SubscribedNodeData.data);
+                if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
+                    done = false;
                 UA_Variant_clear(&SubscribedNodeData);
-                if(!done)
-                    break;
             }
         }
     }

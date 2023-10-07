@@ -1118,7 +1118,7 @@ filterEvent(UA_Server *server, UA_Session *session,
  * - Check if attributeId is value */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
-                                    UA_SimpleAttributeOperand *sao) {
+                                    const UA_SimpleAttributeOperand *sao) {
     /* TypeDefinition is not NULL? */
     if(UA_NodeId_isNull(&sao->typeDefinitionId))
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
@@ -1188,9 +1188,13 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_ContentFilterElementResult
+/* Initial content filter (where clause) check. Current checks:
+ * - Number of operands for each (supported) operator
+ * - ElementOperands point forward only */
+UA_ContentFilterElementResult
 UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
-                                  size_t operatorsCount, UA_ContentFilterElement *ef) {
+                                  size_t operatorsCount,
+                                  const UA_ContentFilterElement *ef) {
     /* Initialize the result structure */
     UA_ContentFilterElementResult er;
     UA_ContentFilterElementResult_init(&er);
@@ -1307,38 +1311,6 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
             break;
     }
     return er;
-}
-
-/* Initial content filter (where clause) check. Current checks:
- * - Number of operands for each (supported) operator
- * - ElementOperands point forward only */
-UA_StatusCode
-UA_ContentFilterValidation(UA_Server *server, const UA_ContentFilter *filter,
-                           UA_ContentFilterResult *result) {
-    UA_ContentFilterResult_init(result);
-    if(filter->elementsSize == 0)
-        return UA_STATUSCODE_GOOD;
-
-    if(filter->elementsSize > UA_EVENTFILTER_MAXELEMENTS)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Allocate memory for the results */
-    result->elementResults = (UA_ContentFilterElementResult *)
-        UA_Array_new(filter->elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENTRESULT]);
-    if(!result->elementResults)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    result->elementResultsSize = filter->elementsSize;
-
-    /* Validate the filter elements individually */
-    for(size_t i = 0; i < filter->elementsSize; ++i) {
-        UA_ContentFilterElement *ef = &filter->elements[i];
-        result->elementResults[i] =
-            UA_ContentFilterElementValidation(server, i, filter->elementsSize, ef);
-        if(result->elementResults[i].statusCode != UA_STATUSCODE_GOOD)
-            return result->elementResults[i].statusCode;
-    }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */

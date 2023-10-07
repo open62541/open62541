@@ -227,12 +227,27 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
         }
     }
         
+
+    /* Adjust sampling interval */
     if(params->samplingInterval < 0.0) {
         /* A negative number indicates that the sampling interval is the publishing
          * interval of the Subscription. */
         if(!mon->subscription) {
             /* Not possible for local MonitoredItems */
             params->samplingInterval = server->config.samplingIntervalLimits.min;
+        } else {
+            /* Test if the publishing interval is a valid sampling interval. If
+             * not, adjust to lie within the limits. */
+            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
+                                       mon->subscription->publishingInterval,
+                                       params->samplingInterval);
+            if(params->samplingInterval == mon->subscription->publishingInterval) {
+               /* The publishing interval is valid also for sampling. Set sampling
+                * interval to -1 to sample the monitored item in the publish
+                * callback. The revised sampling interval of the response will be
+                * set to the publishing interval.*/
+                params->samplingInterval = -1.0;
+            }
         }
     } else {
         /* Adjust positive sampling interval to lie within the limits */
@@ -271,7 +286,8 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 checkEventFilterParam(UA_Server *server, UA_Session *session,
                       const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params) {
+                      UA_MonitoringParameters *params,
+                      UA_MonitoredItemCreateResult *result) {
     /* Is an Event MonitoredItem? */
     if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
         return UA_STATUSCODE_GOOD;
@@ -294,24 +310,47 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
     if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
-    /* Check the where clause for logical consistency */
-    UA_ContentFilterResult cfr;
-    UA_StatusCode res = UA_ContentFilterValidation(server, &eventFilter->whereClause, &cfr);
-    UA_ContentFilterResult_clear(&cfr);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    /* Acceptable number of select clauses */
-    if(eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Check the select clause for consistency */
-    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
-        res = UA_SimpleAttributeOperandValidation(server, &eventFilter->selectClauses[i]);
-        if(res != UA_STATUSCODE_GOOD)
-            return res;
+    /* Check where-clause */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_ContentFilter *cf = &eventFilter->whereClause;
+    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
+    for(size_t i = 0; i < cf->elementsSize; ++i) {
+        UA_ContentFilterElement *ef = &cf->elements[i];
+        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
+        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = whereRes[i].statusCode;
     }
-    return UA_STATUSCODE_GOOD;
+
+    /* Check select clause */
+    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
+    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
+        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
+        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
+        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = selectRes[i];
+    }
+
+    /* Filter bad, return details */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EventFilterResult *efr = UA_EventFilterResult_new();
+        if(!efr) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        } else {
+            UA_EventFilterResult tmp_efr;
+            UA_EventFilterResult_init(&tmp_efr);
+            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
+            tmp_efr.selectClauseResults = selectRes;
+            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
+            tmp_efr.whereClauseResult.elementResults = whereRes;
+            UA_EventFilterResult_copy(&tmp_efr, efr);
+            UA_ExtensionObject_setValue(&result->filterResult, efr,
+                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+        }
+    }
+
+    for(size_t i = 0; i < cf->elementsSize; ++i)
+        UA_ContentFilterElementResult_clear(&whereRes[i]);
+    return res;
 }
 #endif
 
@@ -457,7 +496,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                          valueType, &newMon->parameters);
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters);
+                                                &newMon->parameters, result);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
@@ -631,6 +670,14 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Remove the overflow bits if the queue has now a size of 1 */
     UA_MonitoredItem_removeOverflowInfoBits(mon);
+
+    /* If the sampling interval is negative (the sampling callback is called
+     * from within the publishing callback), return the publishing interval of
+     * the Subscription. Note that we only use the cyclic callback of the
+     * Subscription. So if the Subscription publishing interval is modified,
+     * this also impacts this MonitoredItem. */
+    if(result->revisedSamplingInterval < 0.0 && mon->subscription)
+        result->revisedSamplingInterval = mon->subscription->publishingInterval;
 
     UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
                              "MonitoredItem %" PRIi32 " | "
