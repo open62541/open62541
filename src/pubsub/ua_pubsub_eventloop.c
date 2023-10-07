@@ -445,10 +445,23 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     return res;
 }
 
+static UA_Boolean
+UA_PubSubConnection_isConnected(UA_PubSubConnection *c) {
+    if(c->sendChannel == 0 && c->writerGroupsSize > 0)
+        return false;
+    if(c->recvChannelsSize == 0 && c->readerGroupsSize > 0)
+        return false;
+    return true;
+}
+
 UA_StatusCode
 UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
                             UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Already connected -> success */
+    if(UA_PubSubConnection_isConnected(c) && !validate)
+        return UA_STATUSCODE_GOOD;
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
     if(!el) {
