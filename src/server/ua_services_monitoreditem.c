@@ -303,7 +303,7 @@ checkEventFilterParam(UA_Server *server, UA_Session *session,
 
     /* Correct number of elements? */
     if(eventFilter->selectClausesSize == 0 ||
-       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXELEMENTS)
+       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;
 
     /* Allow empty where clauses --> select every event */
