@@ -292,7 +292,7 @@ function unit_tests_pubsub_sks {
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    # set_capabilities not possible with valgrind
+    set_capabilities
     make test ARGS="-V -R sks"
 }
 
@@ -347,7 +347,7 @@ function unit_tests_valgrind {
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    make test ARGS="-V"
+    sudo -E bash -c "make test ARGS=\"-V\""
 }
 
 ########################################
@@ -388,7 +388,8 @@ function examples_valgrind {
     # Run each example with valgrind. Wait 10 seconds and send the SIGINT
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
-    python3 ../tools/examples_with_valgrind.py
+    # set_capabilities not possible with valgrind
+    sudo -E bash -c "python3 ../tools/examples_with_valgrind.py"
     EXIT_CODE=$?
     if [[ $EXIT_CODE -ne 0 ]]; then
         echo "Processing failed with exit code $EXIT_CODE"

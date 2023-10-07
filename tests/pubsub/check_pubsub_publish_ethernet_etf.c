@@ -181,6 +181,9 @@ START_TEST(EthernetSendWithVLANTag) {
 } END_TEST
 
 int main(void) {
+    if(SKIP_ETHERNET && strlen(SKIP_ETHERNET) > 0)
+        return EXIT_SUCCESS;
+
     /*Test case to run both publisher*/
     TCase *tc_pubsub_ethernet_etf_publish = tcase_create("Publisher publishing Ethernet packets based on etf");
     tcase_add_checked_fixture(tc_pubsub_ethernet_etf_publish, setup, teardown);
