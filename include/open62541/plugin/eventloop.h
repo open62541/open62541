@@ -459,6 +459,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *             for listening (default: listen on all interfaces).
  * - 0:port [uint16]: Port of the target host (required).
  * - 0:listen [boolean]: Listen-connection or active-connection (default: false)
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * Connection Callback Parameters (first callback only):
  * - Active Connection
