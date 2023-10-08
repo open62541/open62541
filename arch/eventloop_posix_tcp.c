@@ -6,6 +6,7 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
+#include "open62541/types.h"
 #include "eventloop_posix.h"
 #include "eventloop_common.h"
 
@@ -344,7 +345,8 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 static UA_StatusCode
 TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          UA_UInt16 port, void *application, void *context,
-                         UA_ConnectionManager_connectionCallback connectionCallback) {
+                         UA_ConnectionManager_connectionCallback connectionCallback,
+                         UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
@@ -440,6 +442,12 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Only validate, don't actually start listening */
+    if(validate) {
+        UA_close(listenSocket);
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Start listening */
     if(listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -512,7 +520,8 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 static UA_StatusCode
 TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
-                          UA_ConnectionManager_connectionCallback connectionCallback) {
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate) {
     UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
 
     /* Create a string for the port */
@@ -552,7 +561,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     struct addrinfo *ai = res;
     while(ai) {
         total_result &= TCP_registerListenSocket(pcm, ai, port, application, context,
-                                                 connectionCallback);
+                                                 connectionCallback, validate);
         ai = ai->ai_next;
     }
     freeaddrinfo(res);
@@ -675,7 +684,8 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 static UA_StatusCode
 TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
-                          UA_ConnectionManager_connectionCallback connectionCallback) {
+                          UA_ConnectionManager_connectionCallback connectionCallback,
+                          UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
@@ -702,7 +712,7 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
         return TCP_registerListenSockets(pcm, NULL, *port, application,
-                                         context, connectionCallback);
+                                         context, connectionCallback, validate);
     }
 
     /* Iterate over the configured hostnames */
@@ -714,7 +724,7 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
         TCP_registerListenSockets(pcm, hostname, *port, application,
-                                  context, connectionCallback);
+                                  context, connectionCallback, validate);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -724,7 +734,8 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
 static UA_StatusCode
 TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
                          void *application, void *context,
-                         UA_ConnectionManager_connectionCallback connectionCallback) {
+                         UA_ConnectionManager_connectionCallback connectionCallback,
+                         UA_Boolean validate) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
@@ -803,6 +814,13 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
         freeaddrinfo(info);
         UA_close(newSock);
         return res;
+    }
+
+    /* Only validate, don't actually open the connection */
+    if(validate) {
+        freeaddrinfo(info);
+        UA_close(newSock);
+        return UA_STATUSCODE_GOOD;
     }
 
     /* Non-blocking connect */
@@ -893,6 +911,15 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return res;
     }
 
+    /* Only validate the parameters? */
+    UA_Boolean validate = false;
+    const UA_Boolean *validateParam = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params,
+                                 tcpConnectionParams[TCP_PARAMINDEX_VALIDATE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(validateParam)
+        validate = *validateParam;
+
     /* Listen or active connection? */
     UA_Boolean listen = false;
     const UA_Boolean *listenParam = (const UA_Boolean*)
@@ -903,11 +930,11 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         listen = *listenParam;
 
     if(listen) {
-        res = TCP_openPassiveConnection(pcm, params, application,
-                                        context, connectionCallback);
+        res = TCP_openPassiveConnection(pcm, params, application, context,
+                                        connectionCallback, validate);
     } else {
-        res = TCP_openActiveConnection(pcm, params, application,
-                                       context, connectionCallback);
+        res = TCP_openActiveConnection(pcm, params, application, context,
+                                       connectionCallback, validate);
     }
 
     UA_UNLOCK(&el->elMutex);

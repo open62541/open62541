@@ -70,7 +70,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
     /* Poll the registered sockets */
     struct epoll_event epoll_events[64];
-    int events = epoll_wait(el->epollfd, epoll_events, 64,
+    int epollfd = el->epollfd;
+    UA_UNLOCK(&el->elMutex);
+    int events = epoll_wait(epollfd, epoll_events, 64,
                             (int)(listenTimeout / UA_DATETIME_MSEC));
     /* TODO: Replace with pwait2 for higher-precision timeouts once this is
      * available in the standard library.
@@ -79,8 +81,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
      *  (long)(listenTimeout / UA_DATETIME_SEC),
      *   (long)((listenTimeout % UA_DATETIME_SEC) * 100)
      * };
-     * int events = epoll_pwait2(el->epollfd, epoll_events, 64,
+     * int events = epoll_pwait2(epollfd, epoll_events, 64,
      *                        precisionTimeout, NULL); */
+    UA_LOCK(&el->elMutex);
 
     /* Handle error conditions */
     if(events == -1) {

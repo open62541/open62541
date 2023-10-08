@@ -363,8 +363,8 @@ static void ValidatePublishSubscribe(
         }
     }
 
-    UA_Boolean done = true;
-    while(done) {
+    UA_Boolean done = false;
+    while(!done) {
         UA_fakeSleep(Sleep_ms);
         UA_Server_run_iterate(server, true);
         done = true;
@@ -381,14 +381,11 @@ static void ValidatePublishSubscribe(
                 UA_Variant SubscribedNodeData;
                 UA_Variant_init(&SubscribedNodeData);
                 UA_Server_readValue(server, subscriberVarIds[i], &SubscribedNodeData);
-                done = (tmpValue == *(UA_Int32 *)SubscribedNodeData.data);
+                if(tmpValue != *(UA_Int32 *)SubscribedNodeData.data)
+                    done = false;
                 UA_Variant_clear(&SubscribedNodeData);
-                if(!done)
-                    break;
             }
         }
-        if(i == NoOfTestVars)
-            done = false;
     }
 }
 
@@ -888,10 +885,10 @@ static void DoTest_multiple_Connections(void) {
     }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
     }
 
 

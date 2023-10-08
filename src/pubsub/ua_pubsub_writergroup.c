@@ -788,7 +788,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
             break;
         }
 
-        ret = UA_WriterGroup_connect(server, wg);
+        ret = UA_WriterGroup_connect(server, wg, false);
         if(ret != UA_STATUSCODE_GOOD)
             break;
 

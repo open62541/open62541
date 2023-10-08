@@ -47,21 +47,21 @@ __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readNodeIdAttribute(UA_Client *client, const UA_NodeId nodeId,
-                              UA_NodeId *outNodeId) ,{
+                              UA_NodeId *outNodeId), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_NODEID,
                                      outNodeId, &UA_TYPES[UA_TYPES_NODEID]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readNodeClassAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 UA_NodeClass *outNodeClass) ,{
+                                 UA_NodeClass *outNodeClass), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
                                      outNodeClass, &UA_TYPES[UA_TYPES_NODECLASS]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readBrowseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  UA_QualifiedName *outBrowseName) ,{
+                                  UA_QualifiedName *outBrowseName), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
                                      outBrowseName,
                                      &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
@@ -69,7 +69,7 @@ UA_Client_readBrowseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readDisplayNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_LocalizedText *outDisplayName) ,{
+                                   UA_LocalizedText *outDisplayName), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
                                      outDisplayName,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -77,7 +77,7 @@ UA_Client_readDisplayNameAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readDescriptionAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_LocalizedText *outDescription) ,{
+                                   UA_LocalizedText *outDescription), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
                                      outDescription,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -85,14 +85,14 @@ UA_Client_readDescriptionAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 UA_UInt32 *outWriteMask) ,{
+                                 UA_UInt32 *outWriteMask), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
                                      outWriteMask, &UA_TYPES[UA_TYPES_UINT32]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readUserWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                     UA_UInt32 *outUserWriteMask) ,{
+                                     UA_UInt32 *outUserWriteMask), {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_USERWRITEMASK,
                                      outUserWriteMask,
@@ -101,21 +101,21 @@ UA_Client_readUserWriteMaskAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readIsAbstractAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  UA_Boolean *outIsAbstract) ,{
+                                  UA_Boolean *outIsAbstract), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
                                      outIsAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readSymmetricAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 UA_Boolean *outSymmetric) ,{
+                                 UA_Boolean *outSymmetric), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
                                      outSymmetric, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readInverseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_LocalizedText *outInverseName) ,{
+                                   UA_LocalizedText *outInverseName), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
                                      outInverseName,
                                      &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
@@ -123,7 +123,7 @@ UA_Client_readInverseNameAttribute(UA_Client *client, const UA_NodeId nodeId,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readContainsNoLoopsAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_Boolean *outContainsNoLoops),{
+                                       UA_Boolean *outContainsNoLoops), {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_CONTAINSNOLOOPS,
                                      outContainsNoLoops,
@@ -132,28 +132,28 @@ UA_Client_readContainsNoLoopsAttribute(UA_Client *client, const UA_NodeId nodeId
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readEventNotifierAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                     UA_Byte *outEventNotifier) ,{
+                                     UA_Byte *outEventNotifier), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
                                      outEventNotifier, &UA_TYPES[UA_TYPES_BYTE]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readValueAttribute(UA_Client *client, const UA_NodeId nodeId,
-                             UA_Variant *outValue) ,{
+                             UA_Variant *outValue), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
                                      outValue, &UA_TYPES[UA_TYPES_VARIANT]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                UA_NodeId *outDataType) ,{
+                                UA_NodeId *outDataType), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                                      outDataType, &UA_TYPES[UA_TYPES_NODEID]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readValueRankAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 UA_Int32 *outValueRank) ,{
+                                 UA_Int32 *outValueRank), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
                                      outValueRank, &UA_TYPES[UA_TYPES_INT32]);
 })
@@ -165,14 +165,21 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_Byte *outAccessLevel) ,{
+                                   UA_Byte *outAccessLevel), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                      outAccessLevel, &UA_TYPES[UA_TYPES_BYTE]);
 })
 
 UA_INLINABLE( UA_StatusCode
+UA_Client_readAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                     UA_UInt32 *outAccessLevelEx), {
+    return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                     outAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32]);
+})
+
+UA_INLINABLE( UA_StatusCode
 UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       UA_Byte *outUserAccessLevel) ,{
+                                       UA_Byte *outUserAccessLevel), {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_USERACCESSLEVEL,
                                      outUserAccessLevel,
@@ -182,7 +189,7 @@ UA_Client_readUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId
 UA_INLINABLE( UA_StatusCode
 UA_Client_readMinimumSamplingIntervalAttribute(UA_Client *client,
                                                const UA_NodeId nodeId,
-                                               UA_Double *outMinSamplingInterval) ,{
+                                               UA_Double *outMinSamplingInterval), {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                                      outMinSamplingInterval,
@@ -191,21 +198,21 @@ UA_Client_readMinimumSamplingIntervalAttribute(UA_Client *client,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readHistorizingAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   UA_Boolean *outHistorizing) ,{
+                                   UA_Boolean *outHistorizing), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
                                      outHistorizing, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                  UA_Boolean *outExecutable) ,{
+                                  UA_Boolean *outExecutable), {
     return __UA_Client_readAttribute(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                                      outExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                      UA_Boolean *outUserExecutable) ,{
+                                      UA_Boolean *outUserExecutable), {
     return __UA_Client_readAttribute(client, &nodeId,
                                      UA_ATTRIBUTEID_USEREXECUTABLE,
                                      outUserExecutable,
@@ -407,8 +414,15 @@ UA_Client_writeAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
 })
 
 UA_INLINABLE( UA_StatusCode
+UA_Client_writeAccessLevelExAttribute(UA_Client *client, const UA_NodeId nodeId,
+                                      UA_UInt32 *newAccessLevelEx), {
+    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                      newAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32]);
+})
+
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                        const UA_Byte *newUserAccessLevel) ,{
+                                        const UA_Byte *newUserAccessLevel), {
     return __UA_Client_writeAttribute(client, &nodeId,
                                       UA_ATTRIBUTEID_USERACCESSLEVEL,
                                       newUserAccessLevel,
@@ -418,7 +432,7 @@ UA_Client_writeUserAccessLevelAttribute(UA_Client *client, const UA_NodeId nodeI
 UA_INLINABLE( UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute(UA_Client *client,
                                                 const UA_NodeId nodeId,
-                                                const UA_Double *newMinInterval) ,{
+                                                const UA_Double *newMinInterval), {
     return __UA_Client_writeAttribute(client, &nodeId,
                                       UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                                       newMinInterval, &UA_TYPES[UA_TYPES_DOUBLE]);
@@ -426,21 +440,21 @@ UA_Client_writeMinimumSamplingIntervalAttribute(UA_Client *client,
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_writeHistorizingAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                    const UA_Boolean *newHistorizing) ,{
+                                    const UA_Boolean *newHistorizing), {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
                                       newHistorizing, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_writeExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                   const UA_Boolean *newExecutable) ,{
+                                   const UA_Boolean *newExecutable), {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                                       newExecutable, &UA_TYPES[UA_TYPES_BOOLEAN]);
 })
 
 UA_INLINABLE( UA_StatusCode
 UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                       const UA_Boolean *newUserExecutable) ,{
+                                       const UA_Boolean *newUserExecutable), {
     return __UA_Client_writeAttribute(client, &nodeId,
                                       UA_ATTRIBUTEID_USEREXECUTABLE,
                                       newUserExecutable,

@@ -1097,6 +1097,16 @@ UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId node
 }
 
 UA_StatusCode
+UA_Client_readAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_ClientAsyncReadAccessLevelExAttributeCallback callback,
+                                           void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                     &UA_TYPES[UA_TYPES_UINT32],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
 UA_Client_readUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientAsyncReadUserAccessLevelAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId) {

@@ -378,11 +378,6 @@ PubSub Build Options
    be changed by the application to satisfy realtime requirements. Disabled by
    default.
 
-**UA_ENABLE_PUBSUB_ETH_UADP**
-   Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages
-   as payload of Ethernet II frame without IP or UDP headers. This option will
-   include Publish and Subscribe based on EtherType B62C. Disabled by default.
-
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
 

@@ -123,7 +123,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 #endif
     };
 
+    UA_UNLOCK(&el->elMutex);
     int selectStatus = UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
+    UA_LOCK(&el->elMutex);
     if(selectStatus < 0) {
         /* We will retry, only log the error */
         UA_LOG_SOCKET_ERRNO_WRAP(

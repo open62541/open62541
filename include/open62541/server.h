@@ -732,6 +732,13 @@ UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
 })
 
 UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
+                            UA_UInt32 *outAccessLevelEx), {
+    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                            outAccessLevelEx);
+})
+
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
                                       UA_Double *outMinimumSamplingInterval) ,{
     return __UA_Server_read(server, &nodeId,
@@ -888,6 +895,13 @@ UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
                            const UA_Byte accessLevel) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                              &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
+})
+
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
+UA_Server_writeAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_UInt32 accessLevelEx), {
+    return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                             &UA_TYPES[UA_TYPES_UINT32], &accessLevelEx);
 })
 
 UA_INLINABLE( UA_THREADSAFE UA_StatusCode

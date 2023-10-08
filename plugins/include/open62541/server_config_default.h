@@ -72,6 +72,18 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                const UA_ByteString *revocationList,
                                                size_t revocationListSize);
 
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
+                                                     UA_UInt16 portNumber,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey,
+                                                     const UA_ByteString *trustList,
+                                                     size_t trustListSize,
+                                                     const UA_ByteString *issuerList,
+                                                     size_t issuerListSize,
+                                                     const UA_ByteString *revocationList,
+                                                     size_t revocationListSize);
+
 #endif
 
 /* Creates a server config on the default port 4840 with no server
@@ -215,6 +227,11 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
                                        const UA_ByteString *certificate,
                                        const UA_ByteString *privateKey);
 
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
+                                       const UA_ByteString *certificate,
+                                       const UA_ByteString *privateKey);
+
 #endif
 
 /* Adds an endpoint for the given security policy and mode. The security
@@ -234,6 +251,13 @@ UA_ServerConfig_addEndpoint(UA_ServerConfig *config, const UA_String securityPol
  */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config);
+
+/* Adds endpoints for all secure configured security policies in each mode.
+ *
+ * @param config The configuration to manipulate
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config);
 
 _UA_END_DECLS
 

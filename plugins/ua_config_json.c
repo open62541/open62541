@@ -790,6 +790,7 @@ PARSE_JSON(SecurityPkiField) {
     }
 #ifndef __linux__
     /* Currently not supported! */
+    (void)field;
     return UA_STATUSCODE_GOOD;
 #else
     /* set server config field */

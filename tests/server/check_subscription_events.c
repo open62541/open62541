@@ -804,10 +804,12 @@ START_TEST(evaluateFilterWhereClause) {
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
     UA_LOCK(&server->serviceMutex);
-    retval = UA_ContentFilterValidation(server, &contentFilter, &contentFilterResult);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &contentFilterElement);
+    retval = elmRes.statusCode;
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
-    UA_ContentFilterResult_clear(&contentFilterResult);
+    UA_ContentFilterElementResult_clear(&elmRes);
 
     UA_ExtensionObject filterOperandExObj;
     UA_ExtensionObject_init(&filterOperandExObj);
