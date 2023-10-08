@@ -159,62 +159,70 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_create(UA_Server *server,
-                           const UA_PubSubConnectionConfig *connectionConfig,
-                           UA_NodeId *connectionIdentifier) {
+UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *cc,
+                           UA_NodeId *cId) {
     /* Validate preconditions */
     UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_CHECK_ERROR(connectionConfig != NULL, return UA_STATUSCODE_BADINTERNALERROR,
-                       &server->config.logger, UA_LOGCATEGORY_SERVER,
-                       "PubSub Connection creation failed. No connection configuration supplied.");
+    UA_CHECK_ERROR(cc != NULL, return UA_STATUSCODE_BADINTERNALERROR,
+                   &server->config.logger, UA_LOGCATEGORY_SERVER,
+                   "PubSub Connection creation failed. Missing connection configuration.");
 
     /* Allocate */
-    UA_PubSubConnection *connection = (UA_PubSubConnection *)
+    UA_PubSubConnection *c = (UA_PubSubConnection *)
         UA_calloc(1, sizeof(UA_PubSubConnection));
-    if(!connection) {
+    if(!c) {
         UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    connection->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
+    c->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
 
     /* Copy the connection config */
-    UA_StatusCode ret =
-        UA_PubSubConnectionConfig_copy(connectionConfig, &connection->config);
-    UA_CHECK_STATUS(ret, UA_free(connection); return ret);
+    UA_StatusCode ret = UA_PubSubConnectionConfig_copy(cc, &c->config);
+    UA_CHECK_STATUS(ret, UA_free(c); return ret);
 
     /* Assign the connection identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Internally create a unique id */
-    addPubSubConnectionRepresentation(server, connection);
+    addPubSubConnectionRepresentation(server, c);
 #else
     /* Create a unique NodeId that does not correspond to a Node */
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &connection->identifier);
+                                          &c->identifier);
 #endif
-    if(connectionIdentifier)
-        UA_NodeId_copy(&connection->identifier, connectionIdentifier);
 
     /* Register */
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    TAILQ_INSERT_HEAD(&pubSubManager->connections, connection, listEntry);
+    TAILQ_INSERT_HEAD(&pubSubManager->connections, c, listEntry);
     pubSubManager->connectionsSize++;
 
+    /* Validate-connect to check the parameters */
+    ret = UA_PubSubConnection_connect(server, c, true);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
     /* Make the connection operational */
-    ret = UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_OPERATIONAL,
+    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL,
                                              UA_STATUSCODE_GOOD);
     if(ret != UA_STATUSCODE_GOOD)
-        UA_PubSubConnection_delete(server, connection);
+        goto cleanup;
+
+    /* Copy the created NodeId to the output. Cannot fail as we create a
+     * numerical NodeId. */
+    if(cId)
+        UA_NodeId_copy(&c->identifier, cId);
+
+ cleanup:
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_PubSubConnection_delete(server, c);
     return ret;
 }
 
 UA_StatusCode
-UA_Server_addPubSubConnection(UA_Server *server,
-                              const UA_PubSubConnectionConfig *connectionConfig,
-                              UA_NodeId *connectionIdentifier) {
+UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *cc,
+                              UA_NodeId *cId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        UA_PubSubConnection_create(server, connectionConfig, connectionIdentifier);
+    UA_StatusCode res = UA_PubSubConnection_create(server, cc, cId);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -320,7 +328,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
              * internally. */
             if(oldState != UA_PUBSUBSTATE_OPERATIONAL)
                 c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
-            ret = UA_PubSubConnection_connect(server, c);
+            ret = UA_PubSubConnection_connect(server, c, false);
             if(ret != UA_STATUSCODE_GOOD)
                 UA_PubSubConnection_setPubSubState(server, c,
                                                    UA_PUBSUBSTATE_ERROR, ret);

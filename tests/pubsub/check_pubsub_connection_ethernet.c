@@ -215,6 +215,9 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
 } END_TEST
 
 int main(void) {
+    if(SKIP_ETHERNET && strlen(SKIP_ETHERNET) > 0)
+        return EXIT_SUCCESS;
+
     TCase *tc_add_pubsub_connections_minimal_config = tcase_create("Create PubSub Ethernet Connections with minimal valid config");
     tcase_add_checked_fixture(tc_add_pubsub_connections_minimal_config, setup, teardown);
     tcase_add_test(tc_add_pubsub_connections_minimal_config, AddConnectionsWithMinimalValidConfiguration);

@@ -18,7 +18,7 @@
 #include <linux/if_packet.h>
 
 /* Configuration parameters */
-#define ETH_PARAMETERSSIZE 8
+#define ETH_PARAMETERSSIZE 9
 #define ETH_PARAMINDEX_ADDR 0
 #define ETH_PARAMINDEX_LISTEN 1
 #define ETH_PARAMINDEX_IFACE 2
@@ -27,6 +27,7 @@
 #define ETH_PARAMINDEX_PCP 5
 #define ETH_PARAMINDEX_DEI 6
 #define ETH_PARAMINDEX_PROMISCUOUS 7
+#define ETH_PARAMINDEX_VALIDATE 8
 
 static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, false},
@@ -37,6 +38,7 @@ static UA_KeyValueRestriction ETHConfigParameters[ETH_PARAMETERSSIZE+1] = {
     {{0, UA_STRING_STATIC("pcp")}, &UA_TYPES[UA_TYPES_BYTE], false, true, false},
     {{0, UA_STRING_STATIC("dei")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     {{0, UA_STRING_STATIC("promiscuous")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
     /* Duplicated address parameter with a scalar value required. For the send-socket case. */
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], true, true, false},
 };
@@ -421,7 +423,8 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
 static UA_StatusCode
 ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
                          const UA_KeyValueMap *params,
-                         int ifindex, UA_UInt16 etherType) {
+                         int ifindex, UA_UInt16 etherType,
+                         UA_Boolean validate) {
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
     /* Bind the socket to interface and EtherType. Don't receive anything else. */
@@ -430,7 +433,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
     sll.sll_family = AF_PACKET;
     sll.sll_protocol = htons(etherType);
     sll.sll_ifindex = ifindex;
-    if(bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
+    if(!validate && bind(conn->rfd.fd, (struct sockaddr*)&sll, sizeof(sll)) < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Immediately register for listen events. Don't have to wait for a
@@ -481,19 +484,20 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
         }
 
         struct packet_mreq mreq;
+        memset(&mreq, 0, sizeof(struct packet_mreq));
         mreq.mr_ifindex = ifindex;
         mreq.mr_type = PACKET_MR_MULTICAST;
         mreq.mr_alen = ETH_ALEN;
         memcpy(mreq.mr_address, addr, ETHER_ADDR_LEN);
-        int ret = UA_setsockopt(conn->rfd.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
-                                (char *)&mreq, sizeof(mreq));
-        if(ret < 0) {
+        if(!validate && UA_setsockopt(conn->rfd.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
+                                      (char *)&mreq, sizeof(mreq)) < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                            "ETH\t| Registering for multicast failed with error %s", errno_str));
+                            "ETH\t| Registering for multicast failed with error %s",
+                            errno_str));
             return UA_STATUSCODE_BADINTERNALERROR;
         }
-    } 
+    }
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                 "ETH %u\t| Opened an Ethernet listen socket",
@@ -586,6 +590,15 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return res;
     }
 
+    /* Only validate the parameters? */
+    UA_Boolean validate = false;
+    const UA_Boolean *validateParam = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params,
+                                 ETHConfigParameters[ETH_PARAMINDEX_VALIDATE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(validateParam)
+        validate = *validateParam;
+
     /* Get the EtherType parameter */
     UA_UInt16 etherType = ETH_P_ALL;
     const UA_UInt16 *etParam =  (const UA_UInt16*)
@@ -665,9 +678,11 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                                      (unsigned char*)ifr.ifr_hwaddr.sa_data,
                                      ifindex, etherType);
     } else {
-        res = ETH_openListenConnection(el, conn, params, ifindex, etherType);
+        res = ETH_openListenConnection(el, conn, params, ifindex, etherType, validate);
     }
-    if(res != UA_STATUSCODE_GOOD)
+
+    /* Don't actually open or shut down */
+    if(validate || res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     /* Register in the EventLoop */

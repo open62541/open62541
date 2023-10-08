@@ -98,7 +98,7 @@ createNS0_base(UA_Server *server) {
     hassubtype_attr.displayName = UA_LOCALIZEDTEXT("", "HasSubtype");
     hassubtype_attr.isAbstract = false;
     hassubtype_attr.symmetric = false;
-    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "HasSupertype");
+    hassubtype_attr.inverseName = UA_LOCALIZEDTEXT("", "SubtypeOf");
     ret |= ns0_addNode_raw(server, UA_NODECLASS_REFERENCETYPE, UA_NS0ID_HASSUBTYPE, "HasSubtype",
                            &hassubtype_attr, &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES]);
 

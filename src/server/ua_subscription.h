@@ -366,13 +366,13 @@ generateEventId(UA_ByteString *generatedId);
 /* Static validation when the filter is registered */
 UA_StatusCode
 UA_SimpleAttributeOperandValidation(UA_Server *server,
-                                    UA_SimpleAttributeOperand *sao);
+                                    const UA_SimpleAttributeOperand *sao);
 
 /* Static validation when the filter is registered */
-UA_StatusCode
-UA_ContentFilterValidation(UA_Server *server,
-                           const UA_ContentFilter *filter,
-                           UA_ContentFilterResult *result);
+UA_ContentFilterElementResult
+UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
+                                  size_t operatorsCount,
+                                  const UA_ContentFilterElement *ef);
 
 /* Evaluate content filter, exported only for unit testing */
 UA_StatusCode

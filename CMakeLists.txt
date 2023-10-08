@@ -41,7 +41,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 3)
-set(OPEN62541_VER_PATCH 6)
+set(OPEN62541_VER_PATCH 8)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -340,14 +340,6 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 if(UA_ENABLE_PUBSUB_MONITORING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub monitoring cannot be used with PubSub function disabled")
-    endif()
-endif()
-
-option(UA_ENABLE_PUBSUB_ETH_UADP "Enable the OPC UA Ethernet PubSub support to transport UADP NetworkMessages as payload of Ethernet II frame without IP or UDP headers. This option will include Publish and Subscribe based on EtherType B62C." OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ETH_UADP)
-if(UA_ENABLE_PUBSUB_ETH_UADP)
-    if(NOT UA_ENABLE_PUBSUB)
-	    message(FATAL_ERROR "For UA_ENABLE_PUBSUB_ETH_UADP PubSub needs to be enabled")
     endif()
 endif()
 

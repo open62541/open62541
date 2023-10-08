@@ -459,6 +459,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *             for listening (default: listen on all interfaces).
  * - 0:port [uint16]: Port of the target host (required).
  * - 0:listen [boolean]: Listen-connection or active-connection (default: false)
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * Connection Callback Parameters (first callback only):
  * - Active Connection
@@ -549,6 +552,9 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
  * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
  * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * Send Parameters:
  * No additional parameters for sending over an Ethernet connection defined. */
@@ -576,6 +582,9 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * - 0:password [string]: Password to use (default: none)
  * - 0:keep-alive [uint16]: Number of seconds for the keep-alive (ping)
  *                          (default: 400).
+ * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
+ *       without actually creating any connection but solely validating the
+ *       provided parameters (default: false)
  *
  * - 0:topic [string]: Topic to which the connection is associated (required).
  * - 0:subscribe [bool]: Subscribe to the topic (default: false).

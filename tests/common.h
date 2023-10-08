@@ -3,6 +3,8 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include <stdio.h>
+#include <errno.h>
 
 /* loadFile parses the certificate file.
  *
