@@ -1,4 +1,6 @@
-set(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
+if(NOT open62541_TOOLS_DIR OR "${open62541_TOOLS_DIR}" STREQUAL "")
+    set(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
+endif()
 
 # --------------- Generate NodeIDs header ---------------------
 #
