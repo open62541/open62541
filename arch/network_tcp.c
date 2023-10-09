@@ -193,12 +193,14 @@ ServerNetworkLayerTCP_close(UA_Connection *connection) {
 }
 
 static UA_Boolean
-purgeFirstConnectionWithoutChannel(ServerNetworkLayerTCP *layer) {
+purgeFirstConnectionWithoutChannel(ServerNetworkLayerTCP *layer,
+                                   UA_ServerNetworkLayer *nl) {
     ConnectionEntry *e;
     LIST_FOREACH(e, &layer->connections, pointers) {
         if(e->connection.channel == NULL) {
             LIST_REMOVE(e, pointers);
             layer->connectionsSize--;
+            nl->statistics->currentConnectionCount--;
             UA_close(e->connection.sockfd);
             e->connection.free(&e->connection);
             return true;
@@ -211,7 +213,7 @@ static UA_StatusCode
 ServerNetworkLayerTCP_add(UA_ServerNetworkLayer *nl, ServerNetworkLayerTCP *layer,
                           UA_Int32 newsockfd, struct sockaddr_storage *remote) {
    if(layer->maxConnections && layer->connectionsSize >= layer->maxConnections &&
-      !purgeFirstConnectionWithoutChannel(layer)) {
+      !purgeFirstConnectionWithoutChannel(layer, nl)) {
        return UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
    }
 
@@ -525,6 +527,9 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
                     (int)newsockfd, (int)(layer->serverSockets[i]));
 
         if(ServerNetworkLayerTCP_add(nl, layer, (UA_Int32)newsockfd, &remote) != UA_STATUSCODE_GOOD) {
+            if(nl->statistics) {
+                nl->statistics->rejectedConnectionCount++;
+            }
             UA_close(newsockfd);
         }
     }
@@ -575,6 +580,7 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             UA_Server_removeConnection(server, &e->connection);
             if(nl->statistics) {
                 nl->statistics->currentConnectionCount--;
+                nl->statistics->connectionAbortCount++;
             }
         }
     }
