@@ -5,11 +5,11 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # no dependency
     if(MODEL STREQUAL "DEXPI" OR MODEL STREQUAL "Safety" OR MODEL STREQUAL "CNC" OR MODEL STREQUAL "BACnet"
        OR MODEL STREQUAL "AMB" OR MODEL STREQUAL "MachineVision" OR MODEL STREQUAL "RSL" OR MODEL STREQUAL "I4AAS"
-       OR MODEL STREQUAL "PackML")
+       OR MODEL STREQUAL "PackML" OR MODEL STREQUAL "MTConnect")
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
         foreach(file ${files})
-            string(REGEX MATCH "(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
+            string(REGEX MATCH "(.*nodeids.csv)|(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
             if(csv_file_match)
                 set(csv_file ${file})
             endif()
@@ -35,12 +35,12 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # only one xml file
     # di as dependency
     elseif(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
-       OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT"
+       OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT" OR MODEL STREQUAL "Robotics"
        OR MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
         foreach(file ${files})
-            string(REGEX MATCH "(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
+            string(REGEX MATCH "(.*nodeids.csv)|(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
             if(csv_file_match)
                 set(csv_file ${file})
             endif()
@@ -211,6 +211,41 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
                 DEPENDS "di"
+        )
+    elseif(MODEL STREQUAL "ADI")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/OpcUaAdiModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Adi.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+        )
+    elseif(MODEL STREQUAL "MDIS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/MDIS.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.MDIS.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+        )
+    elseif(MODEL STREQUAL "Sercos")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/SercosModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Sercos.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+        )
+    elseif(MODEL STREQUAL "GDS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/OpcUaGdsModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Gds.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
         )
     elseif(MODEL STREQUAL "PADIM")
         ua_generate_nodeset_and_datatypes(
