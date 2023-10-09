@@ -477,6 +477,22 @@ Finally you need to include all these files in your build process and call the c
 
     retval = UA_Server_run(server, &running);
 
+Outstanding Companion Spec Issues
+................................
+
+There are some Companion Specifications that currently cannot be compiled with the Nodeset compiler.
+Which Companion Specifications are affected and what causes this is described below.
+
+* Safety, Glass
+Do not specify a BSD file or BSD blob in the XML file. The BSD file is considered deprecated. However, it is currently still required by the Nodeser compiler.
+
+* I4AAS, RSL, CNC, FDI
+Attempting to load will result in a runtime error ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
+
+* BACnet
+Defines data types whose fields have the names signed or unsigned. This leads to errors when creating C structures, because signed and unsigned are keywords in C.
+
+
 
 Automatic Nodesetinjection
 ................................
@@ -500,5 +516,4 @@ A CMake call could look like this.
 The order of nodesets is important! Nodesets that build on other nodesets must be placed after them in the list.
 The following nodesets are currently supported.
 
-* DI, ISA95-JOBCONTROL, OpenSCS, DEXPI, AMB, AutoID, POWERLINK, IA, Machinery, PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT, CommercialKitchenEquipment,
-PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
+* DI, ISA95-JOBCONTROL, OpenSCS, DEXPI, AMB, AutoID, POWERLINK, IA, Machinery, PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT, CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
