@@ -67,14 +67,16 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->clientContext = src->clientContext;
     dst->customDataTypes = src->customDataTypes;
     dst->eventLoop = src->eventLoop;
-    dst->externalEventLoop = src->externalEventLoop;
+    dst->externalEventLoop = UA_TRUE;
     dst->inactivityCallback = src->inactivityCallback;
     dst->localConnectionConfig = src->localConnectionConfig;
     dst->logger = src->logger;
+    dst->logger.externalLogger = UA_TRUE;
     if(src->logging == &src->logger) {
         dst->logging = &dst->logger;
     } else {
         dst->logging = src->logging;
+        dst->logging->externalLogger = UA_TRUE;
     }
     if((src->certificateVerification.logging == NULL) ||
        (src->certificateVerification.logging == &src->logging)) {
@@ -93,6 +95,7 @@ UA_ClientConfig_copy(UA_ClientConfig const *src, UA_ClientConfig *dst){
     dst->timeout = src->timeout;
     dst->userTokenPolicy = src->userTokenPolicy;
     dst->securityPolicies = src->securityPolicies;
+    dst->externalPolicy = UA_TRUE;
     dst->securityPoliciesSize = src->securityPoliciesSize;
     dst->authSecurityPolicies = src->authSecurityPolicies;
     dst->authSecurityPoliciesSize = src->authSecurityPoliciesSize;
@@ -174,7 +177,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
         config->certificateVerification.clear(&config->certificateVerification);
 
     /* Delete the SecurityPolicies */
-    if(config->securityPolicies != 0) {
+    if(config->securityPolicies != 0 && !config->externalPolicy) {
         for(size_t i = 0; i < config->securityPoliciesSize; i++)
             config->securityPolicies[i].clear(&config->securityPolicies[i]);
         UA_free(config->securityPolicies);
@@ -196,18 +199,19 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     }
 
     /* Logger */
-    if(config->logging != NULL) {
+    if(config->logging != NULL && !config->logging) {
         if((config->logging != &config->logger) &&
            (config->logging->clear != NULL)) {
             config->logging->clear(config->logging->context);
         }
         config->logging = NULL;
     }
-    if(config->logger.clear)
-        config->logger.clear(config->logger.context);
-    config->logger.log = NULL;
-    config->logger.clear = NULL;
 
+    if(config->logger.clear && !config->logger.externalLogger) {
+        config->logger.clear(config->logger.context);
+        config->logger.log = NULL;
+        config->logger.clear = NULL;
+    }
     if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
         UA_Array_delete(config->sessionLocaleIds,
                         config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
