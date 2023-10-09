@@ -1,0 +1,731 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd"
+  xmlns:tns="http://opcfoundation.org/UA/MTConnect/Types.xsd"
+  targetNamespace="http://opcfoundation.org/UA/MTConnect/Types.xsd"
+  elementFormDefault="qualified"
+>
+  <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd" />
+
+  <xs:simpleType  name="ActuatorStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACTIVE_1" />
+      <xs:enumeration value="INACTIVE_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ActuatorStateTypeEnum" type="tns:ActuatorStateTypeEnum" />
+
+  <xs:complexType name="ListOfActuatorStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="ActuatorStateTypeEnum" type="tns:ActuatorStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfActuatorStateTypeEnum" type="tns:ListOfActuatorStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="AlarmStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACTIVE_1" />
+      <xs:enumeration value="CLEARED_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="AlarmStateTypeEnum" type="tns:AlarmStateTypeEnum" />
+
+  <xs:complexType name="ListOfAlarmStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="AlarmStateTypeEnum" type="tns:AlarmStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfAlarmStateTypeEnum" type="tns:ListOfAlarmStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="AssetDescriptionType" type="xs:string" />
+
+  <xs:element name="AssetAttrDataType" type="xs:string" />
+
+  <xs:element name="AssetBufferSizeDataType" type="ua:Variant" />
+
+  <xs:element name="AssetIdDataType" type="xs:string" />
+
+  <xs:simpleType  name="AvailabilityTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="AVAILABLE_1" />
+      <xs:enumeration value="UNAVAILABLE_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="AvailabilityTypeEnum" type="tns:AvailabilityTypeEnum" />
+
+  <xs:complexType name="ListOfAvailabilityTypeEnum">
+    <xs:sequence>
+      <xs:element name="AvailabilityTypeEnum" type="tns:AvailabilityTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfAvailabilityTypeEnum" type="tns:ListOfAvailabilityTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="AxesCouplingTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MASTER_1" />
+      <xs:enumeration value="SLAVE_2" />
+      <xs:enumeration value="SYCHRONOUS_3" />
+      <xs:enumeration value="TANDEM_4" />
+      <xs:enumeration value="UNAVAILABLE_5" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="AxesCouplingTypeEnum" type="tns:AxesCouplingTypeEnum" />
+
+  <xs:complexType name="ListOfAxesCouplingTypeEnum">
+    <xs:sequence>
+      <xs:element name="AxesCouplingTypeEnum" type="tns:AxesCouplingTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfAxesCouplingTypeEnum" type="tns:ListOfAxesCouplingTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="AxesListValueDataType" type="xs:string" />
+
+  <xs:element name="BufferSizeDataType" type="ua:Variant" />
+
+  <xs:element name="CalibrationDateDataType" type="xs:string" />
+
+  <xs:element name="CalibrationInitialsDataType" type="xs:string" />
+
+  <xs:simpleType  name="CategoryTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CONDITION_1" />
+      <xs:enumeration value="EVENT_2" />
+      <xs:enumeration value="SAMPLE_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="CategoryTypeEnum" type="tns:CategoryTypeEnum" />
+
+  <xs:complexType name="ListOfCategoryTypeEnum">
+    <xs:sequence>
+      <xs:element name="CategoryTypeEnum" type="tns:CategoryTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfCategoryTypeEnum" type="tns:ListOfCategoryTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="ChannelNumberDataType" type="xs:unsignedShort" />
+
+  <xs:simpleType  name="ClampStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CLOSED_1" />
+      <xs:enumeration value="INDETERMINATE_2" />
+      <xs:enumeration value="OPEN_3" />
+      <xs:enumeration value="UNAVAILABLE_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ClampStateTypeEnum" type="tns:ClampStateTypeEnum" />
+
+  <xs:complexType name="ListOfClampStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="ClampStateTypeEnum" type="tns:ClampStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfClampStateTypeEnum" type="tns:ListOfClampStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="ConditionDescriptionDataType" type="xs:string" />
+
+  <xs:simpleType  name="ControllerModeTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="AUTOMATIC_1" />
+      <xs:enumeration value="MANUAL_2" />
+      <xs:enumeration value="MANUAL_DATA_INPUT_3" />
+      <xs:enumeration value="SEMI_AUTOMATIC_4" />
+      <xs:enumeration value="UNAVAILABLE_5" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ControllerModeTypeEnum" type="tns:ControllerModeTypeEnum" />
+
+  <xs:complexType name="ListOfControllerModeTypeEnum">
+    <xs:sequence>
+      <xs:element name="ControllerModeTypeEnum" type="tns:ControllerModeTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfControllerModeTypeEnum" type="tns:ListOfControllerModeTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="CoordinateSystemTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MACHINE_1" />
+      <xs:enumeration value="WORK_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="CoordinateSystemTypeEnum" type="tns:CoordinateSystemTypeEnum" />
+
+  <xs:complexType name="ListOfCoordinateSystemTypeEnum">
+    <xs:sequence>
+      <xs:element name="CoordinateSystemTypeEnum" type="tns:CoordinateSystemTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfCoordinateSystemTypeEnum" type="tns:ListOfCoordinateSystemTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="IDDataType" type="ua:NodeId" />
+
+  <xs:element name="CodeDataType" type="xs:string" />
+
+  <xs:element name="ComponentIdDataType" type="ua:NodeId" />
+
+  <xs:element name="ConnectionCodeMachineSideDataType" type="xs:string" />
+
+  <xs:element name="CountValueDataType" type="xs:string" />
+
+  <xs:element name="CreationTimeDataType" type="xs:dateTime" />
+
+  <xs:simpleType  name="CutterStatusValueTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ALLOCATED_1" />
+      <xs:enumeration value="AVAILABLE_2" />
+      <xs:enumeration value="BROKEN_3" />
+      <xs:enumeration value="EXPIRED_4" />
+      <xs:enumeration value="MEASURED_5" />
+      <xs:enumeration value="NEW_6" />
+      <xs:enumeration value="NOT_REGISTERED_7" />
+      <xs:enumeration value="RECONDITIONED_8" />
+      <xs:enumeration value="TAGGED_OUT_9" />
+      <xs:enumeration value="UNALLOCATED_10" />
+      <xs:enumeration value="UNAVAILABLE_11" />
+      <xs:enumeration value="UNKNOWN_12" />
+      <xs:enumeration value="USED_13" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="CutterStatusValueTypeEnum" type="tns:CutterStatusValueTypeEnum" />
+
+  <xs:complexType name="ListOfCutterStatusValueTypeEnum">
+    <xs:sequence>
+      <xs:element name="CutterStatusValueTypeEnum" type="tns:CutterStatusValueTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfCutterStatusValueTypeEnum" type="tns:ListOfCutterStatusValueTypeEnum" nillable="true"></xs:element>
+
+  <xs:complexType name="DataItemEnumDataType">
+    <xs:sequence>
+      <xs:element name="DataItemEnum" type="tns:DataItemEnumTypeEnum" minOccurs="0" />
+      <xs:element name="DataItemEnumString" type="xs:string" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="DataItemEnumDataType" type="tns:DataItemEnumDataType" />
+
+  <xs:complexType name="ListOfDataItemEnumDataType">
+    <xs:sequence>
+      <xs:element name="DataItemEnumDataType" type="tns:DataItemEnumDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDataItemEnumDataType" type="tns:ListOfDataItemEnumDataType" nillable="true"></xs:element>
+
+  <xs:simpleType  name="DataItemEnumTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACCELERATION_1" />
+      <xs:enumeration value="ACCUMULATED_TIME_2" />
+      <xs:enumeration value="ACTIVE_AXES_3" />
+      <xs:enumeration value="ACTUATOR_4" />
+      <xs:enumeration value="ACTUATOR_STATE_5" />
+      <xs:enumeration value="ALARM_6" />
+      <xs:enumeration value="AMPERAGE_7" />
+      <xs:enumeration value="ANGLE_8" />
+      <xs:enumeration value="ANGULAR_ACCELERATION_9" />
+      <xs:enumeration value="ANGULAR_VELOCITY_10" />
+      <xs:enumeration value="ASSET_CHANGED_11" />
+      <xs:enumeration value="AVAILABILITY_12" />
+      <xs:enumeration value="AXIS_COUPLING_13" />
+      <xs:enumeration value="AXIS_FEEDRATE_14" />
+      <xs:enumeration value="BLOCK_15" />
+      <xs:enumeration value="CODE_16" />
+      <xs:enumeration value="COMMUNICATIONS_17" />
+      <xs:enumeration value="CONCENTRATION_18" />
+      <xs:enumeration value="CONDUCTIVITY_19" />
+      <xs:enumeration value="CONTROLLER_MODE_20" />
+      <xs:enumeration value="COUPLED_AXES_21" />
+      <xs:enumeration value="DIRECTION_22" />
+      <xs:enumeration value="DISPLACEMENT_23" />
+      <xs:enumeration value="DOOR_STATE_24" />
+      <xs:enumeration value="ELECTRICAL_POWER_25" />
+      <xs:enumeration value="EMERGENCY_STOP_26" />
+      <xs:enumeration value="EXECUTION_27" />
+      <xs:enumeration value="FILL_LEVEL_28" />
+      <xs:enumeration value="FLOW_29" />
+      <xs:enumeration value="FREQUENCY_30" />
+      <xs:enumeration value="HARDWARE_31" />
+      <xs:enumeration value="LEVEL_32" />
+      <xs:enumeration value="LINE_33" />
+      <xs:enumeration value="LINEAR_FORCE_34" />
+      <xs:enumeration value="LOAD_35" />
+      <xs:enumeration value="LOGIC_PROGRAM_36" />
+      <xs:enumeration value="MASS_37" />
+      <xs:enumeration value="MESSAGE_38" />
+      <xs:enumeration value="MOTION_PROGRAM_39" />
+      <xs:enumeration value="PART_COUNT_40" />
+      <xs:enumeration value="PART_ID_41" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DataItemEnumTypeEnum" type="tns:DataItemEnumTypeEnum" />
+
+  <xs:complexType name="ListOfDataItemEnumTypeEnum">
+    <xs:sequence>
+      <xs:element name="DataItemEnumTypeEnum" type="tns:DataItemEnumTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDataItemEnumTypeEnum" type="tns:ListOfDataItemEnumTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="DataItemIdDataType" type="xs:string" />
+
+  <xs:complexType name="DataItemStatisticsDataType">
+    <xs:sequence>
+      <xs:element name="DataItemStatisticsEnum" type="tns:DataItemStatisticsTypeEnum" minOccurs="0" />
+      <xs:element name="DataItemStatisticsString" type="xs:string" minOccurs="0" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="DataItemStatisticsDataType" type="tns:DataItemStatisticsDataType" />
+
+  <xs:complexType name="ListOfDataItemStatisticsDataType">
+    <xs:sequence>
+      <xs:element name="DataItemStatisticsDataType" type="tns:DataItemStatisticsDataType" minOccurs="0" maxOccurs="unbounded" nillable="true" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDataItemStatisticsDataType" type="tns:ListOfDataItemStatisticsDataType" nillable="true"></xs:element>
+
+  <xs:simpleType  name="DataItemStatisticsTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="AVERAGE_1" />
+      <xs:enumeration value="KURTOSIS_2" />
+      <xs:enumeration value="MAXIMUM_3" />
+      <xs:enumeration value="MEAN_4" />
+      <xs:enumeration value="MINIMUM_5" />
+      <xs:enumeration value="MODE_6" />
+      <xs:enumeration value="RANGE_7" />
+      <xs:enumeration value="ROOT_MEAN_SQUARE_8" />
+      <xs:enumeration value="STANDARD_DEVIATION_9" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DataItemStatisticsTypeEnum" type="tns:DataItemStatisticsTypeEnum" />
+
+  <xs:complexType name="ListOfDataItemStatisticsTypeEnum">
+    <xs:sequence>
+      <xs:element name="DataItemStatisticsTypeEnum" type="tns:DataItemStatisticsTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDataItemStatisticsTypeEnum" type="tns:ListOfDataItemStatisticsTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="DataItemSubEnumTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACTUAL_1" />
+      <xs:enumeration value="ALL_2" />
+      <xs:enumeration value="ALTERNATING_3" />
+      <xs:enumeration value="A_SCALE_4" />
+      <xs:enumeration value="BAD_5" />
+      <xs:enumeration value="B_SCALE_6" />
+      <xs:enumeration value="COMMANDED_7" />
+      <xs:enumeration value="CONTROL_8" />
+      <xs:enumeration value="C_SCALE_9" />
+      <xs:enumeration value="DIRECT_10" />
+      <xs:enumeration value="DYNAMIC_11" />
+      <xs:enumeration value="D_SCALE_12" />
+      <xs:enumeration value="GOOD_13" />
+      <xs:enumeration value="KINETIC_14" />
+      <xs:enumeration value="LINE_15" />
+      <xs:enumeration value="MAXIMUM_16" />
+      <xs:enumeration value="MINIMUM_17" />
+      <xs:enumeration value="MOLE_18" />
+      <xs:enumeration value="NO_SCALE_19" />
+      <xs:enumeration value="OTHER_20" />
+      <xs:enumeration value="OVERRIDE_21" />
+      <xs:enumeration value="PROBE_22" />
+      <xs:enumeration value="TARGET_23" />
+      <xs:enumeration value="VOLUME_24" />
+      <xs:enumeration value="WEIGHT_25" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DataItemSubEnumTypeEnum" type="tns:DataItemSubEnumTypeEnum" />
+
+  <xs:complexType name="ListOfDataItemSubEnumTypeEnum">
+    <xs:sequence>
+      <xs:element name="DataItemSubEnumTypeEnum" type="tns:DataItemSubEnumTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDataItemSubEnumTypeEnum" type="tns:ListOfDataItemSubEnumTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="DefinitionFormatTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="EXPRESS_1" />
+      <xs:enumeration value="TEXT_2" />
+      <xs:enumeration value="UNDEFINED_3" />
+      <xs:enumeration value="XML_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DefinitionFormatTypeEnum" type="tns:DefinitionFormatTypeEnum" />
+
+  <xs:complexType name="ListOfDefinitionFormatTypeEnum">
+    <xs:sequence>
+      <xs:element name="DefinitionFormatTypeEnum" type="tns:DefinitionFormatTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDefinitionFormatTypeEnum" type="tns:ListOfDefinitionFormatTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="DecibelValueDataType" type="xs:string" />
+
+  <xs:element name="DescriptionTextDataType" type="xs:string" />
+
+  <xs:simpleType  name="DirectionTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CLOCKWISE_1" />
+      <xs:enumeration value="COUNTER_CLOCKWISE_2" />
+      <xs:enumeration value="NEGATIVE_3" />
+      <xs:enumeration value="POSITIVE_4" />
+      <xs:enumeration value="UNAVAILABLE_5" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DirectionTypeEnum" type="tns:DirectionTypeEnum" />
+
+  <xs:complexType name="ListOfDirectionTypeEnum">
+    <xs:sequence>
+      <xs:element name="DirectionTypeEnum" type="tns:DirectionTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDirectionTypeEnum" type="tns:ListOfDirectionTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="DoorStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CLOSED_1" />
+      <xs:enumeration value="INDETERMINATE_2" />
+      <xs:enumeration value="OPEN_3" />
+      <xs:enumeration value="UNAVAILABLE_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="DoorStateTypeEnum" type="tns:DoorStateTypeEnum" />
+
+  <xs:complexType name="ListOfDoorStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="DoorStateTypeEnum" type="tns:DoorStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfDoorStateTypeEnum" type="tns:ListOfDoorStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="DurationTimeDataType" type="xs:float" />
+
+  <xs:element name="DurationValueDataType" type="xs:string" />
+
+  <xs:element name="EdgeCountDataType" type="ua:Variant" />
+
+  <xs:simpleType  name="EmergencyStopTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ARMED_1" />
+      <xs:enumeration value="TRIGGERED_2" />
+      <xs:enumeration value="UNAVAILABLE_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="EmergencyStopTypeEnum" type="tns:EmergencyStopTypeEnum" />
+
+  <xs:complexType name="ListOfEmergencyStopTypeEnum">
+    <xs:sequence>
+      <xs:element name="EmergencyStopTypeEnum" type="tns:EmergencyStopTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfEmergencyStopTypeEnum" type="tns:ListOfEmergencyStopTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="EnergyValueDataType" type="xs:string" />
+
+  <xs:simpleType  name="ExecutionTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACTIVE_1" />
+      <xs:enumeration value="INTERRUPTED_2" />
+      <xs:enumeration value="READY_3" />
+      <xs:enumeration value="STOPPED_4" />
+      <xs:enumeration value="UNAVAILABLE_5" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ExecutionTypeEnum" type="tns:ExecutionTypeEnum" />
+
+  <xs:complexType name="ListOfExecutionTypeEnum">
+    <xs:sequence>
+      <xs:element name="ExecutionTypeEnum" type="tns:ExecutionTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfExecutionTypeEnum" type="tns:ListOfExecutionTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="FeedrateValueDataType" type="xs:string" />
+
+  <xs:element name="FirmwareVersionDataType" type="xs:string" />
+
+  <xs:element name="ForceValueDataType" type="xs:string" />
+
+  <xs:element name="GradeDataType" type="xs:string" />
+
+  <xs:element name="IndexRangeDataType" type="xs:string" />
+
+  <xs:element name="InstanceIdDataType" type="ua:Variant" />
+
+  <xs:element name="ItemIdDataType" type="xs:string" />
+
+  <xs:simpleType  name="InterfaceStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ACTIVE_1" />
+      <xs:enumeration value="COMPLETE_2" />
+      <xs:enumeration value="FAIL_3" />
+      <xs:enumeration value="READY_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="InterfaceStateTypeEnum" type="tns:InterfaceStateTypeEnum" />
+
+  <xs:complexType name="ListOfInterfaceStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="InterfaceStateTypeEnum" type="tns:InterfaceStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfInterfaceStateTypeEnum" type="tns:ListOfInterfaceStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="ItemSourceDataType" type="xs:string" />
+
+  <xs:element name="LocationSizeDataType" type="ua:Variant" />
+
+  <xs:element name="LocationValueDataType" type="ua:Variant" />
+
+  <xs:simpleType  name="LocationsTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CRIB_1" />
+      <xs:enumeration value="POT_2" />
+      <xs:enumeration value="STATION_3" />
+      <xs:enumeration value="READY_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="LocationsTypeEnum" type="tns:LocationsTypeEnum" />
+
+  <xs:complexType name="ListOfLocationsTypeEnum">
+    <xs:sequence>
+      <xs:element name="LocationsTypeEnum" type="tns:LocationsTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfLocationsTypeEnum" type="tns:ListOfLocationsTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="LocusDataType" type="xs:string" />
+
+  <xs:element name="ManufacturersDataType" type="xs:string" />
+
+  <xs:element name="MassValueDataType" type="xs:string" />
+
+  <xs:element name="MaximumCountDataType" type="ua:Variant" />
+
+  <xs:element name="MaximumDataType" type="xs:float" />
+
+  <xs:element name="MeasurementValueDataType" type="xs:float" />
+
+  <xs:element name="MinimumDataType" type="xs:float" />
+
+  <xs:element name="ModelDataType" type="xs:string" />
+
+  <xs:element name="NameDataType" type="xs:string" />
+
+  <xs:element name="NativeCodeDataType" type="xs:string" />
+
+  <xs:element name="NativeNotifcationCodeDataType" type="xs:string" />
+
+  <xs:element name="NativeScaleDataType" type="xs:float" />
+
+  <xs:element name="NativeSeverityDataType" type="xs:string" />
+
+  <xs:element name="NextCalibrationDateDataType" type="xs:dateTime" />
+
+  <xs:element name="NominalDataType" type="xs:float" />
+
+  <xs:simpleType  name="NotificationCodeTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CRASH_1" />
+      <xs:enumeration value="ESTOP_2" />
+      <xs:enumeration value="FAILURE_3" />
+      <xs:enumeration value="FAULT_4" />
+      <xs:enumeration value="JAM_5" />
+      <xs:enumeration value="MATERIAL_6" />
+      <xs:enumeration value="MESSAGE_7" />
+      <xs:enumeration value="OTHER_8" />
+      <xs:enumeration value="OVERLOAD_9" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="NotificationCodeTypeEnum" type="tns:NotificationCodeTypeEnum" />
+
+  <xs:complexType name="ListOfNotificationCodeTypeEnum">
+    <xs:sequence>
+      <xs:element name="NotificationCodeTypeEnum" type="tns:NotificationCodeTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfNotificationCodeTypeEnum" type="tns:ListOfNotificationCodeTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="NotificationDescriptionDataType" type="xs:string" />
+
+  <xs:element name="OccurrenceTimeDataType" type="xs:dateTime" />
+
+  <xs:element name="OverlapDataType" type="ua:Variant" />
+
+  <xs:simpleType  name="PathModeTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="INDEPENDENT_1" />
+      <xs:enumeration value="MIRROR_2" />
+      <xs:enumeration value="SYNCHRONOUS_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="PathModeTypeEnum" type="tns:PathModeTypeEnum" />
+
+  <xs:complexType name="ListOfPathModeTypeEnum">
+    <xs:sequence>
+      <xs:element name="PathModeTypeEnum" type="tns:PathModeTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfPathModeTypeEnum" type="tns:ListOfPathModeTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="PowerStateTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="OFF_1" />
+      <xs:enumeration value="ON_2" />
+      <xs:enumeration value="UNAVAILABLE_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="PowerStateTypeEnum" type="tns:PowerStateTypeEnum" />
+
+  <xs:complexType name="ListOfPowerStateTypeEnum">
+    <xs:sequence>
+      <xs:element name="PowerStateTypeEnum" type="tns:PowerStateTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfPowerStateTypeEnum" type="tns:ListOfPowerStateTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="ProgramToolNumberDataType" type="ua:Variant" />
+
+  <xs:simpleType  name="QualifierTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="HIGH_1" />
+      <xs:enumeration value="LOW_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="QualifierTypeEnum" type="tns:QualifierTypeEnum" />
+
+  <xs:complexType name="ListOfQualifierTypeEnum">
+    <xs:sequence>
+      <xs:element name="QualifierTypeEnum" type="tns:QualifierTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfQualifierTypeEnum" type="tns:ListOfQualifierTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="RateDataType" type="xs:float" />
+
+  <xs:element name="ReconditionCountValueDataType" type="ua:Variant" />
+
+  <xs:simpleType  name="RotaryModeTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CONTOUR_1" />
+      <xs:enumeration value="INDEX_2" />
+      <xs:enumeration value="SPINDLE_3" />
+      <xs:enumeration value="UNAVAILABLE_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="RotaryModeTypeEnum" type="tns:RotaryModeTypeEnum" />
+
+  <xs:complexType name="ListOfRotaryModeTypeEnum">
+    <xs:sequence>
+      <xs:element name="RotaryModeTypeEnum" type="tns:RotaryModeTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfRotaryModeTypeEnum" type="tns:ListOfRotaryModeTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="SampleRateDataType" type="xs:float" />
+
+  <xs:simpleType  name="SeverityTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="CRITICAL_1" />
+      <xs:enumeration value="ERROR_2" />
+      <xs:enumeration value="INFORMATION_3" />
+      <xs:enumeration value="WARNING_4" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="SeverityTypeEnum" type="tns:SeverityTypeEnum" />
+
+  <xs:complexType name="ListOfSeverityTypeEnum">
+    <xs:sequence>
+      <xs:element name="SeverityTypeEnum" type="tns:SeverityTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfSeverityTypeEnum" type="tns:ListOfSeverityTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="SignificantDigitsValueDataType" type="ua:Variant" />
+
+  <xs:element name="StationDataType" type="xs:string" />
+
+  <xs:element name="SenderDataType" type="xs:string" />
+
+  <xs:element name="SequenceDataType" type="ua:Variant" />
+
+  <xs:element name="SerialNumberDataType" type="xs:string" />
+
+  <xs:element name="SpeedDataType" type="xs:float" />
+
+  <xs:element name="TestIndicatorDataType" type="xs:boolean" />
+
+  <xs:element name="ToolEventValueDataType" type="xs:string" />
+
+  <xs:element name="ToolGroupDataType" type="xs:string" />
+
+  <xs:element name="ToolIdDataType" type="xs:string" />
+
+  <xs:simpleType  name="ToolLifeDirectionTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="DOWN_1" />
+      <xs:enumeration value="UP_2" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ToolLifeDirectionTypeEnum" type="tns:ToolLifeDirectionTypeEnum" />
+
+  <xs:complexType name="ListOfToolLifeDirectionTypeEnum">
+    <xs:sequence>
+      <xs:element name="ToolLifeDirectionTypeEnum" type="tns:ToolLifeDirectionTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfToolLifeDirectionTypeEnum" type="tns:ListOfToolLifeDirectionTypeEnum" nillable="true"></xs:element>
+
+  <xs:simpleType  name="ToolLifeTypeEnum">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="MINUTES_1" />
+      <xs:enumeration value="PART_COUNT_2" />
+      <xs:enumeration value="WEAR_3" />
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="ToolLifeTypeEnum" type="tns:ToolLifeTypeEnum" />
+
+  <xs:complexType name="ListOfToolLifeTypeEnum">
+    <xs:sequence>
+      <xs:element name="ToolLifeTypeEnum" type="tns:ToolLifeTypeEnum" minOccurs="0" maxOccurs="unbounded" />
+    </xs:sequence>
+  </xs:complexType>
+  <xs:element name="ListOfToolLifeTypeEnum" type="tns:ListOfToolLifeTypeEnum" nillable="true"></xs:element>
+
+  <xs:element name="ToolLifeValueDataType" type="xs:float" />
+
+  <xs:element name="UnitsExtDataType" type="xs:string" />
+
+  <xs:element name="VersionDataType" type="xs:string" />
+
+  <xs:element name="VibrationValueDataType" type="xs:string" />
+
+</xs:schema>

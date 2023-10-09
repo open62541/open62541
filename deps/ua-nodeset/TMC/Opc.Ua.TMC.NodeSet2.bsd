@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/TMC/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/TMC/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataDescriptionType">
+        <opc:Documentation>The metadata (i.e. the complete identification except for the actual value) that describes one setting parameter.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="ua:EUInformation" Name="EngineeringUnits"/>
+        <opc:Field TypeName="opc:CharArray" Name="DisplayFormat"/>
+        <opc:Field TypeName="tns:ParameterDependencyEnumeration" Name="Dependency"/>
+        <opc:Field TypeName="opc:CharArray" Name="DataType"/>
+        <opc:Field TypeName="opc:Boolean" Name="UserSubset"/>
+        <opc:Field TypeName="ua:Range" Name="ControlRange"/>
+        <opc:Field TypeName="ua:Range" Name="AlarmRange"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetEntryType">
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:Variant" Name="Value"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetListType">
+        <opc:Documentation>Contains the description and other necessary metadata of the complete set of machine settigns required for production.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="DataSetListId"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="DataSetListDescription"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfDataDescriptions"/>
+        <opc:Field LengthField="NoOfDataDescriptions" TypeName="tns:DataDescriptionType" Name="DataDescriptions"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="DataSetType">
+        <opc:Documentation>Complete set of settings values required to run production.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="DataSetId"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="DataSetDescription"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfDataValues"/>
+        <opc:Field LengthField="NoOfDataValues" TypeName="tns:DataSetEntryType" Name="DataValues"/>
+        <opc:Field TypeName="opc:Double" Name="DataSetCRC"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="IOMetaType">
+        <opc:Field TypeName="opc:CharArray" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="Address"/>
+        <opc:Field TypeName="tns:IOTypeEnumeration" Name="IOType"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="IOPointType">
+        <opc:Field TypeName="opc:Bit" Name="IOPointMetaSpecified"/>
+        <opc:Field TypeName="opc:Bit" Name="IOPointValueSpecified"/>
+        <opc:Field Length="30" TypeName="opc:Bit" Name="Reserved1"/>
+        <opc:Field SwitchField="IOPointMetaSpecified" TypeName="tns:IOMetaType" Name="IOPointMeta"/>
+        <opc:Field SwitchField="IOPointValueSpecified" TypeName="tns:IOValueType" Name="IOPointValue"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="IOValueType">
+        <opc:Field TypeName="opc:DateTime" Name="TimeStamp"/>
+        <opc:Field TypeName="ua:Variant" Name="RawValue"/>
+        <opc:Field TypeName="ua:Variant" Name="EngValue"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="LoadUnloadPointType">
+        <opc:Documentation>A physical location in the machine module where input materials can be loaded.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMaterialCapability"/>
+        <opc:Field LengthField="NoOfMaterialCapability" TypeName="tns:MaterialType" Name="MaterialCapability"/>
+        <opc:Field TypeName="opc:CharArray" Name="UserName"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialStorageBufferDataType">
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_ID"/>
+        <opc:Field TypeName="tns:MaterialType" Name="StoredMaterial"/>
+        <opc:Field TypeName="ua:EUInformation" Name="EUInfo"/>
+        <opc:Field TypeName="opc:Double" Name="TotalStorageCapacity"/>
+        <opc:Field TypeName="tns:StorageLogicEnumeration" Name="StorageLogic"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MaterialType">
+        <opc:Documentation>Describes a material (raw, semi, finished) in the production process.The information shall be made consistent with the ERP system's description.</opc:Documentation>
+        <opc:Field TypeName="opc:CharArray" Name="Group"/>
+        <opc:Field TypeName="opc:CharArray" Name="Id"/>
+        <opc:Field TypeName="opc:CharArray" Name="BatchId"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+        <opc:Field TypeName="opc:CharArray" Name="MES_Id"/>
+        <opc:Field TypeName="ua:EUInformation" Name="BaseUoM"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MessageType">
+        <opc:Field TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="LocalText"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="tns:MessageType" Name="RootCauseMessageType">
+        <opc:Field SourceType="tns:MessageType" TypeName="opc:CharArray" Name="ID"/>
+        <opc:Field SourceType="tns:MessageType" TypeName="ua:LocalizedText" Name="LocalText"/>
+        <opc:Field TypeName="opc:CharArray" Name="GroupId"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="MethodExecutionFeedbackType">
+        <opc:Field TypeName="opc:Boolean" Name="Success"/>
+        <opc:Field TypeName="opc:Int32" Name="NoOfMessage"/>
+        <opc:Field LengthField="NoOfMessage" TypeName="tns:MessageType" Name="Message"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="POType">
+        <opc:Field TypeName="opc:CharArray" Name="Number"/>
+        <opc:Field TypeName="tns:MaterialType" Name="ProducedMaterial"/>
+        <opc:Field TypeName="opc:Double" Name="TargetQuantity"/>
+        <opc:Field TypeName="opc:Boolean" Name="ContinueAtJobEnd"/>
+        <opc:Field TypeName="opc:DateTime" Name="TargetStartTime"/>
+        <opc:Field TypeName="opc:DateTime" Name="TargetEndTime"/>
+        <opc:Field TypeName="opc:CharArray" Name="DatasetId"/>
+        <opc:Field TypeName="opc:CharArray" Name="DatasetDescription"/>
+    </opc:StructuredType>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="RootCauseGroupType">
+        <opc:Field TypeName="opc:CharArray" Name="Id"/>
+        <opc:Field TypeName="opc:CharArray" Name="ParentId"/>
+        <opc:Field TypeName="ua:LocalizedText" Name="Description"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="CommandEnumeration">
+        <opc:EnumeratedValue Name="Abort" Value="0"/>
+        <opc:EnumeratedValue Name="Start" Value="1"/>
+        <opc:EnumeratedValue Name="Stop" Value="2"/>
+        <opc:EnumeratedValue Name="Reset" Value="3"/>
+        <opc:EnumeratedValue Name="Hold" Value="4"/>
+        <opc:EnumeratedValue Name="Un-Hold" Value="5"/>
+        <opc:EnumeratedValue Name="Clear" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlModeEnumeration">
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="PRODUCTION" Value="1"/>
+        <opc:EnumeratedValue Name="MAINTENANCE" Value="2"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="3"/>
+        <opc:EnumeratedValue Name="CHANGE OVER" Value="4"/>
+        <opc:EnumeratedValue Name="CLEAN" Value="5"/>
+        <opc:EnumeratedValue Name="SET UP" Value="6"/>
+        <opc:EnumeratedValue Name="EMPTY OUT" Value="7"/>
+        <opc:EnumeratedValue Name="REMOTE SERVICE" Value="8"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlsHWFeatureEnumeration">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="IOImage" Value="1"/>
+        <opc:EnumeratedValue Name="LiveStream" Value="2"/>
+        <opc:EnumeratedValue Name="RemoteConnection" Value="3"/>
+        <opc:EnumeratedValue Name="ScreenshotCurrentPage" Value="4"/>
+        <opc:EnumeratedValue Name="SystemDump" Value="5"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControlsSWFeatureEnumeration">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="SoftwarePackageRepository" Value="1"/>
+        <opc:EnumeratedValue Name="SoftwarePackageInstall" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="IOTypeEnumeration">
+        <opc:EnumeratedValue Name="BYTE" Value="0"/>
+        <opc:EnumeratedValue Name="WORD" Value="1"/>
+        <opc:EnumeratedValue Name="DWORD" Value="2"/>
+        <opc:EnumeratedValue Name="LWORD" Value="3"/>
+        <opc:EnumeratedValue Name="SINT" Value="4"/>
+        <opc:EnumeratedValue Name="INT" Value="5"/>
+        <opc:EnumeratedValue Name="DINT" Value="6"/>
+        <opc:EnumeratedValue Name="LINT" Value="7"/>
+        <opc:EnumeratedValue Name="USINT" Value="8"/>
+        <opc:EnumeratedValue Name="UINT" Value="9"/>
+        <opc:EnumeratedValue Name="UDINT" Value="10"/>
+        <opc:EnumeratedValue Name="ULINT" Value="11"/>
+        <opc:EnumeratedValue Name="REAL" Value="12"/>
+        <opc:EnumeratedValue Name="LREAL" Value="13"/>
+        <opc:EnumeratedValue Name="TIME" Value="14"/>
+        <opc:EnumeratedValue Name="LTIME" Value="15"/>
+        <opc:EnumeratedValue Name="DATE" Value="16"/>
+        <opc:EnumeratedValue Name="LDATE" Value="17"/>
+        <opc:EnumeratedValue Name="TIME_OF_DAY" Value="18"/>
+        <opc:EnumeratedValue Name="LTIME_OF_DAY" Value="19"/>
+        <opc:EnumeratedValue Name="DATE_AND_TIME" Value="20"/>
+        <opc:EnumeratedValue Name="LDATE_AND_TIME" Value="21"/>
+        <opc:EnumeratedValue Name="CHAR" Value="22"/>
+        <opc:EnumeratedValue Name="WCHAR" Value="23"/>
+        <opc:EnumeratedValue Name="STRING" Value="24"/>
+        <opc:EnumeratedValue Name="WSTRING" Value="25"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="MaterialIntergrityAgentEnumeration">
+        <opc:Documentation>Identifies the possible agents responsible for material integrity checking.</opc:Documentation>
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="MES" Value="1"/>
+        <opc:EnumeratedValue Name="Local" Value="2"/>
+        <opc:EnumeratedValue Name="None" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ParameterDependencyEnumeration">
+        <opc:EnumeratedValue Name="Machine" Value="0"/>
+        <opc:EnumeratedValue Name="Brand" Value="1"/>
+        <opc:EnumeratedValue Name="Machine and Brand" Value="2"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ProductionStatusEnumeration">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Brand Change" Value="1"/>
+        <opc:EnumeratedValue Name="Production" Value="2"/>
+        <opc:EnumeratedValue Name="No Production" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StateEnumeration">
+        <opc:EnumeratedValue Name="Stopped" Value="0"/>
+        <opc:EnumeratedValue Name="Resetting" Value="1"/>
+        <opc:EnumeratedValue Name="Idle" Value="2"/>
+        <opc:EnumeratedValue Name="Starting" Value="3"/>
+        <opc:EnumeratedValue Name="Execute" Value="4"/>
+        <opc:EnumeratedValue Name="Completing" Value="5"/>
+        <opc:EnumeratedValue Name="Complete" Value="6"/>
+        <opc:EnumeratedValue Name="Aborting" Value="7"/>
+        <opc:EnumeratedValue Name="Aborted" Value="8"/>
+        <opc:EnumeratedValue Name="Stopping" Value="9"/>
+        <opc:EnumeratedValue Name="Clearing" Value="10"/>
+        <opc:EnumeratedValue Name="Suspending" Value="11"/>
+        <opc:EnumeratedValue Name="Suspended" Value="12"/>
+        <opc:EnumeratedValue Name="Un-Suspending" Value="13"/>
+        <opc:EnumeratedValue Name="Holding" Value="14"/>
+        <opc:EnumeratedValue Name="Held" Value="15"/>
+        <opc:EnumeratedValue Name="Un-holding" Value="16"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="StorageLogicEnumeration">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="FIFO" Value="1"/>
+        <opc:EnumeratedValue Name="LIFO" Value="2"/>
+        <opc:EnumeratedValue Name="FEFO" Value="3"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="TMCImplementedLevelEnumeration">
+        <opc:EnumeratedValue Name="Other" Value="0"/>
+        <opc:EnumeratedValue Name="Essential" Value="1"/>
+        <opc:EnumeratedValue Name="Adavnced" Value="2"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

@@ -1,0 +1,317 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/FDT/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/FDT/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="AlarmType">
+        <xs:annotation>
+            <xs:documentation>Identifier for the alarm type to show the association between high- and low alarm and high-high- and low-low-alarm. (Provides mapping for Fdt.Dtm.DataAccess.AlarmType.)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="HighHighAlarm_0"/>
+            <xs:enumeration value="HighAlarm_1"/>
+            <xs:enumeration value="LowLowAlarm_2"/>
+            <xs:enumeration value="LowAlarm_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:AlarmType" name="AlarmType"/>
+    <xs:complexType name="ListOfAlarmType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:AlarmType" name="AlarmType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfAlarmType" name="ListOfAlarmType" nillable="true"/>
+    <xs:simpleType name="ApplicationIdEnumeration">
+        <xs:annotation>
+            <xs:documentation>Identifies type of an application or function. (Provides mapping for Fdt.ApplicationId)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="AdjustSetValue_0"/>
+            <xs:enumeration value="AssetManagement_1"/>
+            <xs:enumeration value="AuditTrail_2"/>
+            <xs:enumeration value="Configuration_3"/>
+            <xs:enumeration value="Diagnosis_4"/>
+            <xs:enumeration value="Force_5"/>
+            <xs:enumeration value="Observe_6"/>
+            <xs:enumeration value="OfflineCompare_7"/>
+            <xs:enumeration value="OfflineParameterize_8"/>
+            <xs:enumeration value="OnlineCompare_9"/>
+            <xs:enumeration value="OnlineParameterize_10"/>
+            <xs:enumeration value="Identify_11"/>
+            <xs:enumeration value="Calibration_12"/>
+            <xs:enumeration value="MainOperation_13"/>
+            <xs:enumeration value="NetworkManagement_14"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ApplicationIdEnumeration" name="ApplicationIdEnumeration"/>
+    <xs:complexType name="ListOfApplicationIdEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ApplicationIdEnumeration" name="ApplicationIdEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfApplicationIdEnumeration" name="ListOfApplicationIdEnumeration" nillable="true"/>
+    <xs:simpleType name="ClassificationDomainId">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PowerDistribution_0"/>
+            <xs:enumeration value="MotionControl_1"/>
+            <xs:enumeration value="Measurement_2"/>
+            <xs:enumeration value="OperatorInterface_3"/>
+            <xs:enumeration value="ModulesAndControllers_4"/>
+            <xs:enumeration value="Communication_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ClassificationDomainId" name="ClassificationDomainId"/>
+    <xs:complexType name="ListOfClassificationDomainId">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ClassificationDomainId" name="ClassificationDomainId" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfClassificationDomainId" name="ListOfClassificationDomainId" nillable="true"/>
+    <xs:simpleType name="ClassificationId">
+        <xs:annotation>
+            <xs:documentation>Classification according to device primary function. 
+(Provides mapping to Fdt.Dtm.DeviceClassification.ClassificationId)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Flow_0"/>
+            <xs:enumeration value="Level_1"/>
+            <xs:enumeration value="Pressure_2"/>
+            <xs:enumeration value="Temperature_3"/>
+            <xs:enumeration value="Valve_4"/>
+            <xs:enumeration value="Positioner_5"/>
+            <xs:enumeration value="Actuator_6"/>
+            <xs:enumeration value="Nc_rc_7"/>
+            <xs:enumeration value="Encoder_8"/>
+            <xs:enumeration value="SpeedDrive_9"/>
+            <xs:enumeration value="Hmi_10"/>
+            <xs:enumeration value="AnalogInput_11"/>
+            <xs:enumeration value="AnalogOutput_12"/>
+            <xs:enumeration value="DigitalInput_13"/>
+            <xs:enumeration value="DigitalOutput_14"/>
+            <xs:enumeration value="ElectrochemicalAnalyser_15"/>
+            <xs:enumeration value="DtmSpecific_16"/>
+            <xs:enumeration value="Universal_17"/>
+            <xs:enumeration value="Analyser_18"/>
+            <xs:enumeration value="RemoteIO_19"/>
+            <xs:enumeration value="AnalogCombinedIO_20"/>
+            <xs:enumeration value="DigitalCombinedIO_21"/>
+            <xs:enumeration value="Recorder_22"/>
+            <xs:enumeration value="Controller_23"/>
+            <xs:enumeration value="Angle_24"/>
+            <xs:enumeration value="LimitSwitch_25"/>
+            <xs:enumeration value="Converter_26"/>
+            <xs:enumeration value="Motor_27"/>
+            <xs:enumeration value="Switchboard_28"/>
+            <xs:enumeration value="CircuitBreaker_29"/>
+            <xs:enumeration value="PowerMonitoring_30"/>
+            <xs:enumeration value="DistributionPanel_31"/>
+            <xs:enumeration value="Contactor_32"/>
+            <xs:enumeration value="ProtectionStarter_33"/>
+            <xs:enumeration value="SoftStarter_34"/>
+            <xs:enumeration value="Drive_35"/>
+            <xs:enumeration value="AxisControl_36"/>
+            <xs:enumeration value="MotorControlCenter_37"/>
+            <xs:enumeration value="ControlValve_38"/>
+            <xs:enumeration value="Electrical_39"/>
+            <xs:enumeration value="Density_40"/>
+            <xs:enumeration value="Quality_41"/>
+            <xs:enumeration value="SpeedOrRotaryFrequency_42"/>
+            <xs:enumeration value="Radiation_43"/>
+            <xs:enumeration value="WeightMass_44"/>
+            <xs:enumeration value="DistanceOrPositionPresence_45"/>
+            <xs:enumeration value="PushButton_46"/>
+            <xs:enumeration value="Joystick_47"/>
+            <xs:enumeration value="Keypad_48"/>
+            <xs:enumeration value="PilotLight_49"/>
+            <xs:enumeration value="StackLight_50"/>
+            <xs:enumeration value="Display_51"/>
+            <xs:enumeration value="CombinedButtonsAndLights_52"/>
+            <xs:enumeration value="OperatorStation_53"/>
+            <xs:enumeration value="GeneralInput_54"/>
+            <xs:enumeration value="GeneralOutput_55"/>
+            <xs:enumeration value="CombinedInputOutput_56"/>
+            <xs:enumeration value="Relay_57"/>
+            <xs:enumeration value="Timer_58"/>
+            <xs:enumeration value="Scanner_59"/>
+            <xs:enumeration value="ProgrammableController_60"/>
+            <xs:enumeration value="CommunicationAdapter_61"/>
+            <xs:enumeration value="Gateway_62"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:ClassificationId" name="ClassificationId"/>
+    <xs:complexType name="ListOfClassificationId">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:ClassificationId" name="ClassificationId" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfClassificationId" name="ListOfClassificationId" nillable="true"/>
+    <xs:simpleType name="DocumentClassification">
+        <xs:annotation>
+            <xs:documentation>Classification of a document. (Provides mapping for Fdt.Dtm.DocumentClassification)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Help_0"/>
+            <xs:enumeration value="TechnicalDocumentation_1"/>
+            <xs:enumeration value="OrderingInformation_2"/>
+            <xs:enumeration value="Miscellaneous_3"/>
+            <xs:enumeration value="TenderSpecification_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:DocumentClassification" name="DocumentClassification"/>
+    <xs:complexType name="ListOfDocumentClassification">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DocumentClassification" name="DocumentClassification" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDocumentClassification" name="ListOfDocumentClassification" nillable="true"/>
+    <xs:simpleType name="FunctionExecutionResultState">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Cancel_0"/>
+            <xs:enumeration value="Success_1"/>
+            <xs:enumeration value="Fail_2"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:FunctionExecutionResultState" name="FunctionExecutionResultState"/>
+    <xs:complexType name="ListOfFunctionExecutionResultState">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FunctionExecutionResultState" name="FunctionExecutionResultState" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFunctionExecutionResultState" name="ListOfFunctionExecutionResultState" nillable="true"/>
+    <xs:simpleType name="IECDatatype">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="BOOL_0"/>
+            <xs:enumeration value="SINT_1"/>
+            <xs:enumeration value="INT_2"/>
+            <xs:enumeration value="DINT_3"/>
+            <xs:enumeration value="LINT_4"/>
+            <xs:enumeration value="USINT_5"/>
+            <xs:enumeration value="UINT_6"/>
+            <xs:enumeration value="UDINT_7"/>
+            <xs:enumeration value="ULINT_8"/>
+            <xs:enumeration value="REAL_9"/>
+            <xs:enumeration value="LREAL_10"/>
+            <xs:enumeration value="TIME_11"/>
+            <xs:enumeration value="DATE_12"/>
+            <xs:enumeration value="TimeOfDay_13"/>
+            <xs:enumeration value="DateAndTime_14"/>
+            <xs:enumeration value="STRING_15"/>
+            <xs:enumeration value="BYTE_16"/>
+            <xs:enumeration value="WORD_17"/>
+            <xs:enumeration value="DWORD_18"/>
+            <xs:enumeration value="LWORD_19"/>
+            <xs:enumeration value="WSTRING_20"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:IECDatatype" name="IECDatatype"/>
+    <xs:complexType name="ListOfIECDatatype">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:IECDatatype" name="IECDatatype" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfIECDatatype" name="ListOfIECDatatype" nillable="true"/>
+    <xs:simpleType name="RangeType">
+        <xs:annotation>
+            <xs:documentation>Type of a range device data. (Provides mapping to Fdt.Dtm.DataAccess.RangeType)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="LowerRange_0"/>
+            <xs:enumeration value="UpperRange_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:RangeType" name="RangeType"/>
+    <xs:complexType name="ListOfRangeType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:RangeType" name="RangeType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfRangeType" name="ListOfRangeType" nillable="true"/>
+    <xs:simpleType name="SignalTypeEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="Input_0"/>
+            <xs:enumeration value="Output_1"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SignalTypeEnumeration" name="SignalTypeEnumeration"/>
+    <xs:complexType name="ListOfSignalTypeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SignalTypeEnumeration" name="SignalTypeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSignalTypeEnumeration" name="ListOfSignalTypeEnumeration" nillable="true"/>
+    <xs:simpleType name="SubstitutionType">
+        <xs:annotation>
+            <xs:documentation>Type of substitution data. (Provides mapping to Fdt.Dtm.DataAccess.SubstitutionType)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="LastValue_0"/>
+            <xs:enumeration value="LastValidValue_1"/>
+            <xs:enumeration value="UpperRange_2"/>
+            <xs:enumeration value="LowerRange_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SubstitutionType" name="SubstitutionType"/>
+    <xs:complexType name="ListOfSubstitutionType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SubstitutionType" name="SubstitutionType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSubstitutionType" name="ListOfSubstitutionType" nillable="true"/>
+    <xs:simpleType name="SupportedTransfer">
+        <xs:annotation>
+            <xs:documentation>This enumeration provides values to describe the types of transfers provided for a device. (Provides mapping to Fdt.Dtm.SupportedTransfer)</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="None_0"/>
+            <xs:enumeration value="OnlyDownload_1"/>
+            <xs:enumeration value="OnlyUpload_2"/>
+            <xs:enumeration value="BothUploadAndDownload_3"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:SupportedTransfer" name="SupportedTransfer"/>
+    <xs:complexType name="ListOfSupportedTransfer">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SupportedTransfer" name="SupportedTransfer" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSupportedTransfer" name="ListOfSupportedTransfer" nillable="true"/>
+    <xs:complexType name="DataRefType">
+        <xs:annotation>
+            <xs:documentation>Reference to a data item</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="DataId"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:SemanticInfoType" name="SemanticInfo"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:DataRefType" name="DataRefType"/>
+    <xs:complexType name="ListOfDataRefType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:DataRefType" name="DataRefType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfDataRefType" name="ListOfDataRefType" nillable="true"/>
+    <xs:complexType name="FdtDeviceClassificationType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ClassificationDomainId" name="ClassificationDomain"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="tns:ClassificationId" name="DeviceClassification"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:FdtDeviceClassificationType" name="FdtDeviceClassificationType"/>
+    <xs:complexType name="ListOfFdtDeviceClassificationType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:FdtDeviceClassificationType" name="FdtDeviceClassificationType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfFdtDeviceClassificationType" name="ListOfFdtDeviceClassificationType" nillable="true"/>
+    <xs:complexType name="SemanticInfoType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="ApplicationDomain"/>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="SemanticId"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:SemanticInfoType" name="SemanticInfoType"/>
+    <xs:complexType name="ListOfSemanticInfoType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:SemanticInfoType" name="SemanticInfoType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfSemanticInfoType" name="ListOfSemanticInfoType" nillable="true"/>
+</xs:schema>

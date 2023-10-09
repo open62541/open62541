@@ -1,0 +1,5 @@
+usr/include
+usr/lib/*/*.so
+usr/lib/*/*.a
+usr/lib/*/cmake/open62541/*
+usr/lib/*/pkgconfig/open62541.pc
