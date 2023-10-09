@@ -299,8 +299,8 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
 
     /* Parameterize the connection. The TcpHelloMessage casts to a
      * TcpAcknowledgeMessage. */
-    retval = UA_SecureChannel_processHELACK(channel,
-                                            (UA_TcpAcknowledgeMessage*)&helloMessage);
+    UA_SecureChannel_serverProcessHELACK(channel,
+                                        (UA_TcpAcknowledgeMessage*)&helloMessage);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_NETWORK,
                     "Connection %i | Error during the HEL/ACK handshake",
