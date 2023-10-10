@@ -103,6 +103,13 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     /* Process all received events */
     for(int i = 0; i < events; i++) {
         UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
+
+        /* The rfd is already registered for removal. Don't process incoming
+         * events any longer. */
+        if(rfd->dc.callback)
+            continue;
+
+        /* Get the event */
         short revent = 0;
         if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
             revent = UA_FDEVENT_IN;
@@ -111,6 +118,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         } else {
             revent = UA_FDEVENT_ERR;
         }
+
+        /* Call the EventSource callback */
         rfd->eventSourceCB(rfd->es, rfd, revent);
     }
     return UA_STATUSCODE_GOOD;
