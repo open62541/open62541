@@ -514,8 +514,8 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     find_package(LibreSSL REQUIRED)
     list(APPEND open62541_LIBRARIES ${LIBRESSL_LIBRARIES})
     if(WIN32)
-        # Add bestcrypt for random generator
-        list(APPEND open62541_LIBRARIES bcrypt)
+        # Add bestcrypt for random generator and ws2_32 for crypto
+        list(APPEND open62541_LIBRARIES ws2_32 bcrypt)
     endif()
 endif()
 
