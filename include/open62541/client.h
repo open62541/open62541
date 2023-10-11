@@ -208,6 +208,8 @@ typedef struct {
                                            UA_UInt32 subscriptionId,
                                            void *subContext);
 
+    /* Session config */
+    UA_String sessionName;
     UA_LocaleId *sessionLocaleIds;
     size_t sessionLocaleIdsSize;
 } UA_ClientConfig;
