@@ -179,22 +179,19 @@ START_TEST(Client_read_async_timed) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(asyncCounter, 1);
 
-        /* Manually close the connection. The connection is internally closed at the
-         * next iteration of the EventLoop. Hence the next request is sent out. But
-         * the connection "actually closes" before receiving the response. */
+        /* Manually close the connection */
         UA_ConnectionManager *cm = client->channel.connectionManager;
         uintptr_t connId = client->channel.connectionId;
         cm->closeConnection(cm, connId);
 
         rr.requestHeader.timeoutHint = 100;
-        retval = __UA_Client_AsyncService(client, &rr,
-                                          &UA_TYPES[UA_TYPES_READREQUEST],
+        retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
                                           (UA_ClientAsyncServiceCallback) asyncReadCallback,
-                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        /* Process async responses during 1s */
-        UA_Client_run_iterate(client, 100 + 1);
-        ck_assert_uint_eq(asyncCounter, 9999);
+                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter,
+                                          NULL);
+
+        /* Sending out the request failed */
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
