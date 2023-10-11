@@ -12,6 +12,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020-2022 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #ifndef UA_SERVER_H_
@@ -2015,13 +2016,13 @@ _UA_END_DECLS
 #include <open62541/server_pubsub.h>
 #endif
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 UA_EXPORT UA_StatusCode
 setUserRole_settings(UA_Server* server, UA_String roleName,
                      UA_AccessControlSettings* accessControlSettings);
 UA_EXPORT UA_Boolean
 checkUserAccess(const UA_Node *node, void *sessionContext,
                 UA_UInt32 permissionBit);
-#endif /* UA_ENABLE_ROLE_PERMISSION */
+#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
 #endif /* UA_SERVER_H_ */

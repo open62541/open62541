@@ -16,6 +16,7 @@
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart  (for VDW and umati)
  *    Copyright 2017 (c) Henrik Norrman
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -1023,7 +1024,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
             node = UA_NODESTORE_GET(server, &item->parentNodeId.nodeId);
@@ -1941,7 +1942,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->nodeId)) {
             node = UA_NODESTORE_GET(server, &item->nodeId);
@@ -2106,7 +2107,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->sourceNodeId)) {
             node = UA_NODESTORE_GET(server, &item->sourceNodeId);
@@ -2288,7 +2289,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->sourceNodeId)) {
             node = UA_NODESTORE_GET(server, &item->sourceNodeId);

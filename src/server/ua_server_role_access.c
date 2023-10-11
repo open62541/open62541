@@ -2,6 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *    Copyright 2022 (c) Kalycito Infotech Private Limited
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -9,7 +10,7 @@
 #include "ua_subscription.h"
 #include "ua_server_role_access.h"
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 UA_Boolean checkUserAccess(const UA_Node *node, void *sessionContext, UA_UInt32 permissionBit) {
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
     if ((node->head.userRolePermissionsSize != 0)) {
@@ -74,7 +75,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
 
     UA_PermissionType setCustomRolePermission = 0x0;
     if (UA_String_equal(&roleName, &anonymous) == true) {
-        accessControlSettings->accessControlGroup = UA_ANONYMOUS_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_ANONYMOUS;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
@@ -95,7 +96,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &authenticatedUser) == true) {
-        accessControlSettings->accessControlGroup = UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_AUTHENTICATEDUSER;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
@@ -103,7 +104,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_AUTHENTICATEDUSER: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x1FFFF;
@@ -114,7 +115,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &configureAdmin) == true) {
-        accessControlSettings->accessControlGroup = UA_CONFIGUREADMIN_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_CONFIGUREADMIN;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
@@ -122,7 +123,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_CONFIGUREADMIN_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_CONFIGUREADMIN: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x1FFFF;
@@ -133,7 +134,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &engineer) == true) {
-        accessControlSettings->accessControlGroup = UA_ENGINEER_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_ENGINEER;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
@@ -141,7 +142,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ENGINEER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_ENGINEER: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x1FFFF;
@@ -152,14 +153,14 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &observer) == true) {
-        accessControlSettings->accessControlGroup = UA_OBSERVER_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_OBSERVER;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = false;
         /* Set the RolePermission for the node */
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_OBSERVER_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_OBSERVER: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x1FFFF;
@@ -171,7 +172,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &operatorRole) == true) {
-        accessControlSettings->accessControlGroup = UA_OPERATOR_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_OPERATOR;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
@@ -179,7 +180,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_OPERATOR_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_OPERATOR: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x06;
@@ -190,7 +191,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &securityAdmin) == true) {
-        accessControlSettings->accessControlGroup = UA_SECURITYADMIN_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_SECURITYADMIN;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_HISTORYREAD;
         accessControlSettings->methodAccessPermission = true;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
@@ -198,7 +199,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_SECURITYADMIN: %X", accessControlSettings->role.permissions);
         }
         else {
             accessControlSettings->role.permissions = 0x1FFFF;
@@ -209,7 +210,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
     }
 
     else if (UA_String_equal(&roleName, &supervisor) == true) {
-        accessControlSettings->accessControlGroup = UA_SUPERVISOR_WELL_KNOWN_RULE;
+        accessControlSettings->accessControlGroup = UA_ROLE_SUPERVISOR;
         accessControlSettings->accessPermissions = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
         accessControlSettings->methodAccessPermission = false;
         accessControlSettings->role.roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
@@ -217,7 +218,7 @@ setUserRole_settings(UA_Server* server, UA_String roleName,
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, accessControlSettings);
             accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SUPERVISOR_WELL_KNOWN_RULE: %X", accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_SUPERVISOR: %X", accessControlSettings->role.permissions);
         }
         else {
             UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Invalid Role provided");
@@ -251,7 +252,7 @@ setRuntimeUserPermission(UA_Server *server, UA_UsernameRoleInfo *userAndRoleInfo
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, userAndRoleInfo->accessControlSettings);
             userAndRoleInfo->accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", userAndRoleInfo->accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_SECURITYADMIN: %X", userAndRoleInfo->accessControlSettings->role.permissions);
         }
         else {
             userAndRoleInfo->accessControlSettings->role.permissions = 0x27;
@@ -266,7 +267,7 @@ setRuntimeUserPermission(UA_Server *server, UA_UsernameRoleInfo *userAndRoleInfo
         if (server->config.accessControl.readUserDefinedRolePermission != NULL) {
             setCustomRolePermission = server->config.accessControl.readUserDefinedRolePermission(server, userAndRoleInfo->accessControlSettings);
             userAndRoleInfo->accessControlSettings->role.permissions = setCustomRolePermission;
-            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_SECURITYADMIN_WELL_KNOWN_RULE: %X", userAndRoleInfo->accessControlSettings->role.permissions);
+            UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "Provided userRolePermision UA_ROLE_SECURITYADMIN: %X", userAndRoleInfo->accessControlSettings->role.permissions);
         }
         else {
             userAndRoleInfo->accessControlSettings->role.permissions = 0x1FFFF;
@@ -534,10 +535,10 @@ UA_Server_setDefaultRoles(UA_Server *server) {
                                     UA_Server_removeIdentityActionForWellKonwnRules);
 
     attr = UA_ObjectAttributes_default;
-    attr.description = UA_LOCALIZEDTEXT("en-US", "ConfigureDomain");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US", "ConfigureDomain");
+    attr.description = UA_LOCALIZEDTEXT("en-US", "ConfigureAdmin");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US", "ConfigureAdmin");
     UA_Server_addRole(server, outNewNodeId,
-                      UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN), attr, UA_QUALIFIEDNAME(0, "ConfigureDomain"));
+                      UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN), attr, UA_QUALIFIEDNAME(0, "ConfigureAdmin"));
     UA_Server_AddIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_ADDIDENTITY),
                                  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN));
     UA_Server_RemoveIdentity_method(server, UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN_REMOVEIDENTITY),

@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2020 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "ua_services.h"
@@ -383,7 +384,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
         UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
         if (checkAccess != true) {
@@ -391,7 +392,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
             return;
         }
     }
-#endif /* UA_ENABLE_ROLE_PERMISSION */
+#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.
@@ -490,7 +491,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
         UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
         if (checkAccess != true) {
@@ -498,7 +499,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
             return;
         }
     }
-#endif /* UA_ENABLE_ROLE_PERMISSION */
+#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.

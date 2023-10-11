@@ -10,6 +10,7 @@
  *    Copyright 2018 (c) Fabian Arndt, Root-Core
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "open62541/namespace0_generated.h"
@@ -1180,7 +1181,7 @@ initNS0(UA_Server *server) {
     /* The HasComponent references to the ModellingRules are not part of the
      * Nodeset2.xml. So we add the references manually. */
     addModellingRules(server);
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
      retVal |= UA_Server_setDefaultRoles(server);
 #endif
 #endif /* UA_GENERATED_NAMESPACE_ZERO */

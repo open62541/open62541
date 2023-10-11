@@ -9,6 +9,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Fabian Arndt
  *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include <open62541/client_highlevel.h>
@@ -351,7 +352,7 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 
 
 UA_StatusCode
-UA_Client_writeRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_writeRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        size_t newRolePermissionSize,
                                        const UA_RolePermissionType *rolePermissions) {
     if(!rolePermissions)
@@ -383,7 +384,7 @@ UA_Client_writeRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId
 }
 
 UA_StatusCode
-UA_Client_writeUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_writeUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                            size_t newUserRolePermissionSize,
                                            const UA_RolePermissionType *userRolePermissions) {
     if(!userRolePermissions)
@@ -561,7 +562,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 }
 
 UA_StatusCode UA_EXPORT
-UA_Client_readRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_readRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                       size_t *outRolePermissionSize,
                                       UA_RolePermissionType **rolePermission) {
     UA_ReadValueId item;
@@ -581,7 +582,7 @@ UA_Client_readRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
 }
 
 UA_StatusCode UA_EXPORT
-UA_Client_readUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_readUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                           size_t *outUserRolePermissionSize,
                                           UA_RolePermissionType **userRolePermission) {
     UA_ReadValueId item;

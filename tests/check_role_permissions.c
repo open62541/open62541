@@ -497,37 +497,37 @@ UA_PermissionType readUserProvidedRoles(UA_Server *server, UA_AccessControlSetti
 
     switch(accessControlSettings->accessControlGroup)
     {
-        case UA_ANONYMOUS_WELL_KNOWN_RULE: {
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ANONYMOUS_WELL_KNOWN_RULE 0x23 - %0X", p[0].permissions);
+        case UA_ROLE_ANONYMOUS: {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_ANONYMOUS 0x23 - %0X", p[0].permissions);
             return p[0].permissions;
             break;
         }
-        case UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE - %0X", p[1].permissions);
+        case UA_ROLE_AUTHENTICATEDUSER:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_AUTHENTICATEDUSER - %0X", p[1].permissions);
             return p[1].permissions;
             break;
-        case UA_CONFIGUREADMIN_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_CONFIGUREADMIN_WELL_KNOWN_RULE - %0X", p[2].permissions);
+        case UA_ROLE_CONFIGUREADMIN:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_CONFIGUREADMIN - %0X", p[2].permissions);
             return p[2].permissions;
             break;
-        case UA_ENGINEER_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ENGINEER_WELL_KNOWN_RULE - %0X", p[3].permissions);
+        case UA_ROLE_ENGINEER:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_ENGINEER - %0X", p[3].permissions);
             return p[3].permissions;
             break;
-        case UA_OBSERVER_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_OBSERVER_WELL_KNOWN_RULE - %0X", p[4].permissions);
+        case UA_ROLE_OBSERVER:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_OBSERVER - %0X", p[4].permissions);
             return p[4].permissions;
             break;
-        case UA_OPERATOR_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_OPERATOR_WELL_KNOWN_RULE - %0X", p[5].permissions);
+        case UA_ROLE_OPERATOR:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_OPERATOR - %0X", p[5].permissions);
             return p[5].permissions;
             break;
-        case UA_SECURITYADMIN_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_SECURITYADMIN_WELL_KNOWN_RULE - %0X", p[6].permissions);
+        case UA_ROLE_SECURITYADMIN:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_SECURITYADMIN - %0X", p[6].permissions);
             return p[6].permissions;
             break;
-        case UA_SUPERVISOR_WELL_KNOWN_RULE:
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_SUPERVISOR_WELL_KNOWN_RULE - %0X", p[7].permissions);
+        case UA_ROLE_SUPERVISOR:
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "UA_ROLE_SUPERVISOR - %0X", p[7].permissions);
             return p[7].permissions;
             break;
         default:
@@ -806,7 +806,7 @@ START_TEST(node12_read_role_permission)
     UA_RolePermissionType *readRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     size_t readRolePermissionsize = 3;
     UA_UInt32 roleValue[3];
-    retval = UA_Client_readRolePermissionAttribute(client, node_12, &readRolePermissionsize, &readRolePermission);
+    retval = UA_Client_readRolePermissionsAttribute(client, node_12, &readRolePermissionsize, &readRolePermission);
     for (size_t index = 0; index < 3; index++) {
         roleValue[index] = readRolePermission[index].permissions;
     }
@@ -826,7 +826,7 @@ START_TEST(node12_user_read_role_permission)
     UA_RolePermissionType *readUserRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t readUserRolePermissionsize = 3;
     UA_UInt32 roleValue[3];
-    retval = UA_Client_readUserRolePermissionAttribute(client, node_12, &readUserRolePermissionsize , &readUserRolePermission);
+    retval = UA_Client_readUserRolePermissionsAttribute(client, node_12, &readUserRolePermissionsize , &readUserRolePermission);
     for (size_t index = 0; index < 3; index++) {
         roleValue[index] = readUserRolePermission[index].permissions;
     }
@@ -857,12 +857,12 @@ START_TEST(node12_read_write_role_permission)
     rolePermissions[1].permissions = 0x1FFFF;
     rolePermissions[2].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
     rolePermissions[2].permissions = 0x21;
-    retval = UA_Client_writeRolePermissionAttribute(client, node_12, 3, rolePermissions);
+    retval = UA_Client_writeRolePermissionsAttribute(client, node_12, 3, rolePermissions);
     UA_Array_delete(rolePermissions, 3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
 
     readRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     readRolePermissionsize = 3;
-    retval = UA_Client_readRolePermissionAttribute(client, node_12, &readRolePermissionsize , &readRolePermission);
+    retval = UA_Client_readRolePermissionsAttribute(client, node_12, &readRolePermissionsize , &readRolePermission);
     for (size_t index = 0; index < 3; index++)
         roleValue[index] = readRolePermission[index].permissions;
 
@@ -891,13 +891,13 @@ START_TEST(node12_user_read_write_role_permission)
     userRolePermissions[1].permissions = 0x1FFFF;
     userRolePermissions[2].roleId = UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
     userRolePermissions[2].permissions = 0x1837;
-    retval = UA_Client_writeUserRolePermissionAttribute(client, node_12, 3, userRolePermissions);
+    retval = UA_Client_writeUserRolePermissionsAttribute(client, node_12, 3, userRolePermissions);
     UA_Array_delete(userRolePermissions, 3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
 
     UA_UInt32 userRoleValue[3];
     UA_RolePermissionType *  readUserRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t readUserRolePermissionsize = 3;
-    retval = UA_Client_readUserRolePermissionAttribute(client, node_12, &readUserRolePermissionsize , &readUserRolePermission);
+    retval = UA_Client_readUserRolePermissionsAttribute(client, node_12, &readUserRolePermissionsize , &readUserRolePermission);
     for (size_t index = 0; index < 3; index++)
         userRoleValue[index] = readUserRolePermission[index].permissions;
 
@@ -1229,7 +1229,7 @@ START_TEST(read_role_permission_user_operator)
     UA_RolePermissionType *readRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t  readRolePermissionsize = 2;
 
-    UA_StatusCode retval = UA_Client_readRolePermissionAttribute(client, node_9, &readRolePermissionsize , &readRolePermission);
+    UA_StatusCode retval = UA_Client_readRolePermissionsAttribute(client, node_9, &readRolePermissionsize , &readRolePermission);
     for (size_t index = 0; index < 2; index++)
         roleValue[index] = readRolePermission[index].permissions;
 
@@ -1253,7 +1253,7 @@ START_TEST(read_user_role_permission_user_operator)
 
     UA_RolePermissionType * readUserRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t readUserRolePermissionsize = 2;
-    UA_StatusCode retval = UA_Client_readUserRolePermissionAttribute(client, node_9, &readUserRolePermissionsize , &readUserRolePermission);
+    UA_StatusCode retval = UA_Client_readUserRolePermissionsAttribute(client, node_9, &readUserRolePermissionsize , &readUserRolePermission);
     for (size_t index = 0; index < 2; index++)
         roleValue[index] = readUserRolePermission[index].permissions;
 
@@ -1693,7 +1693,7 @@ START_TEST(read_role_permission_user_auth)
     UA_RolePermissionType *readRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);;
     size_t  readRolePermissionsize = 2;
 
-    UA_StatusCode retval = UA_Client_readRolePermissionAttribute(client, node_6, &readRolePermissionsize , &readRolePermission);
+    UA_StatusCode retval = UA_Client_readRolePermissionsAttribute(client, node_6, &readRolePermissionsize , &readRolePermission);
     for (size_t index = 0; index < 2; index++)
         roleValue[index] = readRolePermission[index].permissions;
 
@@ -1716,7 +1716,7 @@ START_TEST(read_user_role_permission_user_auth)
 
     UA_RolePermissionType * readUserRolePermission = (UA_RolePermissionType *)UA_Array_new(3, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
     size_t readUserRolePermissionsize = 2;
-    UA_StatusCode retval = UA_Client_readUserRolePermissionAttribute(client, node_6, &readUserRolePermissionsize , &readUserRolePermission);
+    UA_StatusCode retval = UA_Client_readUserRolePermissionsAttribute(client, node_6, &readUserRolePermissionsize , &readUserRolePermission);
 
     if (retval == UA_STATUSCODE_GOOD ) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "SUCCESS: Read UserRolePermission of Node 6");

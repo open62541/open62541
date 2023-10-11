@@ -14,6 +14,7 @@
  *    Copyright 2017 (c) pschoppe
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Henrik Norrman
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -764,7 +765,7 @@ browse(struct BrowseContext *bc) {
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     /* Check AccessControl rights */
     if(bc->session != &bc->server->adminSession &&
        !bc->server->config.accessControl.

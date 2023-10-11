@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2022 (c) Kalycito Infotech Private Limited
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #ifndef UA_SERVER_ROLE_ACCESS_H_
@@ -14,7 +15,7 @@
 #include <open62541/plugin/accesscontrol_custom.h>
 
 _UA_BEGIN_DECLS
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 UA_StatusCode
 UA_Server_setDefaultRoles(UA_Server *server);
 UA_StatusCode

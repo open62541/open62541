@@ -10,6 +10,7 @@
  *    Copyright 2017 (c) Frank Meerkötter
  *    Copyright 2018 (c) Fabian Arndt
  *    Copyright 2018 (c) Peter Rustler, basyskom GmbH
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #ifndef UA_CLIENT_HIGHLEVEL_H_
@@ -213,12 +214,12 @@ UA_Client_readUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId,
 }
 
 UA_StatusCode UA_EXPORT
-UA_Client_readRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_readRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        size_t *outRolePermissionSize,
                                        UA_RolePermissionType **rolePermission);
 
 UA_StatusCode UA_EXPORT
-UA_Client_readUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_readUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                          size_t *outUserRolePermissionSize,
                                          UA_RolePermissionType **userRolePermission);
 /**
@@ -464,12 +465,12 @@ UA_Client_writeUserExecutableAttribute(UA_Client *client, const UA_NodeId nodeId
 }
 
 UA_StatusCode UA_EXPORT
-UA_Client_writeRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_writeRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                        size_t newRolePermissionSize,
                                        const UA_RolePermissionType *rolePermission);
 
 UA_StatusCode UA_EXPORT
-UA_Client_writeUserRolePermissionAttribute(UA_Client *client, const UA_NodeId nodeId,
+UA_Client_writeUserRolePermissionsAttribute(UA_Client *client, const UA_NodeId nodeId,
                                            size_t newUserRolePermissionSize,
                                            const UA_RolePermissionType *userRolePermission);
 

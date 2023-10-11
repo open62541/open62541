@@ -201,6 +201,12 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_multicast discovery/server_multicast.c)
 endif()
 
+# Enable the tutorial_server_roles_and_permissions example while the 
+# UA_ENABLE_ROLE_PERMISSIONS flag is enabled
+if(UA_ENABLE_ROLE_PERMISSIONS)
+    add_example(tutorial_server_roles_and_permissions tutorial_server_roles_and_permissions.c)
+endif()
+
 add_subdirectory(nodeset)
 ####################
 #  Example PubSub  #

@@ -13,7 +13,7 @@
  * For TransferSubscriptions, we check whether the transfer happens between
  * Sessions for the same user. */
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 typedef struct {
     UA_Boolean allowAnonymous;
     size_t usernamePasswordLoginSize;
@@ -235,7 +235,7 @@ static UA_Boolean
 allowAddNode_custom(UA_Server *server, UA_AccessControl *ac,
                     const UA_NodeId *sessionId, void *sessionContext,
                     const UA_AddNodesItem *item, UA_RolePermissionType *userRolePermission,size_t userRolePermissionSize) {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
     if (userRolePermissionSize != 0){
         for (size_t index = 0; index < userRolePermissionSize; index++){
@@ -266,7 +266,7 @@ allowAddReference_custom(UA_Server *server, UA_AccessControl *ac,
                          const UA_NodeId *sessionId, void *sessionContext,
                          const UA_AddReferencesItem *item,
                          UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
     if (userRolePermissionSize != 0) {
         for (size_t index = 0; index < userRolePermissionSize; index++) {
@@ -296,7 +296,7 @@ static UA_Boolean
 allowDeleteNode_custom(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
                         const UA_DeleteNodesItem *item, UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
     if (userRolePermissionSize != 0) {
         for (size_t index = 0; index < userRolePermissionSize; index++) {
@@ -327,7 +327,7 @@ allowDeleteReference_custom(UA_Server *server, UA_AccessControl *ac,
                              const UA_NodeId *sessionId, void *sessionContext,
                              const UA_DeleteReferencesItem *item,
                              UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
     if (userRolePermissionSize != 0){
         for (size_t index = 0; index < userRolePermissionSize; index++){
@@ -358,7 +358,7 @@ allowBrowseNode_custom(UA_Server *server, UA_AccessControl *ac,
                         const UA_NodeId *sessionId, void *sessionContext,
                         const UA_NodeId *nodeId, void *nodeContext,
                         UA_RolePermissionType *userRolePermission, size_t userRolePermissionSize) {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     if (nodeId->namespaceIndex != 0) {
         UA_UsernameRoleInfo *userAndRoleInfo = (UA_UsernameRoleInfo*)sessionContext;
         if (userRolePermissionSize != 0) {

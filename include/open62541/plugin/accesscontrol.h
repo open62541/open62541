@@ -4,6 +4,7 @@
  *
  *    Copyright 2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #ifndef UA_PLUGIN_ACCESS_CONTROL_H_
@@ -16,21 +17,32 @@ _UA_BEGIN_DECLS
 struct UA_AccessControl;
 typedef struct UA_AccessControl UA_AccessControl;
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 
 typedef enum {
-    UA_ANONYMOUS_WELL_KNOWN_RULE = 0,
-    UA_AUTHENTICATEDUSER_WELL_KNOWN_RULE = 1,
-    UA_CONFIGUREADMIN_WELL_KNOWN_RULE = 2,
-    UA_ENGINEER_WELL_KNOWN_RULE = 3,
-    UA_OBSERVER_WELL_KNOWN_RULE = 4,
-    UA_OPERATOR_WELL_KNOWN_RULE = 5,
-    UA_SECURITYADMIN_WELL_KNOWN_RULE = 6,
-    UA_SUPERVISOR_WELL_KNOWN_RULE = 7,
-}UA_AccessControlGroup;
+    UA_ROLE_ANONYMOUS = 0,
+    UA_ROLE_AUTHENTICATEDUSER = 1,
+    UA_ROLE_CONFIGUREADMIN = 2,
+    UA_ROLE_ENGINEER = 3,
+    UA_ROLE_OBSERVER = 4,
+    UA_ROLE_OPERATOR = 5,
+    UA_ROLE_SECURITYADMIN = 6,
+    UA_ROLE_SUPERVISOR = 7,
+}UA_ROLE;
+
+static const UA_Int32 UA_ROLES[] = {
+    UA_NS0ID_WELLKNOWNROLE_ANONYMOUS,
+    UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER,
+    UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN,
+    UA_NS0ID_WELLKNOWNROLE_ENGINEER,
+    UA_NS0ID_WELLKNOWNROLE_OBSERVER,
+    UA_NS0ID_WELLKNOWNROLE_OPERATOR,
+    UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN,
+    UA_NS0ID_WELLKNOWNROLE_SUPERVISOR
+};
 
 typedef struct {
-    UA_AccessControlGroup  accessControlGroup;
+    UA_ROLE                accessControlGroup;
     UA_UInt32              accessPermissions;
     UA_Boolean             methodAccessPermission;
     UA_IdentityMappingRuleType identityMappingRule;
@@ -166,11 +178,11 @@ struct UA_AccessControl {
 #endif
     UA_Boolean (*checkUserDatabase)(const UA_UserNameIdentityToken *userToken, UA_String *roleName);
 
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     UA_StatusCode (*setRoleAccessPermission)(UA_String roleName, UA_AccessControlSettings* accessControlSettings);
     UA_PermissionType (*readUserDefinedRolePermission)(UA_Server *server, UA_AccessControlSettings* accessControlSettings);
     UA_StatusCode (*checkTheRoleSessionLoggedIn)(UA_Server *server);
-#endif /* UA_ENABLE_ROLE_PERMISSION */
+#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 };
 
 _UA_END_DECLS

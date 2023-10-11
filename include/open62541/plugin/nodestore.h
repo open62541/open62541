@@ -5,6 +5,7 @@
  *    Copyright 2017, 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #ifndef UA_NODESTORE_H_
@@ -411,7 +412,7 @@ struct UA_NodeHead {
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
 #endif
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     size_t rolePermissionsSize;
     UA_RolePermissionType *rolePermissions;
     size_t userRolePermissionsSize;

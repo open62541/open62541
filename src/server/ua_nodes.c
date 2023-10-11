@@ -9,6 +9,7 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include "ua_server_internal.h"
@@ -410,7 +411,7 @@ void UA_Node_clear(UA_Node *node) {
     /* Delete unique content of the nodeclass */
     switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT: {
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         UA_ObjectNode *obj = &node->objectNode;
         UA_Array_delete(obj->head.rolePermissions, obj->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -424,7 +425,7 @@ void UA_Node_clear(UA_Node *node) {
         break;
     }
     case UA_NODECLASS_METHOD:{
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         UA_MethodNode *method = &node->methodNode;
         UA_Array_delete(method->head.rolePermissions, method->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
@@ -447,7 +448,7 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         UA_Array_delete(p->head.rolePermissions, p->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         p->head.rolePermissions= NULL;
@@ -464,7 +465,7 @@ void UA_Node_clear(UA_Node *node) {
     case UA_NODECLASS_REFERENCETYPE: {
         UA_ReferenceTypeNode *ref = &node->referenceTypeNode;
         UA_LocalizedText_clear(&ref->inverseName);
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
         UA_Array_delete(ref->head.rolePermissions, ref->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         ref->head.rolePermissions= NULL;
@@ -767,7 +768,7 @@ UA_Node_copy_alloc(const UA_Node *src) {
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
 static UA_StatusCode
 copyVariableRolePermissionAttributes(UA_VariableNode *vnode,
                                  const UA_VariableAttributes *attr){
@@ -913,7 +914,7 @@ copyVariableNodeAttributes(UA_VariableNode *vnode,
     vnode->userAccessLevel = attr->accessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     copyVariableRolePermissionAttributes(vnode, attr);
 #endif
     return copyCommonVariableAttributes(vnode, attr);
@@ -930,7 +931,7 @@ copyVariableTypeNodeAttributes(UA_VariableTypeNode *vtnode,
 static UA_StatusCode
 copyObjectNodeAttributes(UA_ObjectNode *onode, const UA_ObjectAttributes *attr) {
     onode->eventNotifier = attr->eventNotifier;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     copyObjectRolePermissionAttributes(onode, attr);
 #endif
     return UA_STATUSCODE_GOOD;
@@ -941,7 +942,7 @@ copyReferenceTypeNodeAttributes(UA_ReferenceTypeNode *rtnode,
                                 const UA_ReferenceTypeAttributes *attr) {
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     copyReferenceRolePermissionAttributes(rtnode, attr);
 #endif
     return UA_LocalizedText_copy(&attr->inverseName, &rtnode->inverseName);
@@ -973,7 +974,7 @@ copyMethodNodeAttributes(UA_MethodNode *mnode,
                          const UA_MethodAttributes *attr) {
     mnode->executable = attr->executable;
     mnode->userExecutable = attr->executable;
-#ifdef UA_ENABLE_ROLE_PERMISSION
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
     copyMethodRolePermissionAttributes(mnode, attr);
 #endif
     return UA_STATUSCODE_GOOD;

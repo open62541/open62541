@@ -11,6 +11,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2017-2020 (c) HMS Industrial Networks AB (Author: Jonas Green)
  *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
  */
 
 #include <open62541/client.h>
@@ -18,7 +19,12 @@
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 #include <open62541/network_ws.h>
 #endif
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
+#include <open62541/plugin/accesscontrol_custom.h>
+#else
 #include <open62541/plugin/accesscontrol_default.h>
+#endif
+// #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
@@ -589,10 +595,18 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
+#ifdef UA_ENABLE_ROLE_PERMISSIONS
+    /* Initialize the Access Control plugin */
+    retval = UA_AccessControl_custom(config, true, NULL,
+                                      &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                      usernamePasswordsSize, usernamePasswords);
+#else
     /* Initialize the Access Control plugin */
     retval = UA_AccessControl_default(config, true, NULL,
                                       &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
                                       usernamePasswordsSize, usernamePasswords);
+#endif
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);
         return retval;
