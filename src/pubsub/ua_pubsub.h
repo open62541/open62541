@@ -901,7 +901,7 @@ UA_Guid
 UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference(void);
+UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
 /*************************************************/
 /*      PubSub component monitoring              */

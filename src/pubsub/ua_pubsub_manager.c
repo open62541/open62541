@@ -245,8 +245,8 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
 /* Calculate the time difference between current time and UTC (00:00) on January
  * 1, 2000. */
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference(void) {
-    UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
+UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now) {
+    UA_UInt32 timeDiffSince2000 = (UA_UInt32)(now - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
 }
 
