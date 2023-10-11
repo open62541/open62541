@@ -848,6 +848,9 @@ UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
         return;
     }
 
+    /* Shutdown the socket to cancel the current select/epoll */
+    shutdown(rfd->fd, UA_SHUT_RDWR);
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Shutdown called", (unsigned)rfd->fd);
 

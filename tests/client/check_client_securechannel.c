@@ -214,7 +214,7 @@ START_TEST(SecureChannel_cableunplugged) {
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
     UA_Client_delete(client);
 }

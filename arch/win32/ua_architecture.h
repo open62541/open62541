@@ -40,6 +40,7 @@ typedef SSIZE_T ssize_t;
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
+#define UA_SHUT_RDWR SD_BOTH
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)

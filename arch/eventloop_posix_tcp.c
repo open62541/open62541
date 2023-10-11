@@ -577,6 +577,9 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
         return;
     }
 
+    /* Shutdown the socket to cancel the current select/epoll */
+    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",
                  (unsigned)conn->rfd.fd);
