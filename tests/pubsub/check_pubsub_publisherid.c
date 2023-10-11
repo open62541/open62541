@@ -247,7 +247,7 @@ static void AddDataSetReader(
     }
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
-    readerConfig.messageReceiveTimeout = 200.0;
+    readerConfig.messageReceiveTimeout = 2000.0;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dsReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
