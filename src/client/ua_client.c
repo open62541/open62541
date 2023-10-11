@@ -208,6 +208,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
     config->logger.log = NULL;
     config->logger.clear = NULL;
 
+    UA_String_clear(&config->sessionName);
     if(config->sessionLocaleIdsSize > 0 && config->sessionLocaleIds) {
         UA_Array_delete(config->sessionLocaleIds,
                         config->sessionLocaleIdsSize, &UA_TYPES[UA_TYPES_LOCALEID]);
