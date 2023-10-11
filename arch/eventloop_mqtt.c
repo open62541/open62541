@@ -834,6 +834,9 @@ MQTT_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
        tc->topicConnectionState == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_GOOD;
 
+    /* TODO: Cancel the ongoing select/epoll if this was called from another
+     * thread. */
+
     UA_EventLoop *el = tc->brokerConnection->mcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,
                  "MQTT %u\t| Shutdown called", (unsigned)tc->topicConnectionId);

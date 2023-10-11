@@ -135,26 +135,32 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     /* Loop over all registered FD to see if an event arrived. Yes, this is why
-      * select is slow for many open sockets. */
+     * select is slow for many open sockets. */
     for(size_t i = 0; i < el->fdsSize; i++) {
         UA_RegisteredFD *rfd = el->fds[i];
-        UA_FD fd = rfd->fd;
 
-        /* Error Event */
+        /* The rfd is already registered for removal. Don't process incoming
+         * events any longer. */
+        if(rfd->dc.callback)
+            continue;
+
+        /* Event signaled for the fd? */
         short event = 0;
-        if(FD_ISSET(fd, &readset)) {
+        if(FD_ISSET(rfd->fd, &readset)) {
             event = UA_FDEVENT_IN;
-        } else if(FD_ISSET(fd, &writeset)) {
+        } else if(FD_ISSET(rfd->fd, &writeset)) {
             event = UA_FDEVENT_OUT;
-        } else if(FD_ISSET(fd, &errset)) {
+        } else if(FD_ISSET(rfd->fd, &errset)) {
             event = UA_FDEVENT_ERR;
         } else {
             continue;
         }
 
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "Processing event %u on fd %u", (unsigned)event, (unsigned)fd);
+                     "Processing event %u on fd %u", (unsigned)event,
+                     (unsigned)rfd->fd);
 
+        /* Call the EventSource callback */
         rfd->eventSourceCB(rfd->es, rfd, event);
 
         /* The fd has removed itself */

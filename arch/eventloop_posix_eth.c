@@ -780,6 +780,9 @@ ETH_shutdown(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
         return;
     }
 
+    /* Shutdown the socket to cancel the current select/epoll */
+    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "ETH %u\t| Shutdown called", (unsigned)conn->rfd.fd);
 

@@ -1215,6 +1215,7 @@ createSessionAsync(UA_Client *client) {
     request.maxResponseMessageSize = UA_INT32_MAX;
     request.endpointUrl = client->config.endpoint.endpointUrl;
     request.clientDescription = client->config.clientDescription;
+    request.sessionName = client->config.sessionName;
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         request.clientCertificate = client->channel.securityPolicy->localCertificate;
