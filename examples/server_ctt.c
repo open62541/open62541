@@ -854,9 +854,15 @@ setInformationModel(UA_Server *server) {
 }
 
 #ifdef UA_ENABLE_DISCOVERY
-static void configureLdsRegistration(UA_Server *server){
+static void configureLdsRegistration(UA_Server *server) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+
     ldsClientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(ldsClientRegister));
+    UA_ClientConfig *cc = UA_Client_getConfig(ldsClientRegister);
+    UA_ClientConfig_setDefault(cc);
+    cc->eventLoop->free(cc->eventLoop);
+    cc->eventLoop = sc->eventLoop;
+    cc->externalEventLoop = true;
 
     // periodic server register after 1 Minutes, delay first register for 500ms
     UA_StatusCode retval =
