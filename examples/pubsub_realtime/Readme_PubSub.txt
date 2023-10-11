@@ -75,46 +75,29 @@ Cross Compiler options to compile:
        for cross compilation
 
        CMake options for Publisher application(pubsub_TSN_publisher_multiple_thread):
-       For Ethernet:
-       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
-       make -j4 pubsub_TSN_publisher_multiple_thread
-
-       For UDP:
-       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON ..
        make -j4 pubsub_TSN_publisher_multiple_thread
 
        CMake options for loopback application(pubsub_TSN_loopback_single_thread):
-       For Ethernet:
-       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
+       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON ..
        make -j4 pubsub_TSN_loopback_single_thread
 
-       For UDP:
-       cmake -DCMAKE_TOOLCHAIN_FILE=../tools/cmake/Toolchain-ARM.cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
-       make -j4 pubsub_TSN_loopback_single_thread
-    
 5) Compilation for x86 architecture
        CMake options for Publisher application(pubsub_TSN_publisher_multiple_thread):
-       For Ethernet:
-       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
-       make -j4 pubsub_TSN_publisher_multiple_thread
-
-       For UDP:
-       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
+       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON ..
        make -j4 pubsub_TSN_publisher_multiple_thread
 
        CMake options for loopback application(pubsub_TSN_loopback_single_thread):
-       For Ethernet:
-       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON ..
+       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON ..
        make -j4 pubsub_TSN_loopback_single_thread
-       For UDP:
-       cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_BUFMALLOC=ON -DUA_ENABLE_MALLOC_SINGLETON=ON -DUA_ENABLE_PUBSUB_ETH_UADP=OFF ..
-       make -j4 pubsub_TSN_loopback_single_thread
+
 ============================================================================================================
 To RUN the APPLICATIONS:
 The generated binaries are generated in build/bin/ folder
 ============================================================================================================
 TWO WAY COMMUNICATION
 ============================================================================================================
+
     For Ethernet(Without logs) For long run:
     ./pubsub_TSN_publisher_multiple_thread -interface <interfaceName> -disableSoTxtime -operBaseTime /sys/class/net/<portName>/ieee8021ST/OperBaseTime -monotonicOffset /run/ptp_wc_mon_offset -cycleTimeInMsec 0.5 -subAppPriority 99 -pubAppPriority 98 - Run in node 1
 

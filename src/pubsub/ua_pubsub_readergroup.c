@@ -321,7 +321,7 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
                 rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
             /* Connect RG-specific connections. For example for MQTT. */
-            ret = UA_ReaderGroup_connect(server, rg);
+            ret = UA_ReaderGroup_connect(server, rg, false);
             if(ret != UA_STATUSCODE_GOOD)
                 rg->state = UA_PUBSUBSTATE_ERROR;
         }

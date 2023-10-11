@@ -70,7 +70,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
     /* Poll the registered sockets */
     struct epoll_event epoll_events[64];
-    int events = epoll_wait(el->epollfd, epoll_events, 64,
+    int epollfd = el->epollfd;
+    UA_UNLOCK(&el->elMutex);
+    int events = epoll_wait(epollfd, epoll_events, 64,
                             (int)(listenTimeout / UA_DATETIME_MSEC));
     /* TODO: Replace with pwait2 for higher-precision timeouts once this is
      * available in the standard library.
@@ -79,8 +81,9 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
      *  (long)(listenTimeout / UA_DATETIME_SEC),
      *   (long)((listenTimeout % UA_DATETIME_SEC) * 100)
      * };
-     * int events = epoll_pwait2(el->epollfd, epoll_events, 64,
+     * int events = epoll_pwait2(epollfd, epoll_events, 64,
      *                        precisionTimeout, NULL); */
+    UA_LOCK(&el->elMutex);
 
     /* Handle error conditions */
     if(events == -1) {
@@ -100,6 +103,13 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     /* Process all received events */
     for(int i = 0; i < events; i++) {
         UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
+
+        /* The rfd is already registered for removal. Don't process incoming
+         * events any longer. */
+        if(rfd->dc.callback)
+            continue;
+
+        /* Get the event */
         short revent = 0;
         if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
             revent = UA_FDEVENT_IN;
@@ -108,6 +118,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
         } else {
             revent = UA_FDEVENT_ERR;
         }
+
+        /* Call the EventSource callback */
         rfd->eventSourceCB(rfd->es, rfd, revent);
     }
     return UA_STATUSCODE_GOOD;

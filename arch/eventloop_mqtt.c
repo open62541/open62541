@@ -69,7 +69,7 @@ static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t buf
 #include "../deps/mqtt-c/src/mqtt.c"
 
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
-#define MQTT_PARAMETERSSIZE 7
+#define MQTT_PARAMETERSSIZE 8
 #define MQTT_BROKERPARAMETERSSIZE 5 /* Parameters shared by topic connections
                                      * connected to the same broker */
 
@@ -83,6 +83,7 @@ static const struct {
     {{0, UA_STRING_STATIC("keep-alive")}, &UA_TYPES[UA_TYPES_UINT16], false},
     {{0, UA_STRING_STATIC("username")}, &UA_TYPES[UA_TYPES_STRING], false},
     {{0, UA_STRING_STATIC("password")}, &UA_TYPES[UA_TYPES_STRING], false},
+    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
     {{0, UA_STRING_STATIC("subscribe")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
     {{0, UA_STRING_STATIC("topic")}, &UA_TYPES[UA_TYPES_STRING], true}
 };
@@ -589,8 +590,8 @@ MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
 }
 
 static MQTTBrokerConnection *
-createBrokerConnection(MQTTConnectionManager *mcm,
-                       const UA_KeyValueMap *params) {
+createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
+                       UA_Boolean validate) {
     /* Allocate connection memory */
     MQTTBrokerConnection *bc = (MQTTBrokerConnection*)
         UA_calloc(1, sizeof(MQTTBrokerConnection));
@@ -630,26 +631,34 @@ createBrokerConnection(MQTTConnectionManager *mcm,
     if(keepAlive && *keepAlive > 0)
         bc->keepalive = *keepAlive;
 
-    UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
-    res = el->addCyclicCallback(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
-                                (UA_Double)(bc->keepalive * UA_DATETIME_SEC),
-                                NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                &bc->keepAliveCallbackId);
+    /* Open the Connection. This also sets the broker connection id to the TCP id. */
+    UA_KeyValuePair tcpParams[3];
+    tcpParams[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&tcpParams[0].value, broker, &UA_TYPES[UA_TYPES_STRING]);
+    tcpParams[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&tcpParams[1].value, port, &UA_TYPES[UA_TYPES_UINT16]);
+    tcpParams[2].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&tcpParams[2].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {3, tcpParams};
+
+    UA_ConnectionManager *tcpCM = mcm->tcpCM;
+    res = tcpCM->openConnection(tcpCM, &kvm, NULL, bc, MQTTNetworkCallback);
     if(res != UA_STATUSCODE_GOOD) {
         removeBrokerConnection(bc);
         return NULL;
     }
 
-    /* Open the Connection. This also sets the broker connection id to the TCP id. */
-    UA_KeyValuePair tcpParams[2];
-    tcpParams[0].key = UA_QUALIFIEDNAME(0, "address");
-    UA_Variant_setScalar(&tcpParams[0].value, broker, &UA_TYPES[UA_TYPES_STRING]);
-    tcpParams[1].key = UA_QUALIFIEDNAME(0, "port");
-    UA_Variant_setScalar(&tcpParams[1].value, port, &UA_TYPES[UA_TYPES_UINT16]);
-    UA_KeyValueMap kvm = {2, tcpParams};
+    /* Return non-null to indicate success */
+    if(validate) {
+        removeBrokerConnection(bc);
+        return (MQTTBrokerConnection*)0x01;
+    }
 
-    UA_ConnectionManager *tcpCM = mcm->tcpCM;
-    res = tcpCM->openConnection(tcpCM, &kvm, NULL, bc, MQTTNetworkCallback);
+    UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
+    res = el->addCyclicCallback(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
+                                (UA_Double)(bc->keepalive * UA_DATETIME_SEC),
+                                NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                &bc->keepAliveCallbackId);
     if(res != UA_STATUSCODE_GOOD) {
         removeBrokerConnection(bc);
         return NULL;
@@ -757,10 +766,17 @@ MQTT_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
+    const UA_Boolean *validate = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "validate"),
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(validate && *validate)
+        return (createBrokerConnection(mcm, params, true) == 0) ?
+            UA_STATUSCODE_BADCONNECTIONREJECTED : UA_STATUSCODE_GOOD;
+
     /* Test whether an existing broker connection can be reused.
      * Otherwise create a new one. */
     MQTTBrokerConnection *bc = findIdenticalBrokerConnection(mcm, params);
-    if(!bc && !(bc = createBrokerConnection(mcm, params)))
+    if(!bc && !(bc = createBrokerConnection(mcm, params, false)))
         return UA_STATUSCODE_BADNOTCONNECTED;
 
     /* Create the per-topic connection */
@@ -817,6 +833,9 @@ MQTT_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     if(tc->topicConnectionState == UA_CONNECTIONSTATE_CLOSING ||
        tc->topicConnectionState == UA_CONNECTIONSTATE_CLOSED)
         return UA_STATUSCODE_GOOD;
+
+    /* TODO: Cancel the ongoing select/epoll if this was called from another
+     * thread. */
 
     UA_EventLoop *el = tc->brokerConnection->mcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->logger, UA_LOGCATEGORY_NETWORK,

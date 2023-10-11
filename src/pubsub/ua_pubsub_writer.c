@@ -703,7 +703,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetWriter *dataSetWriter) {
     UA_Boolean heartbeat = false;
     UA_PublishedDataSet *currentDataSet = NULL;
-    
+
     if(UA_NodeId_isNull(&dataSetWriter->connectedDataSet)){
         heartbeat = true;
     } else {
@@ -713,6 +713,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
             return UA_STATUSCODE_BADNOTFOUND;
         }
     }
+
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
 
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
@@ -804,7 +807,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
-            dataSetMessage->header.timestamp = UA_DateTime_now();
+            dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
         /* TODO: Picoseconds resolution not supported atm */
@@ -850,7 +853,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
-            dataSetMessage->header.timestamp = UA_DateTime_now();
+            dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
         /* TODO: Statuscode not supported yet */

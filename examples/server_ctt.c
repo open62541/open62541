@@ -19,6 +19,8 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "open62541/client.h"
+#include "open62541/client_config_default.h"
 
 #define MAX_OPERATION_LIMIT 10000
 
@@ -33,6 +35,8 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
+static UA_Client *ldsClientRegister;
+static UA_UInt64 ldsCallbackId;
 
 /* Custom AccessControl policy that disallows access to one specific node */
 static UA_Byte
@@ -849,125 +853,85 @@ setInformationModel(UA_Server *server) {
 #endif
 }
 
-static void
-disableAnonymous(UA_ServerConfig *config) {
-    for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
+#ifdef UA_ENABLE_DISCOVERY
+static void configureLdsRegistration(UA_Server *server) {
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
 
-        for(size_t j = 0; j < ep->userIdentityTokensSize; j++) {
-            UA_UserTokenPolicy *utp = &ep->userIdentityTokens[j];
-            if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS)
-                continue;
+    ldsClientRegister = UA_Client_new();
+    UA_ClientConfig *cc = UA_Client_getConfig(ldsClientRegister);
+    UA_ClientConfig_setDefault(cc);
+    cc->eventLoop->free(cc->eventLoop);
+    cc->eventLoop = sc->eventLoop;
+    cc->externalEventLoop = true;
 
-            UA_UserTokenPolicy_clear(utp);
-            /* Move the last to this position */
-            if(j + 1 < ep->userIdentityTokensSize) {
-                ep->userIdentityTokens[j] = ep->userIdentityTokens[ep->userIdentityTokensSize-1];
-                j--;
-            }
-            ep->userIdentityTokensSize--;
-        }
-
-        /* Delete the entire array if the last UserTokenPolicy was removed */
-        if(ep->userIdentityTokensSize == 0) {
-            UA_free(ep->userIdentityTokens);
-            ep->userIdentityTokens = NULL;
-        }
+    // periodic server register after 1 Minutes, delay first register for 500ms
+    UA_StatusCode retval =
+        UA_Server_addPeriodicServerRegisterCallback(server, ldsClientRegister, "opc.tcp://localhost:4840",
+                                                    60 * 1000, 500, &ldsCallbackId);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                     "Could not create periodic job for server register. StatusCode %s",
+                     UA_StatusCode_name(retval));
+        UA_Client_disconnect(ldsClientRegister);
+        UA_Client_delete(ldsClientRegister);
     }
 }
+#endif
 
 #ifdef UA_ENABLE_ENCRYPTION
 static void
-disableUnencrypted(UA_ServerConfig *config) {
-    for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
-        if(ep->securityMode != UA_MESSAGESECURITYMODE_NONE)
-            continue;
-
-        UA_EndpointDescription_clear(ep);
-        /* Move the last to this position */
-        if(i + 1 < config->endpointsSize) {
-            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
-            i--;
-        }
-        config->endpointsSize--;
+enableNoneSecurityPolicy(UA_ServerConfig *config) {
+    UA_StatusCode retval = UA_ServerConfig_addEndpoint(config, UA_SECURITY_POLICY_NONE_URI,
+                                         UA_MESSAGESECURITYMODE_NONE);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Failed to add SecurityPolicy#None to the endpoint list.");
     }
-    /* Delete the entire array if the last Endpoint was removed */
-    if(config->endpointsSize== 0) {
-        UA_free(config->endpoints);
-        config->endpoints = NULL;
-    }
+    config->securityPolicyNoneDiscoveryOnly = false;
 }
 
 static void
-disableOutdatedSecurityPolicy(UA_ServerConfig *config) {
-    for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
-        UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
-        UA_ByteString basic256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
-        if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri) &&
-           !UA_String_equal(&ep->securityPolicyUri, &basic256uri))
-            continue;
+enableBasic128SecurityPolicy(UA_ServerConfig *config,
+                             const UA_ByteString *certificate,
+                             const UA_ByteString *privateKey) {
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
 
-        UA_EndpointDescription_clear(ep);
-        /* Move the last to this position */
-        if(i + 1 < config->endpointsSize) {
-            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
-            i--;
-        }
-        config->endpointsSize--;
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
+                       UA_StatusCode_name(retval));
     }
-    /* Delete the entire array if the last Endpoint was removed */
-    if(config->endpointsSize== 0) {
-        UA_free(config->endpoints);
-        config->endpoints = NULL;
-    }
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGN);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
 }
 
 static void
-disableBasic128SecurityPolicy(UA_ServerConfig *config) {
-    for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
-        UA_ByteString basic128uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
-        if(!UA_String_equal(&ep->securityPolicyUri, &basic128uri))
-            continue;
+enableBasic256SecurityPolicy(UA_ServerConfig *config,
+                             const UA_ByteString *certificate,
+                             const UA_ByteString *privateKey) {
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
 
-        UA_EndpointDescription_clear(ep);
-        /* Move the last to this position */
-        if(i + 1 < config->endpointsSize) {
-            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
-            i--;
-        }
-        config->endpointsSize--;
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &localCertificate, &localPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#Basic256 with error code %s",
+                       UA_StatusCode_name(retval));
     }
-    /* Delete the entire array if the last Endpoint was removed */
-    if(config->endpointsSize== 0) {
-        UA_free(config->endpoints);
-        config->endpoints = NULL;
-    }
-}
-
-static void
-disableBasic256SecurityPolicy(UA_ServerConfig *config) {
-    for(size_t i = 0; i < config->endpointsSize; i++) {
-        UA_EndpointDescription *ep = &config->endpoints[i];
-        UA_ByteString basic256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
-        if(!UA_String_equal(&ep->securityPolicyUri, &basic256uri))
-            continue;
-
-        UA_EndpointDescription_clear(ep);
-        /* Move the last to this position */
-        if(i + 1 < config->endpointsSize) {
-            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
-            i--;
-        }
-        config->endpointsSize--;
-    }
-    /* Delete the entire array if the last Endpoint was removed */
-    if(config->endpointsSize== 0) {
-        UA_free(config->endpoints);
-        config->endpoints = NULL;
-    }
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGN);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
 }
 
 
@@ -977,6 +941,52 @@ disableBasic256Sha256SecurityPolicy(UA_ServerConfig *config) {
         UA_EndpointDescription *ep = &config->endpoints[i];
         UA_ByteString basic256sha256uri = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
         if(!UA_String_equal(&ep->securityPolicyUri, &basic256sha256uri))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+
+static void
+disableAes128Sha256RsaOaepSecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString aes128Sha256RsaOaep = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+        if(!UA_String_equal(&ep->securityPolicyUri, &aes128Sha256RsaOaep))
+            continue;
+
+        UA_EndpointDescription_clear(ep);
+        /* Move the last to this position */
+        if(i + 1 < config->endpointsSize) {
+            config->endpoints[i] = config->endpoints[config->endpointsSize-1];
+            i--;
+        }
+        config->endpointsSize--;
+    }
+    /* Delete the entire array if the last Endpoint was removed */
+    if(config->endpointsSize== 0) {
+        UA_free(config->endpoints);
+        config->endpoints = NULL;
+    }
+}
+
+static void
+disableAes256Sha256RsaPssSecurityPolicy(UA_ServerConfig *config) {
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        UA_EndpointDescription *ep = &config->endpoints[i];
+        UA_ByteString aes256Sha256RsaPss = UA_BYTESTRING("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+        if(!UA_String_equal(&ep->securityPolicyUri, &aes256Sha256RsaPss))
             continue;
 
         UA_EndpointDescription_clear(ep);
@@ -1019,11 +1029,12 @@ usage(void) {
                    "\t[--sessionIssuerListFolder <folder>]\n"
                    "\t[--sessionRevocationListFolder <folder>]\n"
 #endif
-                   "\t[--enableUnencrypted]\n"
-                   "\t[--enableOutdatedSecurityPolicy]\n"
-                   "\t[--disableBasic128]\n"
-                   "\t[--disableBasic256]\n"
+                   "\t[--enableNone]\n"
+                   "\t[--enableBasic128]\n"
+                   "\t[--enableBasic256]\n"
                    "\t[--disableBasic256Sha256]\n"
+                   "\t[--disableAes128Sha256RsaOaep]\n"
+                   "\t[--disableAes256Sha256RsaPss]\n"
 #endif
                    "\t[--enableTimestampCheck]\n"
                    "\t[--enableAnonymous]\n");
@@ -1066,11 +1077,12 @@ int main(int argc, char **argv) {
     }
 
     char filetype = ' '; /* t==trustlist, l == issuerList, r==revocationlist */
-    UA_Boolean enableUnencr = false;
-    UA_Boolean enableSec = false;
-    UA_Boolean disableBasic128 = false;
-    UA_Boolean disableBasic256 = false;
+    UA_Boolean enableNone = false;
+    UA_Boolean enableBasic128 = false;
+    UA_Boolean enableBasic256 = false;
     UA_Boolean disableBasic256Sha256 = false;
+    UA_Boolean disableAes128Sha256RsaOaep = false;
+    UA_Boolean disableAes256Sha256RsaPss = false;
 
 #ifndef __linux__
     UA_ByteString scTrustList[100];
@@ -1096,14 +1108,14 @@ int main(int argc, char **argv) {
 
 #endif /* UA_ENABLE_ENCRYPTION */
 
-    UA_Boolean enableAnon = false;
+    UA_Boolean enableAnonymous = false;
     UA_Boolean enableTime = false;
 
     /* Loop over the remaining arguments */
     for(; pos < (size_t)argc; pos++) {
 
         if(strcmp(argv[pos], "--enableAnonymous") == 0) {
-            enableAnon = true;
+            enableAnonymous = true;
             continue;
         }
 
@@ -1113,23 +1125,18 @@ int main(int argc, char **argv) {
         }
 
 #ifdef UA_ENABLE_ENCRYPTION
-        if(strcmp(argv[pos], "--enableUnencrypted") == 0) {
-            enableUnencr = true;
+        if(strcmp(argv[pos], "--enableNone") == 0) {
+            enableNone = true;
             continue;
         }
 
-        if(strcmp(argv[pos], "--enableOutdatedSecurityPolicy") == 0) {
-            enableSec = true;
+        if(strcmp(argv[pos], "--enableBasic128") == 0) {
+            enableBasic128 = true;
             continue;
         }
 
-        if(strcmp(argv[pos], "--disableBasic128") == 0) {
-            disableBasic128 = true;
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--disableBasic256") == 0) {
-            disableBasic256 = true;
+        if(strcmp(argv[pos], "--enableBasic256") == 0) {
+            enableBasic256 = true;
             continue;
         }
 
@@ -1138,20 +1145,16 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        if(strcmp(argv[pos], "--disableBasic128") == 0) {
-            disableBasic128 = true;
+        if(strcmp(argv[pos], "--disableAes128Sha256RsaOaep") == 0) {
+            disableAes128Sha256RsaOaep = true;
             continue;
         }
 
-        if(strcmp(argv[pos], "--disableBasic256") == 0) {
-            disableBasic256 = true;
+        if(strcmp(argv[pos], "--disableAes256Sha256RsaPss") == 0) {
+            disableAes256Sha256RsaPss = true;
             continue;
         }
 
-        if(strcmp(argv[pos], "--disableBasic256Sha256") == 0) {
-            disableBasic256Sha256 = true;
-            continue;
-        }
 
 #ifndef __linux__
         if(strcmp(argv[pos], "--secureChannelTrustList") == 0) {
@@ -1304,7 +1307,7 @@ int main(int argc, char **argv) {
 
     /* Load PKI */
 #ifdef UA_ENABLE_ENCRYPTION
-    res = UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
+    res = UA_ServerConfig_setDefaultWithSecureSecurityPolicies(config, 4841,
                                                          &certificate, &privateKey,
                                                          NULL, 0, NULL, 0, NULL, 0);
     if(res != UA_STATUSCODE_GOOD)
@@ -1339,26 +1342,24 @@ int main(int argc, char **argv) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    if(!enableUnencr)
-        disableUnencrypted(config);
-    if(!enableSec)
-        disableOutdatedSecurityPolicy(config);
-
-    if(disableBasic128)
-        disableBasic128SecurityPolicy(config);
-    if(disableBasic256)
-        disableBasic256SecurityPolicy(config);
+    if(enableNone)
+        enableNoneSecurityPolicy(config);
+    if(enableBasic128)
+        enableBasic128SecurityPolicy(config, &certificate, &privateKey);
+    if(enableBasic256)
+        enableBasic256SecurityPolicy(config, &certificate, &privateKey);
     if(disableBasic256Sha256)
         disableBasic256Sha256SecurityPolicy(config);
+    if(disableAes128Sha256RsaOaep)
+        disableAes128Sha256RsaOaepSecurityPolicy(config);
+    if(disableAes256Sha256RsaPss)
+        disableAes256Sha256RsaPssSecurityPolicy(config);
 
 #else /* UA_ENABLE_ENCRYPTION */
-    res = UA_ServerConfig_setMinimal(config, 4840, &certificate);
+    res = UA_ServerConfig_setMinimal(config, 4841, &certificate);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* UA_ENABLE_ENCRYPTION */
-
-    if(!enableAnon)
-        disableAnonymous(config);
 
     /* Limit the number of SecureChannels and Sessions */
     config->maxSecureChannels = 40;
@@ -1392,8 +1393,8 @@ int main(int argc, char **argv) {
         config->verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
     /* Instatiate a new AccessControl plugin that knows username/pw */
-    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
-    UA_AccessControl_default(config, true, &sp->policyUri,
+    UA_String aes128Sha256RsaOaep = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    UA_AccessControl_default(config, enableAnonymous, &aes128Sha256RsaOaep,
                              usernamePasswordsSize, usernamePasswords);
 
     /* Override with a custom access control policy */
@@ -1404,15 +1405,22 @@ int main(int argc, char **argv) {
 
     config->shutdownDelay = 5000.0; /* 5s */
 
-    UA_ServerConfig_addAllEndpoints(config);
-
     setInformationModel(server);
 
+#ifdef UA_ENABLE_DISCOVERY
+
+    configureLdsRegistration(server);
+
+#endif
 
     /* run server */
     res = UA_Server_runUntilInterrupt(server);
 
  cleanup:
+    UA_Server_removeCallback(server, ldsCallbackId);
+    UA_Server_unregister_discovery(server, ldsClientRegister);
+    UA_Client_disconnect(ldsClientRegister);
+    UA_Client_delete(ldsClientRegister);
     UA_Server_delete(server);
 
     UA_ByteString_clear(&certificate);

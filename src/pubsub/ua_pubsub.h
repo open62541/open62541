@@ -247,7 +247,8 @@ void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
+                            UA_Boolean validate);
 
 void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
@@ -431,7 +432,8 @@ void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg,
+                       UA_Boolean validate);
 
 UA_Boolean
 UA_WriterGroup_canConnect(UA_WriterGroup *wg);
@@ -673,7 +675,7 @@ UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate);
 
 void
 UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);
@@ -899,7 +901,7 @@ UA_Guid
 UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference(void);
+UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
 /*************************************************/
 /*      PubSub component monitoring              */

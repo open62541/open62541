@@ -40,6 +40,7 @@ typedef SSIZE_T ssize_t;
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
+#define UA_SHUT_RDWR SD_BOTH
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
@@ -61,17 +62,8 @@ typedef SSIZE_T ssize_t;
 #if UA_IPV6
 # define UA_if_nametoindex if_nametoindex
 
-# if defined(__WINCRYPT_H__) && defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-#  error "Wincrypt is not compatible with LibreSSL"
-# endif
-/* Hack: Prevent Wincrypt-Includes */
-# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
-#  define __WINCRYPT_H__
-# endif
 # include <iphlpapi.h>
-# ifdef UA_ENABLE_ENCRYPTION_LIBRESSL
-#  undef __WINCRYPT_H__
-# endif
+
 #endif
 
 #ifdef maxStringLength //defined in mingw64
