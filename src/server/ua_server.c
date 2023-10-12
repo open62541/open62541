@@ -730,6 +730,14 @@ UA_Server_run_startup(UA_Server *server) {
     UA_CHECK_STATUS(retVal, UA_UNLOCK(&server->serviceMutex); return retVal);
 #endif
 
+    /* Are there enough SecureChannels possible for the max number of sessions? */
+    if(config->maxSecureChannels != 0 &&
+       (config->maxSessions == 0 || config->maxSessions <= config->maxSecureChannels)) {
+        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "Maximum SecureChannels count not enough for the "
+                       "maximum Sessions count");
+    }
+
     /* Add a regular callback for housekeeping tasks. With a 1s interval. */
     retVal = addRepeatedCallback(server, serverHouseKeeping,
                                  NULL, 1000.0, &server->houseKeepingCallbackId);
