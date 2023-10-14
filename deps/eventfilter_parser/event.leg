@@ -1,8 +1,24 @@
 %{
-#include "eventfilter_parser.c"
+#include "eventfilter_parser.h"
+
 #define YY_CTX_LOCAL 1
-#define YY_CTX_MEMBERS \
-    UA_Parsed_EventFilter parsedFilter;
+#define YY_CTX_MEMBERS                  \
+    UA_Parsed_EventFilter parsedFilter; \
+    UA_String input;                    \
+    size_t pos;
+
+#define YY_INPUT(yyctx, buf, result, max_size) \
+{                                              \
+  if(yyctx->input.length <= yyctx->pos) {      \
+      result = 0;                              \
+  } else {                                     \
+      result = yyctx->input.length - yyctx->pos;\
+      if(result > max_size)                     \
+          result = max_size;                   \
+      memcpy(buf, &yyctx->input.data[yyctx->pos], result); \
+      yyctx->pos += result;                    \
+  }                                            \
+}
 
 UA_Counters ctr;
 UA_Element_List global;
@@ -134,3 +150,42 @@ _ = (Space | comment)*
 Space =		' ' | '\t' | Enter
 comment =	('#' (!Enter .)* Enter | '/*' (![*/] .)* '*/')
 Enter =	( '\r\n' | '\n' | '\r' )
+
+%%
+
+void clear_event_filter(UA_EventFilter *filter){
+    for(size_t i=0; i< filter->selectClausesSize; i++){
+        for(size_t j=0; j< filter->selectClauses[i].browsePathSize; j++){
+            UA_QualifiedName_clear(&filter->selectClauses[i].browsePath[j]);
+        }
+        UA_NodeId_clear(&filter->selectClauses[i].typeDefinitionId);
+        UA_String_clear(&filter->selectClauses[i].indexRange);
+        UA_SimpleAttributeOperand_clear(&filter->selectClauses[i]);
+    }
+    for(size_t i=0; i<filter->whereClause.elementsSize; i++){
+        for(size_t j=0; j< filter->whereClause.elements[i].filterOperandsSize; j++){
+            UA_ExtensionObject_clear(&filter->whereClause.elements[i].filterOperands[j]);
+        }
+        UA_ContentFilterElement_clear(&filter->whereClause.elements[i]);
+    }
+    UA_ContentFilter_clear(&filter->whereClause);
+    UA_EventFilter_clear(filter);
+}
+
+UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter) {
+    yycontext ctx;
+    memset(&ctx, 0, sizeof(yycontext));
+    ctx.input = *content;
+    while (yyparse(&ctx));
+    UA_StatusCode retval;
+    if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
+        UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
+        clear_event_filter(&ctx.parsedFilter.filter);
+        yyrelease(&ctx);
+        return retval;
+    }
+    UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
+    clear_event_filter(&ctx.parsedFilter.filter);
+    yyrelease(&ctx);
+    return UA_STATUSCODE_GOOD;
+}

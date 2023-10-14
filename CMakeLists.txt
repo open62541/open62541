@@ -1050,6 +1050,8 @@ endif()
 
 if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/event_filter_parser.c
+                            ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser.c)
 endif()
 
 # Always include encryption plugins into the amalgamation
@@ -1213,7 +1215,7 @@ endif()
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     set(lib_sources
         ${lib_sources}
-        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c examples/parser/min_examples_query/elementoperand/elementoperand_setup_functions.h examples/parser/min_examples_query/SAO/SAO_setup_functions.h examples/parser/min_examples_query/LEG/SAO/SAO_setup_functions.h examples/parser/min_examples_query/LEG/SelectClauses/select_set_up_functions.h examples/parser/min_examples_query/LEG/Operator/operator_setup_functions.h examples/parser/min_examples_query/LEG/FilterOperator/element_setup_functions.h examples/parser/min_examples_query/LEG/ContentFilter/content_filter_setup_functions.h examples/parser/min_examples_query/LEG/EventFilter/set_up_functions.h)
+        ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
 #########################

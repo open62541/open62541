@@ -7,7 +7,6 @@
 #include <open62541/util.h>
 #include <common.h>
 #include <stdio.h>
-#include <signal.h>
 #include <stdlib.h>
 #include "eventfilter_parser/eventfilter_parser.h"
 
@@ -45,65 +44,26 @@ static void check_eventfilter(UA_EventFilter *filter){
     }
 }
 
-static volatile UA_Boolean running = true;
-static void stopHandler(int sig) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "received ctrl-c");
-    running = false;
-}
-
 int main(int argc, char *argv[]) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
-
-    char *path = "../../../examples/eventfilter_parser/examples/";
-    char *examples[13] = {
-        "example_1.txt",
-        "example_2.txt",
-        "example_3.txt",
-        "example_4.txt",
-        "example_5.txt",
-        "example_6.txt",
-        "example_7.txt",
-        "example_8.txt",
-        "example_9.txt",
-        "example_10.txt",
-        "example_11.txt",
-        "example_12.txt",
-        "example_literal.txt"
-    };
-    for( size_t i=0; i< 13; i++){
-        char example_file [512];
-        strcpy(example_file, path);
-        strcat(example_file, examples[i]);
-        UA_ByteString content = loadFile(example_file);
-
-        printf("example %s \n", example_file);
-
-        UA_EventFilter filter;
-        UA_StatusCode retval = UA_EventFilter_parse(&content, &filter);
-        if(retval!= UA_STATUSCODE_GOOD){
-            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Parsing Query failed with StatusCode %s, Please check previous output", UA_StatusCode_name(retval));
-        }
-        else{
-            check_eventfilter(&filter);
-            clear_event_filter(&filter);
-            UA_ByteString_clear(&content);
-        }
-    }
-
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
-    UA_StatusCode retval = UA_Client_connect(client, argv[1]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Client_delete(client);
+    if(argc != 2) {
+        printf("usage: tutorial_eventfilter_parser <input_file>\n");
         return EXIT_FAILURE;
     }
-    while(running)
-        UA_Client_run_iterate(client, 100);
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+
+    UA_ByteString content = loadFile(argv[1]);
+
+    printf("example %s \n", argv[1]);
+
+    UA_EventFilter filter;
+    UA_StatusCode retval = UA_EventFilter_parse(&content, &filter);
+    if(retval!= UA_STATUSCODE_GOOD){
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                       "Parsing Query failed with StatusCode %s, Please check previous output", UA_StatusCode_name(retval));
+        return EXIT_FAILURE;
+    }
+
+    check_eventfilter(&filter);
+    clear_event_filter(&filter);
+    UA_ByteString_clear(&content);
+    return EXIT_SUCCESS;
 }
