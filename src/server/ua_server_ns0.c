@@ -761,6 +761,7 @@ writeNs0VariableArray(UA_Server *server, UA_UInt32 id, void *v,
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
 
+#ifdef UA_GENERATED_NAMESPACE_ZERO
 static UA_StatusCode
 writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *type) {
     UA_Variant var;
@@ -768,6 +769,7 @@ writeNs0Variable(UA_Server *server, UA_UInt32 id, void *v, const UA_DataType *ty
     UA_Variant_setScalar(&var, v, type);
     return writeValueAttribute(server, UA_NODEID_NUMERIC(0, id), &var);
 }
+#endif
 
 #ifndef UA_GENERATED_NAMESPACE_ZERO
 static UA_StatusCode
