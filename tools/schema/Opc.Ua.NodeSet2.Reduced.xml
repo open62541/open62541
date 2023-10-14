@@ -1334,6 +1334,41 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
+  <UAMethod NodeId="i=12873" BrowseName="ResendData" ParentNodeId="i=2253" MethodDeclarationId="i=12871">
+    <DisplayName>ResendData</DisplayName>
+    <Category>Base Info ServerType</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/9.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=12874</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=12874" BrowseName="InputArguments" ParentNodeId="i=12873" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=12873</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscriptionId</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
   <UAObjectType NodeId="i=17602" BrowseName="BaseInterfaceType" IsAbstract="true">
     <DisplayName>BaseInterfaceType</DisplayName>
     <References>
