@@ -935,17 +935,16 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Check timestamp in the request header */
     UA_RequestHeader *requestHeader = &request.requestHeader;
-    if(requestHeader->timestamp == 0) {
-        if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
-                                   "The server sends no timestamp in the request header. "
-                                   "See the 'verifyRequestTimestamp' setting.");
-            if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
-                retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
-                                          UA_STATUSCODE_BADINVALIDTIMESTAMP);
-                UA_clear(&request, requestType);
-                return retval;
-            }
+    if(requestHeader->timestamp == 0 &&
+       server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+                               "The server sends no timestamp in the request header. "
+                               "See the 'verifyRequestTimestamp' setting.");
+        if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
+            retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
+                                      UA_STATUSCODE_BADINVALIDTIMESTAMP);
+            UA_clear(&request, requestType);
+            return retval;
         }
     }
 
