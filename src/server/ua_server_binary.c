@@ -1131,7 +1131,6 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
      * alternative security token, we don't touch this value during the token
      * rollover. */
     entry->channel.securityToken.channelId = bpm->lastChannelId++;
-    entry->channel.altSecurityToken.channelId = entry->channel.securityToken.channelId;
 
     /* Set an initial timeout before the negotiation handshake. So the channel
      * is caught if the client is unresponsive.
