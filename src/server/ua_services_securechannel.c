@@ -124,8 +124,27 @@ void
 Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
                           const UA_OpenSecureChannelRequest *request,
                           UA_OpenSecureChannelResponse *response) {
-    /* Renew the channel */
-    if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_RENEW) {
+    switch(request->requestType) {
+        /* Open the channel */
+    case UA_SECURITYTOKENREQUESTTYPE_ISSUE:
+        response->responseHeader.serviceResult =
+            UA_SecureChannelManager_open(server, channel, request, response);
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                                "Opening a SecureChannel failed");
+            return;
+        }
+
+        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "and a revised lifetime of %.2fs",
+                            (int)channel->securityPolicy->policyUri.length,
+                            channel->securityPolicy->policyUri.data,
+                            (UA_Float)response->securityToken.revisedLifetime / 1000);
+        break;
+
+        /* Renew the channel */
+    case UA_SECURITYTOKENREQUESTTYPE_RENEW:
         response->responseHeader.serviceResult =
             UA_SecureChannelManager_renew(server, channel, request, response);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
@@ -134,35 +153,16 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
             return;
         }
 
-        /* Log the renewal and the lifetime */
-        UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
         UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel renewed "
-                            "with a revised lifetime of %.2fs", lifetime);
-        return;
-    }
+                            "with a revised lifetime of %.2fs",
+                            (UA_Float)response->securityToken.revisedLifetime / 1000);
+        break;
 
-    /* Must be ISSUE or RENEW */
-    if(request->requestType != UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
+        /* Unknown request type */
+    default:
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
+        break;
     }
-
-    /* Open the channel */
-    response->responseHeader.serviceResult =
-        UA_SecureChannelManager_open(server, channel, request, response);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                            "Opening a SecureChannel failed");
-        return;
-    }
-
-    /* Log the lifetime */
-    UA_Float lifetime = (UA_Float)response->securityToken.revisedLifetime / 1000;
-    UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
-                        "SecureChannel opened with SecurityPolicy %.*s "
-                        "and a revised lifetime of %.2fs",
-                        (int)channel->securityPolicy->policyUri.length,
-                        channel->securityPolicy->policyUri.data, lifetime);
 }
 
 /* The server does not send a CloseSecureChannel response */
