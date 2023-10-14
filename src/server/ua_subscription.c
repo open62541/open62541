@@ -406,11 +406,10 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_ExtensionObject_setValue(&notificationData, &scn,
                                 &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
 
-    response->responseHeader.timestamp = UA_DateTime_now();
     response->notificationMessage.notificationData = &notificationData;
     response->notificationMessage.notificationDataSize = 1;
     response->subscriptionId = sub->subscriptionId;
-    response->notificationMessage.publishTime = response->responseHeader.timestamp;
+    response->notificationMessage.publishTime = UA_DateTime_now();
     response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
 
     /* Send the response */
@@ -469,7 +468,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                                      "Publish request %u has timed out", pre->requestId);
 
                 pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
-                pre->response.responseHeader.timestamp = UA_DateTime_now();
                 sendResponse(server, sub->session, sub->session->header.channel,
                              pre->requestId, (UA_Response *)&pre->response,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
@@ -577,10 +575,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* <-- The point of no return --> */
 
     /* Set up the response */
-    response->responseHeader.timestamp = UA_DateTime_now();
     response->subscriptionId = sub->subscriptionId;
     response->moreNotifications = (sub->notificationQueueSize > 0);
-    message->publishTime = response->responseHeader.timestamp;
+    message->publishTime = UA_DateTime_now();
 
     /* Set sequence number to message. Started at 1 which is given during
      * creating a new subscription. The 1 is required for initial publish
@@ -730,7 +727,6 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 
         /* Send the response. This response has no related subscription id */
         UA_PublishResponse *response = &pre->response;
-        response->responseHeader.timestamp = UA_DateTime_now();
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
         sendResponse(server, session, session->header.channel, pre->requestId,
                      (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
