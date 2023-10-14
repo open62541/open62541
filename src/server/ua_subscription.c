@@ -692,6 +692,30 @@ UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
 }
 
 void
+UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_assert(server);
+    UA_assert(sub);
+
+    /* Part 4, §6.7: If this Method is called, subsequent Publish responses
+     * shall contain the current values of all data MonitoredItems in the
+     * Subscription where the MonitoringMode is set to Reporting. If a value is
+     * queued for a data MonitoredItem, the next value in the queue is sent in
+     * the Publish response. If no value is queued for a data MonitoredItem, the
+     * last value sent is repeated in the Publish response. */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+        if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+            continue;
+        if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
+            continue;
+        if(mon->queueSize > 0)
+            continue;
+        UA_MonitoredItem_createDataChangeNotification(server, sub, mon, &mon->lastValue);
+    }
+}
+
+void
 UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
     if(server->config.maxPublishReqPerSession == 0)
         return;

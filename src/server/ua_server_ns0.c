@@ -638,6 +638,43 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
 
 #if defined(UA_GENERATED_NAMESPACE_ZERO) && defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
 static UA_StatusCode
+resendData(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+           const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
+           void *objectContext, size_t inputSize, const UA_Variant *input,
+           size_t outputSize, UA_Variant *output) {
+    /* Get the input argument */
+    if(inputSize != 1 ||
+       !UA_Variant_hasScalarType(input, &UA_TYPES[UA_TYPES_UINT32]))
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    UA_UInt32 subscriptionId = *((UA_UInt32*)(input[0].data));
+
+    /* Get the Session */
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Get the Subscription */
+    UA_Subscription *subscription = getSubscriptionById(server, subscriptionId);
+    if(!subscription) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+    }
+
+    /* The Subscription is not attached to this Session */
+    if(subscription->session != session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+    }
+
+    UA_Subscription_resendData(server, subscription);
+
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+static UA_StatusCode
 readMonitoredItems(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext, const UA_NodeId *objectId,
                    void *objectContext, size_t inputSize, const UA_Variant *input,
@@ -1096,7 +1133,6 @@ initNS0(UA_Server *server) {
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_ESTIMATEDRETURNTIME), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_LOCALTIME), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_REQUESTSERVERSTATECHANGE), true);
-    deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_RESENDDATA), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION), true);
     deleteNode(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SETSUBSCRIPTIONDURABLE), true);
 
@@ -1250,8 +1286,13 @@ initNS0(UA_Server *server) {
 #endif
 
 #if defined(UA_ENABLE_METHODCALLS) && defined(UA_ENABLE_SUBSCRIPTIONS)
-    retVal |= setMethodNode_callback(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
+    retVal |= setMethodNode_callback(server,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_GETMONITOREDITEMS),
                                      readMonitoredItems);
+
+    retVal |= setMethodNode_callback(server,
+                                     UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_RESENDDATA),
+                                     resendData);
 #endif
 
     /* The HasComponent references to the ModellingRules are not part of the
