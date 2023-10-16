@@ -1896,7 +1896,7 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     /*check for types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /*SecurityGroupId*/
         !UA_Variant_hasScalarType(&input[1], &UA_TYPES[UA_TYPES_STRING]) || /*SecurityPolicyUri*/
-        !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_UINT32]) || /*CurrentTokenId*/
+        !UA_Variant_hasScalarType(&input[2], &UA_TYPES[UA_TYPES_INTEGERID]) || /*CurrentTokenId*/
         !UA_Variant_hasScalarType(&input[3], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*CurrentKey*/
         !UA_Variant_hasArrayType(&input[4], &UA_TYPES[UA_TYPES_BYTESTRING]) || /*FutureKeys*/
         (!UA_Variant_hasScalarType(&input[5], &UA_TYPES[UA_TYPES_DURATION]) &&
@@ -2001,7 +2001,7 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!UA_Variant_hasScalarType(&input[0],
                                  &UA_TYPES[UA_TYPES_STRING]) || /*SecurityGroupId*/
        !UA_Variant_hasScalarType(&input[1],
-                                 &UA_TYPES[UA_TYPES_UINT32]) || /*StartingTokenId*/
+                                 &UA_TYPES[UA_TYPES_INTEGERID]) || /*StartingTokenId*/
        !UA_Variant_hasScalarType(&input[2],
                                  &UA_TYPES[UA_TYPES_UINT32])) /*RequestedKeyCount*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
