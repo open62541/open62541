@@ -338,6 +338,9 @@ UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub);
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
 
+void
+UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);
+
 UA_StatusCode
 UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
                                             UA_UInt32 sequenceNumber);

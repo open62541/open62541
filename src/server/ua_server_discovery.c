@@ -24,7 +24,6 @@ register_server_with_discovery_server(UA_Server *server,
      * as the members are stack-allocated or point into the server config. */
     UA_RegisterServer2Request request;
     UA_RegisterServer2Request_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
 
     request.server.isOnline = !isUnregister;

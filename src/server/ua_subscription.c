@@ -406,11 +406,10 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_ExtensionObject_setValue(&notificationData, &scn,
                                 &UA_TYPES[UA_TYPES_STATUSCHANGENOTIFICATION]);
 
-    response->responseHeader.timestamp = UA_DateTime_now();
     response->notificationMessage.notificationData = &notificationData;
     response->notificationMessage.notificationDataSize = 1;
     response->subscriptionId = sub->subscriptionId;
-    response->notificationMessage.publishTime = response->responseHeader.timestamp;
+    response->notificationMessage.publishTime = UA_DateTime_now();
     response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
 
     /* Send the response */
@@ -469,7 +468,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                                      "Publish request %u has timed out", pre->requestId);
 
                 pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
-                pre->response.responseHeader.timestamp = UA_DateTime_now();
                 sendResponse(server, sub->session, sub->session->header.channel,
                              pre->requestId, (UA_Response *)&pre->response,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
@@ -577,10 +575,9 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* <-- The point of no return --> */
 
     /* Set up the response */
-    response->responseHeader.timestamp = UA_DateTime_now();
     response->subscriptionId = sub->subscriptionId;
     response->moreNotifications = (sub->notificationQueueSize > 0);
-    message->publishTime = response->responseHeader.timestamp;
+    message->publishTime = UA_DateTime_now();
 
     /* Set sequence number to message. Started at 1 which is given during
      * creating a new subscription. The 1 is required for initial publish
@@ -692,6 +689,30 @@ UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
 }
 
 void
+UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_assert(server);
+    UA_assert(sub);
+
+    /* Part 4, §6.7: If this Method is called, subsequent Publish responses
+     * shall contain the current values of all data MonitoredItems in the
+     * Subscription where the MonitoringMode is set to Reporting. If a value is
+     * queued for a data MonitoredItem, the next value in the queue is sent in
+     * the Publish response. If no value is queued for a data MonitoredItem, the
+     * last value sent is repeated in the Publish response. */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+        if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
+            continue;
+        if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
+            continue;
+        if(mon->queueSize > 0)
+            continue;
+        UA_MonitoredItem_createDataChangeNotification(server, sub, mon, &mon->lastValue);
+    }
+}
+
+void
 UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
     if(server->config.maxPublishReqPerSession == 0)
         return;
@@ -706,7 +727,6 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 
         /* Send the response. This response has no related subscription id */
         UA_PublishResponse *response = &pre->response;
-        response->responseHeader.timestamp = UA_DateTime_now();
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
         sendResponse(server, session, session->header.channel, pre->requestId,
                      (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);

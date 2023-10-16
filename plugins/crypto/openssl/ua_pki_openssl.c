@@ -21,6 +21,8 @@
 #include "ua_openssl_version_abstraction.h"
 #include "libc_time.h"
 
+#include <limits.h>
+
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
 
