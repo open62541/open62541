@@ -121,7 +121,7 @@ void Service_RegisterServer2(UA_Server *server, UA_Session *session,
  * Open or renew a SecureChannel that can be used to ensure Confidentiality and
  * Integrity for Message exchange during a Session. */
 void Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel* channel,
-                               const UA_OpenSecureChannelRequest *request,
+                               UA_OpenSecureChannelRequest *request,
                                UA_OpenSecureChannelResponse *response);
 
 /**
