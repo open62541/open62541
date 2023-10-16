@@ -1002,6 +1002,42 @@ disableAes256Sha256RsaPssSecurityPolicy(UA_ServerConfig *config) {
     }
 }
 
+static void
+disableX509Auth(UA_ServerConfig *config) {
+    UA_AccessControl *ac = &config->accessControl;
+    for(size_t i = 0; i < ac->userTokenPoliciesSize; i++) {
+        UA_UserTokenPolicy *utp = &ac->userTokenPolicies[i];
+        if(utp->tokenType != UA_USERTOKENTYPE_CERTIFICATE)
+            continue;
+
+        UA_UserTokenPolicy_clear(utp);
+        /* Move the last to this position */
+        if(i + 1 < ac->userTokenPoliciesSize) {
+            ac->userTokenPolicies[i] = ac->userTokenPolicies[ac->userTokenPoliciesSize-1];
+            i--;
+        }
+        ac->userTokenPoliciesSize--;
+    }
+}
+
+static void
+disableUsernamePasswordAuth(UA_ServerConfig *config) {
+    UA_AccessControl *ac = &config->accessControl;
+    for(size_t i = 0; i < ac->userTokenPoliciesSize; i++) {
+        UA_UserTokenPolicy *utp = &ac->userTokenPolicies[i];
+        if(utp->tokenType != UA_USERTOKENTYPE_USERNAME)
+            continue;
+
+        UA_UserTokenPolicy_clear(utp);
+        /* Move the last to this position */
+        if(i + 1 < ac->userTokenPoliciesSize) {
+            ac->userTokenPolicies[i] = ac->userTokenPolicies[ac->userTokenPoliciesSize-1];
+            i--;
+        }
+        ac->userTokenPoliciesSize--;
+    }
+}
+
 #endif
 
 static void
@@ -1033,6 +1069,8 @@ usage(void) {
                    "\t[--disableBasic256Sha256]\n"
                    "\t[--disableAes128Sha256RsaOaep]\n"
                    "\t[--disableAes256Sha256RsaPss]\n"
+                   "\t[--disableX509]\n"
+                   "\t[--disableUsernamePassword]\n"
 #endif
                    "\t[--enableTimestampCheck]\n"
                    "\t[--enableAnonymous]\n");
@@ -1081,6 +1119,8 @@ int main(int argc, char **argv) {
     UA_Boolean disableBasic256Sha256 = false;
     UA_Boolean disableAes128Sha256RsaOaep = false;
     UA_Boolean disableAes256Sha256RsaPss = false;
+    UA_Boolean disableX509 = false;
+    UA_Boolean disableUsernamePassword = false;
 
 #ifndef __linux__
     UA_ByteString scTrustList[100];
@@ -1150,6 +1190,16 @@ int main(int argc, char **argv) {
 
         if(strcmp(argv[pos], "--disableAes256Sha256RsaPss") == 0) {
             disableAes256Sha256RsaPss = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--disableX509") == 0) {
+            disableX509 = true;
+            continue;
+        }
+
+        if(strcmp(argv[pos], "--disableUsernamePassword") == 0) {
+            disableUsernamePassword = true;
             continue;
         }
 
@@ -1406,6 +1456,13 @@ int main(int argc, char **argv) {
     config->notifyLifecycleState = notifyState;
 
     setInformationModel(server);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    if(disableX509)
+        disableX509Auth(config);
+    if(disableUsernamePassword)
+        disableUsernamePasswordAuth(config);
+#endif
 
     /* run server */
     res = UA_Server_runUntilInterrupt(server);
