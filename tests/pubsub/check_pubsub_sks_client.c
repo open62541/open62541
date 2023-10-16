@@ -21,6 +21,7 @@
 #include "../encryption/certificates.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
+#include "open62541/plugin/accesscontrol_default.h"
 
 #define PUBLISHER_ID 2234             /*Publisher Id*/
 #define WRITER_GROUP_ID 100           /*Writer group Id*/
@@ -33,6 +34,11 @@
 #define MAX_RETRIES 1000
 
 #define TESTINGSECURITYMODE UA_MESSAGESECURITYMODE_SIGNANDENCRYPT
+
+static UA_UsernamePasswordLogin userNamePW[2] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password2")}
+};
 
 
 UA_Boolean running;
@@ -48,6 +54,23 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(sksServer, true);
     return 0;
 }
+
+typedef struct {
+    UA_Boolean allowAnonymous;
+    size_t usernamePasswordLoginSize;
+    UA_UsernamePasswordLogin *usernamePasswordLogin;
+    UA_UsernamePasswordLoginCallback loginCallback;
+    void *loginContext;
+    UA_CertificateVerification verifyX509;
+} AccessControlContext;
+
+#define ANONYMOUS_POLICY "open62541-anonymous-policy"
+#define CERTIFICATE_POLICY "open62541-certificate-policy"
+#define USERNAME_POLICY "open62541-username-policy"
+const UA_String anonymousPolicy = UA_STRING_STATIC(ANONYMOUS_POLICY);
+const UA_String certificatePolicy = UA_STRING_STATIC(CERTIFICATE_POLICY);
+const UA_String usernamePolicy = UA_STRING_STATIC(USERNAME_POLICY);
+
 
 static void
 disableAnonymous(UA_ServerConfig *config) {
@@ -83,7 +106,7 @@ addSecurityGroup(void) {
     UA_NodeId outNodeId;
     UA_SecurityGroupConfig config;
     memset(&config, 0, sizeof(UA_SecurityGroupConfig));
-    config.keyLifeTime = 200;
+    config.keyLifeTime = 1000;
     config.securityPolicyUri = UA_STRING(policUri);
     config.securityGroupName = UA_STRING("TestSecurityGroup");
     config.maxFutureKeyCount = 1;
@@ -114,7 +137,131 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
     UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken*)
         userIdentityToken->content.decoded.data;
     UA_ByteString *username = (UA_ByteString *)objectContext;
-    return UA_ByteString_equal(username, &token->userName);
+    UA_Boolean isUsernameEqual = UA_ByteString_equal(username, &token->userName);
+
+    /* clear session context */
+    UA_ExtensionObject_clear(userIdentityToken);
+    UA_free(sessionContext);
+
+    return isUsernameEqual;
+}
+
+static UA_StatusCode
+activateSession_default(UA_Server *server, UA_AccessControl *ac,
+                        const UA_EndpointDescription *endpointDescription,
+                        const UA_ByteString *secureChannelRemoteCertificate,
+                        const UA_NodeId *sessionId,
+                        const UA_ExtensionObject *userIdentityToken,
+                        void **sessionContext) {
+    AccessControlContext *context = (AccessControlContext*)ac->context;
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+
+    /* The empty token is interpreted as anonymous */
+    UA_AnonymousIdentityToken anonToken;
+    UA_ExtensionObject tmpIdentity;
+    if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
+        UA_AnonymousIdentityToken_init(&anonToken);
+        UA_ExtensionObject_init(&tmpIdentity);
+        UA_ExtensionObject_setValueNoDelete(&tmpIdentity,
+                                            &anonToken,
+                                            &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
+        userIdentityToken = &tmpIdentity;
+    }
+
+    /* Could the token be decoded? */
+    if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
+    if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
+        /* Anonymous login */
+        if(!context->allowAnonymous)
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
+            userIdentityToken->content.decoded.data;
+
+        /* Match the beginnig of the PolicyId.
+         * Compatibility notice: Siemens OPC Scout v10 provides an empty
+         * policyId. This is not compliant. For compatibility, assume that empty
+         * policyId == ANONYMOUS_POLICY */
+        if(token->policyId.data &&
+           (token->policyId.length < anonymousPolicy.length ||
+            strncmp((const char*)token->policyId.data,
+                    (const char*)anonymousPolicy.data,
+                    anonymousPolicy.length) != 0)) {
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
+    } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+        /* Username and password */
+        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+            userIdentityToken->content.decoded.data;
+
+        /* Match the beginnig of the PolicyId */
+        if(userToken->policyId.length < usernamePolicy.length ||
+           strncmp((const char*)userToken->policyId.data,
+                   (const char*)usernamePolicy.data,
+                   usernamePolicy.length) != 0) {
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
+
+        /* The userToken has been decrypted by the server before forwarding
+         * it to the plugin. This information can be used here. */
+        /* if(userToken->encryptionAlgorithm.length > 0) {} */
+
+        /* Empty username and password */
+        if(userToken->userName.length == 0 && userToken->password.length == 0)
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        /* Try to match username/pw */
+        UA_Boolean match = false;
+        if(context->loginCallback) {
+            if(context->loginCallback(&userToken->userName, &userToken->password,
+                                      context->usernamePasswordLoginSize, context->usernamePasswordLogin,
+                                      sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
+                match = true;
+        } else {
+            for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
+                if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
+                   UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+                    UA_ExtensionObject *mySessionContext = (UA_ExtensionObject *)malloc(sizeof(UA_ExtensionObject));
+                    // Copy data from userIdentityToken to the session context
+                    UA_ExtensionObject_copy(userIdentityToken, mySessionContext);
+                    if(!*sessionContext)
+                        *sessionContext = (void*)mySessionContext;
+                    match = true;
+                    break;
+                }
+            }
+        }
+        if(!match)
+            return UA_STATUSCODE_BADUSERACCESSDENIED;
+    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+        /* x509 certificate */
+        const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
+            userIdentityToken->content.decoded.data;
+
+        /* Match the beginnig of the PolicyId */
+        if(userToken->policyId.length < certificatePolicy.length ||
+           strncmp((const char*)userToken->policyId.data,
+                   (const char*)certificatePolicy.data,
+                   certificatePolicy.length) != 0) {
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+        }
+
+        if(!config->sessionPKI.verifyCertificate)
+            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+
+        UA_StatusCode res = config->sessionPKI.
+            verifyCertificate(&config->sessionPKI, &userToken->certificateData);
+        if(res != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
+    } else {
+        /* Unsupported token type */
+        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -145,6 +292,9 @@ skssetup(void) {
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
+    UA_String basic256sha256 = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_AccessControl_default(config, true, &basic256sha256, 2, userNamePW);
+
     disableAnonymous(config);
 
     config->pubSubConfig.securityPolicies =
@@ -154,6 +304,7 @@ skssetup(void) {
                                       config->logging);
 
     /*User Access Control*/
+    config->accessControl.activateSession = activateSession_default;
     config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
 
     addSecurityGroup();
@@ -475,7 +626,9 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     int retryCnt = 0;
     UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
     retval = addPublisher(publisherApp);
-
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good but failed with: %s ",
+                  UA_StatusCode_name(retval));
     retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
@@ -486,7 +639,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     }
     ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
-                  UA_StatusCode_name(retval), retryCnt);
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(publisherApp, writerGroupId);
     ck_assert(wg != NULL);
     retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
@@ -526,16 +679,16 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   UA_StatusCode_name(retval));
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(subscriberApp, false);
+        UA_Server_run_iterate(subscriberApp, true);
         UA_fakeSleep(50);
     }
     ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
-                  UA_StatusCode_name(retval), retryCnt);
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(subscriberApp, readerGroupId);
     ck_assert(rg != NULL);
 
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, writerGroupId);
+    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -567,12 +720,11 @@ START_TEST(SetInvalidSKSClient) {
     UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
     sksPullStatus = UA_STATUSCODE_GOOD;
     while(UA_StatusCode_isGood(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(publisherApp, true);
         UA_fakeSleep(50);
     }
     ck_assert_msg(sksPullStatus != UA_STATUSCODE_GOOD,
-                  "Expected Statuscode to be not GOOD, but failed with: %s (%u retries)",
-                  UA_StatusCode_name(sksPullStatus), retryCnt);
+                  "Expected Statuscode not to be GOOD: (%u retries)", retryCnt);
     UA_Client_delete(client);
 }
 END_TEST
@@ -621,10 +773,12 @@ START_TEST(CheckPublishedValuesInUserLand) {
     ck_assert(retval == UA_STATUSCODE_GOOD);
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(publisherApp, true);
         UA_fakeSleep(50);
     }
-    ck_assert(retryCnt < MAX_RETRIES);
+    ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good, but failed with: %s (%u retries)",
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
 
     UA_ClientConfig *subSksClientConfig = newEncryptedClientConfig("user1", "password");
     retval =
@@ -633,7 +787,7 @@ START_TEST(CheckPublishedValuesInUserLand) {
     sksPullStatus = UA_STATUSCODE_BAD;
     retryCnt = 0;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(subscriberApp, false);
+        UA_Server_run_iterate(subscriberApp, true);
         UA_fakeSleep(50);
     }
     ck_assert(retryCnt < MAX_RETRIES);
@@ -685,10 +839,12 @@ START_TEST(PublisherSubscriberTogethor) {
 
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(publisherApp, true);
         UA_fakeSleep(50);
     }
-    ck_assert(retryCnt < MAX_RETRIES);
+    ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good, but failed with: %s (%u retries)",
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
     retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     retval = UA_Server_setReaderGroupOperational(publisherApp, readerGroupId);
@@ -739,10 +895,12 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
 
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(publisherApp, true);
         UA_fakeSleep(50);
     }
-    ck_assert(retryCnt < MAX_RETRIES);
+    ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good, but failed with: %s (%u retries)",
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
 
     retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
@@ -791,10 +949,12 @@ START_TEST(FetchNextbatchOfKeys) {
 
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(publisherApp, false);
+        UA_Server_run_iterate(publisherApp, true);
         UA_fakeSleep(50);
     }
-    ck_assert(retryCnt < MAX_RETRIES);
+    ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good, but failed with: %s (%u retries)",
+                  UA_StatusCode_name(sksPullStatus), retryCnt);
 
     retval = addSubscriber(subscriberApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
@@ -808,7 +968,7 @@ START_TEST(FetchNextbatchOfKeys) {
     sksPullStatus = UA_STATUSCODE_BAD;
     retryCnt = 0;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
-        UA_Server_run_iterate(subscriberApp, false);
+        UA_Server_run_iterate(subscriberApp, true);
         UA_fakeSleep(50);
     }
     ck_assert(retryCnt < MAX_RETRIES);
