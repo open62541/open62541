@@ -62,6 +62,8 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
         sub->delayedCallbackRegistered = false;
     }
 
+    sub->state = UA_SUBSCRIPTIONSTATE_REMOVING;
+
     /* Remove the diagnostics object for the subscription */
 #ifdef UA_ENABLE_DIAGNOSTICS
     if(sub->session) {
