@@ -34,7 +34,7 @@ fillSubscriptionDiagnostics(UA_Subscription *sub,
     diag->maxKeepAliveCount = sub->maxKeepAliveCount;
     diag->maxLifetimeCount = sub->lifeTimeCount;
     diag->maxNotificationsPerPublish = sub->notificationsPerPublish;
-    diag->publishingEnabled = sub->publishingEnabled;
+    diag->publishingEnabled = (sub->state >= UA_SUBSCRIPTIONSTATE_NORMAL);
     diag->modifyCount = sub->modifyCount;
     diag->enableCount = sub->enableCount;
     diag->disableCount = sub->disableCount;

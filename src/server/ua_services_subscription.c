@@ -23,21 +23,6 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 static void
-setPublishingEnabled(UA_Subscription *sub, UA_Boolean publishingEnabled) {
-    if(sub->publishingEnabled == publishingEnabled)
-        return;
-
-    sub->publishingEnabled = publishingEnabled;
-
-#ifdef UA_ENABLE_DIAGNOSTICS
-    if(publishingEnabled)
-        sub->enableCount++;
-    else
-        sub->disableCount++;
-#endif
-}
-
-static void
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
@@ -95,14 +80,15 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount,
                             request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    setPublishingEnabled(sub, request->publishingEnabled);
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
+    sub->subscriptionId = ++server->lastSubscriptionId;  /* Assign the SubscriptionId */
 
-    /* Assign the SubscriptionId */
-    sub->subscriptionId = ++server->lastSubscriptionId;
-
-    /* Register the cyclic callback */
-    UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
+    /* Set the state, this also registers the callback */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(request->publishingEnabled)
+        retval = Subscription_enable(server, sub);
+    else
+        Subscription_disable(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %" PRIu32 " | "
@@ -206,7 +192,11 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    setPublishingEnabled(sub, *publishingEnabled); /* Set the publishing mode */
+    /* Enable/disable */
+    if(*publishingEnabled)
+        *result = Subscription_enable(server, sub);
+    else
+        Subscription_disable(server, sub);
 
     /* Reset the lifetime counter */
     Subscription_resetLifetime(sub);
@@ -541,8 +531,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * that all backpointers are set correctly. */
     memcpy(newSub, sub, sizeof(UA_Subscription));
 
-    /* Register cyclic publish callback */
-    result->statusCode = Subscription_registerPublishCallback(server, newSub);
+    /* Enable / Register cyclic publish callback */
+    result->statusCode = Subscription_enable(server, newSub);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->availableSequenceNumbers,
                         sub->retransmissionQueueSize, &UA_TYPES[UA_TYPES_UINT32]);

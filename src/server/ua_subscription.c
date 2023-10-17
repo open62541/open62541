@@ -33,7 +33,7 @@ UA_Subscription_new(void) {
         return NULL;
 
     /* The first publish response is sent immediately */
-    newSub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+    newSub->state = UA_SUBSCRIPTIONSTATE_DISABLED;
 
     /* Even if the first publish response is a keepalive the sequence number is 1.
      * This can happen by a subscription without a monitored item (see CTT test scripts). */
@@ -56,7 +56,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Unregister the publish callback and possible delayed callback */
-    Subscription_unregisterPublishCallback(server, sub);
+    Subscription_disable(server, sub);
     if(sub->delayedCallbackRegistered) {
         el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
         sub->delayedCallbackRegistered = false;
@@ -502,7 +502,8 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     }
 
     /* Count the available notifications */
-    UA_UInt32 notifications = (sub->publishingEnabled) ? sub->notificationQueueSize : 0;
+    UA_UInt32 notifications = (sub->state >= UA_SUBSCRIPTIONSTATE_NORMAL) ?
+        sub->notificationQueueSize : 0;
     if(notifications > sub->notificationsPerPublish)
         notifications = sub->notificationsPerPublish;
 
@@ -747,24 +748,44 @@ repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
 }
 
 UA_StatusCode
-Subscription_registerPublishCallback(UA_Server *server, UA_Subscription *sub) {
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "Register subscription publishing callback");
+Subscription_enable(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    if(sub->publishCallbackId > 0)
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Enable Subscription");
+
+    /* Already enabled? */
+    if(sub->state >= UA_SUBSCRIPTIONSTATE_NORMAL)
         return UA_STATUSCODE_GOOD;
-    return addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
-                               sub, sub->publishingInterval, &sub->publishCallbackId);
+
+    UA_StatusCode res =
+        addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
+                            sub, sub->publishingInterval, &sub->publishCallbackId);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->enableCount++;
+#endif
+    return UA_STATUSCODE_GOOD;
 }
 
 void
-Subscription_unregisterPublishCallback(UA_Server *server, UA_Subscription *sub) {
+Subscription_disable(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "Unregister subscription publishing callback");
-    if(sub->publishCallbackId == 0)
+                              "Disable Subscription");
+
+    /* Alreadu disabled? */
+    if(sub->state < UA_SUBSCRIPTIONSTATE_NORMAL)
         return;
+
     removeCallback(server, sub->publishCallbackId);
     sub->publishCallbackId = 0;
+    sub->state = UA_SUBSCRIPTIONSTATE_DISABLED;
+#ifdef UA_ENABLE_DIAGNOSTICS
+    sub->disableCount++;
+#endif
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
