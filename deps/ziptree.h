@@ -100,10 +100,12 @@ name##_ZIP_INSERT(struct name *head, struct type *el) {                 \
                  offsetof(struct type, keyfield), el);                  \
 }                                                                       \
                                                                         \
-ZIP_UNUSED static ZIP_INLINE void                                       \
+ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_REMOVE(struct name *head, struct type *elm) {                \
-    __ZIP_REMOVE(head, (zip_cmp_cb)cmp, offsetof(struct type, field),   \
-                 offsetof(struct type, keyfield), elm);                 \
+    return (struct type*)                                               \
+        __ZIP_REMOVE(head, (zip_cmp_cb)cmp,                             \
+                     offsetof(struct type, field),                      \
+                     offsetof(struct type, keyfield), elm);             \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
@@ -179,7 +181,7 @@ void
 __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm);
 
-void
+void *
 __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm);
 

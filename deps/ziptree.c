@@ -166,14 +166,14 @@ __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
     }
 }
 
-void
+void *
 __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm) {
     zip_head *head = (zip_head*)h;
     zip_elem *x = (zip_elem*)elm;
     zip_elem *cur = head->root;
     if(!cur)
-        return;
+        return NULL;
 
     const void *x_key = ZIP_KEY_PTR(x);
     zip_elem **prev_edge = &head->root;
@@ -183,12 +183,13 @@ __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
             &ZIP_ENTRY_PTR(cur)->left : &ZIP_ENTRY_PTR(cur)->right;
         cur = *prev_edge;
         if(!cur)
-            return;
+            return NULL;
         cur_order = __ZIP_UNIQUE_CMP(cmp, x_key, ZIP_KEY_PTR(cur));
     }
     *prev_edge = (zip_elem*)__ZIP_ZIP(fieldoffset,
                                       ZIP_ENTRY_PTR(cur)->left,
                                       ZIP_ENTRY_PTR(cur)->right);
+    return cur;
 }
 
 void *
