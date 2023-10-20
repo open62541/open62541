@@ -8,7 +8,7 @@
 
 #include <open62541/types_generated_handling.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_pubsub_networkmessage.h"
 

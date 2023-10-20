@@ -20,7 +20,7 @@
 
 #include "open62541_queue.h"
 #include "ua_securechannel.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS

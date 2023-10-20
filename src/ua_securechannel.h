@@ -19,7 +19,7 @@
 #include <open62541/transport_generated.h>
 
 #include "open62541_queue.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
