@@ -229,8 +229,7 @@ typedef enum {
     UA_SUBSCRIPTIONSTATE_DISABLED,
     UA_SUBSCRIPTIONSTATE_REMOVING,
     UA_SUBSCRIPTIONSTATE_NORMAL,
-    UA_SUBSCRIPTIONSTATE_LATE,
-    UA_SUBSCRIPTIONSTATE_KEEPALIVE,
+    UA_SUBSCRIPTIONSTATE_LATE
 } UA_SubscriptionState;
 
 /* Subscriptions are managed in a server-wide linked list. If they are attached
