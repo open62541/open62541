@@ -137,13 +137,17 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 
     UA_LOCK(&t->timerMutex);
 
-    /* Remove from the sorted tree */
+    /* Find according to the id */
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdTree, &t->idTree, &callbackId);
     if(!te) {
         UA_UNLOCK(&t->timerMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    ZIP_REMOVE(UA_TimerTree, &t->tree, te);
+
+    /* Try to remove from the time-sorted tree. If not found, then the entry is
+     * in the processTree. If that is the case, leave it there and only adjust
+     * the interval and nextTime (if the TimerPolicy uses a basetime). */
+    UA_Boolean normalTree = (ZIP_REMOVE(UA_TimerTree, &t->tree, te) != NULL);
 
     /* Compute the next time for execution. The logic is identical to the
      * creation of a new repeated callback. */
@@ -158,7 +162,9 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
     /* Update the remaining parameters and re-insert */
     te->interval = interval;
     te->timerPolicy = timerPolicy;
-    ZIP_INSERT(UA_TimerTree, &t->tree, te);
+
+    if(normalTree)
+        ZIP_INSERT(UA_TimerTree, &t->tree, te);
 
     UA_UNLOCK(&t->timerMutex);
     return UA_STATUSCODE_GOOD;
