@@ -324,8 +324,9 @@ Service_Publish(UA_Server *server, UA_Session *session,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publish(server, late);
 
-        /* Skip re-insert if the subscription was deleted during _publish */
-        if(late->state == UA_SUBSCRIPTIONSTATE_REMOVING)
+        /* Skip re-insert if the subscription was deleted or deactivated during
+         * _publish */
+        if(late->state <= UA_SUBSCRIPTIONSTATE_REMOVING)
             continue;
 
         /* Find the first element with smaller priority and insert before
