@@ -249,7 +249,7 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                 params->samplingInterval = -1.0;
             }
         }
-    } else {
+    } else if(params->samplingInterval > 0.0) {
         /* Adjust positive sampling interval to lie within the limits */
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
