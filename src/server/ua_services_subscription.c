@@ -304,12 +304,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_Session_queuePublishReq(session, entry, false);
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Queued a publication message");
 
-    /* If we still had publish requests in the queue, none of the subscriptions
-     * is late. So we don't have to search for one. */
-    if(session->responseQueueSize > 1) {
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* If there are late subscriptions, the new publish request is used to
      * answer them immediately. Late subscriptions with higher priority are
      * considered earlier. However, a single subscription that generates many
@@ -317,41 +311,39 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * it to the end of the queue for the subscriptions of that priority. */
     UA_Subscription *late, *late_tmp;
     TAILQ_FOREACH_SAFE(late, &session->subscriptions, sessionListEntry, late_tmp) {
+        /* Responses left in the queue? */
+        if(session->responseQueueSize == 0)
+            break;
+
+        /* Skip any non-late subscription */
         if(late->state != UA_SUBSCRIPTIONSTATE_LATE)
             continue;
 
+        /* Call publish on the late subscription */
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publish(server, late);
 
         /* Skip re-insert if the subscription was deleted during _publish */
-        if(late->state != UA_SUBSCRIPTIONSTATE_REMOVING) {
-            /* Find the first element with smaller priority and insert before
-             * that. If there is none, insert at the end of the queue. */
-            UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
-            while(after && after->priority >= late->priority)
-                after = TAILQ_NEXT(after, sessionListEntry);
-            TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
-            if(after)
-                TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
-            else
-                TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
+        if(late->state == UA_SUBSCRIPTIONSTATE_REMOVING)
+            continue;
 
-            /* After publishing a late subscription (which only happens from here), reset
-             * the cyclic callback to use the current time as the new basetime.
-             * The publishing interval stays the same. */
-            changeRepeatedCallbackInterval(server, late->publishCallbackId,
-                                           late->publishingInterval);
-        }
+        /* Find the first element with smaller priority and insert before
+         * that. If there is none, insert at the end of the queue. */
+        UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
+        while(after && after->priority >= late->priority)
+            after = TAILQ_NEXT(after, sessionListEntry);
+        TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+        if(after)
+            TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
+        else
+            TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
 
-        /* The enqueued request was used for a late subscription. Nothing more
-         * we can do? */
-        if(session->responseQueueSize == 0)
-            break;
-
-        /* In case of an error we might not have used the publish request that
-         * was just enqueued. Continue to find late subscriptions in that
-         * case. */
+        /* After publishing on a late subscription (which only happens from
+         * here), reset the cyclic callback to use the current time as the new
+         * basetime. The publishing interval stays the same. */
+        changeRepeatedCallbackInterval(server, late->publishCallbackId,
+                                       late->publishingInterval);
     }
 
     return UA_STATUSCODE_GOOD;
