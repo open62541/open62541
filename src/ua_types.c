@@ -19,7 +19,7 @@
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
 #include "libc_time.h"

@@ -17,7 +17,6 @@
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util_internal.h"
 #include "server/ua_session.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu

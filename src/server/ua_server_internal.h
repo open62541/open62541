@@ -25,7 +25,7 @@
 
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS

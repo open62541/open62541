@@ -6,7 +6,7 @@
  */
 
 #include "ua_pubsub.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 static
 UA_StatusCode

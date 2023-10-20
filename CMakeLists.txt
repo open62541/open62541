@@ -787,7 +787,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/itoa.h
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.h
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
-                ${PROJECT_SOURCE_DIR}/src/ua_util_internal.h
+                ${PROJECT_SOURCE_DIR}/src/util/ua_util_internal.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.h
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated_handling.h
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
@@ -807,7 +807,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
-                ${PROJECT_SOURCE_DIR}/src/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -866,7 +866,7 @@ if(UA_GENERATED_NAMESPACE_ZERO)
 endif()
 
 if(UA_ENABLE_PARSING)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
 endif()
 
 if(UA_ENABLE_PUBSUB)

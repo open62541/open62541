@@ -9,7 +9,7 @@
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include "testing_networklayers.h"
 #include "testing_policy.h"
