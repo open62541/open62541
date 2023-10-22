@@ -226,10 +226,10 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /* We use only a subset of the states defined in the standard */
 typedef enum {
-    UA_SUBSCRIPTIONSTATE_DISABLED,
+    UA_SUBSCRIPTIONSTATE_STOPPED = 0,
     UA_SUBSCRIPTIONSTATE_REMOVING,
-    UA_SUBSCRIPTIONSTATE_NORMAL,
-    UA_SUBSCRIPTIONSTATE_LATE
+    UA_SUBSCRIPTIONSTATE_ENABLED_NOPUBLISH, /* only keepalive */
+    UA_SUBSCRIPTIONSTATE_ENABLED
 } UA_SubscriptionState;
 
 /* Subscriptions are managed in a server-wide linked list. If they are attached
@@ -255,6 +255,7 @@ struct UA_Subscription {
 
     /* Runtime information */
     UA_SubscriptionState state;
+    UA_Boolean late;
     UA_StatusCode statusChange; /* If set, a notification is generated and the
                                  * Subscription is deleted within
                                  * UA_Subscription_publish. */
@@ -316,10 +317,8 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
-Subscription_enable(UA_Server *server, UA_Subscription *sub);
-
-void
-Subscription_disable(UA_Server *server, UA_Subscription *sub);
+Subscription_setState(UA_Server *server, UA_Subscription *sub,
+                      UA_SubscriptionState state);
 
 void
 Subscription_resetLifetime(UA_Subscription *sub);

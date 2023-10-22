@@ -33,7 +33,7 @@ UA_Subscription_new(void) {
         return NULL;
 
     /* The first publish response is sent immediately */
-    newSub->state = UA_SUBSCRIPTIONSTATE_DISABLED;
+    newSub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
 
     /* Even if the first publish response is a keepalive the sequence number is 1.
      * This can happen by a subscription without a monitored item (see CTT test scripts). */
@@ -56,13 +56,13 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Unregister the publish callback and possible delayed callback */
-    Subscription_disable(server, sub);
+    Subscription_setState(server, sub, UA_SUBSCRIPTIONSTATE_REMOVING);
+
+    /* Remove delayed callbacks for processing remaining notifications */
     if(sub->delayedCallbackRegistered) {
         el->removeDelayedCallback(el, &sub->delayedMoreNotifications);
         sub->delayedCallbackRegistered = false;
     }
-
-    sub->state = UA_SUBSCRIPTIONSTATE_REMOVING;
 
     /* Remove the diagnostics object for the subscription */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -431,15 +431,6 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_Subscription_delete(server, sub);
 }
 
-/* Called every time we set the subscription late (or it is still late) */
-static void
-UA_Subscription_isLate(UA_Subscription *sub) {
-    sub->state = UA_SUBSCRIPTIONSTATE_LATE;
-#ifdef UA_ENABLE_DIAGNOSTICS
-    sub->latePublishRequestCount++;
-#endif
-}
-
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
@@ -501,9 +492,11 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         return;
     }
 
-    /* Count the available notifications */
-    UA_UInt32 notifications = (sub->state >= UA_SUBSCRIPTIONSTATE_NORMAL) ?
+    /* Dsiabled subscriptions do not send notifications */
+    UA_UInt32 notifications = (sub->state == UA_SUBSCRIPTIONSTATE_ENABLED) ?
         sub->notificationQueueSize : 0;
+
+    /* Limit the number of notifications to the configured maximum */
     if(notifications > sub->notificationsPerPublish)
         notifications = sub->notificationsPerPublish;
 
@@ -525,7 +518,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
                                   "Want to send a publish response but cannot. "
                                   "The subscription is late.");
-        UA_Subscription_isLate(sub);
+        sub->late = true;
         if(pre)
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
         return;
@@ -551,8 +544,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                 UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
                                             "Could not allocate memory for retransmission. "
                                             "The subscription is late.");
-
-                UA_Subscription_isLate(sub);
+                sub->late = true;
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
                 return;
             }
@@ -568,7 +560,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             /* If the retransmission queue is enabled a retransmission message is allocated */
             if(retransmission)
                 UA_free(retransmission);
-            UA_Subscription_isLate(sub);
+            sub->late = true;
             UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
         }
@@ -630,7 +622,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
      * avoid answering Publish requests out of order. As we additionally may have
      * scheduled a publish callback as a delayed callback. */
     if(sub->notificationQueueSize == 0)
-        sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+        sub->late = false;
 
     /* Reset the KeepAlive after publishing */
     sub->currentKeepAliveCount = 0;
@@ -748,44 +740,35 @@ repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
 }
 
 UA_StatusCode
-Subscription_enable(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "Enable Subscription");
-
-    /* Already enabled? */
-    if(sub->state >= UA_SUBSCRIPTIONSTATE_NORMAL)
-        return UA_STATUSCODE_GOOD;
-
-    UA_StatusCode res =
-        addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
-                            sub, sub->publishingInterval, &sub->publishCallbackId);
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-
-    sub->state = UA_SUBSCRIPTIONSTATE_NORMAL;
+Subscription_setState(UA_Server *server, UA_Subscription *sub,
+                      UA_SubscriptionState state) {
+    if(state <= UA_SUBSCRIPTIONSTATE_REMOVING) {
+        if(sub->publishCallbackId != 0) {
+            removeCallback(server, sub->publishCallbackId);
+            sub->publishCallbackId = 0;
 #ifdef UA_ENABLE_DIAGNOSTICS
-    sub->enableCount++;
+            sub->disableCount++;
 #endif
+        }
+    } else if(sub->publishCallbackId == 0) {
+        UA_StatusCode res =
+            addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
+                                sub, sub->publishingInterval, &sub->publishCallbackId);
+        if(res != UA_STATUSCODE_GOOD) {
+            sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
+            return res;
+        }
+
+        /* Send (at least a) keepalive after the next publish interval */
+        sub->currentKeepAliveCount = sub->maxKeepAliveCount;
+
+#ifdef UA_ENABLE_DIAGNOSTICS
+        sub->enableCount++;
+#endif
+    }
+
+    sub->state = state;
     return UA_STATUSCODE_GOOD;
-}
-
-void
-Subscription_disable(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "Disable Subscription");
-
-    /* Alreadu disabled? */
-    if(sub->state < UA_SUBSCRIPTIONSTATE_NORMAL)
-        return;
-
-    removeCallback(server, sub->publishCallbackId);
-    sub->publishCallbackId = 0;
-    sub->state = UA_SUBSCRIPTIONSTATE_DISABLED;
-#ifdef UA_ENABLE_DIAGNOSTICS
-    sub->disableCount++;
-#endif
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
