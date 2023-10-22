@@ -754,7 +754,11 @@ START_TEST(Client_subscription_keepAlive) {
     UA_UInt32 monId = monResponse.monitoredItemId;
 
     /* Ensure that the subscription is late */
+    running = false;
+    THREAD_JOIN(server_thread);
     UA_fakeSleep((UA_UInt32)(publishingInterval + 1));
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 
     /* Manually send a publish request */
     UA_PublishRequest pr;
@@ -769,7 +773,12 @@ START_TEST(Client_subscription_keepAlive) {
     UA_PublishResponse_clear(&presponse);
     UA_PublishRequest_clear(&pr);
 
+    /* Ensure that the subscription is late */
+    running = false;
+    THREAD_JOIN(server_thread);
     UA_fakeSleep((UA_UInt32)(publishingInterval + 1));
+    running = true;
+    THREAD_CREATE(server_thread, serverloop);
 
     UA_PublishRequest_init(&pr);
     pr.subscriptionAcknowledgementsSize = 0;
