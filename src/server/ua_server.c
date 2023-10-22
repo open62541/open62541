@@ -487,6 +487,7 @@ UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return server->config.eventLoop->
         addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
                           server, data, interval_ms, NULL,
@@ -506,6 +507,7 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return server->config.eventLoop->
         modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
@@ -523,6 +525,7 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_EventLoop *el = server->config.eventLoop;
     if(el) {
         el->removeCyclicCallback(el, callbackId);
