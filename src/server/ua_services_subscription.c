@@ -23,21 +23,6 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 
 static void
-setPublishingEnabled(UA_Subscription *sub, UA_Boolean publishingEnabled) {
-    if(sub->publishingEnabled == publishingEnabled)
-        return;
-
-    sub->publishingEnabled = publishingEnabled;
-
-#ifdef UA_ENABLE_DIAGNOSTICS
-    if(publishingEnabled)
-        sub->enableCount++;
-    else
-        sub->disableCount++;
-#endif
-}
-
-static void
 setSubscriptionSettings(UA_Server *server, UA_Subscription *subscription,
                         UA_Double requestedPublishingInterval,
                         UA_UInt32 requestedLifetimeCount,
@@ -82,7 +67,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     }
 
     /* Create the subscription */
-    UA_Subscription *sub= UA_Subscription_new();
+    UA_Subscription *sub = UA_Subscription_new();
     if(!sub) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, session,
                              "Processing CreateSubscriptionRequest failed");
@@ -95,14 +80,15 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                             request->requestedLifetimeCount,
                             request->requestedMaxKeepAliveCount,
                             request->maxNotificationsPerPublish, request->priority);
-    setPublishingEnabled(sub, request->publishingEnabled);
     sub->currentKeepAliveCount = sub->maxKeepAliveCount; /* set settings first */
+    sub->subscriptionId = ++server->lastSubscriptionId;  /* Assign the SubscriptionId */
 
-    /* Assign the SubscriptionId */
-    sub->subscriptionId = ++server->lastSubscriptionId;
-
-    /* Register the cyclic callback */
-    UA_StatusCode retval = Subscription_registerPublishCallback(server, sub);
+    /* Set the state, this also registers the callback */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(request->publishingEnabled)
+        retval = Subscription_enable(server, sub);
+    else
+        Subscription_disable(server, sub);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
                              "Subscription %" PRIu32 " | "
@@ -138,7 +124,8 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",
                              sub->publishingInterval,
-                             (long unsigned)sub->notificationsPerPublish);}
+                             (long unsigned)sub->notificationsPerPublish);
+}
 
 void
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
@@ -170,9 +157,10 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     /* Change the repeated callback to the new interval. This cannot fail as the
      * CallbackId must exist. */
     if(sub->publishCallbackId > 0 &&
-       sub->publishingInterval != oldPublishingInterval)
+       sub->publishingInterval != oldPublishingInterval) {
         changeRepeatedCallbackInterval(server, sub->publishCallbackId,
                                        sub->publishingInterval);
+    }
 
     /* If the priority has changed, re-enter the subscription to the
      * priority-ordered queue in the session. */
@@ -204,7 +192,11 @@ Operation_SetPublishingMode(UA_Server *server, UA_Session *session,
         return;
     }
 
-    setPublishingEnabled(sub, *publishingEnabled); /* Set the publishing mode */
+    /* Enable/disable */
+    if(*publishingEnabled)
+        *result = Subscription_enable(server, sub);
+    else
+        Subscription_disable(server, sub);
 
     /* Reset the lifetime counter */
     Subscription_resetLifetime(sub);
@@ -312,12 +304,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_Session_queuePublishReq(session, entry, false);
     UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Queued a publication message");
 
-    /* If we still had publish requests in the queue, none of the subscriptions
-     * is late. So we don't have to search for one. */
-    if(session->responseQueueSize > 1) {
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* If there are late subscriptions, the new publish request is used to
      * answer them immediately. Late subscriptions with higher priority are
      * considered earlier. However, a single subscription that generates many
@@ -325,32 +311,40 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * it to the end of the queue for the subscriptions of that priority. */
     UA_Subscription *late, *late_tmp;
     TAILQ_FOREACH_SAFE(late, &session->subscriptions, sessionListEntry, late_tmp) {
+        /* Responses left in the queue? */
+        if(session->responseQueueSize == 0)
+            break;
+
+        /* Skip any non-late subscription */
         if(late->state != UA_SUBSCRIPTIONSTATE_LATE)
             continue;
 
+        /* Call publish on the late subscription */
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publish(server, late);
 
-        /* Skip re-insert if the subscription was deleted during publishOnce */
-        if(late->session) {
-            /* Find the first element with smaller priority and insert before
-             * that. If there is none, insert at the end of the queue. */
-            UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
-            while(after && after->priority >= late->priority)
-                after = TAILQ_NEXT(after, sessionListEntry);
-            TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
-            if(after)
-                TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
-            else
-                TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
-        }
+        /* Skip re-insert if the subscription was deleted or deactivated during
+         * _publish */
+        if(late->state <= UA_SUBSCRIPTIONSTATE_REMOVING)
+            continue;
 
-        /* In case of an error we might not have used the publish request that
-         * was just enqueued. Continue to find late subscriptions in that
-         * case. */
-        if(session->responseQueueSize == 0)
-            break;
+        /* Find the first element with smaller priority and insert before
+         * that. If there is none, insert at the end of the queue. */
+        UA_Subscription *after = TAILQ_NEXT(late, sessionListEntry);
+        while(after && after->priority >= late->priority)
+            after = TAILQ_NEXT(after, sessionListEntry);
+        TAILQ_REMOVE(&session->subscriptions, late, sessionListEntry);
+        if(after)
+            TAILQ_INSERT_BEFORE(after, late, sessionListEntry);
+        else
+            TAILQ_INSERT_TAIL(&session->subscriptions, late, sessionListEntry);
+
+        /* After publishing on a late subscription (which only happens from
+         * here), reset the cyclic callback to use the current time as the new
+         * basetime. The publishing interval stays the same. */
+        changeRepeatedCallbackInterval(server, late->publishCallbackId,
+                                       late->publishingInterval);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -530,8 +524,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * that all backpointers are set correctly. */
     memcpy(newSub, sub, sizeof(UA_Subscription));
 
-    /* Register cyclic publish callback */
-    result->statusCode = Subscription_registerPublishCallback(server, newSub);
+    /* Enable / Register cyclic publish callback */
+    result->statusCode = Subscription_enable(server, newSub);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->availableSequenceNumbers,
                         sub->retransmissionQueueSize, &UA_TYPES[UA_TYPES_UINT32]);
