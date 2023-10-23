@@ -516,6 +516,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     memcpy(newSub, sub, sizeof(UA_Subscription));
 
     /* Set to the same state as the original subscription */
+    newSub->publishCallbackId = 0;
     result->statusCode = Subscription_setState(server, newSub, sub->state);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_Array_delete(result->availableSequenceNumbers,
@@ -576,9 +577,6 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * queued to send a StatusChangeNotification. */
     sub->statusChange = UA_STATUSCODE_GOODSUBSCRIPTIONTRANSFERRED;
     UA_Subscription_publish(server, sub);
-
-    /* The original subscription has been deactivated */
-    UA_assert(sub->publishCallbackId == 0);
 
     /* Re-create notifications with the current values for the new subscription */
     if(*sendInitialValues) {

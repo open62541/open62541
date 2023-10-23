@@ -384,12 +384,14 @@ static void
 sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
                        UA_PublishResponseEntry *pre) {
     /* Cannot send out the StatusChange because no response is queued.
-     * Delete the Subscription without sending the StatusChange. */
+     * Delete the Subscription without sending the StatusChange, if the statusChange is Bad*/
     if(!pre) {
         UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                                  "Cannot send the StatusChange notification. "
-                                  "Removing the subscription.");
-        UA_Subscription_delete(server, sub);
+                                  "Cannot send the StatusChange notification because no response is queued.");
+        if(UA_StatusCode_isBad(sub->statusChange)) {
+            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Removing the subscription.");
+            UA_Subscription_delete(server, sub);
+        }
         return;
     }
 

@@ -224,6 +224,8 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
+    if(!oldSessionId)
+        return true;
     /* Allow the transfer if the same user-id was used to activate both sessions */
     UA_Variant session1UserId;
     UA_Variant_init(&session1UserId);
