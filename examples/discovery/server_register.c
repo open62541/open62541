@@ -97,50 +97,39 @@ int main(int argc, char **argv) {
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_Server_run_startup(server);
 
-    // periodic server register after 10 Minutes, delay first register for 500ms
-    UA_UInt64 callbackId;
+    // register server
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
+
     UA_StatusCode retval =
-        UA_Server_addPeriodicServerRegisterCallback(server, clientRegister, DISCOVERY_SERVER_ENDPOINT,
-                                                    10 * 60 * 1000, 500, &callbackId);
-    // UA_StatusCode retval = UA_Server_addPeriodicServerRegisterJob(server,
-    // "opc.tcp://localhost:4840", 10*60*1000, 500, NULL);
+        UA_Server_registerDiscovery(server, &cc,
+                                    UA_STRING(DISCOVERY_SERVER_ENDPOINT), UA_STRING_NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
-        UA_Client_disconnect(clientRegister);
-        UA_Client_delete(clientRegister);
         UA_Server_delete(server);
         return EXIT_FAILURE;
     }
 
-    retval = UA_Server_run(server, &running);
-
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not start the server. StatusCode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(clientRegister);
-        UA_Client_delete(clientRegister);
-        UA_Server_delete(server);
-        return EXIT_FAILURE;
-    }
+    while(running)
+        UA_Server_run_iterate(server, true);
 
     // Unregister the server from the discovery server.
-    retval = UA_Server_unregister_discovery(server, clientRegister);
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
+    retval = UA_Server_deregisterDiscovery(server, &cc,
+                                           UA_STRING(DISCOVERY_SERVER_ENDPOINT));
     //retval = UA_Server_unregister_discovery(server, "opc.tcp://localhost:4840" );
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. StatusCode %s",
                      UA_StatusCode_name(retval));
 
-    UA_Server_removeCallback(server, callbackId);
-
-    UA_Client_disconnect(clientRegister);
-    UA_Client_delete(clientRegister);
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     return EXIT_SUCCESS;
 }

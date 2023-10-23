@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Julian Grothoff
  */
 
+#include <open62541/client.h>
 #include "ua_discovery_manager.h"
 #include "ua_server_internal.h"
 
@@ -20,8 +21,26 @@ void
 UA_DiscoveryManager_setState(UA_Server *server,
                              UA_DiscoveryManager *dm,
                              UA_LifecycleState state) {
+    /* Check if open connections remain */
+    if(state == UA_LIFECYCLESTATE_STOPPING ||
+       state == UA_LIFECYCLESTATE_STOPPED) {
+        state = UA_LIFECYCLESTATE_STOPPED;
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+        if(dm->mdnsRecvConnectionsSize != 0 || dm->mdnsSendConnection != 0)
+            state = UA_LIFECYCLESTATE_STOPPING;
+#endif
+
+        for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
+            if(dm->registerRequests[i].client != NULL)
+                state = UA_LIFECYCLESTATE_STOPPING;
+        }
+    }
+
+    /* No change */
     if(state == dm->sc.state)
         return;
+
+    /* Set the new state and notify */
     dm->sc.state = state;
     if(dm->sc.notifyState)
         dm->sc.notifyState(server, &dm->sc, state);
@@ -44,14 +63,6 @@ UA_DiscoveryManager_free(UA_Server *server,
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
         UA_free(rs);
-    }
-    periodicServerRegisterCallback_entry *ps, *ps_tmp;
-    LIST_FOREACH_SAFE(ps, &dm->periodicServerRegisterCallbacks, pointers, ps_tmp) {
-        LIST_REMOVE(ps, pointers);
-        if(ps->callback->discovery_server_url)
-            UA_free(ps->callback->discovery_server_url);
-        UA_free(ps->callback);
-        UA_free(ps);
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -181,19 +192,19 @@ UA_DiscoveryManager_stop(UA_Server *server,
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
     removeCallback(server, dm->discoveryCallbackId);
 
+    /* Cancel all outstanding register requests */
+    for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
+        if(dm->registerRequests[i].client == NULL)
+            continue;
+        UA_Client_disconnectSecureChannelAsync(dm->registerRequests[i].client);
+    }
+
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
         stopMulticastDiscoveryServer(server);
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(dm->mdnsRecvConnectionsSize == 0 && dm->mdnsSendConnection == 0)
-        UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
-    else
-        UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPING);
-#else
     UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
-#endif
 }
 
 UA_ServerComponent *
