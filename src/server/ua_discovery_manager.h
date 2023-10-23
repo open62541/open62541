@@ -26,19 +26,17 @@ typedef struct registeredServer_list_entry {
     UA_DateTime lastSeen;
 } registeredServer_list_entry;
 
-struct PeriodicServerRegisterCallback {
-    UA_UInt64 id;
-    UA_Double this_interval;
-    UA_Double default_interval;
-    UA_Boolean registered;
-    struct UA_Client* client;
-    char* discovery_server_url;
-};
-
-typedef struct periodicServerRegisterCallback_entry {
-    LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
-    struct PeriodicServerRegisterCallback *callback;
-} periodicServerRegisterCallback_entry;
+/* Store async register service calls. So we can cancel outstanding requests
+ * during shutdown. */
+typedef struct {
+    UA_DelayedCallback cleanupCallback; /* delayed cleanup */
+    UA_Server *server;
+    UA_DiscoveryManager *dm;
+    UA_Client *client;
+    UA_String semaphoreFilePath;
+    UA_Boolean unregister;
+} asyncRegisterRequest;
+#define UA_MAXREGISTERREQUESTS 4
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
@@ -79,9 +77,11 @@ struct UA_DiscoveryManager {
 
     /* Taken from the server config during startup */
     UA_Logger *logging;
-    const UA_ServerConfig *serverConfig;
+    UA_ServerConfig *serverConfig;
 
-    LIST_HEAD(, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks;
+    /* Outstanding requests. So they can be cancelled during shutdown. */
+    asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
+
     LIST_HEAD(, registeredServer_list_entry) registeredServers;
     size_t registeredServersSize;
     UA_Server_registerServerCallback registerServerCallback;

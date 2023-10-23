@@ -146,30 +146,42 @@ teardown_register(void) {
 
 static void
 registerServer(void) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
 
-    UA_StatusCode retval =
-        UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_register_discovery(server_register, clientRegister, NULL);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Client_disconnect(clientRegister);
-    UA_Client_delete(clientRegister);
+    *running_register = false;
+    THREAD_JOIN(server_thread_register);
+
+    UA_StatusCode res =
+        UA_Server_registerDiscovery(server_register, &cc,
+                                    UA_STRING("opc.tcp://localhost:4840"),
+                                    UA_STRING_NULL);
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_realSleep(1000);
 }
 
 static void
 unregisterServer(void) {
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
 
-    UA_StatusCode retval =
-        UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_unregister_discovery(server_register, clientRegister);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Client_disconnect(clientRegister);
-    UA_Client_delete(clientRegister);
+    *running_register = false;
+    THREAD_JOIN(server_thread_register);
+
+    UA_StatusCode res =
+        UA_Server_deregisterDiscovery(server_register, &cc,
+                                    UA_STRING("opc.tcp://localhost:4840"));
+
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_realSleep(1000);
 }
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -188,16 +200,23 @@ Server_register_semaphore(void) {
     fclose(fp);
 #endif
 
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegister));
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
 
-    UA_StatusCode retval =
-        UA_Client_connectSecureChannel(clientRegister, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    retval = UA_Server_register_discovery(server_register, clientRegister, SEMAPHORE_PATH);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Client_disconnect(clientRegister);
-    UA_Client_delete(clientRegister);
+    *running_register = false;
+    THREAD_JOIN(server_thread_register);
+
+    UA_StatusCode res =
+        UA_Server_registerDiscovery(server_register, &cc,
+                                    UA_STRING("opc.tcp://localhost:4840"),
+                                    UA_STRING(SEMAPHORE_PATH));
+
+    *running_register = true;
+    THREAD_CREATE(server_thread_register, serverloop_register);
+
+    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
+    UA_realSleep(1000);
 }
 
 static void
@@ -209,39 +228,12 @@ Server_unregister_semaphore(void) {
 #endif /* UA_ENABLE_DISCOVERY_SEMAPHORE */
 
 static void
-Server_register_periodic(void) {
-    ck_assert(clientRegisterRepeated == NULL);
-    clientRegisterRepeated = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(clientRegisterRepeated));
-    ck_assert(clientRegisterRepeated != NULL);
-
-    // periodic register every minute, first register immediately
-    UA_StatusCode retval =
-        UA_Server_addPeriodicServerRegisterCallback(server_register, clientRegisterRepeated,
-                                                    "opc.tcp://localhost:4840", 60*1000, 100,
-                                                    &periodicRegisterCallbackId);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-}
-
-static void
-Server_unregister_periodic(void) {
-    UA_Server_removeRepeatedCallback(server_register, periodicRegisterCallbackId);
-    UA_StatusCode retval =
-        UA_Server_unregister_discovery(server_register, clientRegisterRepeated);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    UA_Client_disconnect(clientRegisterRepeated);
-    UA_Client_delete(clientRegisterRepeated);
-    clientRegisterRepeated=NULL;
-}
-
-static void
 FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
              const UA_String expectedLocales[],
              const UA_String expectedNames[],
              const char *filterUri,
              const char *filterLocale) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_ApplicationDescription* applicationDescriptionArray = NULL;
     size_t applicationDescriptionArraySize = 0;
@@ -308,7 +300,6 @@ FindOnNetworkAndCheck(UA_String expectedServerNames[], size_t expectedServerName
                       const char *filterUri, const char *filterLocale,
                       const char** filterCapabilities, size_t filterCapabilitiesSize) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     UA_ServerOnNetwork* serverOnNetwork = NULL;
     size_t serverOnNetworkSize = 0;
@@ -408,7 +399,6 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
                      const UA_String *expectedEndpointUrls,
                      size_t expectedEndpointUrlsSize) {
     UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
     ck_assert_uint_eq(UA_Client_connect(client, discoveryUrl), UA_STATUSCODE_GOOD);
 
@@ -564,38 +554,6 @@ START_TEST(Server_registerUnregister) {
 }
 END_TEST
 
-START_TEST(Server_registerRetry) {
-    Server_register_periodic();
-
-    // wait a bit to let first try run through
-    UA_fakeSleep(1000);
-    UA_realSleep(1000);
-
-    // now start LDS
-    setup_lds();
-    // first retry is after 2 seconds, then 4, so it should be enough to wait 3 seconds
-    UA_fakeSleep(3000);
-    UA_realSleep(3000);
-
-    // check if there
-    Client_find_registered();
-    Server_unregister_periodic();
-    Client_find_discovery();
-    teardown_lds();
-}
-END_TEST
-
-START_TEST(Server_registerUnregister_periodic) {
-    Server_register_periodic();
-
-    // wait for first register delay
-    UA_fakeSleep(1000);
-    UA_realSleep(1000);
-
-    Server_unregister_periodic();
-}
-END_TEST
-
 START_TEST(Server_registerTimeout) {
     registerServer();
     Client_find_registered();
@@ -663,13 +621,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_unchecked_fixture(tc_register, setup_lds, teardown_lds);
     tcase_add_unchecked_fixture(tc_register, setup_register, teardown_register);
     tcase_add_test(tc_register, Server_registerUnregister);
-    tcase_add_test(tc_register, Server_registerUnregister_periodic);
     suite_add_tcase(s,tc_register);
-
-    TCase *tc_register_retry = tcase_create("RegisterServer Retry");
-    tcase_add_unchecked_fixture(tc_register_retry, setup_register, teardown_register);
-    tcase_add_test(tc_register_retry, Server_registerRetry);
-    suite_add_tcase(s,tc_register_retry);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     TCase *tc_register_find = tcase_create("RegisterServer and FindServers");

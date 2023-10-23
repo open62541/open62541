@@ -103,14 +103,13 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         mdnsRemoveConnection(dm, connectionId, recv);
 
-        if(dm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
-            /* If we are stopping, was the last open socket closed? */
-            if(dm->mdnsSendConnection == 0 && dm->mdnsRecvConnectionsSize == 0)
-                UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
-        } else {
-            /* Restart mdns sockets */
+        /* Fully stopped? Internally checks if all sockets are closed. */
+        UA_DiscoveryManager_setState(server, dm, dm->sc.state);
+
+        /* Restart mdns sockets if not shutting down */
+        if(dm->sc.state == UA_LIFECYCLESTATE_STARTED)
             startMulticastDiscoveryServer(server);
-        }
+
         return;
     }
 
