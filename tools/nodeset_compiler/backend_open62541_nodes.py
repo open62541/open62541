@@ -78,12 +78,12 @@ def generateObjectNodeCode(node):
             is_first = False
         if node.eventNotifier & 4:
             if not is_first:
-                code_part += " || "
+                code_part += " | "
             code_part += "UA_EVENTNOTIFIER_HISTORY_READ"
             is_first = False
         if node.eventNotifier & 8:
             if not is_first:
-                code_part += " || "
+                code_part += " | "
             code_part += "UA_EVENTNOTIFIER_HISTORY_WRITE"
             is_first = False
         code_part += ";"
