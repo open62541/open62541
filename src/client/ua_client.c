@@ -783,17 +783,6 @@ __Client_AsyncService(UA_Client *client, const void *request,
         return UA_STATUSCODE_BADSERVERNOTCONNECTED;
     }
 
-    /* Do we need a Session for this Service? Is the Session connected? */
-    if(requestType != &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] &&
-       requestType != &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] &&
-       requestType != &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST] &&
-       requestType != &UA_TYPES[UA_TYPES_FINDSERVERSREQUEST] &&
-       client->sessionState < UA_SESSIONSTATE_ACTIVATED) {
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
-                     "Session must be connected to send a request of this type");
-        return UA_STATUSCODE_BADSERVERNOTCONNECTED;
-    }
-
     /* Prepare the entry for the linked list */
     AsyncServiceCall *ac = (AsyncServiceCall*)UA_malloc(sizeof(AsyncServiceCall));
     if(!ac)
