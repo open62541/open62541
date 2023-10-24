@@ -8,7 +8,6 @@
  */
 
 #include "ua_discovery_manager.h"
-#include "ua_services.h"
 
 #include "../deps/mp_printf.h"
 
@@ -395,95 +394,6 @@ stopMulticastDiscoveryServer(UA_Server *server) {
             if(dm->mdnsRecvConnections[i] != 0)
                 dm->cm->closeConnection(dm->cm, dm->mdnsRecvConnections[i]);
     }
-}
-
-/* All filter criteria must be fulfilled in the list entry. The comparison is
- * case insensitive. Returns true if the entry matches the filter. */
-static UA_Boolean
-entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize,
-                             UA_String *serverCapabilityFilter,
-                             serverOnNetwork_list_entry* current) {
-    /* If the entry has less capabilities defined than the filter, there's no match */
-    if(serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
-        return false;
-    for(size_t i = 0; i < serverCapabilityFilterSize; i++) {
-        UA_Boolean capabilityFound = false;
-        for(size_t j = 0; j < current->serverOnNetwork.serverCapabilitiesSize; j++) {
-            if(UA_String_equal_ignorecase(&serverCapabilityFilter[i],
-                               &current->serverOnNetwork.serverCapabilities[j])) {
-                capabilityFound = true;
-                break;
-            }
-        }
-        if(!capabilityFound)
-            return false;
-    }
-    return true;
-}
-
-void
-Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
-                             const UA_FindServersOnNetworkRequest *request,
-                             UA_FindServersOnNetworkResponse *response) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
-        getServerComponentByName(server, UA_STRING("discovery"));
-    if(!dm) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        return;
-    }
-
-    if(!server->config.mdnsEnabled) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTIMPLEMENTED;
-        return;
-    }
-
-    /* Set LastCounterResetTime */
-    response->lastCounterResetTime =
-        dm->serverOnNetworkRecordIdLastReset;
-
-    /* Compute the max number of records to return */
-    UA_UInt32 recordCount = 0;
-    if(request->startingRecordId < dm->serverOnNetworkRecordIdCounter)
-        recordCount = dm->serverOnNetworkRecordIdCounter - request->startingRecordId;
-    if(request->maxRecordsToReturn && recordCount > request->maxRecordsToReturn)
-        recordCount = UA_MIN(recordCount, request->maxRecordsToReturn);
-    if(recordCount == 0) {
-        response->serversSize = 0;
-        return;
-    }
-
-    /* Iterate over all records and add to filtered list */
-    UA_UInt32 filteredCount = 0;
-    UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    serverOnNetwork_list_entry* current;
-    LIST_FOREACH(current, &dm->serverOnNetwork, pointers) {
-        if(filteredCount >= recordCount)
-            break;
-        if(current->serverOnNetwork.recordId < request->startingRecordId)
-            continue;
-        if(!entryMatchesCapabilityFilter(request->serverCapabilityFilterSize,
-                               request->serverCapabilityFilter, current))
-            continue;
-        filtered[filteredCount++] = &current->serverOnNetwork;
-    }
-
-    if(filteredCount == 0)
-        return;
-
-    /* Allocate the array for the response */
-    response->servers = (UA_ServerOnNetwork*)
-        UA_malloc(sizeof(UA_ServerOnNetwork)*filteredCount);
-    if(!response->servers) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
-    }
-    response->serversSize = filteredCount;
-
-    /* Copy the server names */
-    for(size_t i = 0; i < filteredCount; i++)
-        UA_ServerOnNetwork_copy(filtered[i], &response->servers[filteredCount-i-1]);
 }
 
 void
