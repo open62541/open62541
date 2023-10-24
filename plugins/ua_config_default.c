@@ -99,6 +99,10 @@ interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
     UA_Server_addTimedCallback(ic->server, shutdownServer, ic, UA_DateTime_nowMonotonic() +
                                (UA_DateTime)(config->shutdownDelay * UA_DATETIME_MSEC),
                                NULL);
+
+    /* Notify the application that the server is stopping */
+    if(config->notifyLifecycleState)
+        config->notifyLifecycleState(ic->server, UA_LIFECYCLESTATE_STOPPING);
 }
 
 UA_StatusCode
