@@ -1360,8 +1360,8 @@ int main(int argc, char **argv) {
 #endif /* UA_ENABLE_ENCRYPTION */
 
     /* Limit the number of SecureChannels and Sessions */
-    config->maxSecureChannels = 40;
-    config->maxSessions = 10;
+    config->maxSecureChannels = 60;
+    config->maxSessions = 50;
 
     /* Revolve the SecureChannel token every 300 seconds */
     config->maxSecurityTokenLifetime = 300000;
