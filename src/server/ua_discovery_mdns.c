@@ -7,7 +7,7 @@
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
  */
 
-#include "ua_discovery_manager.h"
+#include "ua_discovery.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST

@@ -14,7 +14,7 @@
  */
 
 #include <open62541/client.h>
-#include "ua_discovery_manager.h"
+#include "ua_discovery.h"
 #include "ua_server_internal.h"
 
 #ifdef UA_ENABLE_DISCOVERY

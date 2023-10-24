@@ -934,7 +934,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
+         ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
@@ -1071,8 +1071,8 @@ list(INSERT plugin_sources 0
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.c)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)
