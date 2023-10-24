@@ -12,7 +12,7 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_discovery_manager.h"
+#include "ua_discovery.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_DISCOVERY
