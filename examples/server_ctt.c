@@ -1358,6 +1358,7 @@ int main(int argc, char **argv) {
     /* Limit the number of SecureChannels and Sessions */
     config->maxSecureChannels = 40;
     config->maxSessions = 10;
+    config->maxSessionTimeout = 10 * 60 * 10000; /* 10 minutes */
 
     /* Revolve the SecureChannel token every 300 seconds */
     config->maxSecurityTokenLifetime = 300000;
