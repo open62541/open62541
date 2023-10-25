@@ -35,8 +35,6 @@ static UA_UsernamePasswordLogin usernamePasswords[2] = {
 
 static const UA_NodeId baseDataVariableType = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEDATAVARIABLETYPE}};
 static const UA_NodeId accessDenied = {1, UA_NODEIDTYPE_NUMERIC, {1337}};
-static UA_Client *ldsClientRegister;
-static UA_UInt64 ldsCallbackId;
 
 /* Custom AccessControl policy that disallows access to one specific node */
 static UA_Byte
@@ -853,24 +851,30 @@ setInformationModel(UA_Server *server) {
 #endif
 }
 
-#ifdef UA_ENABLE_DISCOVERY
-static void configureLdsRegistration(UA_Server *server){
-    ldsClientRegister = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(ldsClientRegister));
+static UA_Boolean hasRegistered = false;
 
-    // periodic server register after 1 Minutes, delay first register for 500ms
-    UA_StatusCode retval =
-        UA_Server_addPeriodicServerRegisterCallback(server, ldsClientRegister, "opc.tcp://localhost:4840",
-                                                    60 * 1000, 500, &ldsCallbackId);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                     "Could not create periodic job for server register. StatusCode %s",
-                     UA_StatusCode_name(retval));
-        UA_Client_disconnect(ldsClientRegister);
-        UA_Client_delete(ldsClientRegister);
+static void
+notifyState(UA_Server *server, UA_LifecycleState state) {
+#ifdef UA_ENABLE_DISCOVERY
+    if(state == UA_LIFECYCLESTATE_STARTED && !hasRegistered) {
+        UA_ClientConfig cc;
+        memset(&cc, 0, sizeof(UA_ClientConfig));
+        UA_ClientConfig_setDefault(&cc);
+        UA_Server_registerDiscovery(server, &cc,
+                                    UA_STRING("opc.tcp://localhost:4840"),
+                                    UA_STRING_NULL);
+        hasRegistered = true;
     }
-}
+    if(state != UA_LIFECYCLESTATE_STARTED && hasRegistered) {
+        UA_ClientConfig cc;
+        memset(&cc, 0, sizeof(UA_ClientConfig));
+        UA_ClientConfig_setDefault(&cc);
+        UA_Server_deregisterDiscovery(server, &cc,
+                                      UA_STRING("opc.tcp://localhost:4840"));
+        hasRegistered = false;
+    }
 #endif
+}
 
 #ifdef UA_ENABLE_ENCRYPTION
 static void
@@ -1356,8 +1360,8 @@ int main(int argc, char **argv) {
 #endif /* UA_ENABLE_ENCRYPTION */
 
     /* Limit the number of SecureChannels and Sessions */
-    config->maxSecureChannels = 40;
-    config->maxSessions = 10;
+    config->maxSecureChannels = 60;
+    config->maxSessions = 50;
     config->maxSessionTimeout = 10 * 60 * 10000; /* 10 minutes */
 
     /* Revolve the SecureChannel token every 300 seconds */
@@ -1398,24 +1402,16 @@ int main(int argc, char **argv) {
     config->applicationDescription.applicationUri =
         UA_String_fromChars("urn:open62541.server.application");
 
+    /* Lifecycle config */
     config->shutdownDelay = 5000.0; /* 5s */
+    config->notifyLifecycleState = notifyState;
 
     setInformationModel(server);
-
-#ifdef UA_ENABLE_DISCOVERY
-
-    configureLdsRegistration(server);
-
-#endif
 
     /* run server */
     res = UA_Server_runUntilInterrupt(server);
 
  cleanup:
-    UA_Server_removeCallback(server, ldsCallbackId);
-    UA_Server_unregister_discovery(server, ldsClientRegister);
-    UA_Client_disconnect(ldsClientRegister);
-    UA_Client_delete(ldsClientRegister);
     UA_Server_delete(server);
 
     UA_ByteString_clear(&certificate);

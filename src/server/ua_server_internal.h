@@ -532,11 +532,6 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 #ifdef UA_ENABLE_DISCOVERY
 UA_ServerComponent *
 UA_DiscoveryManager_new(UA_Server *server);
-
-UA_StatusCode
-register_server_with_discovery_server(UA_Server *server, void *client,
-                                      const UA_Boolean isUnregister,
-                                      const char* semaphoreFilePath);
 #endif
 
 UA_ServerComponent *
