@@ -224,7 +224,20 @@ static UA_Boolean
 allowTransferSubscription_default(UA_Server *server, UA_AccessControl *ac,
                                   const UA_NodeId *oldSessionId, void *oldSessionContext,
                                   const UA_NodeId *newSessionId, void *newSessionContext) {
-    return true;
+    /* Allow the transfer if the same user-id was used to activate both sessions */
+    UA_Variant session1UserId;
+    UA_Variant_init(&session1UserId);
+    UA_Server_getSessionAttribute(server, oldSessionId,
+                                  UA_QUALIFIEDNAME(0, "clientUserId"),
+                                  &session1UserId);
+    UA_Variant session2UserId;
+    UA_Variant_init(&session2UserId);
+    UA_Server_getSessionAttribute(server, newSessionId,
+                                  UA_QUALIFIEDNAME(0, "clientUserId"),
+                                  &session2UserId);
+
+    return (UA_order(&session1UserId, &session2UserId,
+                     &UA_TYPES[UA_TYPES_VARIANT]) == UA_ORDER_EQ);
 }
 #endif
 
