@@ -537,7 +537,7 @@ setInformationModel(UA_Server *server) {
     UA_UInt32 matrixDims[2] = {5, 5};
     UA_UInt32 id = 51000; // running id in namespace 0
     for(UA_UInt32 type = 0; type < UA_TYPES_DIAGNOSTICINFO; type++) {
-        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
+        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO || type == UA_TYPES_EXTENSIONOBJECT || type == UA_TYPES_DATAVALUE)
             continue;
 
         UA_VariableAttributes attr = UA_VariableAttributes_default;
