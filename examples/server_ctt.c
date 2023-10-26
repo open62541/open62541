@@ -364,6 +364,22 @@ outargMethod(UA_Server *server,
 
 static void
 setInformationModel(UA_Server *server) {
+    /* Workaround for compatibility between the CTT 1.04. information model
+     * check and the 1.05. nodeset, which is loaded in our default configuration.
+     * With 1.05. the fields "ConditionSubClassId" and "ConditionSubClassName"
+     * are now optional children of the "BaseEventType". Therefore, the fields are
+     * not referenced in the "ConditionType" since this type inherit the fields
+     * from the "BaseEventType". For compatibility, the references are created
+     * manually */
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE_CONDITIONSUBCLASSID),
+                           true);
+    UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE_CONDITIONSUBCLASSNAME),
+                           true);
+
     /* add a custom reference type */
     UA_ReferenceTypeAttributes myRef = UA_ReferenceTypeAttributes_default;
     myRef.description = UA_LOCALIZEDTEXT("", "my organize");
