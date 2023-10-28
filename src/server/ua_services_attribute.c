@@ -594,12 +594,12 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
-    if(retval != UA_STATUSCODE_GOOD) {
-        /* Reading has failed but can not return because we may need to add timestamp */
+    /* Reading has failed? */
+    if(retval == UA_STATUSCODE_GOOD) {
+        v->hasValue = true;
+    } else {
         v->hasStatus = true;
         v->status = retval;
-    } else {
-        v->hasValue = true;
     }
 
     /* Static VariableNodes, VariableTypes and non-value attributes don't store
