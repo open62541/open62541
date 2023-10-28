@@ -1419,7 +1419,6 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     return UA_STATUSCODE_GOOD;
 }
 
-/* Stack layout: ... | node */
 static UA_StatusCode
 writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                         UA_VariableNode *node, const UA_DataValue *value,
@@ -1444,7 +1443,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
      * "container". */
     UA_DataValue adjustedValue = *value;
 
-    /* Type checking. May change the type of editableValue */
+    /* Type checking. May change the type of adjustedValue */
     const char *reason;
     if(value->hasValue && value->value.type &&
        !compatibleValue(server, session, &node->dataType, node->valueRank,
