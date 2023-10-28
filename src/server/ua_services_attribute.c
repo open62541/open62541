@@ -277,16 +277,11 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             break;
     }
 
-    /* Static Variables and VariableTypes have timestamps of "now". Will be set
-     * below in the absence of predefined timestamps. */
-    if(vn->head.nodeClass == UA_NODECLASS_VARIABLE) {
-        if(!vn->isDynamic) {
-            v->hasServerTimestamp = false;
-            v->hasSourceTimestamp = false;
-        }
-    } else {
-        v->hasServerTimestamp = false;
-        v->hasSourceTimestamp = false;
+    /* Static nodes have a source timestamp of now.
+     * No source timestamp is "invented" otherwise. */
+    if(vn->head.nodeClass != UA_NODECLASS_VARIABLE || !vn->isDynamic) {
+        v->sourceTimestamp = UA_DateTime_now();
+        v->hasSourceTimestamp = true;
     }
 
     /* Clean up */
@@ -607,28 +602,27 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         v->hasValue = true;
     }
 
-    /* Create server timestamp */
+    /* Static VariableNodes, VariableTypes and non-value attributes don't store
+     * a server-timestamp. Dynamic variables receive the timestamp during the
+     * Write service or from the external datasource. If the external datasource
+     * does not set a timestamp one is created here. */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
         if(!v->hasServerTimestamp) {
             v->serverTimestamp = UA_DateTime_now();
             v->hasServerTimestamp = true;
+            v->hasServerPicoseconds = false;
         }
     } else {
-        /* In case the ServerTimestamp has been set manually */
         v->hasServerTimestamp = false;
+        v->hasServerPicoseconds = false;
     }
 
-    /* Handle source time stamp */
-    if(id->attributeId == UA_ATTRIBUTEID_VALUE) {
-        if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
-           timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
-            v->hasSourceTimestamp = false;
-            v->hasSourcePicoseconds = false;
-        } else if(!v->hasSourceTimestamp) {
-            v->sourceTimestamp = UA_DateTime_now();
-            v->hasSourceTimestamp = true;
-        }
+    /* Don't "invent" source timestamps. But remove them when not required. */
+    if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
+       timestampsToReturn == UA_TIMESTAMPSTORETURN_NEITHER) {
+        v->hasSourceTimestamp = false;
+        v->hasSourcePicoseconds = false;
     }
 }
 
@@ -1483,16 +1477,19 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         }
     }
 
-    /* Set the source timestamp if there is none */
-    UA_DateTime now = UA_DateTime_now();
-    if(!adjustedValue.hasSourceTimestamp) {
-        adjustedValue.sourceTimestamp = now;
-        adjustedValue.hasSourceTimestamp = true;
+    /* Set the server timestamp in the Write service if the target VariableNode
+     * is "dynamic". For static nodes we generate a current server timestamp
+     * when the node is read. */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE && node->isDynamic) {
+        adjustedValue.serverTimestamp = UA_DateTime_now();
+        adjustedValue.hasServerTimestamp = true;
+    } else {
+        adjustedValue.hasServerTimestamp = false;
     }
 
-    /* Update the timestamp when the value was last updated in the server */
-    adjustedValue.serverTimestamp = now;
-    adjustedValue.hasServerTimestamp = true;
+    /* Picoseconds server timestamps are not supported in the standard code-path
+     * (only via a datasource callback configured for a variable node) */
+    adjustedValue.hasServerPicoseconds = false;
 
     switch(node->valueBackend.backendType) {
         case UA_VALUEBACKENDTYPE_NONE:
