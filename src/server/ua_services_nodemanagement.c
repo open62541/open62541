@@ -1356,10 +1356,10 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
 
 static UA_StatusCode
 setVariableNodeDynamic(UA_Server *server, UA_Session *session,
-                       UA_Node *node, const void *_) {
-    (void)_; /* unused */
-    if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
-        ((UA_VariableNode*)node)->isDynamic = true;
+                       UA_Node *node, const void *ctx) {
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    ((UA_VariableNode*)node)->isDynamic = *(const UA_Boolean*)ctx;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1404,8 +1404,9 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_GOOD;
 
     /* Set the variable to "dynamic" */
+    UA_Boolean isDynamic = true;
     UA_Server_editNode(server, session, nodeId,
-                       (UA_EditNodeCallback)setVariableNodeDynamic, NULL);
+                       (UA_EditNodeCallback)setVariableNodeDynamic, &isDynamic);
 
     return UA_STATUSCODE_GOOD;
 }
