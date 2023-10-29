@@ -1627,10 +1627,10 @@ extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
     case UA_EXTENSIONOBJECT_ENCODED_XML: {
             UA_Order o = nodeIdOrder(&p1->content.encoded.typeId,
                                      &p2->content.encoded.typeId, NULL);
-            if(o == UA_ORDER_EQ)
-                o = stringOrder((const UA_String*)&p1->content.encoded.body,
-                                (const UA_String*)&p2->content.encoded.body, NULL);
-            return o;
+            if(o != UA_ORDER_EQ)
+                return o;
+            return stringOrder((const UA_String*)&p1->content.encoded.body,
+                               (const UA_String*)&p2->content.encoded.body, NULL);
         }
 
     case UA_EXTENSIONOBJECT_DECODED:
