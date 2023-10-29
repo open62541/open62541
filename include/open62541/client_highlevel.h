@@ -387,6 +387,14 @@ UA_Client_writeValueAttribute(UA_Client *client, const UA_NodeId nodeId,
                                       newValue, &UA_TYPES[UA_TYPES_VARIANT]);
 }
 
+/* Write a DataValue that can include timestamps and status codes */
+static UA_INLINE UA_StatusCode
+UA_Client_writeValueAttributeEx(UA_Client *client, const UA_NodeId nodeId,
+                                const UA_DataValue *newValue) {
+    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                      newValue, &UA_TYPES[UA_TYPES_DATAVALUE]);
+}
+
 static UA_INLINE UA_StatusCode
 UA_Client_writeDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId,
                                  const UA_NodeId *newDataType) {
