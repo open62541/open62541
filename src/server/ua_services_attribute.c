@@ -1470,69 +1470,70 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
      * (only via a datasource callback configured for a variable node) */
     adjustedValue.hasServerPicoseconds = false;
 
+    /* Call into the different value storage backends.
+     *
+     * TODO: Clean up this mess with duplicated possibilities for external
+     * callbacks */
+    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED; /* default */
     switch(node->valueBackend.backendType) {
-        case UA_VALUEBACKENDTYPE_NONE:
-            /* Ok, do it */
-            if(node->valueSource == UA_VALUESOURCE_DATA) {
-                if(!rangeptr)
-                    retval = writeValueAttributeWithoutRange(node, &adjustedValue);
-                else
-                    retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
+    case UA_VALUEBACKENDTYPE_NONE:
+        if(node->valueSource == UA_VALUESOURCE_DATA) {
+            /* Write into the in-situ DataValue */
+            if(!rangeptr)
+                retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+            else
+                retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
 
-#ifdef UA_ENABLE_HISTORIZING
-                /* node is a UA_VariableNode*, but it may also point to a
-                   UA_VariableTypeNode */
-                /* UA_VariableTypeNode doesn't have the historizing attribute */
-                if(retval == UA_STATUSCODE_GOOD &&
-                   node->head.nodeClass == UA_NODECLASS_VARIABLE &&
-                   server->config.historyDatabase.setValue) {
-                    UA_UNLOCK(&server->serviceMutex);
-                    server->config.historyDatabase.
-                        setValue(server, server->config.historyDatabase.context,
-                                 &session->sessionId, session->sessionHandle,
-                                 &node->head.nodeId, node->historizing, &adjustedValue);
-                    UA_LOCK(&server->serviceMutex);
-                }
-#endif
-                /* Callback after writing */
-                if(retval == UA_STATUSCODE_GOOD && node->value.data.callback.onWrite) {
-                    UA_UNLOCK(&server->serviceMutex);
-                    node->value.data.callback.
-                        onWrite(server, &session->sessionId, session->sessionHandle,
-                                &node->head.nodeId, node->head.context,
-                                rangeptr, &adjustedValue);
-                    UA_LOCK(&server->serviceMutex);
+            /* Callback after writing */
+            if(retval == UA_STATUSCODE_GOOD &&
+               node->value.data.callback.onWrite) {
+                UA_UNLOCK(&server->serviceMutex);
+                node->value.data.callback.
+                    onWrite(server, &session->sessionId, session->sessionHandle,
+                            &node->head.nodeId, node->head.context,
+                            rangeptr, &adjustedValue);
+                UA_LOCK(&server->serviceMutex);
+            }
+        } else if(node->value.dataSource.write) {
+            /* Write via the datasource callback */
+            UA_UNLOCK(&server->serviceMutex);
+            retval = node->value.dataSource.
+                write(server, &session->sessionId, session->sessionHandle,
+                      &node->head.nodeId, node->head.context,
+                      rangeptr, &adjustedValue);
+            UA_LOCK(&server->serviceMutex);
+        }
+        break;
 
-                }
-            } else {
-                if(node->value.dataSource.write) {
-                    UA_UNLOCK(&server->serviceMutex);
-                    retval = node->value.dataSource.
-                        write(server, &session->sessionId, session->sessionHandle,
-                              &node->head.nodeId, node->head.context,
-                              rangeptr, &adjustedValue);
-                    UA_LOCK(&server->serviceMutex);
-                } else {
-                    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED;
-                }
-            }
-            break;
-        case UA_VALUEBACKENDTYPE_INTERNAL:
-            break;
-        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
-            break;
-        case UA_VALUEBACKENDTYPE_EXTERNAL:
-            if(node->valueBackend.backend.external.callback.userWrite == NULL){
-                if(rangeptr && rangeptr->dimensions != NULL)
-                    UA_free(rangeptr->dimensions);
-                return UA_STATUSCODE_BADWRITENOTSUPPORTED;
-            }
+    case UA_VALUEBACKENDTYPE_EXTERNAL:
+        if(node->valueBackend.backend.external.callback.userWrite) {
             retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->sessionHandle,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
-            break;
+        }
+        break;
+
+    case UA_VALUEBACKENDTYPE_INTERNAL:
+    case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
+    default:
+        break;
     }
+
+    /* Write into the historical data backend. Not that the historical data
+     * backend can be configured to "poll" data like a MonitoredItem also. */
+#ifdef UA_ENABLE_HISTORIZING
+    if(retval == UA_STATUSCODE_GOOD &&
+       node->head.nodeClass == UA_NODECLASS_VARIABLE &&
+       server->config.historyDatabase.setValue) {
+        UA_UNLOCK(&server->serviceMutex);
+        server->config.historyDatabase.
+            setValue(server, server->config.historyDatabase.context,
+                     &session->sessionId, session->sessionHandle,
+                     &node->head.nodeId, node->historizing, &adjustedValue);
+        UA_LOCK(&server->serviceMutex);
+    }
+#endif
 
     /* Clean up */
     if(rangeptr && rangeptr->dimensions != NULL)
