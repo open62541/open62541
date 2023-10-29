@@ -847,11 +847,6 @@ UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
                              &UA_TYPES[UA_TYPES_BYTE], &eventNotifier);
 }
 
-/**
- * Writes an UA_Variant to a variable/variableType node.
- * StatusCode is set to ``UA_STATUSCODE_GOOD``, sourceTimestamp and
- * serverTimestamp are set to UA_DateTime_now()
- */
 static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
                      const UA_Variant value) {
@@ -859,14 +854,12 @@ UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
                              &UA_TYPES[UA_TYPES_VARIANT], &value);
 }
 
-/**
- * Writes an UA_DataValue to a variable/variableType node.
- * In contrast to UA_Server_writeValue, this functions can also write
- * sourceTimestamp, serverTimestamp and statusCode.
- */
+/* Writes an UA_DataValue to a variable/variableType node. In contrast to
+ * UA_Server_writeValue, this functions can also write SourceTimestamp,
+ * ServerTimestamp and StatusCode. */
 static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Server_writeDataValue(UA_Server *server, const UA_NodeId nodeId,
-                     const UA_DataValue value) {
+                         const UA_DataValue value) {
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
                              &UA_TYPES[UA_TYPES_DATAVALUE], &value);
 }
@@ -1431,6 +1424,13 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_VariableAttributes attr,
                                     const UA_DataSource dataSource,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
+
+/* VariableNodes that are "dynamic" (default for user-created variables) receive
+ * and store a SourceTimestamp. For non-dynamic VariableNodes the current time
+ * is used for the SourceTimestamp. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNodeDynamic(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_Boolean isDynamic);
 
 #ifdef UA_ENABLE_METHODCALLS
 
