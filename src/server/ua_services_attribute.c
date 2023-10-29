@@ -277,8 +277,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             break;
     }
 
-    /* Static nodes have a source timestamp of now.
-     * No source timestamp is "invented" otherwise. */
+    /* Static nodes always have a source timestamp of "now" */
     if(vn->head.nodeClass != UA_NODECLASS_VARIABLE || !vn->isDynamic) {
         v->sourceTimestamp = UA_DateTime_now();
         v->hasSourceTimestamp = true;
