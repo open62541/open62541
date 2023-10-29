@@ -866,8 +866,7 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
         res = resolveOperand(ctx, &elm->filterOperands[i], op1);
         if(res != UA_STATUSCODE_GOOD)
             continue;
-        if(op0->type == op1->type &&
-           UA_order(op0->data, op1->data, op0->type) == UA_ORDER_EQ)
+        if(op0->type == op1->type && UA_equal(op0->data, op1->data, op0->type))
             found = true;
         UA_Variant_clear(op1);
     }

@@ -610,9 +610,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
      * Update the diagnostics statistics: */
 #ifdef UA_ENABLE_DIAGNOSTICS
     if(oldSession &&
-       UA_order(&oldSession->clientDescription,
-                &session->clientDescription,
-                &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]) == UA_ORDER_EQ)
+       UA_equal(&oldSession->clientDescription, &session->clientDescription,
+                &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]))
         sub->transferredToSameClientCount++;
     else
         sub->transferredToAltClientCount++;

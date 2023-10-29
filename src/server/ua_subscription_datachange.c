@@ -120,8 +120,8 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
     /* Has the value changed? */
     if(dv->hasValue != mon->lastValue.hasValue)
         return true;
-    return (UA_order(&dv->value, &mon->lastValue.value,
-                     &UA_TYPES[UA_TYPES_VARIANT]) != UA_ORDER_EQ);
+    return !UA_equal(&dv->value, &mon->lastValue.value,
+                     &UA_TYPES[UA_TYPES_VARIANT]);
 }
 
 UA_StatusCode
