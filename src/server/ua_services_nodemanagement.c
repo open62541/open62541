@@ -1411,6 +1411,17 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_setVariableNodeDynamic(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_Boolean isDynamic) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        UA_Server_editNode(server, &server->adminSession, &nodeId,
+                           (UA_EditNodeCallback)setVariableNodeDynamic, &isDynamic);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 /* Children, references, type-checking, constructors. */
 UA_StatusCode
 addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) {
