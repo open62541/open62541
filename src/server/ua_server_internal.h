@@ -444,9 +444,14 @@ UA_WRITEATTRIBUTEFUNCS(AccessLevel, UA_ATTRIBUTEID_ACCESSLEVEL, UA_Byte, BYTE)
 UA_WRITEATTRIBUTEFUNCS(MinimumSamplingInterval, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                        UA_Double, DOUBLE)
 
+void
+Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv);
+
 UA_DataValue
-readAttribute(UA_Server *server, const UA_ReadValueId *item,
-              UA_TimestampsToReturn timestamps);
+readWithSession(UA_Server *server, UA_Session *session,
+                const UA_ReadValueId *item,
+                UA_TimestampsToReturn timestampsToReturn);
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
@@ -658,11 +663,6 @@ struct BrowseOpts {
 void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
-
-UA_DataValue
-UA_Server_readWithSession(UA_Server *server, UA_Session *session,
-                          const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestampsToReturn);
 
 /************/
 /* AddNodes */

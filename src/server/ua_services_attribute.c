@@ -626,24 +626,24 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     }
 }
 
-static void
-Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
-               UA_ReadValueId *rvi, UA_DataValue *result) {
+void
+Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv) {
     /* Get the node (with only the selected attribute if the NodeStore supports that) */
     const UA_Node *node =
         UA_NODESTORE_GET_SELECTIVE(server, &rvi->nodeId,
                                    attributeId2AttributeMask((UA_AttributeId)rvi->attributeId),
                                    UA_REFERENCETYPESET_NONE,
                                    UA_BROWSEDIRECTION_INVALID);
+    if(!node) {
+        dv->hasStatus = true;
+        dv->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
+        return;
+    }
 
     /* Perform the read operation */
-    if(node) {
-        ReadWithNode(node, server, session, request->timestampsToReturn, rvi, result);
-        UA_NODESTORE_RELEASE(server, node);
-    } else {
-        result->hasStatus = true;
-        result->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
+    ReadWithNode(node, server, session, *ttr, rvi, dv);
+    UA_NODESTORE_RELEASE(server, node);
 }
 
 void
@@ -676,46 +676,23 @@ Service_Read(UA_Server *server, UA_Session *session,
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_Read,
-                                           request, &request->nodesToReadSize,
+                                           &request->timestampsToReturn,
+                                           &request->nodesToReadSize,
                                            &UA_TYPES[UA_TYPES_READVALUEID],
                                            &response->resultsSize,
                                            &UA_TYPES[UA_TYPES_DATAVALUE]);
 }
 
 UA_DataValue
-UA_Server_readWithSession(UA_Server *server, UA_Session *session,
-                          const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestampsToReturn) {
+readWithSession(UA_Server *server, UA_Session *session,
+                const UA_ReadValueId *item,
+                UA_TimestampsToReturn timestampsToReturn) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_DataValue dv;
     UA_DataValue_init(&dv);
-
-    /* Get the node (with only the selected attribute if the NodeStore supports it) */
-    const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(server, &item->nodeId,
-                                   attributeId2AttributeMask((UA_AttributeId)item->attributeId),
-                                   UA_REFERENCETYPESET_NONE,
-                                   UA_BROWSEDIRECTION_INVALID);
-    if(!node) {
-        dv.hasStatus = true;
-        dv.status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        return dv;
-    }
-
-    /* Perform the read operation */
-    ReadWithNode(node, server, session, timestampsToReturn, item, &dv);
-
-    /* Release the node and return */
-    UA_NODESTORE_RELEASE(server, node);
+    Operation_Read(server, session, &timestampsToReturn, item, &dv);
     return dv;
-}
-
-UA_DataValue
-readAttribute(UA_Server *server, const UA_ReadValueId *item,
-               UA_TimestampsToReturn timestamps) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    return UA_Server_readWithSession(server, &server->adminSession, item, timestamps);
 }
 
 UA_StatusCode
@@ -728,7 +705,8 @@ readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
     UA_ReadValueId_init(&item);
     item.nodeId = *nodeId;
     item.attributeId = attributeId;
-    UA_DataValue dv = readAttribute(server, &item, UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_DataValue dv = readWithSession(server, &server->adminSession,
+                                      &item, UA_TIMESTAMPSTORETURN_NEITHER);
 
     /* Check the return value */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -758,7 +736,7 @@ UA_DataValue
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataValue dv = readAttribute(server, item, timestamps);
+    UA_DataValue dv = readWithSession(server, &server->adminSession, item, timestamps);
     UA_UNLOCK(&server->serviceMutex);
     return dv;
 }

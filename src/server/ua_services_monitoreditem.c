@@ -50,8 +50,8 @@ setAbsoluteFromPercentageDeadband(UA_Server *server, UA_Session *session,
     UA_ReadValueId_init(&rvi);
     rvi.nodeId = bpr.targets->targetId.nodeId;
     rvi.attributeId = UA_ATTRIBUTEID_VALUE;
-    UA_DataValue rangeVal = UA_Server_readWithSession(server, session, &rvi,
-                                                      UA_TIMESTAMPSTORETURN_NEITHER);
+    UA_DataValue rangeVal = readWithSession(server, session, &rvi,
+                                            UA_TIMESTAMPSTORETURN_NEITHER);
     UA_BrowsePathResult_clear(&bpr);
     if(!UA_Variant_isScalar(&rangeVal.value) ||
        rangeVal.value.type != &UA_TYPES[UA_TYPES_RANGE]) {
@@ -407,8 +407,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
      * - The AttributeId does not match the NodeClass
      * - The Session does not have sufficient access rights
      * - The indicated encoding is not supported or not valid */
-    UA_DataValue v = UA_Server_readWithSession(server, session, &request->itemToMonitor,
-                                               cmc->timestampsToReturn);
+    UA_DataValue v = readWithSession(server, session, &request->itemToMonitor,
+                                     cmc->timestampsToReturn);
     if(v.hasStatus &&
        (v.status == UA_STATUSCODE_BADNODEIDUNKNOWN ||
         v.status == UA_STATUSCODE_BADATTRIBUTEIDINVALID ||
@@ -625,9 +625,8 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
 
     /* Read the current value to test if filters are possible.
      * Can return an empty value (v.value.type == NULL). */
-    UA_DataValue v =
-        UA_Server_readWithSession(server, session, &mon->itemToMonitor,
-                                  mon->timestampsToReturn);
+    UA_DataValue v = readWithSession(server, session, &mon->itemToMonitor,
+                                     mon->timestampsToReturn);
 
     /* Verify and adjust the new parameters. This still leaves the original
      * MonitoredItem untouched. */
