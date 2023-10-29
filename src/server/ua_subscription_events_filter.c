@@ -499,8 +499,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 #endif
         }
 
-        v = UA_Server_readWithSession(server, session, &rvi,
-                                      UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     } else {
         /* Resolve the browse path, starting from the event-source (and not the
          * typeDefinitionId). */
@@ -517,8 +516,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 
         /* Use the first match */
         rvi.nodeId = bpr.targets[0].targetId.nodeId;
-        v = UA_Server_readWithSession(server, session, &rvi,
-                                      UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         UA_BrowsePathResult_clear(&bpr);
     }
 

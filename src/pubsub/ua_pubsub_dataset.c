@@ -595,7 +595,8 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.nodeId = params->publishedVariable;
         rvid.attributeId = params->attributeId;
         rvid.indexRange = params->indexRange;
-        *value = readAttribute(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+        *value = readWithSession(server, &server->adminSession,
+                                 &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;

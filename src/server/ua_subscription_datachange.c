@@ -222,9 +222,9 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem)
     UA_assert(monitoredItem->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Sample the value. The sample can still point into the node. */
-    UA_DataValue value = UA_Server_readWithSession(server, session,
-                                                   &monitoredItem->itemToMonitor,
-                                                   monitoredItem->timestampsToReturn);
+    UA_DataValue value = readWithSession(server, session,
+                                         &monitoredItem->itemToMonitor,
+                                         monitoredItem->timestampsToReturn);
 
     /* Operate on the sample. The sample is consumed when the status is good. */
     UA_StatusCode res = sampleCallbackWithValue(server, sub, monitoredItem, &value);
