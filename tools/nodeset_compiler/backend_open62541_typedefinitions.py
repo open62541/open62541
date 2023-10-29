@@ -234,6 +234,8 @@ class CGenerator(object):
                 idName, idName, self.print_datatype_ptr(datatype))
         funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (
             idName, idName, self.print_datatype_ptr(datatype))
+        funcs += "static UA_INLINE UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2) {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n}\n\n" % (
+            idName, idName, idName, self.print_datatype_ptr(datatype))
         return funcs
 
     def print_datatype_encoding(self, datatype):

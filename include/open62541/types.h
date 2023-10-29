@@ -198,9 +198,6 @@ UA_String UA_EXPORT
 UA_String_fromChars(const char *src) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 UA_Boolean UA_EXPORT
-UA_String_equal(const UA_String *s1, const UA_String *s2);
-
-UA_Boolean UA_EXPORT
 UA_String_isEmpty(const UA_String *s);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
@@ -304,9 +301,6 @@ typedef struct {
 
 UA_EXPORT extern const UA_Guid UA_GUID_NULL;
 
-UA_Boolean UA_EXPORT
-UA_Guid_equal(const UA_Guid *g1, const UA_Guid *g2);
-
 /* Print a Guid in the human-readable format defined in Part 6, 5.1.3
  *
  * Format: C496578A-0DFE-4B8F-870A-745238C6AEAE
@@ -356,8 +350,6 @@ UA_ByteString_fromBase64(UA_ByteString *bs,
 
 #define UA_BYTESTRING(chars) UA_STRING(chars)
 #define UA_BYTESTRING_ALLOC(chars) UA_STRING_ALLOC(chars)
-
-#define UA_ByteString_equal(s1, s2) UA_String_equal(s1, s2)
 
 /* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
@@ -498,12 +490,6 @@ UA_INLINABLE(UA_NodeId
 UA_Order UA_EXPORT
 UA_NodeId_order(const UA_NodeId *n1, const UA_NodeId *n2);
 
-/* Check for equality */
-UA_INLINABLE(UA_Boolean
-             UA_NodeId_equal(const UA_NodeId *n1, const UA_NodeId *n2), {
-    return (UA_NodeId_order(n1, n2) == UA_ORDER_EQ);
-})
-
 /* Returns a non-cryptographic hash for NodeId */
 UA_UInt32 UA_EXPORT UA_NodeId_hash(const UA_NodeId *n);
 
@@ -603,13 +589,6 @@ UA_Order UA_EXPORT
 UA_ExpandedNodeId_order(const UA_ExpandedNodeId *n1,
                         const UA_ExpandedNodeId *n2);
 
-/* Check for equality */
-UA_INLINABLE(UA_Boolean
-             UA_ExpandedNodeId_equal(const UA_ExpandedNodeId *n1,
-                                     const UA_ExpandedNodeId *n2), {
-    return (UA_ExpandedNodeId_order(n1, n2) == UA_ORDER_EQ);
-})
-
 /* Returns a non-cryptographic hash for ExpandedNodeId. The hash of an
  * ExpandedNodeId is identical to the hash of the embedded (simple) NodeId if
  * the ServerIndex is zero and no NamespaceUri is set. */
@@ -651,10 +630,6 @@ UA_INLINABLE(UA_QualifiedName
     qn.name = UA_STRING_ALLOC(chars);
     return qn;
 })
-
-UA_Boolean UA_EXPORT
-UA_QualifiedName_equal(const UA_QualifiedName *qn1,
-                       const UA_QualifiedName *qn2);
 
 /**
  * LocalizedText
@@ -1024,6 +999,9 @@ typedef struct UA_DiagnosticInfo {
  *   of the data type and perform a ``T_init`` to reset the type.
  * - ``void T_delete(T *ptr)``: Delete the content of the data type and the
  *   memory for the data type itself.
+ * - ``void T_equal(T *p1, T *p2)``: Compare whether ``p1`` and ``p2`` have
+ *   identical content. You can use ``UA_order`` if an absolute ordering
+ *   is required.
  *
  * Specializations, such as ``UA_Int32_new()`` are derived from the generic
  * type operations as static inline functions. */
@@ -1209,8 +1187,7 @@ UA_StatusCode UA_EXPORT
 UA_print(const void *p, const UA_DataType *type, UA_String *output);
 #endif
 
-/* Compare two variables and return their order. This can also be used to test
- * for equality of two values.
+/* Compare two values and return their order.
  *
  * For numerical types (including StatusCodes and Enums), their natural order is
  * used. NaN is the "smallest" value for floating point values. Different bit
@@ -1231,6 +1208,12 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output);
  * @param type The datatype description of both values */
 UA_Order UA_EXPORT
 UA_order(const void *p1, const void *p2, const UA_DataType *type);
+
+/* Compare if two values have identical content. */
+UA_INLINABLE(UA_Boolean
+             UA_equal(const void *p1, const void *p2, const UA_DataType *type), {
+    return (UA_order(p1, p2, type) == UA_ORDER_EQ);
+})
 
 /**
  * Binary Encoding/Decoding
