@@ -281,7 +281,7 @@ UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
                            UA_AttributeId attributeId, const void *in,
                            const UA_DataType *inDataType) {
-    if(!in)
+    if(!in || !inDataType)
       return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
