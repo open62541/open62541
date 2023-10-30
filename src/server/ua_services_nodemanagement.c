@@ -1070,6 +1070,13 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     if(retval != UA_STATUSCODE_GOOD)
         goto create_error;
 
+    /* Create a current source timestamp for values that don't have any */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
+       !node->variableNode.value.data.value.hasSourceTimestamp) {
+        node->variableNode.value.data.value.hasSourceTimestamp = true;
+        node->variableNode.value.data.value.sourceTimestamp = UA_DateTime_now();
+    }
+
     /* Add the node to the nodestore */
     if(!outNewNodeId)
         outNewNodeId = &tmpOutId;
