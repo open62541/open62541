@@ -698,7 +698,7 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * the Publish response. If no value is queued for a data MonitoredItem, the
      * last value sent is repeated in the Publish response. */
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
         if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
             continue;
         if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
