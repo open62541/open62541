@@ -182,9 +182,14 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
     }
 
     /* Set the result */
-    if(rangeptr)
-        return UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
-    UA_StatusCode retval = UA_DataValue_copy(&vn->value.data.value, v);
+    UA_StatusCode retval;
+    if(!rangeptr) {
+        retval = UA_DataValue_copy(&vn->value.data.value, v);
+    } else {
+        *v = vn->value.data.value; /* Copy timestamps */
+        UA_Variant_init(&v->value);
+        retval = UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
+    }
 
     /* Clean up */
     if(vn->value.data.callback.onRead)
