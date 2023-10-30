@@ -1466,8 +1466,17 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE && node->isDynamic) {
         adjustedValue.serverTimestamp = UA_DateTime_now();
         adjustedValue.hasServerTimestamp = true;
+
+        /* If no source timestamp is defined create one here.
+         * It should be created as close to the source as possible. */
+        if(!adjustedValue.hasSourceTimestamp) {
+            adjustedValue.sourceTimestamp = adjustedValue.serverTimestamp;
+            adjustedValue.hasSourceTimestamp = true;
+            adjustedValue.hasSourcePicoseconds = false;
+        }
     } else {
         adjustedValue.hasServerTimestamp = false;
+        adjustedValue.hasSourceTimestamp = false;
     }
 
     /* Picoseconds server timestamps are not supported in the standard code-path
