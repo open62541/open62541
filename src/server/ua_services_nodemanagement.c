@@ -1463,6 +1463,15 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
         }
     }
 
+    /* Set variables to dynamic (source and server timestamps are meaningful) if
+     * they fulfill some conditions. (Do this before replacing the default value
+     * in a VariableNode. So that the sourceTimestamp is set in the Write service.) */
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
+        retval = checkSetIsDynamicVariable(server, session, nodeId);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
     /* Get the type node */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
        node->head.nodeClass == UA_NODECLASS_VARIABLETYPE ||
@@ -1548,14 +1557,6 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
                                 UA_StatusCode_name(retval)));
             goto cleanup;
         }
-    }
-
-    /* Set variables to dynamic (source and server timestamps are meaningful) if
-     * they fulfill some conditions */
-    if(node->head.nodeClass == UA_NODECLASS_VARIABLE) {
-        retval = checkSetIsDynamicVariable(server, session, nodeId);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
     }
 
     /* Call the constructor(s) */
