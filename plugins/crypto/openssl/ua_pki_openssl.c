@@ -714,7 +714,8 @@ UA_GetCertificate_SubjectName(UA_String *subjectName,
     if(!x509)
         return UA_STATUSCODE_BADINTERNALERROR;
     X509_NAME *sn = X509_get_subject_name(x509);
-    *subjectName = UA_STRING(X509_NAME_oneline(sn, NULL, 0));
+    char buf[1024];
+    *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
     X509_free(x509);
     return UA_STATUSCODE_GOOD;
 }
