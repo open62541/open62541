@@ -7,6 +7,7 @@
 #ifdef UA_ARCHITECTURE_ECOS
 
 #include <open62541/types.h>
+#include <pkgconf/kernel.h> /* Needed for HAL timer resolution */
 
 UA_DateTime UA_DateTime_now(void) {
   return UA_DateTime_nowMonotonic();
@@ -24,9 +25,12 @@ UA_Int64 UA_DateTime_localTimeUtcOffset(void){
   return (UA_Int64) (difftime(rawtime, gmt) * UA_DATETIME_SEC);
 }
 
+#define TICKS_TO_MS(Ticks)  \
+			((Ticks)*(CYGNUM_HAL_RTC_NUMERATOR / CYGNUM_HAL_RTC_DENOMINATOR / (1000 * 1000)))
+			
 UA_DateTime UA_DateTime_nowMonotonic(void) {
 
-  cyg_tick_count_t TaskTime = cyg_current_time();
+  cyg_tick_count_t TaskTime = TICKS_TO_MS(cyg_current_time());
 
   UA_DateTimeStruct UATime;
   UATime.milliSec = (UA_UInt16) TaskTime;
