@@ -211,7 +211,7 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
     volatile const UA_Byte *a = (volatile const UA_Byte *)ptr1;
     volatile const UA_Byte *b = (volatile const UA_Byte *)ptr2;
     volatile UA_Byte c = 0;
-    for(size_t i = 0; i < length; ++i) {
+    size_t i; for(i = 0; i < length; ++i) {
         UA_Byte x = a[i], y = b[i];
         c = c | (x ^ y);
     }

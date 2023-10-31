@@ -234,7 +234,7 @@ static UA_INLINE UA_ReferenceTypeSet
 UA_ReferenceTypeSet_union(const UA_ReferenceTypeSet setA,
                           const UA_ReferenceTypeSet setB) {
     UA_ReferenceTypeSet set;
-    for(size_t i = 0; i < UA_REFERENCETYPESET_MAX / 32; i++)
+    size_t i; for(i = 0; i < UA_REFERENCETYPESET_MAX / 32; i++)
         set.bits[i] = setA.bits[i] | setB.bits[i];
     return set;
 }
