@@ -1445,7 +1445,7 @@ int main(int argc, char **argv) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Set Subscription limits */
-    config->maxSubscriptions = 100;
+    config->maxSubscriptions = 200;
 
     /* Make the minimum lifetimecount larger.
      * Otherwise we get unwanted timing effects in the CTT. */
