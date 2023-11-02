@@ -56,6 +56,18 @@ UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                       reqId);
 }
 
+typedef void (*UA_ClientAsyncBrowseNextCallback)(UA_Client *client, void *userdata,
+                                                 UA_UInt32 requestId, UA_BrowseNextResponse *wr);
+static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_Client_sendAsyncBrowseNextRequest(UA_Client *client, UA_BrowseNextRequest *request,
+                                     UA_ClientAsyncBrowseNextCallback browseNextCallback,
+                                     void *userdata, UA_UInt32 *reqId) {
+    return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSENEXTREQUEST],
+                                      (UA_ClientAsyncServiceCallback)browseNextCallback,
+                                      &UA_TYPES[UA_TYPES_BROWSENEXTRESPONSE], userdata,
+                                      reqId);
+}
+
 /**
  * Asynchronous Operations
  * ^^^^^^^^^^^^^^^^^^^^^^^
