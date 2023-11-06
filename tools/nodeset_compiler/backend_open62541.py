@@ -12,6 +12,7 @@
 
 
 from __future__ import print_function
+from collections import OrderedDict
 from os.path import basename
 import logging
 import codecs
@@ -134,8 +135,19 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
 
     def writec(line):
         print(unicode(line), end='\n', file=outfilec)
+        
+    def parentNodeString(node,L):
+        if node is None:
+            return ""
+        else: 
+            if node.parent is None:
+                return ""
+            else:
+                return str(parentNodeString(node.parent,L)) + "_" + str(node.displayName).upper()
 
+    dict = { }
     additionalHeaders = ""
+    
     if len(typesArray) > 0:
         for arr in set(typesArray):
             if arr == "UA_TYPES":
@@ -204,9 +216,7 @@ _UA_BEGIN_DECLS
 extern UA_StatusCode %s(UA_Server *server);
 
 _UA_END_DECLS
-
-#endif /* %s_H_ */""" % \
-           (outfilebase, outfilebase.upper()))
+""" % (outfilebase))
 
     writec("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
@@ -234,6 +244,8 @@ _UA_END_DECLS
                 nodeset.hide_node(node.id)
                 continue
             else:
+                if not node.parent is None:
+                    dict[node.id.i] = "NS" + str(node.id.ns) + parentNodeString(node,"")
                 if len(code_global) > 0:
                     writec("\n".join(code_global))
                     writec("\n")
@@ -330,6 +342,14 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
                 outfilebase=outfilebase, idx=str(i)))
 
     writec("return retVal;\n}")
+    
+    sorted_dict = OrderedDict(sorted(dict.items(), key=lambda t: t[0]))
+    for i in sorted_dict:
+        writeh("#define UA_" + sorted_dict[i] + " " + str(i)) 
+   
+    writeh("""
+#endif /* %s_H_ */""" % (outfilebase.upper()))
+
     outfileh.flush()
     os.fsync(outfileh)
     outfileh.close()
