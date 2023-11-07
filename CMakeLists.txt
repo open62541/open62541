@@ -75,12 +75,14 @@ if("${UA_ARCHITECTURE}" STREQUAL "")
     endif(UNIX)
 endif()
 
-message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
+if (NOT UA_ENABLE_AMALGAMATION OR (UA_ENABLE_AMALGAMATION AND NOT UA_AMALGAMATION_MULTIARCH))
+    message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 
-if("${UA_ARCHITECTURE}" STREQUAL "posix")
-    set(UA_ARCHITECTURE_POSIX 1)
-elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
-    set(UA_ARCHITECTURE_WIN32 1)
+    if("${UA_ARCHITECTURE}" STREQUAL "posix")
+        set(UA_ARCHITECTURE_POSIX 1)
+    elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
+        set(UA_ARCHITECTURE_WIN32 1)
+    endif()
 endif()
 
 #################
@@ -94,6 +96,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+option(UA_AMALGAMATION_MULTIARCH "Create an architecture-independent amalgamation if UA_ENABLE_AMALGAMATION is ON" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Minimal level at which logs shall be reported (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" ON)
@@ -969,7 +972,7 @@ if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c)
 
-    if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR UA_ENABLE_AMALGAMATION)
         list(APPEND architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
     endif()
 
