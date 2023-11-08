@@ -118,8 +118,7 @@ readSubscriptionDiagnostics(UA_Server *server,
     return res;
 }
 
-/* If the nodeContext == NULL, return all subscriptions in the server.
- * Otherwise only for the current session. */
+/* Return all subscriptions in the server. */
 UA_StatusCode
 readSubscriptionDiagnosticsArray(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
@@ -130,19 +129,9 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
 
     /* Get the current session */
     size_t sdSize = 0;
-    UA_Session *session = NULL;
     session_list_entry *sentry;
-    if(nodeContext) {
-        session = getSessionById(server, sessionId);
-        if(!session) {
-            UA_UNLOCK(&server->serviceMutex);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        sdSize = session->subscriptionsSize;
-    } else {
-        LIST_FOREACH(sentry, &server->sessions, pointers) {
-            sdSize += sentry->session.subscriptionsSize;
-        }
+    LIST_FOREACH(sentry, &server->sessions, pointers) {
+        sdSize += sentry->session.subscriptionsSize;
     }
 
     /* Allocate the output array */
@@ -156,17 +145,10 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
     /* Collect the statistics */
     size_t i = 0;
     UA_Subscription *sub;
-    if(session) {
-        TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+    LIST_FOREACH(sentry, &server->sessions, pointers) {
+        TAILQ_FOREACH(sub, &sentry->session.subscriptions, sessionListEntry) {
             fillSubscriptionDiagnostics(sub, &sd[i]);
             i++;
-        }
-    } else {
-        LIST_FOREACH(sentry, &server->sessions, pointers) {
-            TAILQ_FOREACH(sub, &sentry->session.subscriptions, sessionListEntry) {
-                fillSubscriptionDiagnostics(sub, &sd[i]);
-                i++;
-            }
         }
     }
 
@@ -254,11 +236,42 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     }
 }
 
-#endif /* UA_ENABLE_SUBSCRIPTIONS */
-
 /***********************/
 /* Session Diagnostics */
 /***********************/
+
+static UA_StatusCode
+setSessionSubscriptionDiagnostics(UA_Server *server, UA_Session *session,
+                                  UA_DataValue *value) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Get the current session */
+    size_t sdSize = session->subscriptionsSize;
+
+    /* Allocate the output array */
+    UA_SubscriptionDiagnosticsDataType *sd = (UA_SubscriptionDiagnosticsDataType*)
+        UA_Array_new(sdSize, &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    if(!sd) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Collect the statistics */
+    size_t i = 0;
+    UA_Subscription *sub;
+    TAILQ_FOREACH(sub, &session->subscriptions, sessionListEntry) {
+        fillSubscriptionDiagnostics(sub, &sd[i]);
+        i++;
+    }
+
+    /* Set the output */
+    value->hasValue = true;
+    UA_Variant_setArray(&value->value, sd, sdSize,
+                        &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS */
 
 static void
 setSessionDiagnostics(UA_Session *session, UA_SessionDiagnosticsDataType *sd) {
@@ -379,50 +392,44 @@ readSessionDiagnostics(UA_Server *server,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     if(equalBrowseName(&bn.name, "SubscriptionDiagnosticsArray")) {
-        /* Reuse the datasource callback. Forward a non-null nodeContext to
-         * indicate that we want to see only the subscriptions for the current
-         * session. */
-        res = readSubscriptionDiagnosticsArray(server, sessionId, sessionContext,
-                                               nodeId, (void*)0x01,
-                                               sourceTimestamp, range, value);
+        res = setSessionSubscriptionDiagnostics(server, session, value);
         goto cleanup;
-    } else
+    }
 #endif
+
     if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
         setSessionDiagnostics(session, &data.sddt);
         content = &data.sddt;
         type = &UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE];
-        goto set_value;
     } else if(equalBrowseName(&bn.name, "SessionSecurityDiagnostics")) {
         setSessionSecurityDiagnostics(session, &data.ssddt);
         securityDiagnostics = true;
         content = &data.ssddt;
         type = &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE];
-        goto set_value;
-    }
-
-    /* Try to find the member in SessionDiagnosticsDataType and
-     * SessionSecurityDiagnosticsDataType */
-    memcpy(memberName, bn.name.data, bn.name.length);
-    memberName[bn.name.length] = 0;
-    found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE],
-                                        memberName, &memberOffset, &type, &isArray);
-    if(found) {
-        setSessionDiagnostics(session, &data.sddt);
-        content = (void*)(((uintptr_t)&data.sddt) + memberOffset);
     } else {
-        found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE],
+        /* Try to find the member in SessionDiagnosticsDataType and
+         * SessionSecurityDiagnosticsDataType */
+        memcpy(memberName, bn.name.data, bn.name.length);
+        memberName[bn.name.length] = 0;
+        found = UA_DataType_getStructMember(&UA_TYPES[UA_TYPES_SESSIONDIAGNOSTICSDATATYPE],
                                             memberName, &memberOffset, &type, &isArray);
-        if(!found) {
-            res = UA_STATUSCODE_BADNOTIMPLEMENTED;
-            goto cleanup;
+        if(found) {
+            setSessionDiagnostics(session, &data.sddt);
+            content = (void*)(((uintptr_t)&data.sddt) + memberOffset);
+        } else {
+            const UA_DataType *dt = &UA_TYPES[UA_TYPES_SESSIONSECURITYDIAGNOSTICSDATATYPE];
+            found = UA_DataType_getStructMember(dt, memberName, &memberOffset,
+                                                &type, &isArray);
+            if(!found) {
+                res = UA_STATUSCODE_BADNOTIMPLEMENTED;
+                goto cleanup;
+            }
+            setSessionSecurityDiagnostics(session, &data.ssddt);
+            securityDiagnostics = true;
+            content = (void*)(((uintptr_t)&data.ssddt) + memberOffset);
         }
-        setSessionSecurityDiagnostics(session, &data.ssddt);
-        securityDiagnostics = true;
-        content = (void*)(((uintptr_t)&data.ssddt) + memberOffset);
     }
 
- set_value:
     if(!isArray) {
         res = UA_Variant_setScalarCopy(&value->value, content, type);
     } else {
