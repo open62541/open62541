@@ -657,7 +657,7 @@ UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
     /* Sample the MonitoredItems with sampling interval <0 (which implies
      * sampling in the same interval as the subscription) */
     UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.samplingListEntry) {
+    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.subscriptionSampling) {
         monitoredItem_sampleCallback(server, mon);
     }
 

@@ -152,8 +152,8 @@ struct UA_MonitoredItem {
     union {
         UA_UInt64 callbackId;
         UA_MonitoredItem *nodeListNext; /* Event-Based: Attached to Node */
-        LIST_ENTRY(UA_MonitoredItem) samplingListEntry; /* Publish-interval: Linked in
-                                                         * Subscription */
+        LIST_ENTRY(UA_MonitoredItem) subscriptionSampling; /* Linked to publish
+                                                            * interval */
     } sampling;
     UA_DataValue lastValue;
 

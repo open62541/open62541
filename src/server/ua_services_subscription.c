@@ -153,12 +153,25 @@ Service_ModifySubscription(UA_Server *server, UA_Session *session,
     /* Reset the subscription lifetime */
     Subscription_resetLifetime(sub);
 
-    /* Change the repeated callback to the new interval. This cannot fail as the
-     * CallbackId must exist. */
-    if(sub->publishCallbackId > 0 &&
-       sub->publishingInterval != oldPublishingInterval) {
-        changeRepeatedCallbackInterval(server, sub->publishCallbackId,
-                                       sub->publishingInterval);
+    /* The publish interval has changed */
+    if(sub->publishingInterval != oldPublishingInterval) {
+        /* Change the repeated callback to the new interval. This cannot fail as
+         * memory is reused. */
+        if(sub->publishCallbackId > 0)
+            changeRepeatedCallbackInterval(server, sub->publishCallbackId,
+                                           sub->publishingInterval);
+
+        /* For each MonitoredItem check if it was/shall be attached to the
+         * publish interval. This ensures that we have less cyclic callbacks
+         * registered and that the notifications are fresh. */
+        UA_MonitoredItem *mon;
+        LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+            if(mon->parameters.samplingInterval == sub->publishingInterval ||
+               mon->parameters.samplingInterval == oldPublishingInterval) {
+                UA_MonitoredItem_unregisterSampling(server, mon);
+                UA_MonitoredItem_registerSampling(server, mon);
+            }
+        }
     }
 
     /* If the priority has changed, re-enter the subscription to the

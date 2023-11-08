@@ -727,11 +727,10 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
         return res;
-    } else if(mon->parameters.samplingInterval < 0.0) {
+    } else if(sub && mon->parameters.samplingInterval == sub->publishingInterval) {
         /* Add to the subscription for sampling before every publish */
-        if(!sub)
-            return UA_STATUSCODE_BADINTERNALERROR; /* Not possible for local MonitoredItems */
-        LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon, sampling.samplingListEntry);
+        LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon,
+                         sampling.subscriptionSampling);
         mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH;
     } else {
         /* DataChange MonitoredItems with a positive sampling interval have a
@@ -771,7 +770,7 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
 
     case UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH:
         /* Added to the subscription */
-        LIST_REMOVE(mon, sampling.samplingListEntry);
+        LIST_REMOVE(mon, sampling.subscriptionSampling);
         break;
 
     case UA_MONITOREDITEMSAMPLINGTYPE_NONE:
