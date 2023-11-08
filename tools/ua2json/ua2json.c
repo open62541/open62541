@@ -44,8 +44,8 @@ decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode JSON */
-    static const UA_DecodeJsonOptions opt;
-    UA_StatusCode retval = UA_decodeJson(buf, data, type, &opt);
+    static const UA_DecodeJsonOptions options;
+    UA_StatusCode retval = UA_decodeJson(buf, data, type, &options);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
