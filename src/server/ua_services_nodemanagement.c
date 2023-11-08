@@ -220,6 +220,14 @@ setDefaultValue(UA_Server *server, const UA_VariableNode *node) {
             if(UA_NodeId_equal(&UA_TYPES[UA_TYPES_VARIANT].typeId,
                                &typeCandidates[i].nodeId))
                 continue;
+
+            /* Skip ExtensionObject. Even though we can encode the type it is
+             * abstract and nodes should not contain them as value. */
+            if(UA_NodeId_equal(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId,
+                               &typeCandidates[i].nodeId))
+                continue;
+
+            /* Get the type encoding information */
             type = UA_Server_findDataType(server, &typeCandidates[i].nodeId);
             if(type)
                 break;
