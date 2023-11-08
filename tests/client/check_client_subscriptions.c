@@ -7,6 +7,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include "open62541/types_generated_handling.h"
 
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"
@@ -439,6 +440,39 @@ START_TEST(Client_subscription_createDataChanges) {
 
     retval = UA_Client_Subscriptions_deleteSingle(client, subId);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+}
+END_TEST
+
+/* An interval of -1 links the subscription to the publishing interval of the
+ * server */
+START_TEST(Client_subscription_createDataChanges_negativeInterval) {
+    UA_Client *client = UA_Client_new();
+    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
+                                                                            NULL, NULL, NULL);
+    ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
+    UA_UInt32 subId = response.subscriptionId;
+
+    /* monitor current time */
+    UA_MonitoredItemCreateRequest monRequest =
+        UA_MonitoredItemCreateRequest_default(UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME));
+    monRequest.requestedParameters.samplingInterval = -2.0;
+
+    UA_MonitoredItemCreateResult monResult =
+        UA_Client_MonitoredItems_createDataChange(client, subId, UA_TIMESTAMPSTORETURN_BOTH,
+                                                  monRequest, NULL, dataChangeHandler, NULL);
+
+    ck_assert_uint_eq(monResult.statusCode, UA_STATUSCODE_GOOD);
+    ck_assert(monResult.revisedSamplingInterval == response.revisedPublishingInterval);
+    UA_MonitoredItemCreateResult_clear(&monResult);
+    UA_CreateSubscriptionResponse_clear(&response);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -1656,6 +1690,7 @@ static Suite* testSuite_Client(void) {
     tcase_add_test(tc_client, Client_subscription_detach);
     tcase_add_test(tc_client, Client_subscription_connectionClose);
     tcase_add_test(tc_client, Client_subscription_createDataChanges);
+    tcase_add_test(tc_client, Client_subscription_createDataChanges_negativeInterval);
     tcase_add_test(tc_client, Client_subscription_modifyMonitoredItem);
     tcase_add_test(tc_client, Client_subscription_createDataChanges_async);
     tcase_add_test(tc_client, Client_subscription_keepAlive);
