@@ -349,9 +349,12 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
        !UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
         /* Warn if that is configured */
         if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
-            logAddNode(&server->config.logger, session, &node->head.nodeId,
-                       "The value is empty. But this is only allowed for BaseDataType. "
-                       "Create a matching default value.");
+            UA_LOG_NODEID_DEBUG(&node->head.nodeId,
+               UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+                                    "AddNode (%.*s): The value is empty. "
+                                    "But this is only allowed for BaseDataType. "
+                                    "Create a matching default value.",
+                                    (int)nodeIdStr.length, nodeIdStr.data));
 
         /* Abort if that is configured */
         if(server->config.allowEmptyVariables == UA_RULEHANDLING_ABORT)
