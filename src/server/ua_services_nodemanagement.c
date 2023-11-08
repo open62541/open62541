@@ -317,7 +317,10 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
 
-    /* Typecheck the value */
+    /* Typecheck the value. Less strict for NS0 -- we adjust nodes after loading
+     * the generated definitions. */
+    if(server->bootstrapNS0)
+        return UA_STATUSCODE_GOOD;
 
     /* The value might come from a datasource, so we perform a
      * regular read. */
@@ -327,57 +330,58 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Only BaseDataType (Variant) can have empty values. Create default content
-     * otherwise that matches the constraints. */
-    if(!value.hasValue || !value.value.type) {
-        if(!UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
-            /* Warn if that is configured */
-            if(!server->bootstrapNS0 &&
-               server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
-                logAddNode(&server->config.logger, session, &node->head.nodeId,
-                           "The value is empty. But this is only allowed for BaseDataType. "
-                           "Create a matching default value.");
-
-            /* Abort if that is configured */
-            if(server->config.allowEmptyVariables == UA_RULEHANDLING_ABORT)
-                retval = UA_STATUSCODE_BADTYPEMISMATCH;
-
-            /* Try to generate a default value if that is configured */
-            if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
-                retval = setDefaultValue(server, node);
-                if(retval != UA_STATUSCODE_GOOD) {
-                    UA_LOG_NODEID_INFO(&node->head.nodeId,
-                    UA_LOG_INFO_SESSION(&server->config.logger, session,
-                                        "AddNode (%.*s): Could not create a default value "
-                                        "with StatusCode %s", (int)nodeIdStr.length,
-                                        nodeIdStr.data, UA_StatusCode_name(retval)));
-                }
-
-                /* Reread the current value for compat tests below */
-                UA_DataValue_clear(&value);
-                retval = readValueAttribute(server, session, node, &value);
-            }
+    /* We have a value. Write it back to perform checks and adjustments. */
+    const char *reason;
+    if(node->valueSource == UA_VALUESOURCE_DATA && value.hasValue) {
+        if(!compatibleValue(server, session, &node->dataType, node->valueRank,
+                            node->arrayDimensionsSize, node->arrayDimensions,
+                            &value.value, NULL, &reason)) {
+            retval = writeAttribute(server, session, &node->head.nodeId,
+                                    UA_ATTRIBUTEID_VALUE, &value.value,
+                                    &UA_TYPES[UA_TYPES_VARIANT]);
         }
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_DataValue_clear(&value);
-            return retval;
-        }
+        UA_DataValue_clear(&value);
+        return retval;
     }
 
-    /* Perform the value typecheck. If this fails, write the current value
-     * again. The write-service tries to convert to the correct type... */
-    const char *reason;
-    if(!compatibleValue(server, session, &node->dataType, node->valueRank,
+    /* Only BaseDataType (Variant) can have empty values */
+    if(!value.hasValue &&
+       !UA_NodeId_equal(&node->dataType, &UA_TYPES[UA_TYPES_VARIANT].typeId)) {
+        /* Warn if that is configured */
+        if(server->config.allowEmptyVariables != UA_RULEHANDLING_ACCEPT)
+            logAddNode(&server->config.logger, session, &node->head.nodeId,
+                       "The value is empty. But this is only allowed for BaseDataType. "
+                       "Create a matching default value.");
+
+        /* Abort if that is configured */
+        if(server->config.allowEmptyVariables == UA_RULEHANDLING_ABORT)
+            retval = UA_STATUSCODE_BADTYPEMISMATCH;
+
+        /* Try to generate and write a default value */
+        if(server->config.allowEmptyVariables == UA_RULEHANDLING_DEFAULT) {
+            retval = setDefaultValue(server, node);
+            if(retval != UA_STATUSCODE_GOOD) {
+                UA_LOG_NODEID_INFO(&node->head.nodeId,
+                   UA_LOG_INFO_SESSION(&server->config.logger, session,
+                                       "AddNode (%.*s): Could not create a default value "
+                                       "with StatusCode %s", (int)nodeIdStr.length,
+                                       nodeIdStr.data, UA_StatusCode_name(retval)));
+            }
+        }
+        return retval;
+    }
+
+    /* Type-check the value */
+    if(retval == UA_STATUSCODE_GOOD &&
+       !compatibleValue(server, session, &node->dataType, node->valueRank,
                         node->arrayDimensionsSize, node->arrayDimensions,
                         &value.value, NULL, &reason)) {
-        retval = writeAttribute(server, session, &node->head.nodeId,
-                                UA_ATTRIBUTEID_VALUE, &value.value,
-                                &UA_TYPES[UA_TYPES_VARIANT]);
-        if(retval != UA_STATUSCODE_GOOD) {
-            logAddNode(&server->config.logger, session, &node->head.nodeId,
-                       "The value is incompatible with the variable definition");
-        }
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+           UA_LOG_INFO_SESSION(&server->config.logger, session,
+                               "AddNode (%.*s): The VariableNode value has "
+                               "failed the type check with reason %s. ",
+                               (int)nodeIdStr.length, nodeIdStr.data, reason));
+        retval = UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_DataValue_clear(&value);
