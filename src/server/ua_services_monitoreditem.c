@@ -228,29 +228,15 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     }
         
 
-    /* Adjust sampling interval */
-    if(params->samplingInterval < 0.0) {
-        /* A negative number indicates that the sampling interval is the publishing
-         * interval of the Subscription. */
-        if(!mon->subscription) {
-            /* Not possible for local MonitoredItems */
-            params->samplingInterval = server->config.samplingIntervalLimits.min;
-        } else {
-            /* Test if the publishing interval is a valid sampling interval. If
-             * not, adjust to lie within the limits. */
-            UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
-                                       mon->subscription->publishingInterval,
-                                       params->samplingInterval);
-            if(params->samplingInterval == mon->subscription->publishingInterval) {
-               /* The publishing interval is valid also for sampling. Set sampling
-                * interval to -1 to sample the monitored item in the publish
-                * callback. The revised sampling interval of the response will be
-                * set to the publishing interval.*/
-                params->samplingInterval = -1.0;
-            }
-        }
-    } else if(params->samplingInterval > 0.0) {
-        /* Adjust positive sampling interval to lie within the limits */
+    /* A negative number indicates that the sampling interval is the publishing
+     * interval of the Subscription. Note that the sampling interval selected
+     * here remains also when the Subscription's publish interval is adjusted
+     * afterwards. */
+    if(mon->subscription && params->samplingInterval < 0.0)
+        params->samplingInterval = mon->subscription->publishingInterval;
+
+    /* Adjust non-null sampling interval to lie within the configured limits */
+    if(params->samplingInterval != 0.0) {
         UA_BOUNDEDVALUE_SETWBOUNDS(server->config.samplingIntervalLimits,
                                    params->samplingInterval, params->samplingInterval);
         /* Check for NaN */
