@@ -712,6 +712,20 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Check if UserIdentityTokens are defined */
+    bool hasUserIdentityTokens = false;
+    for(size_t i = 0; i < config->endpointsSize; i++) {
+        if(config->endpoints[i].userIdentityTokensSize > 0) {
+            hasUserIdentityTokens = true;
+            break;
+        }
+    }
+    if(config->accessControl.userTokenPoliciesSize == 0 && hasUserIdentityTokens == false) {
+        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
+                       "The server has no userIdentificationPolicies defined.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Start the EventLoop if not already started */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_EventLoop *el = config->eventLoop;
