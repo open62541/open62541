@@ -784,6 +784,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
 
 # Main Library
+
 set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -867,6 +868,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
+endif()
+
+if (NOT "${UA_ARCHITECTURE}" STREQUAL "none")
+    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h)
 endif()
 
 if(UA_ENABLE_PARSING)
@@ -954,7 +959,6 @@ set(architecture_sources)
 
 if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
     list(APPEND architecture_headers
-         ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
          ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
