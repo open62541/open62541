@@ -459,6 +459,11 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     cc->stateCallback = discoveryClientStateCallback;
     cc->clientContext = ar;
 
+    /* Use encryption by default */
+#ifdef UA_ENABLE_ENCRYPTION
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
+#endif
+
     /* Open only a SecureChannel */
     cc->noSession = true;
 
