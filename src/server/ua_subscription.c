@@ -648,24 +648,6 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 }
 
 void
-UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "Sample and Publish Callback");
-    UA_assert(sub);
-
-    /* Sample the MonitoredItems with sampling interval <0 (which implies
-     * sampling in the same interval as the subscription) */
-    UA_MonitoredItem *mon;
-    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.subscriptionSampling) {
-        monitoredItem_sampleCallback(server, mon);
-    }
-
-    /* Publish the queued notifications */
-    UA_Subscription_publish(server, sub);
-}
-
-void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(server);
@@ -715,9 +697,23 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
 }
 
 static void
-repeatedPublishCallback(UA_Server *server, UA_Subscription *sub) {
+sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
+    UA_assert(sub);
+
+    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+                              "Sample and Publish Callback");
+
+    /* Sample the MonitoredItems with sampling interval <0 (which implies
+     * sampling in the same interval as the subscription) */
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.subscriptionSampling) {
+        monitoredItem_sampleCallback(server, mon);
+    }
+
+    /* Publish the queued notifications */
     UA_Subscription_publish(server, sub);
+
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -734,7 +730,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
         }
     } else if(sub->publishCallbackId == 0) {
         UA_StatusCode res =
-            addRepeatedCallback(server, (UA_ServerCallback)repeatedPublishCallback,
+            addRepeatedCallback(server, (UA_ServerCallback)sampleAndPublishCallback,
                                 sub, sub->publishingInterval, &sub->publishCallbackId);
         if(res != UA_STATUSCODE_GOOD) {
             sub->state = UA_SUBSCRIPTIONSTATE_STOPPED;
