@@ -28,6 +28,12 @@
  * corresponding CTT configuration is available at
  * https://github.com/open62541/open62541-ctt */
 
+/* Global variables also used by the discovery client */
+static UA_ByteString certificate;
+#ifdef UA_ENABLE_ENCRYPTION
+static UA_ByteString privateKey;
+#endif
+
 static const size_t usernamePasswordsSize = 2;
 static UA_UsernamePasswordLogin usernamePasswords[2] = {
     {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
@@ -876,6 +882,13 @@ notifyState(UA_Server *server, UA_LifecycleState state) {
         UA_ClientConfig cc;
         memset(&cc, 0, sizeof(UA_ClientConfig));
         UA_ClientConfig_setDefault(&cc);
+#ifdef UA_ENABLE_ENCRYPTION
+        UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+        UA_String_clear(&cc.clientDescription.applicationUri);
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_String_copy(&sc->applicationDescription.applicationUri,
+                       &cc.clientDescription.applicationUri);
+#endif
         UA_Server_registerDiscovery(server, &cc,
                                     UA_STRING("opc.tcp://localhost:4840"),
                                     UA_STRING_NULL);
@@ -885,6 +898,13 @@ notifyState(UA_Server *server, UA_LifecycleState state) {
         UA_ClientConfig cc;
         memset(&cc, 0, sizeof(UA_ClientConfig));
         UA_ClientConfig_setDefault(&cc);
+#ifdef UA_ENABLE_ENCRYPTION
+        UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+        UA_String_clear(&cc.clientDescription.applicationUri);
+        UA_ServerConfig *sc = UA_Server_getConfig(server);
+        UA_String_copy(&sc->applicationDescription.applicationUri,
+                       &cc.clientDescription.applicationUri);
+#endif
         UA_Server_deregisterDiscovery(server, &cc,
                                       UA_STRING("opc.tcp://localhost:4840"));
         hasRegistered = false;
@@ -905,47 +925,33 @@ enableNoneSecurityPolicy(UA_ServerConfig *config) {
 }
 
 static void
-enableBasic128SecurityPolicy(UA_ServerConfig *config,
-                             const UA_ByteString *certificate,
-                             const UA_ByteString *privateKey) {
-    /* Populate the SecurityPolicies */
-    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
-    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
-    if(certificate)
-        localCertificate = *certificate;
-    if(privateKey)
-        localPrivateKey = *privateKey;
-
-    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &localCertificate, &localPrivateKey);
+enableBasic128SecurityPolicy(UA_ServerConfig *config) {
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &certificate, &privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
                        UA_StatusCode_name(retval));
+        return;
     }
-    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGN);
-    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                UA_MESSAGESECURITYMODE_SIGN);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
 }
 
 static void
-enableBasic256SecurityPolicy(UA_ServerConfig *config,
-                             const UA_ByteString *certificate,
-                             const UA_ByteString *privateKey) {
-    /* Populate the SecurityPolicies */
-    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
-    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
-    if(certificate)
-        localCertificate = *certificate;
-    if(privateKey)
-        localPrivateKey = *privateKey;
-
-    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &localCertificate, &localPrivateKey);
+enableBasic256SecurityPolicy(UA_ServerConfig *config) {
+    UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &certificate, &privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256 with error code %s",
                        UA_StatusCode_name(retval));
+        return;
     }
-    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGN);
-    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri, UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                UA_MESSAGESECURITYMODE_SIGN);
+    UA_ServerConfig_addEndpoint(config, config->securityPolicies[config->securityPoliciesSize-1].policyUri,
+                                UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
 }
 
 
@@ -1104,7 +1110,6 @@ int main(int argc, char **argv) {
 
     /* Load certificate */
     size_t pos = 1;
-    UA_ByteString certificate = UA_BYTESTRING_NULL;
     if((size_t)argc >= pos + 1) {
         certificate = loadFile(argv[1]);
         if(certificate.length == 0) {
@@ -1117,7 +1122,6 @@ int main(int argc, char **argv) {
 
 #ifdef UA_ENABLE_ENCRYPTION
     /* Load the private key */
-    UA_ByteString privateKey = UA_BYTESTRING_NULL;
     if((size_t)argc >= pos + 1) {
         privateKey = loadFile(argv[2]);
         if(privateKey.length == 0) {
@@ -1409,9 +1413,9 @@ int main(int argc, char **argv) {
     if(enableNone)
         enableNoneSecurityPolicy(config);
     if(enableBasic128)
-        enableBasic128SecurityPolicy(config, &certificate, &privateKey);
+        enableBasic128SecurityPolicy(config);
     if(enableBasic256)
-        enableBasic256SecurityPolicy(config, &certificate, &privateKey);
+        enableBasic256SecurityPolicy(config);
     if(disableBasic256Sha256)
         disableBasic256Sha256SecurityPolicy(config);
     if(disableAes128Sha256RsaOaep)
