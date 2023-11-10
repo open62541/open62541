@@ -187,7 +187,7 @@ ua_Subscriptions_modify_handler(UA_Client *client, void *data, UA_UInt32 request
     if(sub) {
         ua_Subscriptions_modify(client, sub, response);
     } else {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
                     (UA_UInt32)(uintptr_t)cc->clientData);
     }
@@ -315,7 +315,7 @@ __Client_Subscription_processDelete(UA_Client *client,
         UA_Client_Subscription *sub =
             findSubscription(client, request->subscriptionIds[i]);
         if(!sub) {
-            UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                         "No internal representation of subscription %" PRIu32,
                         request->subscriptionIds[i]);
             continue;
@@ -512,7 +512,7 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
             (request->itemsToCreate[i].itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
         ZIP_INSERT(MonitorItemsTree, &sub->monitoredItems, newMon);
 
-        UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Subscription %" PRIu32 " | Added a MonitoredItem with handle %" PRIu32,
                      sub->subscriptionId, newMon->clientHandle);
     }
@@ -832,7 +832,7 @@ ua_MonitoredItems_delete_handler(UA_Client *client, void *d, UA_UInt32 requestId
 
     sub = findSubscription(client, request->subscriptionId);
     if(!sub) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
                     request->subscriptionId);
         goto cleanup;
@@ -866,7 +866,7 @@ UA_Client_MonitoredItems_delete(UA_Client *client,
     /* Find the internal subscription representation */
     UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
     if(!sub) {
-        UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                     "No internal representation of subscription %" PRIu32,
                     request.subscriptionId);
         UA_UNLOCK(&client->clientMutex);
@@ -1040,14 +1040,14 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
         mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
 
         if(!mon) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Could not process a notification with clienthandle %" PRIu32
                            " on subscription %" PRIu32, min->clientHandle, sub->subscriptionId);
             continue;
         }
 
         if(mon->isEventMonitoredItem) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "MonitoredItem is configured for Events. But received a "
                            "DataChangeNotification.");
             continue;
@@ -1080,7 +1080,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
 
         if(!mon) {
-            UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "Could not process a notification with clienthandle %" PRIu32
                          " on subscription %" PRIu32, eventFieldList->clientHandle,
                          sub->subscriptionId);
@@ -1088,7 +1088,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
         }
 
         if(!mon->isEventMonitoredItem) {
-            UA_LOG_DEBUG(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "MonitoredItem is configured for DataChanges. But received a "
                          "EventNotification.");
             continue;
@@ -1140,14 +1140,14 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                                       (UA_StatusChangeNotification*)msg->content.decoded.data);
             UA_LOCK(&client->clientMutex);
         } else {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Dropped a StatusChangeNotification since no "
                            "callback is registered");
         }
         return;
     }
 
-    UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                    "Unknown notification message type");
 }
 
@@ -1163,11 +1163,11 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS) {
         if(client->config.outStandingPublishRequests > 1) {
             client->config.outStandingPublishRequests--;
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Too many publishrequest, reduce outStandingPublishRequests "
                            "to %" PRId16, client->config.outStandingPublishRequests);
         } else {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Too many publishrequest when outStandingPublishRequests = 1");
             UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
         }
@@ -1179,7 +1179,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION) 
     {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received BadNoSubscription, delete internal information about subscription");
         UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
         if(sub != NULL)
@@ -1195,14 +1195,14 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
     UA_Client_Subscription *sub = findSubscription(client, response->subscriptionId);
     if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received Publish Response for a non-existant subscription");
         return;
     }
 
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSESSIONCLOSED) {
         if(client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Received Publish Response with code %s",
                            UA_StatusCode_name(response->responseHeader.serviceResult));
             __Client_Subscription_deleteInternal(client, sub);
@@ -1218,13 +1218,13 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
             client->config.subscriptionInactivityCallback(client, subId, subC);
             UA_LOCK(&client->clientMutex);
         }
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received Timeout for Publish Response");
         return;
     }
 
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received Publish Response with code %s",
                        UA_StatusCode_name(response->responseHeader.serviceResult));
         return;
@@ -1234,7 +1234,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
     if(__nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Invalid subscription sequence number: expected %" PRIu32
                        " but got %" PRIu32, __nextSequenceNumber(sub->sequenceNumber),
                        msg->sequenceNumber);
@@ -1262,7 +1262,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
         UA_Client_NotificationsAckNumber *tmpAck = (UA_Client_NotificationsAckNumber*)
             UA_malloc(sizeof(UA_Client_NotificationsAckNumber));
         if(!tmpAck) {
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Not enough memory to store the acknowledgement for a publish "
                            "message on subscription %" PRIu32, sub->subscriptionId);
             break;
@@ -1338,7 +1338,7 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
                 client->config.subscriptionInactivityCallback(client, subId, subC);
                 UA_LOCK(&client->clientMutex);
             }
-            UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "Inactivity for Subscription %" PRIu32 ".", sub->subscriptionId);
         }
     }

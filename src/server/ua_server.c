@@ -444,12 +444,10 @@ UA_Server_newWithConfig(UA_ServerConfig *config) {
         /* re-set the logger pointer */
         server->config.logging = &server->config.logger;
     }
-    if(!server->config.secureChannelPKI.logging ||
-       server->config.secureChannelPKI.logging == &config->logging)
-        server->config.secureChannelPKI.logging = &server->config.logging;
-    if(!server->config.sessionPKI.logging ||
-       server->config.sessionPKI.logging == &config->logging)
-        server->config.sessionPKI.logging = &server->config.logging;
+    if(!server->config.secureChannelPKI.logging)
+        server->config.secureChannelPKI.logging = server->config.logging;
+    if(!server->config.sessionPKI.logging)
+        server->config.sessionPKI.logging = server->config.logging;
 
     /* Reset the old config */
     memset(config, 0, sizeof(UA_ServerConfig));

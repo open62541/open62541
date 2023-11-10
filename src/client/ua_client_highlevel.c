@@ -835,7 +835,7 @@ static void
 AttributeReadCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, UA_ReadResponse *rr) {
     UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
-    UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(UA_Client_getConfig(client)->logging, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
     UA_DataValue *dv = NULL;
