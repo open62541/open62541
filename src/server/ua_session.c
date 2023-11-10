@@ -343,7 +343,9 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
 
     if(copy)
         return UA_Variant_copy(attr, outValue);
+
     *outValue = *attr;
+    outValue->storageType = UA_VARIANT_DATA_NODELETE;
     return UA_STATUSCODE_GOOD;
 }
 
