@@ -54,7 +54,7 @@ UA_DiscoveryManager_free(UA_Server *server,
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the DiscoveryManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -123,7 +123,7 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
                 semaphoreDeleted = UA_fileExists(filePath) == false;
                 UA_free(filePath);
             } else {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "Cannot check registration semaphore. Out of memory");
             }
         }
@@ -133,7 +133,7 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
            (server->config.discoveryCleanupTimeout &&
             current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                             "Registration of server with URI %.*s is removed because "
                             "the semaphore file '%.*s' was deleted",
                             (int)current->registeredServer.serverUri.length,
@@ -142,7 +142,7 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
                             current->registeredServer.semaphoreFilePath.data);
             } else {
                 // cppcheck-suppress unreadVariable
-                UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                             "Registration of server with URI %.*s has timed out "
                             "and is removed",
                             (int)current->registeredServer.serverUri.length,
@@ -173,7 +173,7 @@ UA_DiscoveryManager_start(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    dm->logging = &server->config.logger;
+    dm->logging = server->config.logging;
     dm->serverConfig = &server->config;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -265,10 +265,10 @@ register2AsyncResponse(UA_Client *client, void *userdata,
     const UA_ServerConfig *sc = ar->dm->serverConfig;
     UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                     "RegisterServer succeeded");
     } else {
-        UA_LOG_WARNING(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "RegisterServer failed with statuscode %s",
                        UA_StatusCode_name(response->responseHeader.serviceResult));
     }
@@ -314,7 +314,7 @@ registerAsyncResponse(UA_Client *client, void *userdata,
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
-        UA_LOG_INFO(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                     "RegisterServer succeeded");
         return;
     }
@@ -325,7 +325,7 @@ registerAsyncResponse(UA_Client *client, void *userdata,
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
-        UA_LOG_WARNING(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "RegisterServer failed with error %s",
                        UA_StatusCode_name(serviceResult));
         return;
@@ -355,7 +355,7 @@ registerAsyncResponse(UA_Client *client, void *userdata,
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
-        UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(res));
     }
@@ -373,7 +373,7 @@ discoveryClientStateCallback(UA_Client *client,
     /* Connection failed */
     if(connectStatus != UA_STATUSCODE_GOOD) {
         if(connectStatus != UA_STATUSCODE_BADCONNECTIONCLOSED) {
-            UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                          "Could not connect to the Discovery server with error %s",
                          UA_StatusCode_name(connectStatus));
         }
@@ -412,7 +412,7 @@ discoveryClientStateCallback(UA_Client *client,
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
-        UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_CLIENT,
                      "RegisterServer failed with statuscode %s",
                      UA_StatusCode_name(res));
     }
@@ -433,7 +433,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     /* Check that the discovery manager is running */
     UA_ServerConfig *sc = &server->config;
     if(dm->sc.state != UA_LIFECYCLESTATE_STARTED) {
-        UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "The server must be started for registering");
         UA_ClientConfig_clear(cc);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -448,7 +448,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
         }
     }
     if(!ar) {
-        UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_SERVER,
                      "Too many outstanding register requests. Cannot proceed.");
         UA_ClientConfig_clear(cc);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -461,8 +461,6 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     cc->externalEventLoop = true;
 
     /* Use the logging from the server */
-    if(cc->logging->clear)
-        cc->logging->clear(&cc->logging);
     cc->logging = sc->logging;
 
     /* Set the state callback method and context */
@@ -506,7 +504,7 @@ UA_StatusCode
 UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String discoveryServerUrl,
                             const UA_String semaphoreFilePath) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Registering at the DiscoveryServer: %.*s",
                 (int)discoveryServerUrl.length, discoveryServerUrl.data);
     UA_LOCK(&server->serviceMutex);
@@ -519,7 +517,7 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
 UA_StatusCode
 UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Deregistering at the DiscoveryServer: %.*s",
                 (int)discoveryServerUrl.length, discoveryServerUrl.data);
     UA_LOCK(&server->serviceMutex);

@@ -93,7 +93,7 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 void Service_FindServers(UA_Server *server, UA_Session *session,
                          const UA_FindServersRequest *request,
                          UA_FindServersResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing FindServersRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing FindServersRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Return the server itself? */
@@ -294,7 +294,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
         if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
             return sp;
     }
-    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_CLIENT,
                    "Could not find a SecurityPolicy with encryption for the "
                    "UserTokenPolicy. Using an unencrypted policy.");
     return server->config.securityPoliciesSize > 0 ?
@@ -467,11 +467,11 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
     /* If the client expects to see a specific endpointurl, mirror it back. If
      * not, clone the endpoints with the discovery url of all networklayers. */
     if(request->endpointUrl.length > 0) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Processing GetEndpointsRequest with endpointUrl "
                              UA_PRINTF_STRING_FORMAT, UA_PRINTF_STRING_DATA(request->endpointUrl));
     } else {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Processing GetEndpointsRequest with an empty endpointUrl");
     }
 
@@ -556,7 +556,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         char* filePath = (char*)
             UA_malloc(sizeof(char)*requestServer->semaphoreFilePath.length+1);
         if(!filePath) {
-            UA_LOG_ERROR_SESSION(&server->config.logger, session,
+            UA_LOG_ERROR_SESSION(server->config.logging, session,
                                  "Cannot allocate memory for semaphore path. Out of memory.");
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
@@ -570,7 +570,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
         UA_free(filePath);
 #else
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Ignoring semaphore file path. open62541 not compiled "
                        "with UA_ENABLE_DISCOVERY_SEMAPHORE=ON");
 #endif
@@ -593,7 +593,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         // server is shutting down. Remove it from the registered servers list
         if(!registeredServer_entry) {
             // server not found, show warning
-            UA_LOG_WARNING_SESSION(&server->config.logger, session,
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "Could not unregister server %.*s. Not registered.",
                                    (int)requestServer->serverUri.length, requestServer->serverUri.data);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
@@ -619,7 +619,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(!registeredServer_entry) {
         // server not yet registered, register it by adding it to the list
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Registering new server: %.*s",
+        UA_LOG_DEBUG_SESSION(server->config.logging, session, "Registering new server: %.*s",
                              (int)requestServer->serverUri.length, requestServer->serverUri.data);
 
         registeredServer_entry =
@@ -656,7 +656,7 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer(UA_Server *server, UA_Session *session,
                             const UA_RegisterServerRequest *request,
                             UA_RegisterServerResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServerRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     process_RegisterServer(server, session, &request->requestHeader, &request->server, 0,
@@ -666,7 +666,7 @@ void Service_RegisterServer(UA_Server *server, UA_Session *session,
 void Service_RegisterServer2(UA_Server *server, UA_Session *session,
                             const UA_RegisterServer2Request *request,
                              UA_RegisterServer2Response *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterServer2Request");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     process_RegisterServer(server, session, &request->requestHeader, &request->server,

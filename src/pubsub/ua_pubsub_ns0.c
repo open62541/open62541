@@ -101,12 +101,12 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                          &UA_TYPES[UA_TYPES_STRING]);
                     break;
                 default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown PublisherId type.");
                 }
             break;
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
         }
         break;
@@ -122,7 +122,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                  dataSetReader->config.publisherId.type);
             break;
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
         }
         break;
@@ -137,7 +137,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                  &UA_TYPES[UA_TYPES_DURATION]);
             break;
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
         }
         break;
@@ -153,7 +153,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                      &UA_TYPES[UA_TYPES_UINT16]);
                 break;
             default:
-                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                                "Read error! Unknown property.");
         }
         break;
@@ -191,7 +191,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             break;
         }
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown property.");
         }
         break;
@@ -211,13 +211,13 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                 break;
             }
             default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                             "Read error! Unknown property.");
         }
         break;
     }
     default:
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Read error! Unknown parent element.");
     }
 
@@ -271,19 +271,19 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
                     UA_WriterGroupConfig_clear(&writerGroupConfig);
                     break;
                 default:
-                    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                                    "Write error! Unknown property element.");
             }
             break;
         }
         default:
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Read error! Unknown parent element.");
     }
 
  cleanup:
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Changing the ReaderGroupConfig failed with status %s",
                        UA_StatusCode_name(res));
     }
@@ -352,7 +352,7 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
         UA_String_copy((UA_String *) pubsubConnection->publisherId.data,
                        &connectionConfig.publisherId.string);
     } else {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Unsupported PublisherId Type used.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -717,7 +717,7 @@ addPubSubConnectionLocked(UA_Server *server,
     UA_NodeId connectionId;
     retVal |= addPubSubConnectionConfig(server, pubSubConnection, &connectionId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addPubSubConnection failed");
         return retVal;
     }
@@ -727,7 +727,7 @@ addPubSubConnectionLocked(UA_Server *server,
         UA_WriterGroupDataType *writerGroup = &pubSubConnection->writerGroups[i];
         retVal |= addWriterGroupConfig(server, connectionId, writerGroup, &writerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                          "addWriterGroup failed");
             return retVal;
         }
@@ -736,7 +736,7 @@ addPubSubConnectionLocked(UA_Server *server,
             UA_DataSetWriterDataType *dataSetWriter = &writerGroup->dataSetWriters[j];
             retVal |= addDataSetWriterConfig(server, &writerGroupId, dataSetWriter, NULL);
             if(retVal != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "addDataSetWriter failed");
                 return retVal;
             }
@@ -762,7 +762,7 @@ addPubSubConnectionLocked(UA_Server *server,
         UA_ReaderGroupDataType *readerGroup = &pubSubConnection->readerGroups[i];
         retVal |= addReaderGroupConfig(server, connectionId, readerGroup, &readerGroupId);
         if(retVal != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                          "addReaderGroup failed");
             return retVal;
         }
@@ -773,7 +773,7 @@ addPubSubConnectionLocked(UA_Server *server,
             retVal |= addDataSetReaderConfig(server, readerGroupId,
                                              dataSetReader, &dataSetReaderId);
             if(retVal != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                              "addDataSetReader failed");
                 return retVal;
             }
@@ -913,7 +913,7 @@ addDataSetReaderLocked(UA_Server *server,
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
     if(rg->configurationFrozen) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader cannot be done because ReaderGroup config frozen");
         return UA_STATUSCODE_BAD;
     }
@@ -922,7 +922,7 @@ addDataSetReaderLocked(UA_Server *server,
     UA_DataSetReaderDataType *dataSetReader= (UA_DataSetReaderDataType *) input[0].data;
     retVal |= addDataSetReaderConfig(server, *objectId, dataSetReader, &dataSetReaderId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader failed");
         return retVal;
     }
@@ -1125,7 +1125,7 @@ addPublishedDataItemsAction(UA_Server *server,
     retVal |= UA_Server_addPublishedDataSet(server, &publishedDataSetConfig,
                                             &dataSetItemsNodeId).addResult;
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addPublishedDataset failed");
         return retVal;
     }
@@ -1142,7 +1142,7 @@ addPublishedDataItemsAction(UA_Server *server,
         retVal |= UA_Server_addDataSetField(server, dataSetItemsNodeId,
                                             &dataSetFieldConfig, NULL).result;
         if(retVal != UA_STATUSCODE_GOOD) {
-           UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+           UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                         "addDataSetField failed");
            return retVal;
         }
@@ -1446,7 +1446,7 @@ addWriterGroupAction(UA_Server *server,
     UA_NodeId writerGroupId;
     retVal |= addWriterGroupConfig(server, *objectId, writerGroup, &writerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addWriterGroup failed");
         UA_UNLOCK(&server->serviceMutex);
         return retVal;
     }
@@ -1505,7 +1505,7 @@ addReserveIdsLocked(UA_Server *server,
                                           numRegDataSetWriterIds, transportProfileUri,
                                           &writerGroupIds, &dataSetWriterIds);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReserveIds failed");
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addReserveIds failed");
         return retVal;
     }
 
@@ -1515,7 +1515,7 @@ addReserveIdsLocked(UA_Server *server,
 
     if(UA_String_equal(&transportProfileUri, &profile_1) ||
        UA_String_equal(&transportProfileUri, &profile_2)) {
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "ApplicationUri: %.*s",
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "ApplicationUri: %.*s",
                     (int)server->config.applicationDescription.applicationUri.length,
                     server->config.applicationDescription.applicationUri.data);
         retVal |= UA_Variant_setScalarCopy(&output[0],
@@ -1596,7 +1596,7 @@ addReaderGroupAction(UA_Server *server,
     UA_NodeId readerGroupId;
     retVal |= addReaderGroupConfig(server, *objectId, readerGroup, &readerGroupId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "addReaderGroup failed");
         UA_UNLOCK(&server->serviceMutex);
         return retVal;
     }
@@ -1698,7 +1698,7 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                      &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL,
                      &securityGroup->securityGroupNodeId);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
         return retval;
@@ -1708,7 +1708,7 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
                                            &securityGroup->securityGroupNodeId,
                                            securityGroupConfig);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Add SecurityGroup failed with error: %s.",
                      UA_StatusCode_name(retval));
         deleteNode(server, securityGroup->securityGroupNodeId, true);
@@ -1813,12 +1813,12 @@ addDataSetWriterLocked(UA_Server *server,
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
     if(!wg) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Not a WriterGroup");
         return UA_STATUSCODE_BAD;
     }
     if(wg->configurationFrozen) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addDataSetWriter cannot be done because writergroup config frozen");
         return UA_STATUSCODE_BAD;
     }
@@ -1827,7 +1827,7 @@ addDataSetWriterLocked(UA_Server *server,
     UA_DataSetWriterDataType *dataSetWriterData = (UA_DataSetWriterDataType *)input->data;
     retVal |= addDataSetWriterConfig(server, objectId, dataSetWriterData, &dataSetWriterId);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addDataSetWriter failed");
         return retVal;
     }
@@ -1941,7 +1941,7 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                                                            ks->securityGroupID);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(
-            &server->config.logger, UA_LOGCATEGORY_SERVER,
+            server->config.logging, UA_LOGCATEGORY_SERVER,
             "Failed to import Symmetric Keys into PubSub Channel Context with %s \n",
             UA_StatusCode_name(retval));
         return retval;
@@ -2128,7 +2128,7 @@ connectionTypeDestructor(UA_Server *server,
                          const UA_NodeId *typeId, void *typeContext,
                          const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK(&server->serviceMutex);
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "Connection destructor called!");
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
@@ -2145,7 +2145,7 @@ writerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "WriterGroup destructor called!");
     UA_LOCK(&server->serviceMutex);
     UA_NodeId intervalNode =
@@ -2163,7 +2163,7 @@ readerGroupTypeDestructor(UA_Server *server,
                           const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *typeId, void *typeContext,
                           const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "ReaderGroup destructor called!");
 }
 
@@ -2172,7 +2172,7 @@ dataSetWriterTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "DataSetWriter destructor called!");
     UA_LOCK(&server->serviceMutex);
     UA_NodeId dataSetWriterIdNode =
@@ -2190,7 +2190,7 @@ dataSetReaderTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "DataSetReader destructor called!");
     UA_LOCK(&server->serviceMutex);
     UA_NodeId publisherIdNode =
@@ -2208,7 +2208,7 @@ publishedDataItemsTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "PublishedDataItems destructor called!");
     UA_LOCK(&server->serviceMutex);
     void *childContext;
@@ -2238,7 +2238,7 @@ standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
                             const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *typeId, void *typeContext,
                             const UA_NodeId *nodeId, void **nodeContext) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_USERLAND,
                 "Standalone SubscribedDataSet destructor called!");
     UA_LOCK(&server->serviceMutex);
     void *childContext;

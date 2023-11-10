@@ -34,9 +34,9 @@ securityGroup_setup(void) {
         (UA_PubSubSecurityPolicy *)UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 2;
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
-                                      &config->logger);
+                                      config->logging);
     UA_PubSubSecurityPolicy_Aes256Ctr(&config->pubSubConfig.securityPolicies[1],
-                                      &config->logger);
+                                      config->logging);
 
     UA_Server_run_startup(server);
 }

@@ -71,7 +71,7 @@ UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
     UA_NodeId_clear(&sub->ns0Id);
 #endif
 
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub, "Subscription deleted");
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub, "Subscription deleted");
 
     /* Detach from the session if necessary */
     if(sub->session)
@@ -172,13 +172,13 @@ UA_Subscription_addRetransmissionMessage(UA_Server *server, UA_Subscription *sub
     /* Release the oldest entry if there is not enough space */
     UA_Session *session = sub->session;
     if(sub->retransmissionQueueSize >= UA_MAX_RETRANSMISSIONQUEUESIZE) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                     "Subscription retransmission queue overflow");
         removeOldestRetransmissionMessageFromSub(sub);
     } else if(session && server->config.maxRetransmissionQueueSize > 0 &&
               session->totalRetransmissionQueueSize >=
               server->config.maxRetransmissionQueueSize) {
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                     "Session-wide retransmission queue overflow");
         removeOldestRetransmissionMessageFromSession(sub->session);
     }
@@ -366,16 +366,16 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     /* Cannot send out the StatusChange because no response is queued.
      * Delete the Subscription without sending the StatusChange, if the statusChange is Bad*/
     if(!pre) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Cannot send the StatusChange notification because no response is queued.");
         if(UA_StatusCode_isBad(sub->statusChange)) {
-            UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Removing the subscription.");
+            UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "Removing the subscription.");
             UA_Subscription_delete(server, sub);
         }
         return;
     }
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sending out a StatusChange "
                               "notification and removing the subscription");
 
@@ -398,7 +398,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
 
     /* Send the response */
     UA_assert(sub->session); /* Otherwise pre is NULL */
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sending out a publish response");
     sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
                  (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
@@ -439,7 +439,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             /* Check if the TimeoutHint is still valid. Otherwise return with a bad
              * statuscode and continue. */
             if(pre->maxTime < nowMonotonic) {
-                UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+                UA_LOG_DEBUG_SESSION(server->config.logging, sub->session,
                                      "Publish request %u has timed out", pre->requestId);
                 pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
                 sendResponse(server, sub->session, sub->session->header.channel,
@@ -456,11 +456,11 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     if(pre) {
         Subscription_resetLifetime(sub);
     } else {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "The publish queue is empty");
         ++sub->currentLifetimeCount;
         if(sub->currentLifetimeCount > sub->lifeTimeCount) {
-            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                         "End of subscription lifetime");
             /* Set the StatusChange to delete the subscription. */
             sub->statusChange = UA_STATUSCODE_BADTIMEOUT;
@@ -490,14 +490,14 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                 UA_Session_queuePublishReq(sub->session, pre, true); /* Re-enqueue */
             return;
         }
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "Sending a KeepAlive");
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "Sending a KeepAlive");
     }
 
     /* We want to send a response, but cannot. Either because there is no queued
      * response or because the Subscription is detached from a Session or because
      * the SecureChannel for the Session is closed. */
     if(!pre || !sub->session || !sub->session->header.channel) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Want to send a publish response but cannot. "
                                   "The subscription is late.");
         sub->late = true;
@@ -523,7 +523,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
             retransmission = (UA_NotificationMessageEntry*)
                 UA_malloc(sizeof(UA_NotificationMessageEntry));
             if(!retransmission) {
-                UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+                UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                             "Could not allocate memory for retransmission. "
                                             "The subscription is late.");
                 sub->late = true;
@@ -536,7 +536,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         UA_StatusCode retval =
             prepareNotificationMessage(server, sub, message, notifications);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                         "Could not prepare the notification message. "
                                         "The subscription is late.");
             /* If the retransmission queue is enabled a retransmission message is allocated */
@@ -590,7 +590,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_assert(i == sub->retransmissionQueueSize);
 
     /* Send the response */
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sending out a publish response with %" PRIu32
                               " notifications", notifications);
     sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
@@ -681,7 +681,7 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
         UA_PublishResponseEntry *pre = UA_Session_dequeuePublishReq(session);
         UA_assert(pre != NULL); /* There must be a pre as session->responseQueueSize > 0 */
 
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Sending out a publish response triggered by too many publish requests");
 
         /* Send the response. This response has no related subscription id */
@@ -701,7 +701,7 @@ sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
     UA_assert(sub);
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sample and Publish Callback");
 
     /* Sample the MonitoredItems with sampling interval <0 (which implies

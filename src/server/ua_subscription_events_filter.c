@@ -601,7 +601,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_CHECK_STATUS(res, return res);
 
     if(!UA_Variant_hasScalarType(&eventTypeVar, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_LOG_WARNING(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(ctx->server->config.logging, UA_LOGCATEGORY_SERVER,
                        "EventType has an invalid type.");
         UA_Variant_clear(&eventTypeVar);
         return UA_STATUSCODE_BADINTERNALERROR;

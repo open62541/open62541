@@ -121,7 +121,7 @@ UA_Server_cleanupSessions(UA_Server *server, UA_DateTime nowMonotonic) {
         /* Session has timed out? */
         if(sentry->session.validTill >= nowMonotonic)
             continue;
-        UA_LOG_INFO_SESSION(&server->config.logger, &sentry->session,
+        UA_LOG_INFO_SESSION(server->config.logging, &sentry->session,
                             "Session has timed out");
         UA_Server_removeSession(server, sentry, UA_SHUTDOWNREASON_TIMEOUT);
     }
@@ -143,7 +143,7 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
 
         /* Session has timed out */
         if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-            UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
+            UA_LOG_INFO_SESSION(server->config.logging, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
         }
@@ -166,7 +166,7 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
 
         /* Session has timed out */
         if(UA_DateTime_nowMonotonic() > current->session.validTill) {
-            UA_LOG_INFO_SESSION(&server->config.logger, &current->session,
+            UA_LOG_INFO_SESSION(server->config.logging, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
         }
@@ -228,7 +228,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->sessionCount >= server->config.maxSessions) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Could not create a Session - Server limits reached");
         return UA_STATUSCODE_BADTOOMANYSESSIONS;
     }
@@ -266,7 +266,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                       const UA_CreateSessionRequest *request,
                       UA_CreateSessionResponse *response) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel, "Trying to create session");
+    UA_LOG_DEBUG_CHANNEL(server->config.logging, channel, "Trying to create session");
 
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -280,7 +280,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_StatusCode retval = channel->securityPolicy->channelModule.
             compareCertificate(channel->channelContext, &request->clientCertificate);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "The client certificate did not validate");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADCERTIFICATEINVALID;
             return;
@@ -302,7 +302,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
             cv->verifyApplicationURI(cv, &request->clientCertificate,
                                      &request->clientDescription.applicationUri);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "The client's ApplicationURI did not match the certificate");
             server->serverDiagnosticsSummary.securityRejectedSessionCount++;
             server->serverDiagnosticsSummary.rejectedSessionCount++;
@@ -315,7 +315,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     response->responseHeader.serviceResult =
         UA_Server_createSession(server, channel, request, &newSession);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Processing CreateSessionRequest failed");
         server->serverDiagnosticsSummary.rejectedSessionCount++;
         return;
@@ -391,7 +391,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     createSessionObject(server, newSession);
 #endif
 
-    UA_LOG_INFO_SESSION(&server->config.logger, newSession, "Session created");
+    UA_LOG_INFO_SESSION(server->config.logging, newSession, "Session created");
 }
 
 static UA_StatusCode
@@ -539,7 +539,7 @@ decryptUserNamePW(UA_Server *server, UA_Session *session,
         if(userToken->encryptionAlgorithm.length > 0)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
-        UA_LOG_WARNING_SESSION(&server->config.logger, session, "ActivateSession: "
+        UA_LOG_WARNING_SESSION(server->config.logging, session, "ActivateSession: "
                                "Received an unencrypted username/passwort. "
                                "Is the server misconfigured to allow that?");
         return UA_STATUSCODE_GOOD;
@@ -559,7 +559,7 @@ decryptUserNamePW(UA_Server *server, UA_Session *session,
         sp->channelModule.newContext(sp, &sp->localCertificate, &tempChannelContext);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a "
                                "context for the SecurityPolicy %.*s",
                                (int)sp->policyUri.length,
@@ -628,7 +628,7 @@ decryptUserNamePW(UA_Server *server, UA_Session *session,
     UA_LOCK(&server->serviceMutex);
 
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to decrypt the "
                                "password with the StatusCode %s",
                                UA_StatusCode_name(res));
@@ -652,7 +652,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
         newContext(sp, &token->certificateData, &tempChannelContext);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a context "
                                "for the SecurityPolicy %.*s",
                                (int)sp->policyUri.length,
@@ -664,7 +664,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     res = checkCertificateSignature(server, sp, tempChannelContext,
                                     &session->serverNonce, tokenSignature, true);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: User token signature check "
                                "failed with StatusCode %s", UA_StatusCode_name(res));
     }
@@ -698,7 +698,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Get the session */
     UA_Session *session = getSessionByToken(server, &req->requestHeader.authenticationToken);
     if(!session) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: Session not found");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         goto rejected;
@@ -710,7 +710,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * CreateSession request. Subsequent calls to ActivateSession may be
      * associated with different SecureChannels. */
     if(!session->activated && session->header.channel != channel) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: The Session has to be initially activated "
                                "on the SecureChannel that created it");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -719,7 +719,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Has the session timed out? */
     if(session->validTill < UA_DateTime_nowMonotonic()) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
         goto rejected;
@@ -734,7 +734,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                                       &session->serverNonce,
                                       &req->clientSignature, false);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SESSION(&server->config.logger, session,
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Client signature check failed "
                                    "with StatusCode %s",
                                    UA_StatusCode_name(resp->responseHeader.serviceResult));
@@ -784,7 +784,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                         &req->userIdentityToken, &session->sessionHandle);
     UA_LOCK(&server->serviceMutex);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The AccessControl "
                                "plugin denied the activation with the StatusCode %s",
                                UA_StatusCode_name(resp->responseHeader.serviceResult));
@@ -797,7 +797,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(!session->header.channel || session->header.channel != channel) {
         /* Attach the new SecureChannel, the old channel will be detached if present */
         UA_Session_attachToSecureChannel(session, channel);
-        UA_LOG_INFO_SESSION(&server->config.logger, session,
+        UA_LOG_INFO_SESSION(server->config.logging, session,
                             "ActivateSession: Session attached to new channel");
     }
 
@@ -807,7 +807,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         UA_ByteString_copy(&session->serverNonce, &resp->serverNonce);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Session_detachFromSecureChannel(session);
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Could not generate the server nonce");
         goto rejected;
     }
@@ -823,7 +823,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
                           (void**)&tmpLocaleIds, &UA_TYPES[UA_TYPES_STRING]);
         if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_Session_detachFromSecureChannel(session);
-            UA_LOG_WARNING_SESSION(&server->config.logger, session,
+            UA_LOG_WARNING_SESSION(server->config.logging, session,
                                    "ActivateSession: Could not store the Session LocaleIds");
             goto rejected;
         }
@@ -887,7 +887,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 #endif
 
     /* Log the user for which the Session was activated */
-    UA_LOG_INFO_SESSION(&server->config.logger, session,
+    UA_LOG_INFO_SESSION(server->config.logging, session,
                         "ActivateSession: Session activated with ClientUserId \"%.*s\"",
                         (int)session->clientUserIdOfSession.length,
                         session->clientUserIdOfSession.data);
@@ -918,20 +918,20 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
     if(!session && response->responseHeader.serviceResult == UA_STATUSCODE_GOOD)
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "CloseSession: No Session activated to the SecureChannel");
         return;
     }
 
     UA_assert(session); /* Assured by the previous section */
-    UA_LOG_INFO_SESSION(&server->config.logger, session, "Closing the Session");
+    UA_LOG_INFO_SESSION(server->config.logging, session, "Closing the Session");
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* If Subscriptions are not deleted, detach them from the Session */
     if(!request->deleteSubscriptions) {
         UA_Subscription *sub, *sub_tmp;
         TAILQ_FOREACH_SAFE(sub, &session->subscriptions, sessionListEntry, sub_tmp) {
-            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                                      "Detaching the Subscription from the Session");
             UA_Session_detachSubscription(server, session, sub, true);
         }

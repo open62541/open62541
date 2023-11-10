@@ -227,7 +227,7 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                               "MonitoredItem %" PRIi32 " | "
                               "Notification enqueued (Queue size %lu / %lu)",
                               mon->monitoredItemId,
@@ -277,7 +277,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                                   "Notification enqueued (Queue size %lu)",
                                   (long unsigned)mon->subscription->notificationQueueSize);
     }
@@ -314,7 +314,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         triggeredMon->triggeredUntil = UA_DateTime_nowMonotonic() +
             (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
 
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "MonitoredItem %u triggers MonitoredItem %u",
                                   mon->monitoredItemId, triggeredMon->monitoredItemId);
     }
@@ -469,7 +469,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         return;
 
     UA_Subscription *sub = mon->subscription;
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "MonitoredItem %" PRIi32 " | Deleting the MonitoredItem",
                              mon->monitoredItemId);
 

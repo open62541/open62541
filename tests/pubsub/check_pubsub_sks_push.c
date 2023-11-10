@@ -219,7 +219,7 @@ setup(void) {
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     // add 2 connections
     UA_PubSubConnectionConfig connectionConfig;

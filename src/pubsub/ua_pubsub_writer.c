@@ -118,7 +118,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                           "Received unknown PubSub state!");
             }
             break;
@@ -133,7 +133,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                           "Received unknown PubSub state!");
             }
             break;
@@ -149,7 +149,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                           "Received unknown PubSub state!");
             }
             break;
@@ -164,12 +164,12 @@ UA_DataSetWriter_setPubSubState(UA_Server *server,
                 case UA_PUBSUBSTATE_ERROR:
                     break;
                 default:
-                    UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                           "Received unknown PubSub state!");
             }
             break;
         default:
-            UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+            UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                   "Received unknown PubSub state!");
     }
     if (state != oldState) {
@@ -198,14 +198,14 @@ UA_DataSetWriter_create(UA_Server *server,
 
     /* Make checks for a heartbeat */
     if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
-        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
                                    "Adding DataSetWriter failed: DataSet can be null only for "
                                    "a heartbeat in which case KeyFrameCount shall be 1");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     if(wg->configurationFrozen) {
-        UA_LOG_WARNING_WRITERGROUP(&server->config.logger, wg,
+        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
                                    "Adding DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -218,7 +218,7 @@ UA_DataSetWriter_create(UA_Server *server,
             return UA_STATUSCODE_BADNOTFOUND;
 
         if(currentDataSetContext->configurationFreezeCounter > 0) {
-            UA_LOG_WARNING_DATASET(&server->config.logger, currentDataSetContext,
+            UA_LOG_WARNING_DATASET(server->config.logging, currentDataSetContext,
                                    "Adding DataSetWriter failed: PublishedDataSet is frozen");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
@@ -228,7 +228,7 @@ UA_DataSetWriter_create(UA_Server *server,
             TAILQ_FOREACH(tmpDSF, &currentDataSetContext->fields, listEntry) {
                 if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
                    !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING_DATASET(&server->config.logger, currentDataSetContext,
+                    UA_LOG_WARNING_DATASET(server->config.logging, currentDataSetContext,
                                            "Adding DataSetWriter failed: "
                                            "Fields in PDS are not RT capable");
                     return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -250,7 +250,7 @@ UA_DataSetWriter_create(UA_Server *server,
                                               UA_PUBSUBSTATE_OPERATIONAL,
                                               UA_STATUSCODE_GOOD);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_WRITERGROUP(&server->config.logger, wg,
+            UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
                                      "Add DataSetWriter failed: setPubSubState failed");
             UA_free(newDataSetWriter);
             return res;
@@ -364,7 +364,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
         UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
     if(!pds) {
         if(!UA_NodeId_isNull(&dsw->connectedDataSet)) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "PublishedDataSet not found");
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -372,7 +372,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
 
         res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "Heartbeat DataSetMessage creation failed");
         }
@@ -380,7 +380,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
     }
 
     if(pds->promotedFieldsCount > 0) {
-        UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+        UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                               "PubSub-RT configuration fail: "
                               "PDS contains promoted fields");
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -395,7 +395,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
             UA_NODESTORE_GET(server, publishedVariable);
         if(rtNode != NULL &&
            rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains field without external data source");
             UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
@@ -409,14 +409,14 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
             UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                             &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
            dsf->fieldMetaData.maxStringLength == 0) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains String/ByteString with dynamic length");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType)) &&
                   !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                                    &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains variable with dynamic size");
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -426,7 +426,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
     /* Generate the DSM */
     res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_WRITER(&server->config.logger, dsw,
+        UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                               "PubSub-RT configuration fail: "
                               "DataSetMessage buffering failed");
     }
@@ -440,7 +440,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 
     /* Frozen? */
     if(dataSetWriter->configurationFrozen) {
-        UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+        UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                               "Remove DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -772,7 +772,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if(dsm->networkMessageNumber != 0 ||
            dsm->dataSetOffset != 0 ||
            dsm->configuredSize != 0) {
-            UA_LOG_WARNING_WRITER(&server->config.logger, dataSetWriter,
+            UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                   "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;

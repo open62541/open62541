@@ -81,7 +81,7 @@ typedef struct {
     UA_ServerComponent sc;
     UA_Server *server;  /* remember the pointer so we don't need an additional
                            context pointer for connections */
-    UA_Logger *logging; /* shortcut */
+    const UA_Logger *logging; /* shortcut */
     UA_UInt64 houseKeepingCallbackId;
 
     UA_ServerConnection serverConnections[UA_MAXSERVERCONNECTIONS];
@@ -487,7 +487,7 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     retval = UA_SecureChannel_processHELACK(channel,
                                             (UA_TcpAcknowledgeMessage*)&helloMessage);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Error during the HEL/ACK handshake");
         return retval;
     }
@@ -547,7 +547,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_NodeId_decodeBinary(msg, &offset, &requestType);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&requestType);
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Could not decode the NodeId. "
                                "Closing the SecureChannel.");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
@@ -562,7 +562,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     if(retval != UA_STATUSCODE_GOOD || !UA_NodeId_equal(&requestType, opnRequestId)) {
         UA_NodeId_clear(&requestType);
         UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Could not decode the OPN message. "
                                "Closing the SecureChannel.");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
@@ -576,7 +576,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
     Service_OpenSecureChannel(server, channel, &openSecureChannelRequest, &openScResponse);
     UA_OpenSecureChannelRequest_clear(&openSecureChannelRequest);
     if(openScResponse.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Could not open a SecureChannel. "
                                "Closing the connection.");
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
@@ -588,7 +588,7 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
                                                        &UA_TYPES[UA_TYPES_OPENSECURECHANNELRESPONSE]);
     UA_OpenSecureChannelResponse_clear(&openScResponse);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "Could not send the OPN answer with error code %s",
                                UA_StatusCode_name(retval));
         UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_REJECT);
@@ -614,21 +614,21 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 
     if(session) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Sending response for RequestId %u of type %s",
                              (unsigned)requestId, responseType->typeName);
 #else
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
     } else {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Sending response for RequestId %u of type %s",
                              (unsigned)requestId, responseType->typeName);
 #else
-        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Sending reponse for RequestId %u of type %" PRIu32,
                              (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
 #endif
@@ -756,11 +756,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     if(!session) {
         if(sessionRequired) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "%s refused without a valid session",
                                    requestType->typeName);
 #else
-            UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "Service %" PRIu32 " refused without a valid session",
                                    requestType->binaryEncodingId.identifier.numeric);
 #endif
@@ -779,11 +779,11 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* Trying to use a non-activated session? */
     if(sessionRequired && !session->activated) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "%s refused on a non-activated session",
                                requestType->typeName);
 #else
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Service %" PRIu32 " refused on a non-activated session",
                                requestType->binaryEncodingId.identifier.numeric);
 #endif
@@ -884,11 +884,11 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     if(!requestType) {
         if(requestTypeId.identifier.numeric ==
            UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY) {
-            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+            UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                                 "Client requested a subscription, "
                                 "but those are not enabled in the build");
         } else {
-            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+            UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                                 "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
@@ -903,7 +903,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     retval = UA_decodeBinaryInternal(msg, &offset, &request,
                                      requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Could not decode the request with StatusCode %s",
                              UA_StatusCode_name(retval));
         return decodeHeaderSendServiceFault(channel, msg, requestPos,
@@ -914,7 +914,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     UA_RequestHeader *requestHeader = &request.requestHeader;
     if(requestHeader->timestamp == 0 &&
        server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
-        UA_LOG_WARNING_CHANNEL(&server->config.logger, channel,
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "The server sends no timestamp in the request header. "
                                "See the 'verifyRequestTimestamp' setting.");
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
@@ -958,35 +958,35 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a HEL message");
+        UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Process a HEL message");
         retval = processHEL(server, channel, message);
         break;
     case UA_MESSAGETYPE_OPN:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process an OPN message");
+        UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Process an OPN message");
         retval = processOPN(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_MSG:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a MSG");
+        UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Process a MSG");
         retval = processMSG(server, channel, requestId, message);
         break;
     case UA_MESSAGETYPE_CLO:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Process a CLO");
+        UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Process a CLO");
         Service_CloseSecureChannel(server, channel); /* Regular close */
         break;
     default:
-        UA_LOG_TRACE_CHANNEL(&server->config.logger, channel, "Invalid message type");
+        UA_LOG_TRACE_CHANNEL(server->config.logging, channel, "Invalid message type");
         retval = UA_STATUSCODE_BADTCPMESSAGETYPEINVALID;
         break;
     }
     if(retval != UA_STATUSCODE_GOOD) {
         if(!UA_SecureChannel_isConnected(channel)) {
-            UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+            UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                                 "Processing the message failed. Channel already closed "
                                 "with StatusCode %s. ", UA_StatusCode_name(retval));
             return retval;
         }
 
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Processing the message failed with StatusCode %s. "
                             "Closing the channel.", UA_StatusCode_name(retval));
         UA_TcpErrorMessage errMsg;
@@ -1410,7 +1410,7 @@ retryReverseConnectCallback(UA_Server *server, void *context) {
     LIST_FOREACH(rc, &bpm->reverseConnects, next) {
         if(rc->currentConnection.connectionId)
             continue;
-        UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                     "Attempt to reverse reconnect to %.*s:%d",
                     (int)rc->hostname.length, rc->hostname.data, rc->port);
         attemptReverseConnect(bpm, rc);
@@ -1491,14 +1491,14 @@ attemptReverseConnect(UA_BinaryProtocolManager *bpm, reverse_connect_context *co
         UA_StatusCode res = cm->openConnection(cm, &kvm, bpm, context,
                                                serverReverseConnectCallback);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Failed to create connection for reverse connect: %s\n",
                            UA_StatusCode_name(res));
         }
         return res;
     }
 
-    UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                    "No ConnectionManager found for reverse connect");
     return UA_STATUSCODE_BADINTERNALERROR;
 }
@@ -1512,7 +1512,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
         getServerComponentByName(server, UA_STRING("binary"));
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
     if(!bpm) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -1522,7 +1522,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     UA_UInt16 port = 0;
     UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                        "OPC UA URL is invalid: %.*s",
                        (int)url.length, url.data);
         return res;
@@ -1568,7 +1568,7 @@ UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle) {
         getServerComponentByName(server, UA_STRING("binary"));
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
     if(!bpm) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "No BinaryProtocolManager configured");
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1736,7 +1736,7 @@ UA_BinaryProtocolManager_start(UA_Server *server,
     UA_Boolean haveServerSocket = false;
     if(config->serverUrlsSize == 0) {
         /* Empty hostname -> listen on all devices */
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                        "No Server URL configured. Using \"opc.tcp://:4840\" "
                        "to configure the listen socket.");
         UA_String defaultUrl = UA_STRING("opc.tcp://:4840");
@@ -1752,7 +1752,7 @@ UA_BinaryProtocolManager_start(UA_Server *server,
     }
 
     if(!haveServerSocket) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "The server has no server socket");
     }
 
@@ -1863,7 +1863,7 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
         return NULL;
 
     bpm->server = server;
-    bpm->logging = &server->config.logger;
+    bpm->logging = server->config.logging;
 
     /* Initialize SecureChannel */
     TAILQ_INIT(&bpm->channels);

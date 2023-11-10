@@ -87,17 +87,9 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 #endif
 
     /* Logger */
-    if(config->logging != NULL) {
-        if((config->logging != &config->logger) &&
-           (config->logging->clear != NULL)) {
-            config->logging->clear(config->logging->context);
-        }
-        config->logging = NULL;
-    }
-    if(config->logger.clear)
-        config->logger.clear(config->logger.context);
-    config->logger.log = NULL;
-    config->logger.clear = NULL;
+    if(config->logging != NULL && config->logging->clear != NULL)
+        config->logging->clear(config->logging->context);
+    config->logging = NULL;
 
 #ifdef UA_ENABLE_PUBSUB
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION

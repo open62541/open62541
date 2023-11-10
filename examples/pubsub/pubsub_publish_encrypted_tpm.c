@@ -149,7 +149,7 @@ static int run(UA_String *transportProfile,
     config->pubSubConfig.securityPoliciesSize = 1;
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
-                                         encryptionKeyLabel, signingKeyLabel, &config->logger);
+                                         encryptionKeyLabel, signingKeyLabel, config->logging);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);

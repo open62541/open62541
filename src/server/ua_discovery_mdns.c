@@ -942,7 +942,7 @@ startMulticastDiscoveryServer(UA_Server *server) {
     if(dm->mdnsSendConnection == 0)
         discovery_createMulticastSocket(server, dm);
     if(dm->mdnsSendConnection == 0) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Could not create multicast socket");
         return;
     }
@@ -1156,7 +1156,7 @@ discovery_multicastQueryAnswer(mdns_answer_t *a, void *arg) {
     if(mdnsd_has_query(dm->mdnsDaemon, a->rdname))
         return 0;
 
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_DISCOVERY,
+    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                  "mDNS send query for: %s SRV&TXT %s", a->name, a->rdname);
 
     mdnsd_query(dm->mdnsDaemon, a->rdname, QTYPE_SRV,

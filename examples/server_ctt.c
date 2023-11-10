@@ -918,7 +918,7 @@ enableNoneSecurityPolicy(UA_ServerConfig *config) {
     UA_StatusCode retval = UA_ServerConfig_addEndpoint(config, UA_SECURITY_POLICY_NONE_URI,
                                          UA_MESSAGESECURITYMODE_NONE);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Failed to add SecurityPolicy#None to the endpoint list.");
     }
     config->securityPolicyNoneDiscoveryOnly = false;
@@ -928,7 +928,7 @@ static void
 enableBasic128SecurityPolicy(UA_ServerConfig *config) {
     UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &certificate, &privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
                        UA_StatusCode_name(retval));
         return;
@@ -943,7 +943,7 @@ static void
 enableBasic256SecurityPolicy(UA_ServerConfig *config) {
     UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &certificate, &privateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256 with error code %s",
                        UA_StatusCode_name(retval));
         return;

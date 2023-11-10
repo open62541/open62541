@@ -69,7 +69,7 @@ static void
 shutdownServer(UA_Server *server, void *context) {
     struct InterruptContext *ic = (struct InterruptContext*)context;
     UA_ServerConfig *config = UA_Server_getConfig(ic->server);
-    UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_USERLAND,
                 "Stopping the server");
     ic->running = false;
 }
@@ -81,13 +81,13 @@ interruptServer(UA_InterruptManager *im, uintptr_t interruptHandle,
     UA_ServerConfig *config = UA_Server_getConfig(ic->server);
 
     if(config->shutdownDelay <= 0.0) {
-        UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_INFO(config->logging, UA_LOGCATEGORY_USERLAND,
                     "Received SIGINT interrupt. Stopping the server.");
         ic->running = false;
         return;
     }
 
-    UA_LOG_INFO(&config->logger, UA_LOGCATEGORY_USERLAND,
+    UA_LOG_INFO(config->logging, UA_LOGCATEGORY_USERLAND,
                 "Received SIGINT interrupt. Stopping the server in %.2fs.",
                 config->shutdownDelay / 1000.0);
 
@@ -122,7 +122,7 @@ UA_Server_runUntilInterrupt(UA_Server *server) {
         es = es->next;
     }
     if(!es) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_USERLAND,
                        "No Interrupt EventSource configured");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -136,7 +136,7 @@ UA_Server_runUntilInterrupt(UA_Server *server) {
         im->registerInterrupt(im, SIGINT, &UA_KEYVALUEMAP_NULL,
                               interruptServer, &ic);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_USERLAND,
                      "Could not register the interrupt with status code %s",
                      UA_StatusCode_name(retval));
         return retval;
@@ -267,14 +267,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         UA_Nodestore_HashMap(&conf->nodestore);
 
     /* Logging */
-    if(!conf->logger.log)
-        conf->logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_INFO);
     if(conf->logging == NULL)
-        conf->logging = &conf->logger;
+        conf->logging = UA_Log_Stdout;
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
-        conf->eventLoop = UA_EventLoop_new_POSIX(&conf->logger);
+        conf->eventLoop = UA_EventLoop_new_POSIX(conf->logging);
         if(conf->eventLoop == NULL)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
@@ -305,7 +303,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         if(im) {
             conf->eventLoop->registerEventSource(conf->eventLoop, &im->eventSource);
         } else {
-            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
                            "Cannot create the Interrupt Manager (only relevant if used)");
         }
 #ifdef UA_ENABLE_MQTT
@@ -377,11 +375,11 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     char serverUrlBuffer[2][512];
 
     if(portNumber == 0) {
-        UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
                        "Cannot set the ServerUrl with a zero port");
     } else {
         if(conf->serverUrlsSize > 0) {
-            UA_LOG_WARNING(&conf->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
                            "ServerUrls already set. Overriding.");
             UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
                             &UA_TYPES[UA_TYPES_STRING]);
@@ -540,7 +538,7 @@ UA_ServerConfig_addSecurityPolicyNone(UA_ServerConfig *config,
         localCertificate = *certificate;
     UA_StatusCode retval =
         UA_SecurityPolicy_None(&config->securityPolicies[config->securityPoliciesSize],
-                               localCertificate, &config->logger);
+                               localCertificate, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -697,7 +695,7 @@ UA_ServerConfig_addSecurityPolicyBasic128Rsa15(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
-                                        localCertificate, localPrivateKey, &config->logger);
+                                        localCertificate, localPrivateKey, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -731,7 +729,7 @@ UA_ServerConfig_addSecurityPolicyBasic256(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256(&config->securityPolicies[config->securityPoliciesSize],
-                                   localCertificate, localPrivateKey, &config->logger);
+                                   localCertificate, localPrivateKey, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -765,7 +763,7 @@ UA_ServerConfig_addSecurityPolicyBasic256Sha256(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Basic256Sha256(&config->securityPolicies[config->securityPoliciesSize],
-                                         localCertificate, localPrivateKey, &config->logger);
+                                         localCertificate, localPrivateKey, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -799,7 +797,7 @@ UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(UA_ServerConfig *config,
        localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Aes128Sha256RsaOaep(&config->securityPolicies[config->securityPoliciesSize],
-                                              localCertificate, localPrivateKey, &config->logger);
+                                              localCertificate, localPrivateKey, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -833,7 +831,7 @@ UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
         localPrivateKey = *privateKey;
     UA_StatusCode retval =
         UA_SecurityPolicy_Aes256Sha256RsaPss(&config->securityPolicies[config->securityPoliciesSize],
-                                              localCertificate, localPrivateKey, &config->logger);
+                                              localCertificate, localPrivateKey, config->logging);
     if(retval != UA_STATUSCODE_GOOD) {
         if(config->securityPoliciesSize == 0) {
             UA_free(config->securityPolicies);
@@ -861,42 +859,42 @@ UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
 
     UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyNone(config, &localCertificate);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#None with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256 with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                        UA_StatusCode_name(retval));
     }
@@ -919,21 +917,21 @@ UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
 
     UA_StatusCode retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                        UA_StatusCode_name(retval));
     }
 
     retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate, &localPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                        UA_StatusCode_name(retval));
     }

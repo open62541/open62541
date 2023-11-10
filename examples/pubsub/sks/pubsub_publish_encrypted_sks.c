@@ -152,7 +152,7 @@ run(UA_UInt16 port, UA_String *transportProfile,
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     addPubSubConnection(server, transportProfile, networkAddressUrl);
     addPublishedDataSet(server);

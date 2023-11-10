@@ -153,7 +153,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
         if(field->configurationFrozen) {
-            UA_LOG_WARNING_DATASET(&server->config.logger, publishedDataSet,
+            UA_LOG_WARNING_DATASET(server->config.logging, publishedDataSet,
                                    "Clearing a frozen field.");
         }
         field->fieldMetaData.arrayDimensions = NULL;
@@ -221,7 +221,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the array dimensions failed");
         return res;
     }
@@ -242,7 +242,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the datatype failed");
         return res;
     }
@@ -252,7 +252,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_DATASET(&server->config.logger, pds,
+        UA_LOG_DEBUG_DATASET(server->config.logging, pds,
                              "MetaData creation: Found DataType %s",
                              currentDataType->typeName);
 #endif
@@ -266,12 +266,12 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
                 fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
             } else {
-                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                        "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
             }
         }
     } else {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: DataType is UA_NODEID_NULL");
     }
 
@@ -280,7 +280,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &valueRank);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the value rank failed");
         return res;
     }
@@ -322,7 +322,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     if(currDS->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, currDS,
+        UA_LOG_WARNING_DATASET(server->config.logging, currDS,
                                "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -434,14 +434,14 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     }
 
     if(currentField->configurationFrozen) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "Remove DataSetField failed: DataSetField is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
     if(pds->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -487,7 +487,7 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
             result.result = generateFieldMetaData(server, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                        "PubSub MetaData regeneration failed "
                                        "after removing a field!");
                 break;
@@ -611,27 +611,27 @@ UA_PublishedDataSet_create(UA_Server *server,
 
     UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
     if(!publishedDataSetConfig){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. No config passed in.");
         return result;
     }
 
     if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
     }
 
     if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
         // DataSet has to have a valid name
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
@@ -641,7 +641,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPDS) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
@@ -654,7 +654,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     UA_StatusCode res = UA_PublishedDataSetConfig_copy(publishedDataSetConfig, newConfig);
     if(res != UA_STATUSCODE_GOOD){
         UA_free(newPDS);
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Configuration copy failed.");
         result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
@@ -730,7 +730,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
