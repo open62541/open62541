@@ -575,9 +575,12 @@ UA_Client_findServers(UA_Client *client, const char *serverUrl,
  * @return Indicates whether the operation succeeded or returns an error code */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_findServersOnNetwork(UA_Client *client, const char *serverUrl,
-                               UA_UInt32 startingRecordId, UA_UInt32 maxRecordsToReturn,
-                               size_t serverCapabilityFilterSize, UA_String *serverCapabilityFilter,
-                               size_t *serverOnNetworkSize, UA_ServerOnNetwork **serverOnNetwork);
+                               UA_UInt32 startingRecordId,
+                               UA_UInt32 maxRecordsToReturn,
+                               size_t serverCapabilityFilterSize,
+                               UA_String *serverCapabilityFilter,
+                               size_t *serverOnNetworkSize,
+                               UA_ServerOnNetwork **serverOnNetwork);
 
 /**
  * .. _client-services:
