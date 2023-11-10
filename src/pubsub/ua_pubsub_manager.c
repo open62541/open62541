@@ -473,11 +473,9 @@ static UA_StatusCode
 UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback) {
 
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_createMonitoring(): "
-            "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch (eComponentType) {
         case UA_PUBSUB_COMPONENT_DATASETREADER: {
@@ -519,12 +517,8 @@ static UA_StatusCode
 UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
                                    UA_PubSubComponentEnumType eComponentType,
                                    UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_startMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch (eComponentType) {
@@ -580,12 +574,8 @@ static UA_StatusCode
 UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
                                   UA_PubSubComponentEnumType eComponentType,
                                   UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_stopMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch (eComponentType) {
@@ -628,12 +618,9 @@ static UA_StatusCode
 UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
                                             UA_PubSubComponentEnumType eComponentType,
                                             UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_updateMonitoringInterval(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch (eComponentType) {
         case UA_PUBSUB_COMPONENT_DATASETREADER: {
@@ -686,12 +673,9 @@ UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
                                     UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
 
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_deleteMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     switch (eComponentType) {
         case UA_PUBSUB_COMPONENT_DATASETREADER: {

@@ -1072,14 +1072,12 @@ getConnectionttribute(UA_Client *client, const UA_QualifiedName key,
     if(!outValue)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    const UA_Variant *attr;
     UA_Variant localAttr;
 
     if(UA_QualifiedName_equal(&key, &connectionAttributes[0])) {
         /* ServerDescription */
         UA_Variant_setScalar(&localAttr, &client->serverDescription,
                              &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-        attr = &localAttr;
     } else if(UA_QualifiedName_equal(&key, &connectionAttributes[1])) {
         /* SecurityPolicyUri */
         const UA_SecurityPolicy *sp = client->channel.securityPolicy;
@@ -1087,19 +1085,19 @@ getConnectionttribute(UA_Client *client, const UA_QualifiedName key,
             return UA_STATUSCODE_BADNOTCONNECTED;
         UA_Variant_setScalar(&localAttr, (void*)(uintptr_t)&sp->policyUri,
                              &UA_TYPES[UA_TYPES_STRING]);
-        attr = &localAttr;
     } else if(UA_QualifiedName_equal(&key, &connectionAttributes[2])) {
         /* SecurityMode */
         UA_Variant_setScalar(&localAttr, &client->channel.securityMode,
                              &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
-        attr = &localAttr;
+    } else {
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(copy)
-        return UA_Variant_copy(attr, outValue);
+        return UA_Variant_copy(&localAttr, outValue);
 
-    *outValue = *attr;
-    outValue->storageType = UA_VARIANT_DATA_NODELETE;
+    localAttr.storageType = UA_VARIANT_DATA_NODELETE;
+    *outValue = localAttr;
     return UA_STATUSCODE_GOOD;
 }
 
