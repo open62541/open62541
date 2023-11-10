@@ -965,6 +965,7 @@ UA_Variant_copyRange(const UA_Variant *src, UA_Variant * UA_RESTRICT dst,
     /* Compute the strides */
     size_t count, block, stride, first;
     computeStrides(src, thisrange, &count, &block, &stride, &first);
+    UA_assert(block > 0);
 
     /* Allocate the array */
     UA_Variant_init(dst);

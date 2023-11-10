@@ -110,6 +110,8 @@ processAsyncResults(UA_Server *server) {
         if(integrateOperationResult(am, server, ao))
             count++;
         UA_AsyncOperation_delete(ao);
+        /* Pacify clang-analyzer */
+        UA_assert(TAILQ_FIRST(&am->resultQueue) != ao);
         am->opsCount--;
     }
     UA_UNLOCK(&am->queueLock);
