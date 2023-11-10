@@ -569,7 +569,7 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
                                   const UA_QualifiedName key, UA_Variant *outValue);
 
-/* Returns NULL if the parameter is not defined or not a scalar or not of the
+/* Returns NULL if the attribute is not defined or not a scalar or not of the
  * right datatype. Otherwise a shallow copy of the scalar value is created at
  * the target location of the void pointer. Hence don't use this in a
  * multi-threaded application. */
