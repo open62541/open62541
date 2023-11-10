@@ -17,7 +17,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     /* Disable logging */
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->logger.log = NULL;
+    config->logging = NULL;
 }
 
 static void teardown(void) {

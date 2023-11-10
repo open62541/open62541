@@ -157,7 +157,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
@@ -213,7 +213,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub, "MonitoredItem %" PRIi32
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
 
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
@@ -226,7 +226,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &dv);
     if(res != UA_STATUSCODE_GOOD) {
         UA_DataValue_clear(&dv);
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                     "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
                                     mon->monitoredItemId, UA_StatusCode_name(res));

@@ -959,7 +959,7 @@ Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxref
 
 void Service_Browse(UA_Server *server, UA_Session *session,
                     const UA_BrowseRequest *request, UA_BrowseResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing BrowseRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing BrowseRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Test the number of operations in the request */
@@ -1078,7 +1078,7 @@ void
 Service_BrowseNext(UA_Server *server, UA_Session *session,
                    const UA_BrowseNextRequest *request,
                    UA_BrowseNextResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing BrowseNextRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -1385,7 +1385,7 @@ void
 Service_TranslateBrowsePathsToNodeIds(UA_Server *server, UA_Session *session,
                                       const UA_TranslateBrowsePathsToNodeIdsRequest *request,
                                       UA_TranslateBrowsePathsToNodeIdsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TranslateBrowsePathsToNodeIdsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -1413,7 +1413,7 @@ browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
     UA_BrowsePathResult bpr;
     UA_BrowsePathResult_init(&bpr);
     if(browsePathSize > UA_MAX_TREE_RECURSE) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Simplified Browse Path too long");
         bpr.statusCode = UA_STATUSCODE_BADINTERNALERROR;
         return bpr;
@@ -1457,7 +1457,7 @@ UA_Server_browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
 void Service_RegisterNodes(UA_Server *server, UA_Session *session,
                            const UA_RegisterNodesRequest *request,
                            UA_RegisterNodesResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -1484,7 +1484,7 @@ void Service_RegisterNodes(UA_Server *server, UA_Session *session,
 void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
                              const UA_UnregisterNodesRequest *request,
                              UA_UnregisterNodesResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing UnRegisterNodesRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 

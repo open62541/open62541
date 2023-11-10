@@ -230,7 +230,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
  cleanup:
     UA_BrowsePathResult_clear(&bpr);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Creating the subscription diagnostics object failed "
                                "with StatusCode %s", UA_StatusCode_name(res));
     }
@@ -522,7 +522,7 @@ createSessionObject(UA_Server *server, UA_Session *session) {
 
  cleanup:
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Creating the session diagnostics object failed "
                                "with StatusCode %s", UA_StatusCode_name(res));
     }

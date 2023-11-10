@@ -698,7 +698,7 @@ PARSE_JSON(SecurityPolciesField) {
         }
 
         if(certificate.length == 0 || privateKey.length == 0) {
-            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                            "Certificate and PrivateKey must be set for every policy.");
             if(policy.length > 0)
                 UA_String_clear(&policy);
@@ -714,33 +714,33 @@ PARSE_JSON(SecurityPolciesField) {
         } else if(UA_String_equal(&policy, &basic128Rsa15uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &basic256uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Basic256 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &basic256Sha256uri)) {
             retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else if(UA_String_equal(&policy, &aes128sha256rsaoaepuri)) {
             retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &certificate, &privateKey);
             if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
+                UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else {
-            UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND, "Unknown Security Policy.");
+            UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND, "Unknown Security Policy.");
         }
 
         /* Add all Endpoints */

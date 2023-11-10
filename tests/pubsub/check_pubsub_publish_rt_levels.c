@@ -55,7 +55,7 @@ static void setup(void) {
     UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
-    rtEventLoop = UA_EventLoop_new_POSIX(&server->config.logger);
+    rtEventLoop = UA_EventLoop_new_POSIX(server->config.logging);
 
     /* Add the TCP connection manager */
     UA_ConnectionManager *tcpCM =

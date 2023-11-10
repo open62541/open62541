@@ -76,7 +76,7 @@ struct UA_DiscoveryManager {
     UA_UInt64 discoveryCallbackId;
 
     /* Taken from the server config during startup */
-    UA_Logger *logging;
+    const UA_Logger *logging;
     UA_ServerConfig *serverConfig;
 
     /* Outstanding requests. So they can be cancelled during shutdown. */

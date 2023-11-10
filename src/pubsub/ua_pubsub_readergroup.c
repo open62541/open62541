@@ -92,7 +92,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return UA_STATUSCODE_BADNOTFOUND;
 
     if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+        UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
                                   "Adding ReaderGroup failed. "
                                   "Connection configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -189,7 +189,7 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     if(rg->configurationFrozen) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Remove ReaderGroup failed. "
                                    "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -315,7 +315,7 @@ UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Unknown PubSub state!");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -326,7 +326,7 @@ static UA_StatusCode
 UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
                                      UA_ReaderGroup *rg,
                                      UA_StatusCode cause) {
-    UA_LOG_DEBUG_READERGROUP(&server->config.logger, rg,
+    UA_LOG_DEBUG_READERGROUP(server->config.logging, rg,
                              "PubSub state paused is unsupported at the moment!");
     (void)cause;
     switch(rg->state) {
@@ -340,7 +340,7 @@ UA_ReaderGroup_setPubSubState_paused(UA_Server *server,
     case UA_PUBSUBSTATE_ERROR:
         break;
     default:
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg, "Unknown PubSub state!");
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg, "Unknown PubSub state!");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -358,7 +358,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
     if(ret != UA_STATUSCODE_GOOD ||
        (pubSubConnection->state != UA_PUBSUBSTATE_OPERATIONAL &&
         pubSubConnection->state != UA_PUBSUBSTATE_PREOPERATIONAL)) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Connection not operational");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -367,7 +367,7 @@ UA_ReaderGroup_setPubSubState_operational(UA_Server *server,
     if(rg->recvChannelsSize == 0)
         ret = UA_ReaderGroup_connect(server, rg, false);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READERGROUP(&server->config.logger, rg, "Could not connect");
+        UA_LOG_ERROR_READERGROUP(server->config.logging, rg, "Could not connect");
         UA_PubSubConnection_setPubSubState(server, pubSubConnection,
                                            UA_PUBSUBSTATE_ERROR, ret);
     }
@@ -406,7 +406,7 @@ UA_ReaderGroup_setPubSubState_error(UA_Server *server,
     case UA_PUBSUBSTATE_ERROR:
         return UA_STATUSCODE_GOOD;
     default:
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg, "Unknown PubSub state!");
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg, "Unknown PubSub state!");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     rg->state = UA_PUBSUBSTATE_ERROR;
@@ -436,7 +436,7 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
             ret = UA_ReaderGroup_setPubSubState_error(server, readerGroup, cause);
             break;
         default:
-            UA_LOG_WARNING_READERGROUP(&server->config.logger, readerGroup,
+            UA_LOG_WARNING_READERGROUP(server->config.logging, readerGroup,
                                        "Received unknown PubSub state!");
             break;
     }
@@ -500,13 +500,13 @@ setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "JSON encoding is enabled. The message security is "
                                    "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!rg->config.securityPolicy) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "No SecurityPolicy configured for the ReaderGroup");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -579,7 +579,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_GOOD;
 
     if(dsrCount > 1) {
-        UA_LOG_WARNING_READERGROUP(&server->config.logger, rg,
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Mutiple DSR in a readerGroup not supported in RT "
                                    "fixed size configuration");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -590,14 +590,14 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     /* Support only to UADP encoding */
     if(dsr->config.messageSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_READER(&server->config.logger, dsr,
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
                               "PubSub-RT configuration fail: Non-RT capable encoding.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Don't support string PublisherId for the fast-path (at this time) */
     if(!dsr->config.publisherId.type->pointerFree) {
-        UA_LOG_WARNING_READER(&server->config.logger, dsr,
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
                               "PubSub-RT configuration fail: String PublisherId");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -610,7 +610,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
             UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
         if(!rtNode ||
            rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-            UA_LOG_WARNING_READER(&server->config.logger, dsr,
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: PDS contains field "
                                   "without external data source.");
             UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
@@ -626,13 +626,13 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
             UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
            field->maxStringLength == 0) {
-            UA_LOG_WARNING_READER(&server->config.logger, dsr,
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains String/ByteString with dynamic length.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
                   !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_READER(&server->config.logger, dsr,
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains variable with dynamic size.");
             return UA_STATUSCODE_BADNOTSUPPORTED;

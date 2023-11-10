@@ -421,7 +421,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
         if(!cmc->sub) {
-            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                            "Only remote clients can add Event-MonitoredItems");
             result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
             UA_DataValue_clear(&v);
@@ -438,7 +438,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         UA_Byte eventNotifierValue = *((UA_Byte *)v.value.data);
         if((eventNotifierValue & 0x01) != 1) {
             result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
-            UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+            UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                                      "Could not create a MonitoredItem as the "
                                      "'SubscribeToEvents' bit of the EventNotifier "
                                      "attribute is not set");
@@ -485,7 +485,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
                                                 &newMon->parameters, result);
 #endif
     if(result->statusCode != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+        UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                                  "Could not create a MonitoredItem "
                                  "with StatusCode %s",
                                  UA_StatusCode_name(result->statusCode));
@@ -521,7 +521,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     if(result->revisedSamplingInterval < 0.0 && cmc->sub)
         result->revisedSamplingInterval = cmc->sub->publishingInterval;
 
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, cmc->sub,
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "
                              "(Sampling Interval: %.2fms, Queue Size: %lu)",
@@ -534,7 +534,7 @@ void
 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_CreateMonitoredItemsRequest *request,
                              UA_CreateMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing CreateMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -664,7 +664,7 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     if(result->revisedSamplingInterval < 0.0 && mon->subscription)
         result->revisedSamplingInterval = mon->subscription->publishingInterval;
 
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Modified the MonitoredItem "
                              "(Sampling Interval: %fms, Queue Size: %lu)",
@@ -677,7 +677,7 @@ void
 Service_ModifyMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_ModifyMonitoredItemsRequest *request,
                              UA_ModifyMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing ModifyMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -733,7 +733,7 @@ void
 Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
                           const UA_SetMonitoringModeRequest *request,
                           UA_SetMonitoringModeResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing SetMonitoringMode");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing SetMonitoringMode");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->config.maxMonitoredItemsPerCall != 0 &&
@@ -779,7 +779,7 @@ void
 Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
                              const UA_DeleteMonitoredItemsRequest *request,
                              UA_DeleteMonitoredItemsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 

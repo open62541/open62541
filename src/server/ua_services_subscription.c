@@ -69,7 +69,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
     /* Create the subscription */
     UA_Subscription *sub = UA_Subscription_new();
     if(!sub) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Processing CreateSubscriptionRequest failed");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return;
@@ -104,7 +104,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         UA_SUBSCRIPTIONSTATE_ENABLED : UA_SUBSCRIPTIONSTATE_ENABLED_NOPUBLISH;
     UA_StatusCode res = Subscription_setState(server, sub, sState);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_SESSION(&server->config.logger, sub->session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, sub->session,
                              "Subscription %" PRIu32 " | Could not register "
                              "publish callback with error code %s",
                              sub->subscriptionId, UA_StatusCode_name(res));
@@ -113,7 +113,7 @@ Service_CreateSubscription(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "Subscription created (Publishing interval %.2fms, "
                              "max %lu notifications per publish)",
                              sub->publishingInterval,
@@ -130,7 +130,7 @@ void
 Service_ModifySubscription(UA_Server *server, UA_Session *session,
                            const UA_ModifySubscriptionRequest *request,
                            UA_ModifySubscriptionResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing ModifySubscriptionRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -217,7 +217,7 @@ void
 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
                           const UA_SetPublishingModeRequest *request,
                           UA_SetPublishingModeResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing SetPublishingModeRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -235,7 +235,7 @@ Service_SetPublishingMode(UA_Server *server, UA_Session *session,
 UA_StatusCode
 Service_Publish(UA_Server *server, UA_Session *session,
                 const UA_PublishRequest *request, UA_UInt32 requestId) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing PublishRequest with RequestId %u", requestId);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -291,7 +291,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
         UA_Subscription *sub = UA_Session_getSubscriptionById(session, ack->subscriptionId);
         if(!sub) {
             response->results[i] = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-            UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+            UA_LOG_DEBUG_SESSION(server->config.logging, session,
                                  "Cannot process acknowledgements subscription %u" PRIu32,
                                  ack->subscriptionId);
             continue;
@@ -313,7 +313,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
      * callback. This can also be triggered right now for a late
      * subscription. */
     UA_Session_queuePublishReq(session, entry, false);
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Queued a publication message");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Queued a publication message");
 
     /* If there are late subscriptions, the new publish request is used to
      * answer them immediately. Late subscriptions with higher priority are
@@ -327,7 +327,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
             continue;
 
         /* Call publish on the late subscription */
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, late,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, late,
                                   "Send PublishResponse on a late subscription");
         UA_Subscription_publish(server, late);
 
@@ -360,7 +360,7 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
     UA_Subscription *sub = UA_Session_getSubscriptionById(session, *subscriptionId);
     if(!sub) {
         *result = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
-        UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
                              "Deleting Subscription with Id %" PRIu32
                              " failed with error code %s",
                              *subscriptionId, UA_StatusCode_name(*result));
@@ -369,7 +369,7 @@ Operation_DeleteSubscription(UA_Server *server, UA_Session *session, void *_,
 
     UA_Subscription_delete(server, sub);
     *result = UA_STATUSCODE_GOOD;
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Subscription %" PRIu32 " | Subscription deleted",
                          *subscriptionId);
 }
@@ -378,7 +378,7 @@ void
 Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
                             const UA_DeleteSubscriptionsRequest *request,
                             UA_DeleteSubscriptionsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing DeleteSubscriptionsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -393,7 +393,7 @@ void
 Service_Republish(UA_Server *server, UA_Session *session,
                   const UA_RepublishRequest *request,
                   UA_RepublishResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing RepublishRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -583,7 +583,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Attach to the session */
     UA_Session_attachSubscription(session, newSub);
 
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, newSub, "Transferred to this Session");
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, newSub, "Transferred to this Session");
 
     /* Set StatusChange in the original subscription and force publish. This
      * also removes the Subscription, even if there was no PublishResponse
@@ -634,7 +634,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
 void Service_TransferSubscriptions(UA_Server *server, UA_Session *session,
                                    const UA_TransferSubscriptionsRequest *request,
                                    UA_TransferSubscriptionsResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session,
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing TransferSubscriptionsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 

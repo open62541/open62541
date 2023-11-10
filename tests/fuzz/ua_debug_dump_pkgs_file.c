@@ -169,7 +169,7 @@ UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connect
         cnt++;
     }
 
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "Dumping package %s", dumpOutputFile);
 
     FILE *write_ptr = fopen(dumpOutputFile, "ab");
