@@ -241,6 +241,7 @@ UA_Client_clear(UA_Client *client) {
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->discoveryUrl);
+    UA_ApplicationDescription_clear(&client->serverDescription);
 
     UA_String_clear(&client->serverSessionNonce);
     UA_String_clear(&client->clientSessionNonce);
@@ -1085,4 +1086,95 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
 const UA_DataType *
 UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId) {
     return UA_findDataTypeWithCustom(typeId, client->config.customDataTypes);
+}
+
+/*************************/
+/* Connection Attributes */
+/*************************/
+
+#define UA_CONNECTIONATTRIBUTESSIZE 3
+static const UA_QualifiedName connectionAttributes[UA_CONNECTIONATTRIBUTESSIZE] = {
+    {0, UA_STRING_STATIC("serverDescription")},
+    {0, UA_STRING_STATIC("securityPolicyUri")},
+    {0, UA_STRING_STATIC("securityMode")}
+};
+
+static UA_StatusCode
+getConnectionttribute(UA_Client *client, const UA_QualifiedName key,
+                      UA_Variant *outValue, UA_Boolean copy) {
+    if(!outValue)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    const UA_Variant *attr;
+    UA_Variant localAttr;
+
+    if(UA_QualifiedName_equal(&key, &connectionAttributes[0])) {
+        /* ServerDescription */
+        UA_Variant_setScalar(&localAttr, &client->serverDescription,
+                             &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
+        attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &connectionAttributes[1])) {
+        /* SecurityPolicyUri */
+        const UA_SecurityPolicy *sp = client->channel.securityPolicy;
+        if(!sp)
+            return UA_STATUSCODE_BADNOTCONNECTED;
+        UA_Variant_setScalar(&localAttr, (void*)(uintptr_t)&sp->policyUri,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &connectionAttributes[2])) {
+        /* SecurityMode */
+        UA_Variant_setScalar(&localAttr, &client->channel.securityMode,
+                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+        attr = &localAttr;
+    }
+
+    if(copy)
+        return UA_Variant_copy(attr, outValue);
+
+    *outValue = *attr;
+    outValue->storageType = UA_VARIANT_DATA_NODELETE;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Client_getConnectionAttribute(UA_Client *client, const UA_QualifiedName key,
+                                 UA_Variant *outValue) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = getConnectionttribute(client, key, outValue, false);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_getConnectionAttributeCopy(UA_Client *client, const UA_QualifiedName key,
+                                     UA_Variant *outValue) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = getConnectionttribute(client, key, outValue, true);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_getConnectionAttribute_scalar(UA_Client *client,
+                                        const UA_QualifiedName key,
+                                        const UA_DataType *type,
+                                        void *outValue) {
+    UA_LOCK(&client->clientMutex);
+
+    UA_Variant attr;
+    UA_StatusCode res = getConnectionttribute(client, key, &attr, false);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&client->clientMutex);
+        return res;
+    }
+
+    if(!UA_Variant_hasScalarType(&attr, type)) {
+        UA_UNLOCK(&client->clientMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    memcpy(outValue, attr.data, type->memSize);
+
+    UA_UNLOCK(&client->clientMutex);
+    return UA_STATUSCODE_GOOD;
 }
