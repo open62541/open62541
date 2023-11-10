@@ -301,6 +301,44 @@ void UA_EXPORT
 UA_Client_delete(UA_Client *client);
 
 /**
+ * Connection Attrbiutes
+ * ---------------------
+ *
+ * Besides the client configuration, some attributes of the connection are
+ * defined only at runtime. For example the choice of SecurityPolicy or the
+ * ApplicationDescripton from the server. This API allows to access such
+ * connection attributes.
+ *
+ * The currently defined connection attributes are:
+ *
+ * - 0:serverDescription [UA_ApplicationDescription]: Server description
+ * - 0:securityPolicyUri [UA_String]: Uri of the SecurityPolicy used
+ * - 0:securityMode [UA_MessageSecurityMode]: SecurityMode of the SecureChannel
+ */
+
+/* Returns a shallow copy of the attribute. Don't _clear or _delete the value
+ * variant. Don't use the value after returning the control flow to the client.
+ * Also don't use this in a multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Client_getConnectionAttribute(UA_Client *client, const UA_QualifiedName key,
+                                 UA_Variant *outValue);
+
+/* Return a deep copy of the attribute */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getConnectionAttributeCopy(UA_Client *client, const UA_QualifiedName key,
+                                     UA_Variant *outValue);
+
+/* Returns NULL if the attribute is not defined or not a scalar or not of the
+ * right datatype. Otherwise a shallow copy of the scalar value is created at
+ * the target location of the void pointer. Hence don't use this in a
+ * multi-threaded application. */
+UA_EXPORT UA_StatusCode
+UA_Client_getConnectionAttribute_scalar(UA_Client *client,
+                                        const UA_QualifiedName key,
+                                        const UA_DataType *type,
+                                        void *outValue);
+
+/**
  * Connect to a Server
  * -------------------
  *
