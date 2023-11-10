@@ -259,11 +259,11 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 }
 
 static void
-registerAsyncResponse(UA_Client *client, void *userdata,
-                      UA_UInt32 requestId, void *resp) {
+register2AsyncResponse(UA_Client *client, void *userdata,
+                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
     const UA_ServerConfig *sc = ar->dm->serverConfig;
-    UA_RegisterServerResponse *response = (UA_RegisterServerResponse*)resp;
+    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(&sc->logger, UA_LOGCATEGORY_SERVER,
                     "RegisterServer succeeded");
@@ -302,11 +302,11 @@ setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
 }
 
 static void
-register2AsyncResponse(UA_Client *client, void *userdata,
+registerAsyncResponse(UA_Client *client, void *userdata,
                        UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = ar->dm->serverConfig;
-    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
+    UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_RegisterServerResponse *response = (UA_RegisterServerResponse*)resp;
 
     /* Success */
     UA_StatusCode serviceResult = response->responseHeader.serviceResult;
@@ -331,15 +331,25 @@ register2AsyncResponse(UA_Client *client, void *userdata,
         return;
     }
 
-    /* Try RegisterServer */
-    UA_RegisterServerRequest request;
-    UA_RegisterServerRequest_init(&request);
+    /* Try RegisterServer2 */
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
     setupRegisterRequest(ar, &request.requestHeader, &request.server);
+
+    /* Set the configuration that is only available for UA_RegisterServer2Request */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_ExtensionObject mdnsConfig;
+    UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
+                                        &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+    request.discoveryConfigurationSize = 1;
+    request.discoveryConfiguration = &mdnsConfig;
+#endif
+
     UA_StatusCode res =
         __UA_Client_AsyncService(client, &request,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                                 registerAsyncResponse,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE],
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                                 register2AsyncResponse,
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE],
                                  ar, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         /* Close the client connection, will be cleaned up in the client state
@@ -377,33 +387,33 @@ discoveryClientStateCallback(UA_Client *client,
     if(channelState != UA_SECURECHANNELSTATE_OPEN)
         return;
 
+    /* Is this the encrypted SecureChannel already? (We might have to wait for
+     * the second connection after the FindServers handshake */
+    UA_MessageSecurityMode msm = UA_MESSAGESECURITYMODE_INVALID;
+    UA_Client_getConnectionAttribute_scalar(client, UA_QUALIFIEDNAME(0, "securityMode"),
+                                            &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
+                                            &msm);
+    if(msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return;
+
     /* Prepare the request. This does not allocate memory */
-    UA_RegisterServer2Request request;
-    UA_RegisterServer2Request_init(&request);
+    UA_RegisterServerRequest request;
+    UA_RegisterServerRequest_init(&request);
     setupRegisterRequest(ar, &request.requestHeader, &request.server);
 
-    /* Set the configuration that is only available for UA_RegisterServer2Request */
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_ExtensionObject mdnsConfig;
-    UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
-                                        &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
-    request.discoveryConfigurationSize = 1;
-    request.discoveryConfiguration = &mdnsConfig;
-#endif
-
-    /* Try to call RegisterServer2 */
+    /* Try to call RegisterServer */
     UA_StatusCode res =
         __UA_Client_AsyncService(client, &request,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
-                                 register2AsyncResponse,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE],
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                                 registerAsyncResponse,
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE],
                                  ar, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
         UA_LOG_ERROR(&sc->logger, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer2 failed with statuscode %s",
+                     "RegisterServer failed with statuscode %s",
                      UA_StatusCode_name(res));
     }
 }
