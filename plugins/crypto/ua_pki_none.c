@@ -9,7 +9,7 @@
 static UA_StatusCode
 verifyCertificateAllowAll(const UA_CertificateVerification *cv,
                           const UA_ByteString *certificate) {
-    UA_LOG_WARNING(*(cv->logging), UA_LOGCATEGORY_USERLAND,
+    UA_LOG_WARNING(cv->logging, UA_LOGCATEGORY_USERLAND,
                    "No certificate store configured. Accepting the certificate.");
     return UA_STATUSCODE_GOOD;
 }
