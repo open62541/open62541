@@ -5,8 +5,10 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/pki_default.h>
 
 #include "server/ua_server_internal.h"
+#include "../encryption/certificates.h"
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -51,6 +53,22 @@ THREAD_CALLBACK(serverloop_lds) {
 static void
 configure_lds_server(UA_Server *pServer) {
     UA_ServerConfig *config_lds = UA_Server_getConfig(pServer);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config_lds, 4840,
+                                                   &certificate, &privateKey,
+                                                   NULL, 0, NULL, 0, NULL, 0);
+
+    UA_CertificateVerification_AcceptAll(&config_lds->secureChannelPKI);
+    UA_CertificateVerification_AcceptAll(&config_lds->sessionPKI);
 
     config_lds->applicationDescription.applicationType =
         UA_APPLICATIONTYPE_DISCOVERYSERVER;
@@ -119,7 +137,22 @@ setup_register(void) {
 
     server_register = UA_Server_new();
     UA_ServerConfig *config_register = UA_Server_getConfig(server_register);
-    UA_ServerConfig_setMinimal(config_register, 16664, NULL);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_ServerConfig_setDefaultWithSecurityPolicies(config_register, 16664,
+                                                   &certificate, &privateKey,
+                                                   NULL, 0, NULL, 0, NULL, 0);
+
+    UA_CertificateVerification_AcceptAll(&config_register->secureChannelPKI);
+    UA_CertificateVerification_AcceptAll(&config_register->sessionPKI);
 
     UA_String_clear(&config_register->applicationDescription.applicationUri);
     config_register->applicationDescription.applicationUri =
@@ -150,6 +183,18 @@ registerServer(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&cc);
 
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+
     *running_register = false;
     THREAD_JOIN(server_thread_register);
 
@@ -169,6 +214,18 @@ unregisterServer(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&cc);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -203,6 +260,18 @@ Server_register_semaphore(void) {
     UA_ClientConfig cc;
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&cc);
+
+    /* Load certificate and private key */
+    UA_ByteString certificate;
+    certificate.length = CERT_DER_LENGTH;
+    certificate.data = CERT_DER_DATA;
+
+    UA_ByteString privateKey;
+    privateKey.length = KEY_DER_LENGTH;
+    privateKey.data = KEY_DER_DATA;
+
+    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
