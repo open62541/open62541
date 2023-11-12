@@ -35,6 +35,9 @@ typedef struct {
     UA_Client *client;
     UA_String semaphoreFilePath;
     UA_Boolean unregister;
+
+    UA_Boolean register2;
+    UA_Boolean shutdown;
 } asyncRegisterRequest;
 #define UA_MAXREGISTERREQUESTS 4
 

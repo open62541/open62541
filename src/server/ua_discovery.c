@@ -281,67 +281,54 @@ setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
     rs->discoveryUrlsSize = sc->applicationDescription.discoveryUrlsSize;
 }
 
-//new async response
 static void
 registerAsyncResponse(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    UA_ServerConfig *sc = ar->dm->serverConfig;
-    UA_RegisterServerResponse *response = (UA_RegisterServerResponse*)resp;
-
-    /* Success */
-    UA_StatusCode serviceResult = response->responseHeader.serviceResult;
-    if(serviceResult == UA_STATUSCODE_GOOD) {
-        /* Close the client connection, will be cleaned up in the client state
-         * callback when closing is complete */
-        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
-                    "RegisterServer succeeded");
-    } else {
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                       "RegisterServer failed with error %s",
-                       UA_StatusCode_name(serviceResult));
-    }
-    UA_Client_disconnectSecureChannelAsync(ar->client);
-}
-
-static void
-register2AsyncResponse(UA_Client *client, void *userdata,
-                       UA_UInt32 requestId, void *resp) {
-    asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
     const UA_ServerConfig *sc = ar->dm->serverConfig;
-    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
+    UA_Response *response = (UA_Response*)resp;
+    const char *regtype = (ar->register2) ? "RegisterServer2" : "RegisterServer";
+
+    /* Success registering? */
     if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
-                    "RegisterServer2 succeeded");
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER, "%s succeeded", regtype);
+        goto done;
     }
-    /* Unrecoverable error */
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_BADNOTIMPLEMENTED &&
-       response->responseHeader.serviceResult != UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                       "RegisterServer2 failed with statuscode %s",
-                       UA_StatusCode_name(response->responseHeader.serviceResult));
-        UA_Client_disconnectSecureChannelAsync(ar->client);
-    } else {
-        /* Try RegisterServer2 */
+
+    UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                   "%s failed with statuscode %s", regtype,
+                   UA_StatusCode_name(response->responseHeader.serviceResult));
+
+    /* Try RegisterServer next */
+    ar->register2 = false;
+
+    /* Try RegisterServer immediately if we can.
+     * Otherwise wait for the next state callback. */
+    UA_SecureChannelState ss;
+    UA_Client_getState(client, &ss, NULL, NULL);
+    if(!ar->shutdown && ss == UA_SECURECHANNELSTATE_OPEN) {
         UA_RegisterServerRequest request;
         UA_RegisterServerRequest_init(&request);
         setupRegisterRequest(ar, &request.requestHeader, &request.server);
-
         UA_StatusCode res =
             __UA_Client_AsyncService(client, &request,
                                      &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
                                      registerAsyncResponse,
                                      &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE], ar, NULL);
         if(res != UA_STATUSCODE_GOOD) {
-            /* Close the client connection, will be cleaned up in the client state
-         * callback when closing is complete */
             UA_LOG_ERROR((const UA_Logger *)&sc->logging, UA_LOGCATEGORY_CLIENT,
                          "RegisterServer failed with statuscode %s",
                          UA_StatusCode_name(res));
+            goto done;
         }
     }
+
+    return;
+
+ done:
     /* Close the client connection, will be cleaned up in the client state
      * callback when closing is complete */
+    ar->shutdown = true;
     UA_Client_disconnectSecureChannelAsync(ar->client);
 }
 
@@ -361,9 +348,14 @@ discoveryClientStateCallback(UA_Client *client,
                          "Could not connect to the Discovery server with error %s",
                          UA_StatusCode_name(connectStatus));
         }
-        /* If fully closed, delete the client and clean up */
-        if(channelState == UA_SECURECHANNELSTATE_CLOSED)
-            asyncRegisterRequest_clearAsync(ar);
+
+        /* Connection fully closed */
+        if(channelState == UA_SECURECHANNELSTATE_CLOSED) {
+            if(ar->shutdown)
+                asyncRegisterRequest_clearAsync(ar); /* Clean up */
+            else
+                __UA_Client_connect(client, true);   /* Reconnect */
+        }
         return;
     }
 
@@ -380,26 +372,43 @@ discoveryClientStateCallback(UA_Client *client,
     if(msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return;
 
-    /* Prepare the request. This does not allocate memory */
-    UA_RegisterServer2Request request;
-    UA_RegisterServer2Request_init(&request);
-    setupRegisterRequest(ar, &request.requestHeader, &request.server);
-    /* Set the configuration that is only available for UA_RegisterServer2Request */
+    const UA_DataType *reqType;
+    const UA_DataType *respType;
+    UA_RegisterServerRequest reg1;
+    UA_RegisterServer2Request reg2;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_ExtensionObject mdnsConfig;
-    UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
-                                        &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
-    request.discoveryConfigurationSize = 1;
-    request.discoveryConfiguration = &mdnsConfig;
 #endif
+    void *request;
+
+    /* Prepare the request. This does not allocate memory */
+    if(ar->register2) {
+        UA_RegisterServer2Request_init(&reg2);
+        setupRegisterRequest(ar, &reg2.requestHeader, &reg2.server);
+        reqType = &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST];
+        respType = &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE];
+        request = &reg2;
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+        /* Set the configuration that is only available for
+         * UA_RegisterServer2Request */
+        UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
+                                            &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+        reg2.discoveryConfigurationSize = 1;
+        reg2.discoveryConfiguration = &mdnsConfig;
+#endif
+    } else {
+        UA_RegisterServerRequest_init(&reg1);
+        setupRegisterRequest(ar, &reg1.requestHeader, &reg1.server);
+        reqType = &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST];
+        respType = &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE];
+        request = &reg1;
+    }
 
     /* Try to call RegisterServer2 */
     UA_StatusCode res =
-        __UA_Client_AsyncService(client, &request,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
-                                 register2AsyncResponse,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE],
-                                 ar, NULL);
+        __UA_Client_AsyncService(client, request, reqType, registerAsyncResponse,
+                                 respType, ar, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
@@ -413,7 +422,7 @@ discoveryClientStateCallback(UA_Client *client,
 static UA_StatusCode
 UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister,
                    const UA_String discoveryServerUrl,
-                   const UA_String  semaphoreFilePath) {
+                   const UA_String semaphoreFilePath) {
     /* Get the discovery manager */
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         getServerComponentByName(server, UA_STRING("discovery"));
@@ -485,6 +494,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     ar->server = server;
     ar->dm = dm;
     ar->unregister = unregister;
+    ar->register2 = true; /* Try register2 first */
     UA_String_copy(&semaphoreFilePath, &ar->semaphoreFilePath);
 
     /* Connect asynchronously. The register service is called once the
