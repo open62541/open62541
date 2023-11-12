@@ -259,26 +259,6 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 }
 
 static void
-register2AsyncResponse(UA_Client *client, void *userdata,
-                       UA_UInt32 requestId, void *resp) {
-    asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = ar->dm->serverConfig;
-    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
-                    "RegisterServer succeeded");
-    } else {
-        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
-                       "RegisterServer failed with statuscode %s",
-                       UA_StatusCode_name(response->responseHeader.serviceResult));
-    }
-
-    /* Close the client connection, will be cleaned up in the client state
-     * callback when closing is complete */
-    UA_Client_disconnectSecureChannelAsync(ar->client);
-}
-
-static void
 setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
                      UA_RegisteredServer *rs) {
     UA_ServerConfig *sc = ar->dm->serverConfig;
@@ -301,9 +281,10 @@ setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
     rs->discoveryUrlsSize = sc->applicationDescription.discoveryUrlsSize;
 }
 
+//new async response
 static void
 registerAsyncResponse(UA_Client *client, void *userdata,
-                       UA_UInt32 requestId, void *resp) {
+                      UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
     UA_ServerConfig *sc = ar->dm->serverConfig;
     UA_RegisterServerResponse *response = (UA_RegisterServerResponse*)resp;
@@ -313,52 +294,55 @@ registerAsyncResponse(UA_Client *client, void *userdata,
     if(serviceResult == UA_STATUSCODE_GOOD) {
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
-        UA_Client_disconnectSecureChannelAsync(ar->client);
         UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
                     "RegisterServer succeeded");
-        return;
-    }
-
-    /* Unrecoverable error */
-    if(serviceResult != UA_STATUSCODE_BADNOTIMPLEMENTED &&
-       serviceResult != UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
-        /* Close the client connection, will be cleaned up in the client state
-         * callback when closing is complete */
-        UA_Client_disconnectSecureChannelAsync(ar->client);
+    } else {
         UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
                        "RegisterServer failed with error %s",
                        UA_StatusCode_name(serviceResult));
-        return;
     }
+    UA_Client_disconnectSecureChannelAsync(ar->client);
+}
 
-    /* Try RegisterServer2 */
-    UA_RegisterServer2Request request;
-    UA_RegisterServer2Request_init(&request);
-    setupRegisterRequest(ar, &request.requestHeader, &request.server);
-
-    /* Set the configuration that is only available for UA_RegisterServer2Request */
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_ExtensionObject mdnsConfig;
-    UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
-                                        &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
-    request.discoveryConfigurationSize = 1;
-    request.discoveryConfiguration = &mdnsConfig;
-#endif
-
-    UA_StatusCode res =
-        __UA_Client_AsyncService(client, &request,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
-                                 register2AsyncResponse,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE],
-                                 ar, NULL);
-    if(res != UA_STATUSCODE_GOOD) {
-        /* Close the client connection, will be cleaned up in the client state
-         * callback when closing is complete */
+static void
+register2AsyncResponse(UA_Client *client, void *userdata,
+                       UA_UInt32 requestId, void *resp) {
+    asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
+    const UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_RegisterServer2Response *response = (UA_RegisterServer2Response*)resp;
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(sc->logging, UA_LOGCATEGORY_SERVER,
+                    "RegisterServer2 succeeded");
+    }
+    /* Unrecoverable error */
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_BADNOTIMPLEMENTED &&
+       response->responseHeader.serviceResult != UA_STATUSCODE_BADSERVICEUNSUPPORTED) {
+        UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_SERVER,
+                       "RegisterServer2 failed with statuscode %s",
+                       UA_StatusCode_name(response->responseHeader.serviceResult));
         UA_Client_disconnectSecureChannelAsync(ar->client);
-        UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer2 failed with statuscode %s",
-                     UA_StatusCode_name(res));
+    } else {
+        /* Try RegisterServer2 */
+        UA_RegisterServerRequest request;
+        UA_RegisterServerRequest_init(&request);
+        setupRegisterRequest(ar, &request.requestHeader, &request.server);
+
+        UA_StatusCode res =
+            __UA_Client_AsyncService(client, &request,
+                                     &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
+                                     registerAsyncResponse,
+                                     &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE], ar, NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            /* Close the client connection, will be cleaned up in the client state
+         * callback when closing is complete */
+            UA_LOG_ERROR((const UA_Logger *)&sc->logging, UA_LOGCATEGORY_CLIENT,
+                         "RegisterServer failed with statuscode %s",
+                         UA_StatusCode_name(res));
+        }
     }
+    /* Close the client connection, will be cleaned up in the client state
+     * callback when closing is complete */
+    UA_Client_disconnectSecureChannelAsync(ar->client);
 }
 
 static void
@@ -397,23 +381,31 @@ discoveryClientStateCallback(UA_Client *client,
         return;
 
     /* Prepare the request. This does not allocate memory */
-    UA_RegisterServerRequest request;
-    UA_RegisterServerRequest_init(&request);
+    UA_RegisterServer2Request request;
+    UA_RegisterServer2Request_init(&request);
     setupRegisterRequest(ar, &request.requestHeader, &request.server);
+    /* Set the configuration that is only available for UA_RegisterServer2Request */
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_ExtensionObject mdnsConfig;
+    UA_ExtensionObject_setValueNoDelete(&mdnsConfig, &sc->mdnsConfig,
+                                        &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION]);
+    request.discoveryConfigurationSize = 1;
+    request.discoveryConfiguration = &mdnsConfig;
+#endif
 
-    /* Try to call RegisterServer */
+    /* Try to call RegisterServer2 */
     UA_StatusCode res =
         __UA_Client_AsyncService(client, &request,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVERREQUEST],
-                                 registerAsyncResponse,
-                                 &UA_TYPES[UA_TYPES_REGISTERSERVERRESPONSE],
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2REQUEST],
+                                 register2AsyncResponse,
+                                 &UA_TYPES[UA_TYPES_REGISTERSERVER2RESPONSE],
                                  ar, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         /* Close the client connection, will be cleaned up in the client state
          * callback when closing is complete */
         UA_Client_disconnectSecureChannelAsync(ar->client);
         UA_LOG_ERROR(sc->logging, UA_LOGCATEGORY_CLIENT,
-                     "RegisterServer failed with statuscode %s",
+                     "RegisterServer2 failed with statuscode %s",
                      UA_StatusCode_name(res));
     }
 }
