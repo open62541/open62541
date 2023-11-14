@@ -9,8 +9,10 @@
  * TCP ConnectionManager and uses it for the underlying TCP connections. */
 
 #include <open62541/plugin/eventloop.h>
-#include "../deps/open62541_queue.h"
 
+#ifdef UA_ENABLE_MQTT
+
+#include "../../deps/open62541_queue.h"
 #include <limits.h>
 
 #if defined(_MSC_VER)
@@ -65,8 +67,8 @@ static ssize_t mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size
 static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags);
 
 /* Include headers and source files! We need deep integration to use the above definitions. */
-#include "../deps/mqtt-c/include/mqtt.h"
-#include "../deps/mqtt-c/src/mqtt.c"
+#include "../../deps/mqtt-c/include/mqtt.h"
+#include "../../deps/mqtt-c/src/mqtt.c"
 
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
 #define MQTT_PARAMETERSSIZE 8
@@ -875,3 +877,5 @@ UA_ConnectionManager_new_MQTT(const UA_String eventSourceName) {
     cm->cm.closeConnection = MQTT_shutdownConnection;
     return &cm->cm;
 }
+
+#endif /* UA_ENABLE_MQTT */

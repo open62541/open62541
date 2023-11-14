@@ -815,6 +815,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
+                ${PROJECT_SOURCE_DIR}/src/util/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -868,10 +869,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
-endif()
-
-if (NOT "${UA_ARCHITECTURE}" STREQUAL "none")
-    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h)
 endif()
 
 if(UA_ENABLE_PARSING)
@@ -953,38 +950,6 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
-# Architecture
-set(architecture_headers)
-set(architecture_sources)
-
-if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
-    list(APPEND architecture_headers
-         ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h
-         ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h)
-
-    list(APPEND architecture_sources
-         ${PROJECT_SOURCE_DIR}/arch/posix/ua_clock.c
-         ${PROJECT_SOURCE_DIR}/arch/win32/ua_clock.c
-         ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c)
-
-     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR UA_ENABLE_AMALGAMATION)
-        list(APPEND architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
-    endif()
-
-    if(UA_ENABLE_MQTT)
-        list(APPEND architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
-    endif()
-endif()
-
 
 # Plugins
 set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
@@ -1002,6 +967,22 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
+
+# Always add the POSIX eventloop. The files internally check for the configured architecture
+list(APPEND plugin_sources
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_timer.h
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_timer.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_common.h
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_common.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix.h
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_select.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_epoll.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_tcp.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_udp.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_eth.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_interrupt.c
+     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_mqtt.c)
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1223,9 +1204,9 @@ if(UA_ENABLE_AMALGAMATION)
                        PRE_BUILD
                        COMMAND ${PYTHON_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                               ${lib_headers} ${lib_sources} ${plugin_sources} ${architecture_headers} ${architecture_sources}
+                               ${lib_headers} ${lib_sources} ${plugin_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
-                               ${lib_sources} ${architecture_sources} ${plugin_sources} ${architecture_headers} ${architecture_sources})
+                               ${lib_sources} ${plugin_sources})
 
     add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
     add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
@@ -1262,7 +1243,6 @@ endif()
 
 assign_source_group(${exported_headers})
 assign_source_group(${lib_headers} ${lib_sources})
-assign_source_group(${architecture_headers} ${architecture_sources})
 assign_source_group(${plugin_headers} ${plugin_sources})
 
 if(UA_ENABLE_AMALGAMATION)
@@ -1324,7 +1304,7 @@ else()
                                     PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
     endif()
 
-    add_library(open62541-plugins OBJECT ${plugin_sources} ${architecture_sources} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${plugin_sources} ${exported_headers})
     add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)

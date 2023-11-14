@@ -8,7 +8,6 @@
 
 #include "open62541/types.h"
 #include "eventloop_posix.h"
-#include "eventloop_common.h"
 
 /* Configuration parameters */
 

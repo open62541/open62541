@@ -15,8 +15,7 @@ if (UA_BUILD_FUZZING_CORPUS)
     file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/corpus/custom)
 
     add_executable(corpus_generator ua_debug_dump_pkgs_file.c corpus_generator.c
-                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c)
+                                    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c)
     target_link_libraries(corpus_generator open62541 ${open62541_LIBRARIES})
     assign_source_group(corpus_generator)
     set_target_properties(corpus_generator PROPERTIES FOLDER "open62541/corpus_generator")
@@ -53,53 +52,8 @@ else()
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY $ENV{OUT})
 endif()
 
-#set(CMAKE_EXE_LINKER_FLAGS  "${CMAKE_EXE_LINKER_FLAGS} $ENV{CFLAGS}")
-#link_libraries("-fsanitize-coverage=trace-pc-guard")
 list(APPEND LIBS "${open62541_LIBRARIES}")
 link_libraries("-fsanitize=fuzzer")
-
-# Use different plugins for testing
-set(fuzzing_plugin_sources
-    ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_common.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_select.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_epoll.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_tcp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
-    ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_clock.c
-    ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
-)
-
-if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
-endif()
-
-if(UA_ENABLE_MQTT)
-    list(APPEND fuzzing_plugin_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_mqtt.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
-  list(APPEND fuzzing_plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
-endif()
-
-add_library(open62541-fuzzplugins OBJECT ${fuzzing_plugin_sources})
-add_dependencies(open62541-fuzzplugins open62541)
 
 # the fuzzer test are built directly on the open62541 object files. so they can
 # access symbols that are hidden/not exported to the shared library
@@ -108,8 +62,9 @@ set(FUZZER_TARGETS)
 
 macro(add_fuzzer FUZZER_NAME FUZZER_SOURCE)
     add_executable(${FUZZER_NAME} ${FUZZER_SOURCE}
+                                  ${PROJECT_SOURCE_DIR}/tests/testing-plugins/testing_networklayers.c
                                   $<TARGET_OBJECTS:open62541-object>
-                                  $<TARGET_OBJECTS:open62541-fuzzplugins>)
+                                  $<TARGET_OBJECTS:open62541-plugins>)
     target_link_libraries(${FUZZER_NAME} ${LIBS})
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/src/server)
     target_include_directories(${FUZZER_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/deps/mdnsd)
