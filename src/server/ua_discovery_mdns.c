@@ -37,7 +37,7 @@
 # include <netdb.h> // for recvfrom in cygwin
 #endif
 
-static struct serverOnNetwork_list_entry *
+static struct serverOnNetwork *
 mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *serverName,
                        size_t serverNameLen, UA_Boolean createNew) {
     UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record,
@@ -60,9 +60,10 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record, const char *
     if(!createNew)
         return NULL;
 
-    struct serverOnNetwork_list_entry *listEntry;
-    UA_StatusCode retval = UA_DiscoveryManager_addEntryToServersOnNetwork(dm, record, serverName,
-                                                                          serverNameLen, &listEntry);
+    struct serverOnNetwork *listEntry;
+    UA_StatusCode retval =
+        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, record, serverName,
+                                                       serverNameLen, &listEntry);
     if (retval != UA_STATUSCODE_GOOD)
         return NULL;
 
@@ -75,8 +76,8 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                                                const char *fqdnMdnsRecord,
                                                const char *serverName,
                                                size_t serverNameLen,
-                                               struct serverOnNetwork_list_entry **addedEntry) {
-    struct serverOnNetwork_list_entry *entry =
+                                               struct serverOnNetwork **addedEntry) {
+    struct serverOnNetwork *entry =
             mdns_record_add_or_get(dm, fqdnMdnsRecord, serverName,
                                    serverNameLen, false);
     if(entry) {
@@ -89,8 +90,8 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                 "Multicast DNS: Add entry to ServersOnNetwork: %s (%*.s)",
                  fqdnMdnsRecord, (int)serverNameLen, serverName);
 
-    struct serverOnNetwork_list_entry *listEntry = (serverOnNetwork_list_entry*)
-            UA_malloc(sizeof(struct serverOnNetwork_list_entry));
+    struct serverOnNetwork *listEntry = (serverOnNetwork*)
+            UA_malloc(sizeof(struct serverOnNetwork));
     if(!listEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     listEntry->created = UA_DateTime_now();
@@ -189,7 +190,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                  "Multicast DNS: Remove entry from ServersOnNetwork: %s (%*.s)",
                  fqdnMdnsRecord, (int)serverNameLen, serverName);
 
-    struct serverOnNetwork_list_entry *entry =
+    struct serverOnNetwork *entry =
             mdns_record_add_or_get(dm, fqdnMdnsRecord, serverName,
                                    serverNameLen, false);
     if(!entry)
@@ -248,7 +249,7 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
 
 static void
 setTxt(UA_DiscoveryManager *dm, const struct resource *r,
-       struct serverOnNetwork_list_entry *entry) {
+       struct serverOnNetwork *entry) {
     entry->txtSet = true;
     xht_t *x = txt2sd(r->rdata, r->rdlength);
     char *path = (char *) xht_get(x, "path");
@@ -307,7 +308,7 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
 /* [servername]-[hostname]._opcua-tcp._tcp.local. 86400 IN SRV 0 5 port [hostname]. */
 static void
 setSrv(UA_DiscoveryManager *dm, const struct resource *r,
-       struct serverOnNetwork_list_entry *entry) {
+       struct serverOnNetwork *entry) {
     entry->srvSet = true;
 
     /* The specification Part 12 says: The hostname maps onto the SRV record
@@ -373,7 +374,7 @@ mdns_record_received(const struct resource *r, void *data) {
     servernameLen--; /* remove point */
 
     /* Get entry */
-    struct serverOnNetwork_list_entry *entry =
+    struct serverOnNetwork *entry =
             mdns_record_add_or_get(dm, r->name, r->name,
                                    servernameLen, r->ttl > 0);
     if(!entry)
@@ -1213,7 +1214,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    struct serverOnNetwork_list_entry *listEntry;
+    struct serverOnNetwork *listEntry;
     /* The servername is servername + hostname. It is the same which we get
      * through mDNS and therefore we need to match servername */
     UA_StatusCode retval =

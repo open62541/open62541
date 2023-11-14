@@ -60,7 +60,7 @@ UA_DiscoveryManager_free(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    registeredServer_list_entry *rs, *rs_tmp;
+    registeredServer *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
@@ -68,7 +68,7 @@ UA_DiscoveryManager_free(UA_Server *server,
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    serverOnNetwork_list_entry *son, *son_tmp;
+    serverOnNetwork *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
         LIST_REMOVE(son, pointers);
         UA_ServerOnNetwork_clear(&son->serverOnNetwork);
@@ -108,7 +108,7 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
-    registeredServer_list_entry *current, *temp;
+    registeredServer *current, *temp;
     LIST_FOREACH_SAFE(current, &dm->registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = false;
 

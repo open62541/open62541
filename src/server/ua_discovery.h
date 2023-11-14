@@ -20,11 +20,11 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_DISCOVERY
 
-typedef struct registeredServer_list_entry {
-    LIST_ENTRY(registeredServer_list_entry) pointers;
+typedef struct registeredServer {
+    LIST_ENTRY(registeredServer) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
-} registeredServer_list_entry;
+} registeredServer;
 
 /* Store async register service calls. So we can cancel outstanding requests
  * during shutdown. */
@@ -55,19 +55,19 @@ typedef struct {
  * [hostname]. A [ip].
  */
 
-typedef struct serverOnNetwork_list_entry {
-    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+typedef struct serverOnNetwork {
+    LIST_ENTRY(serverOnNetwork) pointers;
     UA_ServerOnNetwork serverOnNetwork;
     UA_DateTime created;
     UA_DateTime lastSeen;
     UA_Boolean txtSet;
     UA_Boolean srvSet;
     char* pathTmp;
-} serverOnNetwork_list_entry;
+} serverOnNetwork;
 
 #define SERVER_ON_NETWORK_HASH_SIZE 1000
 typedef struct serverOnNetwork_hash_entry {
-    serverOnNetwork_list_entry* entry;
+    serverOnNetwork *entry;
     struct serverOnNetwork_hash_entry* next;
 } serverOnNetwork_hash_entry;
 
@@ -83,7 +83,7 @@ struct UA_DiscoveryManager {
     /* Outstanding requests. So they can be cancelled during shutdown. */
     asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
 
-    LIST_HEAD(, registeredServer_list_entry) registeredServers;
+    LIST_HEAD(, registeredServer) registeredServers;
     size_t registeredServersSize;
     UA_Server_registerServerCallback registerServerCallback;
     void* registerServerCallbackData;
@@ -100,7 +100,7 @@ struct UA_DiscoveryManager {
      * message was from itself */
     UA_String selfFqdnMdnsRecord;
 
-    LIST_HEAD(, serverOnNetwork_list_entry) serverOnNetwork;
+    LIST_HEAD(, serverOnNetwork) serverOnNetwork;
 
     UA_UInt32 serverOnNetworkRecordIdCounter;
     UA_DateTime serverOnNetworkRecordIdLastReset;
@@ -145,7 +145,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                                                const char *fqdnMdnsRecord,
                                                const char *serverName,
                                                size_t serverNameLen,
-                                               struct serverOnNetwork_list_entry **addedEntry);
+                                               struct serverOnNetwork **addedEntry);
 
 UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
