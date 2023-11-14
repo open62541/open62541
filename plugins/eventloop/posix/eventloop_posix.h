@@ -2,6 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
+ *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
+ *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and umati)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
@@ -12,24 +14,160 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
+#include "../eventloop_timer.h"
+#include "../eventloop_common.h"
+#include "../../deps/mp_printf.h"
+#include "../../deps/open62541_queue.h"
+
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
 
-/* Include architecture-specific definitions */
+_UA_BEGIN_DECLS
+
+#include <errno.h>
+
 #if defined(UA_ARCHITECTURE_WIN32)
-#include "win32/ua_architecture.h"
-#elif defined(UA_ARCHITECTURE_POSIX)
-#include "posix/ua_architecture.h"
+
+/*********************/
+/* Win32 Definitions */
+/*********************/
+
+/* Disable some security warnings on MSVC */
+#if defined(_MSC_VER) && !defined(_CRT_SECURE_NO_WARNINGS)
+# define _CRT_SECURE_NO_WARNINGS
 #endif
 
-#include "common/ua_timer.h"
-#include "../deps/mp_printf.h"
-#include "../deps/open62541_queue.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <winsock2.h>
+#include <windows.h>
+#include <ws2tcpip.h>
+#include <basetsd.h>
+
+#ifndef _SSIZE_T_DEFINED
+typedef SSIZE_T ssize_t;
+#endif
+
+#define UA_IPV6 1
+#define UA_SOCKET SOCKET
+#define UA_INVALID_SOCKET INVALID_SOCKET
+#define UA_ERRNO WSAGetLastError()
+#define UA_INTERRUPTED WSAEINTR
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS WSAEINPROGRESS
+#define UA_WOULDBLOCK WSAEWOULDBLOCK
+#define UA_POLLIN POLLRDNORM
+#define UA_POLLOUT POLLWRNORM
+#define UA_SHUT_RDWR SD_BOTH
+
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
+#define UA_poll(fds,nfds,timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
+#define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
+#define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
+#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen) \
+    sendto(sockfd, (const char*)(buf), (int)(len), flags, dest_addr, (int) (addrlen))
+#define UA_close closesocket
+#define UA_select(nfds, readfds, writefds, exceptfds, timeout) \
+    select((int)(nfds), readfds, writefds, exceptfds, timeout)
+#define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
+#define UA_getsockopt(sockfd, level, optname, optval, optlen) \
+    getsockopt(sockfd, level, optname, (char*) (optval), optlen)
+#define UA_setsockopt(sockfd, level, optname, optval, optlen) \
+    setsockopt(sockfd, level, optname, (const char*) (optval), optlen)
+#define UA_inet_pton InetPton
+
+#if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+
+# include <iphlpapi.h>
+
+#endif
+
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) { \
+    char *errno_str = NULL; \
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, \
+    NULL, WSAGetLastError(), \
+    MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), \
+    (LPSTR)&errno_str, 0, NULL); \
+    LOG; \
+    LocalFree(errno_str); \
+}
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP UA_LOG_SOCKET_ERRNO_WRAP
+
+/* Fix redefinition of SLIST_ENTRY on mingw winnt.h */
+#if !defined(_SYS_QUEUE_H_) && defined(SLIST_ENTRY)
+# undef SLIST_ENTRY
+#endif
+
+#elif defined(UA_ARCHITECTURE_POSIX)
+
+/*********************/
+/* POSIX Definitions */
+/*********************/
+
+#include <arpa/inet.h>
+#include <netinet/tcp.h>
+#include <netdb.h>
+#include <sys/ioctl.h>
+#include <sys/select.h>
+#include <net/if.h>
+#include <poll.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
+# include <sys/param.h>
+# if defined(BSD)
+#  include <sys/socket.h>
+# endif
+#endif
+
+#define UA_IPV6 1
+#define UA_SOCKET int
+#define UA_INVALID_SOCKET -1
+#define UA_ERRNO errno
+#define UA_INTERRUPTED EINTR
+#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
+#define UA_INPROGRESS EINPROGRESS
+#define UA_WOULDBLOCK EWOULDBLOCK
+#define UA_POLLIN POLLIN
+#define UA_POLLOUT POLLOUT
+#define UA_SHUT_RDWR SHUT_RDWR
+
+#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
+    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_poll poll
+#define UA_send send
+#define UA_recv recv
+#define UA_sendto sendto
+#define UA_close close
+#define UA_select select
+#define UA_connect connect
+#define UA_getsockopt getsockopt
+#define UA_setsockopt setsockopt
+#define UA_inet_pton inet_pton
+#if UA_IPV6
+# define UA_if_nametoindex if_nametoindex
+#endif
+
+#define UA_clean_errno(STR_FUN) \
+    (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) \
+    { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; }
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) \
+    { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; }
 
 /* epoll_pwait returns bogus data with the tc compiler */
 #if defined(__linux__) && !defined(__TINYC__)
 # define UA_HAVE_EPOLL
 # include <sys/epoll.h>
 #endif
+
+#endif
+
+/***********************/
+/* General Definitions */
+/***********************/
 
 #define UA_MAXBACKLOG 100
 #define UA_MAXHOSTNAME_LENGTH 256
@@ -42,8 +180,6 @@
 #ifndef MSG_DONTWAIT
 #define MSG_DONTWAIT 0
 #endif
-
-_UA_BEGIN_DECLS
 
 /* POSIX events are based on sockets / file descriptors. The EventSources can
  * register their fd in the EventLoop so that they are considered by the
@@ -127,9 +263,7 @@ typedef struct {
 #endif
 } UA_EventLoopPOSIX;
 
-/*
- * The following functions differ between epoll and normal select
- */
+/* The following functions differ between epoll and normal select */
 
 /* Register to start receiving events */
 UA_StatusCode
@@ -146,7 +280,7 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd);
 UA_StatusCode
 UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
 
-/* Helper functions between EventSources */
+/* Helper functions across EventSources */
 
 UA_StatusCode
 UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm);
@@ -161,10 +295,6 @@ void
 UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf);
-
-/*
- * Helper functions to be used across protocols
- */
 
 /* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
  * connections inherit this state. */

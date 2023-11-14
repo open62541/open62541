@@ -26,9 +26,8 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     )
 
     add_executable(check_nodeset_loader_compare_di check_nodeset_loader_compare_di.c
-                   ${UA_NODESET_NODESETLOADER_DI_SOURCES}
-                   ${UA_TYPES_NODESETLOADER_DI_SOURCES}
-                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+                   ${UA_NODESET_NODESETLOADER_DI_SOURCES} ${UA_TYPES_NODESETLOADER_DI_SOURCES}
+                   $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
     add_dependencies(check_nodeset_loader_compare_di open62541-generator-ns-nodesetloader-di)
     target_link_libraries(check_nodeset_loader_compare_di ${LIBS})
     add_test_valgrind(check_nodeset_loader_compare_di ${TESTS_BINARY_DIR}/check_nodeset_loader_compare_di)

@@ -9,7 +9,6 @@
  */
 
 #include "eventloop_posix.h"
-#include "eventloop_common.h"
 
 #if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
 

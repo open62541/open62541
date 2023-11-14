@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "ua_timer.h"
+#include "../plugins/eventloop/eventloop_timer.h"
 
 #include <check.h>
 #include <stdlib.h>
