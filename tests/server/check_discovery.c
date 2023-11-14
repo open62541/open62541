@@ -106,7 +106,6 @@ setup_lds(void) {
 
     // wait until LDS started
     UA_fakeSleep(1000);
-    UA_realSleep(1000);
 }
 
 static void
@@ -193,6 +192,7 @@ registerServer(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -205,13 +205,10 @@ registerServer(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 static void
 unregisterServer(void) {
-    UA_Client *clientRegister = UA_Client_newForUnitTest();
-
     /* Load certificate and private key */
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
@@ -225,6 +222,7 @@ unregisterServer(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -237,7 +235,6 @@ unregisterServer(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
@@ -256,8 +253,6 @@ Server_register_semaphore(void) {
     fclose(fp);
 #endif
 
-    UA_Client *clientRegister = UA_Client_newForUnitTest();
-
     /* Load certificate and private key */
     UA_ByteString certificate;
     certificate.length = CERT_DER_LENGTH;
@@ -271,6 +266,7 @@ Server_register_semaphore(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -284,7 +280,6 @@ Server_register_semaphore(void) {
     THREAD_CREATE(server_thread_register, serverloop_register);
 
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-    UA_realSleep(1000);
 }
 
 static void
@@ -295,7 +290,7 @@ Server_unregister_semaphore(void) {
 
 #endif /* UA_ENABLE_DISCOVERY_SEMAPHORE */
 
-static void
+static UA_Boolean
 FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
              const UA_String expectedLocales[],
              const UA_String expectedNames[],
@@ -324,10 +319,12 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
         localeIds[0] = UA_String_fromChars(filterLocale);
     }
 
+    UA_Boolean found = false;
     UA_StatusCode retval =
         UA_Client_findServers(client, "opc.tcp://localhost:4840",
                               serverUrisSize, serverUris, localeIdsSize, localeIds,
                               &applicationDescriptionArraySize, &applicationDescriptionArray);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     if(filterUri)
         UA_Array_delete(serverUris, serverUrisSize, &UA_TYPES[UA_TYPES_STRING]);
@@ -335,30 +332,35 @@ FindAndCheck(const UA_String expectedUris[], size_t expectedUrisSize,
     if(filterLocale)
         UA_Array_delete(localeIds, localeIdsSize, &UA_TYPES[UA_TYPES_STRING]);
 
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
     // only the discovery server is expected
-    ck_assert_uint_eq(applicationDescriptionArraySize, expectedUrisSize);
-    ck_assert(applicationDescriptionArray != NULL);
+    if(applicationDescriptionArraySize != expectedUrisSize)
+        goto done;
 
     for(size_t i = 0; i < expectedUrisSize; ++i) {
-        ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationUri,
-                                  &expectedUris[i]));
+        if(!UA_String_equal(&applicationDescriptionArray[i].applicationUri,
+                            &expectedUris[i]))
+            goto done;
 
-        if(expectedNames)
-            ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationName.text,
-                                      &expectedNames[i]));
+        if(expectedNames &&
+           !UA_String_equal(&applicationDescriptionArray[i].applicationName.text,
+                            &expectedNames[i]))
+            goto done;
+            
 
-        if(expectedLocales)
-            ck_assert(UA_String_equal(&applicationDescriptionArray[i].applicationName.locale,
-                                      &expectedLocales[i]));
+        if(expectedLocales &&
+           !UA_String_equal(&applicationDescriptionArray[i].applicationName.locale,
+                            &expectedLocales[i]))
+            goto done;
     }
 
+    found = true;
+
+ done:
     UA_Array_delete(applicationDescriptionArray, applicationDescriptionArraySize,
                     &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
+    return found;
 }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
@@ -489,16 +491,16 @@ GetEndpointsAndCheck(const char* discoveryUrl, const char* filterTransportProfil
 }
 
 // Test if discovery server lists himself as registered server if it is filtered by his uri
-static void
+static UA_Boolean
 Client_filter_discovery(void) {
     UA_String expectedUris[1];
     expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
-    FindAndCheck(expectedUris, 1, NULL, NULL,
-                 "urn:open62541.test.local_discovery_server", NULL);
+    return FindAndCheck(expectedUris, 1, NULL, NULL,
+                        "urn:open62541.test.local_discovery_server", NULL);
 }
 
 // Test if server filters locale
-static void
+static UA_Boolean
 Client_filter_locale(void) {
     UA_String expectedUris[2];
     expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server"),
@@ -510,7 +512,7 @@ Client_filter_locale(void) {
     expectedLocales[0] = UA_STRING("en");
     expectedLocales[1] = UA_STRING("de");
     // even if we request en-US, the server will return de-DE because it only has that name.
-    FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
+    return FindAndCheck(expectedUris, 2, expectedLocales, expectedNames, NULL, "en");
 }
 
 // Test if registered server is returned from LDS using FindServersOnNetwork
@@ -552,11 +554,12 @@ Client_find_on_network_registered(void) {
 }
 
 // Test if filtering with uris works
-static void
+static UA_Boolean
 Client_find_filter(void) {
     UA_String expectedUris[1];
     expectedUris[0] = UA_STRING("urn:open62541.test.server_register");
-    FindAndCheck(expectedUris, 1, NULL, NULL, "urn:open62541.test.server_register", NULL);
+    return FindAndCheck(expectedUris, 1, NULL, NULL,
+                        "urn:open62541.test.server_register", NULL);
 }
 
 static void
@@ -580,20 +583,20 @@ Client_get_endpoints(void) {
 #endif
 
 // Test if discovery server lists himself as registered server, before any other registration.
-static void
+static UA_Boolean
 Client_find_discovery(void) {
     UA_String expectedUris[1];
     expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
-    FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
+    return FindAndCheck(expectedUris, 1, NULL, NULL, NULL, NULL);
 }
 
 // Test if registered server is returned from LDS
-static void
+static UA_Boolean
 Client_find_registered(void) {
     UA_String expectedUris[2];
     expectedUris[0] = UA_STRING("urn:open62541.test.local_discovery_server");
     expectedUris[1] = UA_STRING("urn:open62541.test.server_register");
-    FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
+    return FindAndCheck(expectedUris, 2, NULL, NULL, NULL, NULL);
 }
 
 START_TEST(Server_new_delete) {
@@ -621,55 +624,55 @@ END_TEST
 
 START_TEST(Server_registerTimeout) {
     registerServer();
-    Client_find_registered();
+
+    while(!Client_find_registered()) {}
 
     // wait until server is removed by timeout. Additionally wait a few seconds
     // more to be sure.
     UA_fakeSleep(100000 * checkWait);
-    UA_realSleep(1000);
 
-    Client_find_discovery();
+    while(!Client_find_discovery()) {}
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
     // now check if semaphore file works
     Server_register_semaphore();
-    Client_find_registered();
+
+    while(!Client_find_registered()) {}
+
     Server_unregister_semaphore();
 
     // wait until server is removed by timeout. Additionally wait a few seconds
     // more to be sure.
     UA_fakeSleep(100000 * checkWait);
-    UA_realSleep(1000);
 
-    Client_find_discovery();
+    while(!Client_find_discovery()) {}
 #endif
 }
 END_TEST
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 START_TEST(Server_registerFindServers) {
-    Client_find_discovery();
+    while(!Client_find_discovery()) {}
 
     registerServer();
 
-    Client_find_registered();
+    while(!Client_find_registered()) {}
 
     UA_fakeSleep(4000);
-    UA_realSleep(4000);
 
     Client_find_on_network_registered();
 
-    Client_find_filter();
+    while(!Client_find_filter()) {}
 
     Client_get_endpoints();
 
-    Client_filter_locale();
+    while(!Client_filter_locale()) {}
 
     unregisterServer();
 
-    Client_find_discovery();
+    while(!Client_find_discovery()) {}
 
-    Client_filter_discovery();
+    while(!Client_filter_discovery()) {}
 }
 END_TEST
 #endif
