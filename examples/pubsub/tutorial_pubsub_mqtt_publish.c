@@ -478,7 +478,7 @@ int main(int argc, char **argv) {
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 #endif
 
     addPubSubConnection(server, addressUrl);

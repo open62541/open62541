@@ -217,6 +217,10 @@ serverSetHistoryData_backend_memory(UA_Server *server,
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
+    if(!newItem->value.hasServerTimestamp) {
+        newItem->value.serverTimestamp = timestamp;
+        newItem->value.hasServerTimestamp = true;
+    }
     size_t index = getDateTimeMatch_backend_memory(server,
                                                    context,
                                                    NULL,
@@ -426,6 +430,11 @@ insertDataValue_backend_memory(UA_Server *server,
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
+    if(!newItem->value.hasServerTimestamp) {
+        newItem->value.serverTimestamp = timestamp;
+        newItem->value.hasServerTimestamp = true;
+    }
+
     if (item->storeEnd > 0 && index < item->storeEnd) {
         memmove(&item->dataStore[index+1], &item->dataStore[index], sizeof(UA_DataValueMemoryStoreItem*) * (item->storeEnd - index));
     }
@@ -458,6 +467,10 @@ replaceDataValue_backend_memory(UA_Server *server,
         return UA_STATUSCODE_BADNOENTRYEXISTS;
     UA_DataValue_clear(&item->dataStore[index]->value);
     UA_DataValue_copy(value, &item->dataStore[index]->value);
+    if(!item->dataStore[index]->value.hasServerTimestamp) {
+        item->dataStore[index]->value.serverTimestamp = timestamp;
+        item->dataStore[index]->value.hasServerTimestamp = true;
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -670,6 +683,11 @@ serverSetHistoryData_backend_memory_Circular(UA_Server *server,
     UA_DataValueMemoryStoreItem *newItem = (UA_DataValueMemoryStoreItem *)UA_calloc(1, sizeof(UA_DataValueMemoryStoreItem));
     newItem->timestamp = timestamp;
     UA_DataValue_copy(value, &newItem->value);
+    if(!newItem->value.hasServerTimestamp) {
+        newItem->value.serverTimestamp = timestamp;
+        newItem->value.hasServerTimestamp = true;
+    }
+
 
     /* This implementation does NOT sort values by timestamp */
 

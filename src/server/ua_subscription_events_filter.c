@@ -499,8 +499,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 #endif
         }
 
-        v = UA_Server_readWithSession(server, session, &rvi,
-                                      UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
     } else {
         /* Resolve the browse path, starting from the event-source (and not the
          * typeDefinitionId). */
@@ -517,8 +516,7 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 
         /* Use the first match */
         rvi.nodeId = bpr.targets[0].targetId.nodeId;
-        v = UA_Server_readWithSession(server, session, &rvi,
-                                      UA_TIMESTAMPSTORETURN_NEITHER);
+        v = readWithSession(server, session, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
         UA_BrowsePathResult_clear(&bpr);
     }
 
@@ -603,7 +601,7 @@ ofTypeOperator(UA_FilterEvalContext *ctx, size_t index) {
     UA_CHECK_STATUS(res, return res);
 
     if(!UA_Variant_hasScalarType(&eventTypeVar, &UA_TYPES[UA_TYPES_NODEID])) {
-        UA_LOG_WARNING(&ctx->server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(ctx->server->config.logging, UA_LOGCATEGORY_SERVER,
                        "EventType has an invalid type.");
         UA_Variant_clear(&eventTypeVar);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -868,8 +866,7 @@ inListOperator(UA_FilterEvalContext *ctx, size_t index) {
         res = resolveOperand(ctx, &elm->filterOperands[i], op1);
         if(res != UA_STATUSCODE_GOOD)
             continue;
-        if(op0->type == op1->type &&
-           UA_order(op0->data, op1->data, op0->type) == UA_ORDER_EQ)
+        if(op0->type == op1->type && UA_equal(op0->data, op1->data, op0->type))
             found = true;
         UA_Variant_clear(op1);
     }

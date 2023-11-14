@@ -79,7 +79,7 @@ static void setup(void) {
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
-                                      &config->logger);
+                                      config->logging);
     UA_Server_run_startup(server);
 }
 

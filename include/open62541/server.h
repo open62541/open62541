@@ -27,6 +27,8 @@
 #include <open62541/plugin/accesscontrol.h>
 #include <open62541/plugin/securitypolicy.h>
 
+#include <open62541/client.h>
+
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
@@ -80,9 +82,7 @@ typedef struct {
  * The :ref:`tutorials` provide a good starting point for this. */
 
 struct UA_ServerConfig {
-    UA_Logger logger;   /* logger is deprecated but still supported at this time.
-                           Use logging pointer instead. */
-    UA_Logger *logging; /* If NULL and "logger" is set, make this point to "logger" */
+    const UA_Logger *logging; /* Plugin for log output */
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
                     * pointer to the server. */
@@ -567,7 +567,7 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getSessionAttributeCopy(UA_Server *server, const UA_NodeId *sessionId,
                                   const UA_QualifiedName key, UA_Variant *outValue);
 
-/* Returns NULL if the parameter is not defined or not a scalar or not of the
+/* Returns NULL if the attribute is not defined or not a scalar or not of the
  * right datatype. Otherwise a shallow copy of the scalar value is created at
  * the target location of the void pointer. Hence don't use this in a
  * multi-threaded application. */
@@ -992,64 +992,38 @@ UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
 
 /**
  * Discovery
- * --------- */
-/* Register the given server instance at the discovery server.
- * This should be called periodically.
- * The semaphoreFilePath is optional. If the given file is deleted,
- * the server will automatically be unregistered. This could be
- * for example a pid file which is deleted if the server crashes.
+ * ---------
  *
- * When the server shuts down you need to call unregister.
+ * Registering at a Discovery Server
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+
+/* Register the given server instance at the discovery server. This should be
+ * called periodically, for example every 10 minutes, depending on the
+ * configuration of the discovery server. You should also call
+ * _unregisterDiscovery when the server shuts down.
  *
- * @param server
- * @param client the client which is used to call the RegisterServer. It must
- *        already be connected to the correct endpoint
- * @param semaphoreFilePath optional parameter pointing to semaphore file. */
+ * The supplied client configuration is used to create a new client to connect
+ * to the discovery server. The client configuration is moved over to the server
+ * and eventually cleaned up internally. The structure pointed at by `cc` is
+ * zeroed to avoid accessing outdated information.
+ *
+ * The eventloop and logging plugins in the client configuration are replaced by
+ * those configured in the server. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_register_discovery(UA_Server *server, struct UA_Client *client,
-                             const char* semaphoreFilePath);
+UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
+                            const UA_String discoveryServerUrl,
+                            const UA_String semaphoreFilePath);
 
-/* Unregister the given server instance from the discovery server.
- * This should only be called when the server is shutting down.
- * @param server
- * @param client the client which is used to call the RegisterServer. It must
- *        already be connected to the correct endpoint */
+/* Deregister the given server instance from the discovery server.
+ * This should be called when the server is shutting down. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_unregister_discovery(UA_Server *server, struct UA_Client *client);
+UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
+                              const UA_String discoveryServerUrl);
 
- /* Adds a periodic callback to register the server with the LDS (local
-  * discovery server) periodically. The interval between each register call is
-  * given as second parameter. It should be 10 minutes by default (=
-  * 10*60*1000).
-  *
-  * The delayFirstRegisterMs parameter indicates the delay for the first
-  * register call. If it is 0, the first register call will be after intervalMs
-  * milliseconds, otherwise the server's first register will be after
-  * delayFirstRegisterMs.
-  *
-  * When you manually unregister the server, you also need to cancel the
-  * periodic callback, otherwise it will be automatically be registered again.
-  *
-  * If you call this method multiple times for the same discoveryServerUrl, the
-  * older periodic callback will be removed.
-  *
-  * @param server
-  * @param client the client which is used to call the RegisterServer. It must
-  *         not yet be connected and will be connected for every register call
-  *         to the given discoveryServerUrl.
-  * @param discoveryServerUrl where this server should register itself. The
-  *        string will be copied internally. Therefore you can free it after
-  *        calling this method.
-  * @param intervalMs
-  * @param delayFirstRegisterMs
-  * @param periodicCallbackId */
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_addPeriodicServerRegisterCallback(UA_Server *server,
-                                            struct UA_Client *client,
-                                            const char* discoveryServerUrl,
-                                            UA_Double intervalMs,
-                                            UA_Double delayFirstRegisterMs,
-                                            UA_UInt64 *periodicCallbackId);
+/**
+ * Operating a Discovery Server
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ */
 
 /* Callback for RegisterServer. Data is passed from the register call */
 typedef void
@@ -1456,6 +1430,13 @@ UA_Server_addDataSourceVariableNode(UA_Server *server,
                                     const UA_VariableAttributes attr,
                                     const UA_DataSource dataSource,
                                     void *nodeContext, UA_NodeId *outNewNodeId);
+
+/* VariableNodes that are "dynamic" (default for user-created variables) receive
+ * and store a SourceTimestamp. For non-dynamic VariableNodes the current time
+ * is used for the SourceTimestamp. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNodeDynamic(UA_Server *server, const UA_NodeId nodeId,
+                                 UA_Boolean isDynamic);
 
 #ifdef UA_ENABLE_METHODCALLS
 

@@ -36,7 +36,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buffer, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+        UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
                                   "PubSub receive. decoding headers failed");
         UA_NetworkMessage_clear(nm);
         return rv;
@@ -56,10 +56,10 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
             if(retval != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
-            rv = verifyAndDecryptNetworkMessage(&server->config.logger, buffer, pos,
+            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, pos,
                                                 nm, readerGroup);
             if(rv != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_CONNECTION(&server->config.logger, connection,
+                UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
                                           "Subscribe failed, verify and decrypt "
                                           "network message failed.");
                 UA_NetworkMessage_clear(nm);
@@ -73,7 +73,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_INFO_CONNECTION(&server->config.logger, connection,
+        UA_LOG_INFO_CONNECTION(server->config.logging, connection,
                                "Dataset reader not found. Check PublisherId, "
                                "WriterGroupId and DatasetWriterId");
         /* Possible multicast scenario: there are multiple connections (with one
@@ -164,14 +164,14 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     /* Validate preconditions */
     UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
     UA_CHECK_ERROR(cc != NULL, return UA_STATUSCODE_BADINTERNALERROR,
-                   &server->config.logger, UA_LOGCATEGORY_SERVER,
+                   server->config.logging, UA_LOGCATEGORY_SERVER,
                    "PubSub Connection creation failed. Missing connection configuration.");
 
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection *)
         UA_calloc(1, sizeof(UA_PubSubConnection));
     if(!c) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub Connection creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -336,7 +336,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                                    UA_PUBSUBSTATE_ERROR, ret);
             break;
         default:
-            UA_LOG_WARNING_CONNECTION(&server->config.logger, c,
+            UA_LOG_WARNING_CONNECTION(server->config.logging, c,
                                       "Received unknown PubSub state!");
             return UA_STATUSCODE_BADINTERNALERROR;
     }

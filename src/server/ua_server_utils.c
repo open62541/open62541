@@ -359,7 +359,10 @@ const UA_VariableAttributes UA_VariableAttributes_default = {
      {UA_NS0ID_BASEDATATYPE}},   /* dataType */
     UA_VALUERANK_ANY,            /* valueRank */
     0, NULL,                     /* arrayDimensions */
-    UA_ACCESSLEVELMASK_READ, 0,  /* accessLevel (userAccessLevel) */
+    UA_ACCESSLEVELMASK_READ |    /* accessLevel */
+    UA_ACCESSLEVELMASK_STATUSWRITE |
+    UA_ACCESSLEVELMASK_TIMESTAMPWRITE,
+    0,                           /* userAccessLevel */
     0.0,                         /* minimumSamplingInterval */
     false                        /* historizing */
 };

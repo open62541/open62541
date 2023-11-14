@@ -312,10 +312,6 @@ if(UA_ENABLE_SUBSCRIPTIONS)
   ua_add_test(server/check_local_monitored_item.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY)
-    ua_add_test(server/check_discovery.c)
-endif()
-
 if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_encoding.c)
     ua_add_test(pubsub/check_pubsub_encoding_custom.c)
@@ -423,6 +419,10 @@ if(UA_ENABLE_ENCRYPTION)
         ua_add_test(client/check_client_authentication.c)
     else()
         MESSAGE(WARNING "Certificate authentication with LibreSSL as crypto backend is not supported.")
+    endif()
+
+    if(UA_ENABLE_DISCOVERY)
+        ua_add_test(server/check_discovery.c)
     endif()
 endif()
 

@@ -8,7 +8,7 @@
 #include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>

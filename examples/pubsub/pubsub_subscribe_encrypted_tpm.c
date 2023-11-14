@@ -294,7 +294,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     config->pubSubConfig.securityPoliciesSize = 1;
 
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
-                                         encryptionKeyLabel, signingKeyLabel, &config->logger);
+                                         encryptionKeyLabel, signingKeyLabel, config->logging);
 
     /* API calls */
     /* Add PubSubConnection */

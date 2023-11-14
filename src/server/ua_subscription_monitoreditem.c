@@ -227,7 +227,7 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
      * adding the new Notification. */
     UA_MonitoredItem_ensureQueueSpace(server, mon);
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                               "MonitoredItem %" PRIi32 " | "
                               "Notification enqueued (Queue size %lu / %lu)",
                               mon->monitoredItemId,
@@ -279,7 +279,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > nowMonotonic)) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, mon->subscription,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
                                   "Notification enqueued (Queue size %lu)",
                                   (long unsigned)mon->subscription->notificationQueueSize);
     }
@@ -316,7 +316,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         triggeredMon->triggeredUntil = nowMonotonic +
             (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
 
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "MonitoredItem %u triggers MonitoredItem %u",
                                   mon->monitoredItemId, triggeredMon->monitoredItemId);
     }
@@ -471,7 +471,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         return;
 
     UA_Subscription *sub = mon->subscription;
-    UA_LOG_INFO_SUBSCRIPTION(&server->config.logger, sub,
+    UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
                              "MonitoredItem %" PRIi32 " | Deleting the MonitoredItem",
                              mon->monitoredItemId);
 
@@ -729,11 +729,10 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
         return res;
-    } else if(mon->parameters.samplingInterval < 0.0) {
+    } else if(sub && mon->parameters.samplingInterval == sub->publishingInterval) {
         /* Add to the subscription for sampling before every publish */
-        if(!sub)
-            return UA_STATUSCODE_BADINTERNALERROR; /* Not possible for local MonitoredItems */
-        LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon, sampling.samplingListEntry);
+        LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon,
+                         sampling.subscriptionSampling);
         mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH;
     } else {
         /* DataChange MonitoredItems with a positive sampling interval have a
@@ -773,7 +772,7 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
 
     case UA_MONITOREDITEMSAMPLINGTYPE_PUBLISH:
         /* Added to the subscription */
-        LIST_REMOVE(mon, sampling.samplingListEntry);
+        LIST_REMOVE(mon, sampling.subscriptionSampling);
         break;
 
     case UA_MONITOREDITEMSAMPLINGTYPE_NONE:

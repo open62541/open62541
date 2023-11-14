@@ -11,7 +11,7 @@
 #include "eventloop_posix.h"
 #include "eventloop_common.h"
 
-#ifdef UA_ARCHITECTURE_POSIX
+#if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
 
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
@@ -1097,4 +1097,5 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName) {
     return &cm->cm;
 }
 
-#endif /* defined(UA_ARCHITECTURE_POSIX) */
+#endif /* defined(UA_ARCHITECTURE_POSIX) && defined(__linux__) */
+

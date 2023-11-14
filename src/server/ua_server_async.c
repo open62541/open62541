@@ -28,7 +28,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     if(!session) {
         UA_String sessionId = UA_STRING_NULL;
         UA_NodeId_print(&ar->sessionId, &sessionId);
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Async Service: Session %.*s no longer exists",
                        (int)sessionId.length, sessionId.data);
         UA_String_clear(&sessionId);
@@ -39,7 +39,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     /* Check the channel */
     UA_SecureChannel *channel = session->header.channel;
     if(!channel) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Service Response cannot be sent. "
                                "No SecureChannel for the session.");
         UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
@@ -56,7 +56,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         sendResponse(server, session, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_SESSION(&server->config.logger, session,
+        UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Response for Req# %" PRIu32 " failed "
                                "with StatusCode %s", ar->requestId,
                                UA_StatusCode_name(res));
@@ -78,7 +78,7 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
     /* Reduce the number of open results */
     ar->opCountdown -= 1;
 
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Return result in the server thread with %" PRIu32 " remaining",
                  ar->opCountdown);
 
@@ -110,6 +110,8 @@ processAsyncResults(UA_Server *server) {
         if(integrateOperationResult(am, server, ao))
             count++;
         UA_AsyncOperation_delete(ao);
+        /* Pacify clang-analyzer */
+        UA_assert(TAILQ_FIRST(&am->resultQueue) != ao);
         am->opsCount--;
     }
     UA_UNLOCK(&am->queueLock);
@@ -139,7 +141,7 @@ checkTimeouts(UA_Server *server, void *_) {
         op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
     }
 
@@ -153,7 +155,7 @@ checkTimeouts(UA_Server *server, void *_) {
         op->response.statusCode = UA_STATUSCODE_BADTIMEOUT;
         TAILQ_REMOVE(&am->newQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Operation was removed due to a timeout");
     }
 
@@ -264,7 +266,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               const UA_CallMethodRequest *opRequest) {
     if(server->config.maxAsyncOperationQueueSize != 0 &&
        am->opsCount >= server->config.maxAsyncOperationQueueSize) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetNextAsyncMethod: Queue exceeds limit (%d).",
                        (int unsigned)server->config.maxAsyncOperationQueueSize);
         return UA_STATUSCODE_BADUNEXPECTEDERROR;
@@ -272,14 +274,14 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
 
     UA_AsyncOperation *ao = (UA_AsyncOperation*)UA_calloc(1, sizeof(UA_AsyncOperation));
     if(!ao) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "UA_Server_SetNextAsyncMethod: Mem alloc failed.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
     UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
     if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
         UA_free(ao);
         return result;
@@ -337,7 +339,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     UA_AsyncOperation *ao = (UA_AsyncOperation*)context;
     if(!ao) {
         /* Something went wrong. Not a good AsyncOp. */
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: Invalid context");
         return;
     }
@@ -355,7 +357,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
             break;
     }
     if(!op) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: The operation has timed out");
         UA_UNLOCK(&am->queueLock);
         return;
@@ -365,7 +367,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
     UA_StatusCode result =
         UA_CallMethodResult_copy(&response->callMethodResult, &ao->response);
     if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: UA_CallMethodResult_copy failed.");
         ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -376,7 +378,7 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 
     UA_UNLOCK(&am->queueLock);
 
-    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Set the result from the worker thread");
 }
 

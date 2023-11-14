@@ -388,8 +388,24 @@ UA_Client_writeValueAttribute(UA_Client *client, const UA_NodeId nodeId,
 })
 
 UA_INLINABLE( UA_StatusCode
+UA_Client_writeValueAttribute_scalar(UA_Client *client, const UA_NodeId nodeId,
+                                     const void *newValue,
+                                     const UA_DataType *valueType), {
+    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                      newValue, valueType);
+})
+
+/* Write a DataValue that can include timestamps and status codes */
+UA_INLINABLE( UA_StatusCode
+UA_Client_writeValueAttributeEx(UA_Client *client, const UA_NodeId nodeId,
+                                const UA_DataValue *newValue), {
+    return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_VALUE,
+                                      newValue, &UA_TYPES[UA_TYPES_DATAVALUE]);
+})
+
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeDataTypeAttribute(UA_Client *client, const UA_NodeId nodeId,
-                                 const UA_NodeId *newDataType) ,{
+                                 const UA_NodeId *newDataType), {
     return __UA_Client_writeAttribute(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                                       newDataType, &UA_TYPES[UA_TYPES_NODEID]);
 })
