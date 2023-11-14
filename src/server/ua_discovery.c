@@ -351,10 +351,12 @@ discoveryClientStateCallback(UA_Client *client,
 
         /* Connection fully closed */
         if(channelState == UA_SECURECHANNELSTATE_CLOSED) {
-            if(ar->shutdown)
+            if(!ar->connectSuccess || ar->shutdown) {
                 asyncRegisterRequest_clearAsync(ar); /* Clean up */
-            else
+            } else {
+                ar->connectSuccess = false;
                 __UA_Client_connect(client, true);   /* Reconnect */
+            }
         }
         return;
     }
@@ -362,6 +364,9 @@ discoveryClientStateCallback(UA_Client *client,
     /* Wait until the SecureChannel is open */
     if(channelState != UA_SECURECHANNELSTATE_OPEN)
         return;
+
+    /* We have at least succeeded to connect */
+    ar->connectSuccess = true;
 
     /* Is this the encrypted SecureChannel already? (We might have to wait for
      * the second connection after the FindServers handshake */
@@ -499,6 +504,7 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
 
     /* Connect asynchronously. The register service is called once the
      * connection is open. */
+    ar->connectSuccess = false;
     return __UA_Client_connect(ar->client, true);
 }
 
