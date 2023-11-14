@@ -38,6 +38,7 @@ typedef struct {
 
     UA_Boolean register2;
     UA_Boolean shutdown;
+    UA_Boolean connectSuccess;
 } asyncRegisterRequest;
 #define UA_MAXREGISTERREQUESTS 4
 
