@@ -50,6 +50,7 @@ connection_releaserecvbuffer(UA_Connection *connection,
     UA_ByteString_clear(buf);
 }
 
+#ifdef poll
 static UA_StatusCode
 connection_write(UA_Connection *connection, UA_ByteString *buf) {
     if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
@@ -94,6 +95,41 @@ connection_write(UA_Connection *connection, UA_ByteString *buf) {
     UA_ByteString_clear(buf);
     return UA_STATUSCODE_GOOD;
 }
+#else
+static UA_StatusCode
+connection_write(UA_Connection *connection, UA_ByteString *buf) {
+    if(connection->state == UA_CONNECTIONSTATE_CLOSED) {
+        UA_ByteString_clear(buf);
+        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+    }
+
+    /* Prevent OS signals when sending to a closed socket */
+    int flags = 0;
+    flags |= MSG_NOSIGNAL;
+
+    /* Send the full buffer. This may require several calls to send */
+    size_t nWritten = 0;
+    do {
+        ssize_t n = 0;
+        do {
+            size_t bytes_to_send = buf->length - nWritten;
+            n = UA_send(connection->sockfd,
+                     (const char*)buf->data + nWritten,
+                     bytes_to_send, flags);
+            if(n < 0 && UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_AGAIN) {
+                connection->close(connection);
+                UA_ByteString_clear(buf);
+                return UA_STATUSCODE_BADCONNECTIONCLOSED;
+            }
+        } while(n < 0);
+        nWritten += (size_t)n;
+    } while(nWritten < buf->length);
+
+    /* Free the buffer */
+    UA_ByteString_clear(buf);
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 static UA_StatusCode
 connection_recv(UA_Connection *connection, UA_ByteString *response,
