@@ -306,8 +306,9 @@ writeStatus(UA_Server *server, const UA_NodeId *sessionId,
     if(!UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_UINT32]))
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
+    UA_EventLoop *el = server->config.eventLoop;
     UA_UInt32 *endTime = (UA_UInt32*)value->value.data;
-    server->endTime = UA_DateTime_now() + (UA_DateTime)(*endTime * UA_DATETIME_SEC);
+    server->endTime = el->dateTime_now(el) + (UA_DateTime)(*endTime * UA_DATETIME_SEC);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -315,6 +316,8 @@ static UA_StatusCode
 readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
            const UA_NodeId *nodeId, void *nodeContext, UA_Boolean sourceTimestamp,
            const UA_NumericRange *range, UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -323,7 +326,7 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 
     if(sourceTimestamp) {
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
 
     void *data = NULL;
@@ -336,7 +339,7 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         if(!shutdown)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         if(server->endTime != 0)
-            *shutdown = (UA_UInt32)((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+            *shutdown = (UA_UInt32)((server->endTime - el->dateTime_now(el)) / UA_DATETIME_SEC);
         value->value.data = shutdown;
         value->value.type = &UA_TYPES[UA_TYPES_UINT32];
         value->hasValue = true;
@@ -360,14 +363,14 @@ readStatus(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
         if(!statustype)
             return UA_STATUSCODE_BADOUTOFMEMORY;
         statustype->startTime = server->startTime;
-        statustype->currentTime = UA_DateTime_now();
+        statustype->currentTime = el->dateTime_now(el);
 
         statustype->state = UA_SERVERSTATE_RUNNING;
         statustype->secondsTillShutdown = 0;
         if(server->endTime != 0) {
             statustype->state = UA_SERVERSTATE_SHUTDOWN;
             statustype->secondsTillShutdown = (UA_UInt32)
-                ((server->endTime - UA_DateTime_now()) / UA_DATETIME_SEC);
+                ((server->endTime - el->dateTime_now(el)) / UA_DATETIME_SEC);
         }
 
         value->value.data = statustype;
@@ -432,6 +435,8 @@ static UA_StatusCode
 readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                  const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                  const UA_NumericRange *range, UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -448,7 +453,7 @@ readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
     value->hasValue = true;
     if(includeSourceTimeStamp) {
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -457,6 +462,8 @@ static UA_StatusCode
 readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
              const UA_NodeId *nodeId, void *nodeContext, UA_Boolean includeSourceTimeStamp,
              const UA_NumericRange *range, UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -473,7 +480,7 @@ readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     value->hasValue = true;
     if(includeSourceTimeStamp) {
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -484,6 +491,8 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
                const UA_NumericRange *range,
                UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     /* ensure that the uri for ns1 is set up from the app description */
     setupNs1Uri(server);
 
@@ -500,7 +509,7 @@ readNamespaces(UA_Server *server, const UA_NodeId *sessionId, void *sessionConte
     value->hasValue = true;
     if(includeSourceTimeStamp) {
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -548,12 +557,15 @@ static UA_StatusCode
 readCurrentTime(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                 const UA_NodeId *nodeid, void *nodeContext, UA_Boolean sourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
         return UA_STATUSCODE_GOOD;
     }
-    UA_DateTime currentTime = UA_DateTime_now();
+
+    UA_DateTime currentTime = el->dateTime_now(el);
     UA_StatusCode retval = UA_Variant_setScalarCopy(&value->value, &currentTime,
                                                     &UA_TYPES[UA_TYPES_DATETIME]);
     if(retval != UA_STATUSCODE_GOOD)
@@ -609,8 +621,9 @@ readOperationLimits(UA_Server *server, const UA_NodeId *sessionId, void *session
 static UA_StatusCode
 readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                const UA_NodeId *nodeid, void *nodeContext, UA_Boolean includeSourceTimeStamp,
-               const UA_NumericRange *range,
-               UA_DataValue *value) {
+               const UA_NumericRange *range, UA_DataValue *value) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     if(range) {
         value->hasStatus = true;
         value->status = UA_STATUSCODE_BADINDEXRANGEINVALID;
@@ -630,7 +643,7 @@ readMinSamplingInterval(UA_Server *server, const UA_NodeId *sessionId, void *ses
     value->hasValue = true;
     if(includeSourceTimeStamp) {
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
     return UA_STATUSCODE_GOOD;
 }

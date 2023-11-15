@@ -98,13 +98,13 @@ UA_DiscoveryManager_free(UA_Server *server,
  * removed. If there is no semaphore file, then the registration will be removed
  * if it is older than 60 minutes. */
 static void
-UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
-                                    void *data) {
+UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
+    UA_EventLoop *el = server->config.eventLoop;
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)data;
 
     /* TimedOut gives the last DateTime at which we must have seen the
      * registered server. Otherwise it is timed out. */
-    UA_DateTime timedOut = UA_DateTime_nowMonotonic();
+    UA_DateTime timedOut = el->dateTime_nowMonotonic(el);
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
@@ -217,7 +217,8 @@ UA_DiscoveryManager_new(UA_Server *server) {
         return NULL;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     dm->sc.name = UA_STRING("discovery");

@@ -104,9 +104,10 @@ END_TEST
 START_TEST(Session_updateLifetime_ShallWork) {
     UA_Session session;
     UA_Session_init(&session);
+    UA_DateTime now = UA_DateTime_now();
     UA_DateTime tmpDateTime;
     tmpDateTime = session.validTill;
-    UA_Session_updateLifetime(&session, tmpDateTime);
+    UA_Session_updateLifetime(&session, now, tmpDateTime);
 
     UA_Int32 result = (session.validTill >= tmpDateTime);
     ck_assert_int_gt(result,0);

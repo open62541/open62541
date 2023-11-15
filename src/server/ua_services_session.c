@@ -257,8 +257,9 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
         UA_Session_attachToSecureChannel(&newentry->session, channel);
 
     UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_now(el);
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    UA_Session_updateLifetime(&newentry->session, nowMonotonic);
+    UA_Session_updateLifetime(&newentry->session, now, nowMonotonic);
 
     /* Add to the server */
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
@@ -390,7 +391,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    newSession->diagnostics.clientConnectionTime = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    newSession->diagnostics.clientConnectionTime = el->dateTime_now(el);
     newSession->diagnostics.clientLastContactTime =
         newSession->diagnostics.clientConnectionTime;
 
@@ -722,8 +724,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Has the session timed out? */
     UA_EventLoop *el = server->config.eventLoop;
-    UA_DateTime now = el->dateTime_nowMonotonic(el);
-    if(session->validTill < now) {
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    if(session->validTill < nowMonotonic) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -837,8 +839,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Update the Session lifetime */
-    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    UA_Session_updateLifetime(session, nowMonotonic);
+    nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_DateTime now = el->dateTime_now(el);
+    UA_Session_updateLifetime(session, now, nowMonotonic);
 
     /* Activate the session */
     if(!session->activated) {
