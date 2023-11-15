@@ -152,8 +152,8 @@ struct UA_MonitoredItem {
     union {
         UA_UInt64 callbackId;
         UA_MonitoredItem *nodeListNext; /* Event-Based: Attached to Node */
-        LIST_ENTRY(UA_MonitoredItem) samplingListEntry; /* Publish-interval: Linked in
-                                                         * Subscription */
+        LIST_ENTRY(UA_MonitoredItem) subscriptionSampling; /* Linked to publish
+                                                            * interval */
     } sampling;
     UA_DataValue lastValue;
 
@@ -226,10 +226,10 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /* We use only a subset of the states defined in the standard */
 typedef enum {
-    UA_SUBSCRIPTIONSTATE_DISABLED,
+    UA_SUBSCRIPTIONSTATE_STOPPED = 0,
     UA_SUBSCRIPTIONSTATE_REMOVING,
-    UA_SUBSCRIPTIONSTATE_NORMAL,
-    UA_SUBSCRIPTIONSTATE_LATE
+    UA_SUBSCRIPTIONSTATE_ENABLED_NOPUBLISH, /* only keepalive */
+    UA_SUBSCRIPTIONSTATE_ENABLED
 } UA_SubscriptionState;
 
 /* Subscriptions are managed in a server-wide linked list. If they are attached
@@ -255,6 +255,7 @@ struct UA_Subscription {
 
     /* Runtime information */
     UA_SubscriptionState state;
+    UA_Boolean late;
     UA_StatusCode statusChange; /* If set, a notification is generated and the
                                  * Subscription is deleted within
                                  * UA_Subscription_publish. */
@@ -291,6 +292,8 @@ struct UA_Subscription {
     /* Statistics for the server diagnostics. The fields are defined according
      * to the SubscriptionDiagnosticsDataType (Part 5, §12.15). */
 #ifdef UA_ENABLE_DIAGNOSTICS
+    UA_NodeId ns0Id; /* Representation in the Session object */
+
     UA_UInt32 modifyCount;
     UA_UInt32 enableCount;
     UA_UInt32 disableCount;
@@ -316,10 +319,8 @@ void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub);
 
 UA_StatusCode
-Subscription_enable(UA_Server *server, UA_Subscription *sub);
-
-void
-Subscription_disable(UA_Server *server, UA_Subscription *sub);
+Subscription_setState(UA_Server *server, UA_Subscription *sub,
+                      UA_SubscriptionState state);
 
 void
 Subscription_resetLifetime(UA_Subscription *sub);
@@ -327,9 +328,6 @@ Subscription_resetLifetime(UA_Subscription *sub);
 UA_MonitoredItem *
 UA_Subscription_getMonitoredItem(UA_Subscription *sub,
                                  UA_UInt32 monitoredItemId);
-
-void
-UA_Subscription_sampleAndPublish(UA_Server *server, UA_Subscription *sub);
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);

@@ -55,10 +55,10 @@ struct UA_CertificateVerification {
     /* Delete the certificate verification context */
     void (*clear)(UA_CertificateVerification *cv);
 
-    /* Pointer to logging pointer in the server/client configuration.
-       If the logging pointer is changed outside of the plugin, the new
-       logger is used automatically*/
-    UA_Logger **logging;
+    /* Pointer to logging pointer in the server/client configuration. If the
+     * logging pointer is changed outside of the plugin, the new logger is used
+     * automatically*/
+    const UA_Logger *logging;
 };
 
 _UA_END_DECLS

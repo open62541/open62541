@@ -75,13 +75,12 @@ detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
 }
 
 static UA_Boolean
-detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
-                  const UA_DataValue *value) {
+detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *dv) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Status changes are always reported */
-    if(value->hasStatus != mon->lastValue.hasStatus ||
-       value->status != mon->lastValue.status) {
+    if(dv->hasStatus != mon->lastValue.hasStatus ||
+       dv->status != mon->lastValue.status) {
         return true;
     }
 
@@ -105,47 +104,46 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon,
 
     /* Test absolute deadband */
     if(dcf && dcf->deadbandType == UA_DEADBANDTYPE_ABSOLUTE &&
-       value->value.type != NULL && UA_DataType_isNumeric(value->value.type))
-        return detectVariantDeadband(&value->value, &mon->lastValue.value,
+       dv->value.type != NULL && UA_DataType_isNumeric(dv->value.type))
+        return detectVariantDeadband(&dv->value, &mon->lastValue.value,
                                      dcf->deadbandValue);
 
     /* Compare the source timestamp if the trigger requires that */
     if(trigger == UA_DATACHANGETRIGGER_STATUSVALUETIMESTAMP) {
-        if(value->hasSourceTimestamp != mon->lastValue.hasSourceTimestamp)
+        if(dv->hasSourceTimestamp != mon->lastValue.hasSourceTimestamp)
             return true;
-        if(value->hasSourceTimestamp &&
-           value->sourceTimestamp != mon->lastValue.sourceTimestamp)
+        if(dv->hasSourceTimestamp &&
+           dv->sourceTimestamp != mon->lastValue.sourceTimestamp)
             return true;
     }
 
     /* Has the value changed? */
-    if(value->hasValue != mon->lastValue.hasValue)
+    if(dv->hasValue != mon->lastValue.hasValue)
         return true;
-    return (UA_order(&value->value, &mon->lastValue.value,
-                     &UA_TYPES[UA_TYPES_VARIANT]) != UA_ORDER_EQ);
+    return !UA_equal(&dv->value, &mon->lastValue.value,
+                     &UA_TYPES[UA_TYPES_VARIANT]);
 }
 
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon,
-                                              const UA_DataValue *value) {
+                                              UA_MonitoredItem *mon, const UA_DataValue *dv) {
     /* Allocate a new notification */
-    UA_Notification *newNotification = UA_Notification_new();
-    if(!newNotification)
+    UA_Notification *newNot = UA_Notification_new();
+    if(!newNot)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Prepare the notification */
-    newNotification->mon = mon;
-    newNotification->data.dataChange.clientHandle = mon->parameters.clientHandle;
-    UA_StatusCode retval = UA_DataValue_copy(value, &newNotification->data.dataChange.value);
+    newNot->mon = mon;
+    newNot->data.dataChange.clientHandle = mon->parameters.clientHandle;
+    UA_StatusCode retval = UA_DataValue_copy(dv, &newNot->data.dataChange.value);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(newNotification);
+        UA_free(newNot);
         return retval;
     }
 
     /* Enqueue the notification */
     UA_assert(sub);
-    UA_Notification_enqueueAndTrigger(server, newNotification);
+    UA_Notification_enqueueAndTrigger(server, newNot);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -159,7 +157,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
@@ -200,41 +198,38 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 }
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK(&server->serviceMutex);
-    monitoredItem_sampleCallback(server, monitoredItem);
+    monitoredItem_sampleCallback(server, mon);
     UA_UNLOCK(&server->serviceMutex);
 }
 
 void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem) {
+monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_Subscription *sub = monitoredItem->subscription;
+    UA_Subscription *sub = mon->subscription;
     UA_Session *session = &server->adminSession;
     if(sub)
         session = sub->session;
 
-    UA_LOG_DEBUG_SUBSCRIPTION(&server->config.logger, sub,
-                              "MonitoredItem %" PRIi32 " | "
-                              "Sample callback called", monitoredItem->monitoredItemId);
+    UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
+                              " | Sample callback called", mon->monitoredItemId);
 
-    UA_assert(monitoredItem->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
+    UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     /* Sample the value. The sample can still point into the node. */
-    UA_DataValue value = UA_Server_readWithSession(server, session,
-                                                   &monitoredItem->itemToMonitor,
-                                                   monitoredItem->timestampsToReturn);
+    UA_DataValue dv = readWithSession(server, session, &mon->itemToMonitor,
+                                         mon->timestampsToReturn);
 
     /* Operate on the sample. The sample is consumed when the status is good. */
-    UA_StatusCode res = sampleCallbackWithValue(server, sub, monitoredItem, &value);
+    UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &dv);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_DataValue_clear(&value);
-        UA_LOG_WARNING_SUBSCRIPTION(&server->config.logger, sub,
+        UA_DataValue_clear(&dv);
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
                                     "MonitoredItem %" PRIi32 " | "
                                     "Sampling returned the statuscode %s",
-                                    monitoredItem->monitoredItemId,
-                                    UA_StatusCode_name(res));
+                                    mon->monitoredItemId, UA_StatusCode_name(res));
     }
 }
 

@@ -1669,7 +1669,7 @@ int main(int argc, char **argv) {
 
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(PUBLISHER)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
-                                      &config->logger);
+                                      config->logging);
 #endif
 
 #if defined(PUBLISHER)
@@ -1713,7 +1713,7 @@ int main(int argc, char **argv) {
 
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && defined(SUBSCRIBER)
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[1],
-                                      &config->logger);
+                                      config->logging);
 #endif
 
 #if defined(SUBSCRIBER)

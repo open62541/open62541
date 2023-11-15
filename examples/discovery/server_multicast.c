@@ -70,8 +70,8 @@ serverOnNetworkCallback(const UA_ServerOnNetwork *serverOnNetwork, UA_Boolean is
  * @param discoveryServerUrl The discovery url from the remote server
  * @return The endpoint description (which needs to be freed) or NULL
  */
-static
-UA_EndpointDescription *getRegisterEndpointFromServer(const char *discoveryServerUrl) {
+static UA_EndpointDescription *
+getRegisterEndpointFromServer(const char *discoveryServerUrl) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
     UA_EndpointDescription *endpointArray = NULL;
@@ -161,19 +161,19 @@ static UA_ByteString loadFile(const char *const path) {
  * @param argv from the main method
  * @return NULL or the initialized non-connected client
  */
-static
-UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc, char **argv) {
+static UA_StatusCode
+getRegisterClient(UA_ClientConfig *cc, UA_EndpointDescription *endpointRegister, int argc, char **argv) {
+    UA_ClientConfig_setDefault(cc);
     if(endpointRegister->securityMode == UA_MESSAGESECURITYMODE_NONE) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Using LDS endpoint with security None");
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-        return client;
+        return UA_STATUSCODE_GOOD;
     }
+
 #ifdef UA_ENABLE_ENCRYPTION
     if(endpointRegister->securityMode == UA_MESSAGESECURITYMODE_SIGN) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                     "LDS endpoint which only supports Sign is currently not supported");
-        return NULL;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -185,7 +185,7 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
                          "The required arguments are "
                          "<client-certificate.der> <client-private-key.der> "
                          "[<trustlist1.crl>, ...]");
-        return NULL;
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Load certificate and key */
@@ -203,8 +203,6 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
         trustList[trustListCount] = loadFile(argv[trustListCount + 3]);
 
     /* Secure client initialization */
-    UA_Client *clientRegister = UA_Client_new();
-    UA_ClientConfig *cc = UA_Client_getConfig(clientRegister);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
@@ -214,11 +212,9 @@ UA_Client *getRegisterClient(UA_EndpointDescription *endpointRegister, int argc,
     UA_ByteString_clear(&privateKey);
     for(size_t deleteCount = 0; deleteCount < trustListSize; deleteCount++)
         UA_ByteString_clear(&trustList[deleteCount]);
-
-    return clientRegister;
-#else
-    return NULL;
 #endif
+
+    return UA_STATUSCODE_GOOD;
 }
 
 int main(int argc, char **argv) {
@@ -300,49 +296,46 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    UA_Client *clientRegister = getRegisterClient(endpointRegister, argc, argv);
-    if(!clientRegister) {
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    retval = getRegisterClient(&cc, endpointRegister, argc, argv);
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "Could not create the client for remote registering");
+        UA_ClientConfig_clear(&cc);
         UA_Server_run_shutdown(server);
         UA_Server_delete(server);
+        UA_EndpointDescription_delete(endpointRegister);
         return EXIT_FAILURE;
     }
 
-    /* Connect the client */
-    char *endpointUrl = (char*)UA_malloc(endpointRegister->endpointUrl.length + 1);
-    memcpy(endpointUrl, endpointRegister->endpointUrl.data, endpointRegister->endpointUrl.length);
-    endpointUrl[endpointRegister->endpointUrl.length] = 0;
-    UA_EndpointDescription_delete(endpointRegister);
-    retval = UA_Server_addPeriodicServerRegisterCallback(server, clientRegister, endpointUrl,
-                                                         10 * 60 * 1000, 500, NULL);
+    /* Register the server */
+    retval = UA_Server_registerDiscovery(server, &cc, endpointRegister->endpointUrl, UA_STRING_NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not create periodic job for server register. StatusCode %s",
                      UA_StatusCode_name(retval));
-        UA_free(endpointUrl);
-        UA_Client_disconnect(clientRegister);
-        UA_Client_delete(clientRegister);
         UA_Server_run_shutdown(server);
         UA_Server_delete(server);
+        UA_EndpointDescription_delete(endpointRegister);
         return EXIT_FAILURE;
     }
 
-    while (running)
+    while(running)
         UA_Server_run_iterate(server, true);
 
     UA_Server_run_shutdown(server);
 
-    // UNregister the server from the discovery server.
-    retval = UA_Server_unregister_discovery(server, clientRegister);
+    /* Deregister the server from the discovery server */
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    retval = getRegisterClient(&cc, endpointRegister, argc, argv);
+    retval |= UA_Server_deregisterDiscovery(server, &cc, endpointRegister->endpointUrl);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
                      "Could not unregister server from discovery server. "
                      "StatusCode %s", UA_StatusCode_name(retval));
 
-    UA_free(endpointUrl);
-    UA_Client_disconnect(clientRegister);
-    UA_Client_delete(clientRegister);
     UA_Server_delete(server);
+    UA_EndpointDescription_delete(endpointRegister);
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

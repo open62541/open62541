@@ -92,15 +92,10 @@ checkAdjustArguments(UA_Server *server, UA_Session *session,
     UA_Argument *argReqs = (UA_Argument*)argRequirements->value.data.value.value.data;
     const char *reason;
     for(size_t i = 0; i < argReqsSize; ++i) {
-        if(compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
-                           argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
-                           &args[i], NULL, &reason))
-            continue;
-
         /* Incompatible value. Try to correct the type if possible. */
         adjustValueType(server, &args[i], &argReqs[i].dataType);
 
-        /* Recheck */
+        /* Check */
         if(!compatibleValue(server, session, &argReqs[i].dataType, argReqs[i].valueRank,
                             argReqs[i].arrayDimensionsSize, argReqs[i].arrayDimensions,
                             &args[i], NULL, &reason)) {
@@ -434,7 +429,7 @@ void
 Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                   const UA_CallRequest *request, UA_CallResponse *response,
                   UA_Boolean *finished) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequestAsync");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequestAsync");
     if(server->config.maxNodesPerMethodCall != 0 &&
         request->methodsToCallSize > server->config.maxNodesPerMethodCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
@@ -508,7 +503,7 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
 
 void Service_Call(UA_Server *server, UA_Session *session,
                   const UA_CallRequest *request, UA_CallResponse *response) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing CallRequest");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing CallRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(server->config.maxNodesPerMethodCall != 0 &&

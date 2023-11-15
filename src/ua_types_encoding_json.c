@@ -246,7 +246,7 @@ isNull(const void *p, const UA_DataType *type) {
         return false;
     UA_STACKARRAY(char, buf, type->memSize);
     memset(buf, 0, type->memSize);
-    return (UA_order(buf, p, type) == UA_ORDER_EQ);
+    return UA_equal(buf, p, type);
 }
 
 /* Boolean */

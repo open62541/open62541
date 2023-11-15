@@ -20,25 +20,27 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_DISCOVERY
 
-typedef struct registeredServer_list_entry {
-    LIST_ENTRY(registeredServer_list_entry) pointers;
+typedef struct registeredServer {
+    LIST_ENTRY(registeredServer) pointers;
     UA_RegisteredServer registeredServer;
     UA_DateTime lastSeen;
-} registeredServer_list_entry;
+} registeredServer;
 
-struct PeriodicServerRegisterCallback {
-    UA_UInt64 id;
-    UA_Double this_interval;
-    UA_Double default_interval;
-    UA_Boolean registered;
-    struct UA_Client* client;
-    char* discovery_server_url;
-};
+/* Store async register service calls. So we can cancel outstanding requests
+ * during shutdown. */
+typedef struct {
+    UA_DelayedCallback cleanupCallback; /* delayed cleanup */
+    UA_Server *server;
+    UA_DiscoveryManager *dm;
+    UA_Client *client;
+    UA_String semaphoreFilePath;
+    UA_Boolean unregister;
 
-typedef struct periodicServerRegisterCallback_entry {
-    LIST_ENTRY(periodicServerRegisterCallback_entry) pointers;
-    struct PeriodicServerRegisterCallback *callback;
-} periodicServerRegisterCallback_entry;
+    UA_Boolean register2;
+    UA_Boolean shutdown;
+    UA_Boolean connectSuccess;
+} asyncRegisterRequest;
+#define UA_MAXREGISTERREQUESTS 4
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
@@ -54,19 +56,19 @@ typedef struct periodicServerRegisterCallback_entry {
  * [hostname]. A [ip].
  */
 
-typedef struct serverOnNetwork_list_entry {
-    LIST_ENTRY(serverOnNetwork_list_entry) pointers;
+typedef struct serverOnNetwork {
+    LIST_ENTRY(serverOnNetwork) pointers;
     UA_ServerOnNetwork serverOnNetwork;
     UA_DateTime created;
     UA_DateTime lastSeen;
     UA_Boolean txtSet;
     UA_Boolean srvSet;
     char* pathTmp;
-} serverOnNetwork_list_entry;
+} serverOnNetwork;
 
 #define SERVER_ON_NETWORK_HASH_SIZE 1000
 typedef struct serverOnNetwork_hash_entry {
-    serverOnNetwork_list_entry* entry;
+    serverOnNetwork *entry;
     struct serverOnNetwork_hash_entry* next;
 } serverOnNetwork_hash_entry;
 
@@ -79,8 +81,10 @@ struct UA_DiscoveryManager {
 
     UA_Server *server; /* backpointer */
 
-    LIST_HEAD(, periodicServerRegisterCallback_entry) periodicServerRegisterCallbacks;
-    LIST_HEAD(, registeredServer_list_entry) registeredServers;
+    /* Outstanding requests. So they can be cancelled during shutdown. */
+    asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
+
+    LIST_HEAD(, registeredServer) registeredServers;
     size_t registeredServersSize;
     UA_Server_registerServerCallback registerServerCallback;
     void* registerServerCallbackData;
@@ -97,7 +101,7 @@ struct UA_DiscoveryManager {
      * message was from itself */
     UA_String selfFqdnMdnsRecord;
 
-    LIST_HEAD(, serverOnNetwork_list_entry) serverOnNetwork;
+    LIST_HEAD(, serverOnNetwork) serverOnNetwork;
 
     UA_UInt32 serverOnNetworkRecordIdCounter;
     UA_DateTime serverOnNetworkRecordIdLastReset;
@@ -133,6 +137,24 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
                                        const UA_String *discoveryUrl, UA_Boolean isOnline,
                                        UA_Boolean updateTxt);
 
+void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm);
+void UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm);
+
+UA_StatusCode
+UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
+                                               const char *fqdnMdnsRecord,
+                                               const char *serverName,
+                                               size_t serverNameLen,
+                                               struct serverOnNetwork **addedEntry);
+
+UA_StatusCode
+UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
+                                                    const char *fqdnMdnsRecord,
+                                                    const char *serverName,
+                                                    size_t serverNameLen);
+
+
 void mdns_record_received(const struct resource *r, void *data);
 
 void mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain,
@@ -146,23 +168,6 @@ void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDom
 mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
-
-void startMulticastDiscoveryServer(UA_Server *server);
-void stopMulticastDiscoveryServer(UA_Server *server);
-void sendMulticastMessages(UA_DiscoveryManager *dm);
-
-UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               const char *fqdnMdnsRecord,
-                                               const char *serverName,
-                                               size_t serverNameLen,
-                                               struct serverOnNetwork_list_entry **addedEntry);
-
-UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
-                                                    const char *fqdnMdnsRecord,
-                                                    const char *serverName,
-                                                    size_t serverNameLen);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 

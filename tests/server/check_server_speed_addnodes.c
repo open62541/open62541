@@ -17,7 +17,7 @@ static void setup(void) {
     ck_assert(server != NULL);
     /* Disable logging */
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->logger.log = NULL;
+    config->logging = NULL;
 }
 
 static void teardown(void) {

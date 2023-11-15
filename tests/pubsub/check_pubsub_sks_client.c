@@ -152,7 +152,7 @@ skssetup(void) {
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     /*User Access Control*/
     config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
@@ -175,7 +175,7 @@ publishersetup(void) {
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -205,7 +205,7 @@ subscribersetup(void) {
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -372,7 +372,7 @@ addSubscriber(UA_Server *server) {
 
     retval = UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                         &readerIdentifier);
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER, "%s \n",
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "%s \n",
                 UA_StatusCode_name(retval));
     /*Add Subscribed Variable and target variable */
     UA_NodeId folderId;

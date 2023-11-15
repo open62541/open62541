@@ -444,9 +444,14 @@ UA_WRITEATTRIBUTEFUNCS(AccessLevel, UA_ATTRIBUTEID_ACCESSLEVEL, UA_Byte, BYTE)
 UA_WRITEATTRIBUTEFUNCS(MinimumSamplingInterval, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                        UA_Double, DOUBLE)
 
+void
+Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv);
+
 UA_DataValue
-readAttribute(UA_Server *server, const UA_ReadValueId *item,
-              UA_TimestampsToReturn timestamps);
+readWithSession(UA_Server *server, UA_Session *session,
+                const UA_ReadValueId *item,
+                UA_TimestampsToReturn timestampsToReturn);
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
@@ -462,7 +467,7 @@ translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath)
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
-void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
+void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_Subscription *
 getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
@@ -532,11 +537,6 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 #ifdef UA_ENABLE_DISCOVERY
 UA_ServerComponent *
 UA_DiscoveryManager_new(UA_Server *server);
-
-UA_StatusCode
-register_server_with_discovery_server(UA_Server *server, void *client,
-                                      const UA_Boolean isUnregister,
-                                      const char* semaphoreFilePath);
 #endif
 
 UA_ServerComponent *
@@ -663,11 +663,6 @@ struct BrowseOpts {
 void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
-
-UA_DataValue
-UA_Server_readWithSession(UA_Server *server, UA_Session *session,
-                          const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestampsToReturn);
 
 /************/
 /* AddNodes */

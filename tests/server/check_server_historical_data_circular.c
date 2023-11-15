@@ -116,9 +116,13 @@ static void teardown(void) {
 
 static UA_StatusCode
 setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
-    UA_Variant variant;
-    UA_Variant_setScalar(&variant, &value, &UA_TYPES[UA_TYPES_UINT32]);
-    return UA_Client_writeValueAttribute(thisClient, node, &variant);
+    UA_DataValue dv;
+    UA_DataValue_init(&dv);
+    UA_Variant_setScalar(&dv.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
+    dv.hasValue = true;
+    dv.sourceTimestamp = UA_DateTime_now();
+    dv.hasSourceTimestamp = true;
+    return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
 
 void

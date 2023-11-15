@@ -27,7 +27,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     case UA_SECURITYTOKENREQUESTTYPE_ISSUE:
         /* We must expect an OPN handshake */
         if(channel->state != UA_SECURECHANNELSTATE_ACK_SENT) {
-            UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                                  "Called open on already open or closed channel");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
             goto error;
@@ -46,7 +46,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     case UA_SECURITYTOKENREQUESTTYPE_RENEW:
         /* The channel must be open to be renewed */
         if(channel->state != UA_SECURECHANNELSTATE_OPEN) {
-            UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                                  "Called renew on channel which is not open");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADINTERNALERROR;
             goto error;
@@ -55,7 +55,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
         /* Check whether the nonce was reused */
         if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE &&
            UA_ByteString_equal(&channel->remoteNonce, &request->clientNonce)) {
-            UA_LOG_ERROR_CHANNEL(&server->config.logger, channel,
+            UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
                                  "The client reused the last nonce");
             response->responseHeader.serviceResult = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
             goto error;
@@ -104,14 +104,14 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Success */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "SecureChannel opened with SecurityPolicy %.*s "
                             "and a revised lifetime of %.2fs",
                             (int)channel->securityPolicy->policyUri.length,
                             channel->securityPolicy->policyUri.data,
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     } else {
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel, "SecureChannel renewed "
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel, "SecureChannel renewed "
                             "with a revised lifetime of %.2fs",
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     }
@@ -120,10 +120,10 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
  error:
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
-        UA_LOG_INFO_CHANNEL(&server->config.logger, channel,
+        UA_LOG_INFO_CHANNEL(server->config.logging, channel,
                             "Opening a SecureChannel failed");
     } else {
-        UA_LOG_DEBUG_CHANNEL(&server->config.logger, channel,
+        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Renewing SecureChannel failed");
     }
 }

@@ -75,12 +75,14 @@ if("${UA_ARCHITECTURE}" STREQUAL "")
     endif(UNIX)
 endif()
 
-message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
+if (NOT UA_ENABLE_AMALGAMATION OR (UA_ENABLE_AMALGAMATION AND NOT UA_AMALGAMATION_MULTIARCH))
+    message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 
-if("${UA_ARCHITECTURE}" STREQUAL "posix")
-    set(UA_ARCHITECTURE_POSIX 1)
-elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
-    set(UA_ARCHITECTURE_WIN32 1)
+    if("${UA_ARCHITECTURE}" STREQUAL "posix")
+        set(UA_ARCHITECTURE_POSIX 1)
+    elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
+        set(UA_ARCHITECTURE_WIN32 1)
+    endif()
 endif()
 
 #################
@@ -94,6 +96,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
+option(UA_AMALGAMATION_MULTIARCH "Create an architecture-independent amalgamation if UA_ENABLE_AMALGAMATION is ON" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 300 CACHE STRING "Minimal level at which logs shall be reported (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" ON)
@@ -774,13 +777,14 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
 
 # Main Library
+
 set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/deps/pcg_basic.h
                 ${PROJECT_SOURCE_DIR}/deps/libc_time.h
@@ -822,7 +826,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_async.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_method.c
@@ -833,7 +836,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_monitoreditem.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
-                ${PROJECT_SOURCE_DIR}/src/server/ua_services_discovery_multicast.c
                 # pubsub
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_eventloop.c
@@ -866,6 +868,10 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
     list(APPEND lib_sources ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c)
+endif()
+
+if (NOT "${UA_ARCHITECTURE}" STREQUAL "none")
+    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h)
 endif()
 
 if(UA_ENABLE_PARSING)
@@ -936,7 +942,7 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/src/server/ua_server_discovery_mdns.c
+         ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
          ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
@@ -953,7 +959,6 @@ set(architecture_sources)
 
 if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
     list(APPEND architecture_headers
-         ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
          ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
@@ -971,7 +976,7 @@ if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_udp.c
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_interrupt.c)
 
-    if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR UA_ENABLE_AMALGAMATION)
         list(APPEND architecture_sources ${PROJECT_SOURCE_DIR}/arch/eventloop_posix_eth.c)
     endif()
 
@@ -1073,8 +1078,8 @@ list(INSERT plugin_sources 0
 endif()
 
 if(UA_ENABLE_DISCOVERY)
-    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.h)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_manager.c)
+    list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.h)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.c)
 endif()
 
 if(UA_ENABLE_NODESETLOADER)

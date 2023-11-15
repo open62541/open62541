@@ -281,19 +281,26 @@ UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
                            UA_AttributeId attributeId, const void *in,
                            const UA_DataType *inDataType) {
-    if(!in)
+    if(!in || !inDataType)
       return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
-    if(attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE &&
+       inDataType == &UA_TYPES[UA_TYPES_VARIANT]) {
         wValue.value.value = *(const UA_Variant*)in;
-    else
-        /* hack. is never written into. */
+        wValue.value.hasValue = true;
+    } else if(attributeId == UA_ATTRIBUTEID_VALUE &&
+              inDataType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
+        wValue.value = *(const UA_DataValue*)in;
+    } else {
+        /* Hack to get rid of the const annotation.
+         * The value is never written into. */
         UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType);
-    wValue.value.hasValue = true;
+        wValue.value.hasValue = true;
+    }
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;
@@ -828,7 +835,7 @@ static void
 AttributeReadCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, UA_ReadResponse *rr) {
     UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
-    UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(UA_Client_getConfig(client)->logging, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
     UA_DataValue *dv = NULL;

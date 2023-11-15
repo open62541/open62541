@@ -15,7 +15,7 @@ Client_warnEndpointsResult(UA_Client *client,
                            const UA_GetEndpointsResponse *response,
                            const UA_String *endpointUrl) {
     if(response->endpointsSize == 0) {
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "The server did not return any endpoints. "
                        "Did you use the correct endpointUrl?");
         return;
@@ -27,7 +27,7 @@ Client_warnEndpointsResult(UA_Client *client,
         UA_String *betterUrl = &response->endpoints[0].endpointUrl;
         if(response->endpoints[0].server.discoveryUrlsSize > 0)
             betterUrl = &response->endpoints[0].server.discoveryUrls[0];
-        UA_LOG_WARNING(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "The server returned Endpoints with a different EndpointUrl %.*s than was "
                        "used to initialize the connection: %.*s. Some servers require a complete "
                        "match of the EndpointUrl/DiscoveryUrl (including the path) "
@@ -57,7 +57,7 @@ getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
 
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_StatusCode retval = response.responseHeader.serviceResult;
-        UA_LOG_ERROR(&client->config.logger, UA_LOGCATEGORY_CLIENT,
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "GetEndpointRequest failed with error code %s",
                      UA_StatusCode_name(retval));
         UA_GetEndpointsResponse_clear(&response);

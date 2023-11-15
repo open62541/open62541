@@ -507,7 +507,9 @@ START_TEST(ReadSingleAttributeAccessLevelWithoutTimestamp) {
 
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_BYTE] == resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
+    // set by default
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ |
+                     UA_ACCESSLEVELMASK_STATUSWRITE | UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
     UA_DataValue_clear(&resp);
 } END_TEST
 
@@ -521,7 +523,9 @@ START_TEST(ReadSingleAttributeAccessLevelExWithoutTimestamp) {
 
     ck_assert_uint_eq(0, resp.value.arrayLength);
     ck_assert(&UA_TYPES[UA_TYPES_UINT32] == resp.value.type);
-    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ); // set by default
+    // set by default
+    ck_assert_int_eq(*(UA_Byte*)resp.value.data, UA_ACCESSLEVELMASK_READ |
+                     UA_ACCESSLEVELMASK_STATUSWRITE | UA_ACCESSLEVELMASK_TIMESTAMPWRITE);
     UA_DataValue_clear(&resp);
 } END_TEST
 

@@ -132,6 +132,8 @@ struct UA_Client {
      * EndpointUrl != DiscoveryUrl. */
     UA_String discoveryUrl;
 
+    UA_ApplicationDescription serverDescription;
+
     /* SecureChannel */
     UA_SecureChannel channel;
     UA_UInt32 requestId; /* Unique, internally defined for each request */
