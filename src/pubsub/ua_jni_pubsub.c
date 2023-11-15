@@ -1,3 +1,5 @@
+#ifdef UA_ENABLE_PUBSUB /* conditional compilation */
+
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/pubsub_udp.h>
@@ -750,3 +752,4 @@ Java_jni_pubsub_PubSubConnect_stopServer(
 
     return;
 }
+#endif /* UA_ENABLE_PUBSUB */
