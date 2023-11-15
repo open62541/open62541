@@ -325,12 +325,14 @@ sendRequest(UA_Client *client, const void *request,
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return client->connectStatus;
 
+    UA_EventLoop *el = client->config.eventLoop;
+
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
     rr->authenticationToken = client->authenticationToken;
-    rr->timestamp = UA_DateTime_now();
+    rr->timestamp = el->dateTime_now(el);
 
     /* Create a unique handle >100,000 if not manually defined. The handle is
      * not necessarily unique when manually defined and used to cancel async
