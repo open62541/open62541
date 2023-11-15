@@ -572,10 +572,12 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
+    UA_EventLoop *el = client->config.eventLoop;
+
     /* Prepare the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
-    opnSecRq.requestHeader.timestamp = UA_DateTime_now();
+    opnSecRq.requestHeader.timestamp = el->dateTime_now(el);
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
     opnSecRq.securityMode = client->channel.securityMode;
     opnSecRq.clientNonce = client->channel.localNonce;
@@ -1125,7 +1127,6 @@ static UA_StatusCode
 requestFindServers(UA_Client *client) {
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->config.endpointUrl;
     UA_StatusCode retval =
@@ -2048,11 +2049,13 @@ closeSecureChannel(UA_Client *client) {
         UA_LOG_DEBUG_CHANNEL(client->config.logging, &client->channel,
                              "Sending the CLO message");
 
+        UA_EventLoop *el = client->config.eventLoop;
+
         /* Manually set up the header (otherwise done in sendRequest) */
         UA_CloseSecureChannelRequest request;
         UA_CloseSecureChannelRequest_init(&request);
         request.requestHeader.requestHandle = ++client->requestHandle;
-        request.requestHeader.timestamp = UA_DateTime_now();
+        request.requestHeader.timestamp = el->dateTime_now(el);
         request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
         UA_SecureChannel_sendSymmetricMessage(&client->channel, ++client->requestId,
