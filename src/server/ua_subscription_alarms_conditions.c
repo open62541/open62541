@@ -1434,6 +1434,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          const UA_Variant *input, size_t outputSize,
                          UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
+    UA_EventLoop *el = server->config.eventLoop;
 
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_QualifiedName fieldSourceTimeStamp =
@@ -1441,7 +1442,7 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     UA_LocalizedText message;
     UA_NodeId triggerEvent;
     UA_Variant value;
-    UA_DateTime fieldSourceTimeStampValue = UA_DateTime_now();
+    UA_DateTime fieldSourceTimeStampValue = el->dateTime_now(el);
 
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
@@ -1704,7 +1705,8 @@ setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodI
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent Source failed",);
 
     /* Set ReceiveTime */
-    UA_DateTime fieldReceiveTimeValue = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime fieldReceiveTimeValue = el->dateTime_now(el);
     UA_Variant_setScalar(&value, &fieldReceiveTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = setConditionField(server, *refreshEventNodId, &value, fieldReceiveTime);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set RefreshEvent ReceiveTime failed",);
@@ -1777,7 +1779,8 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
     UA_assert(monitoredItem != NULL);
 
     /* 1. Trigger RefreshStartEvent */
-    UA_DateTime fieldTimeValue = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime fieldTimeValue = el->dateTime_now(el);
     UA_StatusCode retval =
         writeObjectProperty_scalar(server, *refreshStartNodId, fieldTimeQN,
                                    &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
@@ -1829,7 +1832,7 @@ refreshLogic(UA_Server *server, const UA_NodeId *refreshStartNodId,
     }
 
     /* 3. Trigger RefreshEndEvent */
-    fieldTimeValue = UA_DateTime_now();
+    fieldTimeValue = el->dateTime_now(el);
     retval = writeObjectProperty_scalar(server, *refreshEndNodId, fieldTimeQN,
                                         &fieldTimeValue, &UA_TYPES[UA_TYPES_DATETIME]);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Write Object Property scalar failed",);

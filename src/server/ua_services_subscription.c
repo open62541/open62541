@@ -241,7 +241,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
 
     /* Return an error if the session has no subscription */
     if(TAILQ_EMPTY(&session->subscriptions)) {
-        sendServiceFault(session->header.channel, requestId,
+        sendServiceFault(server, session->header.channel, requestId,
                          request->requestHeader.requestHandle,
                          UA_STATUSCODE_BADNOSUBSCRIPTION);
         return UA_STATUSCODE_BADNOSUBSCRIPTION;
@@ -256,7 +256,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
     if(!entry) {
-        sendServiceFault(session->header.channel, requestId,
+        sendServiceFault(server, session->header.channel, requestId,
                          request->requestHeader.requestHandle,
                          UA_STATUSCODE_BADOUTOFMEMORY);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -275,7 +275,7 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            sendServiceFault(session->header.channel, requestId,
+            sendServiceFault(server, session->header.channel, requestId,
                              request->requestHeader.requestHandle,
                              UA_STATUSCODE_BADOUTOFMEMORY);
             return UA_STATUSCODE_BADOUTOFMEMORY;

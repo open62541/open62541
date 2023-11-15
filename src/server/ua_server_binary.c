@@ -180,13 +180,16 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
 }
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
-                 UA_UInt32 requestHandle, UA_StatusCode statusCode) {
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
+                 UA_UInt32 requestId, UA_UInt32 requestHandle,
+                 UA_StatusCode statusCode) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     UA_ServiceFault response;
     UA_ServiceFault_init(&response);
     UA_ResponseHeader *responseHeader = &response.responseHeader;
     responseHeader->requestHandle = requestHandle;
-    responseHeader->timestamp = UA_DateTime_now();
+    responseHeader->timestamp = el->dateTime_now(el);
     responseHeader->serviceResult = statusCode;
 
     UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
@@ -202,16 +205,17 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
 
 /* This is not an ERR message, the connection is not closed afterwards */
 static UA_StatusCode
-decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
-                             size_t offset, const UA_DataType *responseType,
-                             UA_UInt32 requestId, UA_StatusCode error) {
+decodeHeaderSendServiceFault(UA_Server *server, UA_SecureChannel *channel,
+                             const UA_ByteString *msg, size_t offset,
+                             const UA_DataType *responseType, UA_UInt32 requestId,
+                             UA_StatusCode error) {
     UA_RequestHeader requestHeader;
     UA_StatusCode retval =
         UA_decodeBinaryInternal(msg, &offset, &requestHeader,
                                 &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle, error);
+    retval = sendServiceFault(server, channel, requestId, requestHeader.requestHandle, error);
     UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
@@ -606,11 +610,12 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 
     /* If the overall service call failed, answer with a ServiceFault */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return sendServiceFault(channel, requestId, response->responseHeader.requestHandle,
+        return sendServiceFault(server, channel, requestId, response->responseHeader.requestHandle,
                                 response->responseHeader.serviceResult);
 
     /* Prepare the ResponseHeader */
-    response->responseHeader.timestamp = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    response->responseHeader.timestamp = el->dateTime_now(el);
 
     if(session) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -799,7 +804,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     /* Update the session lifetime */
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    UA_Session_updateLifetime(session, nowMonotonic);
+    UA_DateTime now = el->dateTime_now(el);
+    UA_Session_updateLifetime(session, now, nowMonotonic);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
@@ -895,7 +901,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
-        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
                                             &UA_TYPES[UA_TYPES_SERVICEFAULT],
                                             requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
@@ -909,7 +915,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Could not decode the request with StatusCode %s",
                              UA_StatusCode_name(retval));
-        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
                                             responseType, requestId, retval);
     }
 
@@ -921,7 +927,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                "The server sends no timestamp in the request header. "
                                "See the 'verifyRequestTimestamp' setting.");
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
-            retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
+            retval = sendServiceFault(server, channel, requestId,
+                                      requestHeader->requestHandle,
                                       UA_STATUSCODE_BADINVALIDTIMESTAMP);
             UA_clear(&request, requestType);
             return retval;

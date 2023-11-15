@@ -125,8 +125,9 @@ checkTimeouts(UA_Server *server, void *_) {
     if(server->config.asyncOperationTimeout <= 0.0)
         return;
 
+    UA_EventLoop *el = server->config.eventLoop;
     UA_AsyncManager *am = &server->asyncManager;
-    const UA_DateTime tNow = UA_DateTime_now();
+    const UA_DateTime tNow = el->dateTime_now(el);
 
     UA_LOCK(&am->queueLock);
 
@@ -236,10 +237,12 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return res;
     }
 
+    UA_EventLoop *el = server->config.eventLoop;
+
     am->asyncResponsesCount += 1;
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
-    newentry->timeout = UA_DateTime_now();
+    newentry->timeout = el->dateTime_now(el);
     if(server->config.asyncOperationTimeout > 0.0)
         newentry->timeout += (UA_DateTime)
             (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);

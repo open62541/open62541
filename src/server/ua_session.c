@@ -123,11 +123,12 @@ UA_Session_generateNonce(UA_Session *session) {
 }
 
 void
-UA_Session_updateLifetime(UA_Session *session, UA_DateTime nowMonotonic) {
+UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
+                          UA_DateTime nowMonotonic) {
     session->validTill = nowMonotonic +
         (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
 #ifdef UA_ENABLE_DIAGNOSTICS
-    session->diagnostics.clientLastContactTime = UA_DateTime_now();
+    session->diagnostics.clientLastContactTime = now;
 #endif
 }
 

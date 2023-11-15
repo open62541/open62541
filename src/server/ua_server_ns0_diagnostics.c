@@ -544,8 +544,9 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     }
 
     if(sourceTimestamp) {
+        UA_EventLoop *el = server->config.eventLoop;
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
 
     UA_assert(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC);

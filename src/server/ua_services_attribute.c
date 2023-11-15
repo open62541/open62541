@@ -230,6 +230,8 @@ static UA_StatusCode
 readValueAttributeComplete(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_TimestampsToReturn timestamps,
                            const UA_String *indexRange, UA_DataValue *v) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     /* Compute the index range */
     UA_NumericRange range;
     UA_NumericRange *rangeptr = NULL;
@@ -285,7 +287,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     /* If not defined return a source timestamp of "now".
      * Static nodes always have the current time as source-time. */
     if(!v->hasSourceTimestamp) {
-        v->sourceTimestamp = UA_DateTime_now();
+        v->sourceTimestamp = el->dateTime_now(el);
         v->hasSourceTimestamp = true;
     }
 
@@ -610,7 +612,8 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
     /* Always use the current time as the server-timestamp */
     if(timestampsToReturn == UA_TIMESTAMPSTORETURN_SERVER ||
        timestampsToReturn == UA_TIMESTAMPSTORETURN_BOTH) {
-        v->serverTimestamp = UA_DateTime_now();
+        UA_EventLoop *el = server->config.eventLoop;
+        v->serverTimestamp = el->dateTime_now(el);
         v->hasServerTimestamp = true;
         v->hasServerPicoseconds = false;
     } else {

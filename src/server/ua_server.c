@@ -448,9 +448,15 @@ setServerShutdown(UA_Server *server) {
         return false;
     if(server->config.shutdownDelay == 0)
         return true;
+
     UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                   "Shutting down the server with a delay of %i ms", (int)server->config.shutdownDelay);
-    server->endTime = UA_DateTime_now() + (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+                   "Shutting down the server with a delay of %i ms",
+                   (int)server->config.shutdownDelay);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    server->endTime = el->dateTime_now(el) +
+        (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+
     return false;
 }
 
@@ -775,7 +781,7 @@ UA_Server_run_startup(UA_Server *server) {
     writeValueAttribute(server, serverArray, &var);
 
     /* Sample the start time and set it to the Server object */
-    server->startTime = UA_DateTime_now();
+    server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
     UA_NodeId startTime =
@@ -818,7 +824,8 @@ testShutdownCondition(UA_Server *server) {
     /* Was there a wait time until the shutdown configured? */
     if(server->endTime == 0)
         return false;
-    return (UA_DateTime_now() > server->endTime);
+    UA_EventLoop *el = server->config.eventLoop;
+    return (el->dateTime_now(el) > server->endTime);
 }
 
 static UA_Boolean

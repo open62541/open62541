@@ -379,6 +379,8 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
                               "Sending out a StatusChange "
                               "notification and removing the subscription");
 
+    UA_EventLoop *el = server->config.eventLoop;
+
     /* Populate the response */
     UA_PublishResponse *response = &pre->response;
 
@@ -393,7 +395,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     response->notificationMessage.notificationData = &notificationData;
     response->notificationMessage.notificationDataSize = 1;
     response->subscriptionId = sub->subscriptionId;
-    response->notificationMessage.publishTime = UA_DateTime_now();
+    response->notificationMessage.publishTime = el->dateTime_now(el);
     response->notificationMessage.sequenceNumber = sub->nextSequenceNumber;
 
     /* Send the response */
@@ -425,10 +427,11 @@ delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
  * done. */
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     /* Get a response */
     UA_PublishResponseEntry *pre = NULL;
     if(sub->session) {
-        UA_EventLoop *el = server->config.eventLoop;
         UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
         do {
             /* Dequeue the oldest response */
@@ -553,7 +556,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* Set up the response */
     response->subscriptionId = sub->subscriptionId;
     response->moreNotifications = (sub->notificationQueueSize > 0);
-    message->publishTime = UA_DateTime_now();
+    message->publishTime = el->dateTime_now(el);
 
     /* Set sequence number to message. Started at 1 which is given during
      * creating a new subscription. The 1 is required for initial publish

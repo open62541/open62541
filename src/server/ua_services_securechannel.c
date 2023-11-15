@@ -95,7 +95,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Set the response */
     response->securityToken = channel->altSecurityToken;
-    response->securityToken.createdAt = UA_DateTime_now(); /* only for sending */
+    response->securityToken.createdAt = el->dateTime_now(el); /* only for sending */
     response->responseHeader.timestamp = response->securityToken.createdAt;
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     response->responseHeader.serviceResult =
