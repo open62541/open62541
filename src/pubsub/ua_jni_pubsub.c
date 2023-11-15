@@ -12,7 +12,7 @@
 #include <stdlib.h>
 
 #include "jni_pubsub_PubSubMain.h"
-#include "jni_pubsub_PubSubconnect.h"
+#include "jni_pubsub_PubSubConnect.h"
 
 UA_Server *server = NULL;
 
@@ -583,8 +583,9 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
+//User Can use their package name in place of "jni_pubsub" and according they have to change the header file included above
 JNIEXPORT void JNICALL
-Java_jni_pubsub_PubSubconnect_createServer(
+Java_jni_pubsub_PubSubConnect_createServer(
     JNIEnv *env, jobject javaobj, jstring serverSecurityPolicy) {
     char *serverSecurityPolicy1 =
         (char *)(*env)->GetStringUTFChars(env, serverSecurityPolicy, NULL);
@@ -643,14 +644,16 @@ Java_jni_pubsub_PubSubconnect_createServer(
     else
         UA_ServerConfig_setMinimal(config, port, NULL);
 }
+// User Can use their package name in place of "jni_pubsub" and according they have to change the header file included above
 JNIEXPORT void JNICALL
-Java_jni_pubsub_PubSubconnect_runServer(
+Java_jni_pubsub_PubSubConnect_runServer(
     JNIEnv *env, jobject javaobj) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     retval = UA_Server_run(server, &running);
 }
+// User Can use their package name in place of "jni_pubsub" and according they have to change the header file included above
 JNIEXPORT jint JNICALL
-Java_jni_pubsub_PubSubconnect_connect(
+Java_jni_pubsub_PubSubConnect_connect(
     JNIEnv *env, jobject javaobj, jstring pubIP, jobjectArray jdsrc,
     jobjectArray metadata, jstring protocol, jstring securityMode, jstring policy) {
     jobjectArray writerGroupIds =
@@ -722,16 +725,18 @@ Java_jni_pubsub_PubSubconnect_connect(
     }
     return -1;
 }
+// User Can use their package name in place of "jni_pubsub" and according they have to change the header file included above
 JNIEXPORT void JNICALL
-Java_jni_pubsub_PubSubconnect_teardownConnection(
+Java_jni_pubsub_PubSubConnect_teardownConnection(
     JNIEnv *env, jobject javaobj, jint connectionNumber) {
     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
                    "***** Tearing down Connection");
     UA_Server_removePubSubConnection(server, connectionIDs[connectionNumber].identifier);
     return;
 }
+// User Can use their package name in place of "jni_pubsub" and according they have to change the header file included above
 JNIEXPORT void JNICALL
-Java_jni_pubsub_PubSubconnect_stopServer(
+Java_jni_pubsub_PubSubConnect_stopServer(
     JNIEnv *env, jobject javaobj) {
 
     UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
