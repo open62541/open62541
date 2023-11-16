@@ -205,6 +205,12 @@ struct UA_ServerConfig {
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
 
+    /* Allow clients without encryption support to connect with username and password.
+     * This requires to transmit the password in plain text over the network which is
+     * why this option is disabled by default.
+     * Make sure you really need this before enabling plain text passwords. */
+    UA_Boolean allowNonePolicyPassword;
+
     /* Different sets of certificates are trusted for SecureChannel / Session */
     UA_CertificateVerification secureChannelPKI;
     UA_CertificateVerification sessionPKI;

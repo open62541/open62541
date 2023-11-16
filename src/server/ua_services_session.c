@@ -519,9 +519,11 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             *tokenSp = channel->securityPolicy;
             if(pol->securityPolicyUri.length > 0)
                 *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
+
 #ifdef UA_ENABLE_ENCRYPTION
-            if(!*tokenSp || (*tokenSp)->localCertificate.length == 0 ||
-               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))
+            if(!*tokenSp || (!server->config.allowNonePolicyPassword &&
+               ((*tokenSp)->localCertificate.length == 0 ||
+               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))))
                 *tokenSp = getDefaultEncryptedSecurityPolicy(server);
 #endif
             return;

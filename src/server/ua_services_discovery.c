@@ -341,7 +341,8 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
          * SecureChannel is unencrypted and there is a non-anonymous token. */
         UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
         UA_String_clear(&utp->securityPolicyUri);
-        if(UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
+        if((!server->config.allowNonePolicyPassword || ed->userIdentityTokens[i].tokenType != UA_USERTOKENTYPE_USERNAME) &&
+           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
            utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS) {
             UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
             if(encSP)
