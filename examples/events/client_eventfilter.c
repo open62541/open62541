@@ -17,7 +17,7 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
-
+#include "eventfilter_parser_examples.h"
 #include <signal.h>
 #include <stdio.h>
 

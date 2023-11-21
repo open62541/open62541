@@ -51,40 +51,40 @@ Child_1 = ((       '(' _  ElementOperand _  "," _                               
                  | '(' _  oper:SimpleAttributeOperand _  "," _                                                          {add_operand_from_branch(&$$.str, &ctr.operand_ctr, &oper.operand, &global);}
                  | '(' _  oper:LiteralOperand _  "," _                                                                  {add_operand_from_branch(&$$.str, &ctr.operand_ctr, &oper.operand, &global);}
                 )| '(' _  BranchStructure _  "," _ |  '(' _  ForOperator _  "," _ )
-Child_2 = ((      ElementOperand           _  ')'                                                                        {save_string(yytext, &$$.str);}
+Child_2 = ((      ElementOperand           _  ')'                                                                       {save_string(yytext, &$$.str);}
                  | oper:SimpleAttributeOperand   _  ')'                                                                 {add_operand_from_branch(&$$.str, &ctr.operand_ctr, &oper.operand, &global);}
                  | oper:LiteralOperand      _  ')'                                                                      {add_operand_from_branch(&$$.str, &ctr.operand_ctr, &oper.operand, &global);}
                ) | BranchStructure _  ')' | ForOperator    _  ')')
 ForOperator = (operator:OperatorInstance | "(" _  operator:OperatorInstance _  ")")                                     {handle_for_operator(&global, &ctr.for_operator_reference, &$$.str, &operator.element);}
 ReferencedElement = ( ReferencedOperator
-                    | (ref:ReferenceElement oper:Operand) _                                                                      {create_next_operand_element(&global, &oper.operand, ref.str);}
-                    | (ref:ReferenceElement _ NodeId) _                                                                          {create_nodeid_element(&global, &operand.id, ref.str);}
+                    | (ref:ReferenceElement oper:Operand) _                                                             {create_next_operand_element(&global, &oper.operand, ref.str);}
+                    | (ref:ReferenceElement _ NodeId) _                                                                 {create_nodeid_element(&global, &operand.id, ref.str);}
                     )
-ReferencedOperator = (  ref:ReferenceElement _  operator:OperatorInstance _)                                                      {add_new_operator(&global, ref.str, &operator.element);}
-                     | (ref:ReferenceElement _  op1:BranchStructure _)                                                            {change_element_reference(&global, op1.str, ref.str);}
-                     | (ref:ReferenceElement _  (oper:Operand _                                                                   {create_in_list_operator(&global, &oper.operand, ref.str);}
-                     _  ('INLIST') _  '[' _ (oper:Operand _  "," _                                                             {add_in_list_children(&global, &oper.operand);}
-                     )* _  oper:Operand _ ']') _                                                                               {add_in_list_children(&global, &oper.operand);}
+ReferencedOperator = (  ref:ReferenceElement _  operator:OperatorInstance _)                                            {add_new_operator(&global, ref.str, &operator.element);}
+                     | (ref:ReferenceElement _  op1:BranchStructure _)                                                  {change_element_reference(&global, op1.str, ref.str);}
+                     | (ref:ReferenceElement _  (oper:Operand _                                                         {create_in_list_operator(&global, &oper.operand, ref.str);}
+                     _  ('INLIST') _  '[' _ (oper:Operand _  "," _                                                      {add_in_list_children(&global, &oper.operand);}
+                     )* _  oper:Operand _ ']') _                                                                        {add_in_list_children(&global, &oper.operand);}
                      )
-OperatorInstance = ( (oper_1:Operand operator:TwoOperandsOperatorType oper_2:Operand)                                              {handle_two_operands_operator(&$$.element, &oper_1.operand, &oper_2.operand, &operator.element.filter);}
-                   | (oper_1:Operand _  ('BETWEEN') _  '[' _ oper_2:Operand _  "," _  oper_3:Operand _ ']')                    {handle_between_operator(&$$.element, &oper_1.operand, &oper_2.operand, &oper_3.operand);}
+OperatorInstance = ( (oper_1:Operand operator:TwoOperandsOperatorType oper_2:Operand)                                   {handle_two_operands_operator(&$$.element, &oper_1.operand, &oper_2.operand, &operator.element.filter);}
+                   | (oper_1:Operand _  ('BETWEEN') _  '[' _ oper_2:Operand _  "," _  oper_3:Operand _ ']')             {handle_between_operator(&$$.element, &oper_1.operand, &oper_2.operand, &oper_3.operand);}
                    | (_  operator:SingleOperatorType)) _
-SingleOperatorType = ( ("NOT" | '!') _  oper:Operand _                                                                               {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_NOT);}
-                     | ("ISNULL" | '0=' | '0' _  '=') _  oper:Operand _                                                              {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_ISNULL);}
+SingleOperatorType = ( ("NOT" | '!') _  oper:Operand _                                                                  {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_NOT);}
+                     | ("ISNULL" | '0=' | '0' _  '=' ) _  oper:Operand _                                                {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_ISNULL);}
                      )
                      | 'OFTYPE' _  (
-                     (NodeId | "(" _  NodeId _  ")")                                                                             {handle_oftype_nodeId(&$$.element, &operand.id);}
-                     | oper:Operand                                                                                              {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_OFTYPE);}
+                     (NodeId | "(" _  NodeId _  ")")                                                                    {handle_oftype_nodeId(&$$.element, &operand.id);}
+                     | oper:Operand                                                                                     {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_OFTYPE);}
                      ) _
-TwoOperandsOperatorType = ( "GREATERTHAN" | '>' | 'GT')                                                                                   {$$.element.filter = UA_FILTEROPERATOR_GREATERTHAN;}
-                        | ( "EQUALS" | ('"' '==' '"') | 'EQ' )                                                                           {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
-                        | ( "LESSTHAN" | '<' | 'LT')                                                                                     {$$.element.filter = UA_FILTEROPERATOR_LESSTHAN;}
-                        | ( "GREATEROREQUAL" | '"' '>=' '"' | 'GE' )                                                                     {$$.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;}
-                        | ( "LESSOREQUAL" | '"' '<=' '"' | 'LE')                                                                         {$$.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;}
-                        | ( "LIKE" | '"'  '<=>' '"'  )                                                                                   {$$.element.filter = UA_FILTEROPERATOR_LIKE;}
-                        | ( "CAST" | '->')                                                                                               {$$.element.filter = UA_FILTEROPERATOR_CAST;}
-                        | ( "BITAND" | '&' )                                                                                             {$$.element.filter = UA_FILTEROPERATOR_BITWISEAND;}
-                        | ( "BITOR" | 'v')                                                                                               {$$.element.filter = UA_FILTEROPERATOR_BITWISEOR;}
+TwoOperandsOperatorType = ( "GREATERTHAN" | '>' ![>=]| 'GT')                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHAN;}
+                        | ( "EQUALS" | '==' | 'EQ' )                                                                {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
+                        | ( "LESSTHAN" | '<' ![<=] ![<=>] | 'LT')                                                       {$$.element.filter = UA_FILTEROPERATOR_LESSTHAN;}
+                        | ( "GREATEROREQUAL" | '>=' | 'GE' )                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;}
+                        | ( "LESSOREQUAL" | '<=' ![<=>] | 'LE')                                                         {$$.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;}
+                        | ( "LIKE" | '<=>')                                                                             {$$.element.filter = UA_FILTEROPERATOR_LIKE;}
+                        | ( "CAST" | '->')                                                                              {$$.element.filter = UA_FILTEROPERATOR_CAST;}
+                        | ( "BITAND" | '&' )                                                                            {$$.element.filter = UA_FILTEROPERATOR_BITWISEAND;}
+                        | ( "BITOR" | '|' )                                                                              {$$.element.filter = UA_FILTEROPERATOR_BITWISEOR;}
 Operand = _  ( (LiteralOperand | '('_   LiteralOperand _ ')')
              | (ElementOperand | '(' _  ElementOperand _  ')')                                                          {handle_elementoperand(&$$.operand, yytext);}
              | ('(' _ SimpleAttributeOperand _ ')'| SimpleAttributeOperand)
@@ -94,7 +94,7 @@ SimpleAttributeOperand =
         (   _  (_ 'TYPEID' _  NodeId)?                                                                                  {set_up_typeid(&operand);}
                (_  'PATH' _  '"' <(QualifiedName+)> '"')                                                                {yy->parsedFilter.status = set_up_browsepath(&operand.sao.browsePath, &operand.sao.browsePathSize, yytext, yy->parsedFilter.status);}
                (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {operand.sao.attributeId = (UA_UInt32) atoi(yytext);}
-               (_  'INDEX' _   NumericRange                                                                             {operand.sao.indexRange = UA_String_fromChars(yytext);}
+               (_  'INDEX' _   NumericRange                                                                             {operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
         )?) _                                                                                                           {handle_sao(&operand.sao, &$$.operand);}
 NodeId = (
                (<('ns=' [0-9]+ ";")? 'i=' [0-9]+>)                                                                      {append_string(&operand.str, yytext);}
@@ -141,7 +141,7 @@ JsonValue = ( JsonArray | '"'(StringElement)+'"' | [0-9]+ | 'true' | 'false' | '
 QualifiedName = ( ReferenceType ([0-9]+ _ ":")? (StringElement+)? )
 ReferenceType =  References | ('<' ('!'| '#')? ([0-9]+ _ ":")? [a-zA-Z_]+ '>')
 References = ('/' | '.')
-ReferenceElement = ElementOperand ':='                                                                                  {save_string(yytext, &$$.str);}
+ReferenceElement = ElementOperand (':=')                                                                                {save_string(yytext, &$$.str);}
 ParsedString = ('"' < (StringElement)+ > '"')
 StringElement =  ('\\\"' | !["] . )
 NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?

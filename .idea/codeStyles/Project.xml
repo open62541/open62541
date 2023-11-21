@@ -11,6 +11,9 @@
       <option name="SUPERCLASS_LIST_BEFORE_COLON" value="0" />
       <option name="SUPERCLASS_LIST_AFTER_COLON" value="2" />
     </Objective-C>
+    <clangFormatSettings>
+      <option name="ENABLED" value="true" />
+    </clangFormatSettings>
     <files>
       <extensions>
         <pair source="cpp" header="h" fileNamingConvention="NONE" />

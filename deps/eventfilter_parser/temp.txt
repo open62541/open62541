@@ -1,13 +1,35 @@
 SELECT
 
-PATH "/Message",
-PATH "/0:Severity",
-PATH "/EventType"
+
+TYPEID ns=134;s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20]
 
 WHERE
 
-AND($4, TYPEID i=5000 PATH "/Severity" GREATERTHAN $"ref")
+OR(OR($10, AND($8, OR($9, TYPEID ns=134;s="1;;5 2;3" PATH "/1:Duration/15:SecondElement/7:ThirdElement" ATTRIBUTE 23 INDEX [100,5:20] ))),AND(OR( $6 ,EXPNODEID "svr=5;nsu=https://test.test.com;s=test"), AND($11, $7)))
 
 FOR
-$"ref":= 99
-$4:= OFTYPE ns=1;i=5000
+
+
+$"another":= {
+                "Type": 3,
+                "Body": [1,2,1,5],
+                "Dimension": [2,2]
+             }
+             GREATERTHAN "tes tSt 3 ring"
+
+$19:= FLOAT 100.3 LESSOREQUAL BOOL 1
+
+$6:= GUID 09087e75-8e5e-499b-954f-f2a9603db28a LESSTHAN UINT16 30
+
+$7:= false LT ns=2;i=2000
+
+$8:= SBYTE -125 GT TIME "2023-06-06T09:55:50.730824Z"
+
+$9:= EXPNODEID "svr=5;ns=ht.test.com;s=test" < STATUSCODE 15
+
+$11:= LOCALIZED "Duration" EQ 100.33
+
+$10:= QNAME "<0:HasPrerty>1:Durat ion" EQ "/37:Duration"
+
+
+

@@ -3,7 +3,9 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/util.h>
+//#include "eventfilter_parser_examples.h"
 
+#include "../../deps/eventfilter_parser/eventfilter_parser_grammar.c"
 #include <common.h>
 #include <signal.h>
 #include <stdio.h>
@@ -28,7 +30,7 @@ static void check_eventfilter(UA_EventFilter *filter){
     }
 }
 
-static void clear_event_filter(UA_EventFilter *filter){
+/*static void clear_event_filter(UA_EventFilter *filter){
     for(size_t i=0; i< filter->selectClausesSize; i++){
         for(size_t j=0; j< filter->selectClauses[i].browsePathSize; j++){
             UA_QualifiedName_clear(&filter->selectClauses[i].browsePath[j]);
@@ -45,7 +47,7 @@ static void clear_event_filter(UA_EventFilter *filter){
     }
     UA_ContentFilter_clear(&filter->whereClause);
     UA_EventFilter_clear(filter);
-}
+}*/
 
 static UA_Boolean running = true;
 
@@ -56,8 +58,10 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             /*the executable is located in build/bin/examples/... */
             char *path_to_query = "../../../examples/events/example_queries/case_0.txt";
             UA_ByteString content = loadFile(path_to_query);
+            //UA_ByteString case_0 = UA_String_fromChars(CASE_0);
             UA_EventFilter_parse(&content, filter);
             check_eventfilter(filter);
+            UA_ByteString_clear(&content);
             break;
         }
         case 1 : {
@@ -66,6 +70,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             UA_ByteString content = loadFile(path_to_query);
             UA_EventFilter_parse(&content, filter);
             check_eventfilter(filter);
+            UA_ByteString_clear(&content);
             break;
         }
         case 2 : {
@@ -74,6 +79,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             UA_ByteString content = loadFile(path_to_query);
             UA_EventFilter_parse(&content, filter);
             check_eventfilter(filter);
+            UA_ByteString_clear(&content);
             break;
         }
         case 3 : {
@@ -82,6 +88,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             UA_ByteString content = loadFile(path_to_query);
             UA_EventFilter_parse(&content, filter);
             check_eventfilter(filter);
+            UA_ByteString_clear(&content);
             break;
         }
         case 4 : {
@@ -90,6 +97,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             UA_ByteString content = loadFile(path_to_query);
             UA_EventFilter_parse(&content, filter);
             check_eventfilter(filter);
+            UA_ByteString_clear(&content);
             break;
         }
         default:

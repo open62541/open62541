@@ -286,6 +286,7 @@ static void check_SAO(UA_SimpleAttributeOperand *sao){
     if(sao->typeDefinitionId.identifier.numeric == 0 && sao->typeDefinitionId.identifierType == UA_NODEIDTYPE_NUMERIC){
         sao->typeDefinitionId = UA_NODEID_NUMERIC(0, 2041);}
     if(sao->attributeId == 0){sao->attributeId = 13;}
+    if(sao->attributeId == 1){UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Extracting a NodeId from a SimpleAttributeOperand is not supported in the current implementation");}
     //if(sao->indexRange.length == 0){sao->indexRange =UA_String_fromChars("");}
 }
 
@@ -618,6 +619,7 @@ UA_StatusCode set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, 
     UA_String temp = UA_String_fromChars(yytext);
     UA_StatusCode retval = UA_ExpandedNodeId_parse(&val, temp);
     if(retval != UA_STATUSCODE_GOOD){
+        printf("yytext: %s \n", yytext);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to parse the ExpandedNodeId %s", UA_StatusCode_name(retval));
         UA_ExpandedNodeId_clear(&val);
         UA_String_clear(&temp);

@@ -292,6 +292,12 @@ addGenerateSingleCustomizedEventMethod(UA_Server *server) {
                             1, &inputArgument, 0, NULL, NULL, NULL);
 }
 
+UA_Boolean running = true;
+static void stopHandler(int sign) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
+    running = false;
+}
+
 int main(int argc, char *argv[]) {
     UA_Server *server = UA_Server_new();
 
@@ -300,7 +306,10 @@ int main(int argc, char *argv[]) {
     addGenerateSingleRandomEventMethod(server);
     addGenerateSingleCustomizedEventMethod(server);
 
-    UA_Server_runUntilInterrupt(server);
+    UA_Server_run_startup(server);
+    while(running)
+        UA_Server_run_iterate(server, true);
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
     return 0;
 }
