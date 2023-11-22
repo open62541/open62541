@@ -12,9 +12,6 @@
 #include "cj5.h"
 
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wmissing-prototypes"
-
 #ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
 #define OPEN62541_NODEID_SETUP_FUNCTIONS_H
 

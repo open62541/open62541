@@ -1,12 +1,10 @@
 SELECT
 
 PATH "/Message",
-PATH /* test*/ "/Severity",
-#simple test
+PATH "/Severity",
 PATH "/EventType"
 
 WHERE
-#simple test
 OFTYPE ns=1;i=5001
 
 /*

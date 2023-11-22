@@ -42,55 +42,31 @@ UA_ClientHandle_cmp(const void *a, const void *b) {
 ZIP_FUNCTIONS(MonitorItemsTree, UA_Client_MonitoredItem, zipfields,
               UA_Client_MonitoredItem, zipfields, UA_ClientHandle_cmp)
 
-UA_StatusCode UA_Client_EventFilter_createSubscription(UA_Client *client, UA_Client_EventNotificationCallback callback, UA_ByteString *content, UA_EventFilter *filter){
+UA_StatusCode UA_Client_Subscriptions_create_EventFilter(UA_Client *client, UA_CreateSubscriptionResponse *response, UA_ByteString *content, UA_EventFilter *filter){
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,NULL, NULL, NULL);
-    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    *response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return response.responseHeader.serviceResult;
+        return response->responseHeader.serviceResult;
     }
-    UA_UInt32 subId = response.subscriptionId;
-
-    /* Add a MonitoredItem */
-    UA_MonitoredItemCreateRequest item;
-    UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
-    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
-    /*parse the event filter query*/
     UA_StatusCode retval = UA_EventFilter_parse(content, filter);
     if(retval != UA_STATUSCODE_GOOD){
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return retval;
-    }
-    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-    item.requestedParameters.filter.content.decoded.data = filter;
-    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-    UA_StatusCode ret_val;
-    UA_UInt32 monId = 0;
-    UA_MonitoredItemCreateResult result =
-        UA_Client_MonitoredItems_createEvent(client, subId,
-                                             UA_TIMESTAMPSTORETURN_BOTH, item,
-                                             &monId, callback, NULL);
-    if(result.statusCode != UA_STATUSCODE_GOOD) {
-        ret_val = result.statusCode;
         goto cleanup;
     }
-    monId = result.monitoredItemId;
     return UA_STATUSCODE_GOOD;
 
     /* Delete the subscription */
 cleanup:
-    UA_MonitoredItemCreateResult_clear(&result);
-    UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
+    UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
     UA_Array_delete(filter->selectClauses, filter->selectClausesSize, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
     UA_Array_delete(filter->whereClause.elements, filter->whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return ret_val;
+    return retval;
 }
 
 static void

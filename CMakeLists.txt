@@ -1052,21 +1052,14 @@ if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types_lex.c)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser_grammar.c
          ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser.c)
+    list(APPEND internal_headers ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser_grammar.h
+         ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser.h)
     # read in the txt files for the eventfilter parser examples
     file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_0.txt CASE_0 NEWLINE_CONSUME)
     file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_1.txt CASE_1 NEWLINE_CONSUME)
     file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_2.txt CASE_2 NEWLINE_CONSUME)
     file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_3.txt CASE_3 NEWLINE_CONSUME)
     file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_4.txt CASE_4 NEWLINE_CONSUME)
-
-    #[[set(EVENTFILTER_PARSER_EXAMPLES ${CASE_0} ${CASE_1} ${CASE_2} ${CASE_3} ${CASE_4})
-
-    MESSAGE(${EVENTFILTER_PARSER_EXAMPLES})
-    foreach(QUERY_EXAMPLE IN LISTS EVENTFILTER_PARSER_EXAMPLES)
-        STRING(REGEX REPLACE "\n" " " QUERY_EXAMPLE ${QUERY_EXAMPLE})
-        STRING(REGEX REPLACE "\"" "\\\\\"" QUERY_EXAMPLE "${QUERY_EXAMPLE}")
-    endforeach()
-    MESSAGE(${EVENTFILTER_PARSER_EXAMPLES})]]
 
     STRING(REGEX REPLACE "\n" " " CASE_0 ${CASE_0})
     STRING(REGEX REPLACE "\"" "\\\\\"" CASE_0 "${CASE_0}")
@@ -1079,11 +1072,6 @@ if(UA_ENABLE_PARSING)
     STRING(REGEX REPLACE "\n" " " CASE_4 ${CASE_4})
     STRING(REGEX REPLACE "\"" "\\\\\"" CASE_4 "${CASE_4}")
 
-
-    #MESSAGE("${CASE_0}")
-    #file(STRINGS ${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/example_queries/case_1.txt TEMP_1 NEWLINE_CONSUME)
-    #STRING(REGEX REPLACE "\\\\" "" CASE_1 "${TEMP_1}")
-    #MESSAGE("${CASE_1}")
     configure_file(${PROJECT_SOURCE_DIR}/deps/eventfilter_parser/eventfilter_parser_examples.h.in ${PROJECT_SOURCE_DIR}/examples/events/eventfilter_parser_examples.h @ONLY)
 
 

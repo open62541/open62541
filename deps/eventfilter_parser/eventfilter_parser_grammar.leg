@@ -1,5 +1,5 @@
 %{
-#include "eventfilter_parser.h"
+#include "eventfilter_parser_grammar.h"
 
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \

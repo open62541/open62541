@@ -200,7 +200,7 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
     return !c;
 }
 
-UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
+//UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
 
 _UA_END_DECLS
 
