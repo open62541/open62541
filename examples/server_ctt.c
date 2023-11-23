@@ -912,6 +912,25 @@ notifyState(UA_Server *server, UA_LifecycleState state) {
 #endif
 }
 
+#ifdef UA_ENABLE_DISCOVERY
+static void
+discoveryRegisterCallback(UA_Server *server, void *data) {
+    UA_ClientConfig cc;
+    memset(&cc, 0, sizeof(UA_ClientConfig));
+    UA_ClientConfig_setDefault(&cc);
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
+    UA_String_clear(&cc.clientDescription.applicationUri);
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    UA_String_copy(&sc->applicationDescription.applicationUri,
+                   &cc.clientDescription.applicationUri);
+#endif
+    UA_Server_registerDiscovery(server, &cc,
+                                UA_STRING("opc.tcp://localhost:4840"),
+                                UA_STRING_NULL);
+}
+#endif
+
 #ifdef UA_ENABLE_ENCRYPTION
 static void
 enableNoneSecurityPolicy(UA_ServerConfig *config) {
@@ -1484,8 +1503,18 @@ int main(int argc, char **argv) {
         disableUsernamePasswordAuth(config);
 #endif
 
+#ifdef UA_ENABLE_DISCOVERY
+    /* Add a repeated callback so that the server periodically registers with the Discovery Server. */
+    UA_UInt64 discoveryRegisterCallbackId;
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)discoveryRegisterCallback, NULL, 600000, &discoveryRegisterCallbackId);
+#endif
+
     /* run server */
     res = UA_Server_runUntilInterrupt(server);
+
+#ifdef UA_ENABLE_DISCOVERY
+    UA_Server_removeCallback(server, discoveryRegisterCallbackId);
+#endif
 
  cleanup:
     UA_Server_delete(server);
