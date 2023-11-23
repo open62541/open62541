@@ -502,6 +502,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     if(!dm)
         return;
 
+    if(dm->serverConfig->applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+        responseHeader->serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
+        return;
+    }
+
     /* Find the server from the request in the registered list */
     registeredServer_list_entry* current;
     registeredServer_list_entry *registeredServer_entry = NULL;
