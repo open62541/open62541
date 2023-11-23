@@ -92,7 +92,11 @@ struct UA_ServerConfig {
      * ^^^^^^^^^^^^^^^^^^
      * The description must be internally consistent. The ApplicationUri set in
      * the ApplicationDescription must match the URI set in the server
-     * certificate. */
+     * certificate.
+     * The applicationType is not just descriptive, it changes the actual
+     * functionality of the server. The RegisterServer service is available only
+     * if the server is a DiscoveryServer and the applicationType is set to the
+     * appropriate value.*/
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
 
