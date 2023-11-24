@@ -1,0 +1,13 @@
+SELECT
+
+PATH "/Message",
+PATH "/Severity",
+PATH "/EventType"
+
+WHERE
+AND((OFTYPE ns=1;i=5001), $1)
+
+FOR
+$1:=  AND($20, $30)
+$20:= INT16 99 == DOUBLE 99
+$30:= TYPEID i=5000 PATH "/Severity" > 99

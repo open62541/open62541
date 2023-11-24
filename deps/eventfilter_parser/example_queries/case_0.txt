@@ -1,0 +1,7 @@
+SELECT
+PATH "/Message", PATH "/0:Severity", PATH "/EventType"
+WHERE
+OR($"ref_1", $"ref_2")
+FOR
+$"ref_2":= OFTYPE ns=1;i=5003
+$"ref_1":= OFTYPE i=3035
