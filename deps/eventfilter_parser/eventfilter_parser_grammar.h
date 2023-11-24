@@ -10,7 +10,8 @@
 #include "open62541/server_config_default.h"
 #include "open62541_queue.h"
 #include "eventfilter_parser.h"
-
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#pragma GCC diagnostic ignored "-Wunused-function"
 UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
 void clear_event_filter(UA_EventFilter *filter);
 

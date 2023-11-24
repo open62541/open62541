@@ -6,6 +6,7 @@
 #define UA_CLIENT_SUBSCRIPTIONS_H_
 
 #include <open62541/client.h>
+#include "../../deps/eventfilter_parser/eventfilter_parser_grammar.h"
 
 _UA_BEGIN_DECLS
 
@@ -31,6 +32,11 @@ _UA_BEGIN_DECLS
  * ``UA_Client_run_iterate``. See more about
  * :ref:`asynchronicity<client-async-services>`.
  */
+
+
+/*create a subscription on a event, based on an eventfilter query*/
+UA_StatusCode UA_EXPORT
+UA_Client_Subscriptions_create_EventFilter(UA_Client *client, UA_CreateSubscriptionResponse *response, UA_ByteString *content, UA_EventFilter *filter);
 
 /* Callbacks defined for Subscriptions */
 typedef void (*UA_Client_DeleteSubscriptionCallback)
