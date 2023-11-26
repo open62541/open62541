@@ -26,17 +26,10 @@
 #include "testing_networklayers.h"
 #include "thread_wrapper.h"
 
-static int numAttempts = 0;
-static UA_String privateKeyPasswordCallback(UA_PrivateKeyPasswordState state, bool *doRetry, void *context)
-{
-    if (numAttempts++ == 0) {
-        ck_assert(state == UA_PRIVATEKEYPASSWORDSTATE_INITIAL);
-        *doRetry = true;
-        return UA_STRING_ALLOC("invalid");
-    }
-
-    ck_assert(state == UA_PRIVATEKEYPASSWORDSTATE_WRONG);
-    return UA_STRING_ALLOC("pass1234");
+static UA_StatusCode
+privateKeyPasswordCallback(UA_ClientConfig *cc, UA_ByteString *password) {
+    *password = UA_STRING_ALLOC("pass1234");
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_Server *server;
@@ -143,9 +136,10 @@ START_TEST(encryption_connect_pem) {
     client = UA_Client_new();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->privateKeyPasswordCallback = privateKeyPasswordCallback;
-    UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
-                                         trustList, trustListSize,
-                                         revocationList, revocationListSize);
+    retval = UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
+                                                  trustList, trustListSize,
+                                                  revocationList, revocationListSize);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
     cc->securityPolicyUri =
@@ -159,8 +153,6 @@ START_TEST(encryption_connect_pem) {
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-
-    ck_assert_int_eq(numAttempts, 2);
 
     UA_Variant val;
     UA_Variant_init(&val);

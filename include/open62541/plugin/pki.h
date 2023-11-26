@@ -30,20 +30,6 @@ _UA_BEGIN_DECLS
  * The lifecycle of the plugin is attached to a server or client config. The
  * ``clear`` method is called automatically when the config is destroyed. */
 
-/* Enum and functions for the private key password */
-typedef enum  {
-    UA_PRIVATEKEYPASSWORDSTATE_INITIAL = 0,
-    UA_PRIVATEKEYPASSWORDSTATE_WRONG = 1,
-} UA_PrivateKeyPasswordState;
-
-/* This callback is called when UA_PKI_decryptPemWithPassword is called and detects
- * a password protected private key in the PEM format.
- * If a wrong password is encountered, the callback will be called repeatedly until
- * doRetry is set to false. */
-typedef UA_String (*UA_PKI_PrivateKeyPasswordCallback)(UA_PrivateKeyPasswordState state,
-                                                       UA_Boolean *doRetry,
-                                                       void *context);
-
 struct UA_CertificateVerification;
 typedef struct UA_CertificateVerification UA_CertificateVerification;
 
@@ -74,6 +60,17 @@ struct UA_CertificateVerification {
      * automatically*/
     const UA_Logger *logging;
 };
+
+/* Decrypt a private key in PEM format using a password. The output is the key
+ * in the binary DER format. Also succeeds if the PEM private key does not
+ * require a password or is already in the DER format. The outDerKey memory is
+ * allocated internally.
+ *
+ * Returns UA_STATUSCODE_BADSECURITYCHECKSFAILED if the password is wrong. */
+UA_EXPORT UA_StatusCode
+UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
+                         const UA_ByteString password,
+                         UA_ByteString *outDerKey);
 
 _UA_END_DECLS
 

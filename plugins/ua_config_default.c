@@ -24,6 +24,7 @@
 
 #include "../deps/mp_printf.h"
 
+#include <stdio.h>
 #ifdef _WIN32
 # include <winsock2.h>
 #else
@@ -44,6 +45,29 @@ UA_DURATIONRANGE(UA_Duration min, UA_Duration max) {
     UA_DurationRange range = {min, max};
     return range;
 }
+
+/* Request the private key password from stdin if no callback is defined */
+#ifdef UA_ENABLE_ENCRYPTION
+static UA_StatusCode
+readPrivateKeyPassword(UA_ByteString *password) {
+    /* Read from stdin */
+    char buf[256];
+    fputs("Private key requires a password. Enter and press return: ", stdout);
+    char *s = fgets(buf, 256, stdin);
+    if(!s)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Get rid of any trailing \n */
+    size_t len = strlen(buf);
+    if(len == 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(buf[len-1] == '\n')
+        buf[len-1] = 0;
+
+    *password = UA_BYTESTRING_ALLOC(buf);
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 UA_Server *
 UA_Server_new(void) {
@@ -1144,6 +1168,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 }
 
 #ifdef UA_ENABLE_ENCRYPTION
+
 UA_StatusCode
 UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                                      UA_ByteString localCertificate, UA_ByteString privateKey,
@@ -1167,13 +1192,28 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     config->securityPolicies = sp;
 
+    /* Load the private key and convert to the DER format. Use an empty password
+     * on the first try -- maybe the key does not require a password. */
     UA_ByteString decryptedPrivateKey = UA_BYTESTRING_NULL;
-    const UA_StatusCode keySuccess = UA_PKI_decryptPemWithPassword(privateKey, &decryptedPrivateKey,
-                                                                config->privateKeyPasswordCallback,
-                                                                config->privateKeyPasswordCallbackContext);
+    UA_ByteString keyPassword = UA_BYTESTRING_NULL;
+    UA_StatusCode keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword,
+                                                        &decryptedPrivateKey);
 
-    if (keySuccess != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    /* Get the password and decrypt. An application might want to loop / retry
+     * here to allow users to correct their entry. */
+    if(keySuccess != UA_STATUSCODE_GOOD) {
+        if(config->privateKeyPasswordCallback)
+            keySuccess = config->privateKeyPasswordCallback(config, &keyPassword);
+        else
+            keySuccess = readPrivateKeyPassword(&keyPassword);
+        if(keySuccess != UA_STATUSCODE_GOOD)
+            return keySuccess;
+        keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword, &decryptedPrivateKey);
+        memset(keyPassword.data, 0, keyPassword.length);
+        UA_ByteString_clear(&keyPassword);
+    }
+    if(keySuccess != UA_STATUSCODE_GOOD)
+        return keySuccess;
 
     retval = UA_SecurityPolicy_Basic128Rsa15(&config->securityPolicies[config->securityPoliciesSize],
                                              localCertificate, decryptedPrivateKey, config->logging);
