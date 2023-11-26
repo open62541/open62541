@@ -188,7 +188,6 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
 
 #ifdef UA_ENABLE_ENCRYPTION
     config->privateKeyPasswordCallback = NULL;
-    config->privateKeyPasswordCallbackContext = NULL;
 #endif
 }
 

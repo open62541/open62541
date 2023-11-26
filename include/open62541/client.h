@@ -26,6 +26,10 @@
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/securitypolicy.h>
 
+/* Forward declarations */
+struct UA_ClientConfig;
+typedef struct UA_ClientConfig UA_ClientConfig;
+
 _UA_BEGIN_DECLS
 
 /**
@@ -67,7 +71,7 @@ _UA_BEGIN_DECLS
  *
  * The :ref:`tutorials` provide a good starting point for this. */
 
-typedef struct {
+struct UA_ClientConfig {
     void *clientContext;       /* User-defined pointer attached to the client */
     const UA_Logger *logging;  /* Plugin for log output */
 
@@ -211,14 +215,15 @@ typedef struct {
     size_t sessionLocaleIdsSize;
 
 #ifdef UA_ENABLE_ENCRYPTION
-    /* If the private key is in PEM format and password protected,
-     * this callback is called during initialization to get the password
-     * to decrypt the private key.
-     * The callback must be set before invoking UA_ClientConfig_setDefaultEncryption(). */
-    UA_PKI_PrivateKeyPasswordCallback privateKeyPasswordCallback;
-    void *privateKeyPasswordCallbackContext;
+    /* If the private key is in PEM format and password protected, this callback
+     * is called during initialization to get the password to decrypt the
+     * private key. The memory containing the password is freed by the client
+     * after use. The callback should be set early, other parts of the client
+     * config setup may depend on it. */
+    UA_StatusCode (*privateKeyPasswordCallback)(UA_ClientConfig *cc,
+                                                UA_ByteString *password);
 #endif
-} UA_ClientConfig;
+};
 
 /**
  * @brief It makes a partial deep copy of the clientconfig. It makes a shallow
