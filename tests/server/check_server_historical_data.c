@@ -121,11 +121,12 @@ static void teardown(void) {
 
 static UA_StatusCode
 setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
+    UA_EventLoop *el = UA_Client_getConfig(thisClient)->eventLoop;
     UA_DataValue dv;
     UA_DataValue_init(&dv);
     UA_Variant_setScalar(&dv.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
     dv.hasValue = true;
-    dv.sourceTimestamp = UA_DateTime_now();
+    dv.sourceTimestamp = el->dateTime_now(el);
     dv.hasSourceTimestamp = true;
     return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
@@ -713,8 +714,7 @@ START_TEST(Server_HistorizingUpdateUpdate)
 }
 END_TEST
 
-START_TEST(Server_HistorizingStrategyUser)
-{
+START_TEST(Server_HistorizingStrategyUser) {
     // set a data backend
     UA_HistorizingNodeIdSettings setting;
     setting.historizingBackend = UA_HistoryDataBackend_Memory(3, 100);
@@ -724,7 +724,8 @@ START_TEST(Server_HistorizingStrategyUser)
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
-    UA_DateTime start = UA_DateTime_now();
+    UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
+    UA_DateTime start = el->dateTime_now(el);
     UA_DateTime end = start + (10 * UA_DATETIME_SEC);
     for (UA_UInt32 i = 0; i < 10; ++i) {
         UA_DataValue value;
@@ -779,8 +780,10 @@ START_TEST(Server_HistorizingStrategyUser)
 }
 END_TEST
 
-START_TEST(Server_HistorizingStrategyPoll)
-{
+START_TEST(Server_HistorizingStrategyPoll) {
+    UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
+    UA_DateTime start = el->dateTime_now(el);
+
     // init to a defined value
     UA_StatusCode retval = setUInt32(client, outNodeId, 43);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -795,22 +798,24 @@ START_TEST(Server_HistorizingStrategyPoll)
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
 
     // fill the data
-    UA_DateTime start = UA_DateTime_now();
     retval = gathering->startPoll(server, gathering->context, &outNodeId);
-    ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-    for (size_t k = 0; k < 10; ++k) {
-        UA_fakeSleep(50);
-        UA_realSleep(50);
-        if (k == 5) {
+    for(size_t k = 0; k < 10; ++k) {
+        running = false;
+        THREAD_JOIN(server_thread);
+        UA_fakeSleep(setting.pollingInterval);
+        UA_Server_run_iterate(server, false);
+        running = true;
+        THREAD_CREATE(server_thread, serverloop);
+        if(k == 5) {
             gathering->stopPoll(server, gathering->context, &outNodeId);
         }
         setUInt32(client, outNodeId, (unsigned int)k);
     }
 
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-    UA_DateTime end = UA_DateTime_now();
+    UA_DateTime end = el->dateTime_now(el);
 
     // request
     UA_HistoryReadResponse response;
@@ -818,15 +823,18 @@ START_TEST(Server_HistorizingStrategyPoll)
     requestHistory(start, end, &response, 0, false, NULL);
 
     // test the response
-    ck_assert_str_eq(UA_StatusCode_name(response.responseHeader.serviceResult), UA_StatusCode_name(UA_STATUSCODE_GOOD));
+    ck_assert_int_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(response.resultsSize, 1);
-    for (size_t i = 0; i < response.resultsSize; ++i) {
-        ck_assert_str_eq(UA_StatusCode_name(response.results[i].statusCode), UA_StatusCode_name(UA_STATUSCODE_GOOD));
-        ck_assert_uint_eq(response.results[i].historyData.encoding, UA_EXTENSIONOBJECT_DECODED);
-        ck_assert(response.results[i].historyData.content.decoded.type == &UA_TYPES[UA_TYPES_HISTORYDATA]);
-        UA_HistoryData * data = (UA_HistoryData *)response.results[i].historyData.content.decoded.data;
+    for(size_t i = 0; i < response.resultsSize; ++i) {
+        ck_assert_int_eq(response.results[i].statusCode, UA_STATUSCODE_GOOD);
+        ck_assert_uint_eq(response.results[i].historyData.encoding,
+                          UA_EXTENSIONOBJECT_DECODED);
+        ck_assert_ptr_eq(response.results[i].historyData.content.decoded.type,
+                         &UA_TYPES[UA_TYPES_HISTORYDATA]);
+        UA_HistoryData *data = (UA_HistoryData *)
+            response.results[i].historyData.content.decoded.data;
         ck_assert(data->dataValuesSize > 1);
-        for (size_t j = 0; j < data->dataValuesSize; ++j) {
+        for(size_t j = 0; j < data->dataValuesSize; ++j) {
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
             ck_assert(data->dataValues[j].sourceTimestamp >= start);
             ck_assert(data->dataValues[j].sourceTimestamp < end);
@@ -834,8 +842,8 @@ START_TEST(Server_HistorizingStrategyPoll)
             ck_assert(data->dataValues[j].value.type == &UA_TYPES[UA_TYPES_UINT32]);
             UA_UInt32 * value = (UA_UInt32 *)data->dataValues[j].value.data;
             // first need to be 43
-            if (j == 0) {
-                ck_assert(*value == 43);
+            if(j == 0) {
+                ck_assert_uint_eq(*value, 43);
             } else {
                 ck_assert(*value < 5);
             }
@@ -846,8 +854,7 @@ START_TEST(Server_HistorizingStrategyPoll)
 }
 END_TEST
 
-START_TEST(Server_HistorizingStrategyValueSet)
-{
+START_TEST(Server_HistorizingStrategyValueSet) {
     // init to a defined value
     UA_StatusCode retval = setUInt32(client, outNodeId, 43);
     ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
@@ -862,14 +869,15 @@ START_TEST(Server_HistorizingStrategyValueSet)
 
     // fill the data
     UA_fakeSleep(100);
-    UA_DateTime start = UA_DateTime_now();
+    UA_EventLoop *el = UA_Client_getConfig(client)->eventLoop;
+    UA_DateTime start = el->dateTime_now(el);
     UA_fakeSleep(100);
     for (UA_UInt32 i = 0; i < 10; ++i) {
         retval = setUInt32(client, outNodeId, i);
         ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
         UA_fakeSleep(100);
     }
-    UA_DateTime end = UA_DateTime_now();
+    UA_DateTime end = el->dateTime_now(el);
 
     // request
     UA_HistoryReadResponse response;
