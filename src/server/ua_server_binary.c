@@ -610,7 +610,8 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 
     /* If the overall service call failed, answer with a ServiceFault */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return sendServiceFault(server, channel, requestId, response->responseHeader.requestHandle,
+        return sendServiceFault(server, channel, requestId,
+                                response->responseHeader.requestHandle,
                                 response->responseHeader.serviceResult);
 
     /* Prepare the ResponseHeader */
