@@ -388,6 +388,19 @@ struct UA_ServerConfig {
      * Reverse Connect
      * ^^^^^^^^^^^^^^^ */
     UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
+
+    /**
+     * Certificate Password Callback
+     * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_ENCRYPTION
+    /* If the private key is in PEM format and password protected, this callback
+     * is called during initialization to get the password to decrypt the
+     * private key. The memory containing the password is freed by the client
+     * after use. The callback should be set early, other parts of the client
+     * config setup may depend on it. */
+    UA_StatusCode (*privateKeyPasswordCallback)(UA_ServerConfig *sc,
+                                                UA_ByteString *password);
+#endif
 };
 
 void UA_EXPORT

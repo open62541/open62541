@@ -881,9 +881,33 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
     if(privateKey)
        localPrivateKey = *privateKey;
 
+    /* Load the private key and convert to the DER format. Use an empty password
+     * on the first try -- maybe the key does not require a password. */
+    UA_ByteString decryptedPrivateKey = UA_BYTESTRING_NULL;
+    UA_ByteString keyPassword = UA_BYTESTRING_NULL;
+    UA_StatusCode keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
+                                                        &decryptedPrivateKey);
+
+    /* Get the password and decrypt. An application might want to loop / retry
+     * here to allow users to correct their entry. */
+    if(keySuccess != UA_STATUSCODE_GOOD) {
+        if(config->privateKeyPasswordCallback)
+            keySuccess = config->privateKeyPasswordCallback(config, &keyPassword);
+        else
+            keySuccess = readPrivateKeyPassword(&keyPassword);
+        if(keySuccess != UA_STATUSCODE_GOOD)
+            return keySuccess;
+        keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
+                                              &decryptedPrivateKey);
+        memset(keyPassword.data, 0, keyPassword.length);
+        UA_ByteString_clear(&keyPassword);
+    }
+    if(keySuccess != UA_STATUSCODE_GOOD)
+        return keySuccess;
+
     /* Basic256Sha256 */
     retval = UA_ServerConfig_addSecurityPolicyBasic256Sha256(config, &localCertificate,
-                                                             &localPrivateKey);
+                                                             &decryptedPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256Sha256 with error code %s",
@@ -892,7 +916,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
 
     /* Aes256Sha256RsaPss */
     retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &localCertificate,
-                                                                 &localPrivateKey);
+                                                                 &decryptedPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
@@ -901,7 +925,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
 
     /* Aes128Sha256RsaOaep */
     retval = UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep(config, &localCertificate,
-                                                                  &localPrivateKey);
+                                                                  &decryptedPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
@@ -921,7 +945,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
 
     /* Basic128Rsa15 */
     retval = UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &localCertificate,
-                                                            &localPrivateKey);
+                                                            &decryptedPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic128Rsa15 with error code %s",
@@ -930,12 +954,14 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
 
     /* Basic256 */
     retval = UA_ServerConfig_addSecurityPolicyBasic256(config, &localCertificate,
-                                                       &localPrivateKey);
+                                                       &decryptedPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#Basic256 with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+    UA_ByteString_clear(&decryptedPrivateKey);
 
     return UA_STATUSCODE_GOOD;
 }
