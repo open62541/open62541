@@ -899,7 +899,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
             return keySuccess;
         keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
                                               &decryptedPrivateKey);
-        memset(keyPassword.data, 0, keyPassword.length);
+        UA_ByteString_memZero(&keyPassword);
         UA_ByteString_clear(&keyPassword);
     }
     if(keySuccess != UA_STATUSCODE_GOOD)
@@ -932,8 +932,11 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
                        UA_StatusCode_name(retval));
     }
 
-    if(onlySecure)
+    if(onlySecure) {
+        UA_ByteString_memZero(&decryptedPrivateKey);
+        UA_ByteString_clear(&decryptedPrivateKey);
         return UA_STATUSCODE_GOOD;
+    }
 
     /* None */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, &localCertificate);
@@ -961,8 +964,8 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
                        UA_StatusCode_name(retval));
     }
 
+    UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1228,7 +1231,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
         if(keySuccess != UA_STATUSCODE_GOOD)
             return keySuccess;
         keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword, &decryptedPrivateKey);
-        memset(keyPassword.data, 0, keyPassword.length);
+        UA_ByteString_memZero(&keyPassword);
         UA_ByteString_clear(&keyPassword);
     }
     if(keySuccess != UA_STATUSCODE_GOOD)
@@ -1285,6 +1288,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
                        UA_StatusCode_name(retval));
     }
 
+    UA_ByteString_memZero(&decryptedPrivateKey);
     UA_ByteString_clear(&decryptedPrivateKey);
 
     if(config->securityPoliciesSize == 0) {
