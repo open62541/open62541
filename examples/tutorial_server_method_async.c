@@ -198,7 +198,7 @@ THREAD_CALLBACK(ThreadWorker) {
 /* This callback will be called when a new entry is added to the Callrequest queue */
 static void
 TestCallback(UA_Server *server) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async method");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async operation!");
 }
 
 int main(void) {

@@ -1129,7 +1129,6 @@ Operation_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
     }
 
     /* Create the Async Request to be taken by workers */
-    //TODO make "UA_AsyncManager_createAsyncOp" generic for read/write
     opResult->status =
         UA_AsyncManager_createAsyncOp(&server->asyncManager,
                                       server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_READ, opRequest);

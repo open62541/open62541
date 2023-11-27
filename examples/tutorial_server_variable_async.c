@@ -11,6 +11,8 @@
 #include <open62541/server.h>
 
 #ifndef WIN32
+#include "open62541/server_config_default.h"
+
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
@@ -189,15 +191,17 @@ THREAD_CALLBACK(ThreadWorker) {
                     break;
                 case UA_ASYNCOPERATIONTYPE_READ:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
-                    UA_Variant outValue;
-                    UA_Server_readValue(globalServer, request->readValueId.nodeId, &outValue);
-                    UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response, context);
-                    UA_Variant_clear(&outValue);
+                    UA_DataValue readResponse;
+                    UA_Server_readValue(globalServer, request->readValueId.nodeId, &readResponse.value);
+                    UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
+                    UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
                     break;
                 case UA_ASYNCOPERATIONTYPE_WRITE:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Got entry: OKAY");
-
+                    UA_StatusCode result;
+                    result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
+                    UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &result, context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Write done: OKAY");
                     break;
                 default:
@@ -214,7 +218,7 @@ THREAD_CALLBACK(ThreadWorker) {
 /* This callback will be called when a new entry is added to the Callrequest queue */
 static void
 TestCallback(UA_Server *server) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async method");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Dispatched an async operation");
 }
 
 int main(void) {
@@ -222,6 +226,7 @@ int main(void) {
 
     /* Set the NotifyCallback */
     UA_ServerConfig *config = UA_Server_getConfig(globalServer);
+    UA_ServerConfig_setMinimal(config, 4990, NULL);
     config->asyncOperationNotifyCallback = TestCallback;
 
     /* Start the Worker-Thread */

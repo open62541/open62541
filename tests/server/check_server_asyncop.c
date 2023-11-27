@@ -301,6 +301,14 @@ START_TEST(Async_timeout_worker) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_read) {
+   //ToDo TBD
+} END_TEST
+
+START_TEST(Async_write) {
+    //ToDo TBD
+} END_TEST
+
 static Suite* method_async_suite(void) {
     /* set up unit test for internal data structures */
     Suite *s = suite_create("Async Method");
@@ -312,6 +320,8 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_cancel);
     tcase_add_test(tc_manager, Async_cancel_multiple);
     tcase_add_test(tc_manager, Async_timeout_worker);
+    tcase_add_test(tc_manager, Async_read);
+    tcase_add_test(tc_manager, Async_write);
     suite_add_tcase(s, tc_manager);
 
     return s;
