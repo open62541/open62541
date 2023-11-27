@@ -8,11 +8,14 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include "open62541/server_config_default.h"
 #include <open62541/server.h>
 
-#ifndef WIN32
-#include "open62541/server_config_default.h"
+#include <signal.h>
+#include <malloc.h>
+#include "common.h"
 
+#ifndef WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
@@ -67,7 +70,7 @@ addVariable(UA_Server *server) {
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer async");
     attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
@@ -81,6 +84,12 @@ addVariable(UA_Server *server) {
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId);
     UA_Server_setVariableNodeAsync(server, variableNodeId, UA_TRUE);
+
+    //add non async variable for comparison
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer non async");
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                              parentReferenceNodeId, UA_QUALIFIEDNAME(0, "the answer 2"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 static void
@@ -178,12 +187,12 @@ THREAD_CALLBACK(ThreadWorker) {
                     "Try to dequeue an async operation");
         const UA_AsyncOperationRequest* request = NULL;
         void *context = NULL;
-        UA_AsyncOperationType type;
-        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL) == true) {
+        UA_AsyncOperationType type; UA_NodeId sessionId;
+        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL, &sessionId) == true) {
             switch(type) {
                 case UA_ASYNCOPERATIONTYPE_CALL:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
-                    UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
+                    UA_CallMethodResult response = UA_Server_callWithSession(globalServer, &request->callMethodRequest, &sessionId);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
                                                       context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
@@ -192,7 +201,9 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_READ:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
                     UA_DataValue readResponse;
-                    UA_Server_readValue(globalServer, request->readValueId.nodeId, &readResponse.value);
+                    //ToDo check timestamp to return logic
+                    readResponse = UA_Server_readWithSession(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, &sessionId);
+                    //readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
                     UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
@@ -200,7 +211,8 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_WRITE:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Got entry: OKAY");
                     UA_StatusCode result;
-                    result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
+                    result = UA_Server_writeWithSession(globalServer, &request->writeValue, &sessionId);
+                    //result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &result, context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Write done: OKAY");
                     break;
@@ -209,7 +221,7 @@ THREAD_CALLBACK(ThreadWorker) {
             }
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(1000);
+            sleep_ms(1000);
         }
     }
     return 0;
