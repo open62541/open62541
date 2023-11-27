@@ -10,6 +10,10 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 
+#include <signal.h>
+#include <malloc.h>
+#include "common.h"
+
 #ifndef WIN32
 #include "open62541/server_config_default.h"
 
@@ -218,7 +222,7 @@ THREAD_CALLBACK(ThreadWorker) {
             }
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(1000);
+            sleep_ms(1000);
         }
     }
     return 0;

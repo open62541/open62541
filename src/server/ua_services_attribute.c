@@ -1156,7 +1156,7 @@ void
 Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                   const UA_ReadRequest *request, UA_ReadResponse *response,
                   UA_Boolean *finished) {
-    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ReadRequestAsync");
+    UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequestAsync");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check if the timestampstoreturn is valid */
