@@ -93,6 +93,9 @@ if(UA_ENABLE_METHODCALLS)
         add_example(tutorial_server_method_async tutorial_server_method_async.c)
     endif()
 endif()
+if (UA_MULTITHREADING GREATER_EQUAL 100)
+    add_example(tutorial_server_variable_async tutorial_server_variable_async.c)
+endif()
 
 add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
 

@@ -11,12 +11,15 @@
       <option name="SUPERCLASS_LIST_BEFORE_COLON" value="0" />
       <option name="SUPERCLASS_LIST_AFTER_COLON" value="2" />
     </Objective-C>
-    <Objective-C-extensions>
+    <clangFormatSettings>
+      <option name="ENABLED" value="true" />
+    </clangFormatSettings>
+    <files>
       <extensions>
         <pair source="cpp" header="h" fileNamingConvention="NONE" />
         <pair source="c" header="h" fileNamingConvention="NONE" />
       </extensions>
-    </Objective-C-extensions>
+    </files>
     <codeStyleSettings language="CMake">
       <option name="ALIGN_MULTILINE_PARAMETERS_IN_CALLS" value="true" />
       <option name="SPACE_BEFORE_IF_PARENTHESES" value="false" />

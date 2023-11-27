@@ -476,6 +476,9 @@ UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
     dst->isDynamic = src->isDynamic;
+#if UA_MULTITHREADING >= 100
+    dst->async = src->async;
+#endif
     return UA_CommonVariableNode_copy(src, dst);
 }
 

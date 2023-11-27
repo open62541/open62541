@@ -1997,23 +1997,27 @@ UA_StatusCode UA_EXPORT
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync);
 
+UA_StatusCode UA_EXPORT
+UA_Server_setVariableNodeAsync(UA_Server *server, const UA_NodeId id,
+                               UA_Boolean isAsync);
+
 typedef enum {
     UA_ASYNCOPERATIONTYPE_INVALID, /* 0, the default */
-    UA_ASYNCOPERATIONTYPE_CALL
-    /* UA_ASYNCOPERATIONTYPE_READ, */
-    /* UA_ASYNCOPERATIONTYPE_WRITE, */
+    UA_ASYNCOPERATIONTYPE_CALL,
+    UA_ASYNCOPERATIONTYPE_READ,
+    UA_ASYNCOPERATIONTYPE_WRITE
 } UA_AsyncOperationType;
 
 typedef union {
     UA_CallMethodRequest callMethodRequest;
-    /* UA_ReadValueId readValueId; */
-    /* UA_WriteValue writeValue; */
+    UA_ReadValueId readValueId;
+    UA_WriteValue writeValue;
 } UA_AsyncOperationRequest;
 
 typedef union {
     UA_CallMethodResult callMethodResult;
-    /* UA_DataValue readResult; */
-    /* UA_StatusCode writeResult; */
+    UA_DataValue readResult;
+    UA_StatusCode writeResult;
 } UA_AsyncOperationResponse;
 
 /* Get the next async operation without blocking

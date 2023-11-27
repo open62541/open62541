@@ -4,6 +4,7 @@
  *
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Klaus Schick)
  *    Copyright 2019 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_server_internal.h"
@@ -411,6 +412,7 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
                                         UA_UInt32 requestId, UA_UInt32 requestHandle,
                                         UA_AsyncServiceOperation operationCallback,
                                         const size_t *requestOperations,
+                                        const void *requests,
                                         const UA_DataType *requestOperationsType,
                                         size_t *responseOperations,
                                         const UA_DataType *responseOperationsType,
@@ -482,6 +484,26 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
 
     /* Process messages that have all ops completed */
     return processAsyncResults(server);
+}
+
+static UA_StatusCode
+setVariableNodeAsync(UA_Server *server, UA_Session *session,
+                   UA_Node *node, UA_Boolean *isAsync) {
+    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
+        return UA_STATUSCODE_BADNODECLASSINVALID;
+    node->variableNode.async = *isAsync;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setVariableNodeAsync(UA_Server *server, const UA_NodeId id,
+                             UA_Boolean isAsync) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res =
+        UA_Server_editNode(server, &server->adminSession, &id,
+                           (UA_EditNodeCallback)setVariableNodeAsync, &isAsync);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 #endif

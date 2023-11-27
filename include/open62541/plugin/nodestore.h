@@ -622,6 +622,9 @@ typedef struct {
                            * background. Only dynamic variables conserve source
                            * and server timestamp for the value attribute.
                            * Static variables have timestamps of "now". */
+#if UA_MULTITHREADING >= 100
+    UA_Boolean async; /* Indicates an async method call */
+#endif
 } UA_VariableNode;
 
 /**
