@@ -262,7 +262,8 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
 UA_StatusCode
 UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest) {
+                              UA_AsyncOperationType operationType,
+                              const void *opRequest) {
     if(server->config.maxAsyncOperationQueueSize != 0 &&
        am->opsCount >= server->config.maxAsyncOperationQueueSize) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -277,16 +278,37 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                      "UA_Server_SetNextAsyncMethod: Mem alloc failed.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-    UA_StatusCode result = UA_CallMethodRequest_copy(opRequest, &ao->request);
-    if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
-        UA_free(ao);
-        return result;
+    UA_StatusCode result;
+    switch(operationType) {
+        case UA_ASYNCOPERATIONTYPE_INVALID:
+            break;
+        case UA_ASYNCOPERATIONTYPE_CALL:
+            ao->operationType = UA_ASYNCOPERATIONTYPE_CALL;
+            result = UA_CallMethodRequest_copy((const UA_CallMethodRequest *) opRequest, &ao->request);
+            if(result != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
+                UA_free(ao);
+                return result;
+            }
+            UA_CallMethodResult_init(&ao->response);
+            break;
+        case UA_ASYNCOPERATIONTYPE_READ:
+            ao->operationType = UA_ASYNCOPERATIONTYPE_READ;
+            result = UA_ReadRequest_copy((const UA_ReadRequest *)opRequest, &ao->request_read);
+            if(result != UA_STATUSCODE_GOOD) {
+                UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                             "UA_Server_SetAsyncMethodResult: UA_CallMethodRequest_copy failed.");
+                UA_free(ao);
+                return result;
+            }
+            break;
+            UA_DataValue_init(&ao->response_read);
+        case UA_ASYNCOPERATIONTYPE_WRITE:
+            break;
     }
 
-    UA_CallMethodResult_init(&ao->response);
+
     ao->index = opIndex;
     ao->parent = ar;
 
@@ -316,8 +338,15 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
     if(ao) {
         TAILQ_REMOVE(&am->newQueue, ao, pointers);
         TAILQ_INSERT_TAIL(&am->dispatchedQueue, ao, pointers);
-        *type = UA_ASYNCOPERATIONTYPE_CALL;
-        *request = (UA_AsyncOperationRequest*)&ao->request;
+        *type = ao->operationType;
+        //*type = UA_ASYNCOPERATIONTYPE_CALL;
+        if(ao->operationType == UA_ASYNCOPERATIONTYPE_CALL){
+            *request = (UA_AsyncOperationRequest*)&ao->request;
+        } else if (ao->operationType == UA_ASYNCOPERATIONTYPE_READ){
+            *request = (UA_AsyncOperationRequest*)&ao->request_read;
+        } //else if (ao->operationType == UA_ASYNCOPERATIONTYPE_WRITE){
+           // *request = (UA_AsyncOperationRequest*)&ao->request_;
+        //}
         *context = (void*)ao;
         if(timeout)
             *timeout = ao->parent->timeout;
@@ -361,14 +390,23 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
         UA_UNLOCK(&am->queueLock);
         return;
     }
-
-    /* Copy the result into the internal AsyncOperation */
-    UA_StatusCode result =
-        UA_CallMethodResult_copy(&response->callMethodResult, &ao->response);
-    if(result != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "UA_Server_SetAsyncMethodResult: UA_CallMethodResult_copy failed.");
-        ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode result;
+    if(ao->operationType == UA_ASYNCOPERATIONTYPE_CALL){
+        result = UA_CallMethodResult_copy(&response->callMethodResult, &ao->response);
+        /* Copy the result into the internal AsyncOperation */
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "UA_Server_SetAsyncMethodResult: UA_CallMethodResult_copy failed.");
+            ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
+    } else if(ao->operationType == UA_ASYNCOPERATIONTYPE_READ){
+        result = UA_DataValue_copy(&response->readResult, &ao->response_read);
+        /* Copy the result into the internal AsyncOperation */
+        if(result != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                           "UA_Server_SetAsyncMethodResult: UA_DataValue_copy failed.");
+            ao->response.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        }
     }
 
     /* Move to the result queue */
@@ -430,11 +468,14 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
 
     /* Finish / dispatch the operations. This may allocate a new AsyncResponse internally */
     uintptr_t respOp = (uintptr_t)*respPos;
-    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    //uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
+    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requests);
     for(size_t i = 0; i < ops; i++) {
         operationCallback(server, session, requestId, requestHandle,
                           i, (void*)reqOp, (void*)respOp, ar);
-        reqOp += requestOperationsType->memSize;
+        if(!UA_NodeId_equal(&requestOperationsType->typeId, &UA_TYPES[UA_TYPES_READREQUEST].typeId)){
+            reqOp += requestOperationsType->memSize;
+        }
         respOp += responseOperationsType->memSize;
     }
 

@@ -30,7 +30,12 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
     UA_CallMethodRequest request;
-    UA_CallMethodResult response;
+    UA_CallMethodResult	response;
+    //TO-DO add more efficient structure (typdefs for method, read, write) + union
+    UA_AsyncOperationType operationType;
+    UA_ReadRequest request_read;
+    UA_DataValue response_read;
+
     size_t index;             /* Index of the operation in the array of ops in
                                * request/response */
     UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
@@ -42,7 +47,7 @@ struct UA_AsyncResponse {
     UA_UInt32 requestId;
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
-    UA_DateTime    timeout;
+    UA_DateTime	timeout;
     UA_AsyncOperationType operationType;
     union {
         UA_CallResponse callResponse;
@@ -96,7 +101,8 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar);
 UA_StatusCode
 UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
-                              const UA_CallMethodRequest *opRequest);
+                              UA_AsyncOperationType operationType,
+                              const void *opRequest);
 
 /* Send out the response with status set. Also removes all outstanding
  * operations from the dispatch queue. The queuelock needs to be taken before

@@ -189,9 +189,12 @@ THREAD_CALLBACK(ThreadWorker) {
                     break;
                 case UA_ASYNCOPERATIONTYPE_READ:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
-
+                    UA_Variant outValue;
+                    UA_Server_readValue(globalServer, request->readValueId.nodeId, &outValue);
+                    UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response, context);
+                    UA_Variant_clear(&outValue);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
-                break;
+                    break;
                 case UA_ASYNCOPERATIONTYPE_WRITE:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Got entry: OKAY");
 
@@ -202,7 +205,7 @@ THREAD_CALLBACK(ThreadWorker) {
             }
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(100);
+            UA_sleep_ms(1000);
         }
     }
     return 0;
