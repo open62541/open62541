@@ -129,8 +129,8 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{%s, %s}" % ("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % ("0",
+        typeid = "{%s, %s}" % (namespaceMap[datatype.namespaceUri], getNodeidTypeAndId(datatype.nodeId))
+        binaryEncodingId = "{%s, %s}" % (namespaceMap[datatype.namespaceUri],
                                          getNodeidTypeAndId(datatype.binaryEncodingId))
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
