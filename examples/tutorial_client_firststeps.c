@@ -48,6 +48,19 @@ int main(void) {
                     UA_StatusCode_name(retval));
     }
 
+    UA_Variant writeValue;
+    UA_Int32 numericalValue = 144;
+    UA_Variant_setScalar(&writeValue, &numericalValue, &UA_TYPES[UA_TYPES_INT32]);
+
+    retval = UA_Client_writeValueAttribute(client, nodeId, &writeValue);
+
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Reading the value failed with status code %s",
+                    UA_StatusCode_name(retval));
+    }
+
+
     /* Clean up */
     UA_Variant_clear(&value);
     UA_Client_delete(client); /* Disconnects the client internally */

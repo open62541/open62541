@@ -443,7 +443,7 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         UA_Server_processServiceOperationsAsync(server, session, requestId,
                   request->requestHeader.requestHandle,
                   (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                  &request->methodsToCallSize, NULL, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                  &request->methodsToCallSize, &request->methodsToCall, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
 
     if(ar) {
@@ -527,6 +527,19 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult_init(&result);
     UA_LOCK(&server->serviceMutex);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
+    UA_UNLOCK(&server->serviceMutex);
+    return result;
+}
+
+UA_CallMethodResult
+UA_Server_callWithSession(UA_Server *server, const UA_CallMethodRequest *request, UA_NodeId *sessionId) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
+    Operation_CallMethod(server, session, NULL, request, &result);
     UA_UNLOCK(&server->serviceMutex);
     return result;
 }

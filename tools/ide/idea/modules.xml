@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/open62541.iml" filepath="$PROJECT_DIR$/.idea/open62541.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/open62541-async-rw.iml" filepath="$PROJECT_DIR$/.idea/open62541-async-rw.iml" />
     </modules>
   </component>
 </project>

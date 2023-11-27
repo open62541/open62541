@@ -639,6 +639,22 @@ UA_DataValue UA_EXPORT UA_THREADSAFE
 UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps);
 
+/* Read an attribute of a node. The specialized functions below provide a more
+ * concise syntax.
+ *
+ * @param server The server object.
+ * @param item ReadValueIds contain the NodeId of the target node, the id of the
+ *             attribute to read and (optionally) an index range to read parts
+ *             of an array only. See the section on NumericRange for the format
+ *             used for array ranges.
+ * @param timestamps Which timestamps to return for the attribute.
+ * @param sessionId The sessionId is used to check user specific rights on the target node
+ * @return Returns a DataValue that contains either an error code, or a variant
+ *         with the attribute value and the timestamps. */
+UA_DataValue UA_EXPORT UA_THREADSAFE
+UA_Server_readWithSession(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps, UA_NodeId *session);
+
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -813,6 +829,20 @@ UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
  * @return Returns a status code. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_write(UA_Server *server, const UA_WriteValue *value);
+
+/* Overwrite an attribute of a node. The specialized functions below provide a
+ * more concise syntax.
+ *
+ * @param server The server object.
+ * @param value WriteValues contain the NodeId of the target node, the id of the
+ *              attribute to overwritten, the actual value and (optionally) an
+ *              index range to replace parts of an array only. of an array only.
+ *              See the section on NumericRange for the format used for array
+ *              ranges.
+ * @param sessionId The sessionId is used to check user specific rights on the target node
+ * @return Returns a status code. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_writeWithSession(UA_Server *server, const UA_WriteValue *value, UA_NodeId *sessionId);
 
 /* Don't use this function. There are typed versions with no additional
  * overhead. */
@@ -1307,6 +1337,10 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
 
 UA_CallMethodResult UA_EXPORT UA_THREADSAFE
 UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
+
+UA_CallMethodResult UA_EXPORT UA_THREADSAFE
+UA_Server_callWithSession(UA_Server *server, const UA_CallMethodRequest *request, UA_NodeId *sessionId);
+
 #endif
 
 /**
@@ -2034,7 +2068,7 @@ UA_Boolean UA_EXPORT
 UA_Server_getAsyncOperationNonBlocking(UA_Server *server,
                                        UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
-                                       void **context, UA_DateTime *timeout);
+                                       void **context, UA_DateTime *timeout, UA_NodeId *sessionId);
 
 /* UA_Boolean UA_EXPORT */
 /* UA_Server_getAsyncOperationBlocking(UA_Server *server, */
