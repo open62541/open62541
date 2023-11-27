@@ -343,6 +343,13 @@ void Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 request
 void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request,
                    UA_WriteResponse *response);
+# if UA_MULTITHREADING >= 100
+void
+Service_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                   const UA_WriteRequest *request, UA_WriteResponse *response,
+                   UA_Boolean *finished);
+#endif
+
 
 /**
  * HistoryRead Service
