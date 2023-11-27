@@ -29,12 +29,14 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
 /* A single operation (of a larger request) */
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
-    UA_CallMethodRequest request;
-    UA_CallMethodResult	response;
+    UA_CallMethodRequest request_call;
+    UA_CallMethodResult	response_call;
     //TO-DO add more efficient structure (typdefs for method, read, write) + union
     UA_AsyncOperationType operationType;
     UA_ReadRequest request_read;
     UA_DataValue response_read;
+    UA_WriteRequest request_write;
+    UA_StatusCode response_write;
 
     size_t index;             /* Index of the operation in the array of ops in
                                * request/response */

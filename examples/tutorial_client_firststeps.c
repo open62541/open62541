@@ -15,7 +15,7 @@
 int main(void) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4990");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "The connection failed with status code %s",
@@ -31,17 +31,14 @@ int main(void) {
 
     /* NodeId of the variable holding the current time */
     const UA_NodeId nodeId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NODEID_STRING(1, "the.answer");
     retval = UA_Client_readValueAttribute(client, nodeId, &value);
 
     if(retval == UA_STATUSCODE_GOOD &&
-       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
-        UA_DateTime raw_date = *(UA_DateTime *) value.data;
-        UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
+       UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT32])) {
+        UA_UInt32 raw_date = *(UA_UInt32 *) value.data;
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "date is: %u-%u-%u %u:%u:%u.%03u",
-                    dts.day, dts.month, dts.year, dts.hour,
-                    dts.min, dts.sec, dts.milliSec);
+                    "Number: %i", raw_date);
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Reading the value failed with status code %s",
