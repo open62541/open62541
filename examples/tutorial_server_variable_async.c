@@ -67,7 +67,7 @@ addVariable(UA_Server *server) {
     UA_Int32 myInteger = 42;
     UA_Variant_setScalar(&attr.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
     attr.description = UA_LOCALIZEDTEXT("en-US","the answer");
-    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer");
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer async");
     attr.dataType = UA_TYPES[UA_TYPES_INT32].typeId;
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
@@ -81,6 +81,12 @@ addVariable(UA_Server *server) {
                               parentReferenceNodeId, myIntegerName,
                               UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, &variableNodeId);
     UA_Server_setVariableNodeAsync(server, variableNodeId, UA_TRUE);
+
+    //add non async variable for comparison
+    attr.displayName = UA_LOCALIZEDTEXT("en-US","the answer non async");
+    UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
+                              parentReferenceNodeId, UA_QUALIFIEDNAME(0, "the answer 2"),
+                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 static void
@@ -192,7 +198,10 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_READ:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
                     UA_DataValue readResponse;
-                    UA_Server_readValue(globalServer, request->readValueId.nodeId, &readResponse.value);
+                    //ToDo check timestamp to return logic
+                    //TODO public API uses admin sesseion in the next call level therefore e.g. access level are wrong
+                    readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
+                    //UA_Server_readValue(globalServer, request->readValueId.nodeId, &readResponse.value);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
                     UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");

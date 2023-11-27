@@ -1126,7 +1126,7 @@ Operation_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
     /* Synchronous execution */
     if(!node->variableNode.async) {
         /* Perform the read operation */
-        ReadWithNode(node, server, session, opRequest->timestampsToReturn, opRequest->nodesToRead, opResult);
+        ReadWithNode(node, server, session, opRequest->timestampsToReturn, &opRequest->nodesToRead[opIndex], opResult);
         goto cleanup;
     }
 

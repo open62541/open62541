@@ -50,10 +50,21 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return;
     }
 
-    /* Set the request handle */
-    UA_ResponseHeader *responseHeader = (UA_ResponseHeader*)
-        &ar->response.callResponse.responseHeader;
-    responseHeader->requestHandle = ar->requestHandle;
+    UA_ResponseHeader *responseHeader;
+    if(ar->operationType == UA_ASYNCOPERATIONTYPE_CALL){
+        /* Okay, here we go, send the UA_CallResponse */
+        responseHeader = (UA_ResponseHeader*)
+                         &ar->response.callResponse.responseHeader;
+        responseHeader->requestHandle = ar->requestHandle;
+    } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_READ) {
+        responseHeader = (UA_ResponseHeader*)
+                         &ar->response.readResponse.responseHeader;
+        responseHeader->requestHandle = ar->requestHandle;
+    } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_WRITE) {
+        responseHeader = (UA_ResponseHeader*)
+                         &ar->response.writeResponse.responseHeader;
+        responseHeader->requestHandle = ar->requestHandle;
+    }
 
     /* Send the Response */
     UA_StatusCode res =
