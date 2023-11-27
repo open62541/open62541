@@ -137,6 +137,11 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session,
 void Service_Read(UA_Server *server, UA_Session *session,
                   const UA_ReadRequest *request,
                   UA_ReadResponse *response);
+# if UA_MULTITHREADING >= 100
+void Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
+                       const UA_ReadRequest *request, UA_ReadResponse *response,
+                       UA_Boolean *finished);
+#endif
 
 void Service_Write(UA_Server *server, UA_Session *session,
                    const UA_WriteRequest *request,
