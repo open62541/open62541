@@ -850,6 +850,11 @@ UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
     if(!outDerKey)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if (privateKey.length == 0) {
+        *outDerKey = UA_BYTESTRING_NULL;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     /* Already in DER format -> return verbatim */
     if(privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)
         return UA_ByteString_copy(&privateKey, outDerKey);
