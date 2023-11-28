@@ -885,8 +885,11 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
      * on the first try -- maybe the key does not require a password. */
     UA_ByteString decryptedPrivateKey = UA_BYTESTRING_NULL;
     UA_ByteString keyPassword = UA_BYTESTRING_NULL;
-    UA_StatusCode keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
-                                                        &decryptedPrivateKey);
+    UA_StatusCode keySuccess = UA_STATUSCODE_GOOD;
+
+    if (privateKey && privateKey->length > 0)
+        keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
+                                              &decryptedPrivateKey);
 
     /* Get the password and decrypt. An application might want to loop / retry
      * here to allow users to correct their entry. */
@@ -1218,8 +1221,11 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
      * on the first try -- maybe the key does not require a password. */
     UA_ByteString decryptedPrivateKey = UA_BYTESTRING_NULL;
     UA_ByteString keyPassword = UA_BYTESTRING_NULL;
-    UA_StatusCode keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword,
-                                                        &decryptedPrivateKey);
+    UA_StatusCode keySuccess = UA_STATUSCODE_GOOD;
+
+    if (privateKey.length > 0)
+        keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword,
+                                              &decryptedPrivateKey);
 
     /* Get the password and decrypt. An application might want to loop / retry
      * here to allow users to correct their entry. */
