@@ -76,13 +76,8 @@ int main(void) {
     config->accessControl.clear(&config->accessControl);
     UA_StatusCode retval;
 
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-    retval = UA_AccessControl_custom(config, true, NULL,
-             &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 2, logins);
-#else
     retval = UA_AccessControl_default(config, false, NULL,
              &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 2, logins);
-#endif
 
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

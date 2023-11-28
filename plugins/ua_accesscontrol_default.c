@@ -7,6 +7,7 @@
  */
 
 #include <open62541/plugin/accesscontrol_default.h>
+#include <server/ua_server_internal.h>
 
 /* Example access control management. Anonymous and username / password login.
  * The access rights are maximally permissive.
@@ -110,6 +111,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         UA_ByteString *username = UA_ByteString_new();
         if(username)
             UA_ByteString_copy(&userToken->userName, username);
+
         *sessionContext = username;
         return UA_STATUSCODE_GOOD;
     }

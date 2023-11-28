@@ -1024,7 +1024,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->parentNodeId.nodeId)) {
             node = UA_NODESTORE_GET(server, &item->parentNodeId.nodeId);
@@ -1032,7 +1032,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             userRolePermissions = node->head.userRolePermissions;
             UA_NODESTORE_RELEASE(server, node);
         }
-#endif
+
         if(!server->config.accessControl.
            allowAddNode(server, &server->config.accessControl,
                         &session->sessionId, session->sessionHandle, item, userRolePermissions, userRolePermissionSize)) {
@@ -1942,7 +1942,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->nodeId)) {
             node = UA_NODESTORE_GET(server, &item->nodeId);
@@ -1950,7 +1950,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
             userRolePermissions = node->head.userRolePermissions;
             UA_NODESTORE_RELEASE(server, node);
         }
-#endif
+
         if(!server->config.accessControl.
            allowDeleteNode(server, &server->config.accessControl,
                            &session->sessionId, session->sessionHandle, item, userRolePermissions,
@@ -2107,7 +2107,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->sourceNodeId)) {
             node = UA_NODESTORE_GET(server, &item->sourceNodeId);
@@ -2115,7 +2115,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
             userRolePermissions = node->head.userRolePermissions;
             UA_NODESTORE_RELEASE(server, node);
         }
-#endif
+
         if (!server->config.accessControl.
                 allowAddReference(server, &server->config.accessControl,
                                   &session->sessionId, session->sessionHandle, item,
@@ -2289,7 +2289,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         size_t userRolePermissionSize = 0;
         UA_RolePermissionType *userRolePermissions = NULL;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         const UA_Node *node;
         if (!UA_NodeId_isNull(&item->sourceNodeId)) {
             node = UA_NODESTORE_GET(server, &item->sourceNodeId);
@@ -2297,7 +2297,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
             userRolePermissions = node->head.userRolePermissions;
             UA_NODESTORE_RELEASE(server, node);
         }
-#endif
+
         if (!server->config.accessControl.
                 allowDeleteReference(server, &server->config.accessControl,
                                      &session->sessionId, session->sessionHandle, item,

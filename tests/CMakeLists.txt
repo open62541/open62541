@@ -70,7 +70,6 @@ set(test_plugin_sources
     ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
     ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
     ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c
@@ -465,9 +464,4 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     target_link_libraries(check_interfaces ${LIBS})
     add_test_valgrind(check_interfaces ${TESTS_BINARY_DIR}/check_interfaces)
 
-endif()
-
-if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND UA_ENABLE_ROLE_PERMISSIONS)
-    ua_add_test(check_role_permissions.c)
-    list(APPEND test_plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_custom.c)
 endif()

@@ -45,6 +45,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
     UA_ApplicationDescription_clear(&session->clientDescription);
     UA_NodeId_clear(&session->header.authenticationToken);
     UA_NodeId_clear(&session->sessionId);
+    UA_NodeId_clear(&session->role);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
     struct ContinuationPoint *cp, *next = session->continuationPoints;
@@ -251,11 +252,12 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
 
 /* Session Attributes */
 
-#define UA_PROTECTEDATTRIBUTESSIZE 3
+#define UA_PROTECTEDATTRIBUTESSIZE 4
 static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = {
     {0, UA_STRING_STATIC("localeIds")},
     {0, UA_STRING_STATIC("clientDescription")},
-    {0, UA_STRING_STATIC("sessionName")}
+    {0, UA_STRING_STATIC("sessionName")},
+    {0, UA_STRING_STATIC("roles")}
 };
 
 static UA_Boolean
@@ -326,7 +328,13 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         UA_Variant_setScalar(&localAttr, &session->sessionName,
                              &UA_TYPES[UA_TYPES_STRING]);
         attr = &localAttr;
-    } else {
+    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[3])) {
+        /* Return role */
+        UA_Variant_setScalar(&localAttr, &session->role,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        attr = &localAttr;
+    }
+     else {
         /* Get from the actual key-value list */
         attr = UA_KeyValueMap_get(session->attributes, key);
         if(!attr)

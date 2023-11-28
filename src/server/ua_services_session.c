@@ -16,6 +16,31 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+#define UA_NUMBER_OF_ROLES 8
+
+static const UA_NodeId userRoles[8] = {
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_OBSERVER}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_OPERATOR}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_ENGINEER}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN}},
+  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN}},
+};
+
+
+static const UA_String userRoleDetail[8] = {
+  {9, (UA_Byte*)"Anonymous"},    
+  {17, (UA_Byte*)"AuthenticatedUser"},
+  {8, (UA_Byte*)"Observer"},
+  {8, (UA_Byte*)"Operator"},
+  {8, (UA_Byte*)"Engineer"},
+  {10, (UA_Byte*)"Supervisor"},
+  {14, (UA_Byte*)"ConfigureAdmin"},
+  {13, (UA_Byte*)"SecurityAdmin"}
+};
+
 /* Delayed callback to free the session memory */
 static void
 removeSessionCallback(UA_Server *server, session_list_entry *entry) {
@@ -674,6 +699,17 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
            request->userIdentityToken.content.decoded.data;
+
+       /* We should set up callbacks that assign varying role permissions
+        * to different users.
+        * TODO: Implement handle to support custom callbacks for setting role permissions
+        */
+       int userRoleIterator = 0;
+       for (userRoleIterator = 0; userRoleIterator < UA_NUMBER_OF_ROLES; userRoleIterator++)
+       {
+           if (UA_String_equal(&userToken->userName, &userRoleDetail[userRoleIterator]))
+               session->role = userRoles[userRoleIterator];
+       }
 
        /* If the userTokenPolicy doesn't specify a security policy the security
         * policy of the secure channel is used. */

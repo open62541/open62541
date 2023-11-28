@@ -411,31 +411,9 @@ void UA_Node_clear(UA_Node *node) {
     /* Delete unique content of the nodeclass */
     switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT: {
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-        UA_ObjectNode *obj = &node->objectNode;
-        UA_Array_delete(obj->head.rolePermissions, obj->head.rolePermissionsSize,
-                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        obj->head.rolePermissions= NULL;
-        obj->head.rolePermissionsSize = 0;
-        UA_Array_delete(obj->head.userRolePermissions, obj->head.userRolePermissionsSize,
-                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        obj->head.userRolePermissions= NULL;
-        obj->head.userRolePermissionsSize = 0;
-#endif
         break;
     }
     case UA_NODECLASS_METHOD:{
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-        UA_MethodNode *method = &node->methodNode;
-        UA_Array_delete(method->head.rolePermissions, method->head.rolePermissionsSize,
-                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        method->head.rolePermissions= NULL;
-        method->head.rolePermissionsSize = 0;
-        UA_Array_delete(method->head.userRolePermissions, method->head.userRolePermissionsSize,
-                        &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
-        method->head.userRolePermissions= NULL;
-        method->head.userRolePermissionsSize = 0;
-#endif
         break;
     }
     case UA_NODECLASS_OBJECTTYPE:
@@ -448,7 +426,7 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         UA_Array_delete(p->head.rolePermissions, p->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         p->head.rolePermissions= NULL;
@@ -457,7 +435,7 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         p->head.userRolePermissions= NULL;
         p->head.userRolePermissionsSize = 0;
-#endif
+
         if(p->valueSource == UA_VALUESOURCE_DATA)
             UA_DataValue_clear(&p->value.data.value);
         break;
@@ -465,7 +443,7 @@ void UA_Node_clear(UA_Node *node) {
     case UA_NODECLASS_REFERENCETYPE: {
         UA_ReferenceTypeNode *ref = &node->referenceTypeNode;
         UA_LocalizedText_clear(&ref->inverseName);
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
         UA_Array_delete(ref->head.rolePermissions, ref->head.rolePermissionsSize,
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         ref->head.rolePermissions= NULL;
@@ -474,7 +452,7 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
         ref->head.userRolePermissions= NULL;
         ref->head.userRolePermissionsSize = 0;
-#endif
+
         break;
     }
     case UA_NODECLASS_DATATYPE:
@@ -517,7 +495,7 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
 static UA_StatusCode
 UA_VariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->accessLevel = src->accessLevel;
-    dst->userAccessLevel = src->accessLevel;
+    // dst->userAccessLevel = src->accessLevel;
     dst->minimumSamplingInterval = src->minimumSamplingInterval;
     dst->historizing = src->historizing;
     dst->isDynamic = src->isDynamic;
@@ -534,7 +512,7 @@ UA_VariableTypeNode_copy(const UA_VariableTypeNode *src,
 static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
-    dst->userExecutable = src->executable;
+    // dst->userExecutable = src->executable;
     dst->method = src->method;
 #if UA_MULTITHREADING >= 100
     dst->async = src->async;
@@ -768,7 +746,7 @@ UA_Node_copy_alloc(const UA_Node *src) {
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
 static UA_StatusCode
 copyVariableRolePermissionAttributes(UA_VariableNode *vnode,
                                  const UA_VariableAttributes *attr){
@@ -860,7 +838,7 @@ copyMethodRolePermissionAttributes(UA_MethodNode *mnode,
     return UA_STATUSCODE_GOOD;
 
 }
-#endif
+
 
 static UA_StatusCode
 copyStandardAttributes(UA_NodeHead *head, const UA_NodeAttributes *attr) {
@@ -911,12 +889,12 @@ static UA_StatusCode
 copyVariableNodeAttributes(UA_VariableNode *vnode,
                            const UA_VariableAttributes *attr) {
     vnode->accessLevel = attr->accessLevel;
-    vnode->userAccessLevel = attr->accessLevel;
+    // vnode->userAccessLevel = attr->accessLevel;
     vnode->historizing = attr->historizing;
     vnode->minimumSamplingInterval = attr->minimumSamplingInterval;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
     copyVariableRolePermissionAttributes(vnode, attr);
-#endif
+
     return copyCommonVariableAttributes(vnode, attr);
 }
 
@@ -931,9 +909,9 @@ copyVariableTypeNodeAttributes(UA_VariableTypeNode *vtnode,
 static UA_StatusCode
 copyObjectNodeAttributes(UA_ObjectNode *onode, const UA_ObjectAttributes *attr) {
     onode->eventNotifier = attr->eventNotifier;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
     copyObjectRolePermissionAttributes(onode, attr);
-#endif
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -942,9 +920,9 @@ copyReferenceTypeNodeAttributes(UA_ReferenceTypeNode *rtnode,
                                 const UA_ReferenceTypeAttributes *attr) {
     rtnode->isAbstract = attr->isAbstract;
     rtnode->symmetric = attr->symmetric;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
     copyReferenceRolePermissionAttributes(rtnode, attr);
-#endif
+
     return UA_LocalizedText_copy(&attr->inverseName, &rtnode->inverseName);
 }
 
@@ -973,10 +951,10 @@ static UA_StatusCode
 copyMethodNodeAttributes(UA_MethodNode *mnode,
                          const UA_MethodAttributes *attr) {
     mnode->executable = attr->executable;
-    mnode->userExecutable = attr->executable;
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+    // mnode->userExecutable = attr->executable;
+
     copyMethodRolePermissionAttributes(mnode, attr);
-#endif
+
     return UA_STATUSCODE_GOOD;
 }
 

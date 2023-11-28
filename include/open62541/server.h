@@ -533,6 +533,7 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
  * - 0:localeIds [UA_String]: List of preferred languages (read-only)
  * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
  * - 0:sessionName [String] Client-defined name of the session (read-only)
+ * - 0:roles [UA_NodeId]: User role linked to the session
  */
 
 /* Returns a shallow copy of the attribute. Don't _clear or _delete the value
@@ -2015,14 +2016,5 @@ _UA_END_DECLS
 #ifdef UA_ENABLE_PUBSUB
 #include <open62541/server_pubsub.h>
 #endif
-
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-UA_EXPORT UA_StatusCode
-setUserRole_settings(UA_Server* server, UA_String roleName,
-                     UA_AccessControlSettings* accessControlSettings);
-UA_EXPORT UA_Boolean
-checkUserAccess(const UA_Node *node, void *sessionContext,
-                UA_UInt32 permissionBit);
-#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
 #endif /* UA_SERVER_H_ */

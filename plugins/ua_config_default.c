@@ -19,12 +19,7 @@
 #ifdef UA_ENABLE_WEBSOCKET_SERVER
 #include <open62541/network_ws.h>
 #endif
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-#include <open62541/plugin/accesscontrol_custom.h>
-#else
 #include <open62541/plugin/accesscontrol_default.h>
-#endif
-// #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/pki_default.h>
@@ -220,10 +215,15 @@ addEndpoint(UA_ServerConfig *conf,
     return retval;
 }
 
-static const size_t usernamePasswordsSize = 2;
-static UA_UsernamePasswordLogin usernamePasswords[2] = {
-    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
-    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
+static const size_t usernamePasswordsSize = 7;
+static UA_UsernamePasswordLogin usernamePasswords[7] = {
+    {UA_STRING_STATIC("AuthenticatedUser"), UA_STRING_STATIC("AuthenticatedUser")},
+    {UA_STRING_STATIC("Observer"), UA_STRING_STATIC("Observer")},
+    {UA_STRING_STATIC("Operator"), UA_STRING_STATIC("Operator")},
+    {UA_STRING_STATIC("Engineer"), UA_STRING_STATIC("Engineer")},
+    {UA_STRING_STATIC("Supervisor"), UA_STRING_STATIC("Supervisor")},
+    {UA_STRING_STATIC("ConfigureAdmin"), UA_STRING_STATIC("ConfigureAdmin")},
+    {UA_STRING_STATIC("SecurityAdmin"), UA_STRING_STATIC("SecurityAdmin")}};
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
@@ -595,17 +595,10 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
         return retval;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-    /* Initialize the Access Control plugin */
-    retval = UA_AccessControl_custom(config, true, NULL,
-                                      &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
-                                      usernamePasswordsSize, usernamePasswords);
-#else
     /* Initialize the Access Control plugin */
     retval = UA_AccessControl_default(config, true, NULL,
                                       &config->securityPolicies[config->securityPoliciesSize-1].policyUri,
                                       usernamePasswordsSize, usernamePasswords);
-#endif
 
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ServerConfig_clean(config);

@@ -412,12 +412,11 @@ struct UA_NodeHead {
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
 #endif
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
+
     size_t rolePermissionsSize;
     UA_RolePermissionType *rolePermissions;
     size_t userRolePermissionsSize;
     UA_RolePermissionType *userRolePermissions;
-#endif
 };
 
 /**
@@ -613,7 +612,7 @@ typedef struct {
     UA_NodeHead head;
     UA_NODE_VARIABLEATTRIBUTES
     UA_Byte accessLevel;
-    UA_Byte userAccessLevel;
+    // UA_Byte userAccessLevel;
     UA_Double minimumSamplingInterval;
     UA_Boolean historizing;
 
@@ -653,7 +652,7 @@ typedef UA_StatusCode
 typedef struct {
     UA_NodeHead head;
     UA_Boolean executable;
-    UA_Boolean userExecutable;
+    // UA_Boolean userExecutable;
 
     /* Members specific to open62541 */
     UA_MethodCallback method;

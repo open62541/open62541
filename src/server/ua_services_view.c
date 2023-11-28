@@ -765,22 +765,43 @@ browse(struct BrowseContext *bc) {
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-    /* Check AccessControl rights */
-    if(bc->session != &bc->server->adminSession &&
-       !bc->server->config.accessControl.
-         allowBrowseNode(bc->server, &bc->server->config.accessControl,
-                         &bc->session->sessionId, bc->session->sessionHandle,
-                         &descr->nodeId, node->head.context, node->head.userRolePermissions,
-                         node->head.userRolePermissionsSize)) {
-#else
+    /* The below code section is not behaving as expected.
+     * Expected to restrict access to the child nodes of a node
+     * that does not have user access.
+     */
+    // if (node->head.rolePermissionsSize != 0)
+    // {
+    //     if(bc->session != &bc->server->adminSession &&
+    //        !bc->server->config.accessControl.
+    //          allowBrowseNode(bc->server, &bc->server->config.accessControl,
+    //                          &bc->session->sessionId, bc->session->sessionHandle,
+    //                          &descr->nodeId, node->head.context, node->head.userRolePermissions,
+    //                          node->head.userRolePermissionsSize)) {
+    //     UA_NODESTORE_RELEASE(bc->server, node);
+    //     bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+    //     return;
+    //     }
+    // }
+    // else
+    // {
+    //     if(bc->session != &bc->server->adminSession &&
+    //        !bc->server->config.accessControl.
+    //          allowBrowseNode(bc->server, &bc->server->config.accessControl,
+    //                          &bc->session->sessionId, bc->session->sessionHandle,
+    //                          &descr->nodeId, node->head.context, NULL,
+    //                          0)) {
+    //         UA_NODESTORE_RELEASE(bc->server, node);
+    //         bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
+    //         return;
+    //     }
+    // }
+
     if(bc->session != &bc->server->adminSession &&
        !bc->server->config.accessControl.
          allowBrowseNode(bc->server, &bc->server->config.accessControl,
                          &bc->session->sessionId, bc->session->sessionHandle,
                          &descr->nodeId, node->head.context, NULL,
                          0)) {
-#endif
         UA_NODESTORE_RELEASE(bc->server, node);
         bc->status = UA_STATUSCODE_BADUSERACCESSDENIED;
         return;

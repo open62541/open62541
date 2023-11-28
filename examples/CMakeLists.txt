@@ -73,6 +73,8 @@ add_example(tutorial_server_variable tutorial_server_variable.c)
 
 add_example(tutorial_server_datasource tutorial_server_datasource.c)
 
+add_example(tutorial_server_roles_and_permissions tutorial_server_roles_and_permissions.c)
+
 add_example(server_settimestamp server_settimestamp.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
@@ -199,12 +201,6 @@ if(UA_ENABLE_DISCOVERY_MULTICAST)
     add_example(discovery_server_register discovery/server_register.c)
     add_example(discovery_client_find_servers discovery/client_find_servers.c)
     add_example(discovery_server_multicast discovery/server_multicast.c)
-endif()
-
-# Enable the tutorial_server_roles_and_permissions example while the 
-# UA_ENABLE_ROLE_PERMISSIONS flag is enabled
-if(UA_ENABLE_ROLE_PERMISSIONS)
-    add_example(tutorial_server_roles_and_permissions tutorial_server_roles_and_permissions.c)
 endif()
 
 add_subdirectory(nodeset)

@@ -57,6 +57,9 @@ typedef struct {
     size_t localeIdsSize;
     UA_String *localeIds;
 
+    /* Role information */
+    UA_NodeId role;
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The queue is ordered according to the priority byte (higher bytes come
      * first). When a late subscription finally publishes, then it is pushed to

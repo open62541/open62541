@@ -384,15 +384,22 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-    if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
-        UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
-        if (checkAccess != true) {
-            opResult->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-            return;
+    if ((session != &server->adminSession) && (method->head.nodeId.namespaceIndex != 0) && (method->head.rolePermissionsSize != 0))
+    {
+        int iteratorRole = 0;
+        for (iteratorRole = 0; iteratorRole < (int)method->head.rolePermissionsSize; iteratorRole++)
+        {
+            if (UA_NodeId_equal(&session->role, &method->head.rolePermissions[iteratorRole].roleId))
+            {
+                if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                {
+                    opResult->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    return;
+                    break;
+                }
+            }
         }
     }
-#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.
@@ -491,15 +498,22 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
-#ifdef UA_ENABLE_ROLE_PERMISSIONS
-    if (session != &server->adminSession && (method->head.nodeId.namespaceIndex != 0)) {
-        UA_Boolean checkAccess = checkUserAccess(method, session->sessionHandle, UA_PERMISSIONTYPE_CALL);
-        if (checkAccess != true) {
-            result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-            return;
+    if ((session != &server->adminSession) && (method->head.nodeId.namespaceIndex != 0) && (method->head.rolePermissionsSize != 0))
+    {
+        int iteratorRole = 0;
+        for (iteratorRole = 0; iteratorRole < (int)method->head.rolePermissionsSize; iteratorRole++)
+        {
+            if (UA_NodeId_equal(&session->role, &method->head.rolePermissions[iteratorRole].roleId))
+            {
+                if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                {
+                    result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                    return;
+                    break;
+                }
+            }
         }
     }
-#endif /* UA_ENABLE_ROLE_PERMISSIONS */
 
     /* Get the object node. We only need the NodeClass attribute. But take all
      * references for now.
