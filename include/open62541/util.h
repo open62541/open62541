@@ -263,7 +263,7 @@ UA_ByteString_memZero(UA_ByteString *bs) {
    SecureZeroMemory(bs->data, bs->length);
 #else
    volatile unsigned char *volatile ptr =
-       (volatile unsigned char *volatile)bs->data;
+       (volatile unsigned char *)bs->data;
    size_t i = 0;
    size_t maxLen = bs->length;
    while(i < maxLen) {
