@@ -7,6 +7,7 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
  */
 
 #include "ua_server_internal.h"
@@ -183,6 +184,34 @@ UA_Server_createSecureChannel(UA_Server *server, UA_Connection *connection) {
     return UA_STATUSCODE_GOOD;
 }
 
+/* Get pointer to leaf certificate of a specified valid chain of DER encoded
+ * certificates */
+static void
+getLeafCertificate(const UA_ByteString *chain, UA_ByteString *leaf) {
+    /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
+     * return the entire chain.
+     *
+     * The OPC UA standard requires this to be DER. But we also allow other
+     * formats like PEM. Afterwards it depends on the crypto backend to parse
+     * it. mbedTLS and OpenSSL detect the format automatically. */
+    if(chain->length < 4 || chain->data[0] != 0x30 || chain->data[1] != 0x82) {
+        *leaf = *chain;
+        return;
+    }
+
+    /* The certificate length is encoded in the next 2 bytes. */
+    size_t leafLen = 4; /* Magic numbers + length bytes */
+    leafLen += (size_t)(((uint16_t)chain->data[2]) << 8);
+    leafLen += chain->data[3];
+
+    /* Length consistency check */
+    if(leafLen > chain->length)
+        return;
+
+    leaf->data = chain->data;
+    leaf->length = leafLen;
+}
+
 UA_StatusCode
 UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
                               const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
@@ -209,11 +238,18 @@ UA_Server_configSecureChannel(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
+    /* If the sender provides a chain of certificates then we shall extract the
+     * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
+     * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
+     * algorithm Security header */
+    UA_ByteString appInstanceCertificate = UA_BYTESTRING_NULL;
+    getLeafCertificate(&asymHeader->senderCertificate, &appInstanceCertificate);
+
     /* Create the channel context and parse the sender (remote) certificate used for the
      * secureChannel. */
     UA_StatusCode retval =
         UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                           &asymHeader->senderCertificate);
+                                           &appInstanceCertificate);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
