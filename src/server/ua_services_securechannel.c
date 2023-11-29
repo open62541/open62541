@@ -7,6 +7,7 @@
  *    Copyright 2015 (c) Oleksiy Vasylyev
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
  */
 
 #include "ua_server_internal.h"
