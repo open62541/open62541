@@ -1,0 +1,792 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+ * Copyright (c) 2005-2020 The OPC Foundation, Inc. All rights reserved.
+ *
+ * OPC Foundation MIT License 1.00
+ * 
+ * Permission is hereby granted, free of charge, to any person
+ * obtaining a copy of this software and associated documentation
+ * files (the "Software"), to deal in the Software without
+ * restriction, including without limitation the rights to use,
+ * copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following
+ * conditions:
+ * 
+ * The above copyright notice and this permission notice shall be
+ * included in all copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+ * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+ * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+ * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+ * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * The complete license agreement can be found here:
+ * http://opcfoundation.org/License/MIT/1.00/
+-->
+
+<UANodeSet xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" LastModified="2020-11-25T07:31:56.478Z" xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd">
+  <NamespaceUris>
+    <Uri>http://opcfoundation.org/UA/DI/</Uri>
+    <Uri>http://PLCopen.org/OpcUa/IEC61131-3/</Uri>
+  </NamespaceUris>
+  <Models>
+    <Model ModelUri="http://PLCopen.org/OpcUa/IEC61131-3/" Version="1.02" PublicationDate="2020-11-25T00:00:00Z">
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/" Version="1.04" PublicationDate="2019-01-31T00:00:00Z" />
+      <RequiredModel ModelUri="http://opcfoundation.org/UA/DI/" Version="1.01" PublicationDate="2012-12-31T00:00:00Z" />
+    </Model>
+  </Models>
+  <Aliases>
+    <Alias Alias="Boolean">i=1</Alias>
+    <Alias Alias="UInt16">i=5</Alias>
+    <Alias Alias="Int32">i=6</Alias>
+    <Alias Alias="UInt32">i=7</Alias>
+    <Alias Alias="DateTime">i=13</Alias>
+    <Alias Alias="String">i=12</Alias>
+    <Alias Alias="XmlElement">i=16</Alias>
+    <Alias Alias="Structure">i=22</Alias>
+    <Alias Alias="Number">i=26</Alias>
+    <Alias Alias="HasComponent">i=47</Alias>
+    <Alias Alias="HasProperty">i=46</Alias>
+    <Alias Alias="HasSubtype">i=45</Alias>
+    <Alias Alias="HasTypeDefinition">i=40</Alias>
+    <Alias Alias="HasModellingRule">i=37</Alias>
+  </Aliases>
+  <UAObject NodeId="ns=2;i=1008" BrowseName="2:&lt;TaskName&gt;" SymbolicName="S_TaskName_">
+    <DisplayName>&lt;TaskName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=15001" BrowseName="2:http://PLCopen.org/OpcUa/IEC61131-3/" SymbolicName="http___PLCopen_org_OpcUa_IEC61131_3_" ParentNodeId="i=11715">
+    <DisplayName>http://PLCopen.org/OpcUa/IEC61131-3/</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/12.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=11715</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=11616</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=2;i=15002" BrowseName="NamespaceUri" ParentNodeId="ns=2;i=15001" DataType="String">
+    <DisplayName>NamespaceUri</DisplayName>
+    <Description>The URI of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">http://PLCopen.org/OpcUa/IEC61131-3/</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15003" BrowseName="NamespaceVersion" ParentNodeId="ns=2;i=15001" DataType="String">
+    <DisplayName>NamespaceVersion</DisplayName>
+    <Description>The human readable string representing version of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1.02</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15004" BrowseName="NamespacePublicationDate" ParentNodeId="ns=2;i=15001" DataType="DateTime">
+    <DisplayName>NamespacePublicationDate</DisplayName>
+    <Description>The publication date for the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:DateTime xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">2020-11-25T00:00:00Z</uax:DateTime>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15005" BrowseName="IsNamespaceSubset" ParentNodeId="ns=2;i=15001" DataType="Boolean">
+    <DisplayName>IsNamespaceSubset</DisplayName>
+    <Description>If TRUE then the server only supports a subset of the namespace.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:Boolean xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">false</uax:Boolean>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15006" BrowseName="StaticNodeIdTypes" ParentNodeId="ns=2;i=15001" DataType="i=256" ValueRank="1">
+    <DisplayName>StaticNodeIdTypes</DisplayName>
+    <Description>A list of IdTypes for nodes which are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:ListOfInt32 xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <uax:Int32>0</uax:Int32>
+      </uax:ListOfInt32>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15007" BrowseName="StaticNumericNodeIdRange" ParentNodeId="ns=2;i=15001" DataType="i=291">
+    <DisplayName>StaticNumericNodeIdRange</DisplayName>
+    <Description>A list of ranges for numeric node ids which are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">1:65535</uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15008" BrowseName="StaticStringNodeIdPattern" ParentNodeId="ns=2;i=15001" DataType="String">
+    <DisplayName>StaticStringNodeIdPattern</DisplayName>
+    <Description>A regular expression which matches string node ids are the same in every server that exposes them.</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+    <Value>
+      <uax:String xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd">
+      </uax:String>
+    </Value>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15031" BrowseName="DefaultRolePermissions" ParentNodeId="ns=2;i=15001" DataType="i=96" ValueRank="1">
+    <DisplayName>DefaultRolePermissions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15032" BrowseName="DefaultUserRolePermissions" ParentNodeId="ns=2;i=15001" DataType="i=96" ValueRank="1">
+    <DisplayName>DefaultUserRolePermissions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=15033" BrowseName="DefaultAccessRestrictions" ParentNodeId="ns=2;i=15001" DataType="UInt16">
+    <DisplayName>DefaultAccessRestrictions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=15001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAReferenceType NodeId="ns=2;i=4001" BrowseName="2:HasInputVar">
+    <DisplayName>HasInputVar</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>InputVarOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=2;i=4002" BrowseName="2:HasOutputVar">
+    <DisplayName>HasOutputVar</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>OutputVarOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=2;i=4003" BrowseName="2:HasInOutVar">
+    <DisplayName>HasInOutVar</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>InOutVarOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=2;i=4004" BrowseName="2:HasLocalVar">
+    <DisplayName>HasLocalVar</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=47</Reference>
+    </References>
+    <InverseName>LocalVarOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=2;i=4005" BrowseName="2:HasExternalVar">
+    <DisplayName>HasExternalVar</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=35</Reference>
+    </References>
+    <InverseName>ExternalVarOf</InverseName>
+  </UAReferenceType>
+  <UAReferenceType NodeId="ns=2;i=4006" BrowseName="2:With">
+    <DisplayName>With</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/8.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=32</Reference>
+    </References>
+    <InverseName>Executes</InverseName>
+  </UAReferenceType>
+  <UAObject NodeId="ns=2;i=5004" BrowseName="2:Resources" ParentNodeId="ns=2;i=1001">
+    <DisplayName>Resources</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.1.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1004</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5005" BrowseName="1:&lt;ResourceName&gt;" SymbolicName="S_Resource_Name_" ParentNodeId="ns=2;i=5004">
+    <DisplayName>&lt;ResourceName&gt;</DisplayName>
+    <Description>Folder maintaining the set of (sub-types of) BaseObjectTypes that can be instantiated in the ConfigurableComponent</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5006" BrowseName="2:GlobalVars" ParentNodeId="ns=2;i=1001">
+    <DisplayName>GlobalVars</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5007" BrowseName="2:AccessVars" ParentNodeId="ns=2;i=1001">
+    <DisplayName>AccessVars</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5008" BrowseName="2:ConfigVars" ParentNodeId="ns=2;i=1001">
+    <DisplayName>ConfigVars</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5009" BrowseName="2:Configuration" ParentNodeId="ns=2;i=1001">
+    <DisplayName>Configuration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5010" BrowseName="2:Status" ParentNodeId="ns=2;i=1001">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObjectType NodeId="ns=2;i=1002" BrowseName="2:CtrlResourceType">
+    <DisplayName>CtrlResourceType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.2.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=1002</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=2;i=5012" BrowseName="2:MethodSet" ParentNodeId="ns=2;i=1002">
+    <DisplayName>MethodSet</DisplayName>
+    <Description>Flat list of Methods</Description>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.2.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAMethod NodeId="ns=2;i=7003" BrowseName="2:Start" ParentNodeId="ns=2;i=5012">
+    <DisplayName>Start</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5012</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAMethod NodeId="ns=2;i=7004" BrowseName="2:Stop" ParentNodeId="ns=2;i=5012">
+    <DisplayName>Stop</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5012</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAObject NodeId="ns=2;i=5014" BrowseName="2:Tasks" ParentNodeId="ns=2;i=1002">
+    <DisplayName>Tasks</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.2.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1004</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5015" BrowseName="1:&lt;TaskName&gt;" SymbolicName="S_TaskName_" ParentNodeId="ns=2;i=5014">
+    <DisplayName>&lt;TaskName&gt;</DisplayName>
+    <Description>Folder maintaining the set of (sub-types of) BaseObjectTypes that can be instantiated in the ConfigurableComponent</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5014</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1006</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5016" BrowseName="2:Programs" ParentNodeId="ns=2;i=1002">
+    <DisplayName>Programs</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.2.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1004</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5017" BrowseName="1:&lt;ProgramName&gt;" SymbolicName="S_ProgramName_" ParentNodeId="ns=2;i=5016">
+    <DisplayName>&lt;ProgramName&gt;</DisplayName>
+    <Description>Folder maintaining the set of (sub-types of) BaseObjectTypes that can be instantiated in the ConfigurableComponent</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5016</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1004</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5018" BrowseName="2:GlobalVars" ParentNodeId="ns=2;i=1002">
+    <DisplayName>GlobalVars</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5019" BrowseName="2:Configuration" ParentNodeId="ns=2;i=1002">
+    <DisplayName>Configuration</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5020" BrowseName="2:Status" ParentNodeId="ns=2;i=1002">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObjectType NodeId="ns=2;i=1003" BrowseName="2:CtrlProgramOrganizationUnitType" IsAbstract="true">
+    <DisplayName>CtrlProgramOrganizationUnitType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.3</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=1003</Reference>
+      <Reference ReferenceType="ns=2;i=4006">ns=2;i=1008</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=2;i=6001" BrowseName="2:Body" ParentNodeId="ns=2;i=1003" DataType="XmlElement">
+    <DisplayName>Body</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=2;i=1004" BrowseName="2:CtrlProgramType" IsAbstract="true">
+    <DisplayName>CtrlProgramType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.4</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=2;i=1003</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=2;i=6002" BrowseName="2:Program" ParentNodeId="ns=2;i=1004" DataType="Structure">
+    <DisplayName>Program</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1004</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=2;i=1005" BrowseName="2:CtrlFunctionBlockType" IsAbstract="true">
+    <DisplayName>CtrlFunctionBlockType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.5</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=2;i=1003</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=2;i=6003" BrowseName="2:FunctionBlock" ParentNodeId="ns=2;i=1005">
+    <DisplayName>FunctionBlock</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=2;i=1006" BrowseName="2:CtrlTaskType">
+    <DisplayName>CtrlTaskType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.6</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UAVariable NodeId="ns=2;i=6004" BrowseName="2:Priority" ParentNodeId="ns=2;i=1006" DataType="UInt32">
+    <DisplayName>Priority</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=6005" BrowseName="2:Interval" ParentNodeId="ns=2;i=1006" DataType="String">
+    <DisplayName>Interval</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=6006" BrowseName="2:Single" ParentNodeId="ns=2;i=1006" DataType="String">
+    <DisplayName>Single</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=1006</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAVariable>
+  <UAObjectType NodeId="ns=2;i=1007" BrowseName="2:SFCType">
+    <DisplayName>SFCType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.7</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference>
+    </References>
+  </UAObjectType>
+  <UADataType NodeId="ns=2;i=3005" BrowseName="2:TIME">
+    <DisplayName>TIME</DisplayName>
+    <Description>It describes that the type is used as interval of time in milliseconds. The representation contains information for days (d), hours (h), minutes (m), seconds (s) and milliseconds (ms). The range of valid values is vendor specific. The server has to check if the value has a valid range. Sample: T#+24d20h31m23s647ms.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=8</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3006" BrowseName="2:LTIME">
+    <DisplayName>LTIME</DisplayName>
+    <Description>It describes that the type is used as interval of time in nanoseconds. The valid range is LT#-106751d23h47m16s854ms775us808ns to LT#+106751d23h47m16s854ms775us807ns. The representation contains information for days (d), hours (h), minutes (m), seconds (s) milliseconds (ms), microseconds (us) and nanoseconds (ns).</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=8</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3007" BrowseName="2:DATE">
+    <DisplayName>DATE</DisplayName>
+    <Description>It describes that the type is used as a date only.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=13</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3014" BrowseName="2:LDATE">
+    <DisplayName>LDATE</DisplayName>
+    <Description>It describes that the type is used as date only. The interval is nanoseconds since 1970-01-01.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=8</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3008" BrowseName="2:TOD">
+    <DisplayName>TOD</DisplayName>
+    <Description>TIME_OF_DAY stores number of milliseconds since the beginning of the day: TOD#00:00:00.000 to TOD#23:59:59.999.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3009" BrowseName="2:LTOD">
+    <DisplayName>LTOD</DisplayName>
+    <Description>LTIME_OF_DAY stores the number of nanoseconds since the beginning of the day: LTOD#00:00:00.000000000 to LTOD#23:59:59.999999999.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=8</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3010" BrowseName="2:DT">
+    <DisplayName>DT</DisplayName>
+    <Description>Vendor specific type.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=13</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3015" BrowseName="2:LDT">
+    <DisplayName>LDT</DisplayName>
+    <Description>It describes the number of nanoseconds elapsed since 1970-01-01-00:00:00.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=8</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3013" BrowseName="2:STRING">
+    <DisplayName>STRING</DisplayName>
+    <Description>It describes that the type is used as a variable-length single-byte character string.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=12</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3011" BrowseName="2:CHAR">
+    <DisplayName>CHAR</DisplayName>
+    <Description>. It describes that the type is used as single-byte character.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=3</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3012" BrowseName="2:WCHAR">
+    <DisplayName>WCHAR</DisplayName>
+    <Description>It describes that the type is used as double-byte character.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=5</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3001" BrowseName="2:BYTE">
+    <DisplayName>BYTE</DisplayName>
+    <Description>It describes that the type is used as bit string of length 8.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=3</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3003" BrowseName="2:DWORD">
+    <DisplayName>DWORD</DisplayName>
+    <Description>It describes that the type is used as bit string of length 32.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=7</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3004" BrowseName="2:LWORD">
+    <DisplayName>LWORD</DisplayName>
+    <Description>It describes that the type is used as bit string of length 64.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=9</Reference>
+    </References>
+  </UADataType>
+  <UADataType NodeId="ns=2;i=3002" BrowseName="2:WORD">
+    <DisplayName>WORD</DisplayName>
+    <Description>It describes that the type is used as bit string of length 16.</Description>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=5</Reference>
+    </References>
+  </UADataType>
+  <UAObjectType NodeId="ns=2;i=1001" BrowseName="2:CtrlConfigurationType">
+    <DisplayName>CtrlConfigurationType</DisplayName>
+    <Documentation>https://reference.opcfoundation.org/v104/PLCopen/v102/docs/7.1.1</Documentation>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">ns=1;i=1001</Reference>
+    </References>
+  </UAObjectType>
+  <UAObject NodeId="ns=2;i=5002" BrowseName="1:MethodSet" ParentNodeId="ns=2;i=1001">
+    <DisplayName>MethodSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=2;i=1031" BrowseName="InputArguments" ParentNodeId="ns=2;i=7001" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <Description>the definition of the input argument of method 1:MethodSet.2:Start</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=7001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1032" BrowseName="OutputArguments" ParentNodeId="ns=2;i=7001" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <Description>the definition of the output arguments of method 1:MethodSet.2:Start</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=7001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=2;i=7001" BrowseName="2:Start" ParentNodeId="ns=2;i=5002">
+    <DisplayName>Start</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=2;i=1034" BrowseName="InputArguments" ParentNodeId="ns=2;i=7002" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>InputArguments</DisplayName>
+    <Description>the definition of the input argument of method 1:MethodSet.2:Stop</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=7002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1035" BrowseName="OutputArguments" ParentNodeId="ns=2;i=7002" DataType="i=296" ValueRank="1" ArrayDimensions="0">
+    <DisplayName>OutputArguments</DisplayName>
+    <Description>the definition of the output arguments of method 1:MethodSet.2:Stop</Description>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=7002</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAMethod NodeId="ns=2;i=7002" BrowseName="2:Stop" ParentNodeId="ns=2;i=5002">
+    <DisplayName>Stop</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5002</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="ns=2;i=1037" BrowseName="1:&lt;ParameterIdentifier&gt;" SymbolicName="S_ParameterIdentifier_" ParentNodeId="ns=2;i=5001">
+    <DisplayName>&lt;ParameterIdentifier&gt;</DisplayName>
+    <Description>A parameter which belongs to the topology element.</Description>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=5001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11510</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=2;i=5001" BrowseName="1:ParameterSet" ParentNodeId="ns=2;i=1001">
+    <DisplayName>ParameterSet</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=5003" BrowseName="1:Identification" ParentNodeId="ns=2;i=1001">
+    <DisplayName>Identification</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1001</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=1;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=80</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=2;i=1011" BrowseName="2:&lt;VarInOutName&gt;" SymbolicName="S_VarInOutName_" ParentNodeId="ns=2;i=1003" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>&lt;VarInOutName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4003" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1012" BrowseName="2:&lt;VarInputName&gt;" SymbolicName="S_VarInputName_" ParentNodeId="ns=2;i=1003" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>&lt;VarInputName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4001" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1013" BrowseName="2:&lt;VarOutputName&gt;" SymbolicName="S_VarOutputName_" ParentNodeId="ns=2;i=1003" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>&lt;VarOutputName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4002" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1014" BrowseName="2:&lt;VarLocalName&gt;" SymbolicName="S_VarLocalName_" ParentNodeId="ns=2;i=1003" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>&lt;VarLocalName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4004" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=1015" BrowseName="2:&lt;VarExternalName&gt;" SymbolicName="S_VarExternalName_" ParentNodeId="ns=2;i=1003" AccessLevel="3" UserAccessLevel="3">
+    <DisplayName>&lt;VarExternalName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4005" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=2;i=1016" BrowseName="2:&lt;BlockName&gt;" SymbolicName="S_BlockName_" ParentNodeId="ns=2;i=1003">
+    <DisplayName>&lt;BlockName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4004" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=1018" BrowseName="2:&lt;SFCName&gt;" SymbolicName="S_SFCName_" ParentNodeId="ns=2;i=1003">
+    <DisplayName>&lt;SFCName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent" IsForward="false">ns=2;i=1003</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1007</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=2;i=1019" BrowseName="2:Priority" ParentNodeId="ns=2;i=1018" DataType="UInt32">
+    <DisplayName>Priority</DisplayName>
+    <References>
+      <Reference ReferenceType="HasProperty" IsForward="false">ns=2;i=1018</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+    </References>
+  </UAVariable>
+  <UAObject NodeId="ns=2;i=1020" BrowseName="2:&lt;FunctionBlockInputName&gt;" SymbolicName="S_InputServerGenerated_" ParentNodeId="ns=2;i=1005">
+    <DisplayName>&lt;FunctionBlockInputName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4001" IsForward="false">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=1021" BrowseName="2:&lt;FunctionBlockOutputName&gt;" SymbolicName="S_OutputServerGenerated_" ParentNodeId="ns=2;i=1005">
+    <DisplayName>&lt;FunctionBlockOutputName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4002" IsForward="false">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAObject NodeId="ns=2;i=1022" BrowseName="2:&lt;FunctionBlockInOutName&gt;" SymbolicName="S_InOutServerGenerated_" ParentNodeId="ns=2;i=1005">
+    <DisplayName>&lt;FunctionBlockInOutName&gt;</DisplayName>
+    <References>
+      <Reference ReferenceType="ns=2;i=4003" IsForward="false">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasTypeDefinition">ns=2;i=1005</Reference>
+      <Reference ReferenceType="HasModellingRule">i=11508</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="ns=2;i=3400" BrowseName="2:SubrangeMin" DataType="Number">
+    <DisplayName>SubrangeMin</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3401" BrowseName="2:SubrangeMax" DataType="Number">
+    <DisplayName>SubrangeMax</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3402" BrowseName="2:Dimensions" DataType="UInt32">
+    <DisplayName>Dimensions</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3403" BrowseName="2:IndexMin" DataType="Int32" ValueRank="1">
+    <DisplayName>IndexMin</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3404" BrowseName="2:IndexMax" DataType="Int32" ValueRank="1">
+    <DisplayName>IndexMax</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3405" BrowseName="2:RETAIN" DataType="Boolean">
+    <DisplayName>RETAIN</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3406" BrowseName="2:NON_RETAIN" DataType="Boolean">
+    <DisplayName>NON_RETAIN</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3407" BrowseName="2:CONSTANT" DataType="Boolean">
+    <DisplayName>CONSTANT</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+  <UAVariable NodeId="ns=2;i=3408" BrowseName="2:AT" DataType="String">
+    <DisplayName>AT</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+    </References>
+  </UAVariable>
+</UANodeSet>

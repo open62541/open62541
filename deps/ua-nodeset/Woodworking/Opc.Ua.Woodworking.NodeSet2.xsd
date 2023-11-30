@@ -1,0 +1,112 @@
+<xs:schema elementFormDefault="qualified" targetNamespace="http://opcfoundation.org/UA/Woodworking/Types.xsd" xmlns:tns="http://opcfoundation.org/UA/Woodworking/Types.xsd" xmlns:ua="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+    <xs:import namespace="http://opcfoundation.org/UA/2008/02/Types.xsd"/>
+    <xs:simpleType name="WwEventCategoryEnumeration">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="DIAGNOSTIC_1"/>
+            <xs:enumeration value="INFORMATION_2"/>
+            <xs:enumeration value="WARNING_3"/>
+            <xs:enumeration value="ALARM_4"/>
+            <xs:enumeration value="ERROR_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WwEventCategoryEnumeration" name="WwEventCategoryEnumeration"/>
+    <xs:complexType name="ListOfWwEventCategoryEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WwEventCategoryEnumeration" name="WwEventCategoryEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWwEventCategoryEnumeration" name="ListOfWwEventCategoryEnumeration" nillable="true"/>
+    <xs:simpleType name="WwUnitModeEnumeration">
+        <xs:annotation>
+            <xs:documentation>This enumeration represents the generalized mode of a unit.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OTHER_0"/>
+            <xs:enumeration value="AUTOMATIC_1"/>
+            <xs:enumeration value="SEMIAUTOMATIC_2"/>
+            <xs:enumeration value="MANUAL_3"/>
+            <xs:enumeration value="SETUP_4"/>
+            <xs:enumeration value="SLEEP_5"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WwUnitModeEnumeration" name="WwUnitModeEnumeration"/>
+    <xs:complexType name="ListOfWwUnitModeEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WwUnitModeEnumeration" name="WwUnitModeEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWwUnitModeEnumeration" name="ListOfWwUnitModeEnumeration" nillable="true"/>
+    <xs:simpleType name="WwUnitStateEnumeration">
+        <xs:annotation>
+            <xs:documentation>This enumeration represents the generalized state of a unit.</xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="OFFLINE_0"/>
+            <xs:enumeration value="STANDBY_1"/>
+            <xs:enumeration value="READY_2"/>
+            <xs:enumeration value="WORKING_3"/>
+            <xs:enumeration value="ERROR_4"/>
+        </xs:restriction>
+    </xs:simpleType>
+    <xs:element type="tns:WwUnitStateEnumeration" name="WwUnitStateEnumeration"/>
+    <xs:complexType name="ListOfWwUnitStateEnumeration">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WwUnitStateEnumeration" name="WwUnitStateEnumeration" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWwUnitStateEnumeration" name="ListOfWwUnitStateEnumeration" nillable="true"/>
+    <xs:complexType name="WwMessageArgumentDataType">
+        <xs:annotation>
+            <xs:documentation>The WwArgumentDataType definition extends the argument structure with an argument value.</xs:documentation>
+        </xs:annotation>
+        <xs:complexContent mixed="false">
+            <xs:extension base="ua:Argument">
+                <xs:sequence>
+                    <xs:element minOccurs="0" maxOccurs="1" type="tns:WwMessageArgumentValueDataType" name="Value"/>
+                </xs:sequence>
+            </xs:extension>
+        </xs:complexContent>
+    </xs:complexType>
+    <xs:element type="tns:WwMessageArgumentDataType" name="WwMessageArgumentDataType"/>
+    <xs:complexType name="ListOfWwMessageArgumentDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WwMessageArgumentDataType" name="WwMessageArgumentDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWwMessageArgumentDataType" name="ListOfWwMessageArgumentDataType" nillable="true"/>
+    <xs:complexType name="WwMessageArgumentValueDataType">
+        <xs:annotation>
+            <xs:documentation>The WwArgumentValueDataType definition defines the possible types of an argument value.</xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="SwitchField"/>
+            <xs:choice>
+                <xs:element minOccurs="0" maxOccurs="1" type="tns:ListOfWwMessageArgumentValueDataType" name="Array"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:boolean" name="Boolean"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:short" name="Int16"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:int" name="Int32"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:long" name="Int64"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:byte" name="SByte"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedShort" name="UInt16"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedInt" name="UInt32"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedLong" name="UInt64"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:unsignedByte" name="Byte"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:dateTime" name="DateTime"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="ua:Guid" name="Guid"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="ua:LocalizedText" name="LocalizedText"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:double" name="Double"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:float" name="Float"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="String"/>
+                <xs:element minOccurs="0" maxOccurs="1" type="xs:string" name="Other"/>
+            </xs:choice>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:WwMessageArgumentValueDataType" name="WwMessageArgumentValueDataType"/>
+    <xs:complexType name="ListOfWwMessageArgumentValueDataType">
+        <xs:sequence>
+            <xs:element minOccurs="0" maxOccurs="unbounded" type="tns:WwMessageArgumentValueDataType" name="WwMessageArgumentValueDataType" nillable="true"/>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element type="tns:ListOfWwMessageArgumentValueDataType" name="ListOfWwMessageArgumentValueDataType" nillable="true"/>
+</xs:schema>

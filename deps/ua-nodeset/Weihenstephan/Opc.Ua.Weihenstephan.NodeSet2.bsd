@@ -1,0 +1,21 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/Weihenstephan/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/Weihenstephan/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:EnumeratedType LengthInBits="32" Name="WSOperatingModeEnumerationType">
+        <opc:Documentation>The operating mode provides information about the nature and extent of the intervention on the control equipment by the operators, and also via feedback from the equipment (DIN 19 237). This value must be coded in bit form or be documented as an integer for machines which are components of bottling systems:</opc:Documentation>
+        <opc:EnumeratedValue Name="Off" Value="1"/>
+        <opc:EnumeratedValue Name="Manual" Value="2"/>
+        <opc:EnumeratedValue Name="Semi-automatic" Value="4"/>
+        <opc:EnumeratedValue Name="Automatic" Value="8"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="WSProgramEnumerationType">
+        <opc:Documentation>The program is a consequent sequence of control instructions for a self-contained application-oriented function (DIN 19237). For bottling machines, bits or documented integer numbers must be used for machine operation with the following programs:</opc:Documentation>
+        <opc:EnumeratedValue Name="Undefined (No Program)" Value="0"/>
+        <opc:EnumeratedValue Name="Production" Value="1"/>
+        <opc:EnumeratedValue Name="Start Up" Value="2"/>
+        <opc:EnumeratedValue Name="Run Down" Value="4"/>
+        <opc:EnumeratedValue Name="Clean" Value="8"/>
+        <opc:EnumeratedValue Name="Changeover" Value="16"/>
+        <opc:EnumeratedValue Name="Maintenance" Value="32"/>
+        <opc:EnumeratedValue Name="Break" Value="64"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>

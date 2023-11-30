@@ -1,0 +1,30 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="http://opcfoundation.org/UA/PlasticsRubber/HotRunner/" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="http://opcfoundation.org/UA/PlasticsRubber/HotRunner/">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+    <opc:StructuredType BaseType="ua:ExtensionObject" Name="TimeMethodPIDParametersDataType">
+        <opc:Field TypeName="opc:Double" Name="Xp"/>
+        <opc:Field TypeName="opc:Double" Name="Tn"/>
+        <opc:Field TypeName="opc:Double" Name="Tv"/>
+        <opc:Field TypeName="opc:Double" Name="Ts"/>
+    </opc:StructuredType>
+    <opc:EnumeratedType LengthInBits="32" Name="ControllerTypeEnumeration">
+        <opc:EnumeratedValue Name="CLOSED_LOOP_CONTROL" Value="0"/>
+        <opc:EnumeratedValue Name="MANUAL" Value="1"/>
+        <opc:EnumeratedValue Name="SYNCHRONOUS_ZONE" Value="2"/>
+        <opc:EnumeratedValue Name="CASCADE" Value="3"/>
+        <opc:EnumeratedValue Name="COOL_ZONE" Value="4"/>
+        <opc:EnumeratedValue Name="MEASURING_ZONE" Value="5"/>
+        <opc:EnumeratedValue Name="NOT_USED" Value="6"/>
+    </opc:EnumeratedType>
+    <opc:EnumeratedType LengthInBits="32" Name="ZoneStatusEnumeration">
+        <opc:EnumeratedValue Name="OTHER" Value="0"/>
+        <opc:EnumeratedValue Name="GOOD" Value="1"/>
+        <opc:EnumeratedValue Name="SENSOR_FAULT" Value="2"/>
+        <opc:EnumeratedValue Name="TEMPERATURE_SENSOR_BROKEN" Value="3"/>
+        <opc:EnumeratedValue Name="TEMPERATURE_SENSOR_REVERSED" Value="4"/>
+        <opc:EnumeratedValue Name="POWER_UNIT_FAILED" Value="5"/>
+        <opc:EnumeratedValue Name="HEATING_OUTPUT_TO_LOW" Value="6"/>
+        <opc:EnumeratedValue Name="ERROR" Value="7"/>
+        <opc:EnumeratedValue Name="WARNING" Value="8"/>
+        <opc:EnumeratedValue Name="LEAKAGE_DETECTED" Value="9"/>
+    </opc:EnumeratedType>
+</opc:TypeDictionary>
