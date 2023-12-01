@@ -1,4 +1,11 @@
 %{
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ */
+
 #include "eventfilter_parser_grammar.h"
 
 #define YY_CTX_LOCAL 1
@@ -148,7 +155,7 @@ NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?
                 (',' _ [0-9]+ _ (':' _ [0-9]+)?)* > ']'
 _ = (Space | comment)*
 Space =		' ' | '\t' | Enter
-comment =	('#' (!Enter .)* Enter | '/*' (![*/] .)* '*/')
+comment =	('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')
 Enter =	( '\r\n' | '\n' | '\r' )
 
 %%

@@ -1,3 +1,10 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ */
+
 #include "eventfilter_parser.h"
 
 static UA_Parsed_Element_List *create_next_operator_element(UA_Element_List *elements){

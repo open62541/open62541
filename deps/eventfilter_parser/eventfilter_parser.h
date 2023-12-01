@@ -1,6 +1,9 @@
-//
-// Created by flo47663 on 15.12.2022.
-//
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ */
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
 #include "open62541/server_config_default.h"
