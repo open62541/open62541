@@ -52,12 +52,12 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wg->config.pubsubManagerCallback.addCustomCallback) {
         /* Use configured mechanism for cyclic callbacks */
-        wg->config.pubsubManagerCallback.
-            addCustomCallback(server, wg->identifier,
-                              (UA_ServerCallback)UA_WriterGroup_publishCallback,
-                              wg, wg->config.publishingInterval,
-                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                              &wg->publishCallbackId);
+        retval = wg->config.pubsubManagerCallback.
+                 addCustomCallback(server, wg->identifier,
+                                   (UA_ServerCallback)UA_WriterGroup_publishCallback,
+                                   wg, wg->config.publishingInterval,
+                                   NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                                   &wg->publishCallbackId);
     } else {
         /* Use EventLoop for cyclic callbacks */
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
