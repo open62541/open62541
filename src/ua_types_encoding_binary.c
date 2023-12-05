@@ -852,11 +852,16 @@ ENCODE_BINARY(ExtensionObject) {
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_CHECK_STATUS(ret, return ret);
 
-    /* Encode the content length */
     const UA_DataType *contentType = src->content.decoded.type;
-    size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType);
-    UA_CHECK(len <= UA_INT32_MAX, return UA_STATUSCODE_BADENCODINGERROR);
-    i32 signed_len = (i32)len;
+
+    /* Compute the content length. But only if we are not already in the
+     * calcSizeBinary mode. This is avoids recursive cycles.*/
+    i32 signed_len = 0;
+    if(ctx->end != NULL) {
+        size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType);
+        UA_CHECK(len <= UA_INT32_MAX, return UA_STATUSCODE_BADENCODINGERROR);
+        signed_len = (i32)len;
+    }
     ret = encodeWithExchangeBuffer(&signed_len, &UA_TYPES[UA_TYPES_INT32], ctx);
     UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
     UA_CHECK_STATUS(ret, return ret);
