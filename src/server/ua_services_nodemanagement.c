@@ -411,16 +411,15 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
     /* If no value is set, see if the vt provides one and copy it. This needs to
      * be done before copying the datatype from the vt, as setting the datatype
      * triggers a typecheck. */
-    UA_Variant orig;
-    UA_StatusCode retval =
-        readWithReadValue(server, &node->head.nodeId, UA_ATTRIBUTEID_VALUE, &orig);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = node->head.nodeId;
+    item.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue dv = readWithSession(server, session, &item,
+                                      UA_TIMESTAMPSTORETURN_NEITHER);
 
-    if(orig.type) {
-        /* A value is present */
-        UA_Variant_clear(&orig);
-    } else {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(dv.hasValue && !dv.value.type) {
         UA_DataValue v;
         UA_DataValue_init(&v);
         retval = readValueAttribute(server, session, (const UA_VariableNode*)vt, &v);
@@ -439,6 +438,7 @@ useVariableTypeAttributes(UA_Server *server, UA_Session *session,
             retval = UA_STATUSCODE_GOOD;
         }
     }
+    UA_DataValue_clear(&dv);
 
     /* If no datatype is given, use the datatype of the vt */
     if(UA_NodeId_isNull(&node->dataType)) {
