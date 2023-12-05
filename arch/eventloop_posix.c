@@ -9,6 +9,10 @@
 #include "eventloop_posix.h"
 #include "open62541/plugin/eventloop.h"
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#include <time.h>
+#endif
+
 /*********/
 /* Timer */
 /*********/
