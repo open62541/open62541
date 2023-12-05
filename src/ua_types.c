@@ -1752,7 +1752,9 @@ UA_Array_copy(const void *src, size_t size,
         return UA_STATUSCODE_GOOD;
     }
 
-    if(!type)
+    /* Check the array consistency -- defensive programming in case the user
+     * manually created an inconsistent array */
+    if(UA_UNLIKELY(!type || !src))
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* calloc, so we don't have to check retval in every iteration of copying */
