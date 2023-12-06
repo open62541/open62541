@@ -16,7 +16,7 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
     set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
 endif()
 
-find_package(Python3 REQUIRED)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
 set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
 
 find_package(Git)
