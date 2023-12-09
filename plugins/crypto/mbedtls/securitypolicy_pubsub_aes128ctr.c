@@ -335,7 +335,6 @@ UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
 
     policy->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes128-CTR");
-    policy->securityLevel = 10;
 
     UA_SecurityPolicySymmetricModule *symmetricModule = &policy->symmetricModule;
 
