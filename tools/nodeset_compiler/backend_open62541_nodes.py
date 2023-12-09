@@ -44,15 +44,12 @@ def generateNodeValueInstanceName(node, parent, arrayIndex):
     return generateNodeIdPrintable(parent) + "_" + str(node.alias) + "_" + str(arrayIndex)
 
 def generateReferenceCode(reference):
-    code = []
     forwardFlag = "true" if reference.isForward else "false"
-    code.append("retVal |= UA_Server_addReference(server, %s, %s, %s, %s);" %
-                (generateNodeIdCode(reference.source),
-                 generateNodeIdCode(reference.referenceType),
-                 generateExpandedNodeIdCode(reference.target),
-                 forwardFlag))
-    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
-    return "\n".join(code)
+    return "retVal |= UA_Server_addReference(server, %s, %s, %s, %s);" % \
+        (generateNodeIdCode(reference.source),
+         generateNodeIdCode(reference.referenceType),
+         generateExpandedNodeIdCode(reference.target),
+         forwardFlag)
 
 def generateReferenceTypeNodeCode(node):
     code = []
@@ -518,45 +515,42 @@ def generateNodeCode_begin(node, nodeset, code_global):
     if node.displayName is not None:
         code.append("attr.displayName = " + generateLocalizedTextCode(node.displayName, alloc=False) + ";")
     if node.description is not None:
-        code.append("#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS")
+        code.append("\n#ifdef UA_ENABLE_NODESET_COMPILER_DESCRIPTIONS\n")
         code.append("attr.description = " + generateLocalizedTextCode(node.description, alloc=False) + ";")
-        code.append("#endif")
+        code.append("\n#endif\n")
     if node.writeMask is not None:
         code.append("attr.writeMask = %d;" % node.writeMask)
     if node.userWriteMask is not None:
         code.append("attr.userWriteMask = %d;" % node.userWriteMask)
 
     # AddNodes call
-    code.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
+    addnode = []
+    addnode.append("retVal |= UA_Server_addNode_begin(server, UA_NODECLASS_{},".
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
-    code.append(generateNodeIdCode(node.id) + ",")
-    code.append(generateNodeIdCode(node.parent.id if node.parent else NodeId()) + ",")
-    code.append(generateNodeIdCode(node.parentReference.id if node.parent else NodeId()) + ",")
-    code.append(generateQualifiedNameCode(node.browseName) + ",")
+    addnode.append(generateNodeIdCode(node.id) + ",")
+    addnode.append(generateNodeIdCode(node.parent.id if node.parent else NodeId()) + ",")
+    addnode.append(generateNodeIdCode(node.parentReference.id if node.parent else NodeId()) + ",")
+    addnode.append(generateQualifiedNameCode(node.browseName) + ",")
     if isinstance(node, VariableNode) or isinstance(node, ObjectNode):
         typeDefRef = node.popTypeDef()
-        code.append(generateNodeIdCode(typeDefRef.target) + ",")
+        addnode.append(generateNodeIdCode(typeDefRef.target) + ",")
     else:
-        code.append(" UA_NODEID_NULL,")
-    code.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
+        addnode.append(" UA_NODEID_NULL,")
+    addnode.append("(const UA_NodeAttributes*)&attr, &UA_TYPES[UA_TYPES_{}ATTRIBUTES],NULL, NULL);".
             format(makeCIdentifier(node.__class__.__name__.upper().replace("NODE" ,""))))
-    code.append("if (retVal != UA_STATUSCODE_GOOD) return retVal;")
-    code.extend(codeCleanup)
+    code.append("".join(addnode))
 
+    code.extend(codeCleanup)
     return "\n".join(code)
 
 def generateNodeCode_finish(node):
     code = []
-
     if isinstance(node, MethodNode):
         code.append("UA_Server_addMethodNode_finish(server, ")
-    else:
-        code.append("UA_Server_addNode_finish(server, ")
-    code.append(generateNodeIdCode(node.id))
-
-    if isinstance(node, MethodNode):
+        code.append(generateNodeIdCode(node.id))
         code.append(", NULL, 0, NULL, 0, NULL);")
     else:
+        code.append("UA_Server_addNode_finish(server, ")
+        code.append(generateNodeIdCode(node.id))
         code.append(");")
-
-    return "\n".join(code)
+    return "".join(code)
