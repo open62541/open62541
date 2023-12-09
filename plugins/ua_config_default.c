@@ -226,20 +226,7 @@ addEndpoint(UA_ServerConfig *conf,
     endpoint->transportProfileUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA-Profile/Transport/uatcp-uasc-uabinary");
     endpoint->securityMode = securityMode;
-
-    /* A numeric value that indicates how secure the EndpointDescription is compared to other EndpointDescriptions
-     * for the same Server. A value of 0 indicates that the EndpointDescription is not recommended and is only
-     * supported for backward compatibility. A higher value indicates better security. */
-    UA_String noneuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    UA_String basic128uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
-    UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
-    if(UA_String_equal(&securityPolicy->policyUri, &noneuri) ||
-       UA_String_equal(&securityPolicy->policyUri, &basic128uri) ||
-       UA_String_equal(&securityPolicy->policyUri, &basic256uri)) {
-        endpoint->securityLevel = 0;
-    } else {
-        endpoint->securityLevel = 1;
-    }
+    endpoint->securityLevel = securityPolicy->securityLevel;
 
     UA_StatusCode retval = UA_String_copy(&securityPolicy->policyUri,
                                           &endpoint->securityPolicyUri);
@@ -595,9 +582,6 @@ UA_ServerConfig_addAllEndpoints(UA_ServerConfig *config) {
 
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config) {
-    UA_String noneuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
-    UA_String basic128uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
-    UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
 
     /* Delete all predefined endpoints. */
     if(config->endpointsSize > 0) {
@@ -612,11 +596,8 @@ UA_ServerConfig_addAllSecureEndpoints(UA_ServerConfig *config) {
     /* Populate the endpoints */
     for(size_t i = 0; i < config->securityPoliciesSize; ++i) {
         /* Skip the None and all deprecated policies */
-        if(UA_String_equal(&config->securityPolicies[i].policyUri, &noneuri) ||
-           UA_String_equal(&config->securityPolicies[i].policyUri, &basic128uri) ||
-           UA_String_equal(&config->securityPolicies[i].policyUri, &basic256uri)) {
+        if(config->securityPolicies[i].securityLevel == 0)
             continue;
-        }
         UA_StatusCode retval =
             addEndpoint(config, &config->securityPolicies[i], UA_MESSAGESECURITYMODE_SIGN);
         if(retval != UA_STATUSCODE_GOOD)

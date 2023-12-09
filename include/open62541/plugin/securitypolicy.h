@@ -298,6 +298,9 @@ struct UA_SecurityPolicy {
     /* The policy uri that identifies the implemented algorithms */
     UA_String policyUri;
 
+    /* Value indicating the crypto strength of the policy, with zero for deprecated or none */
+    UA_Byte securityLevel;
+
     /* The local certificate is specific for each SecurityPolicy since it
      * depends on the used key length. */
     UA_ByteString localCertificate;

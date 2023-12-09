@@ -129,6 +129,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
                        const UA_Logger *logger) {
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    policy->securityLevel = 0;
     policy->logger = logger;
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS

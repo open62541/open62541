@@ -561,6 +561,7 @@ UA_SecurityPolicy_Basic128Rsa15 (UA_SecurityPolicy * policy,
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15\0");
+    policy->securityLevel = 0;
 
     /* set ChannelModule context  */
 
