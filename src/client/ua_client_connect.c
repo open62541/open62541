@@ -413,8 +413,12 @@ sendHELMessage(UA_Client *client) {
     hello.maxMessageSize = client->config.localConnectionConfig.localMaxMessageSize;
     hello.maxChunkCount = client->config.localConnectionConfig.localMaxChunkCount;
 
-    /* Use the DiscoveryUrl -- if already known via FindServers */
-    if(client->discoveryUrl.length > 0) {
+    /* We may open difference SecureChannels with different EndpointUrls. The
+     * response of the FindServers and GetEndpoints services can depend on the
+     * EndpointUrl used in the HEL message. */
+    if(client->config.endpoint.endpointUrl.length > 0) {
+        hello.endpointUrl = client->config.endpoint.endpointUrl;
+    } else if(client->discoveryUrl.length > 0) {
         hello.endpointUrl = client->discoveryUrl;
     } else {
         hello.endpointUrl = client->config.endpointUrl;
@@ -1007,13 +1011,29 @@ responseGetEndpoints(UA_Client *client, void *userdata,
                 (int)securityPolicyUri->length, securityPolicyUri->data);
 #endif
 
-    /* Close the SecureChannel if a different SecurityPolicy is defined by the
-     * Endpoint. The client then opens a new mathing SecureChannel. */
+    /* Close the SecureChannel -- a different SecurityMode or SecurityPolicy is
+     * defined by the Endpoint. */
     if(client->config.endpoint.securityMode != client->channel.securityMode ||
        !UA_String_equal(&client->config.endpoint.securityPolicyUri,
-                        &client->channel.securityPolicy->policyUri))
+                        &client->channel.securityPolicy->policyUri)) {
         closeSecureChannel(client);
+        UA_UNLOCK(&client->clientMutex);
+        return;
+    }
 
+    /* We were using a distinct discovery URL and we are switching away from it.
+     * Close the SecureChannel to reopen with the EndpointUrl. If an endpoint
+     * was selected, then we use the endpointUrl for the HEL message. */
+    if(client->discoveryUrl.length > 0 &&
+       !UA_String_equal(&client->discoveryUrl,
+                        &client->config.endpoint.endpointUrl)) {
+        closeSecureChannel(client);
+        UA_UNLOCK(&client->clientMutex);
+        return;
+    }
+
+    /* Nothing to do. We have selected an endpoint that we can use to open a
+     * Session on the current SecureChannel. */
     UA_UNLOCK(&client->clientMutex);
 }
 
