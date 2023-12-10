@@ -736,6 +736,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
     policy->logger = logger;
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15\0");
+    policy->securityLevel = 0;
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule *const symmetricModule = &policy->symmetricModule;
