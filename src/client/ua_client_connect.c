@@ -1304,16 +1304,9 @@ fixBadDiscoveryUrl(UA_Client* client) {
     client->connectStatus = UA_STATUSCODE_GOOD;
 }
 
-static void
+static UA_StatusCode
 initSecurityPolicy(UA_Client *client) {
-    /* Already initialized */
-    if(client->channel.securityPolicy)
-        return;
-
-    client->channel.securityMode = client->config.endpoint.securityMode;
-
-    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
-        client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+    /* Find the SecurityPolicy */
     UA_SecurityPolicy *sp = NULL;
     if(client->config.endpoint.securityPolicyUri.length == 0) {
         sp = getSecurityPolicy(client,
@@ -1322,11 +1315,23 @@ initSecurityPolicy(UA_Client *client) {
         sp = getSecurityPolicy(client, client->config.endpoint.securityPolicyUri);
     }
 
-    if(sp) {
-        client->connectStatus =
-            UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
-                                               &client->config.endpoint.serverCertificate);
-    }
+    /* Unknown SecurityPolicy -- we would never select such an endpoint */
+    if(!sp)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Already initialized -- check we are using the configured SecurityPolicy */
+    if(client->channel.securityPolicy)
+        return (client->channel.securityPolicy == sp) ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set the SecurityMode -- none if no endpoint is selected so far */
+    client->channel.securityMode = client->config.endpoint.securityMode;
+    if(client->channel.securityMode == UA_MESSAGESECURITYMODE_INVALID)
+        client->channel.securityMode = UA_MESSAGESECURITYMODE_NONE;
+
+    /* Instantiate the SecurityPolicy context with the remote certificate */
+    return UA_SecureChannel_setSecurityPolicy(&client->channel, sp,
+                                              &client->config.endpoint.serverCertificate);
 }
 
 static void
@@ -1629,7 +1634,7 @@ initConnect(UA_Client *client) {
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
 
     /* Initialize the SecurityPolicy */
-    initSecurityPolicy(client);
+    client->connectStatus = initSecurityPolicy(client);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
@@ -1995,7 +2000,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.processOPNHeader = verifyClientSecurechannelHeader;
     client->channel.connectionId = 0;
 
-    initSecurityPolicy(client);
+    client->connectStatus = initSecurityPolicy(client);
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return client->connectStatus;
 
