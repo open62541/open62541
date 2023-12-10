@@ -1032,30 +1032,29 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
 
 /* Get pointer to leaf certificate of a specified valid chain of DER encoded
  * certificates */
-static void
-getLeafCertificate(const UA_ByteString *chain, UA_ByteString *leaf) {
+static UA_ByteString
+getLeafCertificate(const UA_ByteString chain) {
     /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
      * return the entire chain.
      *
      * The OPC UA standard requires this to be DER. But we also allow other
      * formats like PEM. Afterwards it depends on the crypto backend to parse
      * it. mbedTLS and OpenSSL detect the format automatically. */
-    if(chain->length < 4 || chain->data[0] != 0x30 || chain->data[1] != 0x82) {
-        *leaf = *chain;
-        return;
-    }
+    if(chain.length < 4 || chain.data[0] != 0x30 || chain.data[1] != 0x82)
+        return chain;
 
     /* The certificate length is encoded in the next 2 bytes. */
     size_t leafLen = 4; /* Magic numbers + length bytes */
-    leafLen += (size_t)(((uint16_t)chain->data[2]) << 8);
-    leafLen += chain->data[3];
+    leafLen += (size_t)(((uint16_t)chain.data[2]) << 8);
+    leafLen += chain.data[3];
 
-    /* Length consistency check */
-    if(leafLen > chain->length)
-        return;
+    /* Consistency check */
+    if(leafLen > chain.length)
+        return UA_BYTESTRING_NULL;
 
-    leaf->data = chain->data;
-    leaf->length = leafLen;
+    /* Adjust the length and return */
+    chain.length = leafLen;
+    return chain;
 }
 
 static UA_StatusCode
@@ -1088,13 +1087,11 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
      * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
      * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
      * algorithm Security header */
-    UA_ByteString appInstanceCertificate = UA_BYTESTRING_NULL;
-    getLeafCertificate(&asymHeader->senderCertificate, &appInstanceCertificate);
+    UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
 
     /* Create the channel context and parse the sender (remote) certificate used
      * for the secureChannel. */
-    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                              &appInstanceCertificate);
+    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
 static UA_StatusCode
