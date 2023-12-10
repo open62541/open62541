@@ -35,6 +35,20 @@
 static void initConnect(UA_Client *client);
 static UA_StatusCode createSessionAsync(UA_Client *client);
 
+/* Get the EndpointUrl to be used right now.
+ * This is adjusted during the discovery process.
+ * We fall back if connecting to an EndpointUrl fails. */
+static UA_String
+getEndpointUrl(UA_Client *client) {
+    if(client->config.endpoint.endpointUrl.length > 0) {
+        return client->config.endpoint.endpointUrl;
+    } else if(client->discoveryUrl.length > 0) {
+        return client->discoveryUrl;
+    } else {
+        return client->config.endpointUrl;
+    }
+}
+
 static UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
@@ -411,17 +425,7 @@ sendHELMessage(UA_Client *client) {
     hello.sendBufferSize = client->config.localConnectionConfig.sendBufferSize;
     hello.maxMessageSize = client->config.localConnectionConfig.localMaxMessageSize;
     hello.maxChunkCount = client->config.localConnectionConfig.localMaxChunkCount;
-
-    /* We may open difference SecureChannels with different EndpointUrls. The
-     * response of the FindServers and GetEndpoints services can depend on the
-     * EndpointUrl used in the HEL message. */
-    if(client->config.endpoint.endpointUrl.length > 0) {
-        hello.endpointUrl = client->config.endpoint.endpointUrl;
-    } else if(client->discoveryUrl.length > 0) {
-        hello.endpointUrl = client->discoveryUrl;
-    } else {
-        hello.endpointUrl = client->config.endpointUrl;
-    }
+    hello.endpointUrl = getEndpointUrl(client);
 
     UA_Byte *bufPos = &message.data[8]; /* skip the header */
     const UA_Byte *bufEnd = &message.data[message.length];
@@ -1042,10 +1046,8 @@ requestGetEndpoints(UA_Client *client) {
 
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
-    if(client->discoveryUrl.length > 0)
-        request.endpointUrl = client->discoveryUrl;
-    else
-        request.endpointUrl = client->config.endpointUrl;
+    request.endpointUrl = getEndpointUrl(client);
+
     UA_StatusCode retval =
         __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                               (UA_ClientAsyncServiceCallback) responseGetEndpoints,
