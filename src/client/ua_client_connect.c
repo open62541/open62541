@@ -22,7 +22,7 @@
  * - Call FindServers
  *   - If one of the results has an exactly matching EndpointUrl, continue.
  *   - Otherwise select a matching server, update the endpointURL member of
- *     UA_Client and reconnect. -
+ *     UA_Client and reconnect.
  * - Call GetEndpoints and select an Endpoint
  * - Open a SecureChannel and Session for that Endpoint
  */
@@ -30,7 +30,6 @@
 #define UA_MINMESSAGESIZE 8192
 #define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
-
 #define REVERSE_CONNECT_INDICATOR (void *)(uintptr_t)0xFFFFFFFF
 
 static void initConnect(UA_Client *client);
@@ -1076,7 +1075,8 @@ responseFindServers(UA_Client *client, void *userdata,
                        "FindServers failed with error code %s. Continue with the "
                        "EndpointURL %.*s.",
                        UA_StatusCode_name(fsr->responseHeader.serviceResult),
-                       (int)client->config.endpointUrl.length, client->config.endpointUrl.data);
+                       (int)client->config.endpointUrl.length,
+                       client->config.endpointUrl.data);
         UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
         return;
     }
@@ -1108,10 +1108,9 @@ responseFindServers(UA_Client *client, void *userdata,
      * returned server. */
     for(size_t i = 0; i < fsr->serversSize; i++) {
         UA_ApplicationDescription *server = &fsr->servers[i];
-        if (server->applicationType != UA_APPLICATIONTYPE_SERVER &&
+        if(server->applicationType != UA_APPLICATIONTYPE_SERVER &&
             server->applicationType != UA_APPLICATIONTYPE_CLIENTANDSERVER &&
-            server->applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER
-        )
+            server->applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER)
             continue;
 
         /* Filter by the ApplicationURI if defined */
