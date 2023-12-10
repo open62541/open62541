@@ -1052,13 +1052,15 @@ requestGetEndpoints(UA_Client *client) {
         __Client_AsyncService(client, &request, &UA_TYPES[UA_TYPES_GETENDPOINTSREQUEST],
                               (UA_ClientAsyncServiceCallback) responseGetEndpoints,
                               &UA_TYPES[UA_TYPES_GETENDPOINTSRESPONSE], NULL, NULL);
-    if(retval == UA_STATUSCODE_GOOD)
-        client->endpointsHandshake = true;
-    else
+    if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "RequestGetEndpoints failed when sending the request with error code %s",
                      UA_StatusCode_name(retval));
-    return retval;
+        return retval;
+    }
+
+    client->endpointsHandshake = true;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
