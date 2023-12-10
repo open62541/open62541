@@ -9,18 +9,6 @@
  * is assigned with non-zero timestamp to pass unit tests */
 static UA_DateTime testingClock = 0x5C8F735D;
 
-UA_DateTime UA_DateTime_now(void) {
-    return testingClock;
-}
-
-UA_DateTime UA_DateTime_nowMonotonic(void) {
-    return testingClock;
-}
-
-UA_DateTime UA_DateTime_localTimeUtcOffset(void) {
-    return 0;
-}
-
 void
 UA_fakeSleep(UA_UInt32 duration) {
     testingClock += duration * UA_DATETIME_MSEC;

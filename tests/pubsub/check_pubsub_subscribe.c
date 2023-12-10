@@ -1650,7 +1650,8 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
      * we compare the lastHeartbeatReceived with the static timestamp
      * (given by UA_DateTime_nowMonotonic()). If the timestamps are equal,
      * the code path was executed and the lastHeartbeatReceived set correctly */
-    ck_assert(UA_DateTime_nowMonotonic() == dsr->lastHeartbeatReceived);
+    UA_EventLoop *el = server->config.eventLoop;
+    ck_assert(el->dateTime_nowMonotonic(el) == dsr->lastHeartbeatReceived);
 
 } END_TEST
 

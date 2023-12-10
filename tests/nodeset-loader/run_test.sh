@@ -116,7 +116,7 @@ function add_node_integration_test() {
     NodeIdFiles=()
 }
 
-UA_NODESET_PATH=$SCRIPT_DIR/../../../deps/ua-nodeset
+UA_NODESET_PATH=$SCRIPT_DIR/../../deps/ua-nodeset
 
 add_node_integration_test "ADI" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \

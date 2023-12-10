@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_timer.h"
+#include "eventloop_timer.h"
 
 static enum ZIP_CMP
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {

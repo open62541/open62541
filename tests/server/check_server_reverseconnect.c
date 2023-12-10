@@ -65,6 +65,8 @@ static void setup(void) {
     numClientCallbackCalled = 0;
 
     server = UA_Server_newForUnitTest();
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->reverseReconnectInterval = 15000;
     ck_assert(server != NULL);
 
     client = UA_Client_newForUnitTest();
@@ -281,21 +283,15 @@ START_TEST(checkReconnect) {
 
             UA_fakeSleep(UA_Server_getConfig(server)->reverseReconnectInterval + 1000);
 
-            UA_EventLoop *serverLoop = UA_Server_getConfig(server)->eventLoop;
-            UA_DateTime next = serverLoop->run(serverLoop, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-
             for(int j = 0; j < 5; ++j) {
+                UA_Server_run_iterate(server, true);
                 UA_Client_run_iterate(client, 1);
-                next = serverLoop->run(serverLoop, 1);
-                UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
             }
 
             ck_assert_int_eq(numServerCallbackCalled, 9);
             ck_assert_int_eq(serverCallbackStates[6], UA_SECURECHANNELSTATE_RHE_SENT);
             ck_assert_int_eq(serverCallbackStates[7], UA_SECURECHANNELSTATE_ACK_SENT);
             ck_assert_int_eq(serverCallbackStates[8], UA_SECURECHANNELSTATE_OPEN);
-
         }
 
         if(i == 80)

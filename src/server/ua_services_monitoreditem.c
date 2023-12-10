@@ -513,14 +513,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->revisedQueueSize = newMon->parameters.queueSize;
     result->monitoredItemId = newMon->monitoredItemId;
 
-    /* If the sampling interval is negative (the sampling callback is called
-     * from within the publishing callback), return the publishing interval of
-     * the Subscription. Note that we only use the cyclic callback of the
-     * Subscription. So if the Subscription publishing interval is modified,
-     * this also impacts this MonitoredItem. */
-    if(result->revisedSamplingInterval < 0.0 && cmc->sub)
-        result->revisedSamplingInterval = cmc->sub->publishingInterval;
-
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                              "MonitoredItem %" PRIi32 " | "
                              "Created the MonitoredItem "

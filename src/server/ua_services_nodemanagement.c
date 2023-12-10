@@ -1088,8 +1088,9 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
     /* Create a current source timestamp for values that don't have any */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
        !node->variableNode.value.data.value.hasSourceTimestamp) {
+        UA_EventLoop *el = server->config.eventLoop;
+        node->variableNode.value.data.value.sourceTimestamp = el->dateTime_now(el);
         node->variableNode.value.data.value.hasSourceTimestamp = true;
-        node->variableNode.value.data.value.sourceTimestamp = UA_DateTime_now();
     }
 
     /* Add the node to the nodestore */

@@ -216,7 +216,7 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString msg);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 /* Gets the a pointer to the context of a security policy supported by the

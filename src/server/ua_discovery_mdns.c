@@ -94,7 +94,10 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
             UA_malloc(sizeof(struct serverOnNetwork));
     if(!listEntry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    listEntry->created = UA_DateTime_now();
+
+
+    UA_EventLoop *el = dm->server->config.eventLoop;
+    listEntry->created = el->dateTime_now(el);
     listEntry->pathTmp = NULL;
     listEntry->txtSet = false;
     listEntry->srvSet = false;
@@ -109,8 +112,8 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     memcpy(listEntry->serverOnNetwork.serverName.data, serverName, serverNameLen);
     dm->serverOnNetworkRecordIdCounter++;
     if(dm->serverOnNetworkRecordIdCounter == 0)
-        dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
-    listEntry->lastSeen = UA_DateTime_nowMonotonic();
+        dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
+    listEntry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* add to hash */
     UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)fqdnMdnsRecord,
@@ -392,7 +395,8 @@ mdns_record_received(const struct resource *r, void *data) {
     }
 
     /* Update lastSeen */
-    entry->lastSeen = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = dm->server->config.eventLoop;
+    entry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* TXT and SRV are already set */
     if(entry->txtSet && entry->srvSet) {

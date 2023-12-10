@@ -133,7 +133,9 @@ eventSetStandardFields(UA_Server *server, const UA_NodeId *event,
         UA_BrowsePathResult_clear(&bpr);
         return retval;
     }
-    UA_DateTime rcvTime = UA_DateTime_now();
+
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime rcvTime = el->dateTime_now(el);
     UA_Variant_setScalar(&value, &rcvTime, &UA_TYPES[UA_TYPES_DATETIME]);
     retval = writeValueAttribute(server, bpr.targets[0].targetId.nodeId, &value);
     UA_BrowsePathResult_clear(&bpr);
