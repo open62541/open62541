@@ -1436,10 +1436,40 @@ connectActivity(UA_Client *client) {
 }
 
 static UA_StatusCode
-verifyClientSecurechannelHeader(void *application, UA_SecureChannel *channel,
+verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
                                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
-    /* TODO: Verify if certificate is the same as configured in the client
-     * endpoint config */
+    UA_Client *client = (UA_Client*)application;
+    const UA_SecurityPolicy *sp = channel->securityPolicy;
+    UA_assert(sp != NULL);
+
+    /* Check the SecurityPolicyUri */
+    if(asymHeader->securityPolicyUri.length > 0 &&
+       !UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri)) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "The server uses a different SecurityPolicy from the client");
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    /* If encryption is used, check that the server certificate for the
+     * endpoint is used for the SecureChannel */
+    UA_ByteString serverCert = getLeafCertificate(asymHeader->senderCertificate);
+    if(client->config.endpoint.serverCertificate.length > 0 &&
+       !UA_String_equal(&client->config.endpoint.serverCertificate, &serverCert)) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "The server certificate is different from the EndpointDescription");
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    /* Verify the certificate the server assumes on our end */
+    UA_StatusCode res = sp->asymmetricModule.
+        compareCertificateThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "The server does not use the client certificate "
+                     "used for the selected SecurityPolicy");
+        return res;
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1631,7 +1661,7 @@ initConnect(UA_Client *client) {
     UA_SecureChannel_clear(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
-    client->channel.processOPNHeader = verifyClientSecurechannelHeader;
+    client->channel.processOPNHeader = verifyClientSecureChannelHeader;
 
     /* Initialize the SecurityPolicy */
     client->connectStatus = initSecurityPolicy(client);
@@ -1997,7 +2027,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     UA_SecureChannel_init(&client->channel);
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
-    client->channel.processOPNHeader = verifyClientSecurechannelHeader;
+    client->channel.processOPNHeader = verifyClientSecureChannelHeader;
     client->channel.connectionId = 0;
 
     client->connectStatus = initSecurityPolicy(client);
