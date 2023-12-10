@@ -198,12 +198,6 @@ UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
  * certificates */
 UA_ByteString getLeafCertificate(UA_ByteString chain);
 
-/* Chunked for loop */
-#define FOR_EACH_CHUNK(CURSOR, SIZE, chunkSize, arraySize) \
-        for((CURSOR) = 0, (SIZE) = (arraySize) <= (chunkSize) ? (arraySize) : (chunkSize); \
-            (CURSOR) < (arraySize); \
-            (CURSOR) = (CURSOR) + (chunkSize), (SIZE) = (arraySize) - (CURSOR) <= (chunkSize) ? (arraySize) - (CURSOR) : (chunkSize))
-
 /* Unions that represent any of the supported request or response message */
 typedef union {
     UA_RequestHeader requestHeader;
