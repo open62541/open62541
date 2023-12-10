@@ -194,6 +194,10 @@ void UA_EXPORT
 UA_dump_hex_pkg(UA_Byte* buffer, size_t bufferLen);
 #endif
 
+/* Get pointer to leaf certificate of a specified valid chain of DER encoded
+ * certificates */
+UA_ByteString getLeafCertificate(UA_ByteString chain);
+
 /* Chunked for loop */
 #define FOR_EACH_CHUNK(CURSOR, SIZE, chunkSize, arraySize) \
         for((CURSOR) = 0, (SIZE) = (arraySize) <= (chunkSize) ? (arraySize) : (chunkSize); \
