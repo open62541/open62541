@@ -1157,6 +1157,7 @@ responseFindServers(UA_Client *client, void *userdata,
                    "Continue with the EndpointURL %.*s.",
                    (int)client->config.endpointUrl.length,
                    client->config.endpointUrl.data);
+    UA_String_clear(&client->discoveryUrl);
     UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
 }
 
