@@ -49,6 +49,48 @@ getEndpointUrl(UA_Client *client) {
     }
 }
 
+/* If an EndpointUrl doesn't work (TCP connection fails), fall back to the
+ * initial EndpointUrl */
+static UA_StatusCode
+fallbackEndpointUrl(UA_Client* client) {
+    /* Cannot fallback, the initial EndpointUrl is already in use */
+    UA_String currentUrl = getEndpointUrl(client);
+    if(UA_String_equal(&currentUrl, &client->config.endpointUrl)) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Could not open a TCP connection to the Endpoint at %.*s",
+                     (int)client->config.endpointUrl.length,
+                     client->config.endpointUrl.data);
+        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    }
+
+    if(client->config.endpoint.endpointUrl.length > 0) {
+        /* Overwrite the EndpointUrl of the Endpoint */
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Could not open a TCP connection to the Endpoint at %.*s. "
+                       "Overriding the endpoint description with the initial "
+                       "EndpointUrl at %.*s.",
+                       (int)client->config.endpoint.endpointUrl.length,
+                       client->config.endpoint.endpointUrl.data,
+                       (int)client->config.endpointUrl.length,
+                       client->config.endpointUrl.data);
+        UA_String_clear(&client->config.endpoint.endpointUrl);
+        return UA_String_copy(&client->config.endpointUrl,
+                              &client->config.endpoint.endpointUrl);
+    } else {
+        /* Overwrite the DiscoveryUrl returned by FindServers */
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "The DiscoveryUrl returned by the FindServers service (%.*s) "
+                       "could not be connected. Continuing with the initial EndpointUrl "
+                       "%.*s for the GetEndpoints service.",
+                       (int)client->config.endpointUrl.length,
+                       client->config.endpointUrl.data,
+                       (int)client->config.endpointUrl.length,
+                       client->config.endpointUrl.data);
+        UA_String_clear(&client->discoveryUrl);
+        return UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
+    }
+}
+
 static UA_SecurityPolicy *
 getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
@@ -1294,27 +1336,6 @@ createSessionAsync(UA_Client *client) {
     return res;
 }
 
-/* A workaround if the DiscoveryUrl returned by the FindServers service doesn't work.
- * Then default back to the initial EndpointUrl and pretend that was returned
- * by FindServers. */
-static void
-fixBadDiscoveryUrl(UA_Client* client) {
-    if(client->connectStatus == UA_STATUSCODE_GOOD)
-        return;
-    if(client->discoveryUrl.length == 0 ||
-       UA_String_equal(&client->discoveryUrl, &client->config.endpointUrl))
-        return;
-
-    UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                   "The DiscoveryUrl returned by the FindServers service (%.*s) could not be "
-                   "connected. Trying with the original EndpointUrl.",
-                   (int)client->discoveryUrl.length, client->discoveryUrl.data);
-
-    UA_String_clear(&client->discoveryUrl);
-    UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
-    client->connectStatus = UA_STATUSCODE_GOOD;
-}
-
 static UA_StatusCode
 initSecurityPolicy(UA_Client *client) {
     /* Find the SecurityPolicy */
@@ -1522,51 +1543,34 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_Client *client = (UA_Client*)application;
     UA_LOCK(&client->clientMutex);
 
-    UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                 "Client network callback");
+    UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT, "Client network callback");
 
-    /* A new connection is not yet registered */
+    /* A new connection with no context pointer attached */
     if(!*connectionContext) {
-        /* Opening the connection failed. The client cannot recover from this. */
-        if(state != UA_CONNECTIONSTATE_OPENING &&
-           state != UA_CONNECTIONSTATE_ESTABLISHED) {
-            goto refuse_connection;
-        }
-
         /* Inconsistent SecureChannel state. Has to be fresh for a new
          * connection. */
         if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED &&
            client->channel.state != UA_SECURECHANNELSTATE_REVERSE_LISTENING) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "Cannot open a connection for SecureChannel that is already used");
+                         "Cannot open a connection, the SecureChannel is already used");
             client->connectStatus = UA_STATUSCODE_BADINTERNALERROR;
-            goto refuse_connection;
+            notifyClientState(client);
+            UA_UNLOCK(&client->clientMutex);
+            return;
         }
 
         /* Initialize the client connection and attach to the EventLoop connection */
         client->channel.connectionManager = cm;
         client->channel.connectionId = connectionId;
         *connectionContext = &client->channel;
-
-        /* If the connection is not fully established we still save the
-         * connectionId in the client now so that the connection can be closed
-         * before it fully opens. Wait for the connection to be established
-         * before sending the HEL message. */
-        if(state == UA_CONNECTIONSTATE_OPENING)
-            client->channel.state = UA_SECURECHANNELSTATE_CONNECTING;
-        else {
-            if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
-                client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
-            else /* state == UA_CONNECTIONSTATE_ESTABLISHED */
-                client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
-        }
-        
-        goto continue_connect;
     }
 
     /* The connection is closing in the EventLoop. This is the last callback
      * from that connection. Clean up the SecureChannel in the client. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
+        UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel,
+                            "SecureChannel closed");
+
         /* Set to closing (could be done already in UA_SecureChannel_shutdown).
          * This impacts the handling of cancelled requests below. */
         UA_SecureChannelState oldState = client->channel.state;
@@ -1585,26 +1589,30 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_SecureChannel_clear(&client->channel);
 
         /* The connection closed before it actually opened. Since we are
-         * connecting asynchronously, this happens when the server does not
-         * exist or is unresponsive. */
-        if(oldState == UA_SECURECHANNELSTATE_CONNECTING) {
-            UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel,
-                                "Could not open the connection");
-            goto refuse_connection; /* The client cannot recover from this */
-        }
-
-        UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel,
-                            "Closed the SecureChannel");
+         * connecting asynchronously, this happens when the TCP connection
+         * fails. Try to fall back on the initial EndpointUrl. */
+        if(oldState == UA_SECURECHANNELSTATE_CONNECTING &&
+           client->connectStatus == UA_STATUSCODE_GOOD)
+            client->connectStatus = fallbackEndpointUrl(client);
 
         /* Try to reconnect */
         goto continue_connect;
     }
 
-    /* The connection has opened on the TCP level. Set the SecureChannel state
-     * to reflect this. Otherwise later consistency checks for the received
-     * messages fail. */
-    if(client->channel.state < UA_SECURECHANNELSTATE_CONNECTED)
-        client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
+    /* Update the SecureChannel state */
+    if(UA_LIKELY(state == UA_CONNECTIONSTATE_ESTABLISHED)) {
+        /* The connection is now open on the TCP level. Set the SecureChannel
+         * state to reflect this. Otherwise later consistency checks for the
+         * received messages fail. */
+        if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+            client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
+        if(client->channel.state < UA_SECURECHANNELSTATE_CONNECTED)
+            client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
+    } else /* state == UA_CONNECTIONSTATE_OPENING */ {
+        /* The connection was opened on our end only. Waiting for the TCP handshake
+         * to complete. */
+        client->channel.state = UA_SECURECHANNELSTATE_CONNECTING;
+    }
 
     /* Received a message. Process the message with the SecureChannel. */
     UA_StatusCode res =
@@ -1615,9 +1623,9 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                      "Processing the message returned the error code %s",
                      UA_StatusCode_name(res));
 
-        /* If connecting has failed before the SecureChannel has opened, then
-         * the client cannot recover. Set the connectStatus to reflect this. The
-         * application is notified when the socket has closed. */
+        /* If processing the buffer fails before the SecureChannel has opened,
+         * then the client cannot recover. Set the connectStatus to reflect
+         * this. The application is notified when the socket has closed. */
         if(client->channel.state != UA_SECURECHANNELSTATE_OPEN)
             client->connectStatus = res;
 
@@ -1633,20 +1641,10 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    /* Trigger the next action from our end to fully open up the connection */
  continue_connect:
-    fixBadDiscoveryUrl(client);
+    /* Trigger the next action from our end to fully open up the connection */
     if(!isFullyConnected(client))
         connectActivity(client);
-
-    /* Notify the application if the client state has changed */
-    notifyClientState(client);
-    UA_UNLOCK(&client->clientMutex);
-    return;
-
- refuse_connection:
-    client->connectStatus = UA_STATUSCODE_BADCONNECTIONREJECTED;
-    fixBadDiscoveryUrl(client);
     notifyClientState(client);
     UA_UNLOCK(&client->clientMutex);
 }
