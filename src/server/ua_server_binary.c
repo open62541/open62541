@@ -1030,33 +1030,6 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
     return false;
 }
 
-/* Get pointer to leaf certificate of a specified valid chain of DER encoded
- * certificates */
-static UA_ByteString
-getLeafCertificate(const UA_ByteString chain) {
-    /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
-     * return the entire chain.
-     *
-     * The OPC UA standard requires this to be DER. But we also allow other
-     * formats like PEM. Afterwards it depends on the crypto backend to parse
-     * it. mbedTLS and OpenSSL detect the format automatically. */
-    if(chain.length < 4 || chain.data[0] != 0x30 || chain.data[1] != 0x82)
-        return chain;
-
-    /* The certificate length is encoded in the next 2 bytes. */
-    size_t leafLen = 4; /* Magic numbers + length bytes */
-    leafLen += (size_t)(((uint16_t)chain.data[2]) << 8);
-    leafLen += chain.data[3];
-
-    /* Consistency check */
-    if(leafLen > chain.length)
-        return UA_BYTESTRING_NULL;
-
-    /* Adjust the length and return */
-    chain.length = leafLen;
-    return chain;
-}
-
 static UA_StatusCode
 configServerSecureChannel(void *application, UA_SecureChannel *channel,
                           const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
