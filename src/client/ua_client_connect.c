@@ -69,16 +69,13 @@ getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
 }
 #endif
 
+/* The endpoint is unconfigured if the description is all zeroed-out */
 static UA_Boolean
 endpointUnconfigured(UA_Client *client) {
-    char test = 0;
-    char *pos = (char *)&client->config.endpoint;
-    for(size_t i = 0; i < sizeof(UA_EndpointDescription); i++)
-        test = test | *(pos + i);
-    pos = (char *)&client->config.userTokenPolicy;
-    for(size_t i = 0; i < sizeof(UA_UserTokenPolicy); i++)
-        test = test | *(pos + i);
-    return (test == 0);
+    UA_EndpointDescription tmp;
+    UA_EndpointDescription_init(&tmp);
+    return UA_equal(&tmp, &client->config.endpoint,
+                    &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
 }
 
 UA_Boolean
@@ -342,8 +339,9 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
            client->clientSessionNonce.length);
 
-    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.verify(channel->channelContext, &dataToVerify,
-                                                    &response->serverSignature.signature);
+    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
+        verify(channel->channelContext, &dataToVerify,
+               &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
 }
