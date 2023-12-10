@@ -111,26 +111,26 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
 
     const UA_SecurityPolicy *sp = channel->securityPolicy;
     UA_SignatureData *sd = &request->clientSignature;
+    const UA_SecurityPolicySignatureAlgorithm *signAlg =
+        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
 
-    /* Prepare the clientSignature */
-    size_t signatureSize = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(channel->channelContext);
-    UA_StatusCode retval = UA_String_copy(&sp->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
-                                          &sd->algorithm);
+    /* Copy the signature algorithm identifier */
+    UA_StatusCode retval = UA_String_copy(&signAlg->uri, &sd->algorithm);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    /* Allocate memory for the signature */
+    size_t signatureSize = signAlg->getLocalSignatureSize(channel->channelContext);
     retval = UA_ByteString_allocBuffer(&sd->signature, signatureSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Allocate a temporary buffer */
-    size_t dataToSignSize = channel->remoteCertificate.length +
-        client->serverSessionNonce.length;
+    UA_ByteString dataToSign;
+    size_t dataToSignSize =
+        channel->remoteCertificate.length + client->serverSessionNonce.length;
     if(dataToSignSize > MAX_DATA_SIZE)
         return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_ByteString dataToSign;
     retval = UA_ByteString_allocBuffer(&dataToSign, dataToSignSize);
     if(retval != UA_STATUSCODE_GOOD)
         return retval; /* sd->signature is cleaned up with the response */
@@ -140,63 +140,76 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
            channel->remoteCertificate.length);
     memcpy(dataToSign.data + channel->remoteCertificate.length,
            client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.sign(channel->channelContext,
-                                                  &dataToSign, &sd->signature);
+    retval = signAlg->sign(channel->channelContext, &dataToSign, &sd->signature);
     if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        goto cleanup;
 
     /* Prepare the userTokenSignature */
-if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
-    UA_SignatureData *utsd = &request->userTokenSignature;
-    UA_X509IdentityToken *userIdentityToken = (UA_X509IdentityToken *)
-        request->userIdentityToken.content.decoded.data;
+    if(client->config.userTokenPolicy.tokenType == UA_USERTOKENTYPE_CERTIFICATE) {
+        /* Get the correct securityPolicy for authentication */
+        UA_SecurityPolicy *utsp =
+            getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
+        if(!utsp) {
+            UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                         "The configured SecurityPolicy for certificate "
+                         "authentication could not be found");
+            retval = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+            goto cleanup;
+        }
 
-    /* Get the correct securityPolicy for authentication */
-    UA_SecurityPolicy* utpSecurityPolicy;
-    utpSecurityPolicy = getAuthSecurityPolicy(client, client->config.authSecurityPolicyUri);
+        UA_SignatureData *utsd = &request->userTokenSignature;
+        UA_X509IdentityToken *token = (UA_X509IdentityToken *)
+            request->userIdentityToken.content.decoded.data;
+        UA_SecurityPolicySignatureAlgorithm *utpSignAlg =
+            &utsp->asymmetricModule.cryptoModule.signatureAlgorithm;
 
-    /* We need a channel context with the user certificate in order to reuse
-    * the code for signing. */
-    void *tempChannelContext;
-    retval = utpSecurityPolicy->channelModule.
-        newContext(utpSecurityPolicy, &userIdentityToken->certificateData, &tempChannelContext);
-    if(retval != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        /* Check the size of the content for signing */
+        UA_ByteString signData = UA_BYTESTRING_NULL;
+        size_t signDataSize =
+            channel->remoteCertificate.length + client->serverSessionNonce.length;
+        if(dataToSignSize > MAX_DATA_SIZE) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
 
-    size_t userTokenSignatureSize = utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.
-        getLocalSignatureSize(tempChannelContext);
-    retval = UA_String_copy(&utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.uri,
-                            &utsd->algorithm);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        /* Copy the algorithm identifier */
+        retval = UA_String_copy(&utpSignAlg->uri, &utsd->algorithm);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
 
-    retval = UA_ByteString_allocBuffer(&utsd->signature, userTokenSignatureSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval;
+        /* We need a channel context with the user certificate in order to reuse
+         * the code for signing. */
+        void *tmpCtx;
+        retval = utsp->channelModule.newContext(utsp, &token->certificateData, &tmpCtx);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
 
-    /* Allocate a temporary buffer */
-    size_t userTokenSignSize = channel->remoteCertificate.length +
-        client->serverSessionNonce.length;
-    if(dataToSignSize > MAX_DATA_SIZE)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        /* Allocate memory for the signature */
+        retval = UA_ByteString_allocBuffer(&utsd->signature,
+                                           utpSignAlg->getLocalSignatureSize(tmpCtx));
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup_utp;
 
-    UA_ByteString userTokenSign;
-    retval = UA_ByteString_allocBuffer(&userTokenSign, userTokenSignSize);
-    if(retval != UA_STATUSCODE_GOOD)
-        return retval; /* sd->signature is cleaned up with the response */
+        /* Allocate a temporary buffer for the data to be signed */
+        retval = UA_ByteString_allocBuffer(&signData, signDataSize);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup_utp;
 
-    /* Create the userTokenSignature */
-    memcpy(userTokenSign.data, channel->remoteCertificate.data,
-           channel->remoteCertificate.length);
-    memcpy(userTokenSign.data + channel->remoteCertificate.length,
-           client->serverSessionNonce.data, client->serverSessionNonce.length);
-    retval = utpSecurityPolicy->asymmetricModule.cryptoModule.signatureAlgorithm.sign(tempChannelContext,
-                                                  &userTokenSign, &utsd->signature);
+        /* Create the userTokenSignature */
+        memcpy(signData.data, channel->remoteCertificate.data,
+               channel->remoteCertificate.length);
+        memcpy(signData.data + channel->remoteCertificate.length,
+               client->serverSessionNonce.data, client->serverSessionNonce.length);
+        retval = utpSignAlg->sign(tmpCtx, &signData, &utsd->signature);
+
+        /* Clean up */
+    cleanup_utp:
+        UA_ByteString_clear(&signData);
+        utsp->channelModule.deleteContext(tmpCtx);
+    }
+
     /* Clean up */
-    UA_ByteString_clear(&userTokenSign);
-    utpSecurityPolicy->channelModule.deleteContext(tempChannelContext);
-}
-    /* Clean up */
+ cleanup:
     UA_ByteString_clear(&dataToSign);
     return retval;
 }
