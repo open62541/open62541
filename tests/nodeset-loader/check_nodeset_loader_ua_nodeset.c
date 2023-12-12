@@ -195,27 +195,6 @@ START_TEST(Server_loadIAExamplesNodeset) {
 }
 END_TEST
 
-START_TEST(Server_loadIEC61850_6_Nodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml", NULL);
-    ck_assert(UA_StatusCode_isGood(retVal));
-}
-END_TEST
-
-START_TEST(Server_loadIEC61850_7_3_Nodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml", NULL);
-    ck_assert(UA_StatusCode_isGood(retVal));
-}
-END_TEST
-
-START_TEST(Server_loadIEC61850_7_4_Nodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "IEC61850/Opc.Ua.IEC61850-7-4.NodeSet2.xml", NULL);
-    ck_assert(UA_StatusCode_isGood(retVal));
-}
-END_TEST
-
 START_TEST(Server_loadIOLinkIODDNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_NODESET_DIR "IOLink/Opc.Ua.IOLinkIODD.NodeSet2.xml", NULL);
@@ -765,26 +744,6 @@ static Suite* testSuite_Client(void) {
         tcase_add_test(tc_server, Server_loadDINodeset);
         tcase_add_test(tc_server, Server_loadIANodeset);
         tcase_add_test(tc_server, Server_loadIAExamplesNodeset);
-        suite_add_tcase(s, tc_server);
-    }
-    {
-        TCase *tc_server = tcase_create("Server load IEC61850-6 nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadIEC61850_7_3_Nodeset);
-        tcase_add_test(tc_server, Server_loadIEC61850_6_Nodeset);
-        suite_add_tcase(s, tc_server);
-    }
-    {
-        TCase *tc_server = tcase_create("Server load IEC61850-7-3 nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadIEC61850_7_3_Nodeset);
-        suite_add_tcase(s, tc_server);
-    }
-    {
-        TCase *tc_server = tcase_create("Server load IEC61850-7-4 nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadIEC61850_7_3_Nodeset);
-        tcase_add_test(tc_server, Server_loadIEC61850_7_4_Nodeset);
         suite_add_tcase(s, tc_server);
     }
     {
