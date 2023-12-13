@@ -951,7 +951,7 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                !isNodeInTree(server, parentNodeId, &objectTypes, &refTypes)) {
                 logAddNode(server->config.logging, session, nodeId,
                            "Type of variable node must be a "
-                           "VariableType and not cannot be abstract");
+                           "VariableType and cannot be abstract");
                 retval = UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
                 goto cleanup;
             }
