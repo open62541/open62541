@@ -5,7 +5,9 @@
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#include "eventfilter_parser.h"
+
+#include "open62541/plugin/eventfilter_parser.h"
+
 
 static UA_Parsed_Element_List *create_next_operator_element(UA_Element_List *elements){
     UA_Parsed_Element_List *element = (UA_Parsed_Element_List *) UA_calloc(1, sizeof(UA_Parsed_Element_List));
@@ -37,8 +39,6 @@ void create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *o
     TAILQ_INSERT_TAIL(&elements->head, element, element_entries);
 }
 
-
-
 static UA_Parsed_Element_List* get_element_by_reference(UA_Element_List *elements, char **reference){
     UA_Parsed_Element_List *temp;
     TAILQ_FOREACH(temp, &elements->head, element_entries){
@@ -55,7 +55,7 @@ static UA_Parsed_Element_List* get_element_by_idx_position(UA_Element_List *elem
         if(temp->element.oper.ContentFilterArrayPosition == idx)
             return temp;
     }
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %zu", idx);
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %" PRIu64, idx);
     return temp;
 }
 
@@ -88,33 +88,33 @@ static UA_StatusCode solve_children_references(UA_Parsed_Element_List *temp, UA_
                     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error! Unsolved reference to an ElementOperand");
                     return UA_STATUSCODE_BAD;
                 }
-                else{
-                    free(temp->element.oper.children[i].value.element_ref);
-                    temp->element.oper.children[i].identifier = extensionobject;
-                    UA_ExtensionObject_copy(&temp_1->element.operand.value.extension, &temp->element.oper.children[i].value.extension);
-                }
+                free(temp->element.oper.children[i].value.element_ref);
+                temp->element.oper.children[i].identifier = extensionobject;
+                UA_ExtensionObject_copy(&temp_1->element.operand.value.extension, &temp->element.oper.children[i].value.extension);
+
             }
         }
     }
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode check_recursion_on_operands(UA_Parsed_Element_List *element, size_t init_element, UA_Element_List *elements, size_t *ctr, UA_StatusCode status){
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
+static UA_StatusCode check_recursion_on_operands(UA_Parsed_Element_List *element, size_t init_element, UA_Element_List *elements, size_t *ctr, UA_StatusCode *status){
+    if(*status != UA_STATUSCODE_GOOD){
+        return UA_STATUSCODE_GOOD;
+    }
     for(size_t i=0; i<element->element.oper.nbr_children; i++){
         if(element->element.oper.children[i].value.extension.content.decoded.type == &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
             UA_ElementOperand *temp = (UA_ElementOperand*) element->element.oper.children[i].value.extension.content.decoded.data;
             UA_Parsed_Element_List *next_element = get_element_by_idx_position(elements, (size_t) temp->index);
             if(next_element->element.oper.ContentFilterArrayPosition == init_element){
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Operator on position %zu of the ContentFilter has a loop to itself", init_element);
+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Operator %s has a loop to itself", next_element->ref);
                 return UA_STATUSCODE_BAD;
             }
             //when checking an element and a loop exists inside the tree structure, a termination condition is required,
             //otherwise, the loop is detecter, however as it does not involve the current element, the condition based on the element index
             //will never be met
             if(*ctr > 1000){
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %zu. Loop within the ContentFilter structure detected", init_element);
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %." PRIu64 " Loop within the ContentFilter structure detected", init_element);
                 break;
             }
             (*ctr)++;
@@ -149,8 +149,8 @@ static void handle_filter_structure(char *first_element, UA_Element_List *elemen
         }
         free(temp_list);
     }
-    free(first_element);
     free(children_list);
+    free(first_element);
 }
 
 static UA_StatusCode solve_operand_references(UA_Element_List *elements){
@@ -166,15 +166,14 @@ static UA_StatusCode solve_operand_references(UA_Element_List *elements){
                         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error! An operand references an Operator");
                         return UA_STATUSCODE_BAD;
                     }
+
+                    if(temp1->element.operand.identifier == elementoperand){
+                        current_nbr++;
+                    }
                     else{
-                        if(temp1->element.operand.identifier == elementoperand){
-                            current_nbr++;
-                        }
-                        else{
-                            free(temp->element.operand.value.element_ref);
-                            temp->element.operand.identifier = extensionobject;
-                            UA_ExtensionObject_copy(&temp1->element.operand.value.extension, &temp->element.operand.value.extension);
-                        }
+                        free(temp->element.operand.value.element_ref);
+                        temp->element.operand.identifier = extensionobject;
+                        UA_ExtensionObject_copy(&temp1->element.operand.value.extension, &temp->element.operand.value.extension);
                     }
                 }
             }
@@ -183,9 +182,7 @@ static UA_StatusCode solve_operand_references(UA_Element_List *elements){
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error! Unable to solve all operand references");
             return UA_STATUSCODE_BAD;
         }
-        else{
-            last_nbr = current_nbr;
-        }
+        last_nbr = current_nbr;
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -242,7 +239,7 @@ UA_StatusCode create_content_filter(UA_Element_List *elements, UA_ContentFilter 
     UA_Parsed_Element_List *temp;
     TAILQ_FOREACH(temp, &elements->head, element_entries){
         size_t ctr = 0;
-        retval = check_recursion_on_operands(temp, temp->element.oper.ContentFilterArrayPosition, elements, &ctr, status);
+        retval = check_recursion_on_operands(temp, temp->element.oper.ContentFilterArrayPosition, elements, &ctr, &status);
         if(retval != UA_STATUSCODE_GOOD){
             clear_linked_list(elements);
             return retval;
@@ -398,7 +395,7 @@ void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand){
 
 static void create_element_reference(size_t *branch_nbr, char **ref, char *ref_identifier){
     char ref_nbr[128];
-    sprintf(ref_nbr, "%zu", *branch_nbr);
+    sprintf(ref_nbr, "%zu" PRIu64 , *branch_nbr);
     *ref = (char*) UA_calloc(strlen(ref_identifier)+1+strlen(ref_nbr), sizeof(char));
     strcpy(*ref, ref_identifier);
     strcat(*ref, ref_nbr);
@@ -501,18 +498,13 @@ void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_siz
 }
 
 void handle_between_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_Parsed_Operand *operand_3){
-    UA_Parsed_Operand operand_list[3];
-    operand_list[0] = *operand_1;
-    operand_list[1] = *operand_2;
-    operand_list[2] = *operand_3;
+    UA_Parsed_Operand operand_list[3] = {*operand_1, *operand_2, *operand_3};
     add_child_operands(operand_list, 3, element, UA_FILTEROPERATOR_BETWEEN);
     clear_operand_list(operand_list, 3);
 }
 
 void handle_two_operands_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_FilterOperator *filter){
-    UA_Parsed_Operand operand_list[2];
-    operand_list[0] = *operand_1;
-    operand_list[1] = *operand_2;
+    UA_Parsed_Operand operand_list[2] = {*operand_1, *operand_2};
     add_child_operands(operand_list, 2, element, *filter);
     clear_operand_list(operand_list, 2);
 }
@@ -532,6 +524,7 @@ void create_branch_element(UA_Element_List *global, size_t *branch_element_numbe
     free(ref_1);
     free(ref_2);
 }
+
 void handle_for_operator(UA_Element_List *global, size_t *for_operator_reference, char **ref, UA_Parsed_Operator *element){
     UA_Parsed_Element_List *temp = create_next_operator_element(global);
     create_element_reference(for_operator_reference, &temp->ref, "for_reference_");
@@ -626,7 +619,6 @@ UA_StatusCode set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, 
     UA_String temp = UA_String_fromChars(yytext);
     UA_StatusCode retval = UA_ExpandedNodeId_parse(&val, temp);
     if(retval != UA_STATUSCODE_GOOD){
-        printf("yytext: %s \n", yytext);
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to parse the ExpandedNodeId %s", UA_StatusCode_name(retval));
         UA_ExpandedNodeId_clear(&val);
         UA_String_clear(&temp);

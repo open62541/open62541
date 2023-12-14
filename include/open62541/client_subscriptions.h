@@ -6,7 +6,7 @@
 #define UA_CLIENT_SUBSCRIPTIONS_H_
 
 #include <open62541/client.h>
-#include "../../deps/eventfilter_parser/eventfilter_parser_grammar.h"
+#include <open62541/plugin/eventfilter_parser_grammar.h>
 
 _UA_BEGIN_DECLS
 

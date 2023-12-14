@@ -84,7 +84,7 @@ SingleOperatorType = ( ("NOT" | '!') _  oper:Operand _                          
                      | oper:Operand                                                                                     {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_OFTYPE);}
                      ) _
 TwoOperandsOperatorType = ( "GREATERTHAN" | '>' ![>=]| 'GT')                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHAN;}
-                        | ( "EQUALS" | '==' | 'EQ' )                                                                {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
+                        | ( "EQUALS" | '==' | 'EQ' )                                                                    {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
                         | ( "LESSTHAN" | '<' ![<=] ![<=>] | 'LT')                                                       {$$.element.filter = UA_FILTEROPERATOR_LESSTHAN;}
                         | ( "GREATEROREQUAL" | '>=' | 'GE' )                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;}
                         | ( "LESSOREQUAL" | '<=' ![<=>] | 'LE')                                                         {$$.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;}
@@ -153,6 +153,7 @@ ParsedString = ('"' < (StringElement)+ > '"')
 StringElement =  ('\\\"' | !["] . )
 NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?
                 (',' _ [0-9]+ _ (':' _ [0-9]+)?)* > ']'
+_ = (Space | comment)*
 _ = (Space | comment)*
 Space =		' ' | '\t' | Enter
 comment =	('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')

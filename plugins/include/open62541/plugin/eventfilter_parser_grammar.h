@@ -13,8 +13,17 @@
 #include "open62541/server_config_default.h"
 #include "open62541_queue.h"
 #include "eventfilter_parser.h"
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
-void clear_event_filter(UA_EventFilter *filter);
+_UA_BEGIN_DECLS
 
+UA_EXPORT UA_StatusCode
+UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
+
+UA_EXPORT void
+clear_event_filter(UA_EventFilter *filter);
+
+_UA_END_DECLS
 #endif  // OPEN62541_EVENTFILTER_PARSER_GRAMMAR_H

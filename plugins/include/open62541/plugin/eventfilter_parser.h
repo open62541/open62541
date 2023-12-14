@@ -4,19 +4,21 @@
  *
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
+
+#ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
+#define OPEN62541_NODEID_SETUP_FUNCTIONS_H
+
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
 #include "open62541/server_config_default.h"
+#include <open62541/types_generated.h>
+#include <open62541/statuscodes.h>
 #include "open62541_queue.h"
 #include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "cj5.h"
-
-
-#ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
-#define OPEN62541_NODEID_SETUP_FUNCTIONS_H
 
 typedef struct{
     UA_EventFilter filter;

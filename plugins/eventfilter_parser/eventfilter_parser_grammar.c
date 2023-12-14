@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "open62541/plugin/eventfilter_parser_grammar.h"
 #define YYRULECOUNT 36
 #line 1 "eventfilter_parser_grammar.leg"
 
@@ -13,7 +14,6 @@
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#include "eventfilter_parser_grammar.h"
 
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \

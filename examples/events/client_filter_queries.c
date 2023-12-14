@@ -1,3 +1,10 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ */
+
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>
@@ -16,14 +23,16 @@ static void check_eventfilter(UA_EventFilter *filter){
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
     if(memcmp(&empty_filter, filter, sizeof(UA_EventFilter)) == 0){
-        printf("failed to parse the filter\n");
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                    "Failed to parse the EventFilter");
     }
     else{
-        printf("parsing succeeded\n");
-        UA_String out = UA_STRING_NULL;
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "EventFilter parsing succeeded");
+        /*UA_String out = UA_STRING_NULL;
         UA_print(filter, &UA_TYPES[UA_TYPES_EVENTFILTER], &out);
         printf("%.*s\n", (int)out.length, out.data);
-        UA_String_clear(&out);
+        UA_String_clear(&out);*/
     }
 }
 
@@ -205,7 +214,7 @@ static UA_StatusCode create_event_filter_with_monitored_item(UA_UInt16 methodSel
             item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 
             item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-            item.requestedParameters.filter.content.decoded.data = &filter;
+            item.requestedParameters.filter.content.decoded.data = filter;
             item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
 
             UA_UInt32 monId = 0;
@@ -260,7 +269,7 @@ int main(int argc, char *argv[]) {
     UA_EventFilter_init(&filter);
     UA_CreateSubscriptionResponse *response = UA_CreateSubscriptionResponse_new();
     UA_MonitoredItemCreateResult *result = UA_MonitoredItemCreateResult_new();
-    retval = create_event_filter_with_monitored_item(1, 1, client, &filter, response, result);
+    retval = create_event_filter_with_monitored_item(1, 2, client, &filter, response, result);
     if(retval == UA_STATUSCODE_GOOD){
         while(running)
             UA_Client_run_iterate(client, true);
