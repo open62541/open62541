@@ -834,4 +834,51 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
 }
 #endif
 
+static int
+privateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
+    (void) rwflag;
+    UA_ByteString *pw = (UA_ByteString*)userdata;
+    if(pw->length <= (size_t)size)
+        memcpy(buf, pw->data, pw->length);
+    return (int)pw->length;
+}
+
+UA_StatusCode
+UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
+                         const UA_ByteString password,
+                         UA_ByteString *outDerKey) {
+    if(!outDerKey)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if (privateKey.length == 0) {
+        *outDerKey = UA_BYTESTRING_NULL;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Already in DER format -> return verbatim */
+    if(privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)
+        return UA_ByteString_copy(&privateKey, outDerKey);
+
+    /* Decrypt */
+    BIO *bio = BIO_new_mem_buf((void*)privateKey.data, (int)privateKey.length);
+    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL,
+                                             privateKeyPasswordCallback,
+                                             (void*)(uintptr_t)&password);
+    BIO_free(bio);
+    if(!pkey)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    /* Write DER encoded, allocates the new memory */
+    unsigned char *data = NULL;
+    const int numBytes = i2d_PrivateKey(pkey, &data);
+    EVP_PKEY_free(pkey);
+    if(!data)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Move to the output */
+    outDerKey->data = data;
+    outDerKey->length = (size_t)numBytes;
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */

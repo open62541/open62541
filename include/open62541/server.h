@@ -92,7 +92,11 @@ struct UA_ServerConfig {
      * ^^^^^^^^^^^^^^^^^^
      * The description must be internally consistent. The ApplicationUri set in
      * the ApplicationDescription must match the URI set in the server
-     * certificate. */
+     * certificate.
+     * The applicationType is not just descriptive, it changes the actual
+     * functionality of the server. The RegisterServer service is available only
+     * if the server is a DiscoveryServer and the applicationType is set to the
+     * appropriate value.*/
     UA_BuildInfo buildInfo;
     UA_ApplicationDescription applicationDescription;
 
@@ -204,6 +208,12 @@ struct UA_ServerConfig {
      * in the endpoints list. The SecurityPolicy#None must be present in the
      * securityPolicies list. */
     UA_Boolean securityPolicyNoneDiscoveryOnly;
+
+    /* Allow clients without encryption support to connect with username and password.
+     * This requires to transmit the password in plain text over the network which is
+     * why this option is disabled by default.
+     * Make sure you really need this before enabling plain text passwords. */
+    UA_Boolean allowNonePolicyPassword;
 
     /* Different sets of certificates are trusted for SecureChannel / Session */
     UA_CertificateVerification secureChannelPKI;
@@ -378,6 +388,19 @@ struct UA_ServerConfig {
      * Reverse Connect
      * ^^^^^^^^^^^^^^^ */
     UA_UInt32 reverseReconnectInterval; /* Default is 15000 ms */
+
+    /**
+     * Certificate Password Callback
+     * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
+#ifdef UA_ENABLE_ENCRYPTION
+    /* If the private key is in PEM format and password protected, this callback
+     * is called during initialization to get the password to decrypt the
+     * private key. The memory containing the password is freed by the client
+     * after use. The callback should be set early, other parts of the client
+     * config setup may depend on it. */
+    UA_StatusCode (*privateKeyPasswordCallback)(UA_ServerConfig *sc,
+                                                UA_ByteString *password);
+#endif
 };
 
 void UA_EXPORT

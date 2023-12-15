@@ -9,7 +9,7 @@
     buildNumber: "0.9.4",
     buildDate: "2022-11-02T15:31:03Z",
   },
-  // The application description does not change the bahavior of the server.
+  // The applicationType is not just descriptive, it changes the actual functionality of the server.
   // It just sets the value in the information model (https://reference.opcfoundation.org/Core/Part4/v104/docs/7.1).
   applicationDescription: {
     applicationUri: "urn:open62541.server.application",

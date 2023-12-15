@@ -528,9 +528,18 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             *tokenSp = channel->securityPolicy;
             if(pol->securityPolicyUri.length > 0)
                 *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-            if(!*tokenSp || (*tokenSp)->localCertificate.length == 0 ||
-               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))
+
+            /* If the server does not allow unencrypted passwords, select the
+             * default encrypted policy for the UserTokenPolicy */
+#ifdef UA_ENABLE_ENCRYPTION
+            if(!*tokenSp ||
+               (!server->config.allowNonePolicyPassword &&
+                ((*tokenSp)->localCertificate.length == 0 ||
+                 UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))))
                 *tokenSp = getDefaultEncryptedSecurityPolicy(server);
+#endif
+
+            /* Found SecurityPolicy and UserTokenPoliy. Stop here. */
             return;
         }
     }
