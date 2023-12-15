@@ -102,6 +102,22 @@ void
 UA_SecureChannel_close(UA_SecureChannel *channel) {
     /* Set the status to closed */
     channel->state = UA_SECURECHANNELSTATE_CLOSED;
+    channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+
+    /* Reset the SecurityMode and config */
+    channel->securityMode = UA_MESSAGESECURITYMODE_INVALID;
+    memset(&channel->config, 0, sizeof(UA_ConnectionConfig));
+
+    /* Clean up the SecurityToken */
+    UA_ChannelSecurityToken_clear(&channel->securityToken);
+    UA_ChannelSecurityToken_clear(&channel->altSecurityToken);
+
+    /* Delete the channel context for the security policy */
+    if(channel->securityPolicy) {
+        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
+        channel->securityPolicy = NULL;
+        channel->channelContext = NULL;
+    }
 
     /* Detach from the connection and close the connection */
     if(channel->connection) {
@@ -109,6 +125,15 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
             channel->connection->close(channel->connection);
         UA_Connection_detachSecureChannel(channel->connection);
     }
+
+    /* Clean up certificate and nonces */
+    UA_ByteString_clear(&channel->remoteCertificate);
+    UA_ByteString_clear(&channel->localNonce);
+    UA_ByteString_clear(&channel->remoteNonce);
+
+    /* Reset the sequence numbers */
+    channel->receiveSequenceNumber = 0;
+    channel->sendSequenceNumber = 0;
 
     /* Detach Sessions from the SecureChannel. This also removes outstanding
      * Publish requests whose RequestId is valid only for the SecureChannel. */
@@ -122,19 +147,7 @@ UA_SecureChannel_close(UA_SecureChannel *channel) {
         }
     }
 
-    /* Delete the channel context for the security policy */
-    if(channel->securityPolicy) {
-        channel->securityPolicy->channelModule.deleteContext(channel->channelContext);
-        channel->securityPolicy = NULL;
-        channel->channelContext = NULL;
-    }
-
-    /* Delete members */
-    UA_ByteString_clear(&channel->remoteCertificate);
-    UA_ByteString_clear(&channel->localNonce);
-    UA_ByteString_clear(&channel->remoteNonce);
-    UA_ChannelSecurityToken_clear(&channel->securityToken);
-    UA_ChannelSecurityToken_clear(&channel->altSecurityToken);
+    /* Delete remaining chunks */
     UA_SecureChannel_deleteBuffered(channel);
 }
 
