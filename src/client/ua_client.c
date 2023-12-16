@@ -185,6 +185,10 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
 
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);
+
+#ifdef UA_ENABLE_ENCRYPTION
+    config->privateKeyPasswordCallback = NULL;
+#endif
 }
 
 void

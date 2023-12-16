@@ -16,6 +16,7 @@
 
 #include <mbedtls/x509.h>
 #include <mbedtls/x509_crt.h>
+#include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
 #include <mbedtls/version.h>
 
@@ -729,4 +730,65 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 }
 
 #endif
+
+UA_StatusCode
+UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
+                         const UA_ByteString password,
+                         UA_ByteString *outDerKey) {
+    if(!outDerKey)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if (privateKey.length == 0) {
+        *outDerKey = UA_BYTESTRING_NULL;
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    /* Already in DER format -> return verbatim */
+    if(privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)
+        return UA_ByteString_copy(&privateKey, outDerKey);
+
+    /* Create a null-terminated string */
+    UA_ByteString nullTerminatedKey = UA_mbedTLS_CopyDataFormatAware(&privateKey);
+    if(nullTerminatedKey.length != privateKey.length + 1)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Create the private-key context */
+    mbedtls_pk_context ctx;
+    mbedtls_pk_init(&ctx);
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
+                                   nullTerminatedKey.length,
+                                   password.data, password.length);
+#else
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    int err = mbedtls_pk_parse_key(&ctx, nullTerminatedKey.data,
+                                   nullTerminatedKey.length,
+                                   password.data, password.length,
+                                   mbedtls_entropy_func, &entropy);
+    mbedtls_entropy_free(&entropy);
+#endif
+    UA_ByteString_clear(&nullTerminatedKey);
+    if(err != 0) {
+        mbedtls_pk_free(&ctx);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    /* Write the DER-encoded key into a local buffer */
+    unsigned char buf[2 << 13];
+    size_t pos = (size_t)mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
+
+    /* Allocate memory */
+    UA_StatusCode res = UA_ByteString_allocBuffer(outDerKey, pos);
+    if(res != UA_STATUSCODE_GOOD) {
+        mbedtls_pk_free(&ctx);
+        return res;
+    }
+
+    /* Copy to the output */
+    memcpy(outDerKey->data, &buf[sizeof(buf) - pos], pos);
+    mbedtls_pk_free(&ctx);
+    return UA_STATUSCODE_GOOD;
+}
+
 #endif

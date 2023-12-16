@@ -568,6 +568,7 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
                             const UA_WriterGroupConfig *config) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -593,7 +594,13 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
         if(wg->config.rtLevel == UA_PUBSUB_RT_NONE &&
            wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
             UA_WriterGroup_removePublishCallback(server, wg);
-            UA_WriterGroup_addPublishCallback(server, wg);
+            res = UA_WriterGroup_addPublishCallback(server, wg);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
+                                           "Modify WriterGroup failed. Adding publish callback failed"
+                                           "with status code %s", UA_StatusCode_name(res));
+                return res;
+            }
         }
     }
 

@@ -13,6 +13,7 @@
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
  */
 
 #include <open62541/transport_generated.h>
@@ -1066,10 +1067,15 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
     if(!securityPolicy)
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
+    /* If the sender provides a chain of certificates then we shall extract the
+     * ApplicationInstanceCertificate. and ignore the extra bytes. See also: OPC
+     * UA Part 6, V1.04, 6.7.2.3 Security Header, Table 42 - Asymmetric
+     * algorithm Security header */
+    UA_ByteString appInstCert = getLeafCertificate(asymHeader->senderCertificate);
+
     /* Create the channel context and parse the sender (remote) certificate used
      * for the secureChannel. */
-    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy,
-                                              &asymHeader->senderCertificate);
+    return UA_SecureChannel_setSecurityPolicy(channel, securityPolicy, &appInstCert);
 }
 
 static UA_StatusCode

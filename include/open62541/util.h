@@ -235,8 +235,8 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 #define UA_PRINTF_STRING_DATA(STRING) (int)(STRING).length, (STRING).data
 
 /**
- * Helper functions for converting data types
- * ------------------------------------------ */
+ * Cryptography Helpers
+ * -------------------- */
 
 /* Compare memory in constant time to mitigate timing attacks.
  * Returns true if ptr1 and ptr2 are equal for length bytes. */
@@ -250,6 +250,26 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
         c = c | (x ^ y);
     }
     return !c;
+}
+
+/* Zero-out memory in a way that is not removed by compiler-optimizations. Use
+ * this to ensure cryptographic secrets don't leave traces after the memory was
+ * freed. */
+static UA_INLINE void
+UA_ByteString_memZero(UA_ByteString *bs) {
+#if defined(__STDC_LIB_EXT1__)
+   memset_s(bs->data, bs->length, 0, bs->length);
+#elif defined(_WIN32)
+   SecureZeroMemory(bs->data, bs->length);
+#else
+   volatile unsigned char *volatile ptr =
+       (volatile unsigned char *)bs->data;
+   size_t i = 0;
+   size_t maxLen = bs->length;
+   while(i < maxLen) {
+       ptr[i++] = 0;
+   }
+#endif
 }
 
 _UA_END_DECLS

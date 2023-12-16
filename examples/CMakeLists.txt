@@ -111,16 +111,6 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
 endif()
 
 ##################
-# Example Server #
-##################
-
-add_example(server_ctt server_ctt.c)
-
-install(PROGRAMS $<TARGET_FILE:server_ctt>
-        DESTINATION bin
-        RENAME ua_server_ctt.exe)
-
-##################
 # Example Client #
 ##################
 
