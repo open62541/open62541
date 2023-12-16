@@ -592,26 +592,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     UA_Subscription_publish(server, sub);
 
     /* Re-create notifications with the current values for the new subscription */
-    if(*sendInitialValues) {
-        LIST_FOREACH(mon, &newSub->monitoredItems, listEntry) {
-
-            /* Create only DataChange notifications */
-            if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
-                continue;
-
-            /* Only if the mode is monitoring */
-            if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
-                continue;
-
-            /* If a value is queued for a data MonitoredItem, the next value in
-             * the queue is sent in the Publish response. */
-            if(mon->queueSize > 0)
-                continue;
-
-            /* Create a notification with the last sampled value */
-            UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
-        }
-    }
+    if(*sendInitialValues)
+        UA_Subscription_resendData(server, newSub);
 
     /* Do not update the statistics for the number of Subscriptions here. The
      * fact that we duplicate the subscription and move over the content is just
