@@ -169,15 +169,10 @@ struct UA_MonitoredItem {
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
-
-void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
-
-void
-UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-
-void
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
+void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+void UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
@@ -185,18 +180,14 @@ UA_StatusCode
 UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon);
 
 void
-UA_MonitoredItem_unregisterSampling(UA_Server *server,
-                                    UA_MonitoredItem *mon);
+UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
-void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
-/* Do not use the value after calling this. It will be moved to the notification
- * or freed. */
+/* Do not use the value after calling this. It will be moved to mon or freed. */
 void
 UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
                                      UA_DataValue *value);
@@ -215,8 +206,7 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-void
-UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
