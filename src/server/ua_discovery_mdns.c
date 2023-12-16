@@ -228,8 +228,10 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
     /* Remove from list */
     LIST_REMOVE(entry, pointers);
     UA_ServerOnNetwork_clear(&entry->serverOnNetwork);
-    if(entry->pathTmp)
+    if(entry->pathTmp) {
         UA_free(entry->pathTmp);
+        entry->pathTmp = NULL;
+    }
     UA_free(entry);
     return UA_STATUSCODE_GOOD;
 }
@@ -237,12 +239,13 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
 static void
 mdns_append_path_to_url(UA_String *url, const char *path) {
     size_t pathLen = strlen(path);
+    size_t newUrlLen = url->length + pathLen; //size of the new url string incl. the path 
     /* todo: malloc may fail: return a statuscode */
     char *newUrl = (char *)UA_malloc(url->length + pathLen);
     memcpy(newUrl, url->data, url->length);
     memcpy(newUrl + url->length, path, pathLen);
     UA_String_clear(url);
-    url->length = url->length + pathLen;
+    url->length = newUrlLen;
     url->data = (UA_Byte *) newUrl;
 }
 
@@ -266,7 +269,7 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
                                  "Cannot alloc memory for mDNS srv path");
                     return;
                 }
-                memcpy(&(entry->pathTmp), &path, pathLen);
+                memcpy(&entry->pathTmp, path, pathLen);
                 entry->pathTmp[pathLen] = '\0';
             }
         } else {
@@ -340,6 +343,7 @@ setSrv(UA_DiscoveryManager *dm, const struct resource *r,
     if(entry->pathTmp) {
         mdns_append_path_to_url(&entry->serverOnNetwork.discoveryUrl, entry->pathTmp);
         UA_free(entry->pathTmp);
+        entry->pathTmp = NULL;
     }
 }
 
