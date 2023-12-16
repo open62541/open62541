@@ -194,12 +194,11 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server,
-                                UA_MonitoredItem *monitoredItem);
+UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_StatusCode
-sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
-                        UA_MonitoredItem *mon, UA_DataValue *value);
+UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mon,
+                                         UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
@@ -210,9 +209,7 @@ UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
                          UA_UInt32 linkId);
 
 UA_StatusCode
-UA_MonitoredItem_createDataChangeNotification(UA_Server *server,
-                                              UA_Subscription *sub,
-                                              UA_MonitoredItem *mon,
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *value);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost

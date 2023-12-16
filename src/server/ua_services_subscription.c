@@ -609,8 +609,7 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
                 continue;
 
             /* Create a notification with the last sampled value */
-            UA_MonitoredItem_createDataChangeNotification(server, newSub, mon,
-                                                          &mon->lastValue);
+            UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
         }
     }
 
