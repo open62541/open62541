@@ -146,10 +146,9 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredIte
     return UA_STATUSCODE_GOOD;
 }
 
-/* Moves the value to the MonitoredItem if successful */
-UA_StatusCode
-UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mon,
-                                         UA_DataValue *value) {
+void
+UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
+                                     UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -160,16 +159,22 @@ UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mo
                                   "MonitoredItem %" PRIi32 " | "
                                   "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
-        return UA_STATUSCODE_GOOD;
+        return;
     }
 
     /* The MonitoredItem is attached to a subscription (not server-local).
      * Prepare a notification and enqueue it. */
     if(mon->subscription) {
-        UA_StatusCode retval =
+        UA_StatusCode res =
             UA_MonitoredItem_createDataChangeNotification(server, mon, value);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                        "MonitoredItem %" PRIi32 " | "
+                                        "Processing the sample returned the statuscode %s",
+                                        mon->monitoredItemId, UA_StatusCode_name(res));
+            UA_DataValue_clear(value);
+            return;
+        }
     }
 
     /* <-- Point of no return --> */
@@ -192,8 +197,6 @@ UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mo
                                               mon->itemToMonitor.attributeId, value);
         UA_LOCK(&server->serviceMutex);
     }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 void
@@ -206,28 +209,19 @@ UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
 void
 monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     UA_Subscription *sub = mon->subscription;
-    UA_Session *session = (sub) ? &server->adminSession : sub->session;
-
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
 
-    UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
-
-    /* Sample the value. The sample can still point into the node. */
+    /* Sample the current value */
+    UA_Session *session = (sub) ? sub->session : &server->adminSession;
     UA_DataValue dv = readWithSession(server, session, &mon->itemToMonitor,
-                                         mon->timestampsToReturn);
+                                      mon->timestampsToReturn);
 
-    /* Operate on the sample. The sample is consumed when the status is good. */
-    UA_StatusCode res = UA_MonitoredItem_sampleCallbackWithValue(server, mon, &dv);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_DataValue_clear(&dv);
-        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
-                                    "MonitoredItem %" PRIi32 " | "
-                                    "Sampling returned the statuscode %s",
-                                    mon->monitoredItemId, UA_StatusCode_name(res));
-    }
+    /* Process the sample. This always clears the value. */
+    UA_MonitoredItem_processSampledValue(server, mon, &dv);
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
