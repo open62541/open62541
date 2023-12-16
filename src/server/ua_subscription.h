@@ -196,9 +196,11 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
 void
 UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 
-UA_StatusCode
-UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mon,
-                                         UA_DataValue *value);
+/* Do not use the value after calling this. It will be moved to the notification
+ * or freed. */
+void
+UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
+                                     UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
