@@ -62,7 +62,6 @@ typedef struct UA_Notification {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
-    UA_EventFilterResult result;
 #endif
 } UA_Notification;
 
