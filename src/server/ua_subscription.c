@@ -667,7 +667,7 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
             continue;
         if(mon->queueSize > 0)
             continue;
-        UA_MonitoredItem_createDataChangeNotification(server, sub, mon, &mon->lastValue);
+        UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
     }
 }
 

@@ -125,8 +125,8 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
 }
 
 UA_StatusCode
-UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription *sub,
-                                              UA_MonitoredItem *mon, const UA_DataValue *dv) {
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
+                                              const UA_DataValue *dv) {
     /* Allocate a new notification */
     UA_Notification *newNot = UA_Notification_new();
     if(!newNot)
@@ -142,15 +142,14 @@ UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_Subscription
     }
 
     /* Enqueue the notification */
-    UA_assert(sub);
     UA_Notification_enqueueAndTrigger(server, newNot);
     return UA_STATUSCODE_GOOD;
 }
 
 /* Moves the value to the MonitoredItem if successful */
 UA_StatusCode
-sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
-                        UA_MonitoredItem *mon, UA_DataValue *value) {
+UA_MonitoredItem_sampleCallbackWithValue(UA_Server *server, UA_MonitoredItem *mon,
+                                         UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -166,9 +165,9 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
 
     /* The MonitoredItem is attached to a subscription (not server-local).
      * Prepare a notification and enqueue it. */
-    if(sub) {
+    if(mon->subscription) {
         UA_StatusCode retval =
-            UA_MonitoredItem_createDataChangeNotification(server, sub, mon, value);
+            UA_MonitoredItem_createDataChangeNotification(server, mon, value);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
@@ -182,7 +181,7 @@ sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
     /* Call the local callback if the MonitoredItem is not attached to a
      * subscription. Do this at the very end. Because the callback might delete
      * the subscription. */
-    if(!sub) {
+    if(!mon->subscription) {
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
         void *nodeContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
@@ -209,9 +208,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_Subscription *sub = mon->subscription;
-    UA_Session *session = &server->adminSession;
-    if(sub)
-        session = sub->session;
+    UA_Session *session = (sub) ? &server->adminSession : sub->session;
 
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
@@ -223,7 +220,7 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
                                          mon->timestampsToReturn);
 
     /* Operate on the sample. The sample is consumed when the status is good. */
-    UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &dv);
+    UA_StatusCode res = UA_MonitoredItem_sampleCallbackWithValue(server, mon, &dv);
     if(res != UA_STATUSCODE_GOOD) {
         UA_DataValue_clear(&dv);
         UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,

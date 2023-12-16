@@ -1622,14 +1622,12 @@ triggerImmediateDataChange(UA_Server *server, UA_Session *session,
         UA_DataValue_init(&value);
         ReadWithNode(node, server, session, mon->timestampsToReturn,
                      &mon->itemToMonitor, &value);
-        UA_Subscription *sub = mon->subscription;
-        UA_StatusCode res = sampleCallbackWithValue(server, sub, mon, &value);
+        UA_StatusCode res = UA_MonitoredItem_sampleCallbackWithValue(server, mon, &value);
         if(res != UA_STATUSCODE_GOOD) {
             UA_DataValue_clear(&value);
-            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, sub,
-                                        "MonitoredItem %" PRIi32 " | "
-                                        "Sampling returned the statuscode %s",
-                                        mon->monitoredItemId,
+            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                        "MonitoredItem %" PRIi32 " | Sampling returned "
+                                        "the statuscode %s", mon->monitoredItemId,
                                         UA_StatusCode_name(res));
         }
     }
