@@ -191,13 +191,16 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
 
     /* The MonitoredItem must be attached to a Subscription. This code path is
      * not taken for local MonitoredItems (once they are enabled for Events). */
+    UA_assert(mon->subscription);
     UA_Subscription *sub = mon->subscription;
-    UA_assert(sub);
-
     UA_Session *session = sub->session;
-    UA_StatusCode retval = filterEvent(server, session, event,
-                                       eventFilter, &notification->data.event,
-                                       &notification->result);
+
+    UA_EventFilterResult res; /* FilterResult contains only statuscodes. Ignored
+                               * outside the initial setup/validation. */
+    UA_EventFilterResult_init(&res);
+    UA_StatusCode retval = filterEvent(server, session, event, eventFilter,
+                                       &notification->data.event, &res);
+    UA_EventFilterResult_clear(&res);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Notification_delete(notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)

@@ -192,7 +192,6 @@ UA_Notification_delete(UA_Notification *n) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_EventFieldList_clear(&n->data.event);
-            UA_EventFilterResult_clear(&n->result);
             break;
 #endif
         default:
@@ -235,7 +234,7 @@ UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
                               (long unsigned)mon->parameters.queueSize);
 }
 
-void
+static void
 UA_Notification_enqueueSub(UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);

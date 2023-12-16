@@ -664,13 +664,21 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * last value sent is repeated in the Publish response. */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        /* Create only DataChange notifications */
         if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
             continue;
+
+        /* Only if the mode is monitoring */
         if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
             continue;
+
+        /* If a value is queued for a data MonitoredItem, the next value in
+         * the queue is sent in the Publish response. */
         if(mon->queueSize > 0)
             continue;
-        UA_MonitoredItem_createDataChangeNotification(server, sub, mon, &mon->lastValue);
+
+        /* Create a notification with the last sampled value */
+        UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
     }
 }
 
