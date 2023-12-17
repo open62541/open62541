@@ -262,19 +262,11 @@ UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
-        UA_MonitoredItem_delete(server, mon);
-    }
-
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
         UA_Subscription_delete(server, sub);
     }
-    UA_assert(server->monitoredItemsSize == 0);
-    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
@@ -294,6 +286,8 @@ UA_Server_delete(UA_Server *server) {
     UA_Session_clear(&server->adminSession, server);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     server->adminSubscription = NULL;
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
 #endif
 
     /* Remove all remaining server components (must be all stopped) */

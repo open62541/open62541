@@ -155,48 +155,28 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
-                                  "MonitoredItem %" PRIi32 " | "
-                                  "The value has not changed", mon->monitoredItemId);
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %"
+                                  PRIi32 " | The value has not changed",
+                                  mon->monitoredItemId);
         UA_DataValue_clear(value);
         return;
     }
 
-    /* The MonitoredItem is attached to a subscription (not server-local).
-     * Prepare a notification and enqueue it. */
-    if(mon->subscription) {
-        UA_StatusCode res =
-            UA_MonitoredItem_createDataChangeNotification(server, mon, value);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
-                                        "MonitoredItem %" PRIi32 " | "
-                                        "Processing the sample returned the statuscode %s",
-                                        mon->monitoredItemId, UA_StatusCode_name(res));
-            UA_DataValue_clear(value);
-            return;
-        }
+    /* Prepare a notification and enqueue it */
+    UA_StatusCode res =
+        UA_MonitoredItem_createDataChangeNotification(server, mon, value);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                    "MonitoredItem %" PRIi32 " | "
+                                    "Processing the sample returned the statuscode %s",
+                                    mon->monitoredItemId, UA_StatusCode_name(res));
+        UA_DataValue_clear(value);
+        return;
     }
-
-    /* <-- Point of no return --> */
 
     /* Move/store the value for filter comparison and TransferSubscription */
     UA_DataValue_clear(&mon->lastValue);
     mon->lastValue = *value;
-
-    /* Call the local callback if the MonitoredItem is not attached to a
-     * subscription. Do this at the very end. Because the callback might delete
-     * the subscription. */
-    if(!mon->subscription) {
-        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*) mon;
-        void *nodeContext = NULL;
-        getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
-        UA_UNLOCK(&server->serviceMutex);
-        localMon->callback.dataChangeCallback(server,
-                                              mon->monitoredItemId, localMon->context,
-                                              &mon->itemToMonitor.nodeId, nodeContext,
-                                              mon->itemToMonitor.attributeId, value);
-        UA_LOCK(&server->serviceMutex);
-    }
 }
 
 void

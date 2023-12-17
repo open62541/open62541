@@ -319,6 +319,19 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
                                   "MonitoredItem %u triggers MonitoredItem %u",
                                   mon->monitoredItemId, triggeredMon->monitoredItemId);
     }
+
+    /* If we just enqueued a notification into the local adminSubscription, then
+     * register a delayed callback for "local publishing". */
+    if(sub == server->adminSubscription && !sub->delayedCallbackRegistered) {
+        sub->delayedCallbackRegistered = true;
+        sub->delayedMoreNotifications.callback =
+            (UA_Callback)UA_Subscription_localPublish;
+        sub->delayedMoreNotifications.application = server;
+        sub->delayedMoreNotifications.context = sub;
+
+        UA_EventLoop *el = server->config.eventLoop;
+        el->addDelayedCallback(el, &sub->delayedMoreNotifications);
+    }
 }
 
 /* Remove from the MonitoredItem queue and adjust all counters */
@@ -430,23 +443,15 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Register in Subscription and Server */
     UA_Subscription *sub = mon->subscription;
-    if(sub) {
-        mon->monitoredItemId = ++sub->lastMonitoredItemId;
-        mon->subscription = sub;
-        sub->monitoredItemsSize++;
-        LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
-    } else {
-        mon->monitoredItemId = ++server->lastLocalMonitoredItemId;
-        LIST_INSERT_HEAD(&server->localMonitoredItems, mon, listEntry);
-    }
+    mon->monitoredItemId = ++sub->lastMonitoredItemId;
+    mon->subscription = sub;
+    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
 
     /* Register the MonitoredItem in userland */
     if(server->config.monitoredItemRegisterCallback) {
-        UA_Session *session = &server->adminSession;
-        if(sub)
-            session = sub->session;
-
+        UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
         UA_UNLOCK(&server->serviceMutex);

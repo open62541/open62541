@@ -361,7 +361,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check available capacity */
-    if(cmc->sub &&
+    if(cmc->sub != server->adminSubscription &&
        (((server->config.maxMonitoredItems != 0) &&
          (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
         ((server->config.maxMonitoredItemsPerSubscription != 0) &&
@@ -453,9 +453,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Allocate the MonitoredItem */
     UA_MonitoredItem *newMon = NULL;
-    if(cmc->sub) {
-        newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
-    } else {
+    if(cmc->sub == server->adminSubscription) {
         UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
             UA_malloc(sizeof(UA_LocalMonitoredItem));
         if(localMon) {
@@ -464,6 +462,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
             localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
         }
         newMon = &localMon->monitoredItem;
+    } else {
+        newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
     }
     if(!newMon) {
         result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -570,7 +570,7 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
                                         void *monitoredItemContext,
                                         UA_Server_DataChangeNotificationCallback callback) {
     struct createMonContext cmc;
-    cmc.sub = NULL;
+    cmc.sub = server->adminSubscription;
     cmc.context = monitoredItemContext;
     cmc.dataChangeCallback = callback;
     cmc.timestampsToReturn = timestampsToReturn;
@@ -803,16 +803,22 @@ Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
 UA_StatusCode
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId) {
     UA_LOCK(&server->serviceMutex);
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
-        if(mon->monitoredItemId != monitoredItemId)
-            continue;
-        UA_MonitoredItem_delete(server, mon);
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_GOOD;
+
+    UA_Subscription *sub = server->adminSubscription;
+    UA_MonitoredItem *mon;
+    LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        if(mon->monitoredItemId == monitoredItemId)
+            break;
     }
+
+    UA_StatusCode res = UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    if(mon) {
+        UA_MonitoredItem_delete(server, mon);
+        res = UA_STATUSCODE_GOOD;
+    }
+
     UA_UNLOCK(&server->serviceMutex);
-    return UA_STATUSCODE_BADMONITOREDITEMIDINVALID;
+    return res;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */

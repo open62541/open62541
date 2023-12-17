@@ -415,6 +415,55 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_Subscription_delete(server, sub);
 }
 
+/* The local adminSubscription forwards notifications to a registered callback
+ * method. This is done async from a delayed callback registered in the
+ * EventLoop. */
+void
+UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK(&server->serviceMutex);
+    sub->delayedCallbackRegistered = false;
+
+    UA_Notification *n, *n_tmp;
+    TAILQ_FOREACH_SAFE(n, &sub->notificationQueue, globalEntry, n_tmp) {
+        UA_MonitoredItem *mon = n->mon;
+        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)mon;
+
+        /* Move the content to the response */
+        void *nodeContext = NULL;
+        switch(mon->itemToMonitor.attributeId) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
+            /* Event-Notifications are not supported for the local subscription */
+            break;
+#endif
+        default:
+            getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
+            UA_UNLOCK(&server->serviceMutex);
+            localMon->callback.
+                dataChangeCallback(server, mon->monitoredItemId, localMon->context,
+                                   &mon->itemToMonitor.nodeId, nodeContext,
+                                   mon->itemToMonitor.attributeId,
+                                   &n->data.dataChange.value);
+            UA_LOCK(&server->serviceMutex);
+            break;
+        }
+
+        /* If there are Notifications *before this one* in the MonitoredItem-
+         * local queue, remove all of them. These are earlier Notifications that
+         * are non-reporting. And we don't want them to show up after the
+         * current Notification has been sent out. */
+        UA_Notification *prev;
+        while((prev = TAILQ_PREV(n, NotificationQueue, localEntry))) {
+            UA_Notification_delete(prev);
+        }
+
+        /* Delete the notification, remove from the queues and decrease the counters */
+        UA_Notification_delete(n);
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);

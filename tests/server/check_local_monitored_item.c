@@ -103,6 +103,7 @@ START_TEST(Server_LocalMonitoredItem) {
                                                     &dataChangeNotificationCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
     UA_UInt32 count = 0;
@@ -172,6 +173,7 @@ START_TEST(Server_LocalMonitoredItem_CustomType) {
                                                     &dataChangeNotificationCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 
     /* Use a value that requires the ExtensionObject to encode the NodeId of the
@@ -252,6 +254,7 @@ START_TEST(Server_LocalMonitoredItemIndexRange) {
         &dataChangeNotificationValidateStatusCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 }
 END_TEST
@@ -270,6 +273,7 @@ START_TEST(Server_LocalMonitoredItemIndexRangeOutOfBounds) {
         &dataChangeNotificationValidateStatusCallback);
 
     ASSERT_STATUSCODE(result.statusCode, UA_STATUSCODE_GOOD);
+    UA_Server_run_iterate(server, false);
     ck_assert_uint_eq(callbackCount, 1);
 }
 END_TEST
