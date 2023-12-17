@@ -140,9 +140,10 @@ struct UA_Server {
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
-    UA_Session adminSession; /* Local access to the services (for startup and
-                              * maintenance) uses this Session with all possible
-                              * access rights (Session Id: 1) */
+
+    /* Session for local access to the services for upkeep and the C API. Comes
+     * equipped with all possible access rights (Session Id: 1). */
+    UA_Session adminSession;
 
     /* Namespaces */
     size_t namespacesSize;
@@ -154,6 +155,11 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The admin session is initialized with a special subscription. This
+     * subscription generates delayed callbacks with notifications for local
+     * processing. */
+    UA_Subscription *adminSubscription;
+
     size_t subscriptionsSize;  /* Number of active subscriptions */
     size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
