@@ -1078,12 +1078,16 @@ ENCODE_JSON(Variant) {
     status ret = writeJsonObjStart(ctx);
 
     if(ctx->useReversible) {
-        /* Write the NodeId for the reversible form */
-        UA_UInt32 typeId = src->type->typeId.identifier.numeric;
-        if(wrapEO)
-            typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-        ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        if(ctx->prettyPrint) {
+            ret |= writeChars(ctx, src->type->typeName, strlen(src->type->typeName));
+        } else {
+            /* Write the NodeId for the reversible form */
+            UA_UInt32 typeId = src->type->typeId.identifier.numeric;
+            if(wrapEO)
+                typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
+            ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        }
     }
 
     if(wrapEO) {
