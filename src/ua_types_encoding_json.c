@@ -233,8 +233,7 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     ret |= writeChars(ctx, key, strlen(key));
     if(!ctx->unquotedKeys)
         ret |= writeChar(ctx, '\"');
-    if(!ctx->unquotedKeys)
-        ret |= writeChar(ctx, ':');
+    ret |= writeChar(ctx, ':');
     if(ctx->prettyPrint)
         ret |= writeChar(ctx, ' ');
     return ret;
