@@ -1072,6 +1072,8 @@ ENCODE_JSON(Variant) {
     UA_Boolean wrapEO = !isBuiltin;
     if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
         wrapEO = true;
+    if(ctx->prettyPrint)
+        wrapEO = false; /* Don't wrap values in ExtensionObjects for pretty-printing */
 
     status ret = writeJsonObjStart(ctx);
 
