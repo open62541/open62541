@@ -1056,13 +1056,15 @@ filterEvent(UA_Server *server, UA_Session *session,
             UA_EventFilterResult_clear(result);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        for(size_t i = 0; i < result->whereClauseResult.elementResultsSize; ++i) {
-            result->whereClauseResult.elementResults[i].operandStatusCodesSize =
-            filter->whereClause.elements->filterOperandsSize;
-            result->whereClauseResult.elementResults[i].operandStatusCodes = (UA_StatusCode *)
-                UA_Array_new(filter->whereClause.elements->filterOperandsSize,
-                             &UA_TYPES[UA_TYPES_STATUSCODE]);
-            if(!result->whereClauseResult.elementResults[i].operandStatusCodes) {
+
+        for(size_t i = 0; i < filter->whereClause.elementsSize; ++i) {
+            UA_ContentFilterElementResult *er =
+                &result->whereClauseResult.elementResults[i];
+            UA_ContentFilterElement *cf = &filter->whereClause.elements[i];
+            er->operandStatusCodesSize = cf->filterOperandsSize;
+            er->operandStatusCodes = (UA_StatusCode *)
+                UA_Array_new(er->operandStatusCodesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+            if(!er->operandStatusCodes) {
                 UA_EventFieldList_clear(efl);
                 UA_EventFilterResult_clear(result);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
