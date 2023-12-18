@@ -415,6 +415,55 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_Subscription_delete(server, sub);
 }
 
+/* The local adminSubscription forwards notifications to a registered callback
+ * method. This is done async from a delayed callback registered in the
+ * EventLoop. */
+void
+UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
+    UA_LOCK(&server->serviceMutex);
+    sub->delayedCallbackRegistered = false;
+
+    UA_Notification *n, *n_tmp;
+    TAILQ_FOREACH_SAFE(n, &sub->notificationQueue, globalEntry, n_tmp) {
+        UA_MonitoredItem *mon = n->mon;
+        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)mon;
+
+        /* Move the content to the response */
+        void *nodeContext = NULL;
+        switch(mon->itemToMonitor.attributeId) {
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+        case UA_ATTRIBUTEID_EVENTNOTIFIER:
+            /* Event-Notifications are not supported for the local subscription */
+            break;
+#endif
+        default:
+            getNodeContext(server, mon->itemToMonitor.nodeId, &nodeContext);
+            UA_UNLOCK(&server->serviceMutex);
+            localMon->callback.
+                dataChangeCallback(server, mon->monitoredItemId, localMon->context,
+                                   &mon->itemToMonitor.nodeId, nodeContext,
+                                   mon->itemToMonitor.attributeId,
+                                   &n->data.dataChange.value);
+            UA_LOCK(&server->serviceMutex);
+            break;
+        }
+
+        /* If there are Notifications *before this one* in the MonitoredItem-
+         * local queue, remove all of them. These are earlier Notifications that
+         * are non-reporting. And we don't want them to show up after the
+         * current Notification has been sent out. */
+        UA_Notification *prev;
+        while((prev = TAILQ_PREV(n, NotificationQueue, localEntry))) {
+            UA_Notification_delete(prev);
+        }
+
+        /* Delete the notification, remove from the queues and decrease the counters */
+        UA_Notification_delete(n);
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 static void
 delayedPublishNotifications(UA_Server *server, UA_Subscription *sub) {
     UA_LOCK(&server->serviceMutex);
@@ -664,13 +713,21 @@ UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
      * last value sent is repeated in the Publish response. */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->monitoredItems, listEntry) {
+        /* Create only DataChange notifications */
         if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
             continue;
+
+        /* Only if the mode is monitoring */
         if(mon->monitoringMode != UA_MONITORINGMODE_REPORTING)
             continue;
+
+        /* If a value is queued for a data MonitoredItem, the next value in
+         * the queue is sent in the Publish response. */
         if(mon->queueSize > 0)
             continue;
-        UA_MonitoredItem_createDataChangeNotification(server, sub, mon, &mon->lastValue);
+
+        /* Create a notification with the last sampled value */
+        UA_MonitoredItem_createDataChangeNotification(server, mon, &mon->lastValue);
     }
 }
 

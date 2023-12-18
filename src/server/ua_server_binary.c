@@ -846,6 +846,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_UNLOCK(&server->serviceMutex);
     channelRes = sendResponse(server, session, channel,
                               requestId, response, responseType);
+    goto update_statistics; /* pacify warnings if no other goto to
+                             * update_statistics is enabled */
 
     /* Update the diagnostics statistics */
  update_statistics:

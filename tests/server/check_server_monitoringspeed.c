@@ -62,7 +62,7 @@ START_TEST(monitorIntegerNoChanges) {
 
     callbackCount = 0;
 
-    UA_MonitoredItem *mon = LIST_FIRST(&server->localMonitoredItems);
+    UA_MonitoredItem *mon = LIST_FIRST(&server->adminSubscription->monitoredItems);
 
     clock_t begin, finish;
     begin = clock();

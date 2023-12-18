@@ -62,7 +62,6 @@ typedef struct UA_Notification {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     UA_Boolean isOverflowEvent; /* Counted manually */
-    UA_EventFilterResult result;
 #endif
 } UA_Notification;
 
@@ -117,7 +116,7 @@ typedef enum {
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-    UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
+    UA_Subscription *subscription;          /* Always non-NULL */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -170,15 +169,10 @@ struct UA_MonitoredItem {
 };
 
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
-
-void
-UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *monitoredItem);
-
-void
-UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-
-void
-UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
+void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
+void UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
  * MonitoredItem to a linked list in the node. */
@@ -186,20 +180,17 @@ UA_StatusCode
 UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon);
 
 void
-UA_MonitoredItem_unregisterSampling(UA_Server *server,
-                                    UA_MonitoredItem *mon);
+UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon);
 
 UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
-void
-UA_MonitoredItem_sampleCallback(UA_Server *server,
-                                UA_MonitoredItem *monitoredItem);
 
-UA_StatusCode
-sampleCallbackWithValue(UA_Server *server, UA_Subscription *sub,
-                        UA_MonitoredItem *mon, UA_DataValue *value);
+/* Do not use the value after calling this. It will be moved to mon or freed. */
+void
+UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
+                                     UA_DataValue *value);
 
 UA_StatusCode
 UA_MonitoredItem_removeLink(UA_Subscription *sub, UA_MonitoredItem *mon,
@@ -210,15 +201,12 @@ UA_MonitoredItem_addLink(UA_Subscription *sub, UA_MonitoredItem *mon,
                          UA_UInt32 linkId);
 
 UA_StatusCode
-UA_MonitoredItem_createDataChangeNotification(UA_Server *server,
-                                              UA_Subscription *sub,
-                                              UA_MonitoredItem *mon,
+UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *value);
 
 /* Remove entries until mon->maxQueueSize is reached. Sets infobits for lost
  * data if required. */
-void
-UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
+void UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon);
 
 /****************/
 /* Subscription */
@@ -331,6 +319,9 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
+
+void
+UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub);
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);

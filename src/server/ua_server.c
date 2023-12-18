@@ -262,19 +262,11 @@ UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
-        UA_MonitoredItem_delete(server, mon);
-    }
-
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
         UA_Subscription_delete(server, sub);
     }
-    UA_assert(server->monitoredItemsSize == 0);
-    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
@@ -292,6 +284,11 @@ UA_Server_delete(UA_Server *server) {
 
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    server->adminSubscription = NULL;
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
+#endif
 
     /* Remove all remaining server components (must be all stopped) */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
@@ -356,6 +353,13 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
     server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Initialize the adminSubscription */
+    server->adminSubscription = UA_Subscription_new();
+    UA_CHECK_MEM(server->adminSubscription, goto cleanup);
+    UA_Session_attachSubscription(&server->adminSession, server->adminSubscription);
+#endif
 
     /* Create Namespaces 0 and 1
      * Ns1 will be filled later with the uri from the app description */
