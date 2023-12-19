@@ -217,6 +217,12 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<#Aggregates>1:Boiler/``
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
+ *
+ * Extension: ReferenceTypeNodeIds
+ * ```````````````````````````````
+ *
+ * As a non-standard extension we allow the ReferenceType in angle-brackets to
+ * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``.
  */
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
