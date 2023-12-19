@@ -12,6 +12,7 @@
 #define UA_INLINABLE_IMPL 1
 
 #include <open62541/types_generated_handling.h>
+#include <open62541/server.h>
 #include <open62541/util.h>
 
 #include "ua_util_internal.h"
@@ -538,15 +539,49 @@ static const RefTypeName knownRefTypes[KNOWNREFTYPES] = {
 };
 
 UA_StatusCode
-lookupRefType(UA_QualifiedName *qn, UA_NodeId *outRefTypeId) {
-    if(qn->namespaceIndex != 0)
-        return UA_STATUSCODE_BADNOTFOUND;
-    for(size_t i = 0; i < KNOWNREFTYPES; i++) {
-        if(UA_String_equal(&qn->name, &knownRefTypes[i].browseName)) {
-            *outRefTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
-            return UA_STATUSCODE_GOOD;
+lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) {
+    /* Check well-known ReferenceTypes first */
+    if(qn->namespaceIndex == 0) {
+        for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+            if(UA_String_equal(&qn->name, &knownRefTypes[i].browseName)) {
+                *outRefTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
+                return UA_STATUSCODE_GOOD;
+            }
         }
     }
+
+    /* Browse the information model. Return the first results if the browse name
+     * in the hierarchy is ambiguous. */
+    if(server) {
+        UA_BrowseDescription bd;
+        UA_BrowseDescription_init(&bd);
+        bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES);
+        bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+        bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        bd.nodeClassMask = UA_NODECLASS_REFERENCETYPE;
+
+        size_t resultsSize = 0;
+        UA_ExpandedNodeId *results = NULL;
+        UA_StatusCode res =
+            UA_Server_browseRecursive(server, &bd, &resultsSize, &results);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        for(size_t i = 0; i < resultsSize; i++) {
+            UA_QualifiedName bn;
+            UA_Server_readBrowseName(server, results[i].nodeId, &bn);
+            if(UA_QualifiedName_equal(qn, &bn)) {
+                UA_QualifiedName_clear(&bn);
+                *outRefTypeId = results[i].nodeId;
+                UA_NodeId_clear(&results[i].nodeId);
+                UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+                return UA_STATUSCODE_GOOD;
+            }
+            UA_QualifiedName_clear(&bn);
+        }
+
+        UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    }
+
     return UA_STATUSCODE_BADNOTFOUND;
 }
 

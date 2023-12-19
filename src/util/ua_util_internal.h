@@ -57,7 +57,7 @@ typedef UA_StatusCode status;
 
 /* Well-known ReferenceTypes */
 UA_StatusCode
-lookupRefType(UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
+lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
 
 /**
  * Error checking macros
