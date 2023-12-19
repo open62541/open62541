@@ -208,6 +208,13 @@ START_TEST(parseRelativePath) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
+
+    UA_NodeId testRef = UA_NODEID_NUMERIC(1, 345);
+    res = UA_RelativePath_parse(&rp, UA_STRING("/1:Boiler<ns=1;i=345>1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &testRef));
+    UA_RelativePath_clear(&rp);
 } END_TEST
 
 START_TEST(parseRelativePathWithServer) {

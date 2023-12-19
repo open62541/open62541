@@ -337,6 +337,8 @@ parse_relativepath(UA_Server *server, UA_RelativePath *rp, const UA_String str) 
 
     // ReferenceType BrowseName with modifiers
     "<" @begin ([^\000>] | "&>")+ @finish ">" {
+
+        // Process modifier characters
         for(; begin < finish; begin++) {
             if(*begin== '#')
                 current.includeSubtypes = false;
@@ -345,8 +347,15 @@ parse_relativepath(UA_Server *server, UA_RelativePath *rp, const UA_String str) 
             else
                 break;
         }
+
+        // Try to parse a NodeId for the ReferenceType (non-standard!)
+        res = parse_nodeid(&current.referenceTypeId, begin, finish);
+        if(res == UA_STATUSCODE_GOOD)
+            goto reftype_target;
+
+        // Parse the the ReferenceType from its BrowseName
         UA_QualifiedName refqn;
-        res |= parse_refpath_qn(&refqn, begin, finish);
+        res = parse_refpath_qn(&refqn, begin, finish);
         res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         goto reftype_target;
