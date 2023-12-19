@@ -700,7 +700,10 @@ yy42:
 }
 
 static UA_StatusCode
-parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
+parse_relativepath(UA_Server *server, UA_RelativePath *rp, const UA_String str) {
+    const char *pos = (const char*)str.data;
+    const char *end = (const char*)(str.data + str.length);
+
     LexContext context;
     memset(&context, 0, sizeof(LexContext));
     const char *begin = NULL, *finish = NULL;
@@ -802,7 +805,7 @@ yy54:
         }
         UA_QualifiedName refqn;
         res |= parse_refpath_qn(&refqn, begin, finish);
-        res |= lookupRefType(&refqn, &current.referenceTypeId);
+        res |= lookupRefType(server, &refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         goto reftype_target;
     }
@@ -884,8 +887,16 @@ yy60:
 
 UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str) {
-    UA_StatusCode res =
-        parse_relativepath(rp, (const char*)str.data, (const char*)str.data+str.length);
+    UA_StatusCode res = parse_relativepath(NULL, rp, str);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_RelativePath_clear(rp);
+    return res;
+}
+
+UA_StatusCode
+UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
+                                const UA_String str) {
+    UA_StatusCode res = parse_relativepath(server, rp, str);
     if(res != UA_STATUSCODE_GOOD)
         UA_RelativePath_clear(rp);
     return res;

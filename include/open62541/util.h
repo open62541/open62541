@@ -221,6 +221,13 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
+
+/* Supports the lookup of non-standard ReferenceTypes by their browse name in
+ * the information model of a server. The first matching result in the
+ * ReferenceType hierarchy is used. */
+UA_EXPORT UA_StatusCode
+UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
+                                const UA_String str);
 #endif
 
 /**
