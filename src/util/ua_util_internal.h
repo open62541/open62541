@@ -55,6 +55,10 @@ typedef UA_UInt64 u64;
 typedef UA_Int64 i64;
 typedef UA_StatusCode status;
 
+/* Well-known ReferenceTypes */
+UA_StatusCode
+lookupRefType(UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
+
 /**
  * Error checking macros
  */

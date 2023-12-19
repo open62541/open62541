@@ -507,6 +507,49 @@ getLeafCertificate(UA_ByteString chain) {
     return chain;
 }
 
+/************************/
+/* ReferenceType Lookup */
+/************************/
+
+typedef struct {
+    UA_String browseName;
+    UA_UInt32 identifier;
+} RefTypeName;
+
+#define KNOWNREFTYPES 17
+static const RefTypeName knownRefTypes[KNOWNREFTYPES] = {
+    {UA_STRING_STATIC("References"), UA_NS0ID_REFERENCES},
+    {UA_STRING_STATIC("HierachicalReferences"), UA_NS0ID_HIERARCHICALREFERENCES},
+    {UA_STRING_STATIC("NonHierachicalReferences"), UA_NS0ID_NONHIERARCHICALREFERENCES},
+    {UA_STRING_STATIC("HasChild"), UA_NS0ID_HASCHILD},
+    {UA_STRING_STATIC("Aggregates"), UA_NS0ID_AGGREGATES},
+    {UA_STRING_STATIC("HasComponent"), UA_NS0ID_HASCOMPONENT},
+    {UA_STRING_STATIC("HasProperty"), UA_NS0ID_HASPROPERTY},
+    {UA_STRING_STATIC("HasOrderedComponent"), UA_NS0ID_HASORDEREDCOMPONENT},
+    {UA_STRING_STATIC("HasSubtype"), UA_NS0ID_HASSUBTYPE},
+    {UA_STRING_STATIC("Organizes"), UA_NS0ID_ORGANIZES},
+    {UA_STRING_STATIC("HasModellingRule"), UA_NS0ID_HASMODELLINGRULE},
+    {UA_STRING_STATIC("HasTypeDefinition"), UA_NS0ID_HASTYPEDEFINITION},
+    {UA_STRING_STATIC("HasEncoding"), UA_NS0ID_HASENCODING},
+    {UA_STRING_STATIC("GeneratesEvent"), UA_NS0ID_GENERATESEVENT},
+    {UA_STRING_STATIC("AlwaysGeneratesEvent"), UA_NS0ID_ALWAYSGENERATESEVENT},
+    {UA_STRING_STATIC("HasEventSource"), UA_NS0ID_HASEVENTSOURCE},
+    {UA_STRING_STATIC("HasNotifier"), UA_NS0ID_HASNOTIFIER}
+};
+
+UA_StatusCode
+lookupRefType(UA_QualifiedName *qn, UA_NodeId *outRefTypeId) {
+    if(qn->namespaceIndex != 0)
+        return UA_STATUSCODE_BADNOTFOUND;
+    for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+        if(UA_String_equal(&qn->name, &knownRefTypes[i].browseName)) {
+            *outRefTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
 /********************/
 /* Malloc Singleton */
 /********************/

@@ -11,6 +11,7 @@
 #include <open62541/util.h>
 #include <open62541/nodeids.h>
 #include "base64.h"
+#include "ua_util_internal.h"
 
 /* Lexing and parsing of builtin data types. These are helper functions that not
  * required by the SDK internally. But they are useful for users who want to use
@@ -305,50 +306,6 @@ parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
     return parse_refpath_qn_name(qn, &pos, end);
 }
 
-/* List of well-known ReferenceTypes that don't require lookup in the server */
-
-typedef struct {
-    char *browseName;
-    UA_UInt32 identifier;
-} RefTypeNames;
-
-#define KNOWNREFTYPES 17
-static const RefTypeNames knownRefTypes[KNOWNREFTYPES] = {
-    {"References", UA_NS0ID_REFERENCES},
-    {"HierachicalReferences", UA_NS0ID_HIERARCHICALREFERENCES},
-    {"NonHierachicalReferences", UA_NS0ID_NONHIERARCHICALREFERENCES},
-    {"HasChild", UA_NS0ID_HASCHILD},
-    {"Aggregates", UA_NS0ID_AGGREGATES},
-    {"HasComponent", UA_NS0ID_HASCOMPONENT},
-    {"HasProperty", UA_NS0ID_HASPROPERTY},
-    {"HasOrderedComponent", UA_NS0ID_HASORDEREDCOMPONENT},
-    {"HasSubtype", UA_NS0ID_HASSUBTYPE},
-    {"Organizes", UA_NS0ID_ORGANIZES},
-    {"HasModellingRule", UA_NS0ID_HASMODELLINGRULE},
-    {"HasTypeDefinition", UA_NS0ID_HASTYPEDEFINITION},
-    {"HasEncoding", UA_NS0ID_HASENCODING},
-    {"GeneratesEvent", UA_NS0ID_GENERATESEVENT},
-    {"AlwaysGeneratesEvent", UA_NS0ID_ALWAYSGENERATESEVENT},
-    {"HasEventSource", UA_NS0ID_HASEVENTSOURCE},
-    {"HasNotifier", UA_NS0ID_HASNOTIFIER}
-};
-
-static UA_StatusCode
-lookup_reftype(UA_NodeId *refTypeId, UA_QualifiedName *qn) {
-    if(qn->namespaceIndex != 0)
-        return UA_STATUSCODE_BADNOTFOUND;
-
-    for(size_t i = 0; i < KNOWNREFTYPES; i++) {
-        UA_String tmp = UA_STRING(knownRefTypes[i].browseName);
-        if(UA_String_equal(&qn->name, &tmp)) {
-            *refTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
-            return UA_STATUSCODE_GOOD;
-        }
-    }
-
-    return UA_STATUSCODE_BADNOTFOUND;
-}
-
 static UA_StatusCode
 parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
     LexContext context;
@@ -387,7 +344,7 @@ parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
         }
         UA_QualifiedName refqn;
         res |= parse_refpath_qn(&refqn, begin, finish);
-        res |= lookup_reftype(&current.referenceTypeId, &refqn);
+        res |= lookupRefType(&refqn, &current.referenceTypeId);
         UA_QualifiedName_clear(&refqn);
         goto reftype_target;
     }
