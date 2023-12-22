@@ -2656,10 +2656,10 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
     /* Keys and values are counted separately */
     UA_assert(ctx->tokens[ctx->index].size % 2 == 0);
-    size_t objectCount = (size_t)(ctx->tokens[ctx->index].size) / 2;
+    size_t keyCount = (size_t)(ctx->tokens[ctx->index].size) / 2;
 
     /* Empty object, nothing to decode */
-    if(objectCount == 0) {
+    if(keyCount == 0) {
         ctx->depth--;
         ctx->index++; /* Jump to the element after the empty object */
         return UA_STATUSCODE_GOOD;
@@ -2667,76 +2667,65 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
     ctx->index++; /* Go to first key */
 
-    /* CHECK_TOKEN_BOUNDS */
-    if(ctx->index >= ctx->tokensSize) {
-        ctx->depth--;
-        return UA_STATUSCODE_BADDECODINGERROR;
-    }
-
     status ret = UA_STATUSCODE_GOOD;
-    for(size_t currObj = 0; currObj < objectCount &&
-            ctx->index < ctx->tokensSize; currObj++) {
-
+    for(size_t key = 0; key < keyCount; key++) {
         /* Key must be a string */
+        UA_assert(ctx->index < ctx->tokensSize);
         UA_assert(currentTokenType(ctx) == CJ5_TOKEN_STRING);
 
-        /* Start searching at the index of currObj */
-        for(size_t i = currObj; i < entryCount + currObj; i++) {
-            /* Search for key, if found outer loop will be one less. Best case
-             * if objectCount is in order! */
-            size_t index = i % entryCount;
-
-            /* CHECK_TOKEN_BOUNDS */
-            if(ctx->index >= ctx->tokensSize) {
-                ret = UA_STATUSCODE_BADDECODINGERROR;
-                goto cleanup;
-            }
-
+        /* Search for the decoding entry matching the key */
+        size_t i = 0;
+        for(; i < entryCount; i++) {
+            /* Compare the key */
             if(jsoneq(ctx->json5, &ctx->tokens[ctx->index],
-                      entries[index].fieldName) != 0)
+                      entries[i].fieldName) != 0)
                 continue;
 
-            /* Duplicate key found, abort */
-            if(entries[index].found) {
+            /* Key was already used -> duplicate, abort */
+            if(entries[i].found) {
                 ret = UA_STATUSCODE_BADDECODINGERROR;
                 goto cleanup;
             }
 
-            entries[index].found = true;
-
-            ctx->index++; /* Go from key to value */
-
-            /* CHECK_TOKEN_BOUNDS */
-            if(ctx->index >= ctx->tokensSize) {
-                ret = UA_STATUSCODE_BADDECODINGERROR;
-                goto cleanup;
-            }
-
-            /* An entry that was expected, but shall not be decoded.
-             * Jump over it. */
-            if(!entries[index].function && !entries[index].type) {
-                skipObject(ctx);
-                break;
-            }
-
-            /* A null-value -> skip the decoding (as a convention, if we know
-             * the type here, the value must be already initialized) */
-            if(currentTokenType(ctx) == CJ5_TOKEN_NULL && entries[index].type) {
-                ctx->index++;
-                break;
-            }
-
-            /* Decode */
-            if(entries[index].function) /* Specialized decoding function */
-                ret = entries[index].function(ctx, entries[index].fieldPointer,
-                                              entries[index].type);
-            else /* Decode by type-kind */
-                ret = decodeJsonJumpTable[entries[index].type->typeKind]
-                    (ctx, entries[index].fieldPointer, entries[index].type);
-            if(ret != UA_STATUSCODE_GOOD)
-                goto cleanup;
+            /* Found the key */
+            entries[i].found = true;
             break;
         }
+
+        /* The key is unknown */
+        if(i == entryCount) {
+            ret = UA_STATUSCODE_BADDECODINGERROR;
+            break;
+        }
+
+        /* Go from key to value */
+        ctx->index++;
+        UA_assert(ctx->index < ctx->tokensSize);
+
+        /* An entry that was expected, but shall not be decoded.
+         * Jump over it. */
+        if(!entries[i].function && !entries[i].type) {
+            skipObject(ctx);
+            continue;
+        }
+
+        /* A null-value -> skip the decoding (as a convention, if we know
+         * the type here, the value is already initialized) */
+        if(currentTokenType(ctx) == CJ5_TOKEN_NULL && entries[i].type) {
+            ctx->index++; /* skip null value */
+            continue;
+        }
+
+        /* Decode. This also moves to the next key or right after the object for
+         * the last value. */
+        if(entries[i].function) /* Specialized decoding function */
+            ret = entries[i].function(ctx, entries[i].fieldPointer,
+                                          entries[i].type);
+        else /* Decode by type-kind */
+            ret = decodeJsonJumpTable[entries[i].type->typeKind]
+                (ctx, entries[i].fieldPointer, entries[i].type);
+        if(ret != UA_STATUSCODE_GOOD)
+            break;
     }
 
  cleanup:
@@ -2755,7 +2744,7 @@ Array_decodeJson(ParseCtx *ctx, void **dst, const UA_DataType *type) {
     size_t length = (size_t)ctx->tokens[ctx->index].size;
 
     ctx->index++; /* Go to first array member or to the first element after
-                        * the array (if empty) */
+                   * the array (if empty) */
 
     /* Return early for empty arrays */
     if(length == 0) {
