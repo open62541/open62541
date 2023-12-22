@@ -219,9 +219,23 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #endif
 
 /**
+ * And-Escaping of Strings
+ * -----------------------
+ * The "and-escaping" of strings for is described in Part 4, A2. The ``&``
+ * character is used to escape the reserved characters ``/.<>:#!&``.
+ * So the string ``My.String`` becomes ``My&.String``.
+ *
+ * In addition to the standard we define "extended-and-escaping" where
+ * additionaly commas, square brackets and whitespace characters are escaped.
+ * This improves the parsing in a larger context, as a lexer can find the end of
+ * the escaped string. The reserved characters for the extended escaping (in
+ * addition to the above escape-characters) are ``,[] \t\n\v\f\r``.
+ *
+ * This documentation always states whether "and-escaping" or the
+ * "extended-and-escaping is used.
+ *
  * Parse RelativePath Expressions
  * ------------------------------
- *
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
  * used e.g. for the BrowsePath structure. For now, only the standard
  * ReferenceTypes from Namespace 0 are recognized (see Part 3).
@@ -238,16 +252,12 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  *   - ``#`` excludes subtypes of the ReferenceType.
  *
  * QualifiedNames consist of an optional NamespaceIndex and the name itself:
+ * The name is and-escaped (see above).
  *
  *   ``QualifiedName := [0-9]+ ":" Name``
  *
- * The QualifiedName representation for RelativePaths uses ``&`` as the escape
- * character. Occurences of the characters ``/.<>:#!&`` in a QualifiedName have
- * to be escaped (prefixed with ``&``).
- *
  * Example RelativePaths
  * `````````````````````
- *
  * - ``/2:Block&.Output``
  * - ``/3:Truck.0:NodeVersion``
  * - ``<0:HasProperty>1:Boiler/1:HeatSensor``
@@ -256,12 +266,10 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
  *
- * Extension: ReferenceTypeNodeIds
- * ```````````````````````````````
- *
  * As a non-standard extension we allow the ReferenceType in angle-brackets to
- * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``.
- */
+ * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``. If
+ * a string NodeId is used, the string identifier is and-escaped. */
+
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
@@ -272,6 +280,11 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
+
+/* The out-string can be pre-allocated. Then the size is adjusted or an error
+ * returned. If the out-string is NULL, then memory is allocated for it. */
+UA_EXPORT UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 #endif
 
 /**

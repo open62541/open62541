@@ -18,6 +18,7 @@
 #include "ua_util_internal.h"
 #include "pcg_basic.h"
 #include "base64.h"
+#include "itoa.h"
 
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
@@ -587,16 +588,150 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
     }
 
     /* Print the NodeId */
-    UA_StatusCode res = UA_NodeId_print(refTypeId, outBN);
+    return UA_NodeId_print(refTypeId, outBN);
+}
 
-    /* Ensure we have no '>', which would make a RelativePath ambiguous */
-    if(res == UA_STATUSCODE_GOOD) {
-        for(size_t j = 0; j < outBN->length; j++) {
-            if(outBN->data[j] == '>')
-                return UA_STATUSCODE_BADINTERNALERROR;
-        }
+/************************/
+/* Printing and Parsing */
+/************************/
+
+static UA_INLINE UA_Boolean
+isReserved(char c) {
+    return (c == '/' || c == '.' || c == '<' || c == '>' ||
+            c == ':' || c == '#' || c == '!' || c == '&');
+}
+
+static UA_INLINE UA_Boolean
+isReservedExtended(char c) {
+    return (isReserved(c) || c == ','  || c == '[' || c == ']' || c == ' ' ||
+            c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r');
+}
+
+void
+UA_String_unescape(UA_String *s, UA_Boolean extended) {
+    UA_Byte *writepos = s->data;
+    UA_Byte *end = &s->data[s->length];
+    for(UA_Byte *pos = s->data; pos < end; pos++,writepos++) {
+        UA_Boolean skip = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
+        if(skip && ++pos >= end)
+            break;
+        *writepos = *pos;
     }
-    return res;
+    s->length = (size_t)(writepos - s->data);
+}
+
+UA_StatusCode
+UA_String_append(UA_String *s, const UA_String s2) {
+    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + s2.length);
+    if(!buf)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(buf + s->length, s2.data, s2.length);
+    s->data = buf;
+    s->length += s2.length;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
+    /* Allocate memory for the qn name.
+     * We allocate enough space to escape every character. */
+    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
+    if(!buf)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    s->data = buf;
+
+    /* Copy + escape s2 */
+    for(size_t j = 0; j < s2.length; j++) {
+        UA_Boolean reserved = (extended) ?
+            isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
+        if(reserved)
+            s->data[s->length++] = '&';
+        s->data[s->length++] = s2.data[j];
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+moveTmpToOut(UA_String *tmp, UA_String *out) {
+    /* Output has zero length */
+    if(tmp->length == 0) {
+        UA_assert(tmp->data == NULL);
+        if(out->data == NULL)
+            out->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        out->length = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* No output buffer provided, return the tmp buffer */
+    if(out->length == 0) {
+        *out = *tmp;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The provided buffer is too short */
+    if(out->length < tmp->length) {
+        UA_String_clear(tmp);
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
+
+    /* Copy output to the provided buffer */
+    memcpy(out->data, tmp->data, tmp->length);
+    out->length = tmp->length;
+    UA_String_clear(tmp);
+    return UA_STATUSCODE_GOOD;
+}
+
+static const UA_NodeId hierarchicalRefs =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
+static const UA_NodeId aggregatesRefs =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
+
+UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
+        /* Print the reference type */
+        UA_RelativePathElement *elm = &rp->elements[i];
+        if(UA_NodeId_equal(&hierarchicalRefs, &elm->referenceTypeId) &&
+           !elm->isInverse && elm->includeSubtypes) {
+            res |= UA_String_append(&tmp, UA_STRING("/"));
+        } else if(UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
+                  !elm->isInverse && elm->includeSubtypes) {
+            res |= UA_String_append(&tmp, UA_STRING("."));
+        } else {
+            res |= UA_String_append(&tmp, UA_STRING("<"));
+            if(!elm->includeSubtypes)
+                res |= UA_String_append(&tmp, UA_STRING("#"));
+            if(elm->isInverse)
+                res |= UA_String_append(&tmp, UA_STRING("!"));
+            UA_Byte bnBuf[512];
+            UA_String bnBufStr = {512, bnBuf};
+            res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, false);
+            res |= UA_String_append(&tmp, UA_STRING(">"));
+        }
+
+        /* Print the qualified name namespace */
+        UA_QualifiedName *qn = &elm->targetName;
+        if(qn->namespaceIndex > 0) {
+            char nsStr[8]; /* Enough for a uint16 */
+            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
+            res |= UA_String_append(&tmp, UA_STRING(nsStr));
+            res |= UA_String_append(&tmp, UA_STRING(":"));
+        }
+        res |= UA_String_escapeAppend(&tmp, qn->name, false);
+    }
+
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
 }
 
 /************************/
