@@ -2462,17 +2462,20 @@ DECODE_JSON(ExtensionObject) {
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADENCODINGERROR;
 
+    /* Decode the DataType */
     unsigned int oldIndex = ctx->index; /* to restore later */
     ctx->index = (UA_UInt16)searchTypeIdResult;
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD)
+    ctx->index = oldIndex; /* Restore the index */
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&typeId); /* Type NodeId not used anymore and not moved into dst */
         return ret;
+    }
 
-    /* Restore the index to the beginning of the object  */
-    ctx->index = oldIndex;
+    /* Lookup the DataType */
+    const UA_DataType *typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
 
     /* If the type is not known, decode the body as an opaque JSON decoding */
-    const UA_DataType *typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
     if(!typeOfBody) {
         /* Dont decode body: 1. save as bytestring, 2. jump over */
         dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
