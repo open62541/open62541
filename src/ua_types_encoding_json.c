@@ -2168,9 +2168,7 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
         return NULL;
     }
 
-    /* Get the type NodeId */
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
+    /* Get the type NodeId index */
     size_t searchTypeIdResult = 0;
     ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
     if(ret != UA_STATUSCODE_GOOD) {
@@ -2178,14 +2176,14 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
         return NULL;
     }
 
+    /* Decode and lookup the type */
+    UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
+    const UA_DataType *typeOfBody = NULL;
     ctx->index = (UA_UInt16)searchTypeIdResult;
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    if(ret != UA_STATUSCODE_GOOD) {
-        ctx->index = oldIndex; /* Restore the index */
-        return NULL;
-    }
-
-    const UA_DataType *typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
+    if(UA_LIKELY(ret == UA_STATUSCODE_GOOD))
+        typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
     UA_NodeId_clear(&typeId);
     if(!typeOfBody) {
         ctx->index = oldIndex; /* Restore the index */
