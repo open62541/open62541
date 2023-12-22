@@ -1786,6 +1786,10 @@ DECODE_JSON(QualifiedName) {
 
 UA_FUNC_ATTR_WARN_UNUSED_RESULT status
 lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
+    /* The current index must point to the beginning of an object.
+     * This has to be ensured by the caller. */
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
+
     status ret = UA_STATUSCODE_BADNOTFOUND;
     unsigned int oldIndex = ctx->index; /* Save index for later restore */
     unsigned int end = ctx->tokens[ctx->index].end;
@@ -1817,6 +1821,8 @@ lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
 static status
 prepareDecodeNodeIdJson(ParseCtx *ctx, UA_NodeId *dst,
                         u8 *fieldCount, DecodeEntry *entries) {
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
+
     /* possible keys: Id, IdType, NamespaceIndex */
     /* Id must always be present */
     entries[*fieldCount].fieldName = UA_JSONKEY_ID;
@@ -2140,8 +2146,7 @@ VariantDimension_decodeJson(ParseCtx *ctx, void *dst, const UA_DataType *type) {
 
 static const UA_DataType *
 unwrappedExtensionObjectType(ParseCtx *ctx) {
-    if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT)
-        return NULL;
+    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
 
     unsigned int oldIndex = ctx->index; /* Save index to restore later */
 
@@ -2284,7 +2289,7 @@ DECODE_JSON(Variant) {
     size_t searchResultType = 0;
     status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &searchResultType);
     if(ret != UA_STATUSCODE_GOOD) {
-         skipObject(ctx);
+        skipObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2479,14 +2484,10 @@ DECODE_JSON(ExtensionObject) {
         dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
         dst->content.encoded.typeId = typeId; /* Move the type NodeId */
 
-        /* Check if an object */
-        if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT)
-            return UA_STATUSCODE_BADDECODINGERROR;
-
-        /* Search for body to save */
+        /* Search for body */
         size_t bodyIndex = 0;
         ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &bodyIndex);
-        if(ret != UA_STATUSCODE_GOOD || bodyIndex >= (size_t)ctx->tokensSize)
+        if(ret != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADDECODINGERROR;
 
         /* Get the size of the Object as a string, not the Object key count! */
@@ -2499,10 +2500,10 @@ DECODE_JSON(ExtensionObject) {
         ret = UA_ByteString_allocBuffer(&dst->content.encoded.body, sizeOfJsonString);
         if(ret != UA_STATUSCODE_GOOD)
             return ret;
-
         memcpy(dst->content.encoded.body.data, bodyJsonString, sizeOfJsonString);
 
-        skipObject(ctx); /* ctx->index still at the object beginning. Skip. */
+        /* Success. Skip to the end of the object. */
+        skipObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
@@ -2529,6 +2530,7 @@ DECODE_JSON(ExtensionObject) {
 static status
 Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx,void *p, const UA_DataType *type) {
     (void) type;
+    CHECK_OBJECT;
 
     UA_Variant *dst = (UA_Variant*)p;
     if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
@@ -2553,7 +2555,6 @@ Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx,void *p, const UA_DataType
         UA_NodeId_clear(&typeId);
         return ret;
     }
-
     ctx->index = old_index; /* restore the index */
 
     /* Find the DataType from the NodeId */
