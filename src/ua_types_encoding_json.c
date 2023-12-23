@@ -2517,11 +2517,11 @@ DECODE_JSON(ExtensionObject) {
 }
 
 static status
-Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx,void *p, const UA_DataType *type) {
+Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataType *type) {
     (void) type;
-    CHECK_OBJECT;
-
     UA_Variant *dst = (UA_Variant*)p;
+
+    /* ExtensionObject with null body */
     if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
         dst->data = UA_ExtensionObject_new();
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
@@ -2529,71 +2529,32 @@ Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx,void *p, const UA_DataType
         return UA_STATUSCODE_GOOD;
     }
 
-    unsigned int old_index = ctx->index; /* Store the start index of the ExtensionObject */
-
-    /* Decode the DataType */
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
-    size_t searchTypeIdResult = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
-    if(ret != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADDECODINGERROR;
-    ctx->index = (UA_UInt16)searchTypeIdResult;
-    ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    /* Decode the ExtensionObject */
+    UA_ExtensionObject eo;
+    UA_ExtensionObject_init(&eo);
+    UA_StatusCode ret = ExtensionObject_decodeJson(ctx, &eo, NULL);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_NodeId_clear(&typeId);
+        UA_ExtensionObject_clear(&eo); /* We don't have the global cleanup */
         return ret;
     }
-    ctx->index = old_index; /* restore the index */
 
-    /* Find the DataType from the NodeId */
-    const UA_DataType *typeOfBody = UA_findDataType(&typeId);
-    UA_NodeId_clear(&typeId);
-
-    /* Search for encoding (without advancing the index) */
-    UA_UInt64 encoding = 0; /* If no encoding found it is structure encoding */
-    size_t searchEncodingResult = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &searchEncodingResult);
-    if(ret == UA_STATUSCODE_GOOD) {
-        const char *extObjEncoding = &ctx->json5[ctx->tokens[searchEncodingResult].start];
-        size_t size = getTokenLength(&ctx->tokens[searchEncodingResult]);
-        parseUInt64(extObjEncoding, size, &encoding);
-    }
-
-    /* If we have the content in JSON encoding and the type is known -> Unwrap
-     * the ExtensionObject */
-    if(encoding == 0 && typeOfBody != NULL &&
-       typeOfBody != &UA_TYPES[UA_TYPES_VARIANT]) {
-        dst->data = UA_new(typeOfBody);
-        if(!dst->data)
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        dst->type = typeOfBody;
-
-        /* Decode the content */
-        DecodeEntry entries[3] = {
-            {UA_JSONKEY_TYPEID, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst->data, NULL, false, typeOfBody},
-            {UA_JSONKEY_ENCODING, NULL, NULL, false, NULL}
-        };
-        ret = decodeFields(ctx, entries, 3);
-    } else {
+    /* The content is still encoded, cannot unwrap */
+    if(eo.encoding != UA_EXTENSIONOBJECT_DECODED) {
         /* Decode as ExtensionObject */
         dst->data = UA_new(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-        if(!dst->data)
+        if(!dst->data) {
+            UA_ExtensionObject_clear(&eo);
             return UA_STATUSCODE_BADOUTOFMEMORY;
+        }
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-
-        UA_assert(ctx->index == old_index); /* The index points to the start of
-                                             * the ExtensionObject */
-        ret = ExtensionObject_decodeJson(ctx, (UA_ExtensionObject*)dst->data, NULL);
+        *(UA_ExtensionObject*)dst->data = eo;
+        return UA_STATUSCODE_GOOD;
     }
 
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_delete(dst->data, dst->type);
-        dst->data = NULL;
-        dst->type = NULL;
-    }
-    return ret;
+    /* Unwrap the ExtensionObject */
+    dst->data = eo.content.decoded.data;
+    dst->type = eo.content.decoded.type;
+    return UA_STATUSCODE_GOOD;
 }
 
 status
