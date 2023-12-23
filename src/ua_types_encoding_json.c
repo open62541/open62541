@@ -1715,12 +1715,12 @@ DECODE_JSON(String) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode the string */
-    unsigned int len = 0;
     cj5_result r;
     r.tokens = ctx->tokens;
-    r.num_tokens = ctx->tokensSize;
+    r.num_tokens = (unsigned int)ctx->tokensSize;
     r.json5 = ctx->json5;
-    cj5_error_code err = cj5_get_str(&r, ctx->index, outBuf, &len);
+    unsigned int len = 0;
+    cj5_error_code err = cj5_get_str(&r, (unsigned int)ctx->index, outBuf, &len);
     if(err != CJ5_ERROR_NONE) {
         UA_free(outBuf);
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -1791,7 +1791,7 @@ lookAheadForKey(ParseCtx *ctx, const char *key, size_t *resultIndex) {
     UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
 
     status ret = UA_STATUSCODE_BADNOTFOUND;
-    unsigned int oldIndex = ctx->index; /* Save index for later restore */
+    size_t oldIndex = ctx->index; /* Save index for later restore */
     unsigned int end = ctx->tokens[ctx->index].end;
     ctx->index++; /* Move to the first key */
     while(ctx->index < ctx->tokensSize &&
@@ -1913,7 +1913,7 @@ decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type)
     UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
 
     /* Parse as a number */
-    unsigned int oldIndex = ctx->index;
+    size_t oldIndex = ctx->index;
     status ret = UInt16_decodeJson(ctx, &en->nodeId.namespaceIndex, NULL);
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
@@ -1940,7 +1940,7 @@ decodeExpandedNodeIdServerUri(ParseCtx *ctx, void *dst, const UA_DataType *type)
     UA_ExpandedNodeId *en = (UA_ExpandedNodeId*)dst;
 
     /* Parse as a number */
-    unsigned int oldIndex = ctx->index;
+    size_t oldIndex = ctx->index;
     status ret = UInt32_decodeJson(ctx, &en->serverIndex, NULL);
     if(ret == UA_STATUSCODE_GOOD)
         return ret;
@@ -2149,8 +2149,8 @@ unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
     UA_assert(ctx->tokens[arrayIndex].type == CJ5_TOKEN_ARRAY);
 
     /* Save index to restore later */
-    unsigned int oldIndex = ctx->index;
-    ctx->index = (unsigned int)arrayIndex;
+    size_t oldIndex = ctx->index;
+    ctx->index = arrayIndex;
 
     /* Return early for empty arrays */
     size_t length = (size_t)ctx->tokens[ctx->index].size;
@@ -2188,7 +2188,7 @@ unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
     }
 
     /* Loop over all members check whether they can be unwrapped */
-    ctx->index = (unsigned int)(arrayIndex + 1);
+    ctx->index = arrayIndex + 1;
 
     for(size_t i = 0; i < length; i++) {
         /* Array element must be an object */
@@ -2455,7 +2455,7 @@ DECODE_JSON(ExtensionObject) {
         return UA_STATUSCODE_BADENCODINGERROR;
 
     /* Decode the DataType */
-    unsigned int oldIndex = ctx->index;
+    size_t oldIndex = ctx->index;
     ctx->index = (UA_UInt16)typeIdIndex;
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     ctx->index = oldIndex;
