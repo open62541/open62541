@@ -176,8 +176,10 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
     const char *svr = NULL, *svre = NULL, *nsu = NULL, *ns = NULL, *body = NULL;
 
     /*!re2c
+    // The "." character class also matches \x00. Exlude this as we produce
+    // an infinite sequence of zeros once the end of the buffer was hit.
     ("svr=" @svr [0-9]+ @svre ";")?
-    ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\";")* ";")?
+    ("ns=" @ns [0-9]+ ";" | "nsu=" @nsu (.\[;\x00])* ";")?
     @body nodeid_body {
         (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
