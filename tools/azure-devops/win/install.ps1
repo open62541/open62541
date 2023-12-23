@@ -26,14 +26,14 @@ if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
     }
 } else {
     Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
-    & vcpkg install mbedtls:x86-windows-static
+    & vcpkg install mbedtls:x64-windows
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
     }
 
     Write-Host -ForegroundColor Green "`n### Installing libcheck via vcpkg ###`n"
-    & vcpkg install check:x86-windows-static
+    & vcpkg install check:x64-windows
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
