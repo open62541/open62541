@@ -58,7 +58,6 @@ try {
             -DUA_BUILD_UNIT_TESTS=ON `
             -DUA_ENABLE_DA=ON `
             -DUA_ENABLE_DISCOVERY=ON `
-            -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
             -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
             -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
             -DUA_ENABLE_PUBSUB:BOOL=ON `
