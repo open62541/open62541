@@ -2145,20 +2145,12 @@ VariantDimension_decodeJson(ParseCtx *ctx, void *dst, const UA_DataType *type) {
 }
 
 static const UA_DataType *
-unwrappedExtensionObjectType(ParseCtx *ctx) {
-    UA_assert(currentTokenType(ctx) == CJ5_TOKEN_OBJECT);
+unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
+    UA_assert(ctx->tokens[arrayIndex].type == CJ5_TOKEN_ARRAY);
 
-    unsigned int oldIndex = ctx->index; /* Save index to restore later */
-
-    /* Check the body array */
-    size_t searchArrayBody = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &searchArrayBody);
-    if(ret != UA_STATUSCODE_GOOD)
-        return NULL;
-
-    if(ctx->tokens[searchArrayBody].type != CJ5_TOKEN_ARRAY)
-        return NULL;
-    ctx->index = (unsigned int)searchArrayBody;
+    /* Save index to restore later */
+    unsigned int oldIndex = ctx->index;
+    ctx->index = (unsigned int)arrayIndex;
 
     /* Return early for empty arrays */
     size_t length = (size_t)ctx->tokens[ctx->index].size;
@@ -2362,7 +2354,7 @@ DECODE_JSON(Variant) {
 
         /* Can we unwrap ExtensionObjects in the array? */
         if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-            const UA_DataType *unwrappedType = unwrappedExtensionObjectType(ctx);
+            const UA_DataType *unwrappedType = unwrapArrayExtensionObjectType(ctx, bodyIndex);
             if(unwrappedType) {
                 dst->type = unwrappedType;
                 entries[1].type = unwrappedType;
