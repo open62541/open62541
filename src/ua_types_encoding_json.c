@@ -2652,20 +2652,13 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
 
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
-    ctx->depth++;
 
     /* Keys and values are counted separately */
     UA_assert(ctx->tokens[ctx->index].size % 2 == 0);
     size_t keyCount = (size_t)(ctx->tokens[ctx->index].size) / 2;
 
-    /* Empty object, nothing to decode */
-    if(keyCount == 0) {
-        ctx->depth--;
-        ctx->index++; /* Jump to the element after the empty object */
-        return UA_STATUSCODE_GOOD;
-    }
-
-    ctx->index++; /* Go to first key */
+    ctx->index++; /* Go to first key - or jump after the empty object */
+    ctx->depth++;
 
     status ret = UA_STATUSCODE_GOOD;
     for(size_t key = 0; key < keyCount; key++) {
@@ -2673,27 +2666,34 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
         UA_assert(ctx->index < ctx->tokensSize);
         UA_assert(currentTokenType(ctx) == CJ5_TOKEN_STRING);
 
-        /* Search for the decoding entry matching the key */
-        size_t i = 0;
-        for(; i < entryCount; i++) {
+        /* Search for the decoding entry matching the key. Start at the key
+         * index to speed-up the case where they key-order is the same as the
+         * entry-order. */
+        DecodeEntry *entry = NULL;
+        for(size_t i = key; i < key + entryCount; i++) {
+            size_t ii = i;
+            while(ii >= entryCount)
+                ii -= entryCount;
+
             /* Compare the key */
             if(jsoneq(ctx->json5, &ctx->tokens[ctx->index],
-                      entries[i].fieldName) != 0)
+                      entries[ii].fieldName) != 0)
                 continue;
 
             /* Key was already used -> duplicate, abort */
-            if(entries[i].found) {
-                ret = UA_STATUSCODE_BADDECODINGERROR;
-                goto cleanup;
+            if(entries[ii].found) {
+                ctx->depth--;
+                return UA_STATUSCODE_BADDECODINGERROR;
             }
 
             /* Found the key */
-            entries[i].found = true;
+            entries[ii].found = true;
+            entry = &entries[ii];
             break;
         }
 
         /* The key is unknown */
-        if(i == entryCount) {
+        if(!entry) {
             ret = UA_STATUSCODE_BADDECODINGERROR;
             break;
         }
@@ -2703,32 +2703,28 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
         UA_assert(ctx->index < ctx->tokensSize);
 
         /* An entry that was expected, but shall not be decoded.
-         * Jump over it. */
-        if(!entries[i].function && !entries[i].type) {
+         * Jump over the value. */
+        if(!entry->function && !entry->type) {
             skipObject(ctx);
             continue;
         }
 
         /* A null-value -> skip the decoding (as a convention, if we know
          * the type here, the value is already initialized) */
-        if(currentTokenType(ctx) == CJ5_TOKEN_NULL && entries[i].type) {
+        if(currentTokenType(ctx) == CJ5_TOKEN_NULL && entry->type) {
             ctx->index++; /* skip null value */
             continue;
         }
 
         /* Decode. This also moves to the next key or right after the object for
          * the last value. */
-        if(entries[i].function) /* Specialized decoding function */
-            ret = entries[i].function(ctx, entries[i].fieldPointer,
-                                          entries[i].type);
-        else /* Decode by type-kind */
-            ret = decodeJsonJumpTable[entries[i].type->typeKind]
-                (ctx, entries[i].fieldPointer, entries[i].type);
+        decodeJsonSignature decodeFunc = (entry->function) ?
+            entry->function : decodeJsonJumpTable[entry->type->typeKind];
+        ret = decodeFunc(ctx, entry->fieldPointer, entry->type);
         if(ret != UA_STATUSCODE_GOOD)
             break;
     }
 
- cleanup:
     ctx->depth--;
     return ret;
 }
