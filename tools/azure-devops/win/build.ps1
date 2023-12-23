@@ -84,6 +84,33 @@ try {
     }
 
     Write-Host -ForegroundColor Green "`n###################################################################"
+    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME without amalgamation #####`n"
+    New-Item -ItemType directory -Path "build"
+    cd build
+    & cmake $cmake_cnf `
+            -DBUILD_SHARED_LIBS:BOOL=OFF `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static" `
+            -DUA_BUILD_EXAMPLES:BOOL=ON `
+            -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
+            -DUA_FORCE_WERROR=ON `
+            ..
+    & cmake --build . --target install --config RelWithDebInfo
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
+    {
+        Write-Host -ForegroundColor Red "`n`n*** Make install failed. Exiting ... ***"
+        exit $LASTEXITCODE
+    }
+    cd ..
+    & 7z a -tzip "$env:Build_ArtifactStagingDirectory/open62541-$env:CC_SHORTNAME-static.zip" "$env:Build_Repository_LocalPath\pack\*" "$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static\*"
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
+    {
+        Write-Host -ForegroundColor Red "`n`n*** Zipping failed. Exiting ... ***"
+        exit $LASTEXITCODE
+    }
+    Remove-Item -Path build -Recurse -Force
+
+    Write-Host -ForegroundColor Green "`n###################################################################"
     Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with amalgamation #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
@@ -126,33 +153,6 @@ try {
         exit $LASTEXITCODE
     }
     cd ..
-    Remove-Item -Path build -Recurse -Force
-
-    Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME without amalgamation #####`n"
-    New-Item -ItemType directory -Path "build"
-    cd build
-    & cmake $cmake_cnf `
-            -DBUILD_SHARED_LIBS:BOOL=OFF `
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_INSTALL_PREFIX="$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static" `
-            -DUA_BUILD_EXAMPLES:BOOL=ON `
-            -DUA_ENABLE_AMALGAMATION:BOOL=OFF `
-            -DUA_FORCE_WERROR=ON `
-            ..
-    & cmake --build . --target install --config RelWithDebInfo
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
-    {
-        Write-Host -ForegroundColor Red "`n`n*** Make install failed. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
-    cd ..
-    & 7z a -tzip "$env:Build_ArtifactStagingDirectory/open62541-$env:CC_SHORTNAME-static.zip" "$env:Build_Repository_LocalPath\pack\*" "$env:Build_Repository_LocalPath-$env:CC_SHORTNAME-static\*"
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
-    {
-        Write-Host -ForegroundColor Red "`n`n*** Zipping failed. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
     Remove-Item -Path build -Recurse -Force
 
     Write-Host -ForegroundColor Green "`n###################################################################"
