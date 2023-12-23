@@ -47,44 +47,41 @@ try {
     Copy-Item AUTHORS pack
     Copy-Item README.md pack
 
-    # Only execute unit tests on vs2017 to save compilation time
-    if ($env:CC_SHORTNAME -eq "vs2017") {
-        Write-Host -ForegroundColor Green "`n###################################################################"
-        Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
-        New-Item -ItemType directory -Path "build"
-        cd build
-        & cmake $cmake_cnf `
-                -DBUILD_SHARED_LIBS:BOOL=OFF `
-                -DCMAKE_BUILD_TYPE=Debug `
-                -DUA_BUILD_EXAMPLES=OFF `
-                -DUA_BUILD_UNIT_TESTS=ON `
-                -DUA_ENABLE_DA=ON `
-                -DUA_ENABLE_DISCOVERY=ON `
-                -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
-                -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
-                -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
-                -DUA_ENABLE_PUBSUB:BOOL=ON `
-                -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
-                -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON `
-                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON `
-                -DUA_FORCE_WERROR=ON `
-                ..
-        & cmake --build . --config Debug
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
-            exit $LASTEXITCODE
-        }
-        & cmake --build . --target test-verbose --config Debug -j 1
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
-            exit $LASTEXITCODE
-        }
-        cd ..
-        Remove-Item -Path build -Recurse -Force
+    Write-Host -ForegroundColor Green "`n###################################################################"
+    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
+    New-Item -ItemType directory -Path "build"
+    cd build
+    & cmake $cmake_cnf `
+            -DBUILD_SHARED_LIBS:BOOL=OFF `
+            -DCMAKE_BUILD_TYPE=Debug `
+            -DUA_BUILD_EXAMPLES=OFF `
+            -DUA_BUILD_UNIT_TESTS=ON `
+            -DUA_ENABLE_DA=ON `
+            -DUA_ENABLE_DISCOVERY=ON `
+            -DUA_ENABLE_DISCOVERY_MULTICAST=ON `
+            -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
+            -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
+            -DUA_ENABLE_PUBSUB:BOOL=ON `
+            -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
+            -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON `
+            -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON `
+            -DUA_FORCE_WERROR=ON `
+            ..
+    & cmake --build . --config Debug
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+        exit $LASTEXITCODE
     }
+    & cmake --build . --target test-verbose --config Debug -j 1
+    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+        Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
+        exit $LASTEXITCODE
+    }
+    cd ..
+    Remove-Item -Path build -Recurse -Force
 
     Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME without amalgamation #####`n"
+    Write-Host -ForegroundColor Green "`n##### Building $env:CC_NAME examples without amalgamation #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake $cmake_cnf `
