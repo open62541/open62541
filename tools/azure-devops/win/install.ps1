@@ -24,10 +24,15 @@ try {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via PacMan ###`n"
         & C:\msys64\usr\bin\pacman --noconfirm --needed -S mingw-w64-x86_64-mbedtls
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
+            Write-Host -ForegroundColor Red "`n`n*** Install of mbedTLS failed. Exiting ... ***"
             exit $LASTEXITCODE
         }
 
+        & C:\msys64\usr\bin\pacman --noconfirm --needed -S mingw-w64-x86_64-check
+        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+            Write-Host -ForegroundColor Red "`n`n*** Install of check failed. Exiting ... ***"
+            exit $LASTEXITCODE
+        }
     } else {
         Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
         & vcpkg install mbedtls:x86-windows-static
