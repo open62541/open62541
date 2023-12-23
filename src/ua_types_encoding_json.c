@@ -1831,14 +1831,14 @@ prepareDecodeNodeIdJson(ParseCtx *ctx, UA_NodeId *dst,
     entries[*fieldCount].function = NULL;
 
     /* IdType */
-    size_t searchResult = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_IDTYPE, &searchResult);
+    size_t idIndex = 0;
+    status ret = lookAheadForKey(ctx, UA_JSONKEY_IDTYPE, &idIndex);
     if(ret == UA_STATUSCODE_GOOD) {
-        size_t size = getTokenLength(&ctx->tokens[searchResult]);
+        size_t size = getTokenLength(&ctx->tokens[idIndex]);
         if(size < 1)
             return UA_STATUSCODE_BADDECODINGERROR;
 
-        const char *idType = &ctx->json5[ctx->tokens[searchResult].start];
+        const char *idType = &ctx->json5[ctx->tokens[idIndex].start];
 
         if(idType[0] == '2') {
             dst->identifierType = UA_NODEIDTYPE_GUID;
@@ -2174,8 +2174,8 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
     }
 
     /* Get the type NodeId index */
-    size_t searchTypeIdResult = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
+    size_t typeIdIndex = 0;
+    UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
     if(ret != UA_STATUSCODE_GOOD) {
         ctx->index = oldIndex; /* Restore the index */
         return NULL;
@@ -2185,7 +2185,7 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
     UA_NodeId typeId;
     UA_NodeId_init(&typeId);
     const UA_DataType *typeOfBody = NULL;
-    ctx->index = (UA_UInt16)searchTypeIdResult;
+    ctx->index = (UA_UInt16)typeIdIndex;
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     if(UA_LIKELY(ret == UA_STATUSCODE_GOOD))
         typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
@@ -2195,8 +2195,8 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
         return NULL;
     }
 
-    /* Loop over all members and see if they have the correct type */
-    ctx->index = (unsigned int)(searchArrayBody + 1);
+    /* Loop over all members check whether they can be unwrapped */
+    ctx->index = (unsigned int)(arrayIndex + 1);
 
     for(size_t i = 0; i < length; i++) {
         /* Array element must be an object */
@@ -2206,21 +2206,21 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
         }
 
         /* Check for non-JSON encoding */
-        unsigned int objectIndex = ctx->index;
-        size_t encodingPos = 0;
-        ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encodingPos);
+        size_t objIndex = ctx->index;
+        size_t encIndex = 0;
+        ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
         if(ret == UA_STATUSCODE_GOOD) {
             ctx->index = oldIndex; /* Restore the index */
             return NULL;
         }
 
         /* Decode the type NodeId and compare */
-        ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
+        ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
         if(ret != UA_STATUSCODE_GOOD) {
             ctx->index = oldIndex; /* Restore the index */
             return NULL;
         }
-        ctx->index = (UA_UInt16)searchTypeIdResult;
+        ctx->index = (UA_UInt16)typeIdIndex;
         ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
         if(ret != UA_STATUSCODE_GOOD) {
             ctx->index = oldIndex; /* Restore the index */
@@ -2234,7 +2234,7 @@ unwrappedExtensionObjectType(ParseCtx *ctx) {
         }
 
         /* Skip forward */
-        ctx->index = objectIndex;
+        ctx->index = objIndex;
         skipObject(ctx);
     }
 
@@ -2286,19 +2286,19 @@ DECODE_JSON(Variant) {
     CHECK_OBJECT;
 
     /* First search for the variant type in the json object. */
-    size_t searchResultType = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &searchResultType);
+    size_t typeIndex = 0;
+    status ret = lookAheadForKey(ctx, UA_JSONKEY_TYPE, &typeIndex);
     if(ret != UA_STATUSCODE_GOOD) {
         skipObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Parse the type */
-    size_t size = getTokenLength(&ctx->tokens[searchResultType]);
-    if(size == 0 || ctx->tokens[searchResultType].type != CJ5_TOKEN_NUMBER)
+    size_t size = getTokenLength(&ctx->tokens[typeIndex]);
+    if(size == 0 || ctx->tokens[typeIndex].type != CJ5_TOKEN_NUMBER)
         return UA_STATUSCODE_BADDECODINGERROR;
     UA_UInt64 idTypeDecoded = 0;
-    const char *idTypeEncoded = &ctx->json5[ctx->tokens[searchResultType].start];
+    const char *idTypeEncoded = &ctx->json5[ctx->tokens[typeIndex].start];
     size_t len = parseUInt64(idTypeEncoded, size, &idTypeDecoded);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2316,27 +2316,27 @@ DECODE_JSON(Variant) {
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Search for body */
-    size_t searchResultBody = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &searchResultBody);
+    size_t bodyIndex = 0;
+    ret = lookAheadForKey(ctx, UA_JSONKEY_BODY, &bodyIndex);
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Value is an array? */
-    UA_Boolean isArray = (ctx->tokens[searchResultBody].type == CJ5_TOKEN_ARRAY);
+    UA_Boolean isArray = (ctx->tokens[bodyIndex].type == CJ5_TOKEN_ARRAY);
 
     /* TODO: Handling of null-arrays (length -1) needs to be clarified
      *
-     * if(tokenIsNull(ctx, searchResultBody)) {
+     * if(tokenIsNull(ctx, bodyIndex)) {
      *     isArray = true;
      *     dst->arrayLength = 0;
      * } */
 
     /* Has the variant dimension? */
     UA_Boolean hasDimension = false;
-    size_t searchResultDim = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_DIMENSION, &searchResultDim);
+    size_t dimIndex = 0;
+    ret = lookAheadForKey(ctx, UA_JSONKEY_DIMENSION, &dimIndex);
     if(ret == UA_STATUSCODE_GOOD)
-        hasDimension = (ctx->tokens[searchResultDim].size > 0);
+        hasDimension = (ctx->tokens[dimIndex].size > 0);
 
     /* No array but has dimension -> error */
     if(!isArray && hasDimension)
@@ -2371,10 +2371,7 @@ DECODE_JSON(Variant) {
             }
         }
 
-        size_t entriesCount = 3;
-        if(!hasDimension)
-            entriesCount = 2; /* Use the first 2 fields only */
-        return decodeFields(ctx, entries, entriesCount);
+        return decodeFields(ctx, entries, (hasDimension) ? 3 : 2);
     }
 
     /* Decode a value wrapped in an ExtensionObject */
@@ -2429,15 +2426,15 @@ DECODE_JSON(ExtensionObject) {
     }
 
     /* Search for Encoding */
-    size_t encodingPos = 0;
-    status ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encodingPos);
+    size_t encIndex = 0;
+    status ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
 
     /* UA_JSONKEY_ENCODING found */
     if(ret == UA_STATUSCODE_GOOD) {
         /* Parse the encoding */
         UA_UInt64 encoding = 0;
-        const char *extObjEncoding = &ctx->json5[ctx->tokens[encodingPos].start];
-        size_t size = getTokenLength(&ctx->tokens[encodingPos]);
+        const char *extObjEncoding = &ctx->json5[ctx->tokens[encIndex].start];
+        size_t size = getTokenLength(&ctx->tokens[encIndex]);
         parseUInt64(extObjEncoding, size, &encoding);
 
         if(encoding == 1) {
@@ -2460,16 +2457,16 @@ DECODE_JSON(ExtensionObject) {
     UA_NodeId typeId;
     UA_NodeId_init(&typeId);
 
-    size_t searchTypeIdResult = 0;
-    ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &searchTypeIdResult);
+    size_t typeIdIndex = 0;
+    ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     /* Decode the DataType */
-    unsigned int oldIndex = ctx->index; /* to restore later */
-    ctx->index = (UA_UInt16)searchTypeIdResult;
+    unsigned int oldIndex = ctx->index;
+    ctx->index = (UA_UInt16)typeIdIndex;
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    ctx->index = oldIndex; /* Restore the index */
+    ctx->index = oldIndex;
     if(ret != UA_STATUSCODE_GOOD) {
         UA_NodeId_clear(&typeId); /* Type NodeId not used anymore and not moved into dst */
         return ret;
@@ -2702,16 +2699,15 @@ decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
         ctx->index++;
         UA_assert(ctx->index < ctx->tokensSize);
 
-        /* An entry that was expected, but shall not be decoded.
+        /* An entry that was expected but shall not be decoded.
          * Jump over the value. */
         if(!entry->function && !entry->type) {
             skipObject(ctx);
             continue;
         }
 
-        /* A null-value -> skip the decoding (as a convention, if we know
-         * the type here, the value is already initialized) */
-        if(currentTokenType(ctx) == CJ5_TOKEN_NULL && entry->type) {
+        /* A null-value, skip the decoding (the value is already initialized) */
+        if(currentTokenType(ctx) == CJ5_TOKEN_NULL && !entry->function) {
             ctx->index++; /* skip null value */
             continue;
         }
