@@ -2598,12 +2598,18 @@ DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type
 status
 decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
     CHECK_TOKEN_BOUNDS;
-    CHECK_OBJECT;
+
+    /* null is treated like an empty object */
+    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
+        ctx->index++;
+        return UA_STATUSCODE_GOOD;
+    }
 
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
 
     /* Keys and values are counted separately */
+    CHECK_OBJECT;
     UA_assert(ctx->tokens[ctx->index].size % 2 == 0);
     size_t keyCount = (size_t)(ctx->tokens[ctx->index].size) / 2;
 
