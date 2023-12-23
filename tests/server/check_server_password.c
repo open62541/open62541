@@ -19,6 +19,7 @@
 #include <unistd.h>
 #endif
 
+#include <stdlib.h>
 #include <check.h>
 
 #include "thread_wrapper.h"
