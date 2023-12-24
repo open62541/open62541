@@ -38,11 +38,4 @@ if ($env:CC_SHORTNAME -eq "mingw" -or $env:CC_SHORTNAME -eq "clang-mingw") {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
     }
-
-    Write-Host -ForegroundColor Green "`n### Installing DrMemory ###`n"
-    & choco install -y --no-progress drmemory.portable
-    if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-        Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
-        exit $LASTEXITCODE
-    }
 }
