@@ -30,7 +30,6 @@ if ($env:CC_SHORTNAME -eq "mingw") {
 } else {
     $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"'
     $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x64-windows"'
-    New-Item -Force -ItemType directory -Path "C:/vcpkg/installed/x64-windows"
 }
 
 $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`""
