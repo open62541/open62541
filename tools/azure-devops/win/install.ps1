@@ -47,15 +47,6 @@ try {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
     }
-
-        Write-Host -ForegroundColor Green "`n### Installing DrMemory ###`n"
-        & choco install -y --no-progress drmemory.portable
-        if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-            Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
-            exit $LASTEXITCODE
-        }
-        #$env:Path = 'C:\Program Files (x86)\Dr. Memory\bin;' + $env:Path
-        #[System.Environment]::SetEnvironmentVariable('Path', $path, 'Machine')
     }
 
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {

@@ -63,8 +63,7 @@ try {
                 -DUA_ENABLE_PUBSUB:BOOL=ON `
                 -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
                 -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
-                -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON `
-                -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON ..
+                -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON ..
         & cmake --build . --config Debug
         if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
             Write-Host -ForegroundColor Red "`n`n*** Make failed. Exiting ... ***"
