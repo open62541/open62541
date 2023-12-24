@@ -29,7 +29,7 @@ if ($env:CC_SHORTNAME -eq "mingw") {
     clang --version
 } else {
     $vcpkg_toolchain = '-DCMAKE_TOOLCHAIN_FILE="C:/vcpkg/scripts/buildsystems/vcpkg.cmake"'
-    $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x64-windows"'
+    $vcpkg_triplet = '-DVCPKG_TARGET_TRIPLET="x64-windows-static"'
 }
 
 $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`""
