@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     do {
         printf("Try to connect ...\n");
         retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-        sleep(1);
+        UA_realSleep(100);
         iteration++;
     } while ((retval != UA_STATUSCODE_GOOD) && (iteration < cNoOfReconnectTries));
 
