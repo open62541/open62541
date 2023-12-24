@@ -76,7 +76,7 @@ START_TEST(Client_connect_async) {
                                              &asyncCounter, &reqId);
         }
         /* Give network a chance to process packet */
-        sleep(0);
+        UA_realSleep(100);
         /* Manual clock for unit tests */
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
@@ -186,7 +186,7 @@ START_TEST(Client_run_iterate) {
         UA_Server_run_iterate(server, false);
         retval = UA_Client_run_iterate(client, 0);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        sleep(0);
+        UA_realSleep(100);
     }
 
     UA_Client_disconnectAsync(client);
