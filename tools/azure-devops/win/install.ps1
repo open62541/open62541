@@ -35,14 +35,14 @@ try {
     }
 } else {
     Write-Host -ForegroundColor Green "`n### Installing mbedtls via vcpkg ###`n"
-    & vcpkg install mbedtls:x64-windows
+    & vcpkg install mbedtls:x64-windows-static
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
     }
 
     Write-Host -ForegroundColor Green "`n### Installing libcheck via vcpkg ###`n"
-    & vcpkg install check:x64-windows
+    & vcpkg install check:x64-windows-static
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
         Write-Host -ForegroundColor Red "`n`n*** Install failed. Exiting ... ***"
         exit $LASTEXITCODE
