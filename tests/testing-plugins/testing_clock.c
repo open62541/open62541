@@ -31,6 +31,6 @@ UA_realSleep(UA_UInt32 duration) {
 #endif
 }
 
-UA_DateTime UA_DateTime_nowMonotonic_fake(UA_EventLoop *el) {
+UA_DateTime UA_DateTime_now_fake(UA_EventLoop *el) {
     return testingClock;
 }

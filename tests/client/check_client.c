@@ -89,7 +89,8 @@ START_TEST(ClientConfig_Copy){
     UA_ClientConfig srcConfig;
     memset(&srcConfig, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefault(&srcConfig);
-    srcConfig.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    srcConfig.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    srcConfig.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
     UA_StatusCode retval = UA_ClientConfig_copy(&srcConfig, &dstConfig);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
