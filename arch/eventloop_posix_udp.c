@@ -58,12 +58,91 @@ typedef struct {
 #endif
 } UDP_FD;
 
+typedef enum {
+    MULTICASTTYPE_NONE = 0,
+    MULTICASTTYPE_IPV4,
+    MULTICASTTYPE_IPV6
+} MultiCastType;
+
+static UA_Boolean
+isMulticastAddress(const UA_Byte *address, UA_Byte mask, UA_Byte prefix) {
+    return (address[0] & mask) == prefix;
+}
+
+static MultiCastType
+multiCastType(struct addrinfo *info) {
+    const UA_Byte *address;
+    if(info->ai_family == AF_INET) {
+        address = (UA_Byte *)&((struct sockaddr_in *)info->ai_addr)->sin_addr;
+        if(isMulticastAddress(address, IPV4_PREFIX_MASK, IPV4_MULTICAST_PREFIX))
+            return MULTICASTTYPE_IPV4;
+#if UA_IPV6
+    } else if(info->ai_family == AF_INET6) {
+        address = (UA_Byte *)&((struct sockaddr_in6 *)info->ai_addr)->sin6_addr;
+        if(isMulticastAddress(address, IPV6_PREFIX_MASK, IPV6_MULTICAST_PREFIX))
+            return MULTICASTTYPE_IPV6;
+#endif
+    }
+    return MULTICASTTYPE_NONE;
+}
+
 typedef union {
     struct ip_mreq ipv4;
 #if UA_IPV6
     struct ipv6_mreq ipv6;
 #endif
 } IpMulticastRequest;
+
+static UA_StatusCode
+setupMulticastRequest(UA_FD socket, IpMulticastRequest *req, const UA_KeyValueMap *params,
+                      struct addrinfo *info, const UA_Logger *logger) {
+    /* Was an interface defined? */
+    const UA_String *netif = (const UA_String*)
+        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
+                                 &UA_TYPES[UA_TYPES_STRING]);
+    if(!netif) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP %u\t| No network interface defined for multicast. "
+                       "That means the first suitable network interface is used.",
+                       (unsigned)socket);
+    }
+
+    if(info->ai_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)info->ai_addr;
+        req->ipv4.imr_multiaddr = sin->sin_addr;
+        req->ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
+        if(!netif)
+            return UA_STATUSCODE_GOOD;
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
+        if(UA_inet_pton(AF_INET, interfaceAsChar, &req->ipv4.imr_interface) <= 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                         "UDP\t| Interface configuration preparation failed.");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        return UA_STATUSCODE_GOOD;
+#if UA_IPV6
+    } else if(info->ai_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)info->ai_addr;
+        req->ipv6.ipv6mr_multiaddr = sin6->sin6_addr;
+        req->ipv6.ipv6mr_interface = 0; /* default ANY interface */
+        if(!netif)
+            return UA_STATUSCODE_GOOD;
+        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+        memcpy(interfaceAsChar, netif->data, netif->length);
+        interfaceAsChar[netif->length] = 0;
+        req->ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
+        if(req->ipv6.ipv6mr_interface == 0) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                         "UDP\t| Interface configuration preparation failed.");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        return UA_STATUSCODE_GOOD;
+#endif
+    }
+    return UA_STATUSCODE_BADINTERNALERROR;
+}
 
 /* Retrieves hostname and port from given key value parameters.
  *
@@ -218,23 +297,6 @@ setSocketPriority(UA_SOCKET sockfd, UA_UInt32 socketPriority,
 }
 #endif
 
-static UA_Boolean
-isMulticastAddress(const UA_Byte *address, UA_Byte mask, UA_Byte prefix) {
-    return (address[0] & mask) == prefix;
-}
-
-static UA_Boolean
-isIPv4MulticastAddress(const UA_Byte *address) {
-    return isMulticastAddress(address, IPV4_PREFIX_MASK, IPV4_MULTICAST_PREFIX);
-}
-
-#if UA_IPV6
-static UA_Boolean
-isIPv6MulticastAddress(const UA_Byte *address) {
-    return isMulticastAddress(address, IPV6_PREFIX_MASK, IPV6_MULTICAST_PREFIX);
-}
-#endif
-
 static UA_StatusCode
 setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
                     int ai_family, const UA_Logger *logger) {
@@ -294,181 +356,74 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
     }
     return res;
 }
-static UA_StatusCode
-setupSendMulticastIPv4(UA_FD socket, struct sockaddr_in *addr, const UA_KeyValueMap *params,
-                       const UA_Logger *logger) {
-    IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
-    ipMulticastRequest.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
-
-    /* Use a defined network interface */
-    const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(netif) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "UDP %u\t| Interface configuration preparation failed",
-                         (unsigned)socket);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| No network interface defined for multicast. "
-                       "That means the first suitable network interface is used.",
-                       (unsigned)socket);
-    }
-
-    int res = setsockopt(socket, IPPROTO_IP, IP_MULTICAST_IF,
-#ifdef _WIN32
-                         (const char *)&ipMulticastRequest.ipv4.imr_interface,
-#else
-                         &ipMulticastRequest.ipv4.imr_interface,
-#endif
-                         sizeof(struct in_addr));
-    if(res < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "UDP\t| Multicast IP membership setup failed: "
-                         "Cannot set socket option IP_MULTICAST_IF. Error: %s",
-                         errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
 
 static UA_StatusCode
-setupListenMulticastIPv4(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in *addr,
-                         const UA_Logger *logger) {
-    IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv4.imr_multiaddr = addr->sin_addr;
-    ipMulticastRequest.ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
+setupListenMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params,
+                     MultiCastType multiCastType, const UA_Logger *logger) {
+    IpMulticastRequest req;
+    UA_StatusCode res = setupMulticastRequest(fd, &req, params, info, logger);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    /* Use a defined interface */
-    const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(netif) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        if(UA_inet_pton(AF_INET, interfaceAsChar, &ipMulticastRequest.ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "UDP\t| Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| No network interface defined for multicast. "
-                       "That means the first suitable network interface is used.",
-                       (unsigned)socket);
-    }
-
-    int res = UA_setsockopt(socket, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                            &ipMulticastRequest.ipv4, sizeof(ipMulticastRequest.ipv4));
-    if(res < 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "UDP\t| Multicast IP membership setup failed: "
-                         "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
-                         errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
+    int result = -1;
+    if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
+        result = UA_setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                               &req.ipv4, sizeof(req.ipv4));
 #if UA_IPV6
-static UA_StatusCode
-setupListenMulticastIPv6(UA_FD socket, const UA_KeyValueMap *params, struct sockaddr_in6 *addr,
-                         const UA_Logger *logger) {
-    IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv6.ipv6mr_multiaddr = addr->sin6_addr;
-    ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
-
-    /* Bind to a defined interface */
-    const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(netif) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-        if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "UDP\t| Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| No network interface defined for multicast. "
-                       "That means the first suitable network interface is used.",
-                       (unsigned)socket);
+    } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
+        result = UA_setsockopt(fd, IPPROTO_IPV6, IPV6_JOIN_GROUP,
+                               &req.ipv6, sizeof(req.ipv6));
+#endif
     }
 
-    if(UA_setsockopt(socket, IPPROTO_IPV6,IPV6_JOIN_GROUP,
-                     &ipMulticastRequest.ipv6, sizeof(ipMulticastRequest.ipv6)) < 0) {
+    if(result < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "UDP\t| Multicast IP membership setup failed: "
-                         "Cannot set socket option IP_ADD_MEMBERSHIP. Error: %s",
-                         errno_str));
+                         "UDP %u\t| Cannot set socket for multicast receiving. Error: %s",
+                         (unsigned)fd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-setupSendMulticastIPv6(UA_FD socket, struct sockaddr_in6 *addr, const UA_KeyValueMap *params,
-                       const UA_Logger *logger) {
-    IpMulticastRequest ipMulticastRequest;
-    ipMulticastRequest.ipv6.ipv6mr_multiaddr = addr->sin6_addr;
-    ipMulticastRequest.ipv6.ipv6mr_interface = 0; /* default ANY interface */
+setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params,
+                   MultiCastType multiCastType, const UA_Logger *logger) {
+    IpMulticastRequest req;
+    UA_StatusCode res = setupMulticastRequest(fd, &req, params, info, logger);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
 
-    /* Use a defined network interface */
-    const UA_String *netif = (const UA_String*)
-        UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
-                                 &UA_TYPES[UA_TYPES_STRING]);
-    if(netif) {
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        ipMulticastRequest.ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-        if(ipMulticastRequest.ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "UDP\t| Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    } else {
-        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
-                       "UDP %u\t| No network interface defined for multicast. "
-                       "That means the first suitable network interface is used.",
-                       (unsigned)socket);
-    }
-
-    int res = setsockopt(socket, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+    int result = -1;
+    if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
+        result = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
-                         (const char *)&ipMulticastRequest.ipv6.ipv6mr_interface,
+                            (const char *)&req.ipv4.imr_interface,
 #else
-                         &ipMulticastRequest.ipv6.ipv6mr_interface,
+                            &req.ipv4.imr_interface,
 #endif
-                         sizeof(ipMulticastRequest.ipv6.ipv6mr_interface));
-    if(res < 0) {
+                            sizeof(struct in_addr));
+#if UA_IPV6
+    } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
+        result = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
+#ifdef _WIN32
+                            (const char *)&req.ipv6.ipv6mr_interface,
+#else
+                            &req.ipv6.ipv6mr_interface,
+#endif
+                            sizeof(req.ipv6.ipv6mr_interface));
+#endif
+    }
+
+    if(result < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                         "UDP\t| Cannot set socket option IPV6_MULTICAST_IF. Error: %s",
-                         errno_str));
+                         "UDP %u\t| Cannot set socket for multicast sending. Error: %s",
+                         (unsigned)fd, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     return UA_STATUSCODE_GOOD;
 }
-
-#endif
 
 /* Test if the ConnectionManager can be stopped */
 static void
@@ -640,35 +595,6 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
 }
 
 static UA_StatusCode
-checkForListenMulticastAndConfigure(struct addrinfo *info, const UA_KeyValueMap *params,
-                                    UA_FD listenSocket, const UA_Logger *logger) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(info->ai_family == AF_INET) {
-        UA_Byte *addressVal = (UA_Byte *)
-            &((struct sockaddr_in *)info->ai_addr)->sin_addr;
-        if(isIPv4MulticastAddress(addressVal)) {
-            res = setupListenMulticastIPv4(listenSocket, params,
-                                           (struct sockaddr_in *)info->ai_addr,
-                                           logger);
-        }
-#if UA_IPV6
-    } else if(info->ai_family == AF_INET6) {
-        UA_Byte *addressVal = (UA_Byte *)
-            &((struct sockaddr_in6 *)info->ai_addr)->sin6_addr;
-        if(isIPv6MulticastAddress(addressVal)) {
-            res = setupListenMulticastIPv6(listenSocket, params,
-                                           (struct sockaddr_in6 *)info->ai_addr,
-                                           logger);
-        }
-#endif
-    } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK, "UDP\t| Unknown connection type");
-        res = UA_STATUSCODE_BADCONNECTIONREJECTED;
-    }
-    return res;
-}
-
-static UA_StatusCode
 UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
                          struct addrinfo *info, const UA_KeyValueMap *params,
                          void *application, void *context,
@@ -692,6 +618,9 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
             return UA_STATUSCODE_BADCONNECTIONREJECTED;
         }
     }
+
+    /* Are we going to create a socket for multicast? */
+    MultiCastType mc = multiCastType(info);
 
     /* Create the listen socket */
     UA_FD listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
@@ -729,13 +658,13 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Enable multicast if this is a multicast address */
-    res = checkForListenMulticastAndConfigure(info, params, listenSocket,
-                                              el->eventLoop.logger);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Configuring listen multicast failed");
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADCONNECTIONREJECTED;
+    if(mc != MULTICASTTYPE_NONE) {
+        res = setupListenMultiCast(listenSocket, info, params,
+                                   mc, el->eventLoop.logger);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_close(listenSocket);
+            return res;
+        }
     }
 
     /* Validation is complete - close and return */
@@ -963,40 +892,13 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-checkForSendMulticastAndConfigure(const UA_KeyValueMap *params,
-                                  struct addrinfo *info, UA_FD newSock,
-                                  const UA_Logger *logger) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(info->ai_family == AF_INET) {
-        struct sockaddr_in* addr = (struct sockaddr_in *)info->ai_addr;
-        UA_Byte *addressVal = (UA_Byte *) &addr->sin_addr;
-
-        if(isIPv4MulticastAddress(addressVal)) {
-            res = setupSendMulticastIPv4(newSock, (struct sockaddr_in *)info->ai_addr,
-                                         params, logger);
-        }
-#if UA_IPV6
-    } else if(info->ai_family == AF_INET6) {
-        struct sockaddr_in6* addr = (struct sockaddr_in6 *)info->ai_addr;
-        UA_Byte *addressVal = (UA_Byte *) &addr->sin6_addr;
-        if(isIPv6MulticastAddress(addressVal)) {
-            res = setupSendMulticastIPv6(newSock, (struct sockaddr_in6 *)info->ai_addr,
-                                         params, logger);
-        }
-#endif
-    } else {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Opening a connection failed");
-        res = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return res;
-}
-
-static UA_StatusCode
 registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
                                     int error, UDP_FD *ufd, UA_FD *sock,
                                     const UA_Logger *logger) {
+    /* Are we going to create a socket for multicast? */
+    MultiCastType mc = multiCastType(info);
+
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
@@ -1006,24 +908,23 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                            hostname, errno_str));
         return UA_STATUSCODE_BADDISCONNECT;
     }
-    UA_StatusCode res =
-        setConnectionConfig(newSock, params, info->ai_family, logger);
+    UA_StatusCode res = setConnectionConfig(newSock, params, info->ai_family, logger);
     if(res != UA_STATUSCODE_GOOD) {
         UA_close(newSock);
         return res;
     }
 
-    res = checkForSendMulticastAndConfigure(params, info, newSock, logger);
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_close(newSock);
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
-                     "UDP\t| Configuring send multicast failed");
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(mc != MULTICASTTYPE_NONE) {
+        res = setupSendMultiCast(newSock, info, params, mc, logger);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_close(newSock);
+            return res;
+        }
     }
+
     memcpy(&ufd->sendAddr, info->ai_addr, info->ai_addrlen);
     ufd->sendAddrLength = info->ai_addrlen;
-
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
