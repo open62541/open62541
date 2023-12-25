@@ -619,9 +619,6 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
         }
     }
 
-    /* Are we going to create a socket for multicast? */
-    MultiCastType mc = multiCastType(info);
-
     /* Create the listen socket */
     UA_FD listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
@@ -646,8 +643,38 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
+    /* Are we going to prepare a socket for multicast? */
+    MultiCastType mc = multiCastType(info);
+
     /* Bind socket to the address */
+#ifdef _WIN32
+    /* On windows we need to bind the socket to INADDR_ANY before registering
+     * for the multicast group */
+    int ret = -1;
+    if(mc != MULTICASTTYPE_NONE) {
+        if(info->ai_family == AF_INET) {
+            struct sockaddr_in *orig = (struct sockaddr_in *)info->ai_addr;
+            struct sockaddr_in sin;
+            memset(&sin, 0, sizeof(sin));
+            sin.sin_family = AF_INET;
+            sin.sin_addr.s_addr = htonl(INADDR_ANY);
+            sin.sin_port = orig->sin_port;
+            ret = bind(listenSocket, (struct sockaddr*)&sin, sizeof(sin));
+        } else if(info->ai_family == AF_INET6) {
+            struct sockaddr_in6 *orig = (struct sockaddr_in6 *)info->ai_addr;
+            struct sockaddr_in6 sin6;
+            memset(&sin6, 0, sizeof(sin6));
+            sin6.sin6_family = AF_INET6;
+            sin6.sin6_addr = in6addr_any;
+            sin6.sin6_port = orig->sin6_port;
+            ret = bind(listenSocket, (struct sockaddr*)&sin6, sizeof(sin6));
+        }
+    } else {
+        ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    }
+#else
     int ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+#endif
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -896,9 +923,6 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
                                     int error, UDP_FD *ufd, UA_FD *sock,
                                     const UA_Logger *logger) {
-    /* Are we going to create a socket for multicast? */
-    MultiCastType mc = multiCastType(info);
-
     UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
@@ -914,6 +938,8 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
         return res;
     }
 
+    /* Prepare socket for multicast */
+    MultiCastType mc = multiCastType(info);
     if(mc != MULTICASTTYPE_NONE) {
         res = setupSendMultiCast(newSock, info, params, mc, logger);
         if(res != UA_STATUSCODE_GOOD) {
