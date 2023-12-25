@@ -1618,11 +1618,11 @@ END_TEST
 
 START_TEST(UA_Variant_encodeDecodeShallWorkOnVariantWithArrayOfDifferentTypes) {
     const size_t arraySize = 2;
-    UA_ExtensionObject sourceArray[arraySize];
+    UA_ExtensionObject sourceArray[2];
     UA_Range arrayElement0 = { 1.0, 2.0 };
     UA_ComplexNumberType arrayElement1 = { 3.0, 4.0 };
 
-    UA_ExtensionObject* arrayElement = &sourceArray[0];
+    UA_ExtensionObject* arrayElement = sourceArray;
     UA_ExtensionObject_init(arrayElement);
     arrayElement->encoding = UA_EXTENSIONOBJECT_DECODED;
     arrayElement->content.decoded.data = &arrayElement0;
@@ -1640,9 +1640,9 @@ END_TEST
 
 START_TEST(UA_Variant_encodeDecodeShallWorkOnVariantWithArrayOfExtensionObjectsWithUnknownType) {
     const size_t arraySize = 2;
-    UA_ExtensionObject sourceArray[arraySize];
+    UA_ExtensionObject sourceArray[2];
 
-    UA_ExtensionObject* arrayElement = &sourceArray[0];
+    UA_ExtensionObject* arrayElement = sourceArray;
     UA_ExtensionObject_init(arrayElement);
     arrayElement->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
     arrayElement->content.encoded.body = UA_BYTESTRING("DataOfUnknownType");
@@ -1660,9 +1660,9 @@ END_TEST
 
 START_TEST(UA_Variant_encodeDecodeShallWorkOnVariantWithArrayOfExtensionObjectsXmlEncoded) {
     const size_t arraySize = 2;
-    UA_ExtensionObject sourceArray[arraySize];
+    UA_ExtensionObject sourceArray[2];
 
-    UA_ExtensionObject* arrayElement = &sourceArray[0];
+    UA_ExtensionObject* arrayElement = sourceArray;
     UA_ExtensionObject_init(arrayElement);
     arrayElement->encoding = UA_EXTENSIONOBJECT_ENCODED_XML;
     arrayElement->content.encoded.body = UA_STRING("<uax:Boolean>false</uax:Boolean>");
@@ -1680,9 +1680,9 @@ END_TEST
 
 START_TEST(UA_Variant_encodeDecodeShallWorkOnVariantWithArrayOfExtensionObjectsNoBody) {
     const size_t arraySize = 2;
-    UA_ExtensionObject sourceArray[arraySize];
+    UA_ExtensionObject sourceArray[2];
 
-    UA_ExtensionObject* arrayElement = &sourceArray[0];
+    UA_ExtensionObject* arrayElement = sourceArray;
     UA_ExtensionObject_init(arrayElement);
     arrayElement->encoding = UA_EXTENSIONOBJECT_ENCODED_NOBODY;
     arrayElement->content.encoded.typeId = UA_TYPES[UA_TYPES_BOOLEAN].typeId;

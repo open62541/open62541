@@ -1,4 +1,9 @@
-add_compile_options(-Wno-unused-variable -Wno-unused-function)
+if(MSVC)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W1") # Reduce warnings level
+else()
+    add_compile_options(-Wno-unused-variable -Wno-unused-function)
+endif()
+
 # Load CMake Packages
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
