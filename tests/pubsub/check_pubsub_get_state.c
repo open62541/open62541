@@ -11,11 +11,13 @@
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
-#include <check.h>
-#include <assert.h>
 
+#include "../plugins/eventloop/posix/eventloop_posix.h"
 #include "test_helpers.h"
 #include "testing_clock.h"
+
+#include <check.h>
+#include <assert.h>
 
 static UA_Server *server = NULL;
 
@@ -488,7 +490,7 @@ START_TEST(Test_error_case) {
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
        if(UA_NodeId_equal(&tmpConnection->identifier, &ConnId_1)) {
-           close((int)tmpConnection->sendChannel);
+            shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
        }
     }
 
