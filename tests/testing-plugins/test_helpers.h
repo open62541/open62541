@@ -16,7 +16,8 @@ UA_Server * UA_Server_newForUnitTest(void) {
         return NULL;
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Manually set the eventloop clock to the fake clock */
-    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    config->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     return server;
 }
 
@@ -27,7 +28,8 @@ UA_Client * UA_Client_newForUnitTest(void) {
         return NULL;
     UA_ClientConfig *config = UA_Client_getConfig(client);
     /* Manually set the eventloop clock to the fake clock */
-    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    config->eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     return client;
 }
 

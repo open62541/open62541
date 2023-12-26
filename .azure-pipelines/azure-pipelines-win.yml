@@ -11,26 +11,13 @@ jobs:
     CC_SHORTNAME: VS2019
     GENERATOR: Visual Studio 16 2019
     FORCE_CXX: OFF
-    vcpkg_cache: C:/vcpkg/installed
   steps:
   - checkout: self
     submodules: recursive
-  - task: CacheBeta@0
-    inputs:
-      key: $(Build.SourcesDirectory)/tools/azure-devops/win/install.ps1
-      path: $(vcpkg_cache)
-    displayName: Cache vcpkg
   - powershell: ./tools/azure-devops/win/install.ps1
     displayName: Install Requirements
   - powershell: ./tools/azure-devops/win/build.ps1
     displayName: "Build: $(CC_NAME)"
-  - task: PublishBuildArtifacts@1
-    inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: open62541-$(CC_SHORTNAME)
-        # publishing artifacts from PRs from a fork is currently blocked
-    condition: succeeded()
-    displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"
 
 - job: 'win_msys64'
   displayName: 'Windows (msys64)'
@@ -51,13 +38,6 @@ jobs:
   - powershell: ./tools/azure-devops/win/build.ps1
     displayName: "Build: $(CC_NAME)"
     errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
-  - task: PublishBuildArtifacts@1
-    inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: open62541-$(CC_SHORTNAME)
-        # publishing artifacts from PRs from a fork is currently blocked
-    condition: succeeded()
-    displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"
 
 - job: 'win_clang'
   displayName: 'Windows (clang)'
@@ -78,10 +58,3 @@ jobs:
   - powershell: ./tools/azure-devops/win/build.ps1
     displayName: "Build: $(CC_NAME)"
     errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
-  - task: PublishBuildArtifacts@1
-    inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-        ArtifactName: open62541-$(CC_SHORTNAME)
-        # publishing artifacts from PRs from a fork is currently blocked
-    condition: succeeded()
-    displayName: "Publish Artifact: open62541-$(CC_SHORTNAME)"

@@ -1046,7 +1046,7 @@ filterEvent(UA_Server *server, UA_Session *session,
     }
 
     /* Prepare content filter result structure */
-    if(filter->whereClause.elementsSize != 0) {
+    if(filter->whereClause.elementsSize > 0) {
         result->whereClauseResult.elementResultsSize = filter->whereClause.elementsSize;
         result->whereClauseResult.elementResults = (UA_ContentFilterElementResult *)
             UA_Array_new(filter->whereClause.elementsSize,
@@ -1056,13 +1056,15 @@ filterEvent(UA_Server *server, UA_Session *session,
             UA_EventFilterResult_clear(result);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        for(size_t i = 0; i < result->whereClauseResult.elementResultsSize; ++i) {
-            result->whereClauseResult.elementResults[i].operandStatusCodesSize =
-            filter->whereClause.elements->filterOperandsSize;
-            result->whereClauseResult.elementResults[i].operandStatusCodes = (UA_StatusCode *)
-                UA_Array_new(filter->whereClause.elements->filterOperandsSize,
-                             &UA_TYPES[UA_TYPES_STATUSCODE]);
-            if(!result->whereClauseResult.elementResults[i].operandStatusCodes) {
+
+        for(size_t i = 0; i < filter->whereClause.elementsSize; ++i) {
+            UA_ContentFilterElementResult *er =
+                &result->whereClauseResult.elementResults[i];
+            UA_ContentFilterElement *cf = &filter->whereClause.elements[i];
+            er->operandStatusCodesSize = cf->filterOperandsSize;
+            er->operandStatusCodes = (UA_StatusCode *)
+                UA_Array_new(er->operandStatusCodesSize, &UA_TYPES[UA_TYPES_STATUSCODE]);
+            if(!er->operandStatusCodes) {
                 UA_EventFieldList_clear(efl);
                 UA_EventFilterResult_clear(result);
                 return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1071,7 +1073,8 @@ filterEvent(UA_Server *server, UA_Session *session,
     }
 
     /* Evaluate the where filter. Do we event need to consider the event? */
-    UA_StatusCode res = evaluateWhereClause(server, session, eventNode, &filter->whereClause,
+    UA_StatusCode res = evaluateWhereClause(server, session, eventNode,
+                                            &filter->whereClause,
                                             &result->whereClauseResult);
     if(res != UA_STATUSCODE_GOOD){
         UA_EventFieldList_clear(efl);
@@ -1082,13 +1085,15 @@ filterEvent(UA_Server *server, UA_Session *session,
     /* Apply the select filter */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     for(size_t i = 0; i < filter->selectClausesSize; i++) {
+        UA_SimpleAttributeOperand *sc = &filter->selectClauses[i];
         /* Check if the browsePath is BaseEventType, in which case nothing more
          * needs to be checked */
-        if(!UA_NodeId_equal(&filter->selectClauses[i].typeDefinitionId, &baseEventTypeId) &&
-           !isValidEvent(server, &filter->selectClauses[i].typeDefinitionId, eventNode)) {
+        if(!UA_NodeId_equal(&sc->typeDefinitionId, &baseEventTypeId) &&
+           !isValidEvent(server, &sc->typeDefinitionId, eventNode)) {
             UA_Variant_init(&efl->eventFields[i]);
             /* EventFilterResult currently isn't being used
-            notification->result.selectClauseResults[i] = UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
+               notification->result.selectClauseResults[i] =
+                   UA_STATUSCODE_BADTYPEDEFINITIONINVALID; */
             continue;
         }
 
@@ -1096,7 +1101,7 @@ filterEvent(UA_Server *server, UA_Session *session,
          * select-field cannot be resolved. */
         result->selectClauseResults[i] =
             resolveSimpleAttributeOperand(server, session, eventNode,
-                                          &filter->selectClauses[i], &efl->eventFields[i]);
+                                          sc, &efl->eventFields[i]);
     }
 
     return UA_STATUSCODE_GOOD;

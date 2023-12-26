@@ -192,7 +192,8 @@ registerServer(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -222,7 +223,8 @@ unregisterServer(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);
@@ -266,7 +268,8 @@ Server_register_semaphore(void) {
     memset(&cc, 0, sizeof(UA_ClientConfig));
     UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey, NULL, 0, NULL, 0);
     UA_CertificateVerification_AcceptAll(&cc.certificateVerification);
-    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_nowMonotonic_fake;
+    cc.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    cc.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
 
     *running_register = false;
     THREAD_JOIN(server_thread_register);

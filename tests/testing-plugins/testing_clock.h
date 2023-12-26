@@ -22,6 +22,6 @@ void UA_fakeSleep(UA_UInt32 duration);
 void UA_realSleep(UA_UInt32 duration);
 
 /* To be hooked into the EventLoop for unit tests that need deterministic timings */
-UA_DateTime UA_DateTime_nowMonotonic_fake(UA_EventLoop *el);
+UA_DateTime UA_DateTime_now_fake(UA_EventLoop *el);
 
 #endif /* TESTING_CLOCK_H_ */

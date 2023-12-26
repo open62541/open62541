@@ -19,6 +19,7 @@
 #include <unistd.h>
 #endif
 
+#include <stdlib.h>
 #include <check.h>
 
 UA_Server *server;
@@ -157,7 +158,7 @@ static void setup(void) {
     UA_AccessControl_defaultWithLoginCallback(config, false, &policy,
         sizeof(login) / sizeof(login[0]), login, loginCallback, "$6$");
 #else
-    UA_AccessControl_default(config, false, NULL, &policy,
+    UA_AccessControl_default(config, false, &policy,
         sizeof(login) / sizeof(login[0]), login);
 #endif
     UA_Server_run_startup(server);

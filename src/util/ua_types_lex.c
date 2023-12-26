@@ -429,6 +429,7 @@ yy26:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
+		case 0x00:
 		case '\n': goto yy20;
 		case ';':
 			YYSTAGP(context.yyt4);
@@ -471,6 +472,7 @@ yy29:
 	YYSKIP();
 	yych = YYPEEK();
 	switch (yych) {
+		case 0x00:
 		case '\n': goto yy20;
 		case ';': goto yy30;
 		default: goto yy29;
