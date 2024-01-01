@@ -2293,23 +2293,22 @@ DECODE_JSON(Variant) {
     }
 
     /* Parse the type */
-    size_t size = getTokenLength(&ctx->tokens[typeIndex]);
-    if(size == 0 || ctx->tokens[typeIndex].type != CJ5_TOKEN_NUMBER)
+    if(ctx->tokens[typeIndex].type != CJ5_TOKEN_NUMBER)
         return UA_STATUSCODE_BADDECODINGERROR;
-    UA_UInt64 idTypeDecoded = 0;
-    const char *idTypeEncoded = &ctx->json5[ctx->tokens[typeIndex].start];
-    size_t len = parseUInt64(idTypeEncoded, size, &idTypeDecoded);
+    UA_UInt64 idType = 0;
+    size_t len = parseUInt64(&ctx->json5[ctx->tokens[typeIndex].start],
+                             getTokenLength(&ctx->tokens[typeIndex]), &idType);
     if(len == 0)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* A NULL Variant */
-    if(idTypeDecoded == 0) {
+    if(idType == 0) {
         skipObject(ctx);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Set the type */
-    UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idTypeDecoded);
+    UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idType);
     dst->type = UA_findDataTypeWithCustom(&typeNodeId, ctx->customTypes);
     if(!dst->type)
         return UA_STATUSCODE_BADDECODINGERROR;
