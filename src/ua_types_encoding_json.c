@@ -1416,6 +1416,12 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
         return UA_STATUSCODE_BADDECODINGERROR;           \
     }} while(0)
 
+#define CHECK_NULL_SKIP do {                         \
+    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {    \
+        ctx->index++;                                \
+        return UA_STATUSCODE_GOOD;                   \
+    }} while(0)
+
 /* Forward declarations*/
 #define DECODE_JSON(TYPE) static status                   \
     TYPE##_decodeJson(ParseCtx *ctx, UA_##TYPE *dst,      \
@@ -2275,6 +2281,7 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataTy
 }
 
 DECODE_JSON(Variant) {
+    CHECK_NULL_SKIP; /* Treat null as an empty variant */
     CHECK_OBJECT;
 
     /* First search for the variant type in the json object. */
@@ -2387,6 +2394,7 @@ DECODE_JSON(Variant) {
 }
 
 DECODE_JSON(DataValue) {
+    CHECK_NULL_SKIP; /* Treat a null value as an empty DataValue */
     CHECK_OBJECT;
 
     DecodeEntry entries[6] = {
@@ -2409,6 +2417,7 @@ DECODE_JSON(DataValue) {
 }
 
 DECODE_JSON(ExtensionObject) {
+    CHECK_NULL_SKIP; /* Treat a null value as an empty DataValue */
     CHECK_OBJECT;
 
     /* Empty object -> Null ExtensionObject */
@@ -2561,6 +2570,7 @@ status
 DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type);
 
 DECODE_JSON(DiagnosticInfo) {
+    CHECK_NULL_SKIP; /* Treat a null value as an empty DiagnosticInfo */
     CHECK_OBJECT;
 
     DecodeEntry entries[7] = {
@@ -2598,12 +2608,7 @@ DiagnosticInfoInner_decodeJson(ParseCtx* ctx, void* dst, const UA_DataType* type
 status
 decodeFields(ParseCtx *ctx, DecodeEntry *entries, size_t entryCount) {
     CHECK_TOKEN_BOUNDS;
-
-    /* null is treated like an empty object */
-    if(currentTokenType(ctx) == CJ5_TOKEN_NULL) {
-        ctx->index++;
-        return UA_STATUSCODE_GOOD;
-    }
+    CHECK_NULL_SKIP; /* null is treated like an empty object */
 
     if(ctx->depth >= UA_JSON_ENCODING_MAX_RECURSION - 1)
         return UA_STATUSCODE_BADENCODINGERROR;
