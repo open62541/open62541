@@ -2150,8 +2150,40 @@ VariantDimension_decodeJson(ParseCtx *ctx, void *dst, const UA_DataType *type) {
     return Array_decodeJson(ctx, (void**)dst, dimType);
 }
 
+/* Get type type encoded by the ExtensionObject at ctx->index.
+ * Returns NULL if that fails (type unknown or otherwise). */
 static const UA_DataType *
-unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
+getExtensionObjectType(ParseCtx *ctx) {
+    if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT)
+        return NULL;
+
+    /* Get the type NodeId index */
+    size_t typeIdIndex = 0;
+    UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
+    if(ret != UA_STATUSCODE_GOOD)
+        return NULL;
+
+    size_t oldIndex = ctx->index;
+    ctx->index = (UA_UInt16)typeIdIndex;
+
+    /* Decode the type NodeId */
+    UA_NodeId typeId;
+    UA_NodeId_init(&typeId);
+    ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
+    ctx->index = oldIndex;
+    if(ret != UA_STATUSCODE_GOOD)
+        return NULL;
+
+    /* Lookup an return */
+    const UA_DataType *type = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
+    UA_NodeId_clear(&typeId);
+    return type;
+}
+
+/* Check if all array members are ExtensionObjects of the same type. Return this
+ * type or NULL. */
+static const UA_DataType *
+getArrayUnwrapType(ParseCtx *ctx, size_t arrayIndex) {
     UA_assert(ctx->tokens[arrayIndex].type == CJ5_TOKEN_ARRAY);
 
     /* Save index to restore later */
@@ -2165,37 +2197,28 @@ unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
         return NULL;
     }
 
-    ctx->index++; /* Go to first array member */
-    if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT) {
-        ctx->index = oldIndex; /* Restore the index */
-        return NULL;
-    }
+    /* Go to first array member */
+    ctx->index++;
 
-    /* Get the type NodeId index */
-    size_t typeIdIndex = 0;
-    UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
-    if(ret != UA_STATUSCODE_GOOD) {
-        ctx->index = oldIndex; /* Restore the index */
-        return NULL;
-    }
-
-    /* Decode and lookup the type */
+    /* Lookup the type for the first array member */
     UA_NodeId typeId;
     UA_NodeId_init(&typeId);
-    const UA_DataType *typeOfBody = NULL;
-    ctx->index = (UA_UInt16)typeIdIndex;
-    ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-    if(UA_LIKELY(ret == UA_STATUSCODE_GOOD))
-        typeOfBody = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
-    UA_NodeId_clear(&typeId);
+    const UA_DataType *typeOfBody = getExtensionObjectType(ctx);
     if(!typeOfBody) {
         ctx->index = oldIndex; /* Restore the index */
         return NULL;
     }
 
-    /* Loop over all members check whether they can be unwrapped */
-    ctx->index = arrayIndex + 1;
+    /* Get the typeId index for faster comparison below.
+     * Cannot fail as getExtensionObjectType already looked this up. */
+    size_t typeIdIndex = 0;
+    UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
+    (void)ret;
+    UA_assert(ret == UA_STATUSCODE_GOOD);
+    const char* typeIdData = &ctx->json5[ctx->tokens[typeIdIndex].start];
+    size_t typeIdSize = getTokenLength(&ctx->tokens[typeIdIndex]);
 
+    /* Loop over all members and check whether they can be unwrapped */
     for(size_t i = 0; i < length; i++) {
         /* Array element must be an object */
         if(currentTokenType(ctx) != CJ5_TOKEN_OBJECT) {
@@ -2204,35 +2227,31 @@ unwrapArrayExtensionObjectType(ParseCtx *ctx, size_t arrayIndex) {
         }
 
         /* Check for non-JSON encoding */
-        size_t objIndex = ctx->index;
         size_t encIndex = 0;
-        ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
+        UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
         if(ret == UA_STATUSCODE_GOOD) {
             ctx->index = oldIndex; /* Restore the index */
             return NULL;
         }
 
-        /* Decode the type NodeId and compare */
-        ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &typeIdIndex);
+        /* Get the type NodeId index */
+        size_t memberTypeIdIndex = 0;
+        ret = lookAheadForKey(ctx, UA_JSONKEY_TYPEID, &memberTypeIdIndex);
         if(ret != UA_STATUSCODE_GOOD) {
-            ctx->index = oldIndex; /* Restore the index */
-            return NULL;
-        }
-        ctx->index = (UA_UInt16)typeIdIndex;
-        ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
-        if(ret != UA_STATUSCODE_GOOD) {
-            ctx->index = oldIndex; /* Restore the index */
-            return NULL;
-        }
-        UA_Boolean sameType = UA_NodeId_equal(&typeId, &typeOfBody->typeId);
-        UA_NodeId_clear(&typeId);
-        if(!sameType) {
             ctx->index = oldIndex; /* Restore the index */
             return NULL;
         }
 
-        /* Skip forward */
-        ctx->index = objIndex;
+        /* Is it the same type? Compare raw NodeId string */
+        const char* memberTypeIdData = &ctx->json5[ctx->tokens[memberTypeIdIndex].start];
+        size_t memberTypeIdSize = getTokenLength(&ctx->tokens[memberTypeIdIndex]);
+        if(typeIdSize != memberTypeIdSize ||
+           memcmp(typeIdData, memberTypeIdData, typeIdSize) != 0) {
+            ctx->index = oldIndex; /* Restore the index */
+            return NULL;
+        }
+
+        /* Skip to the next array member */
         skipObject(ctx);
     }
 
@@ -2360,10 +2379,10 @@ DECODE_JSON(Variant) {
 
         /* Can we unwrap ExtensionObjects in the array? */
         if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-            const UA_DataType *unwrappedType = unwrapArrayExtensionObjectType(ctx, bodyIndex);
-            if(unwrappedType) {
-                dst->type = unwrappedType;
-                entries[1].type = unwrappedType;
+            const UA_DataType *unwrapType = getArrayUnwrapType(ctx, bodyIndex);
+            if(unwrapType) {
+                dst->type = unwrapType;
+                entries[1].type = unwrapType;
                 entries[1].function = (decodeJsonSignature)
                     Array_decodeJsonUnwrapExtensionObject;
             }
