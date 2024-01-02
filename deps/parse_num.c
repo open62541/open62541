@@ -57,8 +57,8 @@ parseUInt64(const char *str, size_t size, uint64_t *result) {
     for(; i < size; i++) {
         if(str[i] < '0' || str[i] > '9')
             break;
-        n *= 10;
-        n +=(uint8_t)(str[i] - '0');
+        /* Fast multiplication: n*10 == (n*8) + (n*2) */
+        n = (n << 3) + (n << 1) + (uint8_t)(str[i] - '0');
         if(n < prev) /* Check for overflow */
             return 0;
         prev = n;
