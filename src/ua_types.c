@@ -63,14 +63,21 @@ guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *_);
 const UA_DataType *
 UA_findDataTypeWithCustom(const UA_NodeId *typeId,
                           const UA_DataTypeArray *customTypes) {
-    /* Always look in built-in types first (may contain data types from all
-     * namespaces).
-     *
-     * TODO: The standard-defined types are ordered. See if binary search is
-     * more efficient. */
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(nodeIdOrder(&UA_TYPES[i].typeId, typeId, NULL) == UA_ORDER_EQ)
-            return &UA_TYPES[i];
+    /* Always look in UA_TYPES first. UA_TYPES is ordered and contains only
+     * types from ns0 with a numeric identifier. So we can use binary search to
+     * speed this up. */
+    if(typeId->namespaceIndex == 0 && typeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
+        size_t first = 0;
+        size_t last = UA_TYPES_COUNT - 1;
+        while(first <= last) {
+            size_t middle = (first+last) >> 1;
+            if(UA_TYPES[middle].typeId.identifier.numeric == typeId->identifier.numeric)
+                return &UA_TYPES[middle];
+            if(UA_TYPES[middle].typeId.identifier.numeric < typeId->identifier.numeric)
+                first = middle + 1;
+            else
+                last = middle - 1;
+        }
     }
 
     /* Search in the customTypes */
