@@ -9,6 +9,8 @@
 #include "util/ua_util_internal.h"
 
 #include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
 #include <check.h>
 #include <float.h>
 #include <math.h>
@@ -2282,6 +2284,69 @@ START_TEST(UA_Variant_decodeScalarDimensions) {
     UA_Variant_clear(&v);
 } END_TEST
 
+START_TEST(UA_type_lookup_boundaries) {
+    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
+        ck_assert_uint_eq(UA_TYPES[i].typeId.namespaceIndex, 0);
+        ck_assert_int_eq(UA_TYPES[i].typeId.identifierType, UA_NODEIDTYPE_NUMERIC);
+        ck_assert(UA_findDataType(&UA_TYPES[i].typeId) == &UA_TYPES[i]);
+        if(i > 0)
+            ck_assert_int_eq(UA_NodeId_order(&UA_TYPES[i-1].typeId,
+                                            &UA_TYPES[i].typeId), UA_ORDER_LESS);
+    }
+
+    UA_NodeId missing[6];
+    missing[0] = UA_NODEID_NUMERIC(0, 0);
+    missing[1] = UA_NODEID_NUMERIC(0, UA_UINT32_MAX);
+    missing[2] = UA_NODEID_NUMERIC(1, 1);
+    missing[3] = UA_NODEID_STRING(0, "Boolean");
+    missing[4] = UA_NODEID_GUID(0, UA_GUID_NULL);
+    missing[5] = UA_NODEID_BYTESTRING(0, "Boolean");
+    for(size_t i = 0; i < sizeof(missing) / sizeof(missing[0]); ++i)
+        ck_assert_ptr_eq(UA_findDataType(&missing[i]), NULL);
+
+    /* A missing numeric identifier inside the standard type range. */
+    for(size_t i = 1; i < UA_TYPES_COUNT; ++i) {
+        UA_UInt32 previous = UA_TYPES[i-1].typeId.identifier.numeric;
+        if(UA_TYPES[i].typeId.identifier.numeric > previous + 1) {
+            UA_NodeId gap = UA_NODEID_NUMERIC(0, previous + 1);
+            ck_assert_ptr_eq(UA_findDataType(&gap), NULL);
+        }
+    }
+
+    /* Unsorted custom arrays and chained arrays still use linear lookup. */
+    UA_DataType custom[2] = {UA_TYPES[UA_TYPES_BOOLEAN], UA_TYPES[UA_TYPES_INT32]};
+    custom[0].typeId = UA_NODEID_STRING(2, "Custom");
+    custom[1].typeId = UA_NODEID_NUMERIC(0, 0);
+    UA_DataTypeArray tail = {NULL, 1, &custom[1], false, false};
+    UA_DataTypeArray head = {&tail, 1, &custom[0], false, false};
+    for(size_t i = 0; i < 2; ++i)
+        ck_assert(UA_findDataTypeWithCustom(&custom[i].typeId, &head) == &custom[i]);
+    ck_assert(UA_findDataTypeWithCustom(&UA_TYPES[0].typeId, &head) == &UA_TYPES[0]);
+    ck_assert_ptr_eq(UA_findDataTypeWithCustom(&missing[1], &head), NULL);
+
+    /* Skipping UA_TYPES must still find custom types of every NodeId kind. */
+    for(size_t i = 0; i < sizeof(missing) / sizeof(missing[0]); ++i) {
+        custom[1].typeId = missing[i];
+        ck_assert(UA_findDataTypeWithCustom(&missing[i], &head) == &custom[1]);
+    }
+} END_TEST
+
+START_TEST(UA_type_lookup_speed) {
+    clock_t begin, finish;
+    begin = clock();
+
+    UA_NodeId readRequestId = UA_TYPES[UA_TYPES_READREQUEST].typeId;
+
+    for(size_t i = 0; i < 1000; i++) {
+        const UA_DataType *t = UA_findDataType(&readRequestId);
+        ck_assert(t == &UA_TYPES[UA_TYPES_READREQUEST]);
+    }
+
+    finish = clock();
+    double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
+    printf("duration of the type lookup was %f s\n", time_spent);
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -2385,6 +2450,8 @@ static Suite *testSuite_builtin(void) {
 
     TCase *tc_utils = tcase_create("utils");
     tcase_add_test(tc_utils, UA_StatusCode_utils);
+    tcase_add_test(tc_utils, UA_type_lookup_speed);
+    tcase_add_test(tc_utils, UA_type_lookup_boundaries);
     tcase_add_test(tc_utils, UA_StatusCode_isGoodUncertain);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
     tcase_add_test(tc_utils, UA_findDataTypeByName_test);
