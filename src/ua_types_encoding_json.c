@@ -2209,6 +2209,17 @@ getArrayUnwrapType(ParseCtx *ctx, size_t arrayIndex) {
         return NULL;
     }
 
+    /* The content is a builtin type that could have been directly encoded in
+     * the Variant, there was no need to wrap in an ExtensionObject. But this
+     * means for us, that somebody made an extra effort to explicitly get an
+     * ExtensionObject. So we keep it. As an added advantage we will generate
+     * the same JSON again when encoding again. */
+    UA_Boolean isBuiltin = (typeOfBody->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(isBuiltin) {
+        ctx->index = oldIndex; /* Restore the index */
+        return NULL;
+    }
+
     /* Get the typeId index for faster comparison below.
      * Cannot fail as getExtensionObjectType already looked this up. */
     size_t typeIdIndex = 0;
@@ -2377,7 +2388,8 @@ DECODE_JSON(Variant) {
             {UA_JSONKEY_DIMENSION, &dst->arrayDimensions, VariantDimension_decodeJson, false, NULL}
         };
 
-        /* Can we unwrap ExtensionObjects in the array? */
+        /* Try to unwrap ExtensionObjects in the array.
+         * The members must all have the same type. */
         if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
             const UA_DataType *unwrapType = getArrayUnwrapType(ctx, bodyIndex);
             if(unwrapType) {
@@ -2534,21 +2546,33 @@ Variant_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void *p, const UA_DataTyp
     }
 
     /* The content is still encoded, cannot unwrap */
-    if(eo.encoding != UA_EXTENSIONOBJECT_DECODED) {
-        /* Decode as ExtensionObject */
-        dst->data = UA_new(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-        if(!dst->data) {
-            UA_ExtensionObject_clear(&eo);
-            return UA_STATUSCODE_BADOUTOFMEMORY;
-        }
-        dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-        *(UA_ExtensionObject*)dst->data = eo;
-        return UA_STATUSCODE_GOOD;
-    }
+    if(eo.encoding != UA_EXTENSIONOBJECT_DECODED)
+        goto use_eo;
+
+    /* The content is a builtin type that could have been directly encoded in
+     * the Variant, there was no need to wrap in an ExtensionObject. But this
+     * means for us, that somebody made an extra effort to explicitly get an
+     * ExtensionObject. So we keep it. As an added advantage we will generate
+     * the same JSON again when encoding again. */
+    UA_Boolean isBuiltin =
+        (eo.content.decoded.type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(isBuiltin)
+        goto use_eo;
 
     /* Unwrap the ExtensionObject */
     dst->data = eo.content.decoded.data;
     dst->type = eo.content.decoded.type;
+    return UA_STATUSCODE_GOOD;
+
+ use_eo:
+    /* Don't unwrap */
+    dst->data = UA_new(&UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+    if(!dst->data) {
+        UA_ExtensionObject_clear(&eo);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+    *(UA_ExtensionObject*)dst->data = eo;
     return UA_STATUSCODE_GOOD;
 }
 
