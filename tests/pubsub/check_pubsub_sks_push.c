@@ -13,6 +13,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 
+#include "test_helpers.h"
 #include "../encryption/certificates.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
@@ -157,7 +158,7 @@ addTestWriterGroup(UA_String securitygroupId) {
 
     retval |=
         UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    UA_Server_enableWriterGroup(server, writerGroup);
 }
 
 static void
@@ -203,7 +204,7 @@ setup(void) {
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
                                                    trustList, trustListSize,
@@ -252,8 +253,7 @@ teardown(void) {
 }
 
 START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -265,7 +265,7 @@ START_TEST(TestSetSecurityKeys_InsufficientSecurityMode) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = encyrptedclientconnect(client);
     UA_String wrongSecurityGroupId = UA_STRING("WrongSecurityGroupId");
     retval = callSetSecurityKey(client, wrongSecurityGroupId, 1, 2);
@@ -274,7 +274,7 @@ START_TEST(TestSetSecurityKeys_MissingSecurityGroup) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_GOOD) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;
@@ -303,7 +303,7 @@ START_TEST(TestSetSecurityKeys_GOOD) {
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
 
@@ -325,7 +325,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKeys){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;
@@ -358,7 +358,7 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
 } END_TEST
 
 START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_UInt32 futureKeySize = 2;
     UA_UInt32 currentTokenId = 1;
     UA_UInt32 startingTokenId = 1;

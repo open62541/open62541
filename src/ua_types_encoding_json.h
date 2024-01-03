@@ -11,7 +11,7 @@
 
 #include <open62541/types.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include "../deps/cj5.h"
 

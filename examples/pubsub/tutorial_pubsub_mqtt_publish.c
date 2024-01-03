@@ -47,7 +47,8 @@
 #include <stdio.h>
 
 #define CONNECTION_NAME              "MQTT Publisher Connection"
-#define TRANSPORT_PROFILE_URI        "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
+#define TRANSPORT_PROFILE_URI_UADP   "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"
+#define TRANSPORT_PROFILE_URI_JSON   "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
 #define PUBLISHER_TOPIC              "customTopic"
@@ -87,11 +88,7 @@ UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 #endif
 
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean useJson = true;
-#else
 static UA_Boolean useJson = false;
-#endif
 
 static UA_NodeId connectionIdent;
 static UA_NodeId publishedDataSetIdent;
@@ -104,7 +101,11 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
+    if (useJson) {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_JSON);
+    } else {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
+    }
     connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
@@ -287,9 +288,8 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 
     writerGroupConfig.transportSettings = transportSettings;
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
-    if (retval == UA_STATUSCODE_GOOD)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
 #ifdef UA_ENABLE_JSON_ENCODING
     if (useJson) {
@@ -424,7 +424,12 @@ int main(int argc, char **argv) {
         }
 
         if(strcmp(argv[argpos], "--json") == 0) {
+#ifdef UA_ENABLE_JSON_ENCODING
             useJson = true;
+#else 
+            printf("Json encoding not enabled (UA_ENABLE_JSON_ENCODING)\n");
+            useJson = false;
+#endif
             continue;
         }
 

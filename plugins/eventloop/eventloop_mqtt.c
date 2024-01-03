@@ -10,6 +10,9 @@
 
 #include <open62541/plugin/eventloop.h>
 
+#ifdef UA_ENABLE_MQTT
+
+#include "../../deps/open62541_queue.h"
 #include <limits.h>
 
 #if defined(_MSC_VER)
@@ -64,8 +67,8 @@ static ssize_t mqtt_pal_sendall(mqtt_pal_socket_handle fd, const void* buf, size
 static ssize_t mqtt_pal_recvall(mqtt_pal_socket_handle fd, void* buf, size_t bufsz, int flags);
 
 /* Include headers and source files! We need deep integration to use the above definitions. */
-#include "../deps/mqtt-c/include/mqtt.h"
-#include "../deps/mqtt-c/src/mqtt.c"
+#include "../../deps/mqtt-c/include/mqtt.h"
+#include "../../deps/mqtt-c/src/mqtt.c"
 
 #define MQTT_MESSAGE_MAXLEN (1u << 20) /* 1MB */
 #define MQTT_PARAMETERSSIZE 8
@@ -91,7 +94,7 @@ static const struct {
  * subscriptions to topics. The BrokerConnection is not directly exposed via the
  * public interface. Only TopicConnections are. */
 struct MQTTBrokerConnection {
-    MQTTBrokerConnection *next; /* Singly-linked list */
+    LIST_ENTRY(MQTTBrokerConnection) next;
 
     /* Backpointer to the ConnectionManager, always set */
     MQTTConnectionManager *mcm;
@@ -106,7 +109,7 @@ struct MQTTBrokerConnection {
     UA_UInt64 keepAliveCallbackId; /* Registered callback to send the keepalive */
 
     /* Topic connections sharing the same connection to a broker */
-    MQTTTopicConnection *topicConnections;
+    LIST_HEAD(, MQTTTopicConnection) topicConnections;
     uintptr_t lastTopicConnectionId;
 
     /* Store the connection parameters. To reconnect when necessary and to check
@@ -117,7 +120,7 @@ struct MQTTBrokerConnection {
 /* Connections created via the EventLoop interface are bound to an individual
  * topic. Aggregating them to BrokerConnections is hidden in the background. */
 struct MQTTTopicConnection {
-    MQTTTopicConnection *next; /* Singly-linked list */
+    LIST_ENTRY(MQTTTopicConnection) next;
 
     /* (Broker Connection Id * 1000) + connection Id */
     uintptr_t topicConnectionId; 
@@ -143,7 +146,7 @@ struct MQTTConnectionManager {
     UA_ConnectionManager cm;
     UA_ConnectionManager *tcpCM; /* The TCP ConnectionManager to use. Set during
                                   * the start of this CM. */
-    MQTTBrokerConnection *connections;
+    LIST_HEAD(, MQTTBrokerConnection) connections;
 };
 
 /* Send via the underlying TCP connection */
@@ -246,13 +249,14 @@ MQTT_eventSourceStop(UA_ConnectionManager *cm) {
                 "MQTT\t| Shutting down the ConnectionManager");
 
     MQTTConnectionManager *mcm = (MQTTConnectionManager*)cm;
-    if(mcm->connections == NULL) {
+    if(LIST_EMPTY(&mcm->connections)) {
         cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
         return;
     }
 
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
-    for(MQTTBrokerConnection *bc = mcm->connections; bc; bc = bc->next) {
+    MQTTBrokerConnection *bc, *bc_tmp;
+    LIST_FOREACH_SAFE(bc, &mcm->connections, next, bc_tmp) {
         shutdownBrokerConnection(bc);
     }
 }
@@ -301,12 +305,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     }
 
     /* Remove from linked list */
-    for(MQTTTopicConnection **next = &bc->topicConnections; *next; next = &(*next)->next) {
-        if(*next == tc) {
-            *next = tc->next;
-            break;
-        }
-    }
+    LIST_REMOVE(bc, next);
 
     /* Signal the closed connection to the application */
     UA_KeyValuePair kvp[2];
@@ -315,8 +314,12 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
     UA_Variant_setScalar(&kvp[0].value, &tc->subscribe, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {2, kvp};
-    tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
-                 UA_CONNECTIONSTATE_CLOSING, &kvm, UA_BYTESTRING_NULL);
+
+    if(tc->callback) {
+        tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
+                     UA_CONNECTIONSTATE_CLOSING, &kvm, UA_BYTESTRING_NULL);
+    }
+    tc->callback = NULL;
 
     /* Register delayed callback to free the memory */
     UA_EventLoop *el = bc->mcm->cm.eventSource.eventLoop;
@@ -326,7 +329,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     el->addDelayedCallback(el, &tc->dc);
 
     /* The last topic connection was removed. Close the broker connection. */
-    if(!bc->topicConnections)
+    if(LIST_EMPTY(&bc->topicConnections))
         shutdownBrokerConnection(bc);
 }
 
@@ -349,16 +352,13 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
         el->removeCyclicCallback(el, bc->keepAliveCallbackId);
     
     /* Remove from linked list */
-    for(MQTTBrokerConnection **next = &mcm->connections; *next; next = &(*next)->next) {
-        if(*next == bc) {
-            *next = bc->next;
-            break;
-        }
-    }
+    LIST_REMOVE(bc, next);
 
     /* Shutdown and delete all associated topic connections */
-    while(bc->topicConnections)
-        removeTopicConnection(bc->topicConnections);
+    MQTTTopicConnection *tc, *tc_tmp;
+    LIST_FOREACH_SAFE(tc, &bc->topicConnections, next, tc_tmp) {
+        removeTopicConnection(tc);
+    }
 
     UA_KeyValueMap_clear(&bc->params);
     UA_free(bc->client.recv_buffer.mem_start);
@@ -366,7 +366,8 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
     UA_free(bc);
 
     /* Stopped and the last connection was removed? */
-    if(mcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING && !mcm->connections)
+    if(mcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING &&
+       LIST_EMPTY(&mcm->connections))
         mcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
 }
 
@@ -374,7 +375,8 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
 static MQTTBrokerConnection *
 findIdenticalBrokerConnection(MQTTConnectionManager *mcm,
                               const UA_KeyValueMap *kvm) {
-    for(MQTTBrokerConnection *bc = mcm->connections; bc; bc = bc->next) {
+    MQTTBrokerConnection *bc;
+    LIST_FOREACH(bc, &mcm->connections, next) {
         UA_Boolean found = true;
         for(size_t i = 0; i < MQTT_BROKERPARAMETERSSIZE; i++) {
             const UA_Variant *v1 =
@@ -399,7 +401,8 @@ findIdenticalBrokerConnection(MQTTConnectionManager *mcm,
 static MQTTBrokerConnection *
 findBrokerConnection(MQTTConnectionManager *mcm, uintptr_t id) {
     uintptr_t brokerId = id / 1000;
-    for(MQTTBrokerConnection *bc = mcm->connections; bc; bc = bc->next) {
+    MQTTBrokerConnection *bc;
+    LIST_FOREACH(bc, &mcm->connections, next) {
         if(bc->tcpConnectionId == brokerId)
             return bc;
     }
@@ -411,7 +414,8 @@ findTopicConnection(MQTTConnectionManager *mcm, uintptr_t id) {
     MQTTBrokerConnection *bc = findBrokerConnection(mcm, id);
     if(!bc)
         return NULL;
-    for(MQTTTopicConnection *tc = bc->topicConnections; tc; tc = tc->next) {
+    MQTTTopicConnection *tc;
+    LIST_FOREACH(tc, &bc->topicConnections, next) {
         if(tc->topicConnectionId == id)
             return tc;
     }
@@ -447,7 +451,8 @@ MQTTPublishResponseCallback(void** state, struct mqtt_response_publish *publish)
     UA_KeyValueMap kvm = {2, kvp};
 
     /* Notify all matching topic connections */
-    for(MQTTTopicConnection *tc = bc->topicConnections; tc; tc = tc->next) {
+    MQTTTopicConnection *tc;
+    LIST_FOREACH(tc, &bc->topicConnections, next) {
         if(!tc->subscribe || !UA_String_equal(&topic, &tc->topic))
             continue;
 
@@ -526,8 +531,8 @@ MQTTNetworkCallback(UA_ConnectionManager *tcpCM, uintptr_t connectionId,
 
         /* Handle topic connections already registered on the opening broker
          * connection */
-        for(MQTTTopicConnection *tc = bc->topicConnections, *next = NULL;
-            tc && (next = (tc) ? tc->next : NULL, 1); tc = next) {
+        MQTTTopicConnection *tc;
+        LIST_FOREACH(tc, &bc->topicConnections, next) {
             if(tc->subscribe) {
                 /* Subscribe-connections call mqtt_subscribe but wait until the
                  * first received message to signal that they successfully
@@ -601,8 +606,7 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
     bc->mcm = mcm;
 
     /* Add to the linked list (use removeBrokerConnection from here on) */
-    bc->next = mcm->connections;
-    mcm->connections = bc;
+    LIST_INSERT_HEAD(&mcm->connections, bc, next);
 
     /* Extract the parameters */
     UA_String *broker = (UA_String*)(uintptr_t)
@@ -734,8 +738,7 @@ createTopicConnection(MQTTConnectionManager *mcm, MQTTBrokerConnection *bc,
     }
 
     /* Add to the linked list */
-    tc->next = bc->topicConnections;
-    bc->topicConnections = tc;
+    LIST_INSERT_HEAD(&bc->topicConnections, tc, next);
 
     /* Signal the connection state. If the broker connection is not yet
      * established, then the state will be signaled again when the broker
@@ -784,7 +787,7 @@ MQTT_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                               context, connectionCallback);
     if(!tc) {
         /* If adding failed and the bc has no other topic connection -> close bc */
-        if(!bc->topicConnections)
+        if(LIST_EMPTY(&bc->topicConnections))
             shutdownBrokerConnection(bc);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -874,3 +877,5 @@ UA_ConnectionManager_new_MQTT(const UA_String eventSourceName) {
     cm->cm.closeConnection = MQTT_shutdownConnection;
     return &cm->cm;
 }
+
+#endif /* UA_ENABLE_MQTT */

@@ -23,7 +23,7 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -116,7 +116,7 @@ typedef enum {
 struct UA_MonitoredItem {
     UA_DelayedCallback delayedFreePointers;
     LIST_ENTRY(UA_MonitoredItem) listEntry; /* Linked list in the Subscription */
-    UA_Subscription *subscription; /* If NULL, then this is a Local MonitoredItem */
+    UA_Subscription *subscription;          /* Always non-NULL */
     UA_UInt32 monitoredItemId;
 
     /* Status and Settings */
@@ -319,6 +319,9 @@ UA_Subscription_getMonitoredItem(UA_Subscription *sub,
 
 void
 UA_Subscription_publish(UA_Server *server, UA_Subscription *sub);
+
+void
+UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub);
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub);

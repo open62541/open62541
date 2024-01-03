@@ -181,13 +181,16 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
 }
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
-                 UA_UInt32 requestHandle, UA_StatusCode statusCode) {
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel,
+                 UA_UInt32 requestId, UA_UInt32 requestHandle,
+                 UA_StatusCode statusCode) {
+    UA_EventLoop *el = server->config.eventLoop;
+
     UA_ServiceFault response;
     UA_ServiceFault_init(&response);
     UA_ResponseHeader *responseHeader = &response.responseHeader;
     responseHeader->requestHandle = requestHandle;
-    responseHeader->timestamp = UA_DateTime_now();
+    responseHeader->timestamp = el->dateTime_now(el);
     responseHeader->serviceResult = statusCode;
 
     UA_LOG_DEBUG(channel->securityPolicy->logger, UA_LOGCATEGORY_SERVER,
@@ -203,16 +206,17 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
 
 /* This is not an ERR message, the connection is not closed afterwards */
 static UA_StatusCode
-decodeHeaderSendServiceFault(UA_SecureChannel *channel, const UA_ByteString *msg,
-                             size_t offset, const UA_DataType *responseType,
-                             UA_UInt32 requestId, UA_StatusCode error) {
+decodeHeaderSendServiceFault(UA_Server *server, UA_SecureChannel *channel,
+                             const UA_ByteString *msg, size_t offset,
+                             const UA_DataType *responseType, UA_UInt32 requestId,
+                             UA_StatusCode error) {
     UA_RequestHeader requestHeader;
     UA_StatusCode retval =
         UA_decodeBinaryInternal(msg, &offset, &requestHeader,
                                 &UA_TYPES[UA_TYPES_REQUESTHEADER], NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    retval = sendServiceFault(channel,  requestId, requestHeader.requestHandle, error);
+    retval = sendServiceFault(server, channel, requestId, requestHeader.requestHandle, error);
     UA_RequestHeader_clear(&requestHeader);
     return retval;
 }
@@ -607,11 +611,13 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 
     /* If the overall service call failed, answer with a ServiceFault */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
-        return sendServiceFault(channel, requestId, response->responseHeader.requestHandle,
+        return sendServiceFault(server, channel, requestId,
+                                response->responseHeader.requestHandle,
                                 response->responseHeader.serviceResult);
 
     /* Prepare the ResponseHeader */
-    response->responseHeader.timestamp = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    response->responseHeader.timestamp = el->dateTime_now(el);
 
     if(session) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -669,14 +675,15 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
 UA_StatusCode
 getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session) {
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_SessionHeader *sh;
     SLIST_FOREACH(sh, &channel->sessions, next) {
         if(!UA_NodeId_equal(token, &sh->authenticationToken))
             continue;
         UA_Session *current = (UA_Session*)sh;
         /* Has the session timed out? */
-        if(current->validTill < now) {
+        if(current->validTill < nowMonotonic) {
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return UA_STATUSCODE_BADSESSIONCLOSED;
         }
@@ -797,7 +804,10 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     }
 
     /* Update the session lifetime */
-    UA_Session_updateLifetime(session);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_DateTime now = el->dateTime_now(el);
+    UA_Session_updateLifetime(session, now, nowMonotonic);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
@@ -836,6 +846,8 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
     UA_UNLOCK(&server->serviceMutex);
     channelRes = sendResponse(server, session, channel,
                               requestId, response, responseType);
+    goto update_statistics; /* pacify warnings if no other goto to
+                             * update_statistics is enabled */
 
     /* Update the diagnostics statistics */
  update_statistics:
@@ -893,7 +905,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
-        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
                                             &UA_TYPES[UA_TYPES_SERVICEFAULT],
                                             requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
@@ -907,7 +919,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Could not decode the request with StatusCode %s",
                              UA_StatusCode_name(retval));
-        return decodeHeaderSendServiceFault(channel, msg, requestPos,
+        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
                                             responseType, requestId, retval);
     }
 
@@ -919,7 +931,8 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                "The server sends no timestamp in the request header. "
                                "See the 'verifyRequestTimestamp' setting.");
         if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
-            retval = sendServiceFault(channel, requestId, requestHeader->requestHandle,
+            retval = sendServiceFault(server, channel, requestId,
+                                      requestHeader->requestHandle,
                                       UA_STATUSCODE_BADINVALIDTIMESTAMP);
             UA_clear(&request, requestType);
             return retval;
@@ -1119,7 +1132,8 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
      * is caught if the client is unresponsive.
      *
      * TODO: Make this a configuration option */
-    entry->channel.securityToken.createdAt = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    entry->channel.securityToken.createdAt = el->dateTime_nowMonotonic(el);
     entry->channel.securityToken.revisedLifetime = 10000; /* 10s should be enough */
 
     /* Add to the server's list */
@@ -1236,8 +1250,11 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
+    UA_EventLoop *el = bpm->server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     retval = UA_SecureChannel_processBuffer(channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+                                            processSecureChannelMessage,
+                                            &msg, nowMonotonic);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
@@ -1314,7 +1331,8 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)context;
     UA_LOCK(&server->serviceMutex);
 
-    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     channel_entry *entry;
     TAILQ_FOREACH(entry, &bpm->channels, pointers) {
         /* Compute the timeout date of the SecurityToken */
@@ -1699,8 +1717,11 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* The connection is fully opened and we have a SecureChannel.
      * Process the received buffer */
+    UA_EventLoop *el = bpm->server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     retval = UA_SecureChannel_processBuffer(context->channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+                                            processSecureChannelMessage,
+                                            &msg, nowMonotonic);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, context->channel,
                                "Processing the message failed with error %s",

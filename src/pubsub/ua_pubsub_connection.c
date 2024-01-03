@@ -237,8 +237,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
     UA_WriterGroup *writerGroup, *tmpWriterGroup;
     LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED);
         UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
         UA_WriterGroup_remove(server, writerGroup);
     }
@@ -246,8 +245,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     /* Stop, unfreeze and delete all ReaderGroups attached to the Connection */
     UA_ReaderGroup *readerGroup, *tmpReaderGroup;
     LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED);
         UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
         UA_ReaderGroup_remove(server, readerGroup);
     }
@@ -284,6 +282,10 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
+    /* Make the connection disabled */
+    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED,
+                                             UA_STATUSCODE_GOOD);
+
     UA_PubSubConnection_delete(server, psc);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
@@ -312,12 +314,10 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
 
             /* Disable Reader and WriterGroups */
             LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-                UA_ReaderGroup_setPubSubState(server, readerGroup, state,
-                                              UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+                UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
             }
             LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-                UA_WriterGroup_setPubSubState(server, writerGroup, state,
-                                              UA_STATUSCODE_BADRESOURCEUNAVAILABLE);
+                UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
             }
             break;
 
@@ -326,7 +326,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             /* Called also if the connection is already operational. We might to
              * open an additional recv connection, etc. Sets the new state
              * internally. */
-            if(oldState != UA_PUBSUBSTATE_OPERATIONAL)
+            if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL || oldState == UA_PUBSUBSTATE_OPERATIONAL)
+                c->state = UA_PUBSUBSTATE_OPERATIONAL;
+            else
                 c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
             ret = UA_PubSubConnection_connect(server, c, false);
             if(ret != UA_STATUSCODE_GOOD)
@@ -342,8 +344,10 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     /* Inform application about state change */
     if(c->state != oldState) {
         UA_ServerConfig *config = &server->config;
+        UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
             config->pubSubConfig.stateChangeCallback(server, &c->identifier, state, cause);
+        UA_LOCK(&server->serviceMutex);
     }
     return ret;
 }

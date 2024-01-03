@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
@@ -102,7 +103,7 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    sksServer = UA_Server_new();
+    sksServer = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
     UA_ServerConfig_setDefaultWithSecurityPolicies(
         config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
@@ -212,8 +213,7 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
 }
 
 START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
@@ -230,7 +230,7 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
 END_TEST
 
 START_TEST(getSecuritykeysBadNotFound) {
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_String badSecurityGroupId = UA_STRING("BadSecurityGroupId");
     UA_StatusCode expectedCode = UA_STATUSCODE_BADNOTFOUND;
@@ -245,7 +245,7 @@ START_TEST(getSecuritykeysBadNotFound) {
 END_TEST
 
 START_TEST(getSecuritykeysBadUserAccessDenied) {
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user2", "password1");
     UA_StatusCode expectedCode = UA_STATUSCODE_BADUSERACCESSDENIED;
     UA_UInt32 reqkeyCount = 1;
@@ -265,7 +265,7 @@ END_TEST
 
 START_TEST(getSecuritykeysGoodAndValidOutput) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
@@ -310,7 +310,7 @@ END_TEST
 
 START_TEST(requestCurrentKeyWithFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
@@ -345,7 +345,7 @@ END_TEST
 
 START_TEST(requestCurrentKeyOnly) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
@@ -381,7 +381,7 @@ END_TEST
 START_TEST(requestPastKey) {
     /*wait for one keyLifeTime*/
     UA_fakeSleep(2000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
@@ -415,7 +415,7 @@ END_TEST
 START_TEST(requestUnknownStartingTokenId){
     UA_fakeSleep(1000);
     UA_realSleep(4000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;
@@ -449,7 +449,7 @@ START_TEST(requestUnknownStartingTokenId){
 
 START_TEST(requestMaxFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient, "user1", "password");
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;

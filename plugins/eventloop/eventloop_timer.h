@@ -75,19 +75,19 @@ UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                              void *application, void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                             UA_UInt64 *callbackId);
+                             UA_DateTime now, UA_DateTime *baseTime,
+                             UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
-                                UA_Double interval_ms, UA_DateTime *baseTime,
-                                UA_TimerPolicy timerPolicy);
+                                UA_Double interval_ms, UA_DateTime now,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
 
 void
 UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId);
 
 UA_DateTime
-UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic);
+UA_Timer_process(UA_Timer *t, UA_DateTime now);
 
 void
 UA_Timer_clear(UA_Timer *t);

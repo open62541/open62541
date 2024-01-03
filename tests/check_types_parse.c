@@ -4,6 +4,7 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated_handling.h>
+#include "test_helpers.h"
 #include "open62541/util.h"
 
 #include <stdlib.h>
@@ -207,6 +208,41 @@ START_TEST(parseRelativePath) {
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
+
+    UA_NodeId testRef = UA_NODEID_NUMERIC(1, 345);
+    res = UA_RelativePath_parse(&rp, UA_STRING("/1:Boiler<ns=1;i=345>1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &testRef));
+    UA_RelativePath_clear(&rp);
+} END_TEST
+
+START_TEST(parseRelativePathWithServer) {
+    UA_Server *server = UA_Server_newForUnitTest();
+
+    /* Add a custom non-hierarchical reference type */
+	UA_NodeId refTypeId;
+	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+	refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
+	UA_StatusCode res =
+        UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       browseName, refattr, NULL, &refTypeId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Use the browse name in the path string. Expect the NodeId of the reference type */
+    UA_RelativePath rp;
+    res = UA_RelativePath_parseWithServer(server, &rp,
+                                          UA_STRING("/1:Boiler<1:MyRef>1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &refTypeId));
+    UA_RelativePath_clear(&rp);
+
+    UA_Server_delete(server);
 } END_TEST
 
 int main(void) {
@@ -226,6 +262,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     tcase_add_test(tc, parseRelativePath);
+    tcase_add_test(tc, parseRelativePathWithServer);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

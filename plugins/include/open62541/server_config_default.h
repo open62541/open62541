@@ -51,12 +51,12 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config,
  * The config will set the tcp network layer to the given port and adds a single
  * endpoint with the security policy ``SecurityPolicy#None`` to the server. A
  * server certificate may be supplied but is optional. */
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_ServerConfig_setMinimal(UA_ServerConfig *config, UA_UInt16 portNumber,
-                           const UA_ByteString *certificate) {
+                           const UA_ByteString *certificate) ,{
     return UA_ServerConfig_setMinimalCustomBuffer(config, portNumber,
                                                   certificate, 0, 0);
-}
+})
 
 #ifdef UA_ENABLE_ENCRYPTION
 
@@ -88,10 +88,10 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
 
 /* Creates a server config on the default port 4840 with no server
  * certificate. */
-static UA_INLINE UA_StatusCode
-UA_ServerConfig_setDefault(UA_ServerConfig *config) {
+UA_INLINABLE( UA_StatusCode
+UA_ServerConfig_setDefault(UA_ServerConfig *config) ,{
     return UA_ServerConfig_setMinimal(config, 4840, NULL);
-}
+})
 
 /* Creates a new server config with no security policies and no endpoints.
  *

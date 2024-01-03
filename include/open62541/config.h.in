@@ -37,7 +37,9 @@
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
 
+#ifndef UA_LOGLEVEL
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
+#endif
 #ifndef UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_AMALGAMATION
 #endif
@@ -478,8 +480,8 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 # define UA_LIKELY(x) __builtin_expect((x), 1)
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
-# define UA_LIKELY(x) x
-# define UA_UNLIKELY(x) x
+# define UA_LIKELY(x) (x)
+# define UA_UNLIKELY(x) (x)
 #endif
 
 /**

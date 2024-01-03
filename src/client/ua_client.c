@@ -329,12 +329,14 @@ sendRequest(UA_Client *client, const void *request,
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return client->connectStatus;
 
+    UA_EventLoop *el = client->config.eventLoop;
+
     /* Adjusting the request header. The const attribute is violated, but we
      * only touch the following members: */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
     rr->authenticationToken = client->authenticationToken;
-    rr->timestamp = UA_DateTime_now();
+    rr->timestamp = el->dateTime_now(el);
 
     /* Create a unique handle >100,000 if not manually defined. The handle is
      * not necessarily unique when manually defined and used to cancel async
@@ -604,7 +606,7 @@ __Client_Service(UA_Client *client, const void *request,
     ac.responseType = responseType;
     ac.syncResponse = (UA_Response*)response;
     ac.requestId = requestId;
-    ac.start = UA_DateTime_nowMonotonic(); /* Start timeout after sending */
+    ac.start = el->dateTime_nowMonotonic(el); /* Start timeout after sending */
     ac.timeout = rh->timeoutHint;
     ac.requestHandle = rh->requestHandle;
     if(ac.timeout == 0)
@@ -649,7 +651,7 @@ __Client_Service(UA_Client *client, const void *request,
         }
 
         /* Update the remaining timeout or break */
-        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_DateTime now = ac.start = el->dateTime_nowMonotonic(el);
         if(now > maxDate) {
             retval = UA_STATUSCODE_BADTIMEOUT;
             break;
@@ -773,12 +775,13 @@ __Client_AsyncService(UA_Client *client, const void *request,
     }
 
     /* Set up the AsyncServiceCall for processing the response */
+    UA_EventLoop *el = client->config.eventLoop;
     const UA_RequestHeader *rh = (const UA_RequestHeader*)request;
     ac->callback = callback;
     ac->responseType = responseType;
     ac->userdata = userdata;
     ac->syncResponse = NULL;
-    ac->start = UA_DateTime_nowMonotonic();
+    ac->start = el->dateTime_nowMonotonic(el);
     ac->timeout = rh->timeoutHint;
     ac->requestHandle = rh->requestHandle;
     if(ac->timeout == 0)
@@ -914,9 +917,10 @@ asyncServiceTimeoutCheck(UA_Client *client) {
     /* Make this function reentrant. One of the async callbacks could indirectly
      * operate on the list. Moving all elements to a local list before iterating
      * that. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_AsyncServiceList asyncServiceCalls;
     AsyncServiceCall *ac, *ac_tmp;
-    UA_DateTime now = UA_DateTime_nowMonotonic();
     LIST_INIT(&asyncServiceCalls);
     LIST_FOREACH_SAFE(ac, &client->asyncServiceCalls, pointers, ac_tmp) {
         if(!ac->timeout)
@@ -945,8 +949,9 @@ backgroundConnectivityCallback(UA_Client *client, void *userdata,
             UA_LOCK(&client->clientMutex);
         }
     }
+    UA_EventLoop *el = client->config.eventLoop;
     client->pendingConnectivityCheck = false;
-    client->lastConnectivityCheck = UA_DateTime_nowMonotonic();
+    client->lastConnectivityCheck = el->dateTime_nowMonotonic(el);
     UA_UNLOCK(&client->clientMutex);
 }
 
@@ -958,7 +963,8 @@ __Client_backgroundConnectivity(UA_Client *client) {
     if(client->pendingConnectivityCheck)
         return;
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime nextDate = client->lastConnectivityCheck +
         (UA_DateTime)(client->config.connectivityCheckInterval * UA_DATETIME_MSEC);
     if(now <= nextDate)

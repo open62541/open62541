@@ -94,7 +94,8 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+
+    retval |= UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
@@ -504,7 +505,6 @@ int main(int argc, char **argv) {
                 printf("Error: UADP/ETH needs an interface name\n");
                 return EXIT_FAILURE;
             }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else {
             printf ("Error: unknown URI\n");
@@ -514,6 +514,9 @@ int main(int argc, char **argv) {
         if (strcmp(argv[argc-1], "-UseCustomMonitoring") == 0) {
             useCustomMonitoring = UA_TRUE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
     return run(&transportProfile, &networkAddressUrl, &useCustomMonitoring);
 }

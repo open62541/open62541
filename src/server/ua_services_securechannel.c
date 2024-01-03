@@ -72,9 +72,10 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Create a new SecurityToken. It will be switched over when the first
      * message is received. The ChannelId is left unchanged. */
+    UA_EventLoop *el = server->config.eventLoop;
     channel->altSecurityToken.channelId = channel->securityToken.channelId;
     channel->altSecurityToken.tokenId = generateSecureChannelTokenId(server);
-    channel->altSecurityToken.createdAt = UA_DateTime_nowMonotonic();
+    channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
         (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?
         server->config.maxSecurityTokenLifetime : request->requestedLifetime;
@@ -95,7 +96,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
 
     /* Set the response */
     response->securityToken = channel->altSecurityToken;
-    response->securityToken.createdAt = UA_DateTime_now(); /* only for sending */
+    response->securityToken.createdAt = el->dateTime_now(el); /* only for sending */
     response->responseHeader.timestamp = response->securityToken.createdAt;
     response->responseHeader.requestHandle = request->requestHeader.requestHandle;
     response->responseHeader.serviceResult =

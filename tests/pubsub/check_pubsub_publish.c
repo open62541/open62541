@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -20,11 +21,9 @@ UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
 #define publishedDataSet2Name "PublishedDataSet 2"
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     UA_Server_run_startup(server);
     //add 2 connections
@@ -53,7 +52,7 @@ START_TEST(AddWriterGroupWithValidConfiguration){
         writerGroupConfig.publishingInterval = 10;
         UA_NodeId localWriterGroup;
         retVal = UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
-        UA_Server_setWriterGroupOperational(server, localWriterGroup);
+        UA_Server_enableWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
@@ -72,7 +71,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         writerGroupConfig.publishingInterval = 10;
         UA_NodeId localWriterGroup;
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
-        retVal |= UA_Server_setWriterGroupOperational(server, localWriterGroup);
+        retVal |= UA_Server_enableWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_removeWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -83,7 +82,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         }
         ck_assert_uint_eq(writerGroupCount, 0);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
-        UA_Server_setWriterGroupOperational(server, localWriterGroup);
+        UA_Server_enableWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         writerGroupCount = 0;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
@@ -92,7 +91,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         ck_assert_uint_eq(writerGroupCount, 1);
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setWriterGroupOperational(server, localWriterGroup);
+        UA_Server_enableWriterGroup(server, localWriterGroup);
         writerGroupCount = 0;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
             writerGroupCount++;
@@ -136,7 +135,7 @@ START_TEST(GetWriterGroupConfigurationAndCompareValues){
         writerGroupConfig.publishingInterval = 10;
         UA_NodeId localWriterGroup;
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
-        UA_Server_setWriterGroupOperational(server, localWriterGroup);
+        UA_Server_enableWriterGroup(server, localWriterGroup);
         UA_WriterGroupConfig writerGroupConfigCopy;
         retVal |= UA_Server_getWriterGroupConfig(server, localWriterGroup, &writerGroupConfigCopy);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -154,17 +153,17 @@ static void setupDataSetWriterTestEnvironment(void){
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup1);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup1);
     writerGroupConfig.name = UA_STRING("WriterGroup 2");
     writerGroupConfig.publishingInterval = 50;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup2);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup2);
     writerGroupConfig.name = UA_STRING("WriterGroup 3");
     writerGroupConfig.publishingInterval = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup3);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup3);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
@@ -468,17 +467,17 @@ START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
-        UA_Server_setWriterGroupOperational(server, writerGroup1);
+        UA_Server_enableWriterGroup(server, writerGroup1);
         writerGroupConfig.name = UA_STRING("WriterGroup 2");
         writerGroupConfig.publishingInterval = 50;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup2);
-        UA_Server_setWriterGroupOperational(server, writerGroup2);
+        UA_Server_enableWriterGroup(server, writerGroup2);
         writerGroupConfig.name = UA_STRING("WriterGroup 3");
         writerGroupConfig.publishingInterval = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection2, &writerGroupConfig, &writerGroup3);
-        UA_Server_setWriterGroupOperational(server, writerGroup3);
+        UA_Server_enableWriterGroup(server, writerGroup3);
 
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));

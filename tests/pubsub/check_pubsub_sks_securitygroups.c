@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
@@ -27,7 +28,7 @@ UA_Boolean running;
 
 static void
 securityGroup_setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies =

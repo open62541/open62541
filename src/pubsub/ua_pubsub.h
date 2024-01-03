@@ -27,6 +27,67 @@
 #include <ua_pubsub_keystorage.h>
 #endif
 
+/**
+ * PubSub State Machine
+ * --------------------
+ * 
+ * The following table described the behaviour of components expected during
+ * state changes and also the integration which is expected between the
+ * components.
+ *
+ * We distinguish between `enabled` and `disabled` states. The disabled states
+ * or `Disabled` and `Error`. The difference is that disabled states need to
+ * manually enabled (via the _enable method call). The other states are either
+ * Operational or return automatically to the Operational state once the
+ * prerequisites are met.
+ * 
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |**Component**   |       |**Disabled**        |**Paused**      |**Pre-Operational** |**Operational** |**Error**       |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |PubSubConnection|Trigger|Manual disable      |Not available   |Manual enable ||    |Pre-Operational |Unrecoverable   |
+ * |                |       |                    |                |Recoverable abort of|&& Connected    |abort of the    |
+ * |                |       |                    |                |EventLoop connection|EventLoop       |EventLoop       |
+ * |                |       |                    |                |                    |connection      |connection ||   |
+ * |                |       |                    |                |                    |                |Internal Error  |
+ * |                +-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |                |Action |The underlying      |                |Start the async     |                |Same as the     |
+ * |                |       |connection is closed|                |opening of the      |                |Disabled case   |
+ * |                |       |(async). Immediately|                |underlying EventLoop|                |                |
+ * |                |       |set the EventLoop   |                |connection.         |                |                |
+ * |                |       |connection context  |                |Automatically switch|                |                |
+ * |                |       |pointer to NULL. So |                |to operational when |                |                |
+ * |                |       |that the            |                |the EventLoop       |                |                |
+ * |                |       |PubSubConnection can|                |connection is fully |                |                |
+ * |                |       |be freed without    |                |open. This can only |                |                |
+ * |                |       |waiting for the     |                |be signaled by the  |                |                |
+ * |                |       |EventLoop connection|                |underlying EventLoop|                |                |
+ * |                |       |to finish closing.  |                |connection in the   |                |                |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |WriterGroup     |Trigger|Manual disable      |WG is enabled &&|WG is enabled &&    |WG is enabled &&|Internal error  |
+ * |                |       |                    |PubSubConnection|PubSubConnection    |PubSubConnection|                |
+ * |                |       |                    |not enabled     |Pre-Operational     |Operational     |                |
+ * |                +-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |                |Action |Publish callback    |Publish callback|Publish callback    |Publish callback|Publish callback|
+ * |                |       |deregistered        |deregistered    |deregistered        |registered      |deregistered    |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |DataSetWriter   |Trigger|Manual disable      |DSW enabled &&  |DSW enabled && WG   |DSW enabled &&  |Internal error  |
+ * |                |       |                    |WG is not       |Pre-Operational     |WG is           |                |
+ * |                |       |                    |enabled         |                    |Operational     |                |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |ReaderGroup     |Trigger|Manual disable      |RG enabled &&   |RG enabled &&       |RG enabled &&   |Internal error  |
+ * |                |       |                    |PubSubConnection|(PubSubConnection   |PubSubConnection|                |
+ * |                |       |                    |not enabled     |Pre-Operational ||  |Operational &&  |                |
+ * |                |       |                    |                |RG-connection not   |RG-connection   |                |
+ * |                |       |                    |                |fully established)  |established     |                |
+ * |                +-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |                |Action |RG connection       |RG connection   |RG connection       |RG connection   |RG connection   |
+ * |                |       |disconnected        |disconnected    |connected           |connected       |disconnected    |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ * |DataSetReader   |Trigger|Manual disable      |DSR enabled &&  |DSR enabled && RG   |DSR enabled &&  |Internal error  |
+ * |                |       |                    |RG not enabled  |Pre-Operational     |RG Operational  |                |
+ * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
+ */
+
 _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
@@ -253,6 +314,7 @@ typedef struct UA_DataSetWriter {
 
     UA_UInt16 actualDataSetMessageSequenceCount;
     UA_Boolean configurationFrozen;
+    UA_UInt64  pubSubStateTimerId;
 } UA_DataSetWriter;
 
 UA_StatusCode
@@ -265,8 +327,7 @@ UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server,
                                 UA_DataSetWriter *dataSetWriter,
-                                UA_PubSubState state,
-                                UA_StatusCode cause);
+                                UA_PubSubState state);
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
@@ -374,6 +435,9 @@ UA_StatusCode
 UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg,
                        UA_Boolean validate);
 
+UA_Boolean
+UA_WriterGroup_canConnect(UA_WriterGroup *wg);
+
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              UA_UInt32 securityTokenId,
@@ -397,9 +461,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server,
                               UA_WriterGroup *writerGroup,
-                              UA_PubSubState state,
-                              UA_StatusCode cause);
-
+                              UA_PubSubState targetState);
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
 
@@ -410,6 +472,10 @@ UA_WriterGroup_publishCallback(UA_Server *server,
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
                             const UA_WriterGroupConfig *config);
+
+UA_StatusCode
+UA_WriterGroup_enableWriterGroup(UA_Server *server,
+                                 const UA_NodeId writerGroup);
 
 #define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WRITERGROUP, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -482,7 +548,7 @@ typedef struct UA_DataSetReader {
     UA_NodeId linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
-    UA_PubSubState state; /* non std */
+    UA_PubSubState state;
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
@@ -531,11 +597,10 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
                                     const UA_FieldTargetVariable *targetVariables);
 
+/* Returns an error reason if the target state is `Error` */
 UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server,
-                                UA_DataSetReader *dataSetReader,
-                                UA_PubSubState state,
-                                UA_StatusCode cause);
+UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
+                                UA_PubSubState targetState);
 
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -582,6 +647,7 @@ struct UA_ReaderGroup {
 
     UA_PubSubState state;
     UA_Boolean configurationFrozen;
+    UA_Boolean hasReceived; /* Received a message since the last _connect */
 
     /* The ConnectionManager pointer is stored in the Connection. The channels 
      * are either stored here or in the Connection, but never both. */
@@ -640,10 +706,8 @@ UA_StatusCode
 UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server,
-                              UA_ReaderGroup *readerGroup,
-                              UA_PubSubState state,
-                              UA_StatusCode cause);
+UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
+                              UA_PubSubState targetState);
 
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
@@ -837,7 +901,7 @@ UA_Guid
 UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference(void);
+UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
 /*************************************************/
 /*      PubSub component monitoring              */

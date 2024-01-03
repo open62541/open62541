@@ -262,19 +262,11 @@ UA_Server_delete(UA_Server *server) {
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    UA_MonitoredItem *mon, *mon_tmp;
-    LIST_FOREACH_SAFE(mon, &server->localMonitoredItems, listEntry, mon_tmp) {
-        LIST_REMOVE(mon, listEntry);
-        UA_MonitoredItem_delete(server, mon);
-    }
-
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
     LIST_FOREACH_SAFE(sub, &server->subscriptions, serverListEntry, sub_tmp) {
         UA_Subscription_delete(server, sub);
     }
-    UA_assert(server->monitoredItemsSize == 0);
-    UA_assert(server->subscriptionsSize == 0);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_ConditionList_delete(server);
@@ -292,6 +284,11 @@ UA_Server_delete(UA_Server *server) {
 
     /* Clean up the Admin Session */
     UA_Session_clear(&server->adminSession, server);
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    server->adminSubscription = NULL;
+    UA_assert(server->monitoredItemsSize == 0);
+    UA_assert(server->subscriptionsSize == 0);
+#endif
 
     /* Remove all remaining server components (must be all stopped) */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
@@ -316,8 +313,8 @@ UA_Server_delete(UA_Server *server) {
 static void
 serverHouseKeeping(UA_Server *server, void *_) {
     UA_LOCK(&server->serviceMutex);
-    UA_DateTime nowMonotonic = UA_DateTime_nowMonotonic();
-    UA_Server_cleanupSessions(server, nowMonotonic);
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_Server_cleanupSessions(server, el->dateTime_nowMonotonic(el));
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -356,6 +353,13 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.sessionId.identifier.guid.data1 = 1;
     server->adminSession.validTill = UA_INT64_MAX;
     server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
+
+#ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* Initialize the adminSubscription */
+    server->adminSubscription = UA_Subscription_new();
+    UA_CHECK_MEM(server->adminSubscription, goto cleanup);
+    UA_Session_attachSubscription(&server->adminSession, server->adminSubscription);
+#endif
 
     /* Create Namespaces 0 and 1
      * Ns1 will be filled later with the uri from the app description */
@@ -448,9 +452,15 @@ setServerShutdown(UA_Server *server) {
         return false;
     if(server->config.shutdownDelay == 0)
         return true;
+
     UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                   "Shutting down the server with a delay of %i ms", (int)server->config.shutdownDelay);
-    server->endTime = UA_DateTime_now() + (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+                   "Shutting down the server with a delay of %i ms",
+                   (int)server->config.shutdownDelay);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    server->endTime = el->dateTime_now(el) +
+        (UA_DateTime)(server->config.shutdownDelay * UA_DATETIME_MSEC);
+
     return false;
 }
 
@@ -601,32 +611,32 @@ getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPol
     return NULL;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 /* The local ApplicationURI has to match the certificates of the
  * SecurityPolicies */
 static UA_StatusCode
 verifyServerApplicationURI(const UA_Server *server) {
-    const UA_String securityPolicyNoneUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    const UA_String securityPolicyNoneUri =
+        UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &server->config.securityPolicies[i];
-        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) && (sp->localCertificate.length == 0))
+        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) &&
+           sp->localCertificate.length == 0)
             continue;
         UA_StatusCode retval = server->config.secureChannelPKI.
             verifyApplicationURI(&server->config.secureChannelPKI,
                                  &sp->localCertificate,
                                  &server->config.applicationDescription.applicationUri);
-
-        UA_CHECK_STATUS_ERROR(retval, return retval, server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "The configured ApplicationURI \"%.*s\"does not match the "
-                       "ApplicationURI specified in the certificate for the "
-                       "SecurityPolicy %.*s",
-                       (int)server->config.applicationDescription.applicationUri.length,
-                       server->config.applicationDescription.applicationUri.data,
-                       (int)sp->policyUri.length, sp->policyUri.data);
+        UA_CHECK_STATUS_ERROR(retval, return retval, server->config.logging,
+                              UA_LOGCATEGORY_SERVER,
+                              "The configured ApplicationURI \"%.*s\" does not match the "
+                              "ApplicationURI specified in the certificate for the "
+                              "SecurityPolicy %.*s", (int)
+                              server->config.applicationDescription.applicationUri.length,
+                              server->config.applicationDescription.applicationUri.data,
+                              (int)sp->policyUri.length, sp->policyUri.data);
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif
 
 UA_ServerStatistics
 UA_Server_getStatistics(UA_Server *server) {
@@ -727,9 +737,12 @@ UA_Server_run_startup(UA_Server *server) {
     UA_LOCK(&server->serviceMutex);
 
     /* Does the ApplicationURI match the local certificates? */
-#ifdef UA_ENABLE_ENCRYPTION
     retVal = verifyServerApplicationURI(server);
     UA_CHECK_STATUS(retVal, UA_UNLOCK(&server->serviceMutex); return retVal);
+
+#if UA_MULTITHREADING >= 100
+    /* Add regulare callback for async operation processing */
+    UA_AsyncManager_start(&server->asyncManager, server);
 #endif
 
     /* Are there enough SecureChannels possible for the max number of sessions? */
@@ -772,7 +785,7 @@ UA_Server_run_startup(UA_Server *server) {
     writeValueAttribute(server, serverArray, &var);
 
     /* Sample the start time and set it to the Server object */
-    server->startTime = UA_DateTime_now();
+    server->startTime = el->dateTime_now(el);
     UA_Variant_init(&var);
     UA_Variant_setScalar(&var, &server->startTime, &UA_TYPES[UA_TYPES_DATETIME]);
     UA_NodeId startTime =
@@ -815,7 +828,8 @@ testShutdownCondition(UA_Server *server) {
     /* Was there a wait time until the shutdown configured? */
     if(server->endTime == 0)
         return false;
-    return (UA_DateTime_now() > server->endTime);
+    UA_EventLoop *el = server->config.eventLoop;
+    return (el->dateTime_now(el) > server->endTime);
 }
 
 static UA_Boolean
@@ -843,6 +857,11 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Set to stopping and notify the application */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
+
+#if UA_MULTITHREADING >= 100
+    /* Stop regular callback for async operation processing */
+    UA_AsyncManager_stop(&server->asyncManager, server);
+#endif
 
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {

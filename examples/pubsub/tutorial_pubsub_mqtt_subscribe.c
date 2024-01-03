@@ -9,8 +9,11 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include <stdio.h>
+
 #define CONNECTION_NAME               "MQTT Subscriber Connection"
-#define TRANSPORT_PROFILE_URI         "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
+#define TRANSPORT_PROFILE_URI_UADP    "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"
+#define TRANSPORT_PROFILE_URI_JSON    "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"
 #define MQTT_CLIENT_ID                "TESTCLIENTPUBSUBMQTTSUBSCRIBE"
 #define CONNECTIONOPTION_NAME         "mqttClientId"
 #define SUBSCRIBER_TOPIC              "customTopic"
@@ -49,11 +52,7 @@ UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 #endif
 
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean useJson = true;
-#else
 static UA_Boolean useJson = false;
-#endif
 
 UA_NodeId connectionIdent;
 UA_NodeId subscribedDataSetIdent;
@@ -71,7 +70,11 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
+    if (useJson) {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_JSON);
+    } else {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
+    }
     connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
@@ -175,6 +178,7 @@ addReaderGroup(UA_Server *server) {
 
     retval |= UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                        &readerGroupIdent);
+    UA_Server_enableReaderGroup(server, readerGroupIdent);
 #if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
@@ -184,7 +188,6 @@ addReaderGroup(UA_Server *server) {
     // TODO security token not necessary for readergroup (extracted from security-header)
     retval |= UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdent, 1, sk, ek, kn);
 #endif
-    retval |= UA_Server_setReaderGroupOperational(server, readerGroupIdent);
 
     return retval;
 }
@@ -359,11 +362,47 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
+static void usage(void) {
+    printf("Usage: tutorial_pubsub_mqtt_subscribe [--url <opc.mqtt://hostname:port>] "
+           "[--json]\n"
+           "  Defaults are:\n"
+           "  - Url: opc.mqtt://127.0.0.1:1883\n"
+           "  - JSON: Off\n");
+}
+
 /**
  * Followed by the main server code, making use of the above definitions */
 
 int main(int argc, char **argv) {
     char *addressUrl = BROKER_ADDRESS_URL;
+
+    /* Parse arguments */
+    for(int argpos = 1; argpos < argc; argpos++) {
+        if(strcmp(argv[argpos], "--help") == 0) {
+            usage();
+            return 0;
+        }
+
+        if(strcmp(argv[argpos], "--json") == 0) {
+#ifdef UA_ENABLE_JSON_ENCODING
+            useJson = true;
+#else 
+            printf("Json encoding not enabled (UA_ENABLE_JSON_ENCODING)\n");
+            useJson = false;
+#endif
+            continue;
+        }
+
+        if(strcmp(argv[argpos], "--url") == 0) {
+            if(argpos + 1 == argc) {
+                usage();
+                return -1;
+            }
+            argpos++;
+            addressUrl = argv[argpos];
+            continue;
+        }
+    }
 
     /* Return value initialized to Status Good */
     UA_Server *server = UA_Server_new();

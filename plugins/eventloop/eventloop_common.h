@@ -29,7 +29,7 @@ UA_StatusCode
 UA_KeyValueRestriction_validate(const UA_Logger *logger,
                                 const char *logprefix,
                                 const UA_KeyValueRestriction *restrictions,
-                                size_t restrictionsSiz,
+                                size_t restrictionsSize,
                                 const UA_KeyValueMap *map);
 
 _UA_END_DECLS

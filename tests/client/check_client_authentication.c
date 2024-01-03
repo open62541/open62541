@@ -21,6 +21,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "certificates.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -61,7 +62,7 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
@@ -101,7 +102,7 @@ START_TEST(Client_connect_certificate) {
     privateKeyAuth.length = CLIENT_KEY_AUTH_DER_LENGTH;
     privateKeyAuth.data = CLIENT_KEY_AUTH_DER_DATA;
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *cc = UA_Client_getConfig(client);
 
     /* Set securityMode and securityPolicyUri */
@@ -145,7 +146,7 @@ START_TEST(Client_connect_invalid_certificate) {
         privateKeyAuth.length = CLIENT_KEY_DER_LENGTH;
         privateKeyAuth.data = CLIENT_KEY_DER_DATA;
 
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *cc = UA_Client_getConfig(client);
 
         /* Set securityMode and securityPolicyUri */

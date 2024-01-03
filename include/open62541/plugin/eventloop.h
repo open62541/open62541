@@ -91,7 +91,10 @@ struct UA_EventLoop {
      * The configuration should be set before the EventLoop is started */
 
     const UA_Logger *logger;
-    UA_KeyValueMap *params; /* See the implementation-specific documentation */
+
+    /* See the implementation-specific documentation for possible parameters.
+     * The params map is cleaned up when the EventLoop is _free'd. */
+    UA_KeyValueMap params;
 
     /* EventLoop Lifecycle
      * ~~~~~~~~~~~~~~~~~~~~
@@ -122,18 +125,25 @@ struct UA_EventLoop {
     /* EventLoop Time Domain
      * ~~~~~~~~~~~~~~~~~~~~~
      * Each EventLoop instance can manage its own time domain. This affects the
-     * execution of timed/cyclic callbacks and time-based sending of network
-     * packets (if this is implemented). Managing independent time domains is
-     * important when different parts of a system a synchronized to different
-     * external (network-wide) clocks.
+     * execution of timed callbacks and time-based sending of network packets.
+     * Managing independent time domains is important when different parts of
+     * the same system are synchronized to different external master clocks.
+     *
+     * Each EventLoop uses a "normal" and a "monotonic" clock. The monotonic
+     * clock does not (necessarily) conform to the current wallclock date. But
+     * its time intervals are more precise. So it is used for all internally
+     * scheduled events of the EventLoop (e.g. timed callbacks and time-based
+     * sending of network packets). The normal and monotonic clock sources can
+     * be configured via parameters before starting the EventLoop. See the
+     * architecture-specific documentation for that.
      *
      * Note that the logger configured in the EventLoop generates timestamps
-     * internally as well. If the logger uses a different time domain than the
+     * independently. If the logger uses a different time domain than the
      * EventLoop, discrepancies may appear in the logs.
      *
-     * The time domain of the EventLoop is exposed via the following functons.
-     * See `open62541/types.h` for the documentation of their equivalent
-     * globally defined functions. */
+     * The EventLoop clocks can be read via the following functons. See
+     * `open62541/types.h` for the documentation of their equivalent globally
+     * defined functions. */
 
     UA_DateTime (*dateTime_now)(UA_EventLoop *el);
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
@@ -417,13 +427,22 @@ struct UA_InterruptManager {
     (*deregisterInterrupt)(UA_InterruptManager *im, uintptr_t interruptHandle);
 };
 
-/**
- * POSIX-Specific Implementation
- * -----------------------------
- * The POSIX compatibility of WIN32 is 'close enough'. So a joint implementation
- * is provided. */
-
 #if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
+/**
+ * POSIX EventLop Implementation
+ * -----------------------------
+ * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
+ * is provided.
+ *
+ * Configuration parameters (only Linux and BSDs, must be set before start to
+ * take effect):
+ * - 0:clock-source [int32]: Clock source (default: CLOCK_REALTIME).
+ * - 0:clock-source-monotonic [int32]: Clock source used for time intervals. A
+ *     non-monotonic source can be used as well. But expect accordingly longer
+ *     sleep-times for timed events when the clock is set to the past. See the
+ *     man-page of "clock_gettime" on how to get a clock source id for a
+ *     character-device such as /dev/ptp0. (default: CLOCK_MONOTONIC_RAW)*/
 
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
@@ -445,12 +464,13 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * socket is reused for each new connection. But the key-value parameters for
  * the first callback are different between server and client connections.
  *
- * The following list defines the parameters and their type. Note that some
- * parameters are only set for the first callback when a new connection opens.
- *
- * Configuration parameters for the entire ConnectionManager:
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
  * - 0:address [string | array of string]: Hostname or IPv4/v6 address for the
@@ -485,13 +505,15 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  * The configuration parameters have to set before calling _start to take
  * effect.
  *
- * Configuration Parameters:
- *
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
- *
  * - 0:listen [boolean]: Use the connection for listening or for sending
  *       (default: false)
  * - 0:address [string | string array]: Hostname (or IPv4/v6 address) for
@@ -517,7 +539,6 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *       provided parameters (default: false)
  *
  * Connection Callback Paramters:
- *
  * - 0:remote-address [string]: Contains the remote IP address.
  * - 0:remote-port [uint16]: Contains the remote port.
  *
@@ -532,8 +553,13 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * Listens on the network and manages UDP connections. This should be available
  * for all architectures.
  *
- * The configuration parameters have to set before calling _start to take
- * effect.
+ * Configuration parameters for the ConnectionManager (set before _start):
+ * - 0:recv-bufsize [uint32]: Size of the buffer that is statically allocated
+ *       for receiving messages (default: 65536).
+ * - 0:send-bufsize [uint32]: Size of the statically allocated buffer for
+ *       sending messages. This then becomes an upper bound for the message
+ *       size. If undefined a fresh buffer is allocated for every
+ *       `allocNetworkBuffer` (default: no buffer).
  *
  * Open Connection Parameters:
  * - 0:listen [bool]: The connection is either for sending or for listening
@@ -549,15 +575,34 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  *                         with different EtherTypes.
  * - 0:promiscuous [bool]: Receive frames also for different target addresses.
  *                         Defined only for listening connections (default: false).
+ * - 0:priority [int32]: Set the socket priority for sending (cf. SO_PRIORITY)
  * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
  * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
- * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
+ * - 0:dei [bool]: 1-bit drop eligible indicator (optional for send connections).
  * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
  *       without actually creating any connection but solely validating the
  *       provided parameters (default: false)
  *
- * Send Parameters:
- * No additional parameters for sending over an Ethernet connection defined. */
+ * Sending with a txtime (for Time-Sensitive Networking) is possible on recent
+ * Linux kernels, If enabled for the socket, then a txtime parameters can be
+ * passed to `sendWithConnection`. Note that the clock source for txtime sending
+ * is the monotonic clock source set for the entire EventLoop. Check the
+ * EventLoop parameters for how to set that e.g. to a PTP clock source.
+ *
+ * The txtime configuration uses Linux conventions:
+ * - 0:txtime-enable [bool]: Enable sending with a txtime for the connection
+ *                           (default: false).
+ * - 0:txtime-flags [uint32]: txtime flags set for the socket (default:
+ *                            SOF_TXTIME_REPORT_ERRORS).
+ *
+ * Send Parameters (only with txtime enabled for the connection):
+ * - 0:txtime [datetime]: Time when the message is sent out (Datetime has 100ns
+ *                        precision) for the "monotonic" clock source of the
+ *                        EventLoop.
+ * - 0:txtime-pico [uint16]: Picoseconds added to the txtime timestamp
+ *                           (default: 0).
+ * - 0:txtime-drop-late [bool]: Drop message if it cannot be sent in time
+ *                              (default: true). */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 

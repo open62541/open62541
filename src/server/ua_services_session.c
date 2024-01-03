@@ -142,7 +142,9 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
             continue;
 
         /* Session has timed out */
-        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
+        if(now > current->session.validTill) {
             UA_LOG_INFO_SESSION(server->config.logging, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
@@ -165,7 +167,9 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId) {
             continue;
 
         /* Session has timed out */
-        if(UA_DateTime_nowMonotonic() > current->session.validTill) {
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
+        if(now > current->session.validTill) {
             UA_LOG_INFO_SESSION(server->config.logging, &current->session,
                                 "Client tries to use a session that has timed out");
             return NULL;
@@ -251,7 +255,11 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     /* Attach the session to the channel. But don't activate for now. */
     if(channel)
         UA_Session_attachToSecureChannel(&newentry->session, channel);
-    UA_Session_updateLifetime(&newentry->session);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime now = el->dateTime_now(el);
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_Session_updateLifetime(&newentry->session, now, nowMonotonic);
 
     /* Add to the server */
     LIST_INSERT_HEAD(&server->sessions, newentry, pointers);
@@ -383,7 +391,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
 #ifdef UA_ENABLE_DIAGNOSTICS
-    newSession->diagnostics.clientConnectionTime = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    newSession->diagnostics.clientConnectionTime = el->dateTime_now(el);
     newSession->diagnostics.clientLastContactTime =
         newSession->diagnostics.clientConnectionTime;
 
@@ -520,18 +529,22 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             if(pol->securityPolicyUri.length > 0)
                 *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
 
+            /* If the server does not allow unencrypted passwords, select the
+             * default encrypted policy for the UserTokenPolicy */
 #ifdef UA_ENABLE_ENCRYPTION
-            if(!*tokenSp || (!server->config.allowNonePolicyPassword &&
-               ((*tokenSp)->localCertificate.length == 0 ||
-               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))))
+            if(!*tokenSp ||
+               (!server->config.allowNonePolicyPassword &&
+                ((*tokenSp)->localCertificate.length == 0 ||
+                 UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))))
                 *tokenSp = getDefaultEncryptedSecurityPolicy(server);
 #endif
+
+            /* Found SecurityPolicy and UserTokenPoliy. Stop here. */
             return;
         }
     }
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 static UA_StatusCode
 decryptUserNamePW(UA_Server *server, UA_Session *session,
                   const UA_SecurityPolicy *sp,
@@ -677,7 +690,6 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     UA_LOCK(&server->serviceMutex);
     return res;
 }
-#endif
 
 /* TODO: Check all of the following: The Server shall verify that the
  * Certificate the Client used to create the new SecureChannel is the same as
@@ -720,7 +732,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Has the session timed out? */
-    if(session->validTill < UA_DateTime_nowMonotonic()) {
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    if(session->validTill < nowMonotonic) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: The Session has timed out");
         resp->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
@@ -753,7 +767,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         goto rejected;
     }
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(utp->tokenType == UA_USERTOKENTYPE_USERNAME) {
         /* If it is a UserNameIdentityToken, the password may be encrypted */
        UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken *)
@@ -776,7 +789,6 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
        if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
            goto securityRejected;
     }
-#endif
 
     /* Callback into userland access control */
     UA_UNLOCK(&server->serviceMutex);
@@ -836,7 +848,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     /* Update the Session lifetime */
-    UA_Session_updateLifetime(session);
+    nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_DateTime now = el->dateTime_now(el);
+    UA_Session_updateLifetime(session, now, nowMonotonic);
 
     /* Activate the session */
     if(!session->activated) {

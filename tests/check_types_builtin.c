@@ -7,7 +7,7 @@
 #include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 #include <check.h>

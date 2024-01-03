@@ -90,7 +90,8 @@ void UA_Session_detachFromSecureChannel(UA_Session *session);
 UA_StatusCode UA_Session_generateNonce(UA_Session *session);
 
 /* If any activity on a session happens, the timeout is extended */
-void UA_Session_updateLifetime(UA_Session *session);
+void UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
+                               UA_DateTime nowMonotonic);
 
 /**
  * Subscription handling

@@ -328,7 +328,7 @@ addPubSubConfiguration(UA_Server* server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 }
 
 static void

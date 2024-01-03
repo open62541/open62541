@@ -206,7 +206,7 @@ int main(void){
 
     /* Freeze the PubSub configuration (and start implicitly the publish callback) */
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
     UA_Server_addRepeatedCallback(server, cyclicValueUpdateCallback_UpdateToMemory, NULL,
                                   1000, NULL);

@@ -22,6 +22,7 @@
 
 #include "client/ua_client_internal.h"
 #include <server/ua_server_internal.h>
+#include "test_helpers.h"
 
 #include <dirent.h>
 #include <fcntl.h>
@@ -567,8 +568,7 @@ int main(void) {
     emptyCorpusDir();
     start_server();
 
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
 
     // this will also call getEndpointsRequest
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
@@ -579,8 +579,7 @@ int main(void) {
 
     if(retval == UA_STATUSCODE_GOOD) {
         // now also connect with user/pass so that fuzzer also knows how to do that
-        client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        client = UA_Client_newForUnitTest();
         retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
         retval = retval == UA_STATUSCODE_BADUSERACCESSDENIED ? UA_STATUSCODE_GOOD : retval;
         UA_Client_disconnect(client);

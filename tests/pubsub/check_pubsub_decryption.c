@@ -11,6 +11,7 @@
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <ctype.h>
@@ -48,9 +49,8 @@ UA_NodeId writerGroupId, readerGroupId, connectionId;
 
 static void
 setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
 
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
@@ -58,7 +58,7 @@ setup(void) {
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
                                       config->logging);
 
-    retVal |= UA_Server_run_startup(server);
+    UA_StatusCode retVal = UA_Server_run_startup(server);
     // add connection
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));

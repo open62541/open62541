@@ -9,6 +9,10 @@
 #include "eventloop_posix.h"
 #include "open62541/plugin/eventloop.h"
 
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+#include <time.h>
+#endif
+
 /*********/
 /* Timer */
 /*********/
@@ -40,8 +44,9 @@ UA_EventLoopPOSIX_addCyclicCallback(UA_EventLoop *public_el,
                                     UA_UInt64 *callbackId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     return UA_Timer_addRepeatedCallback(&el->timer, cb, application,
-                                        data, interval_ms, baseTime,
-                                        timerPolicy, callbackId);
+                                        data, interval_ms,
+                                        public_el->dateTime_nowMonotonic(public_el),
+                                        baseTime, timerPolicy, callbackId);
 }
 
 static UA_StatusCode
@@ -51,9 +56,9 @@ UA_EventLoopPOSIX_modifyCyclicCallback(UA_EventLoop *public_el,
                                        UA_DateTime *baseTime,
                                        UA_TimerPolicy timerPolicy) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    return UA_Timer_changeRepeatedCallback(&el->timer, callbackId,
-                                           interval_ms, baseTime,
-                                           timerPolicy);
+    return UA_Timer_changeRepeatedCallback(&el->timer, callbackId, interval_ms,
+                                           public_el->dateTime_nowMonotonic(public_el),
+                                           baseTime, timerPolicy);
 }
 
 static void
@@ -132,6 +137,34 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                 "Starting the EventLoop");
+
+    /* Setting the clock source */
+    const UA_Int32 *cs = (const UA_Int32*)
+        UA_KeyValueMap_getScalar(&el->eventLoop.params,
+                                 UA_QUALIFIEDNAME(0, "clock-source"),
+                                 &UA_TYPES[UA_TYPES_INT32]);
+    const UA_Int32 *csm = (const UA_Int32*)
+        UA_KeyValueMap_getScalar(&el->eventLoop.params,
+                                 UA_QUALIFIEDNAME(0, "clock-source-monotonic"),
+                                 &UA_TYPES[UA_TYPES_INT32]);
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    el->clockSource = CLOCK_REALTIME;
+    if(cs)
+        el->clockSource = *cs;
+
+# ifdef CLOCK_MONOTONIC_RAW
+    el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
+# else
+    el->clockSourceMonotonic = CLOCK_MONOTONIC;
+# endif
+    if(csm)
+        el->clockSourceMonotonic = *csm;
+#else
+    if(cs || csm) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "Eventloop\t| Cannot set a custom clock source");
+    }
+#endif
 
 #ifdef UA_HAVE_EPOLL
     el->epollfd = epoll_create1(0);
@@ -365,21 +398,39 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 /* Time Domain */
 /***************/
 
-/* No special synchronization with an external source, just use the globally
- * defined functions. */
-
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+    struct timespec ts;
+    int res = clock_gettime(pel->clockSource, &ts);
+    if(UA_UNLIKELY(res != 0))
+        return 0;
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
+#else
     return UA_DateTime_now();
+#endif
 }
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
+#if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
+    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+    struct timespec ts;
+    int res = clock_gettime(pel->clockSourceMonotonic, &ts);
+    if(UA_UNLIKELY(res != 0))
+        return 0;
+    /* Also add the unix epoch for the monotonic clock. So we get a "normal"
+     * output when a "normal" source is configured. */
+    return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
+#else
     return UA_DateTime_nowMonotonic();
+#endif
 }
 
 static UA_Int64
 UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
+    /* TODO: Fix for custom clock sources */
     return UA_DateTime_localTimeUtcOffset();
 }
 
@@ -419,6 +470,8 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Stop the Windows networking subsystem */
     WSACleanup();
 #endif
+
+    UA_KeyValueMap_clear(&el->eventLoop.params);
 
     /* Clean up */
     UA_UNLOCK(&el->elMutex);
@@ -482,18 +535,30 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      uintptr_t connectionId,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
-    return UA_ByteString_allocBuffer(buf, bufSize);
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    if(pcm->txBuffer.length == 0)
+        return UA_ByteString_allocBuffer(buf, bufSize);
+    if(pcm->txBuffer.length < bufSize)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    *buf = pcm->txBuffer;
+    buf->length = bufSize;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
-    UA_ByteString_clear(buf);
+    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    if(pcm->txBuffer.data == buf->data)
+        UA_ByteString_init(buf);
+    else
+        UA_ByteString_clear(buf);
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm) {
+UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
@@ -503,9 +568,18 @@ UA_EventLoopPOSIX_allocateRXBuffer(UA_POSIXConnectionManager *pcm) {
         rxBufSize = *configRxBufSize;
     if(pcm->rxBuffer.length != rxBufSize) {
         UA_ByteString_clear(&pcm->rxBuffer);
-        return UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
+        res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
-    return UA_STATUSCODE_GOOD;
+
+    const UA_UInt32 *txBufSize = (const UA_UInt32 *)
+        UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
+                                 UA_QUALIFIEDNAME(0, "send-bufsize"),
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+    if(txBufSize && pcm->txBuffer.length != *txBufSize) {
+        UA_ByteString_clear(&pcm->txBuffer);
+        res |= UA_ByteString_allocBuffer(&pcm->txBuffer, *txBufSize);
+    }
+    return res;
 }
 
 /* Socket Handling */

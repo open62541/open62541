@@ -24,37 +24,37 @@ _UA_BEGIN_DECLS
 
 typedef void (*UA_ClientAsyncReadCallback)(UA_Client *client, void *userdata,
                                            UA_UInt32 requestId, UA_ReadResponse *rr);
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncReadRequest(UA_Client *client, UA_ReadRequest *request,
                                UA_ClientAsyncReadCallback readCallback, void *userdata,
-                               UA_UInt32 *reqId) {
+                               UA_UInt32 *reqId) ,{
     return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_READREQUEST],
                                       (UA_ClientAsyncServiceCallback)readCallback,
                                       &UA_TYPES[UA_TYPES_READRESPONSE], userdata, reqId);
-}
+})
 
 typedef void (*UA_ClientAsyncWriteCallback)(UA_Client *client, void *userdata,
                                             UA_UInt32 requestId, UA_WriteResponse *wr);
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncWriteRequest(UA_Client *client, UA_WriteRequest *request,
                                 UA_ClientAsyncWriteCallback writeCallback, void *userdata,
-                                UA_UInt32 *reqId) {
+                                UA_UInt32 *reqId) ,{
     return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
                                       (UA_ClientAsyncServiceCallback)writeCallback,
                                       &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
-}
+})
 
 typedef void (*UA_ClientAsyncBrowseCallback)(UA_Client *client, void *userdata,
                                              UA_UInt32 requestId, UA_BrowseResponse *wr);
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_sendAsyncBrowseRequest(UA_Client *client, UA_BrowseRequest *request,
                                  UA_ClientAsyncBrowseCallback browseCallback,
-                                 void *userdata, UA_UInt32 *reqId) {
+                                 void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_AsyncService(client, request, &UA_TYPES[UA_TYPES_BROWSEREQUEST],
                                       (UA_ClientAsyncServiceCallback)browseCallback,
                                       &UA_TYPES[UA_TYPES_BROWSERESPONSE], userdata,
                                       reqId);
-}
+})
 
 typedef void (*UA_ClientAsyncBrowseNextCallback)(UA_Client *client, void *userdata,
                                                  UA_UInt32 requestId, UA_BrowseNextResponse *wr);
@@ -340,207 +340,209 @@ __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_ClientAsyncServiceCallback callback, void *userdata,
                                  UA_UInt32 *reqId);
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                     const UA_Variant *newValue,
                                     UA_ClientAsyncWriteCallback callback, void *userdata,
-                                    UA_UInt32 *reqId) {
+                                    UA_UInt32 *reqId) ,{
 
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_VALUE, newValue, &UA_TYPES[UA_TYPES_VARIANT],
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeNodeIdAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                      const UA_NodeId *outNodeId,
                                      UA_ClientAsyncServiceCallback callback,
-                                     void *userdata, UA_UInt32 *reqId) {
+                                     void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_NODEID,
                                             outNodeId, &UA_TYPES[UA_TYPES_NODEID],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_NodeClass *outNodeClass,
                                         UA_ClientAsyncServiceCallback callback,
-                                        void *userdata, UA_UInt32 *reqId) {
+                                        void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_NODECLASS,
                                             outNodeClass, &UA_TYPES[UA_TYPES_NODECLASS],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeBrowseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_QualifiedName *outBrowseName,
                                          UA_ClientAsyncServiceCallback callback,
-                                         void *userdata, UA_UInt32 *reqId) {
+                                         void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_BROWSENAME, outBrowseName,
         &UA_TYPES[UA_TYPES_QUALIFIEDNAME], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outDisplayName,
                                           UA_ClientAsyncServiceCallback callback,
-                                          void *userdata, UA_UInt32 *reqId) {
+                                          void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME, outDisplayName,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeDescriptionAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outDescription,
                                           UA_ClientAsyncServiceCallback callback,
-                                          void *userdata, UA_UInt32 *reqId) {
+                                          void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION, outDescription,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_UInt32 *outWriteMask,
                                         UA_ClientAsyncServiceCallback callback,
-                                        void *userdata, UA_UInt32 *reqId) {
+                                        void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
                                             outWriteMask, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_UInt32 *outUserWriteMask,
                                             UA_ClientAsyncServiceCallback callback,
-                                            void *userdata, UA_UInt32 *reqId) {
+                                            void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_USERWRITEMASK,
                                             outUserWriteMask, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_Boolean *outIsAbstract,
                                          UA_ClientAsyncServiceCallback callback,
-                                         void *userdata, UA_UInt32 *reqId) {
+                                         void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
                                             outIsAbstract, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Boolean *outSymmetric,
                                         UA_ClientAsyncServiceCallback callback,
-                                        void *userdata, UA_UInt32 *reqId) {
+                                        void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
                                             outSymmetric, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeInverseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outInverseName,
                                           UA_ClientAsyncServiceCallback callback,
-                                          void *userdata, UA_UInt32 *reqId) {
+                                          void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_INVERSENAME, outInverseName,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                               const UA_Boolean *outContainsNoLoops,
                                               UA_ClientAsyncServiceCallback callback,
-                                              void *userdata, UA_UInt32 *reqId) {
+                                              void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, outContainsNoLoops,
         &UA_TYPES[UA_TYPES_BOOLEAN], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeEventNotifierAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_Byte *outEventNotifier,
                                             UA_ClientAsyncServiceCallback callback,
-                                            void *userdata, UA_UInt32 *reqId) {
+                                            void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
                                             outEventNotifier, &UA_TYPES[UA_TYPES_BYTE],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        const UA_NodeId *outDataType,
                                        UA_ClientAsyncServiceCallback callback,
-                                       void *userdata, UA_UInt32 *reqId) {
+                                       void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                                             outDataType, &UA_TYPES[UA_TYPES_NODEID],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Int32 *outValueRank,
                                         UA_ClientAsyncServiceCallback callback,
-                                        void *userdata, UA_UInt32 *reqId) {
+                                        void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_VALUERANK,
                                             outValueRank, &UA_TYPES[UA_TYPES_INT32],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_Byte *outAccessLevel,
                                           UA_ClientAsyncServiceCallback callback,
-                                          void *userdata, UA_UInt32 *reqId) {
+                                          void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                             outAccessLevel, &UA_TYPES[UA_TYPES_BYTE],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_UInt32 *outAccessLevelEx,
                                             UA_ClientAsyncServiceCallback callback,
-                                            void *userdata, UA_UInt32 *reqId) {
+                                            void *userdata, UA_UInt32 *reqId), {
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
                                             outAccessLevelEx, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                               const UA_Byte *outUserAccessLevel,
                                               UA_ClientAsyncServiceCallback callback,
-                                              void *userdata, UA_UInt32 *reqId) {
+                                              void *userdata, UA_UInt32 *reqId), {
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL, outUserAccessLevel,
         &UA_TYPES[UA_TYPES_BYTE], callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute_async(
     UA_Client *client, const UA_NodeId nodeId,
     const UA_Double *outMinimumSamplingInterval, UA_ClientAsyncServiceCallback callback,
-    void *userdata, UA_UInt32 *reqId) {
+    void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
         outMinimumSamplingInterval, &UA_TYPES[UA_TYPES_DOUBLE], callback, userdata,
         reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeHistorizingAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_Boolean *outHistorizing,
                                           UA_ClientAsyncServiceCallback callback,
-                                          void *userdata, UA_UInt32 *reqId) {
+                                          void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
                                             outHistorizing, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_Boolean *outExecutable,
                                          UA_ClientAsyncServiceCallback callback,
-                                         void *userdata, UA_UInt32 *reqId) {
+                                         void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(client, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                                             outExecutable, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
-}
-static UA_INLINE UA_StatusCode
+})
+UA_INLINABLE( UA_StatusCode
 UA_Client_writeUserExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              const UA_Boolean *outUserExecutable,
                                              UA_ClientAsyncServiceCallback callback,
-                                             void *userdata, UA_UInt32 *reqId) {
+                                             void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_writeAttribute_async(
         client, &nodeId, UA_ATTRIBUTEID_USEREXECUTABLE, outUserExecutable,
         &UA_TYPES[UA_TYPES_BOOLEAN], callback, userdata, reqId);
-}
+})
 
 /**
  * Method Calling
@@ -554,15 +556,15 @@ __UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
 typedef void (*UA_ClientAsyncCallCallback)(UA_Client *client, void *userdata,
                                            UA_UInt32 requestId, UA_CallResponse *cr);
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                      const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
                      UA_ClientAsyncCallCallback callback, void *userdata,
-                     UA_UInt32 *reqId) {
+                     UA_UInt32 *reqId) ,{
     return __UA_Client_call_async(client, objectId, methodId, inputSize, input,
                                   (UA_ClientAsyncServiceCallback)callback, userdata,
                                   reqId);
-}
+})
 
 /**
  * Node Management
@@ -581,7 +583,7 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
                           UA_ClientAsyncServiceCallback callback, void *userdata,
                           UA_UInt32 *reqId);
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addVariableNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
                                 const UA_NodeId parentNodeId,
                                 const UA_NodeId referenceTypeId,
@@ -589,28 +591,28 @@ UA_Client_addVariableNode_async(UA_Client *client, const UA_NodeId requestedNewN
                                 const UA_NodeId typeDefinition,
                                 const UA_VariableAttributes attr, UA_NodeId *outNewNodeId,
                                 UA_ClientAsyncAddNodesCallback callback, void *userdata,
-                                UA_UInt32 *reqId) {
+                                UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_VARIABLE, requestedNewNodeId, parentNodeId, referenceTypeId,
         browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addVariableTypeNode_async(
     UA_Client *client, const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
     const UA_VariableTypeAttributes attr, UA_NodeId *outNewNodeId,
-    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) {
+    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_VARIABLETYPE, requestedNewNodeId, parentNodeId,
         referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addObjectNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
                               const UA_NodeId parentNodeId,
                               const UA_NodeId referenceTypeId,
@@ -618,83 +620,83 @@ UA_Client_addObjectNode_async(UA_Client *client, const UA_NodeId requestedNewNod
                               const UA_NodeId typeDefinition,
                               const UA_ObjectAttributes attr, UA_NodeId *outNewNodeId,
                               UA_ClientAsyncAddNodesCallback callback, void *userdata,
-                              UA_UInt32 *reqId) {
+                              UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_OBJECT, requestedNewNodeId, parentNodeId, referenceTypeId,
         browseName, typeDefinition, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addObjectTypeNode_async(
     UA_Client *client, const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
     const UA_ObjectTypeAttributes attr, UA_NodeId *outNewNodeId,
-    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) {
+    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_OBJECTTYPE, requestedNewNodeId, parentNodeId,
         referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addViewNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
                             const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                             const UA_QualifiedName browseName,
                             const UA_ViewAttributes attr, UA_NodeId *outNewNodeId,
                             UA_ClientAsyncAddNodesCallback callback, void *userdata,
-                            UA_UInt32 *reqId) {
+                            UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_VIEW, requestedNewNodeId, parentNodeId, referenceTypeId,
         browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_VIEWATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addReferenceTypeNode_async(
     UA_Client *client, const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
     const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
     const UA_ReferenceTypeAttributes attr, UA_NodeId *outNewNodeId,
-    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) {
+    UA_ClientAsyncAddNodesCallback callback, void *userdata, UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_REFERENCETYPE, requestedNewNodeId, parentNodeId,
         referenceTypeId, browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addDataTypeNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
                                 const UA_NodeId parentNodeId,
                                 const UA_NodeId referenceTypeId,
                                 const UA_QualifiedName browseName,
                                 const UA_DataTypeAttributes attr, UA_NodeId *outNewNodeId,
                                 UA_ClientAsyncAddNodesCallback callback, void *userdata,
-                                UA_UInt32 *reqId) {
+                                UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_DATATYPE, requestedNewNodeId, parentNodeId, referenceTypeId,
         browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
-static UA_INLINE UA_StatusCode
+UA_INLINABLE( UA_StatusCode
 UA_Client_addMethodNode_async(UA_Client *client, const UA_NodeId requestedNewNodeId,
                               const UA_NodeId parentNodeId,
                               const UA_NodeId referenceTypeId,
                               const UA_QualifiedName browseName,
                               const UA_MethodAttributes attr, UA_NodeId *outNewNodeId,
                               UA_ClientAsyncAddNodesCallback callback, void *userdata,
-                              UA_UInt32 *reqId) {
+                              UA_UInt32 *reqId) ,{
     return __UA_Client_addNode_async(
         client, UA_NODECLASS_METHOD, requestedNewNodeId, parentNodeId, referenceTypeId,
         browseName, UA_NODEID_NULL, (const UA_NodeAttributes *)&attr,
         &UA_TYPES[UA_TYPES_METHODATTRIBUTES], outNewNodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
-}
+})
 
 /**
  * Misc Functionalities

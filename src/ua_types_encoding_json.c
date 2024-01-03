@@ -233,8 +233,7 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     ret |= writeChars(ctx, key, strlen(key));
     if(!ctx->unquotedKeys)
         ret |= writeChar(ctx, '\"');
-    if(!ctx->unquotedKeys)
-        ret |= writeChar(ctx, ':');
+    ret |= writeChar(ctx, ':');
     if(ctx->prettyPrint)
         ret |= writeChar(ctx, ' ');
     return ret;
@@ -1073,16 +1072,22 @@ ENCODE_JSON(Variant) {
     UA_Boolean wrapEO = !isBuiltin;
     if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
         wrapEO = true;
+    if(ctx->prettyPrint)
+        wrapEO = false; /* Don't wrap values in ExtensionObjects for pretty-printing */
 
     status ret = writeJsonObjStart(ctx);
 
     if(ctx->useReversible) {
-        /* Write the NodeId for the reversible form */
-        UA_UInt32 typeId = src->type->typeId.identifier.numeric;
-        if(wrapEO)
-            typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-        ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        if(ctx->prettyPrint) {
+            ret |= writeChars(ctx, src->type->typeName, strlen(src->type->typeName));
+        } else {
+            /* Write the NodeId for the reversible form */
+            UA_UInt32 typeId = src->type->typeId.identifier.numeric;
+            if(wrapEO)
+                typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
+            ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        }
     }
 
     if(wrapEO) {

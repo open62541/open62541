@@ -87,7 +87,7 @@ function add_node_integration_test() {
 }
 
 add_node_integration_test "DI" \
-    $SCRIPT_DIR/../../../deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
+    $SCRIPT_DIR/../../deps/ua-nodeset/DI/Opc.Ua.Di.NodeSet2.xml
 
 add_node_integration_test "DI-Invalid-Ordering" \
-    $SCRIPT_DIR/../../../deps/nodesetLoader/nodesets/open62541/Opc.Ua.Di.NodeSet2_invalid_ordering.xml
+    $SCRIPT_DIR/../../deps/nodesetLoader/nodesets/open62541/Opc.Ua.Di.NodeSet2_invalid_ordering.xml

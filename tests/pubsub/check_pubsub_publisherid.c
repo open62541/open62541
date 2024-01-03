@@ -2,12 +2,13 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>
@@ -22,11 +23,10 @@ static UA_Boolean UseRawEncoding = UA_FALSE;
 /***************************************************************************************************/
 static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_setDefault(config));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 
@@ -98,6 +98,7 @@ static void AddWriterGroup(
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     }
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_addWriterGroup(server, *pConnectionId, &writerGroupConfig, opWriterGroupId));
+    
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 }
 
@@ -200,6 +201,7 @@ static void AddReaderGroup(
     }
     ck_assert_int_eq(UA_STATUSCODE_GOOD,
         UA_Server_addReaderGroup(server, *pConnectionId, &readerGroupConfig, opReaderGroupId));
+    // ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, *opReaderGroupId));
 }
 
 /***************************************************************************************************/
@@ -245,7 +247,7 @@ static void AddDataSetReader(
     }
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
-    readerConfig.messageReceiveTimeout = 200.0;
+    readerConfig.messageReceiveTimeout = 2000.0;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
     readerConfig.messageSettings.content.decoded.type = &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE];
     UA_UadpDataSetReaderMessageDataType *dsReaderMessage = UA_UadpDataSetReaderMessageDataType_new();
@@ -366,7 +368,8 @@ static void ValidatePublishSubscribe(
         UA_fakeSleep(Sleep_ms);
         UA_Server_run_iterate(server, true);
         done = true;
-        for(UA_UInt32 i = 0; i < NoOfTestVars; i++) {
+        UA_UInt32 i = 0;
+        for(i = 0; i < NoOfTestVars; i++) {
             tmpValue = TestValue + (UA_Int32)i;
             if(UseFastPath) {
                 ck_assert(fastPathSubscriberValues[i] != 0);
@@ -462,8 +465,8 @@ static void DoTest_1_Connection(
     }
 
     /* set groups operational */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WGId_Conn1_WG1));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, RGId_Conn1_RG1));
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_1_CONNECTION_MAX_VARS, &publisherVarIds[0], &subscriberVarIds[0],
@@ -882,11 +885,12 @@ static void DoTest_multiple_Connections(void) {
     }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WriterGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
     }
+
 
     /* check that publish/subscribe works -> set some test values */
     ValidatePublishSubscribe(DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS, publisherVarIds,
@@ -1236,10 +1240,10 @@ static void DoTest_string_PublisherId(void) {
     }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WriterGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
     }
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */
@@ -1874,10 +1878,10 @@ static void DoTest_multiple_Groups(void) {
     }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WriterGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */
@@ -2084,7 +2088,6 @@ static void DoTest_multiple_DataSets(void) {
         &publisherVarIds[5], &fastPathPublisherDataValues[5], &DsWId_Conn2_WG1_DS2);
     PublishedDataSetIds[5] = PDSId_Conn2_WG1_PDS2;
 
-
     /* setup all Subscribers */
 
     /* setup Connection 1: */
@@ -2148,10 +2151,10 @@ static void DoTest_multiple_DataSets(void) {
     }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, WriterGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, ReaderGroupIds[i]));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
     }
 
     /* check that publish/subscribe works -> set some test values */

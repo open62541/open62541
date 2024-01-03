@@ -100,7 +100,6 @@ getSecurityPolicy(UA_Client *client, UA_String policyUri) {
     return NULL;
 }
 
-#ifdef UA_ENABLE_ENCRYPTION
 static UA_SecurityPolicy *
 getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     for(size_t i = 0; i < client->config.authSecurityPoliciesSize; i++) {
@@ -109,7 +108,6 @@ getAuthSecurityPolicy(UA_Client *client, UA_String policyUri) {
     }
     return NULL;
 }
-#endif
 
 /* The endpoint is unconfigured if the description is all zeroed-out */
 static UA_Boolean
@@ -137,8 +135,6 @@ isFullyConnected(UA_Client *client) {
 
     return true;
 }
-
-#ifdef UA_ENABLE_ENCRYPTION
 
 /* Function to create a signature using remote certificate and nonce */
 static UA_StatusCode
@@ -241,13 +237,11 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
                client->serverSessionNonce.data, client->serverSessionNonce.length);
         retval = utpSignAlg->sign(tmpCtx, &signData, &utsd->signature);
 
-        /* Clean up */
     cleanup_utp:
         UA_ByteString_clear(&signData);
         utsp->channelModule.deleteContext(tmpCtx);
     }
 
-    /* Clean up */
  cleanup:
     UA_ByteString_clear(&dataToSign);
     return retval;
@@ -381,14 +375,13 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
     memcpy(dataToVerify.data + lc->length, client->clientSessionNonce.data,
            client->clientSessionNonce.length);
 
-    retval = sp->asymmetricModule.cryptoModule.signatureAlgorithm.
-        verify(channel->channelContext, &dataToVerify,
-               &response->serverSignature.signature);
+    const UA_SecurityPolicySignatureAlgorithm *signAlg =
+        &sp->asymmetricModule.cryptoModule.signatureAlgorithm;
+    retval = signAlg->verify(channel->channelContext, &dataToVerify,
+                             &response->serverSignature.signature);
     UA_ByteString_clear(&dataToVerify);
     return retval;
 }
-
-#endif
 
 /***********************/
 /* Open the Connection */
@@ -580,7 +573,8 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     /* Response.securityToken.revisedLifetime is UInt32 we need to cast it to
      * DateTime=Int64 we take 75% of lifetime to start renewing as described in
      * standard */
-    client->nextChannelRenewal = UA_DateTime_nowMonotonic()
+    UA_EventLoop *el = client->config.eventLoop;
+    client->nextChannelRenewal = el->dateTime_nowMonotonic(el)
             + (UA_DateTime) (response.securityToken.revisedLifetime
                     * (UA_Double) UA_DATETIME_MSEC * 0.75);
 
@@ -633,10 +627,12 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
+    UA_EventLoop *el = client->config.eventLoop;
+
     /* Prepare the OpenSecureChannelRequest */
     UA_OpenSecureChannelRequest opnSecRq;
     UA_OpenSecureChannelRequest_init(&opnSecRq);
-    opnSecRq.requestHeader.timestamp = UA_DateTime_now();
+    opnSecRq.requestHeader.timestamp = el->dateTime_now(el);
     opnSecRq.requestHeader.authenticationToken = client->authenticationToken;
     opnSecRq.securityMode = client->channel.securityMode;
     opnSecRq.clientNonce = client->channel.localNonce;
@@ -681,10 +677,13 @@ UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+
     /* Check if OPN has been sent or the SecureChannel is still valid */
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN ||
        client->channel.renewState == UA_SECURECHANNELRENEWSTATE_SENT ||
-       client->nextChannelRenewal > UA_DateTime_nowMonotonic())
+       client->nextChannelRenewal > now)
         return UA_STATUSCODE_GOODCALLAGAIN;
 
     sendOPNAsync(client, true);
@@ -807,14 +806,12 @@ activateSessionAsync(UA_Client *client) {
     retval = UA_String_copy(&client->config.userTokenPolicy.policyId,
                             (UA_String*)request.userIdentityToken.content.decoded.data);
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Encrypt the UserIdentityToken */
     const UA_String *userTokenPolicy = &client->channel.securityPolicy->policyUri;
     if(client->config.userTokenPolicy.securityPolicyUri.length > 0)
         userTokenPolicy = &client->config.userTokenPolicy.securityPolicyUri;
     retval |= encryptUserIdentityToken(client, userTokenPolicy, &request.userIdentityToken);
     retval |= signActivateSessionRequest(client, &client->channel, &request);
-#endif
 
     if(retval == UA_STATUSCODE_GOOD)
         retval = __Client_AsyncService(client, &request,
@@ -1218,7 +1215,6 @@ static UA_StatusCode
 requestFindServers(UA_Client *client) {
     UA_FindServersRequest request;
     UA_FindServersRequest_init(&request);
-    request.requestHeader.timestamp = UA_DateTime_now();
     request.requestHeader.timeoutHint = 10000;
     request.endpointUrl = client->config.endpointUrl;
     UA_StatusCode retval =
@@ -1246,7 +1242,6 @@ createSessionCallback(UA_Client *client, void *userdata,
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-#ifdef UA_ENABLE_ENCRYPTION
     if(client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        client->channel.securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         /* Verify the session response was created with the same certificate as
@@ -1262,7 +1257,6 @@ createSessionCallback(UA_Client *client, void *userdata,
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
-#endif
 
     /* Copy nonce and AuthenticationToken */
     UA_ByteString_clear(&client->serverSessionNonce);
@@ -1509,7 +1503,7 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
  * SecurityPolicies */
 static void
 verifyClientApplicationURI(const UA_Client *client) {
-#if defined(UA_ENABLE_ENCRYPTION) && (UA_LOGLEVEL <= 400)
+#if UA_LOGLEVEL <= 400
     for(size_t i = 0; i < client->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         if(!sp->localCertificate.data) {
@@ -1615,9 +1609,12 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Received a message. Process the message with the SecureChannel. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     UA_StatusCode res =
         UA_SecureChannel_processBuffer(&client->channel, client,
-                                       processServiceResponse, &msg);
+                                       processServiceResponse,
+                                       &msg, nowMonotonic);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Processing the message returned the error code %s",
@@ -1741,7 +1738,11 @@ void
 connectSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    /* EventLoop is started. Otherwise initConnect would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* Initialize the connection */
@@ -1750,10 +1751,6 @@ connectSync(UA_Client *client) {
     if(client->connectStatus != UA_STATUSCODE_GOOD)
         return;
 
-    /* EventLoop is started. Otherwise initConnect would have failed. */
-    UA_EventLoop *el = client->config.eventLoop;
-    UA_assert(el);
-
     /* Run the EventLoop until connected, connect fail or timeout. Write the
      * iterate result to the connectStatus. So we do not attempt to restore a
      * failed connection during the sync connect. */
@@ -1761,7 +1758,7 @@ connectSync(UA_Client *client) {
           !isFullyConnected(client)) {
 
         /* Timeout -> abort */
-        now = UA_DateTime_nowMonotonic();
+        now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
@@ -1819,7 +1816,11 @@ static UA_StatusCode
 activateSessionSync(UA_Client *client) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
-    UA_DateTime now = UA_DateTime_nowMonotonic();
+    /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_assert(el);
+
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime maxDate = now + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
 
     /* Try to activate */
@@ -1827,14 +1828,11 @@ activateSessionSync(UA_Client *client) {
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
-    UA_EventLoop *el = client->config.eventLoop;
-    UA_assert(el);
     while(client->sessionState != UA_SESSIONSTATE_ACTIVATED &&
           client->connectStatus == UA_STATUSCODE_GOOD) {
 
         /* Timeout -> abort */
-        now = UA_DateTime_nowMonotonic();
+        now = el->dateTime_nowMonotonic(el);
         if(maxDate < now) {
             UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                          "The connection has timed out before it could be fully opened");
@@ -2130,11 +2128,13 @@ closeSecureChannel(UA_Client *client) {
         UA_LOG_DEBUG_CHANNEL(client->config.logging, &client->channel,
                              "Sending the CLO message");
 
+        UA_EventLoop *el = client->config.eventLoop;
+
         /* Manually set up the header (otherwise done in sendRequest) */
         UA_CloseSecureChannelRequest request;
         UA_CloseSecureChannelRequest_init(&request);
         request.requestHeader.requestHandle = ++client->requestHandle;
-        request.requestHeader.timestamp = UA_DateTime_now();
+        request.requestHeader.timestamp = el->dateTime_now(el);
         request.requestHeader.timeoutHint = client->config.timeout;
         request.requestHeader.authenticationToken = client->authenticationToken;
         UA_SecureChannel_sendSymmetricMessage(&client->channel, ++client->requestId,

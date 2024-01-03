@@ -271,9 +271,11 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
      * and then into the MonitoredItem. UA_MonitoredItem_ensureQueueSpace
      * (called within UA_Notification_enqueueMon) assumes the notification is
      * already in the Subscription's publishing queue. */
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
     if(mon->monitoringMode == UA_MONITORINGMODE_REPORTING ||
        (mon->monitoringMode == UA_MONITORINGMODE_SAMPLING &&
-        mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
+        mon->triggeredUntil > nowMonotonic)) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
@@ -310,12 +312,25 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
          * published as well. (Falsely) assume that the publishing cycle has
          * started right now, so that we don't have to loop over MonitoredItems
          * to deactivate the triggering after the publishing cycle. */
-        triggeredMon->triggeredUntil = UA_DateTime_nowMonotonic() +
+        triggeredMon->triggeredUntil = nowMonotonic +
             (UA_DateTime)(sub->publishingInterval * (UA_Double)UA_DATETIME_MSEC);
 
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "MonitoredItem %u triggers MonitoredItem %u",
                                   mon->monitoredItemId, triggeredMon->monitoredItemId);
+    }
+
+    /* If we just enqueued a notification into the local adminSubscription, then
+     * register a delayed callback for "local publishing". */
+    if(sub == server->adminSubscription && !sub->delayedCallbackRegistered) {
+        sub->delayedCallbackRegistered = true;
+        sub->delayedMoreNotifications.callback =
+            (UA_Callback)UA_Subscription_localPublish;
+        sub->delayedMoreNotifications.application = server;
+        sub->delayedMoreNotifications.context = sub;
+
+        UA_EventLoop *el = server->config.eventLoop;
+        el->addDelayedCallback(el, &sub->delayedMoreNotifications);
     }
 }
 
@@ -428,23 +443,15 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Register in Subscription and Server */
     UA_Subscription *sub = mon->subscription;
-    if(sub) {
-        mon->monitoredItemId = ++sub->lastMonitoredItemId;
-        mon->subscription = sub;
-        sub->monitoredItemsSize++;
-        LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
-    } else {
-        mon->monitoredItemId = ++server->lastLocalMonitoredItemId;
-        LIST_INSERT_HEAD(&server->localMonitoredItems, mon, listEntry);
-    }
+    mon->monitoredItemId = ++sub->lastMonitoredItemId;
+    mon->subscription = sub;
+    LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
+    sub->monitoredItemsSize++;
     server->monitoredItemsSize++;
 
     /* Register the MonitoredItem in userland */
     if(server->config.monitoredItemRegisterCallback) {
-        UA_Session *session = &server->adminSession;
-        if(sub)
-            session = sub->session;
-
+        UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
         UA_UNLOCK(&server->serviceMutex);

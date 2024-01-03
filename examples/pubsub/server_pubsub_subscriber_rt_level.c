@@ -190,6 +190,7 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
@@ -362,7 +363,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     /* Freeze the PubSub configuration (and start implicitly the subscribe callback) */
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 
     retval = UA_Server_run(server, &running);
 
@@ -400,12 +400,14 @@ int main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
 
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else {
             printf ("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);

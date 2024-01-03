@@ -4,7 +4,7 @@
 
 #include <open62541/client.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 

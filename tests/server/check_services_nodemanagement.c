@@ -6,6 +6,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -28,10 +29,9 @@ globalInstantiationMethod(UA_Server *server_,
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     UA_GlobalNodeLifecycle lifecycle;
     lifecycle.constructor = globalInstantiationMethod;

@@ -188,19 +188,20 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * used e.g. for the BrowsePath structure. For now, only the standard
  * ReferenceTypes from Namespace 0 are recognized (see Part 3).
  *
- *   ``RelativePath := ( ReferenceType [BrowseName]? )*``
+ *   ``RelativePath := ( ReferenceType BrowseName )+``
  *
  * The ReferenceTypes have either of the following formats:
  *
  * - ``/``: *HierarchicalReferences* and subtypes
- * - ``.``: *Aggregates* ReferenceTypesand subtypes
+ * - ``.``: *Aggregates* ReferenceTypes and subtypes
  * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName
- *   (a QualifiedName). Prefixed modifiers can be as follows: ``!`` switches to
- *   inverse References. ``#`` excludes subtypes of the ReferenceType.
+ *   (a QualifiedName). Prefixed modifiers can be as follows:
+ *   - ``!`` switches to inverse References
+ *   - ``#`` excludes subtypes of the ReferenceType.
  *
- * QualifiedNames consist of an optional NamespaceIndex and the nameitself:
+ * QualifiedNames consist of an optional NamespaceIndex and the name itself:
  *
- *   ``QualifiedName := ([0-9]+ ":")? Name``
+ *   ``QualifiedName := [0-9]+ ":" Name``
  *
  * The QualifiedName representation for RelativePaths uses ``&`` as the escape
  * character. Occurences of the characters ``/.<>:#!&`` in a QualifiedName have
@@ -216,10 +217,23 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<#Aggregates>1:Boiler/``
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
+ *
+ * Extension: ReferenceTypeNodeIds
+ * ```````````````````````````````
+ *
+ * As a non-standard extension we allow the ReferenceType in angle-brackets to
+ * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``.
  */
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
+
+/* Supports the lookup of non-standard ReferenceTypes by their browse name in
+ * the information model of a server. The first matching result in the
+ * ReferenceType hierarchy is used. */
+UA_EXPORT UA_StatusCode
+UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
+                                const UA_String str);
 #endif
 
 /**

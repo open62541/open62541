@@ -10,6 +10,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
+#include "open62541/plugin/eventloop.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
@@ -400,8 +401,9 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     /* Update major version of parent published data set */
+    UA_EventLoop *el = server->config.eventLoop;
     currDS->dataSetMetaData.configurationVersion.majorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
     result.configurationVersion.majorVersion =
         currDS->dataSetMetaData.configurationVersion.majorVersion;
@@ -453,8 +455,9 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     pds->fieldSize--;
 
     /* Update major version of PublishedDataSet */
+    UA_EventLoop *el = server->config.eventLoop;
     pds->dataSetMetaData.configurationVersion.majorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
     /* Clean up */
     currentField->fieldMetaData.arrayDimensions = NULL;
@@ -665,8 +668,11 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
 
     /* Fill the DataSetMetaData */
-    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    UA_EventLoop *el = server->config.eventLoop;
+    result.configurationVersion.majorVersion =
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
+    result.configurationVersion.minorVersion =
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     switch(newConfig->publishedDataSetType) {
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
         res = UA_STATUSCODE_BADNOTSUPPORTED;
@@ -676,9 +682,9 @@ UA_PublishedDataSet_create(UA_Server *server,
         break;
     case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
         newPDS->dataSetMetaData.configurationVersion.majorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
+            UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
         newPDS->dataSetMetaData.configurationVersion.minorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
+            UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
         newPDS->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
         newPDS->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
         res = UA_String_copy(&newConfig->name, &newPDS->dataSetMetaData.name);

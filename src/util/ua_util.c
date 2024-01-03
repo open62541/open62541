@@ -12,6 +12,7 @@
 #define UA_INLINABLE_IMPL 1
 
 #include <open62541/types_generated_handling.h>
+#include <open62541/server.h>
 #include <open62541/util.h>
 
 #include "ua_util_internal.h"
@@ -505,6 +506,83 @@ getLeafCertificate(UA_ByteString chain) {
     /* Adjust the length and return */
     chain.length = leafLen;
     return chain;
+}
+
+/************************/
+/* ReferenceType Lookup */
+/************************/
+
+typedef struct {
+    UA_String browseName;
+    UA_UInt32 identifier;
+} RefTypeName;
+
+#define KNOWNREFTYPES 17
+static const RefTypeName knownRefTypes[KNOWNREFTYPES] = {
+    {UA_STRING_STATIC("References"), UA_NS0ID_REFERENCES},
+    {UA_STRING_STATIC("HierachicalReferences"), UA_NS0ID_HIERARCHICALREFERENCES},
+    {UA_STRING_STATIC("NonHierachicalReferences"), UA_NS0ID_NONHIERARCHICALREFERENCES},
+    {UA_STRING_STATIC("HasChild"), UA_NS0ID_HASCHILD},
+    {UA_STRING_STATIC("Aggregates"), UA_NS0ID_AGGREGATES},
+    {UA_STRING_STATIC("HasComponent"), UA_NS0ID_HASCOMPONENT},
+    {UA_STRING_STATIC("HasProperty"), UA_NS0ID_HASPROPERTY},
+    {UA_STRING_STATIC("HasOrderedComponent"), UA_NS0ID_HASORDEREDCOMPONENT},
+    {UA_STRING_STATIC("HasSubtype"), UA_NS0ID_HASSUBTYPE},
+    {UA_STRING_STATIC("Organizes"), UA_NS0ID_ORGANIZES},
+    {UA_STRING_STATIC("HasModellingRule"), UA_NS0ID_HASMODELLINGRULE},
+    {UA_STRING_STATIC("HasTypeDefinition"), UA_NS0ID_HASTYPEDEFINITION},
+    {UA_STRING_STATIC("HasEncoding"), UA_NS0ID_HASENCODING},
+    {UA_STRING_STATIC("GeneratesEvent"), UA_NS0ID_GENERATESEVENT},
+    {UA_STRING_STATIC("AlwaysGeneratesEvent"), UA_NS0ID_ALWAYSGENERATESEVENT},
+    {UA_STRING_STATIC("HasEventSource"), UA_NS0ID_HASEVENTSOURCE},
+    {UA_STRING_STATIC("HasNotifier"), UA_NS0ID_HASNOTIFIER}
+};
+
+UA_StatusCode
+lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) {
+    /* Check well-known ReferenceTypes first */
+    if(qn->namespaceIndex == 0) {
+        for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+            if(UA_String_equal(&qn->name, &knownRefTypes[i].browseName)) {
+                *outRefTypeId = UA_NODEID_NUMERIC(0, knownRefTypes[i].identifier);
+                return UA_STATUSCODE_GOOD;
+            }
+        }
+    }
+
+    /* Browse the information model. Return the first results if the browse name
+     * in the hierarchy is ambiguous. */
+    if(server) {
+        UA_BrowseDescription bd;
+        UA_BrowseDescription_init(&bd);
+        bd.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_REFERENCES);
+        bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+        bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE);
+        bd.nodeClassMask = UA_NODECLASS_REFERENCETYPE;
+
+        size_t resultsSize = 0;
+        UA_ExpandedNodeId *results = NULL;
+        UA_StatusCode res =
+            UA_Server_browseRecursive(server, &bd, &resultsSize, &results);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        for(size_t i = 0; i < resultsSize; i++) {
+            UA_QualifiedName bn;
+            UA_Server_readBrowseName(server, results[i].nodeId, &bn);
+            if(UA_QualifiedName_equal(qn, &bn)) {
+                UA_QualifiedName_clear(&bn);
+                *outRefTypeId = results[i].nodeId;
+                UA_NodeId_clear(&results[i].nodeId);
+                UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+                return UA_STATUSCODE_GOOD;
+            }
+            UA_QualifiedName_clear(&bn);
+        }
+
+        UA_Array_delete(results, resultsSize, &UA_TYPES[UA_TYPES_NODEID]);
+    }
+
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 /********************/

@@ -25,7 +25,7 @@
 
 #include "ua_session.h"
 #include "ua_server_async.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -140,9 +140,10 @@ struct UA_Server {
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
-    UA_Session adminSession; /* Local access to the services (for startup and
-                              * maintenance) uses this Session with all possible
-                              * access rights (Session Id: 1) */
+
+    /* Session for local access to the services for upkeep and the C API. Comes
+     * equipped with all possible access rights (Session Id: 1). */
+    UA_Session adminSession;
 
     /* Namespaces */
     size_t namespacesSize;
@@ -154,16 +155,17 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The admin session is initialized with a special subscription. This
+     * subscription generates delayed callbacks with notifications for local
+     * processing. */
+    UA_Subscription *adminSubscription;
+
     size_t subscriptionsSize;  /* Number of active subscriptions */
     size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-
-    /* To be cast to UA_LocalMonitoredItem to get the callback and context */
-    LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
-    UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) conditionSources;
@@ -216,7 +218,7 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString msg);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 /* Gets the a pointer to the context of a security policy supported by the

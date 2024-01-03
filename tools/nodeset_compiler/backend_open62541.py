@@ -331,17 +331,17 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     if functionNumber > 0:
         for i in range(0, functionNumber):
-            writec("if((retVal = function_{outfilebase}_{idx}_begin(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                outfilebase=outfilebase, idx=str(i)))
+            writec("retVal |= function_{outfilebase}_{idx}_begin(server, ns);". \
+                   format(outfilebase=outfilebase, idx=str(i)))
             if i in reftypes_functionNumbers:
-                writec("if((retVal = function_{outfilebase}_{idx}_finish(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                    outfilebase=outfilebase, idx=str(i)))
+                writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+                       format(outfilebase=outfilebase, idx=str(i)))
 
         for i in reversed(range(0, functionNumber)):
             if i in reftypes_functionNumbers:
                 continue
-            writec("if((retVal = function_{outfilebase}_{idx}_finish(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                outfilebase=outfilebase, idx=str(i)))
+            writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+                   format(outfilebase=outfilebase, idx=str(i)))
 
     writec("return retVal;\n}")
     outfileh.flush()

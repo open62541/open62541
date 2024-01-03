@@ -95,92 +95,86 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
     memset(pdsConfig, 0, sizeof(UA_DataSetWriterConfig));
 }
 
-//state machine methods not part of the open62541 state machine API
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server,
-                                UA_DataSetWriter *dataSetWriter,
-                                UA_PubSubState state,
-                                UA_StatusCode cause) {
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_PubSubState oldState = dataSetWriter->state;
-    switch(state){
-        case UA_PUBSUBSTATE_DISABLED:
-            switch (dataSetWriter->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    break;
-                case UA_PUBSUBSTATE_PAUSED:
-                    dataSetWriter->state = UA_PUBSUBSTATE_DISABLED;
-                    //no further action is required
-                    break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                    dataSetWriter->state = UA_PUBSUBSTATE_DISABLED;
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
-                                          "Received unknown PubSub state!");
-            }
-            break;
-        case UA_PUBSUBSTATE_PAUSED:
-            switch (dataSetWriter->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    break;
-                case UA_PUBSUBSTATE_PAUSED:
-                    break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
-                                          "Received unknown PubSub state!");
-            }
-            break;
-        case UA_PUBSUBSTATE_OPERATIONAL:
-            switch (dataSetWriter->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    dataSetWriter->state = UA_PUBSUBSTATE_OPERATIONAL;
-                    break;
-                case UA_PUBSUBSTATE_PAUSED:
-                    break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
-                                          "Received unknown PubSub state!");
-            }
-            break;
-        case UA_PUBSUBSTATE_ERROR:
-            switch (dataSetWriter->state){
-                case UA_PUBSUBSTATE_DISABLED:
-                    break;
-                case UA_PUBSUBSTATE_PAUSED:
-                    break;
-                case UA_PUBSUBSTATE_OPERATIONAL:
-                    break;
-                case UA_PUBSUBSTATE_ERROR:
-                    break;
-                default:
-                    UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
-                                          "Received unknown PubSub state!");
-            }
-            break;
-        default:
-            UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
-                                  "Received unknown PubSub state!");
+UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    if(!dsw) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
     }
-    if (state != oldState) {
-        /* inform application about state change */
-        UA_ServerConfig *pConfig = &server->config;
-        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-            pConfig->pubSubConfig.
-                stateChangeCallback(server, &dataSetWriter->identifier, state, cause);
+
+    UA_StatusCode ret =
+        UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    if(!dsw) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_StatusCode ret =
+        UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
+                                UA_PubSubState targetState) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dsw->linkedWriterGroup);
+    if(!wg) {
+        /* Misconfiguration */
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        targetState = UA_PUBSUBSTATE_ERROR;
+    }
+
+    UA_PubSubState oldState = dsw->state;
+    dsw->state = targetState;
+
+    switch(dsw->state) {
+        /* Disabled */
+    case UA_PUBSUBSTATE_DISABLED:
+    case UA_PUBSUBSTATE_ERROR:
+        break;
+
+        /* Enabled */
+    case UA_PUBSUBSTATE_PAUSED:
+    case UA_PUBSUBSTATE_PREOPERATIONAL:
+    case UA_PUBSUBSTATE_OPERATIONAL:
+        if(wg->state == UA_PUBSUBSTATE_DISABLED ||
+           wg->state == UA_PUBSUBSTATE_ERROR) {
+            dsw->state = UA_PUBSUBSTATE_PAUSED; /* WG is disabled -> paused */
+        } else {
+            dsw->state = wg->state; /* WG is enabled -> same state */
+        }
+        break;
+
+    default:
+        dsw->state = UA_PUBSUBSTATE_ERROR;
+        res = UA_STATUSCODE_BADINTERNALERROR;
+        break;
+    }
+
+    /* Inform application about state change */
+    if(dsw->state != oldState) {
+        UA_ServerConfig *config = &server->config;
+        if(config->pubSubConfig.stateChangeCallback != 0) {
+            UA_UNLOCK(&server->serviceMutex);
+            config->pubSubConfig.
+                stateChangeCallback(server, &dsw->identifier, dsw->state, res);
+            UA_LOCK(&server->serviceMutex);
         }
     }
-    return ret;
+
+    return res;
 }
 
 UA_StatusCode
@@ -244,21 +238,9 @@ UA_DataSetWriter_create(UA_Server *server,
 
     newDataSetWriter->componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(wg->state == UA_PUBSUBSTATE_OPERATIONAL) {
-        res = UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
-                                              UA_PUBSUBSTATE_OPERATIONAL,
-                                              UA_STATUSCODE_GOOD);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                     "Add DataSetWriter failed: setPubSubState failed");
-            UA_free(newDataSetWriter);
-            return res;
-        }
-    }
-
     /* Copy the config into the new dataSetWriter */
-    res = UA_DataSetWriterConfig_copy(dataSetWriterConfig, &newDataSetWriter->config);
+    UA_StatusCode res =
+        UA_DataSetWriterConfig_copy(dataSetWriterConfig, &newDataSetWriter->config);
     UA_CHECK_STATUS(res, UA_free(newDataSetWriter); return res);
 
     if(!UA_NodeId_isNull(&dataSet) && currentDataSetContext != NULL) {
@@ -298,12 +280,18 @@ UA_DataSetWriter_create(UA_Server *server,
     LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
     wg->writersCount++;
 
+    /* Add to the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     res |= addDataSetWriterRepresentation(server, newDataSetWriter);
 #else
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
                                           &newDataSetWriter->identifier);
 #endif
+
+    /* Enable, depending on the state of the WriterGroup */
+    UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
+                                    UA_PUBSUBSTATE_OPERATIONAL);
+
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
     return res;
@@ -715,6 +703,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetWriter *dataSetWriter) {
     UA_Boolean heartbeat = false;
     UA_PublishedDataSet *currentDataSet = NULL;
+
     if(UA_NodeId_isNull(&dataSetWriter->connectedDataSet)){
         heartbeat = true;
     } else {
@@ -724,6 +713,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
             return UA_STATUSCODE_BADNOTFOUND;
         }
     }
+
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
 
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
@@ -815,7 +807,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
-            dataSetMessage->header.timestamp = UA_DateTime_now();
+            dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
         /* TODO: Picoseconds resolution not supported atm */
@@ -861,7 +853,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_TIMESTAMP) {
             dataSetMessage->header.timestampEnabled = true;
-            dataSetMessage->header.timestamp = UA_DateTime_now();
+            dataSetMessage->header.timestamp = el->dateTime_now(el);
         }
 
         /* TODO: Statuscode not supported yet */

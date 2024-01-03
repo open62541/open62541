@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include "ua_timer.h"
+#include "eventloop_timer.h"
 
 static enum ZIP_CMP
 cmpDateTime(const UA_DateTime *a, const UA_DateTime *b) {
@@ -98,8 +98,8 @@ UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
 UA_StatusCode
 UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
                              void *application, void *data, UA_Double interval_ms,
-                             UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                             UA_UInt64 *callbackId) {
+                             UA_DateTime now, UA_DateTime *baseTime,
+                             UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -108,13 +108,11 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Compute the first time for execution */
-    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
     UA_DateTime nextTime;
     if(baseTime == NULL) {
-        /* Use "now" as the basetime */
-        nextTime = currentTime + (UA_DateTime)interval;
+        nextTime = now + (UA_DateTime)interval;
     } else {
-        nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
+        nextTime = calculateNextTime(now, *baseTime, (UA_DateTime)interval);
     }
 
     UA_LOCK(&t->timerMutex);
@@ -126,8 +124,8 @@ UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
 
 UA_StatusCode
 UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
-                                UA_Double interval_ms, UA_DateTime *baseTime,
-                                UA_TimerPolicy timerPolicy) {
+                                UA_Double interval_ms, UA_DateTime now,
+                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* The interval needs to be positive */
     if(interval_ms <= 0.0)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -151,12 +149,10 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 
     /* Compute the next time for execution. The logic is identical to the
      * creation of a new repeated callback. */
-    UA_DateTime currentTime = UA_DateTime_nowMonotonic();
     if(baseTime == NULL) {
-        /* Use "now" as the basetime */
-        te->nextTime = currentTime + (UA_DateTime)interval;
+        te->nextTime = now + (UA_DateTime)interval;
     } else {
-        te->nextTime = calculateNextTime(currentTime, *baseTime, (UA_DateTime)interval);
+        te->nextTime = calculateNextTime(now, *baseTime, (UA_DateTime)interval);
     }
 
     /* Update the remaining parameters and re-insert */
@@ -192,7 +188,7 @@ UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
 
 struct TimerProcessContext {
     UA_Timer *t;
-    UA_DateTime nowMonotonic;
+    UA_DateTime now;
 };
 
 static void *
@@ -228,12 +224,12 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
      * which the spec says: The sampling interval indicates the fastest rate
      * at which the Server should sample its underlying source for data
      * changes. (Part 4, 5.12.1.2) */
-    if(te->nextTime < tpc->nowMonotonic) {
+    if(te->nextTime < tpc->now) {
         if(te->timerPolicy == UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME)
-            te->nextTime = calculateNextTime(tpc->nowMonotonic, te->nextTime,
+            te->nextTime = calculateNextTime(tpc->now, te->nextTime,
                                               (UA_DateTime)te->interval);
         else
-            te->nextTime = tpc->nowMonotonic + (UA_DateTime)te->interval;
+            te->nextTime = tpc->now + (UA_DateTime)te->interval;
     }
 
     /* Insert back into the time-sorted tree */
@@ -242,24 +238,23 @@ processEntryCallback(void *context, UA_TimerEntry *te) {
 }
 
 UA_DateTime
-UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic) {
+UA_Timer_process(UA_Timer *t, UA_DateTime now) {
     UA_LOCK(&t->timerMutex);
 
     /* Not reentrant. Don't call _process from within _process. */
     if(!t->processTree.root) {
-        /* Move all entries <= nowMonotonic to processTree */
-        ZIP_UNZIP(UA_TimerTree, &t->tree, &nowMonotonic,
-                  &t->processTree, &t->tree);
+        /* Move all entries <= now to processTree */
+        ZIP_UNZIP(UA_TimerTree, &t->tree, &now, &t->processTree, &t->tree);
 
         /* Consistency check. The smallest not-processed entry isn't ready. */
         UA_assert(!ZIP_MIN(UA_TimerTree, &t->tree) ||
-                  ZIP_MIN(UA_TimerTree, &t->tree)->nextTime > nowMonotonic);
+                  ZIP_MIN(UA_TimerTree, &t->tree)->nextTime > now);
         
         /* Iterate over the entries that need processing in-order. This also
          * moves them back to the regular time-ordered tree. */
         struct TimerProcessContext ctx;
         ctx.t = t;
-        ctx.nowMonotonic = nowMonotonic;
+        ctx.now = now;
         ZIP_ITER(UA_TimerTree, &t->processTree, processEntryCallback, &ctx);
         
         /* Reset processTree. All entries are already moved to the normal tree. */
@@ -269,9 +264,6 @@ UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic) {
     /* Compute the timestamp of the earliest next callback */
     UA_TimerEntry *first = ZIP_MIN(UA_TimerTree, &t->tree);
     UA_DateTime next = (first) ? first->nextTime : UA_INT64_MAX;
-    if(next < nowMonotonic)
-        next = nowMonotonic;
-
     UA_UNLOCK(&t->timerMutex);
     return next;
 }

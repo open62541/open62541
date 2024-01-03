@@ -190,16 +190,14 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* Connection open, set to operational if not already done */
+    UA_PubSubConnection_setPubSubState(server, psc, psc->state, UA_STATUSCODE_GOOD);
+
     /* No message received */
     if(!recv || msg.length == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
-
-    /* Connection open, set to operational if not already done */
-    if(psc->state != UA_PUBSUBSTATE_OPERATIONAL)
-        UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
@@ -558,9 +556,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     wg->sendChannel = connectionId;
 
     /* Connection open, set to operational if not already done */
-    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL,
-                                      UA_STATUSCODE_GOOD);
+    UA_WriterGroup_setPubSubState(server, wg, wg->state);
     
     /* Send-channels don't receive messages */
     UA_UNLOCK(&server->serviceMutex);
@@ -720,8 +716,8 @@ UA_StatusCode
 UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Already connected */
-    if(wg->sendChannel != 0 && !validate)
+    /* Check if already connected or no WG TransportSettings */
+    if(!UA_WriterGroup_canConnect(wg) && !validate)
         return UA_STATUSCODE_GOOD;
 
     /* Is this a WriterGroup with custom TransportSettings beyond the
@@ -732,8 +728,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg, "No EventLoop configured");
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -758,21 +753,8 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     c->json = profile->json;
 
     /* Connect */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectWriterGroup)
-        res = profile->connectWriterGroup(server, wg, validate);
-    if(res != UA_STATUSCODE_GOOD && !validate) {
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR, res);
-        return res;
-    }
-
-    /* Set to preoperational. Set the state "manually" to avoid recursion. Also
-     * this is the only place to set pre-operational for PubSubConnections. The
-     * state will be set to operational in the network callback when the
-     * connection has fully opened. */
-    if(wg->state != UA_PUBSUBSTATE_OPERATIONAL && !validate)
-        wg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
+        return profile->connectWriterGroup(server, wg, validate);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -839,7 +821,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
 
         /* Reconnect if still operational */
-        UA_ReaderGroup_setPubSubState(server, rg, rg->state, UA_STATUSCODE_GOOD);
+        UA_ReaderGroup_setPubSubState(server, rg, rg->state);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -856,20 +838,13 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
+    /* The connection has opened - set the ReaderGroup to operational */
+    UA_ReaderGroup_setPubSubState(server, rg, rg->state);
+
     /* No message received */
     if(msg.length == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
-    }
-
-    /* Received the first message - set to operational */
-    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
-                                                     rg->state, UA_STATUSCODE_GOOD);
-        }
     }
 
     if(rg->state != UA_PUBSUBSTATE_OPERATIONAL) {
@@ -1000,8 +975,6 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validat
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_READERGROUP(server->config.logging, rg, "No EventLoop configured");
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR,
-                                      UA_STATUSCODE_BADINTERNALERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -1017,8 +990,6 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validat
     if(!cm || (c->cm && cm != c->cm)) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                 "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1026,14 +997,8 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validat
     c->json = profile->json;
 
     /* Connect */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(profile->connectReaderGroup)
-        res = profile->connectReaderGroup(server, rg, validate);
-    if(res != UA_STATUSCODE_GOOD && !validate) {
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_ERROR, res);
-        return res;
-    }
-
+        return profile->connectReaderGroup(server, rg, validate);
     return UA_STATUSCODE_GOOD;
 }
 

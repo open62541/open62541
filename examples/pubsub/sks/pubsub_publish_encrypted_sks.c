@@ -74,8 +74,8 @@ static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
     UA_PubSubState state = UA_PUBSUBSTATE_OPERATIONAL;
     UA_Server_WriterGroup_getState(server, writerGroupIdent, &state);
-    if(sksPullRequestStatus == UA_STATUSCODE_GOOD && state == UA_PUBSUBSTATE_DISABLED)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    if(sksPullRequestStatus == UA_STATUSCODE_GOOD && state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_Server_setWriterGroupActivateKey(server, writerGroupIdent);
 }
 
 static void
@@ -112,6 +112,7 @@ addWriterGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig,
                              &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
     /* We need to set the sks client before setting Reader/Writer Group into operational

@@ -209,16 +209,16 @@ class CGenerator(object):
 
     def print_functions(self, datatype):
         idName = makeCIdentifier(datatype.name)
-        funcs = "static UA_INLINE void\nUA_%s_init(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
+        funcs = "UA_INLINABLE( void\nUA_%s_init(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
             idName, idName, idName)
-        funcs += "static UA_INLINE UA_%s *\nUA_%s_new(void) {\n    return (UA_%s*)UA_new(%s);\n}\n\n" % (
+        funcs += "UA_INLINABLE( UA_%s *\nUA_%s_new(void) ,{\n    return (UA_%s*)UA_new(%s);\n})\n\n" % (
             idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
         if datatype.pointerfree == "true":
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n}\n\n" % (
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n})\n\n" % (
                 idName, idName, idName)
-            funcs += "UA_DEPRECATED static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
+            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
                 idName, idName, idName)
-            funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    memset(p, 0, sizeof(UA_%s));\n}\n\n" % (
+            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
                 idName, idName, idName)
         else:
             for entry in whitelistFuncAttrWarnUnusedResult:
@@ -226,13 +226,13 @@ class CGenerator(object):
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
                     break
 
-            funcs += "static UA_INLINE UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) {\n    return UA_copy(src, dst, %s);\n}\n\n" % (
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    return UA_copy(src, dst, %s);\n})\n\n" % (
                 idName, idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_DEPRECATED static UA_INLINE void\nUA_%s_deleteMembers(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (
+            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
                 idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "static UA_INLINE void\nUA_%s_clear(UA_%s *p) {\n    UA_clear(p, %s);\n}\n\n" % (
+            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
                 idName, idName, self.print_datatype_ptr(datatype))
-        funcs += "static UA_INLINE void\nUA_%s_delete(UA_%s *p) {\n    UA_delete(p, %s);\n}" % (
+        funcs += "UA_INLINABLE( void\nUA_%s_delete(UA_%s *p) ,{\n    UA_delete(p, %s);\n})" % (
             idName, idName, self.print_datatype_ptr(datatype))
         funcs += "static UA_INLINE UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2) {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n}\n\n" % (
             idName, idName, idName, self.print_datatype_ptr(datatype))
@@ -240,9 +240,9 @@ class CGenerator(object):
 
     def print_datatype_encoding(self, datatype):
         idName = makeCIdentifier(datatype.name)
-        enc = "static UA_INLINE size_t\nUA_%s_calcSizeBinary(const UA_%s *src) {\n    return UA_calcSizeBinary(src, %s);\n}\n"
-        enc += "static UA_INLINE UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) {\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n}\n"
-        enc += "static UA_INLINE UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) {\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n}"
+        enc = "UA_INLINABLE( size_t\nUA_%s_calcSizeBinary(const UA_%s *src) ,{\n    return UA_calcSizeBinary(src, %s);\n})\n"
+        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) ,{\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n})\n"
+        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) ,{\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n})"
         return enc % tuple(
             list(itertools.chain(*itertools.repeat([idName, idName, self.print_datatype_ptr(datatype)], 3))))
 

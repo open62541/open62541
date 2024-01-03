@@ -17,7 +17,6 @@
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
-#include "ua_util_internal.h"
 #include "server/ua_session.h"
 
 #define UA_BITMASK_MESSAGETYPE 0x00ffffffu
@@ -280,12 +279,10 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     /* Add padding to the chunk. Also pad if the securityMode is SIGN_ONLY,
      * since we are using asymmetric communication to exchange keys and thus
      * need to encrypt. */
-#ifdef UA_ENABLE_ENCRYPTION
     if(channel->securityMode != UA_MESSAGESECURITYMODE_NONE)
         padChunk(channel, &channel->securityPolicy->asymmetricModule.cryptoModule,
                  &buf.data[UA_SECURECHANNEL_CHANNELHEADER_LENGTH + securityHeaderLength],
                  &buf_pos);
-#endif
 
     /* The total message length */
     pre_sig_length = (uintptr_t)buf_pos - (uintptr_t)buf.data;
@@ -301,11 +298,9 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
                              securityHeaderLength, requestId, &encryptedLength);
     UA_CHECK_STATUS(res, goto error);
 
-#ifdef UA_ENABLE_ENCRYPTION
     res = signAndEncryptAsym(channel, pre_sig_length, &buf,
                              securityHeaderLength, total_length);
     UA_CHECK_STATUS(res, goto error);
-#endif
 
     /* Send the message, the buffer is freed in the network layer */
     buf.length = encryptedLength;
@@ -393,13 +388,11 @@ sendSymmetricChunk(UA_MessageContext *mc) {
                          (long unsigned int)
                          ((uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data));
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Add padding if the message is encrypted */
     if(channel->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         padChunk(channel, &sp->symmetricModule.cryptoModule,
                  &mc->messageBuffer.data[UA_SECURECHANNEL_SYMMETRIC_HEADER_UNENCRYPTEDLENGTH],
                  &mc->buf_pos);
-#endif
 
     /* Compute the total message length */
     pre_sig_length = (uintptr_t)mc->buf_pos - (uintptr_t)mc->messageBuffer.data;
@@ -425,11 +418,9 @@ sendSymmetricChunk(UA_MessageContext *mc) {
     res = encodeHeadersSym(mc, total_length);
     UA_CHECK_STATUS(res, goto error);
 
-#ifdef UA_ENABLE_ENCRYPTION
     /* Sign and encrypt the messge */
     res = signAndEncryptSym(mc, pre_sig_length, total_length);
     UA_CHECK_STATUS(res, goto error);
-#endif
 
     /* Send the chunk. The buffer is freed in the network layer. If sending goes
      * wrong, the connection is removed in the next iteration of the
@@ -664,7 +655,8 @@ error:
 }
 
 static UA_StatusCode
-unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
+unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk,
+                 UA_DateTime nowMonotonic) {
     UA_CHECK_MEM(channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR);
 
     UA_assert(chunk->bytes.length >= UA_SECURECHANNEL_MESSAGE_MIN_LENGTH);
@@ -684,7 +676,7 @@ unpackPayloadMSG(UA_SecureChannel *channel, UA_Chunk *chunk) {
 #endif
 
     /* Check (and revolve) the SecurityToken */
-    res = checkSymHeader(channel, tokenId);
+    res = checkSymHeader(channel, tokenId, nowMonotonic);
     UA_CHECK_STATUS(res, return res);
 
     /* Decrypt the chunk payload */
@@ -804,7 +796,8 @@ persistIncompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
  * queue will be cleared for the next message. */
 static UA_StatusCode
 processChunks(UA_SecureChannel *channel, void *application,
-              UA_ProcessMessageCallback callback) {
+              UA_ProcessMessageCallback callback,
+              UA_DateTime nowMonotonic) {
     UA_Chunk *chunk;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     while((chunk = SIMPLEQ_FIRST(&channel->completeChunks))) {
@@ -824,7 +817,7 @@ processChunks(UA_SecureChannel *channel, void *application,
             if(channel->state == UA_SECURECHANNELSTATE_CLOSED)
                 res = UA_STATUSCODE_BADSECURECHANNELCLOSED;
             else
-                res = unpackPayloadMSG(channel, chunk);
+                res = unpackPayloadMSG(channel, chunk, nowMonotonic);
         } else {
             chunk->bytes.data += UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
             chunk->bytes.length -= UA_SECURECHANNEL_MESSAGEHEADER_LENGTH;
@@ -950,7 +943,8 @@ extractCompleteChunk(UA_SecureChannel *channel, const UA_ByteString *buffer,
 UA_StatusCode
 UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
                                UA_ProcessMessageCallback callback,
-                               const UA_ByteString *buffer) {
+                               const UA_ByteString *buffer,
+                               UA_DateTime nowMonotonic) {
     /* Prepend the incomplete last chunk. This is usually done in the
      * networklayer. But we test for a buffered incomplete chunk here again to
      * work around "lazy" network layers. */
@@ -984,7 +978,7 @@ UA_SecureChannel_processBuffer(UA_SecureChannel *channel, void *application,
 
     /* Process whatever we can. Chunks of completed and processed messages are
      * removed. */
-    res = processChunks(channel, application, callback);
+    res = processChunks(channel, application, callback, nowMonotonic);
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Persist full chunks that still point to the buffer. Can only return

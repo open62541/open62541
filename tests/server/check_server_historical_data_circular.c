@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include "test_helpers.h"
 #include "server/ua_server_internal.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -44,7 +45,7 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     running = true;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
@@ -88,8 +89,7 @@ static void setup(void) {
         exit(1);
     }
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s\n",
@@ -120,7 +120,7 @@ setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
     UA_DataValue_init(&dv);
     UA_Variant_setScalar(&dv.value, &value, &UA_TYPES[UA_TYPES_UINT32]);
     dv.hasValue = true;
-    dv.sourceTimestamp = UA_DateTime_now();
+    dv.sourceTimestamp = UA_DateTime_now_fake(NULL);
     dv.hasSourceTimestamp = true;
     return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
@@ -187,14 +187,14 @@ START_TEST(Server_HistorizingStrategyValueSet) {
     //                  | 10 | 11 | 12 | 13 | 14 | 5 | 6 | 7 | 8 | 9 |
     //
     UA_fakeSleep(100);
-    UA_DateTime start = UA_DateTime_now();
+    UA_DateTime start = UA_DateTime_now_fake(NULL);
     UA_fakeSleep(100);
     for (UA_UInt32 i = 0; i < 15; ++i) {
         retval = setUInt32(client, outNodeId, i);
         ck_assert_str_eq(UA_StatusCode_name(retval), UA_StatusCode_name(UA_STATUSCODE_GOOD));
         UA_fakeSleep(100);
     }
-    UA_DateTime end = UA_DateTime_now();
+    UA_DateTime end = UA_DateTime_now_fake(NULL);
 
     // request
     UA_HistoryReadResponse response;
@@ -213,6 +213,7 @@ START_TEST(Server_HistorizingStrategyValueSet) {
         UA_HistoryData * data = (UA_HistoryData *)response.results[i].historyData.content.decoded.data;
         ck_assert(data->dataValuesSize > 0);
         for (size_t j = 0; j < data->dataValuesSize; ++j) {
+            assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
             ck_assert_str_eq(UA_StatusCode_name(data->dataValues[j].status),

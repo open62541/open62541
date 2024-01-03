@@ -16,6 +16,7 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "test_helpers.h"
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 
@@ -26,7 +27,7 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 }
 

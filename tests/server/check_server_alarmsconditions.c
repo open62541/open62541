@@ -7,6 +7,7 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include "test_helpers.h"
 
 #include <check.h>
 
@@ -14,8 +15,7 @@ UA_Server *server_ac;
 
 
 static void setup(void) {
-    server_ac = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server_ac));
+    server_ac = UA_Server_newForUnitTest();
 }
 
 static void teardown(void) {

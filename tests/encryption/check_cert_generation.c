@@ -10,11 +10,12 @@
 #include <open62541/plugin/create_certificate.h>
 
 #include <check.h>
+#include "test_helpers.h"
 
 UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 }
 

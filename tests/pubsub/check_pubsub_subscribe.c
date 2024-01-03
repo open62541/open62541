@@ -11,6 +11,7 @@
 #include <check.h>
 #include <time.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
@@ -95,7 +96,7 @@ static void addVariables(void) {
 /* setup() is to create an environment for test cases */
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     config = UA_Server_getConfig(server);
@@ -689,9 +690,9 @@ START_TEST(SinglePublishSubscribeDateTime) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(pMetaData->fields);
 }END_TEST
@@ -779,9 +780,9 @@ START_TEST(SinglePublishSubscribeDateTimeRaw) {
         UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_free(pMetaData->fields);
 }END_TEST
@@ -919,11 +920,17 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
+        
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
 } END_TEST
 
@@ -989,7 +996,8 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
             (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER;
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
         retVal |= UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
+        UA_Server_enableWriterGroup(server, writerGroup);
+
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
@@ -1009,7 +1017,7 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        UA_Server_enableReaderGroup(server, readerGroupId);
 
         /* Data Set Reader */
         /* Parameters to filter received NetworkMessage */
@@ -1080,6 +1088,8 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         UA_Server_write(server, &wv);
 
         /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
         UA_fakeSleep(PUBLISH_INTERVAL + 1);
         UA_Server_run_iterate(server,true);
         UA_fakeSleep(PUBLISH_INTERVAL + 1);
@@ -1231,11 +1241,18 @@ START_TEST(SinglePublishSubscribeInt64) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
 } END_TEST
 
@@ -1376,11 +1393,18 @@ START_TEST(SinglePublishSubscribeBool) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
 } END_TEST
 
@@ -1524,11 +1548,17 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
 } END_TEST
 
@@ -1599,11 +1629,18 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     //UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_Server_setReaderGroupOperational(server, readerGroupId);
+    retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+    /* run server - publisher and subscriber */
+    UA_fakeSleep(50 + 1);
+    UA_Server_run_iterate(server,true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
+    UA_Server_run_iterate(server,true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
+    UA_Server_run_iterate(server,true);
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
     ck_assert_ptr_ne(dsr, NULL);
 
@@ -1615,7 +1652,8 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
      * we compare the lastHeartbeatReceived with the static timestamp
      * (given by UA_DateTime_nowMonotonic()). If the timestamps are equal,
      * the code path was executed and the lastHeartbeatReceived set correctly */
-    ck_assert(UA_DateTime_nowMonotonic() == dsr->lastHeartbeatReceived);
+    UA_EventLoop *el = server->config.eventLoop;
+    ck_assert(el->dateTime_nowMonotonic(el) == dsr->lastHeartbeatReceived);
 
 } END_TEST
 
@@ -1751,11 +1789,18 @@ START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
 } END_TEST
 
@@ -1916,11 +1961,18 @@ START_TEST(MultiPublishSubscribeInt32) {
     UA_FieldTargetDataType_clear(&targetVar.targetVariable);
     UA_free(pMetaData->fields);
     /* run server - publisher and subscriber */
-    retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_Server_setReaderGroupOperational(server, readerGroupId);
+    retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+    /* run server - publisher and subscriber */
+    UA_fakeSleep(50 + 1);
+    UA_Server_run_iterate(server,true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
+    UA_Server_run_iterate(server,true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
+    UA_Server_run_iterate(server,true);
     checkReceived();
 
     /* Check the received value for the second reader */
@@ -2223,11 +2275,18 @@ START_TEST(SinglePublishOnDemand) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupId);
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupId);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(50 + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
         checkReceived();
         retVal = UA_Server_WriterGroup_publish(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -2377,7 +2436,7 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_run_iterate(server, false);
 } END_TEST
@@ -2525,7 +2584,7 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         UA_free(pMetaData->fields);
 
         /* run server - publisher and subscriber */
-        retVal |= UA_Server_setWriterGroupOperational(server, writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_run_iterate(server, false);
 } END_TEST
