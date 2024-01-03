@@ -155,9 +155,9 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
     if(!changed) {
-        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %"
-                                  PRIi32 " | The value has not changed",
-                                  mon->monitoredItemId);
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
+                                  "MonitoredItem %" PRIi32 " | "
+                                  "The value has not changed", mon->monitoredItemId);
         UA_DataValue_clear(value);
         return;
     }
