@@ -471,6 +471,7 @@ class NodeSet(object):
         opaque_map = []
         selected_types = []
         type_csv = []
+        type_xml = []
         no_builtin = True
         outname = "outname"
 
@@ -478,7 +479,7 @@ class NodeSet(object):
             type_bsd.append(bsd)
 
         self.parser = CSVBSDTypeParser(opaque_map, selected_types, no_builtin, outname, import_bsd,
-                                    type_bsd, type_csv, self.namespaces)
+                                    type_bsd, type_csv, type_xml, self.namespaces)
         self.parser.create_types()
 
         nodeset_base.close()

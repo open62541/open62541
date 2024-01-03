@@ -483,10 +483,10 @@ Outstanding Companion Spec Issues
 There are some Companion Specifications that currently cannot be compiled with the Nodeset compiler.
 Which Companion Specifications are affected and what causes this is described below.
 
-* Safety, Glass
+* Safety, Glass, DEXPI
 Do not specify a BSD file or BSD blob in the XML file. The BSD file is considered deprecated. However, it is currently still required by the Nodeser compiler.
 
-* I4AAS, RSL, CNC, FDI
+* I4AAS, RSL, FDI
 Attempting to load will result in a runtime error ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
 
 * BACnet
@@ -516,4 +516,4 @@ A CMake call could look like this.
 The order of nodesets is important! Nodesets that build on other nodesets must be placed after them in the list.
 The following nodesets are currently supported.
 
-* DI, ISA95-JOBCONTROL, OpenSCS, DEXPI, AMB, AutoID, POWERLINK, IA, Machinery, PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT, CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
+* DI, CNC, ISA95-JOBCONTROL, OpenSCS, AMB, AutoID, POWERLINK, IA, Machinery, PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT, CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
