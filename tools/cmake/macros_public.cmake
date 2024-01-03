@@ -120,7 +120,7 @@ endfunction()
 #
 function(ua_generate_datatypes)
     set(options BUILTIN INTERNAL AUTOLOAD)
-    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_CSV)
+    set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
@@ -201,6 +201,11 @@ function(ua_generate_datatypes)
         set(ARG_CONV_EXCL_ENV env MSYS2_ARG_CONV_EXCL=--import)
     endif()
 
+    set(FILE_XML "")
+    if (UA_GEN_DT_FILE_XML)
+        set(FILE_XML "--xml=${UA_GEN_DT_FILE_XML}")
+    endif()
+
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
@@ -210,6 +215,7 @@ function(ua_generate_datatypes)
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
         ${IMPORT_BSD_TMP}
+        ${FILE_XML}
         --type-csv=${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_NO_BUILTIN}
         ${UA_GEN_DT_INTERNAL_ARG}
@@ -217,6 +223,7 @@ function(ua_generate_datatypes)
         DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                 ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_typedefinitions.py
         ${UA_GEN_DT_FILES_BSD}
+        ${UA_GEN_DT_FILE_XML}
         ${UA_GEN_DT_FILE_CSV}
         ${UA_GEN_DT_FILES_SELECTED})
     if(NOT TARGET ${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX})
@@ -603,6 +610,7 @@ function(ua_generate_nodeset_and_datatypes)
             TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
             NAMESPACE_MAP "${NAMESPACE_MAP_DEPENDS}"
+            FILE_XML "${UA_GEN_FILE_NS}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
             ${NODESET_AUTOLOAD}

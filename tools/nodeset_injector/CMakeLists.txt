@@ -34,7 +34,7 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
 
     # only one xml file
     # di as dependency
-    elseif(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
+    elseif(MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
        OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT" OR MODEL STREQUAL "Robotics"
        OR MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
         # get csv file
@@ -138,6 +138,15 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Di.NodeSet2.xml"
                 INTERNAL
                 AUTOLOAD
+        )
+    elseif(MODEL STREQUAL "AutoID")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${PROJECT_SOURCE_DIR}/tools/nodeset_injector/schema/Opc.Ua.AutoID.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.AutoID.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
         )
     elseif(MODEL STREQUAL "PROFINET")
         ua_generate_nodeset_and_datatypes(

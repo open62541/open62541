@@ -22,6 +22,14 @@ parser.add_argument('-c', '--type-csv',
                     default=[],
                     help='csv file with type descriptions')
 
+parser.add_argument('-x', '--xml',
+                    metavar="<nodeSetXML>",
+                    type=argparse.FileType('rb'),
+                    action='append',
+                    dest="type_xml",
+                    default=[],
+                    help='NodeSet XML file.')
+
 parser.add_argument('--namespaceMap',
                     metavar="<namespaceMap>",
                     type=str,
@@ -91,7 +99,7 @@ for m in args.namespace_map:
 
 
 parser = CSVBSDTypeParser(args.opaque_map, args.selected_types, args.no_builtin, outname, args.import_bsd,
-                          args.type_bsd, args.type_csv, namespaceMap)
+                          args.type_bsd, args.type_csv, args.type_xml, namespaceMap)
 parser.create_types()
 
 generator = backend.CGenerator(parser, inname, args.outfile, args.internal, namespaceMap)
