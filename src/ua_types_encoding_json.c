@@ -1177,22 +1177,22 @@ ENCODE_JSON(DiagnosticInfo) {
 
     if(src->hasSymbolicId) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_SYMBOLICID);
-        ret |= ENCODE_DIRECT_JSON(&src->symbolicId, UInt32);
+        ret |= ENCODE_DIRECT_JSON(&src->symbolicId, Int32);
     }
 
     if(src->hasNamespaceUri) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACEURI);
-        ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, UInt32);
+        ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, Int32);
     }
 
     if(src->hasLocalizedText) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALIZEDTEXT);
-        ret |= ENCODE_DIRECT_JSON(&src->localizedText, UInt32);
+        ret |= ENCODE_DIRECT_JSON(&src->localizedText, Int32);
     }
 
     if(src->hasLocale) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_LOCALE);
-        ret |= ENCODE_DIRECT_JSON(&src->locale, UInt32);
+        ret |= ENCODE_DIRECT_JSON(&src->locale, Int32);
     }
 
     if(src->hasAdditionalInfo) {
