@@ -5175,16 +5175,11 @@ START_TEST(UA_Variant_ExtensionObjectArray_json_decode) {
 
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_VARIANT], NULL);
 
-    UA_Boolean *testArray;
-    testArray = (UA_Boolean*)(out.data);
-    // then
+    // don't unwrap builtin types that shouldn't be wrapped in the first place
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-    //decoded as False
-    ck_assert_int_eq(testArray[0], 0);
-    ck_assert_int_eq(testArray[1], 1);
+    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_EXTENSIONOBJECT);
     ck_assert_uint_eq(out.arrayDimensionsSize, 0);
     ck_assert_uint_eq(out.arrayLength, 2);
-    ck_assert_int_eq(out.type->typeKind, UA_DATATYPEKIND_BOOLEAN);
     UA_Variant_clear(&out);
 }
 END_TEST

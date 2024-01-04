@@ -2,6 +2,7 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/types.h>
 
+#include "../testing-plugins/testing_clock.h"
 #include "ua_types_encoding_xml.h"
 #include "test_helpers.h"
 
