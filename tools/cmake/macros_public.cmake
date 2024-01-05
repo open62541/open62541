@@ -112,7 +112,7 @@ endfunction()
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
-#   NAMESPACE_MAP   Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#   NAMESPACE_MAP   [Deprecated]Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
 #                   This is required to correctly map datatype node ids to the resulting server namespace index.
 #                   "0:http://opcfoundation.org/UA/" is added by default.
 #                   Example: ["2:http://example.org/UA/"]
@@ -129,8 +129,8 @@ function(ua_generate_datatypes)
     endif()
 
     # ------ Argument checking -----
-    if(NOT DEFINED UA_GEN_DT_NAMESPACE_MAP AND NOT "${UA_GEN_DT_NAMESPACE_MAP}" STREQUAL "")
-        message(FATAL_ERROR "ua_generate_datatype function requires a value for the NAMESPACE_MAP argument")
+    if(DEFINED UA_GEN_DT_NAMESPACE_MAP)
+        message(WARNING "NAMESPACE_MAP argument is deprecated and no longer has any effect. The index of the nodeset is set automatically.")
     endif()
     if(NOT UA_GEN_DT_NAME OR "${UA_GEN_DT_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_datatype function requires a value for the NAME argument")
@@ -509,7 +509,7 @@ endfunction()
 #   [TARGET_PREFIX] Optional prefix for the resulting targets. Default `open62541-generator`
 #
 #   Arguments taking multiple values:
-#   [NAMESPACE_MAP] Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
+#   [NAMESPACE_MAP] [Deprecated]Array of Namespace index mappings to indicate the final namespace index of a namespace uri when the server is started.
 #                   This parameter is mandatory if FILE_CSV or FILE_BSD is set.
 #   [IMPORT_BSD]    Optional combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
@@ -535,6 +535,10 @@ function(ua_generate_nodeset_and_datatypes)
     endif()
 
     # ------ Argument checking -----
+    if(DEFINED UA_GEN_NAMESPACE_MAP)
+        message(WARNING "NAMESPACE_MAP argument is deprecated and no longer has any effect. The index of the nodeset is set automatically.")
+    endif()
+
     if(NOT UA_GEN_NAME OR "${UA_GEN_NAME}" STREQUAL "")
         message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires a value for the NAME argument")
     endif()
@@ -545,9 +549,8 @@ function(ua_generate_nodeset_and_datatypes)
     endif()
 
     if((NOT UA_GEN_FILE_CSV OR "${UA_GEN_FILE_CSV}" STREQUAL "") AND
-    (NOT "${UA_GEN_FILE_BSD}" STREQUAL "" OR
-        NOT "${UA_GEN_NAMESPACE_MAP}" STREQUAL ""))
-        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if any of FILE_BSD or NAMESPACE_MAP are set")
+    (NOT "${UA_GEN_FILE_BSD}" STREQUAL ""))
+        message(FATAL_ERROR "ua_generate_nodeset_and_datatypes function requires FILE_CSV argument if FILE_BSD is set")
     endif()
 
     # Set default value for output dir
