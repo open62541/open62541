@@ -240,37 +240,14 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 
 /* Compare memory in constant time to mitigate timing attacks.
  * Returns true if ptr1 and ptr2 are equal for length bytes. */
-static UA_INLINE UA_Boolean
-UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
-    volatile const UA_Byte *a = (volatile const UA_Byte *)ptr1;
-    volatile const UA_Byte *b = (volatile const UA_Byte *)ptr2;
-    volatile UA_Byte c = 0;
-    for(size_t i = 0; i < length; ++i) {
-        UA_Byte x = a[i], y = b[i];
-        c = c | (x ^ y);
-    }
-    return !c;
-}
+UA_EXPORT UA_Boolean
+UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length);
 
 /* Zero-out memory in a way that is not removed by compiler-optimizations. Use
  * this to ensure cryptographic secrets don't leave traces after the memory was
  * freed. */
-static UA_INLINE void
-UA_ByteString_memZero(UA_ByteString *bs) {
-#if defined(__STDC_LIB_EXT1__)
-   memset_s(bs->data, bs->length, 0, bs->length);
-#elif defined(_WIN32)
-   SecureZeroMemory(bs->data, bs->length);
-#else
-   volatile unsigned char *volatile ptr =
-       (volatile unsigned char *)bs->data;
-   size_t i = 0;
-   size_t maxLen = bs->length;
-   while(i < maxLen) {
-       ptr[i++] = 0;
-   }
-#endif
-}
+UA_EXPORT void
+UA_ByteString_memZero(UA_ByteString *bs);
 
 _UA_END_DECLS
 
