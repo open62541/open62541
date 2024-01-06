@@ -19,6 +19,7 @@
 
 #include <open62541/types.h>
 #include <open62541/common.h>
+#include <open62541/util.h>
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/pki.h>
@@ -1292,6 +1293,11 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * See the Section :ref:`node-lifecycle` on constructors and on attaching
  * user-defined data to nodes.
  *
+ * The Section :ref:`default-node-attributes` contains useful starting points
+ * for defining node attributes. Forgetting to set the ValueRank or the
+ * AccessLevel leads to errors that can be hard to track down for new users. The
+ * default attributes have a high likelihood to "do the right thing".
+ *
  * The methods for node addition and deletion take mostly const arguments that
  * are not modified. When creating a node, a deep copy of the node identifier,
  * node attributes, etc. is created. Therefore, it is possible to call for
@@ -1299,23 +1305,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
  * :ref:`variant`) pointing to a memory location on the stack. If you need
  * changes to a variable value to manifest at a specific memory location, please
  * use a :ref:`datasource` or a :ref:`value-callback`. */
-
-/* Protect against redundant definitions for server/client */
-#ifndef UA_DEFAULT_ATTRIBUTES_DEFINED
-#define UA_DEFAULT_ATTRIBUTES_DEFINED
-/* The default for variables is "BaseDataType" for the datatype, -2 for the
- * valuerank and a read-accesslevel. */
-UA_EXPORT extern const UA_VariableAttributes UA_VariableAttributes_default;
-UA_EXPORT extern const UA_VariableTypeAttributes UA_VariableTypeAttributes_default;
-/* Methods are executable by default */
-UA_EXPORT extern const UA_MethodAttributes UA_MethodAttributes_default;
-/* The remaining attribute definitions are currently all zeroed out */
-UA_EXPORT extern const UA_ObjectAttributes UA_ObjectAttributes_default;
-UA_EXPORT extern const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default;
-UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default;
-UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
-UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
-#endif
 
 /* Don't use this function. There are typed versions as inline functions. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
