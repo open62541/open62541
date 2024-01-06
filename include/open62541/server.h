@@ -43,18 +43,7 @@ _UA_BEGIN_DECLS
 /* Forward declarations */
 struct UA_PubSubConfiguration;
 typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
-
 typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
-
-typedef struct {
-    UA_UInt32 min;
-    UA_UInt32 max;
-} UA_UInt32Range;
-
-typedef struct {
-    UA_Duration min;
-    UA_Duration max;
-} UA_DurationRange;
 
 /**
  * .. _server:

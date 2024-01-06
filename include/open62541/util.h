@@ -15,6 +15,20 @@
 _UA_BEGIN_DECLS
 
 /**
+ * Range Definition
+ * ---------------- */
+
+typedef struct {
+    UA_UInt32 min;
+    UA_UInt32 max;
+} UA_UInt32Range;
+
+typedef struct {
+    UA_Duration min;
+    UA_Duration max;
+} UA_DurationRange;
+
+/**
  * Random Number Generator
  * -----------------------
  * If UA_MULTITHREADING is defined, then the seed is stored in thread
