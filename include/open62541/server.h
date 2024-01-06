@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2014-2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2015-2016 (c) Sten Grüner
  *    Copyright 2014-2015, 2017 (c) Florian Palm
  *    Copyright 2015-2016 (c) Chris Iatrou
@@ -1617,6 +1617,10 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
                        const UA_Boolean deleteEventNode);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
+
+/**
+ * Alarms & Conditions (Experimental)
+ * ---------------------------------- */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 typedef enum UA_TwoStateVariableCallbackType {
