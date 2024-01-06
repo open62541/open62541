@@ -564,8 +564,7 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId);
  * - 0:localeIds [UA_String]: List of preferred languages (read-only)
  * - 0:clientDescription [UA_ApplicationDescription]: Client description (read-only)
  * - 0:sessionName [String] Client-defined name of the session (read-only)
- * - 0:clientUserId [String] User identifier used to activate the session (read-only)
- */
+ * - 0:clientUserId [String] User identifier used to activate the session (read-only) */
 
 /* Returns a shallow copy of the attribute. Don't _clear or _delete the value
  * variant. Don't use the value once the Session could be already closed in the
@@ -612,6 +611,7 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
  * - UserWriteMask
  * - UserAccessLevel
  * - UserExecutable */
+
 /* Read an attribute of a node. The specialized functions below provide a more
  * concise syntax.
  *
@@ -1027,8 +1027,7 @@ UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
 
 /**
  * Operating a Discovery Server
- * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
- */
+ * ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
 
 /* Callback for RegisterServer. Data is passed from the register call */
 typedef void
@@ -1085,14 +1084,12 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
 /**
  * Information Model Callbacks
  * ---------------------------
- *
  * There are three places where a callback from an information model to
  * user-defined code can happen.
  *
  * - Custom node constructors and destructors
  * - Linking VariableNodes with an external data source
- * - MethodNode callbacks
- */
+ * - MethodNode callbacks */
 
 void UA_EXPORT
 UA_Server_setAdminSessionContext(UA_Server *server,
@@ -1116,7 +1113,6 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
  *
  * Data Source Callback
  * ^^^^^^^^^^^^^^^^^^^^
- *
  * The server has a unique way of dealing with the content of variables. Instead
  * of storing a variant attached to the variable node, the node can point to a
  * function with a local data provider. Whenever the value attribute is read,
@@ -1145,7 +1141,6 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
  *
  * Local MonitoredItems
  * ^^^^^^^^^^^^^^^^^^^^
- *
  * MonitoredItems are used with the Subscription mechanism of OPC UA to
  * transported notifications for data changes and events. MonitoredItems can
  * also be registered locally. Notifications are then forwarded to a
@@ -1229,8 +1224,7 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request);
  * Interacting with Objects
  * ------------------------
  * Objects in the information model are represented as ObjectNodes. Some
- * convenience functions are provided to simplify the interaction with objects.
- */
+ * convenience functions are provided to simplify the interaction with objects. */
 
 /* Write an object property. The property is represented as a VariableNode with
  * a ``HasProperty`` reference from the ObjectNode. The VariableNode is
@@ -1530,6 +1524,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /**
  * Reference Management
  * -------------------- */
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addReference(UA_Server *server, const UA_NodeId sourceId,
                        const UA_NodeId refTypeId,
@@ -1640,8 +1635,7 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outConditionId);
 
-/**
- * The method pair UA_Server_addCondition_begin and _finish splits the
+/* The method pair UA_Server_addCondition_begin and _finish splits the
  * UA_Server_createCondtion in two parts similiar to the
  * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
  * modified before finish the instantiation. For example to add children with
@@ -1666,9 +1660,7 @@ UA_Server_addCondition_begin(UA_Server *server,
                              const UA_QualifiedName conditionName,
                              UA_NodeId *outConditionId);
 
-/**
- * Second call of the UA_Server_addCondition_begin and _finish pair.
- *
+/* Second call of the UA_Server_addCondition_begin and _finish pair.
  * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
  *  - checks whether the condition source has HasEventSource reference to its
  *    parent. If not, a HasEventSource reference will be created between
@@ -1783,24 +1775,20 @@ UA_Server_deleteCondition(UA_Server *server,
                           const UA_NodeId condition,
                           const UA_NodeId conditionSource);
 
-/*
- * Set the LimitState of the LimitAlarmType
+/* Set the LimitState of the LimitAlarmType
  *
  * @param server The server object
- * @param conditionId The NodeId of the node representation of the Condition Instance
- * @param limitValue The value from the trigger node
- */
+ * @param conditionId NodeId of the node representation of the Condition Instance
+ * @param limitValue The value from the trigger node */
 UA_StatusCode UA_EXPORT
 UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
                         UA_Double limitValue);
 
-/*
- * Parse the certifcate and set Expiration date
+/* Parse the certifcate and set Expiration date
  *
  * @param server The server object
- * @param conditionId The NodeId of the node representation of the Condition Instance
- * @param cert The certificate for parsing
- */
+ * @param conditionId NodeId of the node representation of the Condition Instance
+ * @param cert The certificate for parsing */
 UA_StatusCode UA_EXPORT
 UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
                             UA_ByteString  cert);
@@ -1810,6 +1798,7 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
 /**
  * Update the Server Certificate at Runtime
  * ---------------------------------------- */
+
 UA_StatusCode UA_EXPORT
 UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *oldCertificate,
@@ -1821,6 +1810,7 @@ UA_Server_updateCertificate(UA_Server *server,
 /**
  * Utility Functions
  * ----------------- */
+
 /* Lookup a datatype by its NodeId. Takes the custom types in the server
  * configuration into account. Return NULL if none found. */
 UA_EXPORT const UA_DataType *
@@ -1841,22 +1831,22 @@ UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
                               UA_String *foundUri);
 
 /**
-* .. _async-operations:
-*
-* Async Operations
-* ----------------
-* Some operations (such as reading out a sensor that needs to warm up) can take
-* quite some time. In order not to block the server during such an operation, it
-* can be "outsourced" to a worker thread.
-*
-* Take the example of a CallRequest. It is split into the individual method call
-* operations. If the method is marked as async, then the operation is put into a
-* queue where it is be retrieved by a worker. The worker returns the result when
-* ready. See the examples in ``/examples/tutorial_server_method_async.c`` for
-* the usage.
-*
-* Note that the operation can time out (see the asyncOperationTimeout setting in
-* the server config) also when it has been retrieved by the worker. */
+ * .. _async-operations:
+ *
+ * Async Operations
+ * ----------------
+ * Some operations (such as reading out a sensor that needs to warm up) can take
+ * quite some time. In order not to block the server during such an operation, it
+ * can be "outsourced" to a worker thread.
+ *
+ * Take the example of a CallRequest. It is split into the individual method call
+ * operations. If the method is marked as async, then the operation is put into a
+ * queue where it is be retrieved by a worker. The worker returns the result when
+ * ready. See the examples in ``/examples/tutorial_server_method_async.c`` for
+ * the usage.
+ *
+ * Note that the operation can time out (see the asyncOperationTimeout setting in
+ * the server config) also when it has been retrieved by the worker. */
 
 #if UA_MULTITHREADING >= 100
 
@@ -1919,7 +1909,6 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 /**
  * Statistics
  * ----------
- *
  * Statistic counters keeping track of the current state of the stack. Counters
  * are structured per OPC UA communication layer. */
 
@@ -1932,52 +1921,47 @@ UA_ServerStatistics UA_EXPORT
 UA_Server_getStatistics(UA_Server *server);
 
 /**
-  * Reverse Connect
-  * ---------------
-  *
-  * The reverse connect feature of OPC UA permits the server instead of the client to
-  * establish the connection.
-  * The client must expose the listening port so the server is able to reach it.
-  */
+ * Reverse Connect
+ * ---------------
+ * The reverse connect feature of OPC UA permits the server instead of the
+ * client to establish the connection. The client must expose the listening port
+ * so the server is able to reach it. */
 
-/**
- * The reverse connect state change callback is called whenever the state of a reverse
- * connect is changed by a connection attempt, a successful connection or a connection
- * loss.
+/* The reverse connect state change callback is called whenever the state of a
+ * reverse connect is changed by a connection attempt, a successful connection
+ * or a connection loss.
  *
- * The reverse connect states reflect the state of the secure channel currently associated
- * with a reverse connect. The state will remain UA_SECURECHANNELSTATE_CONNECTING while
- * the server attempts repeatedly to establish a connection.
- */
-typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server, UA_UInt64 handle,
+ * The reverse connect states reflect the state of the secure channel currently
+ * associated with a reverse connect. The state will remain
+ * UA_SECURECHANNELSTATE_CONNECTING while the server attempts repeatedly to
+ * establish a connection. */
+typedef void (*UA_Server_ReverseConnectStateCallback)(UA_Server *server,
+                                                      UA_UInt64 handle,
                                                       UA_SecureChannelState state,
                                                       void *context);
 
-/**
- * Registers a reverse connect in the server.
- * The server periodically attempts to establish a connection if the initial connect fails
- * or if the connection breaks.
+/* Registers a reverse connect in the server. The server periodically attempts
+ * to establish a connection if the initial connect fails or if the connection
+ * breaks.
  *
  * @param server The server object
  * @param url The URL of the remote client
  * @param stateCallback The callback which will be called on state changes
  * @param callbackContext The context for the state callback
  * @param handle Is set to the handle of the reverse connect if not NULL
- * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered
- */
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been registered */
 UA_StatusCode UA_EXPORT
 UA_Server_addReverseConnect(UA_Server *server, UA_String url,
-                                          UA_Server_ReverseConnectStateCallback stateCallback,
-                                          void *callbackContext, UA_UInt64 *handle);
+                            UA_Server_ReverseConnectStateCallback stateCallback,
+                            void *callbackContext, UA_UInt64 *handle);
 
-/**
- * Removes a reverse connect from the server and closes the connection if it is currently
- * open.
+/* Removes a reverse connect from the server and closes the connection if it is
+ * currently open.
  *
  * @param server The server object
  * @param handle The handle of the reverse connect to remove
- * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been successfully removed
- */
+ * @return Returns UA_STATUSCODE_GOOD if the reverse connect has been
+ *         successfully removed */
 UA_StatusCode UA_EXPORT
 UA_Server_removeReverseConnect(UA_Server *server, UA_UInt64 handle);
 
