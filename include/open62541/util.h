@@ -120,6 +120,30 @@ typedef struct {
 } UA_ConnectionConfig;
 
 /**
+ * .. _default-node-attributes:
+ *
+ * Default Node Attributes
+ * -----------------------
+ * Default node attributes to simplify the use of the AddNodes services. For
+ * example, Setting the ValueRank and AccessLevel to zero is often an unintended
+ * setting and leads to errors that are hard to track down. */
+
+/* The default for variables is "BaseDataType" for the datatype, -2 for the
+ * valuerank and a read-accesslevel. */
+UA_EXPORT extern const UA_VariableAttributes UA_VariableAttributes_default;
+UA_EXPORT extern const UA_VariableTypeAttributes UA_VariableTypeAttributes_default;
+
+/* Methods are executable by default */
+UA_EXPORT extern const UA_MethodAttributes UA_MethodAttributes_default;
+
+/* The remaining attribute definitions are currently all zeroed out */
+UA_EXPORT extern const UA_ObjectAttributes UA_ObjectAttributes_default;
+UA_EXPORT extern const UA_ObjectTypeAttributes UA_ObjectTypeAttributes_default;
+UA_EXPORT extern const UA_ReferenceTypeAttributes UA_ReferenceTypeAttributes_default;
+UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
+UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
+
+/**
  * Endpoint URL Parser
  * -------------------
  * The endpoint URL parser is generally useful for the implementation of network
