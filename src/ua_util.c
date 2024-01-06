@@ -482,6 +482,22 @@ UA_Guid_random(void) {
     return result;
 }
 
+/********************/
+/* Malloc Singleton */
+/********************/
+
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+# include <stdlib.h>
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+#endif
+
+/************************/
+/* Cryptography Helpers */
+/************************/
+
 UA_ByteString
 getLeafCertificate(UA_ByteString chain) {
     /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
@@ -506,16 +522,3 @@ getLeafCertificate(UA_ByteString chain) {
     chain.length = leafLen;
     return chain;
 }
-
-/********************/
-/* Malloc Singleton */
-/********************/
-
-/* Global malloc singletons */
-#ifdef UA_ENABLE_MALLOC_SINGLETON
-# include <stdlib.h>
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
-UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
-#endif
