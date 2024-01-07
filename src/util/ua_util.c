@@ -483,30 +483,17 @@ UA_Guid_random(void) {
     return result;
 }
 
-UA_ByteString
-getLeafCertificate(UA_ByteString chain) {
-    /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
-     * return the entire chain.
-     *
-     * The OPC UA standard requires this to be DER. But we also allow other
-     * formats like PEM. Afterwards it depends on the crypto backend to parse
-     * it. mbedTLS and OpenSSL detect the format automatically. */
-    if(chain.length < 4 || chain.data[0] != 0x30 || chain.data[1] != 0x82)
-        return chain;
+/********************/
+/* Malloc Singleton */
+/********************/
 
-    /* The certificate length is encoded in the next 2 bytes. */
-    size_t leafLen = 4; /* Magic numbers + length bytes */
-    leafLen += (size_t)(((uint16_t)chain.data[2]) << 8);
-    leafLen += chain.data[3];
-
-    /* Consistency check */
-    if(leafLen > chain.length)
-        return UA_BYTESTRING_NULL;
-
-    /* Adjust the length and return */
-    chain.length = leafLen;
-    return chain;
-}
+#ifdef UA_ENABLE_MALLOC_SINGLETON
+# include <stdlib.h>
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
+UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
+UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+#endif
 
 /************************/
 /* ReferenceType Lookup */
@@ -585,15 +572,60 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) 
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
-/********************/
-/* Malloc Singleton */
-/********************/
+/************************/
+/* Cryptography Helpers */
+/************************/
 
-/* Global malloc singletons */
-#ifdef UA_ENABLE_MALLOC_SINGLETON
-# include <stdlib.h>
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_mallocSingleton)(size_t size) = malloc;
-UA_EXPORT UA_THREAD_LOCAL void (*UA_freeSingleton)(void *ptr) = free;
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_callocSingleton)(size_t nelem, size_t elsize) = calloc;
-UA_EXPORT UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size) = realloc;
+UA_ByteString
+getLeafCertificate(UA_ByteString chain) {
+    /* Detect DER encoded X.509 v3 certificate. If the DER detection fails,
+     * return the entire chain.
+     *
+     * The OPC UA standard requires this to be DER. But we also allow other
+     * formats like PEM. Afterwards it depends on the crypto backend to parse
+     * it. mbedTLS and OpenSSL detect the format automatically. */
+    if(chain.length < 4 || chain.data[0] != 0x30 || chain.data[1] != 0x82)
+        return chain;
+
+    /* The certificate length is encoded in the next 2 bytes. */
+    size_t leafLen = 4; /* Magic numbers + length bytes */
+    leafLen += (size_t)(((uint16_t)chain.data[2]) << 8);
+    leafLen += chain.data[3];
+
+    /* Consistency check */
+    if(leafLen > chain.length)
+        return UA_BYTESTRING_NULL;
+
+    /* Adjust the length and return */
+    chain.length = leafLen;
+    return chain;
+}
+
+UA_Boolean
+UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length) {
+    volatile const UA_Byte *a = (volatile const UA_Byte *)ptr1;
+    volatile const UA_Byte *b = (volatile const UA_Byte *)ptr2;
+    volatile UA_Byte c = 0;
+    for(size_t i = 0; i < length; ++i) {
+        UA_Byte x = a[i], y = b[i];
+        c = c | (x ^ y);
+    }
+    return !c;
+}
+
+void
+UA_ByteString_memZero(UA_ByteString *bs) {
+#if defined(__STDC_LIB_EXT1__)
+   memset_s(bs->data, bs->length, 0, bs->length);
+#elif defined(_WIN32)
+   SecureZeroMemory(bs->data, bs->length);
+#else
+   volatile unsigned char *volatile ptr =
+       (volatile unsigned char *)bs->data;
+   size_t i = 0;
+   size_t maxLen = bs->length;
+   while(i < maxLen) {
+       ptr[i++] = 0;
+   }
 #endif
+}

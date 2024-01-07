@@ -21,6 +21,7 @@
 
 #include <open62541/types.h>
 #include <open62541/common.h>
+#include <open62541/util.h>
 
 #include <open62541/plugin/log.h>
 #include <open62541/plugin/eventloop.h>
