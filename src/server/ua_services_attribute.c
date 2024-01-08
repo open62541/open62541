@@ -1914,113 +1914,87 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
 }
 
 #if UA_MULTITHREADING >= 100
-/*static void
+static void
 Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                     UA_UInt32 requestHandle, size_t opIndex,
                     UA_WriteRequest *opRequest, UA_StatusCode *opResult,
                     UA_AsyncResponse **ar) {
-*//*    *//**//* Get the node (with only the selected attribute if the NodeStore supports that) *//**//*
+    UA_assert(session != NULL);
+
+    /* Get the node (with only the selected attribute if the NodeStore supports that) */
     const UA_Node *node =
-        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->nodesToRead[opIndex].nodeId,
-                                   attributeId2AttributeMask((UA_AttributeId) opRequest->nodesToRead[opIndex].attributeId),
+        UA_NODESTORE_GET_SELECTIVE(server, &opRequest->nodesToWrite[opIndex].nodeId,
+                                   attributeId2AttributeMask((UA_AttributeId) opRequest->nodesToWrite[opIndex].attributeId),
                                    UA_REFERENCETYPESET_NONE,
                                    UA_BROWSEDIRECTION_INVALID);
     if(!node){
-        opResult->hasStatus = true;
-        opResult->status = UA_STATUSCODE_BADNODEIDUNKNOWN;
-        //ToDo create Testcase for UA_STATUSCODE_BADNODEIDUNKNOWN in case of async
+        *opResult = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
 
-    *//**//* Synchronous execution *//**//*
+    //Synchronous execution
     if(!node->variableNode.async) {
-        *//**//* Perform the read operation *//**//*
-        ReadWithNode(node, server, session, opRequest->timestampsToReturn, opRequest->nodesToRead, opResult);
-        goto cleanup;
+        *opResult = UA_Server_editNode(server, session, &opRequest->nodesToWrite[opIndex].nodeId,
+                                     (UA_EditNodeCallback)copyAttributeIntoNode,
+                                     (void*)(uintptr_t) &opRequest->nodesToWrite[opIndex]);
     }
 
-    *//**//* <-- Async read --> *//**//*
-
-    *//**//* No AsyncResponse allocated so far *//**//*
+     /* Async Write No AsyncResponse allocated so far */
     if(!*ar) {
-        opResult->status =
+        *opResult =
             UA_AsyncManager_createAsyncResponse(&server->asyncManager, server,
                                                 &session->sessionId, requestId, requestHandle,
-                                                UA_ASYNCOPERATIONTYPE_READ, ar);
-        if(opResult->status != UA_STATUSCODE_GOOD)
+                                                UA_ASYNCOPERATIONTYPE_WRITE, ar);
+        if(*opResult != UA_STATUSCODE_GOOD)
         goto cleanup;
     }
 
-    *//**//* Create the Async Request to be taken by workers *//**//*
+    //Create the Async Request to be taken by workers
     //TODO make "UA_AsyncManager_createAsyncOp" generic for read/write
-    opResult->status =
+    *opResult =
         UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_READ, opRequest);
+                                      server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_WRITE, opRequest);
 
 cleanup:
-    *//**//* Release the method and object node *//**//*
-    UA_NODESTORE_RELEASE(server, node);*//*
-}*/
+    //Release the method and object node
+    UA_NODESTORE_RELEASE(server, node);
+}
 
 void
 Service_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                   const UA_WriteRequest *request, UA_WriteResponse *response,
                   UA_Boolean *finished) {
-/*
-    UA_Server_processServiceOperationsAsync(server, session, requestId,
-                                            request->requestHeader.requestHandle,
-                                            (UA_AsyncServiceOperation)Operation_WriteAsync,
-                                            &request->nodesToReadSize,
-                                            &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
-                                            &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE], &ar);
-*/
-
-/*    UA_LOG_DEBUG_SESSION(&server->config.logger, session, "Processing ReadRequestAsync");
+    UA_assert(session != NULL);
+    UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                         "Processing Async WriteRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    *//* Check if the timestampstoreturn is valid *//*
-    if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
-        return;
-    }
-
-    *//* Check if maxAge is valid *//*
-    if(request->maxAge < 0) {
-        response->responseHeader.serviceResult = UA_STATUSCODE_BADMAXAGEINVALID;
-        return;
-    }
-
-    *//* Check if there are too many operations *//*
-    if(server->config.maxNodesPerRead != 0 &&
-       request->nodesToReadSize > server->config.maxNodesPerRead) {
+    if(server->config.maxNodesPerWrite != 0 &&
+       request->nodesToWriteSize > server->config.maxNodesPerWrite) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
         return;
     }
-
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     UA_AsyncResponse *ar = NULL;
-    response->responseHeader.serviceResult =
-        UA_Server_processServiceOperationsAsync(server, session, requestId,
-                                                request->requestHeader.requestHandle,
-                                                (UA_AsyncServiceOperation)Operation_ReadAsync,
-                                                &request->nodesToReadSize,
-                                                &request, &UA_TYPES[UA_TYPES_READREQUEST],
-                                                &response->resultsSize, &UA_TYPES[UA_TYPES_DATAVALUE], &ar);
+    response->responseHeader.serviceResult = UA_Server_processServiceOperationsAsync(server, session, requestId,
+                                                                                     request->requestHeader.requestHandle,
+                                                                                     (UA_AsyncServiceOperation)Operation_WriteAsync,
+                                                                                     &request->nodesToWriteSize,
+                                                                                     &request, &UA_TYPES[UA_TYPES_WRITEREQUEST],
+                                                                                     &response->resultsSize, &UA_TYPES[UA_TYPES_STATUSCODE], &ar);
 
     if(ar) {
         if(ar->opCountdown > 0) {
-        *//* Move all results to the AsyncResponse. The async operation
-             * results will be overwritten when the workers return results. *//*
-        ar->response.readResponse = *response;
-        UA_ReadResponse_init(response);
+        /* Move all results to the AsyncResponse. The async operation
+         * results will be overwritten when the workers return results. */
+        ar->response.writeResponse = *response;
+        UA_WriteResponse_init(response);
         *finished = false;
         } else {
-        *//* If there is a new AsyncResponse, ensure it has at least one
-             * pending operation *//*
+        /* If there is a new AsyncResponse, ensure it has at least one
+         * pending operation */
         UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
         }
-    }*/
+    }
 }
 #endif
 

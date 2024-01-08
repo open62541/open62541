@@ -283,6 +283,7 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
     newentry->timeout = el->dateTime_nowMonotonic(el);
+    newentry->operationType = operationType;
     if(server->config.asyncOperationTimeout > 0.0)
         newentry->timeout += (UA_DateTime)
             (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
