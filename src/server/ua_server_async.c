@@ -37,7 +37,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     }
 
     /* Check the channel */
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Service Response cannot be sent. "

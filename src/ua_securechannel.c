@@ -164,15 +164,8 @@ void
 UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Detach Sessions from the SecureChannel. This also removes outstanding
      * Publish requests whose RequestId is valid only for the SecureChannel. */
-    UA_SessionHeader *sh, *sh_tmp;
-    SLIST_FOREACH_SAFE(sh, &channel->sessions, next, sh_tmp) {
-        if(sh->serverSession) {
-            UA_Session_detachFromSecureChannel((UA_Session *)sh);
-        } else {
-            sh->channel = NULL;
-            SLIST_REMOVE_HEAD(&channel->sessions, next);
-        }
-    }
+    while(channel->sessions)
+        UA_Session_detachFromSecureChannel(channel->sessions);
 
     /* Delete the channel context for the security policy */
     if(channel->securityPolicy) {

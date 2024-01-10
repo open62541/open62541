@@ -557,16 +557,18 @@ UA_Server_updateCertificate(UA_Server *server,
     if(closeSessions) {
         session_list_entry *current;
         LIST_FOREACH(current, &server->sessions, pointers) {
-            UA_SessionHeader *header = &current->session.header;
-            if(UA_ByteString_equal(oldCertificate,
-                                    &header->channel->securityPolicy->localCertificate)) {
-                UA_LOCK(&server->serviceMutex);
-                UA_Server_removeSessionByToken(server, &header->authenticationToken,
-                                               UA_SHUTDOWNREASON_CLOSE);
-                UA_UNLOCK(&server->serviceMutex);
-            }
-        }
+            UA_Session *session = &current->session;
+            if(!session->channel)
+                continue;
+            if(!UA_ByteString_equal(oldCertificate,
+                                    &session->channel->securityPolicy->localCertificate))
+                continue;
 
+            UA_LOCK(&server->serviceMutex);
+            UA_Server_removeSessionByToken(server, &session->authenticationToken,
+                                           UA_SHUTDOWNREASON_CLOSE);
+            UA_UNLOCK(&server->serviceMutex);
+        }
     }
 
     /* Gracefully close all SecureChannels. And restart the

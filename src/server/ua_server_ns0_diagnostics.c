@@ -344,7 +344,7 @@ setSessionSecurityDiagnostics(UA_Session *session,
     UA_SessionSecurityDiagnosticsDataType_copy(&session->securityDiagnostics, sd);
     UA_NodeId_copy(&session->sessionId, &sd->sessionId);
     UA_String_copy(&session->clientUserIdOfSession, &sd->clientUserIdOfSession);
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(channel) {
         UA_ByteString_copy(&channel->remoteCertificate, &sd->clientCertificate);
         UA_String_copy(&channel->securityPolicy->policyUri, &sd->securityPolicyUri);

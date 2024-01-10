@@ -26,6 +26,11 @@ _UA_BEGIN_DECLS
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
 
+/* Forward-Declaration so the SecureChannel can point to a singly-linked list of
+ * Sessions. This is only used in the server, not in the client. */
+struct UA_Session;
+typedef struct UA_Session UA_Session;
+
 /* The message header of the OPC UA binary protocol is structured as follows:
  *
  * - MessageType (3 Byte)
@@ -54,18 +59,6 @@ typedef struct UA_SecureChannel UA_SecureChannel;
 
 /* Minimum length of a valid message (ERR message with an empty reason) */
 #define UA_SECURECHANNEL_MESSAGE_MIN_LENGTH 16
-
-/* The Session implementation differs between client and server. Still, it is
- * expected that the Session structure begins with the SessionHeader. This is
- * the interface that will be used by the SecureChannel. The lifecycle of
- * Sessions is independent of the underlying SecureChannel. But every Session
- * can be attached to only one SecureChannel. */
-typedef struct UA_SessionHeader {
-    SLIST_ENTRY(UA_SessionHeader) next;
-    UA_NodeId authenticationToken;
-    UA_Boolean serverSession; /* Disambiguate client and server session */
-    UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
-} UA_SessionHeader;
 
 /* For chunked requests */
 typedef struct UA_Chunk {
@@ -140,8 +133,9 @@ struct UA_SecureChannel {
     UA_UInt32 receiveSequenceNumber;
     UA_UInt32 sendSequenceNumber;
 
-    /* Sessions that are bound to the SecureChannel */
-    SLIST_HEAD(, UA_SessionHeader) sessions;
+    /* Sessions that are bound to the SecureChannel (singly-linked list, only
+     * used in the server) */
+    UA_Session *sessions;
 
     /* If a buffer is received, first all chunks are put into the completeChunks
      * queue. Then they are processed in order. This ensures that processing
