@@ -39,7 +39,6 @@ typedef struct UA_PublishResponseEntry {
 struct UA_Session {
     UA_Session *next; /* singly-linked list */
     UA_NodeId authenticationToken;
-    UA_Boolean serverSession; /* Disambiguate client and server session */
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 
     UA_ApplicationDescription clientDescription;

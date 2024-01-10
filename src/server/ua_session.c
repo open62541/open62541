@@ -72,13 +72,15 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
 void
 UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+    /* Ensure the Session is not attached to another SecureChannel */
     UA_Session_detachFromSecureChannel(session);
-    session->channel = channel;
-    session->serverSession = true;
 
     /* Add to singly-linked list */
     session->next = channel->sessions;
     channel->sessions = session;
+
+    /* Add backpointer */
+    session->channel = channel;
 }
 
 void
