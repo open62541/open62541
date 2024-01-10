@@ -38,25 +38,30 @@ typedef struct UA_PublishResponseEntry {
 
 struct UA_Session {
     UA_Session *next; /* singly-linked list */
-    UA_NodeId authenticationToken;
     UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
 
+    UA_NodeId sessionId;
+    UA_NodeId authenticationToken;
+    UA_String sessionName;
+    UA_Boolean activated;
+
+    void *sessionHandle; /* pointer assigned in userland-callback */
+
+    UA_ByteString serverNonce;
+
     UA_ApplicationDescription clientDescription;
-    UA_String         sessionName;
-    UA_Boolean        activated;
-    void             *sessionHandle; /* pointer assigned in userland-callback */
-    UA_NodeId         sessionId;
-    UA_String         clientUserIdOfSession;
-    UA_UInt32         maxRequestMessageSize;
-    UA_UInt32         maxResponseMessageSize;
-    UA_Double         timeout; /* in ms */
-    UA_DateTime       validTill;
-    UA_ByteString     serverNonce;
+    UA_String clientUserIdOfSession;
+    UA_Double timeout; /* in ms */
+    UA_DateTime validTill;
+
+    UA_KeyValueMap *attributes;
+
+    /* TODO: Currently unused */
+    UA_UInt32 maxRequestMessageSize;
+    UA_UInt32 maxResponseMessageSize;
 
     UA_UInt16         availableContinuationPoints;
     ContinuationPoint *continuationPoints;
-
-    UA_KeyValueMap *attributes;
 
     /* Localization information */
     size_t localeIdsSize;
