@@ -729,7 +729,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
 
 static UA_StatusCode
 addPubSubConnectionLocked(UA_Server *server,
-                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
@@ -825,14 +825,14 @@ addPubSubConnectionLocked(UA_Server *server,
 
 static UA_StatusCode
 addPubSubConnectionAction(UA_Server *server,
-                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addPubSubConnectionLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = addPubSubConnectionLocked(server, sessionId, sessionContext,
                                                   methodId, methodContext,
                                                   objectId, objectContext,
                                                   inputSize, input, outputSize, output);
@@ -842,7 +842,7 @@ addPubSubConnectionAction(UA_Server *server,
 
 static UA_StatusCode
 removeConnectionAction(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
@@ -949,7 +949,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
 
 static UA_StatusCode
 addDataSetReaderLocked(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
@@ -978,13 +978,13 @@ addDataSetReaderLocked(UA_Server *server,
 
 static UA_StatusCode
 addDataSetReaderAction(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetReaderLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = addDataSetReaderLocked(server, sessionId, sessionContext,
                                                methodId, methodContext, objectId, objectContext,
                                                inputSize, input, outputSize, output);
     UA_UNLOCK(&server->serviceMutex);
@@ -993,7 +993,7 @@ addDataSetReaderAction(UA_Server *server,
 
 static UA_StatusCode
 removeDataSetReaderAction(UA_Server *server,
-                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
@@ -1007,7 +1007,7 @@ removeDataSetReaderAction(UA_Server *server,
 /*************************************************/
 static UA_StatusCode
 addDataSetFolderAction(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
@@ -1047,7 +1047,7 @@ addDataSetFolderAction(UA_Server *server,
 
 static UA_StatusCode
 removeDataSetFolderAction(UA_Server *server,
-                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
@@ -1142,7 +1142,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
 
 static UA_StatusCode
 addPublishedDataItemsAction(UA_Server *server,
-                            const UA_NodeId *sessionId, void *sessionHandle,
+                            const UA_NodeId *sessionId, void *sessionContext,
                             const UA_NodeId *methodId, void *methodContext,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
@@ -1199,7 +1199,7 @@ addPublishedDataItemsAction(UA_Server *server,
 
 static UA_StatusCode
 addVariablesAction(UA_Server *server,
-                   const UA_NodeId *sessionId, void *sessionHandle,
+                   const UA_NodeId *sessionId, void *sessionContext,
                    const UA_NodeId *methodId, void *methodContext,
                    const UA_NodeId *objectId, void *objectContext,
                    size_t inputSize, const UA_Variant *input,
@@ -1209,7 +1209,7 @@ addVariablesAction(UA_Server *server,
 
 static UA_StatusCode
 removeVariablesAction(UA_Server *server,
-                      const UA_NodeId *sessionId, void *sessionHandle,
+                      const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext,
                       size_t inputSize, const UA_Variant *input,
@@ -1219,7 +1219,7 @@ removeVariablesAction(UA_Server *server,
 
 static UA_StatusCode
 removePublishedDataSetAction(UA_Server *server,
-                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *sessionId, void *sessionContext,
                              const UA_NodeId *methodId, void *methodContext,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
@@ -1507,7 +1507,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
 static UA_StatusCode
 addWriterGroupAction(UA_Server *server,
-                             const UA_NodeId *sessionId, void *sessionHandle,
+                             const UA_NodeId *sessionId, void *sessionContext,
                              const UA_NodeId *methodId, void *methodContext,
                              const UA_NodeId *objectId, void *objectContext,
                              size_t inputSize, const UA_Variant *input,
@@ -1532,7 +1532,7 @@ addWriterGroupAction(UA_Server *server,
 
 static UA_StatusCode
 removeGroupAction(UA_Server *server,
-                  const UA_NodeId *sessionId, void *sessionHandle,
+                  const UA_NodeId *sessionId, void *sessionContext,
                   const UA_NodeId *methodId, void *methodContext,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
@@ -1559,7 +1559,7 @@ removeGroupAction(UA_Server *server,
 
 static UA_StatusCode
 addReserveIdsLocked(UA_Server *server,
-                    const UA_NodeId *sessionId, void *sessionHandle,
+                    const UA_NodeId *sessionId, void *sessionContext,
                     const UA_NodeId *methodId, void *methodContext,
                     const UA_NodeId *objectId, void *objectContext,
                     size_t inputSize, const UA_Variant *input,
@@ -1609,13 +1609,13 @@ addReserveIdsLocked(UA_Server *server,
 
 static UA_StatusCode
 addReserveIdsAction(UA_Server *server,
-                    const UA_NodeId *sessionId, void *sessionHandle,
+                    const UA_NodeId *sessionId, void *sessionContext,
                     const UA_NodeId *methodId, void *methodContext,
                     const UA_NodeId *objectId, void *objectContext,
                     size_t inputSize, const UA_Variant *input,
                     size_t outputSize, UA_Variant *output) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addReserveIdsLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = addReserveIdsLocked(server, sessionId, sessionContext,
                                             methodId, methodContext, objectId, objectContext,
                                             inputSize, input, outputSize, output);
     UA_UNLOCK(&server->serviceMutex);
@@ -1686,7 +1686,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
 
 static UA_StatusCode
 addReaderGroupAction(UA_Server *server,
-                     const UA_NodeId *sessionId, void *sessionHandle,
+                     const UA_NodeId *sessionId, void *sessionContext,
                      const UA_NodeId *methodId, void *methodContext,
                      const UA_NodeId *objectId, void *objectContext,
                      size_t inputSize, const UA_Variant *input,
@@ -1936,7 +1936,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
 
 static UA_StatusCode
 addDataSetWriterLocked(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
@@ -1971,13 +1971,13 @@ addDataSetWriterLocked(UA_Server *server,
 
 static UA_StatusCode
 addDataSetWriterAction(UA_Server *server,
-                       const UA_NodeId *sessionId, void *sessionHandle,
+                       const UA_NodeId *sessionId, void *sessionContext,
                        const UA_NodeId *methodId, void *methodContext,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addDataSetWriterLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = addDataSetWriterLocked(server, sessionId, sessionContext,
                                                methodId, methodContext, objectId, objectContext,
                                                inputSize, input, outputSize, output);
     UA_UNLOCK(&server->serviceMutex);
@@ -1986,7 +1986,7 @@ addDataSetWriterAction(UA_Server *server,
 
 static UA_StatusCode
 removeDataSetWriterAction(UA_Server *server,
-                          const UA_NodeId *sessionId, void *sessionHandle,
+                          const UA_NodeId *sessionId, void *sessionContext,
                           const UA_NodeId *methodId, void *methodContext,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
@@ -2002,7 +2002,7 @@ removeDataSetWriterAction(UA_Server *server,
  * before this callback is executed.
  */
 static UA_StatusCode
-setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle,
+setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
@@ -2092,12 +2092,12 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 }
 
 static UA_StatusCode
-setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle,
+setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = setSecurityKeysLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = setSecurityKeysLocked(server, sessionId, sessionContext,
                                               methodId, methodContext,
                                               objectId, objectContext, inputSize,
                                               input, outputSize, output);
@@ -2106,7 +2106,7 @@ setSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 }
 
 static UA_StatusCode
-getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle,
+getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
@@ -2156,7 +2156,7 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(
-        server, &server->config.accessControl, sessionId, sessionHandle, methodId,
+        server, &server->config.accessControl, sessionId, sessionContext, methodId,
         methodContext, &sg->securityGroupNodeId, sgNodeCtx);
 
     if(!executable)
@@ -2238,12 +2238,12 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 }
 
 static UA_StatusCode
-getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionHandle,
+getSecurityKeysAction(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
                       const UA_NodeId *methodId, void *methodContext,
                       const UA_NodeId *objectId, void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = getSecurityKeysLocked(server, sessionId, sessionHandle,
+    UA_StatusCode res = getSecurityKeysLocked(server, sessionId, sessionContext,
                                               methodId, methodContext,
                                               objectId, objectContext, inputSize,
                                               input, outputSize, output);
@@ -2445,7 +2445,7 @@ standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
  * (replace config)" is called. */
 static UA_StatusCode
 UA_loadPubSubConfigMethodCallback(UA_Server *server,
-                                  const UA_NodeId *sessionId, void *sessionHandle,
+                                  const UA_NodeId *sessionId, void *sessionContext,
                                   const UA_NodeId *methodId, void *methodContext,
                                   const UA_NodeId *objectId, void *objectContext,
                                   size_t inputSize, const UA_Variant *input,
@@ -2467,7 +2467,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
  *  (delete config)" is called. */
 static UA_StatusCode
 UA_deletePubSubConfigMethodCallback(UA_Server *server,
-                                    const UA_NodeId *sessionId, void *sessionHandle,
+                                    const UA_NodeId *sessionId, void *sessionContext,
                                     const UA_NodeId *methodId, void *methodContext,
                                     const UA_NodeId *objectId, void *objectContext,
                                     size_t inputSize, const UA_Variant *input,

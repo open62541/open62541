@@ -269,7 +269,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
             getUserExecutableOnObject(server, &server->config.accessControl,
-                                      &session->sessionId, session->sessionHandle,
+                                      &session->sessionId, session->context,
                                       &request->methodId, method->head.context,
                                       &request->objectId, object->head.context);
         UA_LOCK(&server->serviceMutex);
@@ -350,7 +350,7 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Call the method */
     UA_UNLOCK(&server->serviceMutex);
-    result->statusCode = method->method(server, &session->sessionId, session->sessionHandle,
+    result->statusCode = method->method(server, &session->sessionId, session->context,
                                         &method->head.nodeId, method->head.context,
                                         &object->head.nodeId, object->head.context,
                                         request->inputArgumentsSize, mutableInputArgs,

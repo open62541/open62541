@@ -632,7 +632,7 @@ copyChild(UA_Server *server, UA_Session *session,
             return UA_STATUSCODE_GOOD;
         UA_UNLOCK(&server->serviceMutex);
         UA_Boolean createChild = server->config.nodeLifecycle.
-            createOptionalChild(server, &session->sessionId, session->sessionHandle,
+            createOptionalChild(server, &session->sessionId, session->context,
                                 &rd->nodeId.nodeId, destinationNodeId, &rd->referenceTypeId);
         UA_LOCK(&server->serviceMutex);
         if(!createChild)
@@ -685,7 +685,7 @@ copyChild(UA_Server *server, UA_Session *session,
         if(server->config.nodeLifecycle.generateChildNodeId) {
             UA_UNLOCK(&server->serviceMutex);
             retval = server->config.nodeLifecycle.
-                generateChildNodeId(server, &session->sessionId, session->sessionHandle,
+                generateChildNodeId(server, &session->sessionId, session->context,
                                     &rd->nodeId.nodeId, destinationNodeId,
                                     &rd->referenceTypeId, &node->head.nodeId);
             UA_LOCK(&server->serviceMutex);
@@ -1038,7 +1038,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
            allowAddNode(server, &server->config.accessControl,
-                        &session->sessionId, session->sessionHandle, item)) {
+                        &session->sessionId, session->context, item)) {
             UA_LOCK(&server->serviceMutex);
             return UA_STATUSCODE_BADUSERACCESSDENIED;
         }
@@ -1292,7 +1292,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
         UA_UNLOCK(&server->serviceMutex);
         retval = server->config.nodeLifecycle.
             constructor(server, &session->sessionId,
-                        session->sessionHandle, nodeId, &context);
+                        session->context, nodeId, &context);
         UA_LOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
@@ -1307,7 +1307,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(lifecycle && lifecycle->constructor) {
         UA_UNLOCK(&server->serviceMutex);
         retval = lifecycle->constructor(server, &session->sessionId,
-                                        session->sessionHandle, &type->head.nodeId,
+                                        session->context, &type->head.nodeId,
                                         type->head.context, nodeId, &context);
         UA_LOCK(&server->serviceMutex);
         if(retval != UA_STATUSCODE_GOOD)
@@ -1327,7 +1327,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
   local_destructor:
     if(lifecycle && lifecycle->destructor) {
         UA_UNLOCK(&server->serviceMutex);
-        lifecycle->destructor(server, &session->sessionId, session->sessionHandle,
+        lifecycle->destructor(server, &session->sessionId, session->context,
                               &type->head.nodeId, type->head.context, nodeId, &context);
         UA_LOCK(&server->serviceMutex);
     }
@@ -1336,8 +1336,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     if(server->config.nodeLifecycle.destructor) {
         UA_UNLOCK(&server->serviceMutex);
         server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                session->sessionHandle,
-                                                nodeId, context);
+                                                session->context, nodeId, context);
         UA_LOCK(&server->serviceMutex);
     }
     return retval;
@@ -1833,7 +1832,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
                if(lifecycle->destructor) {
                   UA_UNLOCK(&server->serviceMutex);
                   lifecycle->destructor(server,
-                                        &session->sessionId, session->sessionHandle,
+                                        &session->sessionId, session->context,
                                         &type->head.nodeId, type->head.context,
                                         &member->head.nodeId, &context);
                   UA_LOCK(&server->serviceMutex);
@@ -1848,7 +1847,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
         if(server->config.nodeLifecycle.destructor) {
             UA_UNLOCK(&server->serviceMutex);
             server->config.nodeLifecycle.destructor(server, &session->sessionId,
-                                                    session->sessionHandle,
+                                                    session->context,
                                                     &member->head.nodeId, context);
             UA_LOCK(&server->serviceMutex);
         }
@@ -1969,7 +1968,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
            allowDeleteNode(server, &server->config.accessControl,
-                           &session->sessionId, session->sessionHandle, item)) {
+                           &session->sessionId, session->context, item)) {
             UA_LOCK(&server->serviceMutex);
             *result = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -2123,7 +2122,7 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         if (!server->config.accessControl.
                 allowAddReference(server, &server->config.accessControl,
-                                  &session->sessionId, session->sessionHandle, item)) {
+                                  &session->sessionId, session->context, item)) {
             UA_LOCK(&server->serviceMutex);
             *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -2294,7 +2293,7 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
         UA_UNLOCK(&server->serviceMutex);
         if (!server->config.accessControl.
                 allowDeleteReference(server, &server->config.accessControl,
-                                     &session->sessionId, session->sessionHandle, item)){
+                                     &session->sessionId, session->context, item)){
             UA_LOCK(&server->serviceMutex);
             *retval = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -2849,7 +2848,7 @@ UA_Server_getMethodNodeCallback(UA_Server *server,
 void UA_EXPORT
 UA_Server_setAdminSessionContext(UA_Server *server,
                                  void *context) {
-    server->adminSession.sessionHandle = context;
+    server->adminSession.context = context;
 }
 
 static UA_StatusCode
