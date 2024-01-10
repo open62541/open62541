@@ -489,8 +489,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
-                                     oldSession ? oldSession->sessionHandle : NULL,
-                                     &session->sessionId, session->sessionHandle)) {
+                                     oldSession ? oldSession->context : NULL,
+                                     &session->sessionId, session->context)) {
             UA_LOCK(&server->serviceMutex);
             result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;

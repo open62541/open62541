@@ -51,7 +51,7 @@ UA_Server_removeSession(UA_Server *server, session_list_entry *sentry,
         UA_UNLOCK(&server->serviceMutex);
         server->config.accessControl.
             closeSession(server, &server->config.accessControl,
-                         &session->sessionId, session->sessionHandle);
+                         &session->sessionId, session->context);
         UA_LOCK(&server->serviceMutex);
     }
 
@@ -795,7 +795,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     resp->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
-                        &req->userIdentityToken, &session->sessionHandle);
+                        &req->userIdentityToken, &session->context);
     UA_LOCK(&server->serviceMutex);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,

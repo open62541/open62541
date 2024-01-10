@@ -82,7 +82,7 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
     mask &= server->config.accessControl.
         getUserRightsMask(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
-                          session ? session->sessionHandle : NULL,
+                          session ? session->context : NULL,
                           &head->nodeId, head->context);
     UA_LOCK(&server->serviceMutex);
     return mask;
@@ -107,7 +107,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
                            session ? &session->sessionId : NULL,
-                           session ? session->sessionHandle : NULL,
+                           session ? session->context : NULL,
                            &node->head.nodeId, node->head.context);
     UA_LOCK(&server->serviceMutex);
     return retval;
@@ -125,7 +125,7 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
         server->config.accessControl.
         getUserExecutable(server, &server->config.accessControl,
                           session ? &session->sessionId : NULL,
-                          session ? session->sessionHandle : NULL,
+                          session ? session->context : NULL,
                           &node->head.nodeId, node->head.context);
     UA_LOCK(&server->serviceMutex);
     return userExecutable;
@@ -168,7 +168,7 @@ readValueAttributeFromNode(UA_Server *server, UA_Session *session,
         UA_UNLOCK(&server->serviceMutex);
         vn->value.data.callback.onRead(server,
                                        session ? &session->sessionId : NULL,
-                                       session ? session->sessionHandle : NULL,
+                                       session ? session->context : NULL,
                                        &vn->head.nodeId, vn->head.context, rangeptr,
                                        &vn->value.data.value);
         UA_LOCK(&server->serviceMutex);
@@ -213,7 +213,7 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = vn->value.dataSource.
         read(server,
              session ? &session->sessionId : NULL,
-             session ? session->sessionHandle : NULL,
+             session ? session->context : NULL,
              &vn->head.nodeId, vn->head.context,
              sourceTimeStamp, rangeptr, &v2);
     UA_LOCK(&server->serviceMutex);
@@ -261,7 +261,7 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
             retval = vn->valueBackend.backend.external.callback.
                 notificationRead(server,
                                  session ? &session->sessionId : NULL,
-                                 session ? session->sessionHandle : NULL,
+                                 session ? session->context : NULL,
                                  &vn->head.nodeId, vn->head.context, rangeptr);
             if(retval != UA_STATUSCODE_GOOD)
                 break;
@@ -1485,7 +1485,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                node->value.data.callback.onWrite) {
                 UA_UNLOCK(&server->serviceMutex);
                 node->value.data.callback.
-                    onWrite(server, &session->sessionId, session->sessionHandle,
+                    onWrite(server, &session->sessionId, session->context,
                             &node->head.nodeId, node->head.context,
                             rangeptr, &adjustedValue);
                 UA_LOCK(&server->serviceMutex);
@@ -1494,7 +1494,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
             /* Write via the datasource callback */
             UA_UNLOCK(&server->serviceMutex);
             retval = node->value.dataSource.
-                write(server, &session->sessionId, session->sessionHandle,
+                write(server, &session->sessionId, session->context,
                       &node->head.nodeId, node->head.context,
                       rangeptr, &adjustedValue);
             UA_LOCK(&server->serviceMutex);
@@ -1504,7 +1504,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
     case UA_VALUEBACKENDTYPE_EXTERNAL:
         if(node->valueBackend.backend.external.callback.userWrite) {
             retval = node->valueBackend.backend.external.callback.
-                userWrite(server, &session->sessionId, session->sessionHandle,
+                userWrite(server, &session->sessionId, session->context,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
         }
@@ -1525,7 +1525,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         UA_UNLOCK(&server->serviceMutex);
         server->config.historyDatabase.
             setValue(server, server->config.historyDatabase.context,
-                     &session->sessionId, session->sessionHandle,
+                     &session->sessionId, session->context,
                      &node->head.nodeId, node->historizing, &adjustedValue);
         UA_LOCK(&server->serviceMutex);
     }
@@ -1992,7 +1992,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
     UA_UNLOCK(&server->serviceMutex);
     readHistory(server, server->config.historyDatabase.context,
-                &session->sessionId, session->sessionHandle,
+                &session->sessionId, session->context,
                 &request->requestHeader,
                 request->historyReadDetails.content.decoded.data,
                 request->timestampsToReturn,
@@ -2038,7 +2038,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
             UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 updateData(server, server->config.historyDatabase.context,
-                           &session->sessionId, session->sessionHandle,
+                           &session->sessionId, session->context,
                            &request->requestHeader,
                            (UA_UpdateDataDetails*)updateDetailsData,
                            &response->results[i]);
@@ -2054,7 +2054,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
             UA_UNLOCK(&server->serviceMutex);
             server->config.historyDatabase.
                 deleteRawModified(server, server->config.historyDatabase.context,
-                                  &session->sessionId, session->sessionHandle,
+                                  &session->sessionId, session->context,
                                   &request->requestHeader,
                                   (UA_DeleteRawModifiedDetails*)updateDetailsData,
                                   &response->results[i]);

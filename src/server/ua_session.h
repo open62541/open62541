@@ -45,7 +45,8 @@ struct UA_Session {
     UA_String sessionName;
     UA_Boolean activated;
 
-    void *sessionHandle; /* pointer assigned in userland-callback */
+    void *context; /* Pointer assigned by the user in the
+                    * accessControl->activateSession context */
 
     UA_ByteString serverNonce;
 
