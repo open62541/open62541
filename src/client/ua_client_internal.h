@@ -56,6 +56,7 @@ typedef struct UA_Client_Subscription {
     UA_UInt32 maxKeepAliveCount;
     UA_Client_StatusChangeNotificationCallback statusChangeCallback;
     UA_Client_DeleteSubscriptionCallback deleteCallback;
+    UA_Client_DataChangeCallback dataChangeCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
     LIST_HEAD(, UA_Client_MonitoredItem) monitoredItems;
