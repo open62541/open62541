@@ -402,7 +402,7 @@ sendStatusChangeDelete(UA_Server *server, UA_Subscription *sub,
     UA_assert(sub->session); /* Otherwise pre is NULL */
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sending out a publish response");
-    sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
+    sendResponse(server, sub->session, sub->session->channel, pre->requestId,
                  (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Clean up */
@@ -494,7 +494,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
                 UA_LOG_DEBUG_SESSION(server->config.logging, sub->session,
                                      "Publish request %u has timed out", pre->requestId);
                 pre->response.responseHeader.serviceResult = UA_STATUSCODE_BADTIMEOUT;
-                sendResponse(server, sub->session, sub->session->header.channel,
+                sendResponse(server, sub->session, sub->session->channel,
                              pre->requestId, (UA_Response *)&pre->response,
                              &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
                 UA_PublishResponse_clear(&pre->response);
@@ -548,7 +548,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     /* We want to send a response, but cannot. Either because there is no queued
      * response or because the Subscription is detached from a Session or because
      * the SecureChannel for the Session is closed. */
-    if(!pre || !sub->session || !sub->session->header.channel) {
+    if(!pre || !sub->session || !sub->session->channel) {
         UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Want to send a publish response but cannot. "
                                   "The subscription is late.");
@@ -645,7 +645,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                               "Sending out a publish response with %" PRIu32
                               " notifications", notifications);
-    sendResponse(server, sub->session, sub->session->header.channel, pre->requestId,
+    sendResponse(server, sub->session, sub->session->channel, pre->requestId,
                  (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
     /* Reset the Subscription state to NORMAL. But only if all notifications
@@ -747,7 +747,7 @@ UA_Session_ensurePublishQueueSpace(UA_Server* server, UA_Session* session) {
         /* Send the response. This response has no related subscription id */
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYPUBLISHREQUESTS;
-        sendResponse(server, session, session->header.channel, pre->requestId,
+        sendResponse(server, session, session->channel, pre->requestId,
                      (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
 
         /* Free the response */

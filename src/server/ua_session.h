@@ -36,8 +36,12 @@ typedef struct UA_PublishResponseEntry {
 } UA_PublishResponseEntry;
 #endif
 
-typedef struct {
-    UA_SessionHeader  header;
+struct UA_Session {
+    UA_Session *next; /* singly-linked list */
+    UA_NodeId authenticationToken;
+    UA_Boolean serverSession; /* Disambiguate client and server session */
+    UA_SecureChannel *channel; /* The pointer back to the SecureChannel in the session. */
+
     UA_ApplicationDescription clientDescription;
     UA_String         sessionName;
     UA_Boolean        activated;
@@ -77,7 +81,7 @@ typedef struct {
     UA_SessionSecurityDiagnosticsDataType securityDiagnostics;
     UA_SessionDiagnosticsDataType diagnostics;
 #endif
-} UA_Session;
+};
 
 /**
  * Session Lifecycle
@@ -137,10 +141,10 @@ UA_Session_dequeuePublishReq(UA_Session *session);
         int nameLen = (SESSION) ? (int)(SESSION)->sessionName.length : 0; \
         const char *nameStr = (SESSION) ?                               \
             (const char*)(SESSION)->sessionName.data : "";              \
-        unsigned long sockId = ((SESSION) && (SESSION)->header.channel) ? \
-            (unsigned long)(SESSION)->header.channel->connectionId : 0; \
-        UA_UInt32 chanId = ((SESSION) && (SESSION)->header.channel) ?   \
-            (SESSION)->header.channel->securityToken.channelId : 0;     \
+        unsigned long sockId = ((SESSION) && (SESSION)->channel) ? \
+            (unsigned long)(SESSION)->channel->connectionId : 0; \
+        UA_UInt32 chanId = ((SESSION) && (SESSION)->channel) ?   \
+            (SESSION)->channel->securityToken.channelId : 0;     \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_SESSION,                  \
                        "TCP %lu\t| SC %" PRIu32 "\t| Session \"%.*s\"\t| " MSG "%.0s", \
                        sockId, chanId, nameLen, nameStr, __VA_ARGS__);   \

@@ -105,7 +105,7 @@ UA_Server_removeSessionByToken(UA_Server *server, const UA_NodeId *token,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     session_list_entry *entry;
     LIST_FOREACH(entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&entry->session.header.authenticationToken, token)) {
+        if(UA_NodeId_equal(&entry->session.authenticationToken, token)) {
             UA_Server_removeSession(server, entry, shutdownReason);
             return UA_STATUSCODE_GOOD;
         }
@@ -138,7 +138,7 @@ getSessionByToken(UA_Server *server, const UA_NodeId *token) {
     session_list_entry *current = NULL;
     LIST_FOREACH(current, &server->sessions, pointers) {
         /* Token does not match */
-        if(!UA_NodeId_equal(&current->session.header.authenticationToken, token))
+        if(!UA_NodeId_equal(&current->session.authenticationToken, token))
             continue;
 
         /* Session has timed out */
@@ -245,7 +245,7 @@ UA_Server_createSession(UA_Server *server, UA_SecureChannel *channel,
     /* Initialize the Session */
     UA_Session_init(&newentry->session);
     newentry->session.sessionId = UA_NODEID_GUID(1, UA_Guid_random());
-    newentry->session.header.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
+    newentry->session.authenticationToken = UA_NODEID_GUID(1, UA_Guid_random());
 
     newentry->session.timeout = server->config.maxSessionTimeout;
     if(request->requestedSessionTimeout <= server->config.maxSessionTimeout &&
@@ -353,7 +353,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Prepare the response */
     response->sessionId = newSession->sessionId;
     response->revisedSessionTimeout = (UA_Double)newSession->timeout;
-    response->authenticationToken = newSession->header.authenticationToken;
+    response->authenticationToken = newSession->authenticationToken;
     response->responseHeader.serviceResult |=
         UA_ByteString_copy(&newSession->serverNonce, &response->serverNonce);
 
@@ -363,7 +363,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
                                  &response->serverEndpoints,
                                  &response->serverEndpointsSize);
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken,
+        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
                                        UA_SHUTDOWNREASON_REJECT);
         return;
     }
@@ -385,7 +385,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Failure -> remove the session */
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Server_removeSessionByToken(server, &newSession->header.authenticationToken,
+        UA_Server_removeSessionByToken(server, &newSession->authenticationToken,
                                        UA_SHUTDOWNREASON_REJECT);
         return;
     }
@@ -723,7 +723,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      * SecureChannel is not same as the one associated with the
      * CreateSession request. Subsequent calls to ActivateSession may be
      * associated with different SecureChannels. */
-    if(!session->activated && session->header.channel != channel) {
+    if(!session->activated && session->channel != channel) {
         UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                "ActivateSession: The Session has to be initially activated "
                                "on the SecureChannel that created it");
@@ -808,7 +808,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     /* Attach the session to the currently used channel if the session isn't
      * attached to a channel or if the session is activated on a different
      * channel than it is attached to. */
-    if(!session->header.channel || session->header.channel != channel) {
+    if(!session->channel || session->channel != channel) {
         /* Attach the new SecureChannel, the old channel will be detached if present */
         UA_Session_attachToSecureChannel(session, channel);
         UA_LOG_INFO_SESSION(server->config.logging, session,
@@ -956,7 +956,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Remove the sesison */
     response->responseHeader.serviceResult =
-        UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
+        UA_Server_removeSessionByToken(server, &session->authenticationToken,
                                        UA_SHUTDOWNREASON_CLOSE);
 }
 
@@ -990,7 +990,7 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
 
         /* Send response and clean up */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-        sendResponse(server, session, session->header.channel, pre->requestId,
+        sendResponse(server, session, session->channel, pre->requestId,
                      (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);

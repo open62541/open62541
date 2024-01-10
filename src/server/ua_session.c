@@ -43,7 +43,7 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_clear(&session->clientDescription);
-    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->authenticationToken);
     UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
@@ -73,24 +73,30 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 void
 UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
     UA_Session_detachFromSecureChannel(session);
-    session->header.channel = channel;
-    session->header.serverSession = true;
-    SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
+    session->channel = channel;
+    session->serverSession = true;
+
+    /* Add to singly-linked list */
+    session->next = channel->sessions;
+    channel->sessions = session;
 }
 
 void
 UA_Session_detachFromSecureChannel(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel)
         return;
-    session->header.channel = NULL;
-    UA_SessionHeader *sh;
-    SLIST_FOREACH(sh, &channel->sessions, next) {
-        if((UA_Session*)sh != session)
-            continue;
-        SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
-        break;
+
+    /* Remove from singly-linked list */
+    if(channel->sessions == session) {
+        channel->sessions = session->next;
+    } else {
+        UA_Session *elm =  channel->sessions;
+        while(elm->next != session)
+            elm = elm->next;
+        elm->next = session->next;
     }
+    session->channel = NULL;
 
     /* Clean up the response queue. Their RequestId is bound to the
      * SecureChannel so they cannot be reused. */
@@ -105,7 +111,7 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
 
 UA_StatusCode
 UA_Session_generateNonce(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel || !channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -178,7 +184,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     while((pre = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        sendResponse(server, session, session->header.channel, pre->requestId,
+        sendResponse(server, session, session->channel, pre->requestId,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(response);
         UA_free(pre);
