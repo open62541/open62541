@@ -445,6 +445,7 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_encryption_aes256sha256rsapss.c)
     ua_add_test(encryption/check_username_connect_none.c)
     ua_add_test(encryption/check_encryption_key_password.c)
+    ua_add_test(encryption/check_cert_generation.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
