@@ -2008,23 +2008,20 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /*Check whether the channel is encrypted according to specification*/
-    session_list_entry *session_entry;
-    LIST_FOREACH(session_entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
-            if(session_entry->session.header.channel->securityMode !=
-               UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-                return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
-        }
-    }
-
+    /* Validate the arguments */
     if(!server || !input)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
     if(inputSize < 7)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(inputSize > 7 || outputSize > 0)
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+
+    /* Check whether the channel is encrypted according to specification */
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session || !session->channel)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 
     /*check for types*/
     if(!UA_Variant_hasScalarType(&input[0], &UA_TYPES[UA_TYPES_STRING]) || /*SecurityGroupId*/
@@ -2112,23 +2109,20 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /*Check whether the channel is encrypted according to specification*/
-    session_list_entry *session_entry;
-    LIST_FOREACH(session_entry, &server->sessions, pointers) {
-        if(UA_NodeId_equal(&session_entry->session.sessionId, sessionId)) {
-            if(session_entry->session.header.channel->securityMode !=
-               UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-                return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
-        }
-    }
-
+    /* Validate the arguments */
     if(!server || !input)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
     if(inputSize < 3 || outputSize < 5)
         return UA_STATUSCODE_BADARGUMENTSMISSING;
     if(inputSize > 3 || outputSize > 5)
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
+
+    /* Check whether the channel is encrypted according to specification */
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session || !session->channel)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    if(session->channel->securityMode != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
+        return UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
 
     /*check for types*/
     if(!UA_Variant_hasScalarType(&input[0],
