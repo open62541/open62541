@@ -142,7 +142,13 @@ static void
 deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
                           UA_SecureChannel *channel) {
     /* Clean up the SecureChannel. This is the only place where
-     * UA_SecureChannel_clear must be called within the server code-base. */
+     * UA_SecureChannel_clear must be called within the server code-base.
+     *
+     * First detach all Sessions from the SecureChannel. This also removes
+     * outstanding Publish requests whose RequestId is valid only for the
+     * SecureChannel. */
+    while(channel->sessions)
+        UA_Session_detachFromSecureChannel(channel->sessions);
     UA_SecureChannel_clear(channel);
 
     /* Detach the channel from the server list */
