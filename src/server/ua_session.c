@@ -85,21 +85,6 @@ UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel)
 
 void
 UA_Session_detachFromSecureChannel(UA_Session *session) {
-    UA_SecureChannel *channel = session->channel;
-    if(!channel)
-        return;
-
-    /* Remove from singly-linked list */
-    if(channel->sessions == session) {
-        channel->sessions = session->next;
-    } else {
-        UA_Session *elm =  channel->sessions;
-        while(elm->next != session)
-            elm = elm->next;
-        elm->next = session->next;
-    }
-    session->channel = NULL;
-
     /* Clean up the response queue. Their RequestId is bound to the
      * SecureChannel so they cannot be reused. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -109,6 +94,23 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
         UA_free(pre);
     }
 #endif
+
+    /* Remove from singly-linked list */
+    UA_SecureChannel *channel = session->channel;
+    if(!channel)
+        return;
+
+    if(channel->sessions == session) {
+        channel->sessions = session->next;
+    } else {
+        UA_Session *elm =  channel->sessions;
+        while(elm->next != session)
+            elm = elm->next;
+        elm->next = session->next;
+    }
+
+    /* Reset the backpointer */
+    session->channel = NULL;
 }
 
 UA_StatusCode
