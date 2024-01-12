@@ -442,10 +442,10 @@ typedef struct {
      * @param data Points to the current node value.
      * @param range Points to the numeric range the client wants to read from
      *        (or NULL). */
-    void (*onRead)(UA_Server *server, const UA_NodeId *sessionId,
-                   void *sessionContext, const UA_NodeId *nodeid,
-                   void *nodeContext, const UA_NumericRange *range,
-                   const UA_DataValue *value);
+    void (*onRead)(UA_Server *server,
+                   const UA_NodeId *sessionId, void *sessionContext,
+                   const UA_NodeId *nodeid, void *nodeContext,
+                   const UA_NumericRange *range, const UA_DataValue *value);
 
     /* Called after writing the value attribute. The node is re-opened after
      * writing so that the new value is visible in the callback.
@@ -461,10 +461,10 @@ typedef struct {
      *        by the type constructor(s).
      * @param range Points to the numeric range the client wants to write to (or
      *        NULL). */
-    void (*onWrite)(UA_Server *server, const UA_NodeId *sessionId,
-                    void *sessionContext, const UA_NodeId *nodeId,
-                    void *nodeContext, const UA_NumericRange *range,
-                    const UA_DataValue *data);
+    void (*onWrite)(UA_Server *server,
+                    const UA_NodeId *sessionId, void *sessionContext,
+                    const UA_NodeId *nodeId, void *nodeContext,
+                    const UA_NumericRange *range, const UA_DataValue *data);
 } UA_ValueCallback;
 
 typedef struct {
