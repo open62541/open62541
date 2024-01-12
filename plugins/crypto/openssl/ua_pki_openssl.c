@@ -875,10 +875,18 @@ UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
     if(!data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* Move to the output */
-    outDerKey->data = data;
-    outDerKey->length = (size_t)numBytes;
-    return UA_STATUSCODE_GOOD;
+    /* Copy to the data to outDerKey
+     * Passing the data pointer directly causes a heap corruption on Windows
+     * when outDerKey is cleared.
+     */
+    UA_ByteString temp = UA_BYTESTRING_NULL;
+    temp.data = data;
+    temp.length = (size_t)numBytes;
+    const UA_StatusCode success = UA_ByteString_copy(&temp, outDerKey);
+    /* OPENSSL_clear_free() is not supported by the LibreSSL version in the CI */
+    OPENSSL_cleanse(data, numBytes);
+    OPENSSL_free(data);
+    return success;
 }
 
 #endif  /* end of defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL) */
