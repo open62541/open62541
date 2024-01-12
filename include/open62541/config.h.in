@@ -24,7 +24,7 @@
 #cmakedefine UA_ARCHITECTURE_POSIX
 
 /* Select default architecture if none is selected */
-#if !defined(UA_ARCHITECtURE_WIN32) && !defined(UA_ARCHITECtURE_POSIX)
+#if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX)
 # ifdef _WIN32
 #  define UA_ARCHITECTURE_WIN32
 # else
