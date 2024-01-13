@@ -425,8 +425,8 @@ void UA_Node_clear(UA_Node *node) {
                         &UA_TYPES[UA_TYPES_INT32]);
         p->arrayDimensions = NULL;
         p->arrayDimensionsSize = 0;
-        if(p->valueSource == UA_VALUESOURCE_DATA)
-            UA_DataValue_clear(&p->value.data.value);
+        if(p->valueSource == UA_VALUESOURCE_INTERNAL)
+            UA_DataValue_clear(&p->value.internal.value);
         break;
     }
     case UA_NODECLASS_REFERENCETYPE: {
@@ -459,12 +459,12 @@ UA_CommonVariableNode_copy(const UA_VariableNode *src, UA_VariableNode *dst) {
     dst->arrayDimensionsSize = src->arrayDimensionsSize;
     retval = UA_NodeId_copy(&src->dataType, &dst->dataType);
     dst->valueRank = src->valueRank;
-    dst->valueBackend = src->valueBackend;
     dst->valueSource = src->valueSource;
-    if(src->valueSource == UA_VALUESOURCE_DATA) {
-        retval |= UA_DataValue_copy(&src->value.data.value,
-                                    &dst->value.data.value);
-        dst->value.data.callback = src->value.data.callback;
+    if(src->valueSource == UA_VALUESOURCE_INTERNAL) {
+        retval |= UA_DataValue_copy(&src->value.internal.value, &dst->value.internal.value);
+        dst->value.internal.valueCallback = src->value.internal.valueCallback;
+    } else if(src->valueSource == UA_VALUESOURCE_EXTERNAL) {
+        dst->value.external = src->value.external;
     } else {
         dst->value.dataSource = src->value.dataSource;
     }
@@ -763,9 +763,9 @@ copyCommonVariableAttributes(UA_VariableNode *node,
     node->valueRank = attr->valueRank;
 
     /* Copy the value */
-    retval = UA_Variant_copy(&attr->value, &node->value.data.value.value);
-    node->valueSource = UA_VALUESOURCE_DATA;
-    node->value.data.value.hasValue = (node->value.data.value.value.type != NULL);
+    node->valueSource = UA_VALUESOURCE_INTERNAL;
+    retval = UA_Variant_copy(&attr->value, &node->value.internal.value.value);
+    node->value.internal.value.hasValue = (node->value.internal.value.value.type != NULL);
 
     return retval;
 }

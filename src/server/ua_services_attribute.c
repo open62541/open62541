@@ -159,70 +159,36 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
 }
 
 static UA_StatusCode
-readValueAttributeFromNode(UA_Server *server, UA_Session *session,
-                           const UA_VariableNode *vn, UA_DataValue *v,
-                           UA_NumericRange *rangeptr) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    /* Update the value by the user callback */
-    if(vn->value.data.callback.onRead) {
-        UA_UNLOCK(&server->serviceMutex);
-        vn->value.data.callback.onRead(server,
-                                       session ? &session->sessionId : NULL,
-                                       session ? session->context : NULL,
-                                       &vn->head.nodeId, vn->head.context, rangeptr,
-                                       &vn->value.data.value);
-        UA_LOCK(&server->serviceMutex);
-        vn = (const UA_VariableNode*)
-            UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
-                                       UA_NODEATTRIBUTESMASK_VALUE,
-                                       UA_REFERENCETYPESET_NONE,
-                                       UA_BROWSEDIRECTION_INVALID);
-        if(!vn)
-            return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    }
-
-    /* Set the result */
-    UA_StatusCode retval;
-    if(!rangeptr) {
-        retval = UA_DataValue_copy(&vn->value.data.value, v);
-    } else {
-        *v = vn->value.data.value; /* Copy timestamps */
-        UA_Variant_init(&v->value);
-        retval = UA_Variant_copyRange(&vn->value.data.value.value, &v->value, *rangeptr);
-    }
-
-    /* Clean up */
-    if(vn->value.data.callback.onRead)
-        UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
-    return retval;
-}
-
-static UA_StatusCode
 readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                  const UA_VariableNode *vn, UA_DataValue *v,
                                  UA_TimestampsToReturn timestamps,
                                  UA_NumericRange *rangeptr) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(!vn->value.dataSource.read)
         return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
                                   timestamps == UA_TIMESTAMPSTORETURN_BOTH);
     UA_DataValue v2;
     UA_DataValue_init(&v2);
+
     UA_UNLOCK(&server->serviceMutex);
-    UA_StatusCode retval = vn->value.dataSource.
-        read(server,
-             session ? &session->sessionId : NULL,
-             session ? session->context : NULL,
-             &vn->head.nodeId, vn->head.context,
-             sourceTimeStamp, rangeptr, &v2);
+    UA_StatusCode retval =
+        vn->value.dataSource.read(server,
+                                  session ? &session->sessionId : NULL,
+                                  session ? session->context : NULL,
+                                  &vn->head.nodeId, vn->head.context,
+                                  sourceTimeStamp, rangeptr, &v2);
     UA_LOCK(&server->serviceMutex);
+
     if(v2.hasValue && v2.value.storageType == UA_VARIANT_DATA_NODELETE) {
         retval = UA_DataValue_copy(&v2, v);
         UA_DataValue_clear(&v2);
     } else {
         *v = v2;
     }
+
     return retval;
 }
 
@@ -230,6 +196,7 @@ static UA_StatusCode
 readValueAttributeComplete(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_TimestampsToReturn timestamps,
                            const UA_String *indexRange, UA_DataValue *v) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_EventLoop *el = server->config.eventLoop;
 
     /* Compute the index range */
@@ -243,45 +210,68 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
         rangeptr = &range;
     }
 
-    switch(vn->valueBackend.backendType) {
-        case UA_VALUEBACKENDTYPE_INTERNAL:
-            retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
-            //TODO change old structure to value backend
-            break;
-        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
-            retval = readValueAttributeFromDataSource(server, session, vn, v,
-                                                      timestamps, rangeptr);
-            //TODO change old structure to value backend
-            break;
-        case UA_VALUEBACKENDTYPE_EXTERNAL:
-            if(!vn->valueBackend.backend.external.callback.notificationRead) {
-                retval = UA_STATUSCODE_BADNOTREADABLE;
-                break;
-            }
-            retval = vn->valueBackend.backend.external.callback.
-                notificationRead(server,
-                                 session ? &session->sessionId : NULL,
-                                 session ? session->context : NULL,
-                                 &vn->head.nodeId, vn->head.context, rangeptr);
-            if(retval != UA_STATUSCODE_GOOD)
-                break;
+    /* Read the value */
+    UA_Boolean release = false; /* Did we re-aquire the node after a onread callback? */
+    switch(vn->valueSource) {
+    case UA_VALUESOURCE_INTERNAL:
+        /* Notify that the variable is going to be read */
+        if(vn->value.internal.valueCallback.onRead) {
+            UA_UNLOCK(&server->serviceMutex);
+            vn->value.internal.valueCallback.
+                onRead(server,
+                       session ? &session->sessionId : NULL,
+                       session ? session->context : NULL,
+                       &vn->head.nodeId, vn->head.context,
+                       rangeptr, &vn->value.internal.value);
+            UA_LOCK(&server->serviceMutex);
+            
+            /* Reread the VariableNode -- it might have been updated in the
+             * callback. Note that this does not change vn in the calling method. So
+             * we need to release vn below during cleanup. */
+            vn = (const UA_VariableNode*)
+                UA_NODESTORE_GET_SELECTIVE(server, &vn->head.nodeId,
+                                           UA_NODEATTRIBUTESMASK_VALUE,
+                                           UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID);
+            if(!vn)
+                return UA_STATUSCODE_BADNODEIDUNKNOWN;
+            release = true;
+        }
 
-            /* Set the result */
-            if(rangeptr)
-                retval = UA_DataValue_copyVariantRange(
-                    *vn->valueBackend.backend.external.value, v, *rangeptr);
-            else
-                retval = UA_DataValue_copy(*vn->valueBackend.backend.external.value, v);
-            break;
-        case UA_VALUEBACKENDTYPE_NONE:
-            /* Read the value */
-            if(vn->valueSource == UA_VALUESOURCE_DATA)
-                retval = readValueAttributeFromNode(server, session, vn, v, rangeptr);
-            else
-                retval = readValueAttributeFromDataSource(server, session, vn, v,
-                                                          timestamps, rangeptr);
-            /* end lagacy */
-            break;
+        /* Copy the value */
+        if(!rangeptr)
+            retval = UA_DataValue_copy(&vn->value.internal.value, v);
+        else
+            retval = UA_DataValue_copyVariantRange(&vn->value.internal.value,
+                                                   v, *rangeptr);
+        break;
+
+    case UA_VALUESOURCE_EXTERNAL:
+        /* Notify that the variable is going to be read */
+        if(vn->value.external.valueCallback.onExternalRead) {
+            UA_UNLOCK(&server->serviceMutex);
+            vn->value.external.valueCallback.
+                onExternalRead(server,
+                               session ? &session->sessionId : NULL,
+                               session ? session->context : NULL,
+                               &vn->head.nodeId, vn->head.context, rangeptr,
+                               (const UA_DataValue**)(uintptr_t)vn->value.external.value);
+            UA_LOCK(&server->serviceMutex);
+        }
+
+        /* Copy the value */
+        if(!rangeptr)
+            retval = UA_DataValue_copy(*vn->value.external.value, v);
+        else
+            retval = UA_DataValue_copyVariantRange(*vn->value.external.value,
+                                                   v, *rangeptr);
+        break;
+
+    case UA_VALUESOURCE_DATASOURCE:
+        /* Get the data from the callback */
+        retval = readValueAttributeFromDataSource(server, session, vn, v,
+                                                  timestamps, rangeptr);
+        break;
     }
 
     /* If not defined return a source timestamp of "now".
@@ -294,6 +284,8 @@ readValueAttributeComplete(UA_Server *server, UA_Session *session,
     /* Clean up */
     if(rangeptr)
         UA_free(range.dimensions);
+    if(release)
+        UA_NODESTORE_RELEASE(server, (const UA_Node *)vn);
     return retval;
 }
 
@@ -1365,8 +1357,8 @@ writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value
     UA_StatusCode retval = UA_DataValue_copy(value, &new_value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
-    UA_DataValue_clear(&node->value.data.value);
-    node->value.data.value = new_value;
+    UA_DataValue_clear(&node->value.internal.value);
+    node->value.internal.value = new_value;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1374,8 +1366,8 @@ static UA_StatusCode
 writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
                              const UA_NumericRange *rangeptr) {
     /* Value on both sides? */
-    if(value->status != node->value.data.value.status ||
-       !value->hasValue || !node->value.data.value.hasValue)
+    if(value->status != node->value.internal.value.status ||
+       !value->hasValue || !node->value.internal.value.hasValue)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
 
     /* Make scalar a one-entry array for range matching */
@@ -1388,25 +1380,23 @@ writeValueAttributeWithRange(UA_VariableNode *node, const UA_DataValue *value,
     }
 
     /* Check that the type is an exact match and not only "compatible" */
-    if(!node->value.data.value.value.type || !v->type ||
-       !UA_NodeId_equal(&node->value.data.value.value.type->typeId,
-                        &v->type->typeId))
+    if(node->value.internal.value.value.type != v->type)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     /* Write the value */
     UA_StatusCode retval =
-        UA_Variant_setRangeCopy(&node->value.data.value.value,
-                                v->data, v->arrayLength, *rangeptr);
+        UA_Variant_setRangeCopy(&node->value.internal.value.value, v->data,
+                                v->arrayLength, *rangeptr);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     /* Write the status and timestamps */
-    node->value.data.value.hasStatus = value->hasStatus;
-    node->value.data.value.status = value->status;
-    node->value.data.value.hasSourceTimestamp = value->hasSourceTimestamp;
-    node->value.data.value.sourceTimestamp = value->sourceTimestamp;
-    node->value.data.value.hasSourcePicoseconds = value->hasSourcePicoseconds;
-    node->value.data.value.sourcePicoseconds = value->sourcePicoseconds;
+    node->value.internal.value.hasStatus = value->hasStatus;
+    node->value.internal.value.status = value->status;
+    node->value.internal.value.hasSourceTimestamp = value->hasSourceTimestamp;
+    node->value.internal.value.sourceTimestamp = value->sourceTimestamp;
+    node->value.internal.value.hasSourcePicoseconds = value->hasSourcePicoseconds;
+    node->value.internal.value.sourcePicoseconds = value->sourcePicoseconds;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1471,53 +1461,54 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         adjustedValue.hasSourcePicoseconds = false;
     }
 
-    /* Call into the different value storage backends.
-     *
-     * TODO: Clean up this mess with duplicated possibilities for external
-     * callbacks */
-    retval = UA_STATUSCODE_BADWRITENOTSUPPORTED; /* default */
-    switch(node->valueBackend.backendType) {
-    case UA_VALUEBACKENDTYPE_NONE:
-        if(node->valueSource == UA_VALUESOURCE_DATA) {
-            /* Write into the in-situ DataValue */
-            if(!rangeptr)
-                retval = writeValueAttributeWithoutRange(node, &adjustedValue);
-            else
-                retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
+    /* Call into the different value storage backends */
+    switch(node->valueSource) {
+    case UA_VALUESOURCE_INTERNAL:
+        /* Write into the in-situ DataValue */
+        if(!rangeptr)
+            retval = writeValueAttributeWithoutRange(node, &adjustedValue);
+        else
+            retval = writeValueAttributeWithRange(node, &adjustedValue, rangeptr);
 
-            /* Callback after writing */
-            if(retval == UA_STATUSCODE_GOOD &&
-               node->value.data.callback.onWrite) {
-                UA_UNLOCK(&server->serviceMutex);
-                node->value.data.callback.
-                    onWrite(server, &session->sessionId, session->context,
-                            &node->head.nodeId, node->head.context,
-                            rangeptr, &adjustedValue);
-                UA_LOCK(&server->serviceMutex);
-            }
-        } else if(node->value.dataSource.write) {
-            /* Write via the datasource callback */
+        /* Notify the application after writing */
+        if(retval == UA_STATUSCODE_GOOD && node->value.internal.valueCallback.onWrite) {
+            UA_UNLOCK(&server->serviceMutex);
+            node->value.internal.valueCallback.
+                onWrite(server,
+                        &session->sessionId, session->context,
+                        &node->head.nodeId, node->head.context,
+                        rangeptr, &adjustedValue);
+            UA_LOCK(&server->serviceMutex);
+        }
+        break;
+
+    case UA_VALUESOURCE_EXTERNAL:
+        /* Write via the external value callback */
+        if(node->value.external.valueCallback.externalWrite) {
+            UA_UNLOCK(&server->serviceMutex);
+            retval = node->value.external.valueCallback.
+                externalWrite(server,
+                              &session->sessionId, session->context,
+                              &node->head.nodeId, node->head.context,
+                              rangeptr, &adjustedValue);
+            UA_LOCK(&server->serviceMutex);
+        } else {
+            retval = UA_STATUSCODE_BADNOTWRITABLE;
+        }
+        break;
+
+    case UA_VALUESOURCE_DATASOURCE:
+        /* Write via the datasource callback */
+        if(node->value.dataSource.write) {
             UA_UNLOCK(&server->serviceMutex);
             retval = node->value.dataSource.
                 write(server, &session->sessionId, session->context,
                       &node->head.nodeId, node->head.context,
                       rangeptr, &adjustedValue);
             UA_LOCK(&server->serviceMutex);
+        } else {
+            retval = UA_STATUSCODE_BADNOTWRITABLE;
         }
-        break;
-
-    case UA_VALUEBACKENDTYPE_EXTERNAL:
-        if(node->valueBackend.backend.external.callback.userWrite) {
-            retval = node->valueBackend.backend.external.callback.
-                userWrite(server, &session->sessionId, session->context,
-                          &node->head.nodeId, node->head.context,
-                          rangeptr, &adjustedValue);
-        }
-        break;
-
-    case UA_VALUEBACKENDTYPE_INTERNAL:
-    case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
-    default:
         break;
     }
 
