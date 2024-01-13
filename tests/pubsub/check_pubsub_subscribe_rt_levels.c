@@ -83,19 +83,18 @@ static UA_StatusCode
 externalDataWriteCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, const UA_NumericRange *range,
-                          const UA_DataValue *data){
+                          const UA_DataValue *data, UA_DataValue **externalValue) {
     if(UA_NodeId_equal(nodeId, &subNodeId)){
         memcpy(subValue, data->value.data, sizeof(UA_UInt32));
     }
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+static void
 externalDataReadNotificationCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
                                      void *sessionContext, const UA_NodeId *nodeid,
-                                     void *nodeContext, const UA_NumericRange *range){
-    //allow read without any preparation
-    return UA_STATUSCODE_GOOD;
+                                     void *nodeContext, const UA_NumericRange *range,
+                                     const UA_DataValue **externalValue) {
 }
 
 START_TEST(SubscribeSingleFieldWithFixedOffsets) {
@@ -222,13 +221,13 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     subDataValueRT  = UA_DataValue_new();
     subDataValueRT->hasValue = UA_TRUE;
     UA_Variant_setScalar(&subDataValueRT->value, subValue, &UA_TYPES[UA_TYPES_UINT32]);
+
     /* Set the value backend of the above create node to 'external value source' */
-    UA_ValueBackend valueBackend;
-    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &subDataValueRT;
-    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-    UA_Server_setVariableNode_valueBackend(server, subNodeId, valueBackend);
+    UA_ExternalValueSource valueBackend;
+    valueBackend.externalValue = &subDataValueRT;
+    valueBackend.write = externalDataWriteCallback;
+    valueBackend.onRead = externalDataReadNotificationCallback;
+    UA_Server_setExternalValueSource(server, subNodeId, valueBackend);
 
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables     = (UA_FieldTargetVariable *)
@@ -698,7 +697,9 @@ START_TEST(PublishSubscribeWithWriteCallback) {
     UA_DataValue *publisherDataValue[NUMVARS];
     UA_UInt32 *publisherData[NUMVARS];
     UA_StatusCode retVal;
-    UA_ValueBackend valueBackend;
+
+    UA_ExternalValueSource valueBackend;
+    memset(&valueBackend, 0, sizeof(valueBackend));
 
     for (i = 0; i < NUMVARS; i++) {
         publisherDataValue[i] = UA_DataValue_new();
@@ -715,10 +716,10 @@ START_TEST(PublishSubscribeWithWriteCallback) {
                                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
                                            attr, NULL, &publisherNode[i]);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
         /* add external value backend for fast-path */
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &publisherDataValue[i];
-        retVal = UA_Server_setVariableNode_valueBackend(server, publisherNode[i], valueBackend);
+        valueBackend.externalValue = &publisherDataValue[i];
+        retVal = UA_Server_setExternalValueSource(server, publisherNode[i], valueBackend);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     }
 
@@ -751,11 +752,13 @@ START_TEST(PublishSubscribeWithWriteCallback) {
     vAttr.dataType    = UA_TYPES[UA_TYPES_UINT32].typeId;
     UA_DataValue *subscriberDataValue[NUMVARS];
     UA_UInt32 *subscriberData[NUMVARS];
-    for (i = 0; i < NUMVARS; i++) {
-        retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 50001 + NUMVARS + i),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &sSubscribeWriteCb_TargetVar_Id[i]);
+    for(i = 0; i < NUMVARS; i++) {
+        retVal = UA_Server_addVariableNode(
+            server, UA_NODEID_NUMERIC(1, 50001 + NUMVARS + i), folderId,
+            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+            UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
+            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+            vAttr, NULL, &sSubscribeWriteCb_TargetVar_Id[i]);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
         subscriberDataValue[i] = UA_DataValue_new();
@@ -767,9 +770,10 @@ START_TEST(PublishSubscribeWithWriteCallback) {
 
         /* add external value backend for fast-path */
         memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &subscriberDataValue[i];
-        retVal = UA_Server_setVariableNode_valueBackend(server, sSubscribeWriteCb_TargetVar_Id[i], valueBackend);
+        valueBackend.externalValue = &subscriberDataValue[i];
+        retVal =
+            UA_Server_setExternalValueSource(server, sSubscribeWriteCb_TargetVar_Id[i],
+                                             valueBackend);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     }
 

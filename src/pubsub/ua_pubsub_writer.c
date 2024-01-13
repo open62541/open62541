@@ -386,6 +386,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
         /* Check that the target is a VariableNode */
         const UA_VariableNode *rtNode = (const UA_VariableNode*)
             UA_NODESTORE_GET(server, publishedVariable);
+
         if(rtNode && rtNode->head.nodeClass != UA_NODECLASS_VARIABLE) {
             UA_LOG_ERROR_WRITER(server->config.logging, dsw,
                                 "PubSub-RT configuration fail: "
@@ -393,6 +394,15 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
             UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
+
+        if(rtNode && rtNode->valueSource != UA_VALUESOURCE_EXTERNAL) {
+            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains field without external data source");
+            UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
         UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
 
         /* TODO: Get the External Value Source from the node instead of from the config */

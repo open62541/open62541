@@ -567,24 +567,30 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
 
     size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
     for(size_t i = 0; i < fieldsSize; i++) {
-        /* TODO: Use the datasource from the node */
-        /* UA_FieldTargetVariable *tv = */
-        /*     &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i]; */
-        /* const UA_VariableNode *rtNode = (const UA_VariableNode *) */
-        /*     UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId); */
-        /* if(!rtNode || */
-        /*    rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) { */
-        /*     UA_LOG_WARNING_READER(server->config.logging, dsr, */
-        /*                           "PubSub-RT configuration fail: PDS contains field " */
-        /*                           "without external data source."); */
-        /*     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
-        /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
-        /* } */
+        UA_FieldTargetVariable *tv =
+            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
+        const UA_VariableNode *rtNode = (const UA_VariableNode *)
+            UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
+        if(!rtNode) {
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                  "PubSub-RT configuration fail: PDS contains field "
+                                  "pointing to a non-existing node");
+            UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+            return UA_STATUSCODE_BADNODEIDUNKNOWN;
+        }
+        if(rtNode->head.nodeClass != UA_NODECLASS_VARIABLE ||
+           rtNode->valueSource != UA_VALUESOURCE_EXTERNAL) {
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                  "PubSub-RT configuration fail: PDS contains field "
+                                  "without external data source.");
+            UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
 
-        /* /\* Set the external data source in the tv *\/ */
-        /* tv->externalDataValue = rtNode->valueBackend.backend.external.value; */
+        /* Set the external data source in the tv */
+        tv->externalDataValue = rtNode->value.external.externalValue;
 
-        /* UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
+        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 
         UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
         if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||

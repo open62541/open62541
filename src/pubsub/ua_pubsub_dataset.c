@@ -590,7 +590,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
     if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &params->publishedVariable);
-        *value = **rtNode->valueBackend.backend.external.value;
+        *value = **rtNode->value.external.externalValue;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
         UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
     } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
