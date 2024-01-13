@@ -273,7 +273,7 @@ setTxt(UA_DiscoveryManager *dm, const struct resource *r,
                                  "Cannot alloc memory for mDNS srv path");
                     return;
                 }
-                memcpy(&entry->pathTmp, path, pathLen);
+                memcpy(entry->pathTmp, path, pathLen);
                 entry->pathTmp[pathLen] = '\0';
             }
         } else {

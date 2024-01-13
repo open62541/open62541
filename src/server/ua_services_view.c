@@ -788,7 +788,7 @@ browse(struct BrowseContext *bc) {
         UA_UNLOCK(&bc->server->serviceMutex);
         if(!bc->server->config.accessControl.
            allowBrowseNode(bc->server, &bc->server->config.accessControl,
-                           &bc->session->sessionId, bc->session->sessionHandle,
+                           &bc->session->sessionId, bc->session->context,
                            &descr->nodeId, node->head.context)) {
             UA_LOCK(&bc->server->serviceMutex);
             UA_NODESTORE_RELEASE(bc->server, node);

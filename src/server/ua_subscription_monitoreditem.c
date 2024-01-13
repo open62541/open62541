@@ -457,7 +457,7 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
-                                                     session ? session->sessionHandle : NULL,
+                                                     session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, false);
@@ -490,7 +490,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
         UA_UNLOCK(&server->serviceMutex);
         server->config.monitoredItemRegisterCallback(server,
                                                      session ? &session->sessionId : NULL,
-                                                     session ? session->sessionHandle : NULL,
+                                                     session ? session->context : NULL,
                                                      &mon->itemToMonitor.nodeId,
                                                      targetContext,
                                                      mon->itemToMonitor.attributeId, true);

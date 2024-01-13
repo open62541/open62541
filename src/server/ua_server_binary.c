@@ -142,7 +142,13 @@ static void
 deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
                           UA_SecureChannel *channel) {
     /* Clean up the SecureChannel. This is the only place where
-     * UA_SecureChannel_clear must be called within the server code-base. */
+     * UA_SecureChannel_clear must be called within the server code-base.
+     *
+     * First detach all Sessions from the SecureChannel. This also removes
+     * outstanding Publish requests whose RequestId is valid only for the
+     * SecureChannel. */
+    while(channel->sessions)
+        UA_Session_detachFromSecureChannel(channel->sessions);
     UA_SecureChannel_clear(channel);
 
     /* Detach the channel from the server list */
@@ -677,17 +683,18 @@ getBoundSession(UA_Server *server, const UA_SecureChannel *channel,
                 const UA_NodeId *token, UA_Session **session) {
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    UA_SessionHeader *sh;
-    SLIST_FOREACH(sh, &channel->sessions, next) {
-        if(!UA_NodeId_equal(token, &sh->authenticationToken))
+    for(UA_Session *s = channel->sessions; s; s = s->next) {
+        if(!UA_NodeId_equal(token, &s->authenticationToken))
             continue;
-        UA_Session *current = (UA_Session*)sh;
+
         /* Has the session timed out? */
-        if(current->validTill < nowMonotonic) {
+        if(s->validTill < nowMonotonic) {
             server->serverDiagnosticsSummary.rejectedSessionCount++;
             return UA_STATUSCODE_BADSESSIONCLOSED;
         }
-        *session = current;
+
+        /* Return the session */
+        *session = s;
         return UA_STATUSCODE_GOOD;
     }
 
@@ -778,7 +785,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
 
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
-        anonymousSession.header.channel = channel;
+        anonymousSession.channel = channel;
         session = &anonymousSession;
     }
 
@@ -796,7 +803,7 @@ processMSGDecoded(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 reques
                                requestType->binaryEncodingId.identifier.numeric);
 #endif
         if(session != &anonymousSession) {
-            UA_Server_removeSessionByToken(server, &session->header.authenticationToken,
+            UA_Server_removeSessionByToken(server, &session->authenticationToken,
                                            UA_SHUTDOWNREASON_ABORT);
         }
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
@@ -1032,7 +1039,7 @@ static UA_Boolean
 purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
     channel_entry *entry;
     TAILQ_FOREACH(entry, &bpm->channels, pointers) {
-        if(SLIST_FIRST(&entry->channel.sessions))
+        if(entry->channel.sessions)
             continue;
         UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
                             "Channel was purged since maxSecureChannels was "

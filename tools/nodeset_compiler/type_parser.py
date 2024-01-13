@@ -1,4 +1,5 @@
 import abc
+import codecs
 import csv
 import json
 import xml.etree.ElementTree as etree
@@ -6,6 +7,7 @@ import copy
 import re
 from collections import OrderedDict
 import sys
+import xml.dom.minidom as dom
 
 if sys.version_info[0] >= 3:
     try:
@@ -385,12 +387,13 @@ class TypeParser():
 
 class CSVBSDTypeParser(TypeParser):
     def __init__(self, opaque_map, selected_types, no_builtin, outname,
-                 existing_bsd, type_bsd, type_csv, namespaceIndexMap):
+                 existing_bsd, type_bsd, type_csv, type_xml, namespaceIndexMap):
         TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
         self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
         self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
+        self.type_xml = type_xml # xml files with symbolicNames etc.
         self.existing_types = [] # existing types that shall not be printed
 
     def parse_types(self):
@@ -418,11 +421,41 @@ class CSVBSDTypeParser(TypeParser):
         for f in self.type_bsd:
             self.parseTypeDefinitions(self.outname, f)
 
+        # create a lookup table with symbolicNames
+        table = {}
+        for f in self.type_xml:
+            table = self.createSymbolicNameTable(f)
+
         # extend the type definitions with nodeids, etc. from the csv file
         for f in self.type_csv:
-            self.parseTypeDescriptions(f)
+            self.parseTypeDescriptions(f, table)
 
-    def parseTypeDescriptions(self, f):
+    def createSymbolicNameTable(self, f):
+        table = {}
+        nodeset_base = open(f.name, "rb")
+        fileContent = nodeset_base.read()
+        # Remove BOM since the dom parser cannot handle it on python 3 windows
+        if fileContent.startswith(codecs.BOM_UTF8):
+            fileContent = fileContent.lstrip(codecs.BOM_UTF8)
+        if sys.version_info >= (3, 0):
+            fileContent = fileContent.decode("utf-8")
+
+        # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
+        fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\g<1>\g<2>\g<3>>", fileContent)
+
+        nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
+        if len(nodesets) == 0 or len(nodesets) > 1:
+            raise Exception("contains no or more then 1 nodeset")
+        nodeset = nodesets[0]
+        dataTypeNodes = nodeset.getElementsByTagName("UADataType")
+        for nd in dataTypeNodes:
+            if nd.hasAttribute("SymbolicName"):
+                # Remove any digit and the colon
+                result_string = re.sub(r'\d|:', '', nd.attributes["BrowseName"].nodeValue)
+                table[nd.attributes["SymbolicName"].nodeValue] = result_string
+        return table
+
+    def parseTypeDescriptions(self, f, table):
         csvreader = csv.reader(f, delimiter=',')
         for row in csvreader:
             if len(row) < 3:
@@ -449,6 +482,9 @@ class CSVBSDTypeParser(TypeParser):
                 typeName = "ExtensionObject"
             if typeName in rename_types:
                 typeName = rename_types[typeName]
+            # check if typeName is a symbolicName and replace it with the browseName
+            if typeName in table:
+                typeName = table[typeName]
             for ns in self.types:
                 if typeName in self.types[ns]:
                     self.types[ns][typeName].nodeId = row[1]
