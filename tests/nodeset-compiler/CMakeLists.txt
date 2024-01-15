@@ -34,6 +34,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_ADI_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_ADI_SOURCES})
+    add_dependencies(check_nodeset_compiler_adi open62541-generator-ns-tests-adi)
 
     # generate PLCopen namespace which is using DI
     ua_generate_nodeset_and_datatypes(
@@ -51,6 +52,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_PLC_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_PLC_SOURCES})
+    add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
 
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
@@ -68,6 +70,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_AUTOID_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_AUTOID_SOURCES})
+    add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
 endif()
 
 #[[ua_generate_datatypes(
@@ -102,6 +105,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
+    add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)
