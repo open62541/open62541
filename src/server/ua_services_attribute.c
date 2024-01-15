@@ -747,6 +747,17 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
     return dv;
 }
 
+/* Exposes the Read service to local users */
+UA_DataValue
+UA_Server_readWithSession(UA_Server *server, const UA_ReadValueId *item,
+               UA_TimestampsToReturn timestamps, UA_NodeId *sessionId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    UA_DataValue dv = readWithSession(server, session, item, timestamps);
+    UA_UNLOCK(&server->serviceMutex);
+    return dv;
+}
+
 /* Used in inline functions exposing the Read service with more syntactic sugar
  * for individual attributes */
 UA_StatusCode
@@ -2036,6 +2047,16 @@ UA_Server_write(UA_Server *server, const UA_WriteValue *value) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(&server->serviceMutex);
     Operation_Write(server, &server->adminSession, NULL, value, &res);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_writeWithSession(UA_Server *server, const UA_WriteValue *value, UA_NodeId *sessionId) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    Operation_Write(server, session, NULL, value, &res);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

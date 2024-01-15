@@ -529,4 +529,15 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     return result;
 }
 
+UA_CallMethodResult
+UA_Server_callWithSession(UA_Server *server, const UA_CallMethodRequest *request, UA_NodeId *sessionId) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    Operation_CallMethod(server, session, NULL, request, &result);
+    UA_UNLOCK(&server->serviceMutex);
+    return result;
+}
+
 #endif /* UA_ENABLE_METHODCALLS */

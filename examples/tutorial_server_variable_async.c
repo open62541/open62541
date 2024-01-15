@@ -188,12 +188,13 @@ THREAD_CALLBACK(ThreadWorker) {
                     "Try to dequeue an async operation");
         const UA_AsyncOperationRequest* request = NULL;
         void *context = NULL;
-        UA_AsyncOperationType type;
-        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL) == true) {
+        UA_AsyncOperationType type; UA_NodeId sessionId;
+        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL, &sessionId) == true) {
             switch(type) {
                 case UA_ASYNCOPERATIONTYPE_CALL:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
-                    UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
+                    UA_CallMethodResult response = UA_Server_callWithSession(globalServer, &request->callMethodRequest, &sessionId);
+                    //UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
                                                       context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
@@ -203,9 +204,9 @@ THREAD_CALLBACK(ThreadWorker) {
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
                     UA_DataValue readResponse;
                     //ToDo check timestamp to return logic
-                    //TODO public API uses admin sesseion in the next call level therefore e.g. access level are wrong
-                    readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
-                    //UA_Server_readValue(globalServer, request->readValueId.nodeId, &readResponse.value);
+                    //ToDo public API uses admin session in the next call level therefore e.g. access level are wrong
+                    readResponse = UA_Server_readWithSession(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, &sessionId);
+                    //readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
                     UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
@@ -213,7 +214,8 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_WRITE:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Got entry: OKAY");
                     UA_StatusCode result;
-                    result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
+                    result = UA_Server_writeWithSession(globalServer, &request->writeValue, &sessionId);
+                    //result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &result, context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Write done: OKAY");
                     break;

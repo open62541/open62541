@@ -309,7 +309,7 @@ UA_AsyncManager_removeAsyncResponse(UA_AsyncManager *am, UA_AsyncResponse *ar) {
     UA_free(ar);
 }
 
-/* Enqueue next MethodRequest */
+/* Enqueue next AsyncRequest */
 UA_StatusCode
 UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
                               UA_AsyncResponse *ar, size_t opIndex,
@@ -387,7 +387,7 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
 UA_Boolean
 UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
-                                       void **context, UA_DateTime *timeout) {
+                                       void **context, UA_DateTime *timeout, UA_NodeId *sessionId) {
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_Boolean bRV = false;
@@ -408,6 +408,8 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
         *context = (void*)ao;
         if(timeout)
             *timeout = ao->parent->timeout;
+        if(sessionId)
+            *sessionId = ao->parent->sessionId;
         bRV = true;
     }
     UA_UNLOCK(&am->queueLock);
