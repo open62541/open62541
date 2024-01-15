@@ -147,6 +147,7 @@ static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     pthread_mutexattr_init(&lock->mutexAttr);
     pthread_mutexattr_settype(&lock->mutexAttr, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutexattr_setprotocol(&lock->mutexAttr, PTHREAD_PRIO_INHERIT);
     pthread_mutex_init(&lock->mutex, &lock->mutexAttr);
     lock->mutexCounter = 0;
 }
@@ -160,12 +161,12 @@ UA_LOCK_DESTROY(UA_Lock *lock) {
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
+    ++(lock->mutexCounter);
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
+    --(lock->mutexCounter);
     pthread_mutex_unlock(&lock->mutex);
 }
 

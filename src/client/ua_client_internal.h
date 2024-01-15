@@ -156,6 +156,10 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 #endif
+
+#if UA_MULTITHREADING >= 100
+    UA_Lock networkMutex;
+#endif
 };
 
 UA_StatusCode connectSync(UA_Client *client); /* Only exposed for unit tests */
@@ -170,6 +174,13 @@ connectIterate(UA_Client *client, UA_UInt32 timeout);
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout);
+
+UA_StatusCode
+receiveResponseSync(UA_Client *client, 
+                    const void *request, const UA_DataType *requestType, 
+                    void *response, const UA_DataType *responseType,
+                    UA_UInt32 timeout);
+
 
 void
 Client_warnEndpointsResult(UA_Client *client,

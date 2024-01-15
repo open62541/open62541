@@ -34,6 +34,10 @@ UA_Client_init(UA_Client* client) {
     client->connectStatus = UA_STATUSCODE_GOOD;
     UA_Timer_init(&client->timer);
     notifyClientState(client);
+
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_INIT(&client->networkMutex);
+#endif
 }
 
 UA_Client UA_EXPORT *
@@ -117,6 +121,9 @@ void
 UA_Client_delete(UA_Client* client) {
     UA_Client_clear(client);
     UA_ClientConfig_clear(&client->config);
+#if UA_MULTITHREADING >= 100
+    UA_LOCK_DESTROY(&client->networkMutex);
+#endif
     UA_free(client);
 }
 
@@ -450,9 +457,32 @@ receiveResponse(UA_Client *client, void *response, const UA_DataType *responseTy
 
 UA_StatusCode
 receiveResponseAsync(UA_Client *client, UA_UInt32 timeout) {
+    UA_LOCK(&client->networkMutex);
     UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
     UA_StatusCode res = receiveResponse(client, NULL, NULL, maxDate, NULL);
+    UA_UNLOCK(&client->networkMutex);
     return (res != UA_STATUSCODE_GOODNONCRITICALTIMEOUT) ? res : UA_STATUSCODE_GOOD;
+}
+
+
+UA_StatusCode
+receiveResponseSync(UA_Client *client, const void *request,
+                    const UA_DataType *requestType, void *response,
+                    const UA_DataType *responseType, UA_UInt32 timeout) {
+    UA_UInt32 requestId;
+
+    UA_LOCK(&client->networkMutex);
+    UA_StatusCode retval =
+        sendSymmetricServiceRequest(client, request, requestType, &requestId);
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        /* Retrieve the response */
+        UA_DateTime maxDate = UA_DateTime_nowMonotonic() +
+                              ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
+        retval = receiveResponse(client, response, responseType, maxDate, &requestId);
+    }
+    UA_UNLOCK(&client->networkMutex);
+    return retval;
 }
 
 void
@@ -465,24 +495,13 @@ __UA_Client_Service(UA_Client *client, const void *request,
     if(client->channel.state != UA_SECURECHANNELSTATE_OPEN) {
         UA_LOG_INFO(&client->config.logger, UA_LOGCATEGORY_CLIENT,
                     "SecureChannel must be connected before sending requests");
-        UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
-        respHeader->serviceResult = UA_STATUSCODE_BADCONNECTIONCLOSED;
-		return;
+        return;
     }
 
     /* Send the request */
-    UA_UInt32 requestId;
-    UA_StatusCode retval = sendSymmetricServiceRequest(client, request, requestType, &requestId);
-
-    UA_ResponseHeader *respHeader = (UA_ResponseHeader*)response;
-    if(retval == UA_STATUSCODE_GOOD) {
-        /* Retrieve the response */
-        UA_DateTime maxDate = UA_DateTime_nowMonotonic() + ((UA_DateTime)client->config.timeout * UA_DATETIME_MSEC);
-        retval = receiveResponse(client, response, responseType, maxDate, &requestId);
-    } else if(retval == UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED) {
-        respHeader->serviceResult = UA_STATUSCODE_BADREQUESTTOOLARGE;
-        return;
-    }
+    UA_StatusCode retval =
+        receiveResponseSync(client, request, requestType, response, responseType,
+                            (UA_DateTime)client->config.timeout);
 
     /* In synchronous service, if we have don't have a reply we need to close
      * the connection. For all other error cases, receiveResponse has already
@@ -492,9 +511,6 @@ __UA_Client_Service(UA_Client *client, const void *request,
         closeSecureChannel(client);
         retval = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
-
-    if(retval != UA_STATUSCODE_GOOD)
-        respHeader->serviceResult = retval;
 
     notifyClientState(client);
 }
@@ -682,22 +698,8 @@ UA_Client_backgroundConnectivity(UA_Client *client) {
         client->pendingConnectivityCheck = true;
 }
 
-static void
-clientExecuteRepeatedCallback(void *executionApplication, UA_ApplicationCallback cb,
-                              void *callbackApplication, void *data) {
-    cb(callbackApplication, data);
-}
-
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
-    /* Process timed (repeated) jobs */
-    UA_DateTime now = UA_DateTime_nowMonotonic();
-    UA_DateTime maxDate =
-        UA_Timer_process(&client->timer, now, (UA_TimerExecutionCallback)
-                         clientExecuteRepeatedCallback, client);
-    if(maxDate > now + ((UA_DateTime)timeout * UA_DATETIME_MSEC))
-        maxDate = now + ((UA_DateTime)timeout * UA_DATETIME_MSEC);
-
     /* Make sure we have an open channel */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(client->endpointsHandshake || client->findServersHandshake ||
@@ -723,7 +725,8 @@ UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
     UA_Client_backgroundConnectivity(client);
 
     /* Listen on the network for the given timeout */
-    retval = receiveResponse(client, NULL, NULL, maxDate, NULL);
+    retval = receiveResponseAsync(client, timeout);
+
     if(retval == UA_STATUSCODE_GOODNONCRITICALTIMEOUT)
         retval = UA_STATUSCODE_GOOD;
     if(retval != UA_STATUSCODE_GOOD) {
