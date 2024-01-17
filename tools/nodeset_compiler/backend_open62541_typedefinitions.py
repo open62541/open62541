@@ -336,7 +336,7 @@ class CGenerator(object):
         self.ff = open(self.outfile + "_generated_handling.h", 'w')
         self.fc = open(self.outfile + "_generated.c", 'w')
 
-        self.filtered_types = self.iter_types(self.parser.types)
+        self.filtered_types = self.filter_types(self.parser.types)
 
         self.print_header()
         self.print_handling()
@@ -355,7 +355,7 @@ class CGenerator(object):
     def printc(self, string):
         print(string, end='\n', file=self.fc)
 
-    def iter_types(self, v):
+    def filter_types(self, v):
         # Make a copy. We cannot delete from the map that is iterated over at
         # the same time.
         l = copy.deepcopy(v)
