@@ -84,7 +84,6 @@ Pipfile
 Pipfile.lock
 .vscode
 **/libxml2
-debian/*
 
 # clangd cache
 .cache/
