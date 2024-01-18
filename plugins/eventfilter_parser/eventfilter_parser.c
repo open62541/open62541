@@ -55,7 +55,7 @@ static UA_Parsed_Element_List* get_element_by_idx_position(UA_Element_List *elem
         if(temp->element.oper.ContentFilterArrayPosition == idx)
             return temp;
     }
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %" PRIu64, idx);
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %." PRIu64, idx);
     return temp;
 }
 
@@ -395,7 +395,10 @@ void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand){
 
 static void create_element_reference(size_t *branch_nbr, char **ref, char *ref_identifier){
     char ref_nbr[128];
-    sprintf(ref_nbr, "%zu" PRIu64 , *branch_nbr);
+    int ret = sprintf(ref_nbr, "%zu" PRIu64 , *branch_nbr);
+    if(ret == 0){
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "sprintf Failed");
+    }
     *ref = (char*) UA_calloc(strlen(ref_identifier)+1+strlen(ref_nbr), sizeof(char));
     strcpy(*ref, ref_identifier);
     strcat(*ref, ref_nbr);

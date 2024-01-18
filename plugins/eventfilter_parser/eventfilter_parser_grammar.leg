@@ -6,13 +6,13 @@
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#include "eventfilter_parser_grammar.h"
+#include "open62541/plugin/eventfilter_parser_grammar.h"
 
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \
     UA_Parsed_EventFilter parsedFilter; \
     UA_String input;                    \
-    size_t pos;
+    UA_UInt32 pos;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
 {                                              \
@@ -154,7 +154,7 @@ StringElement =  ('\\\"' | !["] . )
 NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?
                 (',' _ [0-9]+ _ (':' _ [0-9]+)?)* > ']'
 _ = (Space | comment)*
-_ = (Space | comment)*
+
 Space =		' ' | '\t' | Enter
 comment =	('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')
 Enter =	( '\r\n' | '\n' | '\r' )
