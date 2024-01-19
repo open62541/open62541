@@ -15,7 +15,7 @@
 
 #include "testing_clock.h"
 #include "thread_wrapper.h"
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/stat.h>
 #endif
 
@@ -32,7 +32,7 @@
 #define checkWait registerTimeout + 11
 
 #ifdef UA_ENABLE_DISCOVERY_SEMAPHORE
-# ifndef WIN32
+# ifndef _WIN32
 #  define SEMAPHORE_PATH "/tmp/open62541-unit-test-semaphore"
 # else
 #  define SEMAPHORE_PATH ".\\open62541-unit-test-semaphore"
@@ -246,7 +246,7 @@ unregisterServer(void) {
 static void
 Server_register_semaphore(void) {
     // create the semaphore
-#ifndef WIN32
+#ifndef _WIN32
     int fd = open(SEMAPHORE_PATH, O_RDWR|O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
     ck_assert_int_ne(fd, -1);
     close(fd);

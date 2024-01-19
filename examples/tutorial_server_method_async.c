@@ -38,7 +38,7 @@
 #include <malloc.h>
 #include "common.h"
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
