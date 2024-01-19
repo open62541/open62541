@@ -285,8 +285,7 @@ function unit_tests_pubsub_sks {
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    set_capabilities
-    make test ARGS="-V -R sks"
+    sudo -E bash -c "make test ARGS=\"-V -R sks\""
 }
 
 ##########################################
