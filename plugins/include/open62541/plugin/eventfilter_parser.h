@@ -24,17 +24,19 @@
 
 _UA_BEGIN_DECLS
 
-typedef struct{
+
+typedef struct UA_Parsed_EventFilter {
     UA_EventFilter filter;
     UA_StatusCode status;
 }UA_Parsed_EventFilter;
 
-typedef enum{
+
+typedef enum OperandIdentifier{
     elementoperand,
     extensionobject
 }OperandIdentifier;
 
-typedef struct{
+typedef struct UA_Parsed_Operand{
     OperandIdentifier identifier;
     union{
         char *element_ref;
@@ -42,19 +44,19 @@ typedef struct{
     }value;
 }UA_Parsed_Operand;
 
-typedef struct {
+typedef struct UA_Parsed_Operator{
     UA_FilterOperator filter;
     size_t nbr_children;
     UA_Parsed_Operand *children;
     size_t ContentFilterArrayPosition;
 }UA_Parsed_Operator;
 
-typedef enum{
+typedef enum ElementIdentifier{
     parsed_operand,
     parsed_operator
 }ElementIdentifier;
 
-typedef union{
+typedef union UA_Parsed_Element{
     UA_Parsed_Operator oper;
     UA_Parsed_Operand operand;
 }UA_Parsed_Element;
@@ -68,11 +70,11 @@ typedef struct Parsed_Element{
 
 typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
 
-typedef struct{
+typedef struct UA_Element_List{
     struct parsed_filter_elements head;
 }UA_Element_List;
 
-typedef union{
+typedef union UA_Local_Operand{
     UA_SimpleAttributeOperand sao;
     UA_NodeId id;
     char *str;
@@ -89,8 +91,6 @@ UA_EXPORT void save_string(char *str, char **local_str);
 UA_EXPORT void create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand, char *ref);
 UA_EXPORT UA_StatusCode create_content_filter(UA_Element_List *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
 UA_EXPORT void add_new_operator(UA_Element_List *global, char *operator_ref, UA_Parsed_Operator *element);
-UA_EXPORT UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
-UA_EXPORT UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
 UA_EXPORT UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
 UA_EXPORT UA_StatusCode set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str, UA_StatusCode status);
 UA_EXPORT UA_StatusCode create_literal_operand(char *string, UA_LiteralOperand *lit, UA_StatusCode status);
