@@ -61,14 +61,14 @@ typedef union UA_Parsed_Element{
     UA_Parsed_Operand operand;
 }UA_Parsed_Element;
 
+typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
+
 typedef struct Parsed_Element{
     char *ref;
     ElementIdentifier identifier;
     UA_Parsed_Element element;
     TAILQ_ENTRY(Parsed_Element) element_entries;
 }UA_Parsed_Element_List;
-
-typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
 
 typedef struct UA_Element_List{
     struct parsed_filter_elements head;

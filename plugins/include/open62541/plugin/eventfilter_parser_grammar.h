@@ -11,7 +11,6 @@
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
 #include "open62541/server_config_default.h"
-#include "open62541_queue.h"
 #include "eventfilter_parser.h"
 #include <signal.h>
 #include <stdio.h>
