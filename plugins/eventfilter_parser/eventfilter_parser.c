@@ -55,7 +55,7 @@ static UA_Parsed_Element_List* get_element_by_idx_position(UA_Element_List *elem
         if(temp->element.oper.ContentFilterArrayPosition == idx)
             return temp;
     }
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %." PRIu64, idx);
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %u.", idx);
     return temp;
 }
 
@@ -114,7 +114,7 @@ static UA_StatusCode check_recursion_on_operands(UA_Parsed_Element_List *element
             //otherwise, the loop is detecter, however as it does not involve the current element, the condition based on the element index
             //will never be met
             if(*ctr > 1000){
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %." PRIu64 " Loop within the ContentFilter structure detected", init_element);
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %u." PRIu64 " Loop within the ContentFilter structure detected", init_element);
                 break;
             }
             (*ctr)++;
