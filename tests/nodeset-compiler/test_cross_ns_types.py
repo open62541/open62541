@@ -90,7 +90,7 @@ def require_generated_legacy_output(outdir, outname):
 
 
 def test_conversion_order():
-    # Exported arrays group namespaces; inline dependencies can cross groups.
+    # Exported arrays follow NodeId order; dependencies can cross namespaces.
     outer = StructType("types_order", "urn:a", "Outer")
     leaf = StructType("types_order", "urn:a", "Leaf")
     inner = StructType("types_order", "urn:b", "Inner")
@@ -98,14 +98,13 @@ def test_conversion_order():
     inner.members = [StructMember("leaf", leaf, False, False)]
     leaf.members = [StructMember("children", leaf, True, False)]
     generator = CGenerator.__new__(CGenerator)
-    generator.filtered_types = {"urn:a": {"Outer": outer, "Leaf": leaf},
-                                "urn:b": {"Inner": inner}}
+    generator.ordered_types = [outer, leaf, inner]
     assert generator.conversion_order() == [1, 2, 0], "inline dependencies need complete layouts"
     # Enum descriptors share Int32 storage but have distinct identities.
     choice = EnumerationType("types_order", "urn:a", "Choice")
     other = EnumerationType("types_order", "urn:a", "Other")
     outer.members.insert(0, StructMember("choice", choice, False, False))
-    generator.filtered_types["urn:a"].update({"Other": other, "Choice": choice})
+    generator.ordered_types = [outer, leaf, other, choice, inner]
     assert generator.conversion_order() == [3, 1, 4, 0, 2], "enum storage is not descriptor identity"
     leaf.members[0].member_type = outer
     try:
