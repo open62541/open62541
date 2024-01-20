@@ -364,6 +364,26 @@ class CGenerator:
             uri = next((u for u, i in self.namespaceMap.items() if i == int(ns)), uri)
         return str(self.bakedNamespaceMap[uri]), bare
 
+    def datatype_order(self, datatype):
+        """Match UA_NodeId_order for the identities emitted in the array."""
+        namespace, identifier = self._baked_nodeid(datatype, datatype.nodeId)
+        namespace = int(namespace)
+        if not identifier:
+            return namespace, 0, 0
+        if '=' not in identifier:
+            return namespace, 0, int(identifier)
+        if identifier.startswith("i="):
+            return namespace, 0, int(identifier[2:])
+        if identifier.startswith("s="):
+            value = identifier[2:].encode("utf-8")
+            return namespace, 3, len(value), value
+        if identifier.startswith("g="):
+            return namespace, 4, uuid.UUID(identifier[2:]).int
+        if identifier.startswith("b="):
+            value = base64.b64decode(identifier[2:], validate=True)
+            return namespace, 5, len(value), value
+        raise RuntimeError("Unsupported NodeId: " + identifier)
+
     def print_datatype(self, datatype):
         nodeid = self._baked_nodeid
         nsIdx, bareNodeId = nodeid(datatype, datatype.nodeId)
@@ -627,6 +647,13 @@ class CGenerator:
                                        (namespace, identifier, identities[identity], datatype.name))
                 identities[identity] = datatype.name
 
+        # Keep C declarations in dependency order, but sort the description
+        # array by NodeId so UA_TYPES supports binary search.
+        self.ordered_types = sorted(
+            (t for group in self.filtered_types.values() for t in group.values()),
+            key=self.datatype_order)
+        self.ordered_index = {id(t): i for i, t in enumerate(self.ordered_types)}
+
         self.print_header()
         self.print_internal_header()
         self.print_description_array()
@@ -776,7 +803,6 @@ _UA_BEGIN_DECLS
                             name = makeCIdentifier(t.name)
                             self.printh("typedef struct UA_%s UA_%s;" % (name, name))
 
-            typeIndex = 0
             for ns in self.filtered_types:
                 for t_name in self.filtered_types[ns]:
                     t = self.filtered_types[ns][t_name]
@@ -792,8 +818,7 @@ _UA_BEGIN_DECLS
                     if not is_cross_ns_dup:
                         if not isinstance(t, BuiltinType):
                             self.printh(self.print_datatype_typedef(t) + "\n")
-                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(typeIndex))
-                    typeIndex += 1
+                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(self.ordered_index[id(t)]))
                     self.printh("")
                     if not is_cross_ns_dup:
                         self.printh(self.print_functions(t))
@@ -807,7 +832,7 @@ _UA_END_DECLS
 
     def conversion_order(self):
         """Order references for SDK registration without changing exported indexes."""
-        types = [t for group in self.filtered_types.values() for t in group.values()]
+        types = self.ordered_types
         indexes = {self.print_datatype_ptr(t): i for i, t in enumerate(types)}
         order, active, done = [], set(), set()
 
@@ -891,11 +916,9 @@ _UA_END_DECLS
             self.printc(
                 "const UA_DataType UA_{}[UA_{}_COUNT] = {{".format(outUpper, outUpper))
 
-            for ns in self.filtered_types:
-                for _, t_name in enumerate(self.filtered_types[ns]):
-                    t = self.filtered_types[ns][t_name]
-                    self.printc("/* " + t.name + " */")
-                    self.printc(self.print_datatype(t) + ",")
+            for t in self.ordered_types:
+                self.printc("/* " + t.name + " */")
+                self.printc(self.print_datatype(t) + ",")
             self.printc("};\n")
             if self.parser.outname not in ("types", "transport"):
                 self.printc("const size_t UA_" + outUpper + "_ORDER[] = {" +
