@@ -247,16 +247,16 @@ class Value(object):
                 # in the ExtensionObject and none of them is set.
                 if(ebodypart is not None):
                     if ebodypart.localName == "SwitchField":
-                        # The switch field is the index of the available union fields starting with 1
+                        # The switch field is the index of the available union
+                        # fields starting with 1
                         data = int(ebodypart.firstChild.data)
-                        if data == 0:
-                            # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
-                            members = []
-                        else:
-                            members = []
+                        members = []
+                        # If the switch field is 0 then no field is present. A
+                        # Union with no fields present has the same meaning as a
+                        # NULL value.
+                        if data != 0:
                             members.append(enc.members[data-1])
                             ebodypart = getNextElementNode(ebodypart)
-
 
                 for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
