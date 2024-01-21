@@ -90,19 +90,6 @@ def extractNamespaces(xmlfile):
     infile.close()
     return namespaces
 
-def buildAliasList(xmlelement):
-    """Parses the <Alias> XML Element present in must XML NodeSet definitions.
-       Contents the Alias element are stored in a dictionary for further
-       dereferencing during pointer linkage (see linkOpenPointer())."""
-    aliases = {}
-    for al in xmlelement.childNodes:
-        if al.nodeType == al.ELEMENT_NODE:
-            if al.hasAttribute("Alias"):
-                aliasst = al.getAttribute("Alias")
-                aliasnd = unicode(al.firstChild.data)
-                aliases[aliasst] = aliasnd
-    return aliases
-
 class NodeSet(object):
     """ This class handles parsing XML description of namespaces, instantiating
         nodes, linking references, graphing the namespace and compiling a binary
@@ -118,7 +105,8 @@ class NodeSet(object):
         self.nodes = {}
         self.aliases = {}
         self.namespaces = ["http://opcfoundation.org/UA/"]
-        self.namespaceMapping = {}
+        self.namespaceMapping = {} # Maps from the index in the original nodeset to the
+                                   # index in the combined nodeset
 
     def sanitize(self):
         for n in self.nodes.values():
@@ -136,22 +124,17 @@ class NodeSet(object):
                     print(self.namespaces)
                     raise Exception("Reference " + str(ref) + " has an unknown target")
 
-    def addNamespace(self, nsURL):
-        if not nsURL in self.namespaces:
-            self.namespaces.append(nsURL)
-
-    def createNamespaceMapping(self, orig_namespaces):
-        """Creates a dict that maps from the nsindex in the original nodeset to the
-           nsindex in the combined nodeset"""
-        self.namespaceMapping = {}
-        for index, name in enumerate(orig_namespaces):
-            self.namespaceMapping[index] = self.namespaces.index(name)
-
     def getNodeByBrowseName(self, idstring):
         return next((n for n in self.nodes.values() if idstring == n.browseName.name), None)
 
     def getRoot(self):
         return self.getNodeByBrowseName("Root")
+
+    def refOrAlias(self, s):
+        if s in self.aliases:
+            return self.aliases[s]
+        else:
+            return NodeId(s, self.namespaceMapping)
 
     def createNode(self, xmlelement, modelUri, hidden=False):
         ndtype = xmlelement.localName.lower()
@@ -160,21 +143,21 @@ class NodeSet(object):
 
         node = None
         if ndtype == 'variable':
-            node = VariableNode(xmlelement)
+            node = VariableNode(self, xmlelement)
         if ndtype == 'object':
-            node = ObjectNode(xmlelement)
+            node = ObjectNode(self, xmlelement)
         if ndtype == 'method':
-            node = MethodNode(xmlelement)
+            node = MethodNode(self, xmlelement)
         if ndtype == 'objecttype':
-            node = ObjectTypeNode(xmlelement)
+            node = ObjectTypeNode(self, xmlelement)
         if ndtype == 'variabletype':
-            node = VariableTypeNode(xmlelement)
+            node = VariableTypeNode(self, xmlelement)
         if ndtype == 'methodtype':
-            node = MethodNode(xmlelement)
+            node = MethodNode(self, xmlelement)
         if ndtype == 'datatype':
-            node = DataTypeNode(xmlelement)
+            node = DataTypeNode(self, xmlelement)
         if ndtype == 'referencetype':
-            node = ReferenceTypeNode(xmlelement)
+            node = ReferenceTypeNode(self, xmlelement)
 
         if node is None:
             return None
@@ -190,16 +173,6 @@ class NodeSet(object):
         node.hidden = hidden
         return True
 
-    def merge_dicts(self, *dict_args):
-        """
-        Given any number of dicts, shallow copy and merge into a new dict,
-        precedence goes to key value pairs in latter dicts.
-        """
-        result = {}
-        for dictionary in dict_args:
-            result.update(dictionary)
-        return result
-
     def getNodeByIDString(self, idStr):
         # Split id to namespace part and id part
         m = re.match("ns=([^;]+);(.*)", idStr)
@@ -211,7 +184,7 @@ class NodeSet(object):
                     return None
                 ns = self.namespaces.index(ns)
                 idStr = "ns={};{}".format(ns, m.group(2))
-        nodeId = NodeId(idStr)
+        nodeId = NodeId(idStr, self.namespaceMapping)
         if not nodeId in self.nodes:
             return None
         return self.nodes[nodeId]
@@ -219,9 +192,8 @@ class NodeSet(object):
     def remove_node(self, node):
 
         def filterRef(r, rt):
-            return (r.referenceType != rt.referenceType) or (not (
-                    rt.target == node.id or rt.source == node.id
-                ))
+            return r.referenceType != rt.referenceType or \
+                not (rt.target == node.id or rt.source == node.id)
 
         for r in node.references:
             if r.target == node.id:
@@ -259,35 +231,44 @@ class NodeSet(object):
             raise Exception(self, self.originXML + " contains no or more then 1 nodeset")
         nodeset = nodesets[0]
 
+        # Extract the namespaces and create the namespace mapping.
+        # The mapping applies to this file only!
+        # Se we reset it between files
+        self.namespaceMapping = {}
+        orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
+        for ns in orig_namespaces:
+            if not ns in self.namespaces:
+                self.namespaces.append(ns)
+        for index, name in enumerate(orig_namespaces):
+            self.namespaceMapping[index] = self.namespaces.index(name)
 
         # Extract the modelUri
         try:
             modelTag = nodeset.getElementsByTagName("Models")[0].getElementsByTagName("Model")[0]
             modelUri = modelTag.attributes["ModelUri"].nodeValue
         except Exception:
-            # Ignore exception and try to use namespace array
-            modelUri = None
+            # Try to use namespace array. The nsindex 1 is reserved for the server's namespace
+            if len(orig_namespaces) > 1:
+                modelUri = orig_namespaces[1]
+            else:
+                raise Exception(self, self.originXML + " does not define the nodeset URI in Models/Model/ModelUri or NamespaceUris array.")
 
-
-        # Create the namespace mapping
-        orig_namespaces = extractNamespaces(xmlfile)  # List of namespaces used in the xml file
-        if modelUri is None and len(orig_namespaces) > 1:
-            modelUri = orig_namespaces[1]
-
-        if modelUri is None:
-            raise Exception(self, self.originXML + " does not define the nodeset URI in Models/Model/ModelUri or NamespaceUris array.")
-
-        for ns in orig_namespaces:
-            self.addNamespace(ns)
-        self.createNamespaceMapping(orig_namespaces) # mapping for this file
-
-        # Extract the aliases
+        # Extract the aliases.
+        # Overwrite old aliases, but don't reset.
+        # So we can continue to use the aliases from ns0.
         for nd in nodeset.childNodes:
             if nd.nodeType != nd.ELEMENT_NODE:
                 continue
-            ndtype = nd.localName.lower()
-            if 'aliases' in ndtype:
-                self.aliases = self.merge_dicts(self.aliases, buildAliasList(nd))
+            if not 'aliases' in nd.localName.lower():
+                continue
+            for al in nd.childNodes:
+                if al.nodeType != al.ELEMENT_NODE:
+                    continue
+                if not al.hasAttribute("Alias"):
+                    continue
+                aliasst = al.getAttribute("Alias")
+                aliasnd = unicode(al.firstChild.data)
+                self.aliases[aliasst] = NodeId(aliasnd, self.namespaceMapping)
 
         # Instantiate nodes
         newnodes = {}
@@ -297,8 +278,6 @@ class NodeSet(object):
             node = self.createNode(nd, modelUri, hidden)
             if not node:
                 continue
-            node.replaceAliases(self.aliases)
-            node.replaceNamespaces(self.namespaceMapping)
             node.typesArray = typesArray
 
             # Add the node the the global dict
@@ -359,7 +338,7 @@ class NodeSet(object):
             if not valueIsInternalType(dataType):
                 logger.error("Not a valid dataType string: " + dataType)
                 return None
-            return self.nodes[NodeId(self.aliases[dataType])]
+            return self.nodes[self.aliases[dataType]]
         if isinstance(dataType, NodeId):
             if dataType.i == 0:
                 return None

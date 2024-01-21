@@ -46,29 +46,94 @@ user_opaque_type_mapping = {}  # contains user defined opaque type mapping
 class TypeNotDefinedException(Exception):
     pass
 
-def get_base_type_for_opaque(name):
-    if name in user_opaque_type_mapping:
-        return user_opaque_type_mapping[name]
-    else:
-        return get_base_type_for_opaque_ns0(name)
+# The full NodeId is defined .datatypes.
+# We need to avoid circular imports.
+class BaseNodeId():
+    def __init__(self, idstring=None, namespaceMapping = {}):
+        self.i = 0
+        self.b = None
+        self.g = None
+        self.s = None
+        self.ns = 0
+        self._parseFromString(idstring, namespaceMapping)
 
-def get_type_name(xml_type_name):
-    [namespace, type_name] = xml_type_name.split(':', 1)
-    return [namespace, type_aliases.get(type_name, type_name)]
+    def __str__(self):
+        s = "ns=" + str(self.ns) + ";"
+        # Order of preference is numeric, guid, bytestring, string
+        if self.i != None:
+            return s + "i=" + str(self.i)
+        elif self.g != None:
+            s = s + "g="
+            tmp = []
+            for i in self.g:
+                tmp.append(hex(i).replace("0x", ""))
+            for i in tmp:
+                s = s + "-" + i
+            return s.replace("g=-", "g=")
+        elif self.b != None:
+            return s + "b=" + str(self.b)
+        elif self.s != None:
+            return s + "s=" + str(self.s)
 
-def get_type_for_name(xml_type_name, types, xmlNamespaces):
-    [member_type_name_ns, member_type_name] = get_type_name(xml_type_name)
-    resultNs = xmlNamespaces[member_type_name_ns]
-    if resultNs == 'http://opcfoundation.org/BinarySchema/':
-        resultNs = 'http://opcfoundation.org/UA/'
-    if resultNs not in types:
-        raise TypeNotDefinedException("Unknown namespace: '{resultNs}'".format(
-            resultNs=resultNs))
-    if member_type_name not in types[resultNs]:
-        raise TypeNotDefinedException("Unknown type: '{type}'".format(
-            type=member_type_name))
-    return types[resultNs][member_type_name]
+    def __eq__(self, nodeId2):
+        return (str(self) == str(nodeId2))
 
+    # For NodeId sorting
+    def __lt__(self, other):
+        def lt(a,b):
+            if not a and not b:
+                return False
+            if not a:
+                return True
+            if not b:
+                return False
+            return a < b
+
+        if self.ns < other.ns:
+            return True
+        if lt(self.i, other.i):
+            return True
+        if lt(self.b, other.b):
+            return True
+        if lt(self.g, other.g):
+            return True
+        if lt(self.s, other.s):
+            return True
+        return False
+
+    def _parseFromString(self, idstring, namespaceMapping):
+        if not idstring:
+            self.i = 0
+            return
+
+        # The ID will encoding itself appropriatly as string. If multiple ID's
+        # (numeric, string, guid) are defined, the order of preference for the ID
+        # string is always numeric, guid, bytestring, string. Binary encoding only
+        # applies to numeric values (UInt16).
+        idparts = idstring.strip().split(";")
+        for p in idparts:
+            if p[:2] == "ns":
+                self.ns = int(p[3:])
+                if(len(namespaceMapping.values()) > 0):
+                    self.ns = namespaceMapping[self.ns]
+            elif p[:2] == "i=":
+                self.i = int(p[2:])
+            elif p[:2] == "o=":
+                self.i = None
+                self.b = p[2:]
+            elif p[:2] == "g=":
+                self.i = None
+                tmp = []
+                self.g = p[2:].split("-")
+                for i in self.g:
+                    i = "0x" + i
+                    tmp.append(int(i, 16))
+                self.g = tmp
+            elif p[:2] == "s=":
+                self.i = None
+                self.s = p[2:]
+            else:
+                raise Exception("no valid nodeid: " + idstring)
 
 class Type(object):
     def __init__(self, outname, xml, namespaceUri):
@@ -80,13 +145,39 @@ class Type(object):
         self.pointerfree = False
         self.members = []
         self.description = ""
-        self.nodeId = None
-        self.binaryEncodingId = None
+        self.nodeId = BaseNodeId()
+        self.binaryEncodingId = BaseNodeId()
         if xml is not None:
             for child in xml:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Documentation":
                     self.description = child.text
                     break
+
+    @staticmethod
+    def get_type_name(xml_type_name):
+        [namespace, type_name] = xml_type_name.split(':', 1)
+        return type_aliases.get(type_name, type_name)
+
+    @staticmethod
+    def get_type_for_name(xml_type_name, types, xmlNamespaces):
+        [member_type_name_ns, member_type_name] = xml_type_name.split(':', 1)
+        if member_type_name in type_aliases:
+            member_type_name = types_aliases[member_type_name]
+        resultNs = xmlNamespaces[member_type_name_ns]
+        if resultNs == 'http://opcfoundation.org/BinarySchema/':
+            resultNs = 'http://opcfoundation.org/UA/'
+        if resultNs not in types:
+            raise TypeNotDefinedException("Unknown namespace: '{resultNs}'".format(resultNs=resultNs))
+        if member_type_name not in types[resultNs]:
+            raise TypeNotDefinedException("Unknown type: '{type}'".format(type=member_type_name))
+        return types[resultNs][member_type_name]
+
+    @staticmethod
+    def get_base_type_for_opaque(name):
+        if name in user_opaque_type_mapping:
+            return user_opaque_type_mapping[name]
+        else:
+            return get_base_type_for_opaque_ns0(name)
 
 
 class BuiltinType(Type):
@@ -167,7 +258,7 @@ class StructType(Type):
         typename = type_aliases.get(xml.get("Name"), xml.get("Name"))
 
         bt = xml.get("BaseType")
-        self.is_union = True if bt and get_type_name(bt)[1] == "Union" else False
+        self.is_union = True if bt and Type.get_type_name(bt) == "Union" else False
         for child in xml:
             length_field = child.get("LengthField")
             if length_field:
@@ -178,14 +269,14 @@ class StructType(Type):
                 switch_fields.append(switch_field)
         for child in xml:
             child_type = child.get("TypeName")
-            if child_type and get_type_name(child_type)[1] == "Bit":
+            if child_type and Type.get_type_name(child_type) == "Bit":
                 optional_fields.append(child.get("Name"))
         for child in xml:
             if not child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                 continue
             if child.get("Name") in length_fields:
                 continue
-            if get_type_name(child.get("TypeName"))[1] == "Bit":
+            if Type.get_type_name(child.get("TypeName")) == "Bit":
                 continue
             if self.is_union and child.get("Name") in switch_fields:
                 continue
@@ -198,14 +289,14 @@ class StructType(Type):
             member_name = member_name[:1].lower() + member_name[1:]
             is_array = True if child.get("LengthField") else False
 
-            member_type_name = get_type_name(child.get("TypeName"))[1]
+            member_type_name = Type.get_type_name(child.get("TypeName"))
             if member_type_name == typename: # If a type contains itself, use self as member_type
                 if not is_array:
                     raise RuntimeError("Type " + typename +  " contains itself as a non-array member")
                 member_type = self
                 self.is_recursive = True
             else:
-                member_type = get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+                member_type = Type.get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
 
             self.members.append(StructMember(member_name, member_type, is_array, member_is_optional))
 
@@ -231,27 +322,16 @@ class TypeParser():
         self.types = OrderedDict()
         self.namespaceIndexMap = namespaceIndexMap
 
-    @staticmethod
-    def merge_dicts(*dict_args):
-        """
-        Given any number of dicts, shallow copy and merge into a new dict,
-        precedence goes to key value pairs in latter dicts.
-        """
-        result = {}
-        for dictionary in dict_args:
-            result.update(dictionary)
-        return result
-
     def parseTypeDefinitions(self, outname, xmlDescription):
         def typeReady(element, types, xmlNamespaces):
             "Are all member types defined?"
             parentname = type_aliases.get(element.get("Name"), element.get("Name")) # If a type contains itself, declare that type as available
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
-                    childname = get_type_name(child.get("TypeName"))[1]
+                    childname = Type.get_type_name(child.get("TypeName"))
                     if childname != "Bit" and childname != parentname:
                         try:
-                            get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+                            Type.get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
                         except TypeNotDefinedException:
                             # Type is using other types which are not yet loaded, try later
                             return False
@@ -263,7 +343,7 @@ class TypeParser():
             for child in element:
                 if child.tag == "{http://opcfoundation.org/BinarySchema/}Field":
                     try:
-                        get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
+                        Type.get_type_for_name(child.get("TypeName"), types, xmlNamespaces)
                     except TypeNotDefinedException:
                         # Type is using other types which are not yet loaded, try later
                         unknowns.append(child.get("TypeName"))
@@ -276,7 +356,7 @@ class TypeParser():
                 if child.tag != "{http://opcfoundation.org/BinarySchema/}Field":
                     continue
                 typename = child.get("TypeName")
-                if typename and get_type_name(typename)[1] == "Bit":
+                if typename and Type.get_type_name(typename) == "Bit":
                     if re.match(re.compile('.+Specified'), child.get("Name")):
                         opt_fields.append(child.get("Name"))
                     elif child.get("Name") == "Reserved1":
@@ -298,7 +378,7 @@ class TypeParser():
             "Is this a structure with bitfields?"
             for child in element:
                 typename = child.get("TypeName")
-                if typename and get_type_name(typename)[1] == "Bit":
+                if typename and Type.get_type_name(typename) == "Bit":
                     return True
             return False
 
@@ -342,7 +422,7 @@ class TypeParser():
                     new_type = EnumerationType(outname, typeXml, targetNamespace)
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}OpaqueType":
                     new_type = OpaqueType(outname, typeXml, targetNamespace,
-                                          get_base_type_for_opaque(name)['name'])
+                                          Type.get_base_type_for_opaque(name)['name'])
                 elif typeXml.tag == "{http://opcfoundation.org/BinarySchema/}StructuredType":
                     try:
                         new_type = StructType(outname, typeXml, targetNamespace, self.types, xmlNamespaces)
@@ -468,7 +548,7 @@ class CSVBSDTypeParser(TypeParser):
                     baseType = m.group(1)
                     for ns in self.types:
                         if baseType in self.types[ns]:
-                            self.types[ns][baseType].binaryEncodingId = row[1]
+                            self.types[ns][baseType].binaryEncodingId.i = int(row[1])
                             break
                 continue
 
@@ -487,5 +567,5 @@ class CSVBSDTypeParser(TypeParser):
                 typeName = table[typeName]
             for ns in self.types:
                 if typeName in self.types[ns]:
-                    self.types[ns][typeName].nodeId = row[1]
+                    self.types[ns][typeName].nodeId.i = int(row[1])
                     break

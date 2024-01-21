@@ -50,16 +50,16 @@ def makeCIdentifier(value):
     else:
         return sanitized
 
-def getNodeidTypeAndId(nodeId):
-    if not nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {0}"
-    if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
-    if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
-    if nodeId.startswith("s="):
-        strId = nodeId[2:]
-        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+def getNodeIdCStr(nodeId):
+    cstr = ["{%i," % (nodeId.ns)]
+    if nodeId.i != None:
+        cstr.append("UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId.i))
+    elif nodeId.s:
+        cstr.append("UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=nodeId.s.replace("\"", "\\\"")))
+    else:
+        raise Exception("Unsupported NodeId for datatypes: ", str(nodeId))
+    cstr.append("}")
+    return "".join(cstr)
 
 class CGenerator(object):
     def __init__(self, parser, inname, outfile, is_internal_types, namespaceMap):
@@ -129,9 +129,8 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{%s, %s}" % ("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % ("0",
-                                         getNodeidTypeAndId(datatype.binaryEncodingId))
+        typeid = getNodeIdCStr(datatype.nodeId)
+        binaryEncodingId = getNodeIdCStr(datatype.binaryEncodingId)
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
