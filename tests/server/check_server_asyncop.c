@@ -158,7 +158,7 @@ START_TEST(Async_call) {
     void *context = NULL;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -309,7 +309,7 @@ START_TEST(Async_timeout_worker) {
     void *context = NULL;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);

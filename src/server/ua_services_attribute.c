@@ -752,7 +752,9 @@ UA_DataValue
 UA_Server_readWithSession(UA_Server *server, const UA_ReadValueId *item,
                UA_TimestampsToReturn timestamps, UA_NodeId *sessionId) {
     UA_LOCK(&server->serviceMutex);
-    UA_Session *session = getSessionById(server, sessionId);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
     UA_DataValue dv = readWithSession(server, session, item, timestamps);
     UA_UNLOCK(&server->serviceMutex);
     return dv;
