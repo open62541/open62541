@@ -13,8 +13,6 @@ import xml.dom.minidom as dom
 import logging
 logger = logging.getLogger(__name__)
 
-namespaceMapping = {}
-
 class LocalizedText():
     def __init__(self, xmlvalue=None):
         self.locale = None
@@ -66,8 +64,6 @@ class NodeId():
         self.setFromIdString(idstring)
 
     def setFromIdString(self, idstring):
-        global namespaceMapping
-
         if not idstring:
             self.i = 0
             return
@@ -81,8 +77,6 @@ class NodeId():
         for p in idparts:
             if p[:2] == "ns":
                 self.ns = int(p[3:])
-                if len(namespaceMapping.values()) > 0:
-                    self.ns = namespaceMapping[self.ns]
             elif p[:2] == "i=":
                 self.i = int(p[2:])
             elif p[:2] == "b=":
