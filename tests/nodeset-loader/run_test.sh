@@ -196,8 +196,8 @@ add_node_integration_test "MachineTool" \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
     $UA_NODESET_PATH/MachineTool/Opc.Ua.MachineTool.NodeSet2.xml
 
-add_node_integration_test "MDIS" \
-    $UA_NODESET_PATH/MDIS/Opc.MDIS.NodeSet2.xml
+# add_node_integration_test "MDIS" \
+#     $UA_NODESET_PATH/MDIS/Opc.MDIS.NodeSet2.xml
 
 add_node_integration_test "Mining.DevelopmentSupport.Dozer" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \

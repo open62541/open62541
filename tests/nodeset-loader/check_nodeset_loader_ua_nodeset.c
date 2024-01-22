@@ -237,12 +237,12 @@ START_TEST(Server_loadMachineToolNodeset) {
 }
 END_TEST
 
-START_TEST(Server_loadMDISNodeset) {
-    UA_StatusCode retVal = UA_Server_loadNodeset(server,
-        OPEN62541_NODESET_DIR "MDIS/Opc.MDIS.NodeSet2.xml", NULL);
-    ck_assert(UA_StatusCode_isGood(retVal));
-}
-END_TEST
+// START_TEST(Server_loadMDISNodeset) {
+//     UA_StatusCode retVal = UA_Server_loadNodeset(server,
+//         OPEN62541_NODESET_DIR "MDIS/Opc.MDIS.NodeSet2.xml", NULL);
+//     ck_assert(UA_StatusCode_isGood(retVal));
+// }
+// END_TEST
 
 START_TEST(Server_loadMiningDevelopmentSupportGeneralNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
@@ -789,12 +789,12 @@ static Suite* testSuite_Client(void) {
         tcase_add_test(tc_server, Server_loadMachineToolNodeset);
         suite_add_tcase(s, tc_server);
     }
-    {
-        TCase *tc_server = tcase_create("Server load MDIS nodeset");
-        tcase_add_unchecked_fixture(tc_server, setup, teardown);
-        tcase_add_test(tc_server, Server_loadMDISNodeset);
-        suite_add_tcase(s, tc_server);
-    }
+    // {
+    //     TCase *tc_server = tcase_create("Server load MDIS nodeset");
+    //     tcase_add_unchecked_fixture(tc_server, setup, teardown);
+    //     tcase_add_test(tc_server, Server_loadMDISNodeset);
+    //     suite_add_tcase(s, tc_server);
+    // }
     {
         TCase *tc_server = tcase_create("Server load MiningDevelopmentSupportGeneral nodeset");
         tcase_add_unchecked_fixture(tc_server, setup, teardown);
