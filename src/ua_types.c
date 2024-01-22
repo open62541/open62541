@@ -66,18 +66,17 @@ UA_findDataTypeWithCustom(const UA_NodeId *typeId,
     /* Always look in UA_TYPES first. UA_TYPES is ordered and contains only
      * types from ns0 with a numeric identifier. So we can use binary search to
      * speed this up. */
-    if(typeId->namespaceIndex == 0 && typeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
-        size_t first = 0;
-        size_t last = UA_TYPES_COUNT - 1;
-        while(first <= last) {
-            size_t middle = (first+last) >> 1;
-            if(UA_TYPES[middle].typeId.identifier.numeric == typeId->identifier.numeric)
-                return &UA_TYPES[middle];
-            if(UA_TYPES[middle].typeId.identifier.numeric < typeId->identifier.numeric)
-                first = middle + 1;
-            else
-                last = middle - 1;
-        }
+    size_t first = 0;
+    size_t last = UA_TYPES_COUNT - 1;
+    while(first <= last) {
+        size_t middle = (first+last) >> 1;
+        UA_Order cmp = UA_NodeId_order(&UA_TYPES[middle].typeId, typeId);
+        if(cmp == UA_ORDER_EQ)
+            return &UA_TYPES[middle];
+        if(cmp == UA_ORDER_LESS)
+            first = middle + 1;
+        else
+            last = middle - 1;
     }
 
     /* Search in the customTypes */
