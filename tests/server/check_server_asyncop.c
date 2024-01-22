@@ -144,6 +144,7 @@ START_TEST(Async_call) {
                                   UA_NODEID_STRING(1, "method"), 0, NULL,
                                   clientReceiveCallbackCall, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCounter, 0);
 
     /* Receive the answer of the sync call */
     while(clientCounter == 0) {

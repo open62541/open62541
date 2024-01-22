@@ -441,7 +441,7 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         UA_Server_processServiceOperationsAsync(server, session, requestId,
                   request->requestHeader.requestHandle,
                   (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                  &request->methodsToCallSize, &request, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                  &request->methodsToCallSize, &request->methodsToCall, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
 
     if(ar) {
