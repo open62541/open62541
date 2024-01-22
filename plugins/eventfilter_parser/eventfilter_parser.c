@@ -55,7 +55,7 @@ static UA_Parsed_Element_List* get_element_by_idx_position(UA_Element_List *elem
         if(temp->element.oper.ContentFilterArrayPosition == idx)
             return temp;
     }
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %zu.", idx);
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to find the element with idx %lu.", (unsigned long) idx);
     return temp;
 }
 
@@ -114,7 +114,7 @@ static UA_StatusCode check_recursion_on_operands(UA_Parsed_Element_List *element
             //otherwise, the loop is detecter, however as it does not involve the current element, the condition based on the element index
             //will never be met
             if(*ctr > 1000){
-                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %zu." PRIu64 " Loop within the ContentFilter structure detected", init_element);
+                UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Checking Operator on position %lu." PRIu64 " Loop within the ContentFilter structure detected", (unsigned long)init_element);
                 break;
             }
             (*ctr)++;
@@ -395,7 +395,7 @@ void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand){
 
 static void create_element_reference(size_t *branch_nbr, char **ref, char *ref_identifier){
     char ref_nbr[128];
-    int ret = sprintf(ref_nbr, "%zu" PRIu64 , *branch_nbr);
+    int ret = sprintf(ref_nbr, "%lu" PRIu64 , (unsigned long) *branch_nbr);
     if(ret == 0){
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "sprintf Failed");
     }
