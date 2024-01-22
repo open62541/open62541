@@ -8,6 +8,7 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/log_stdout.h>
+#include "open62541/server_config_default.h"
 #include <open62541/server.h>
 
 #include <signal.h>
@@ -15,8 +16,6 @@
 #include "common.h"
 
 #ifndef WIN32
-#include "open62541/server_config_default.h"
-
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
