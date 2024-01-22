@@ -193,7 +193,6 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_CALL:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
                     UA_CallMethodResult response = UA_Server_callWithSession(globalServer, &request->callMethodRequest, &sessionId);
-                    //UA_CallMethodResult response = UA_Server_call(globalServer, &request->callMethodRequest);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*)&response,
                                                       context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Call done: OKAY");
@@ -203,7 +202,6 @@ THREAD_CALLBACK(ThreadWorker) {
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
                     UA_DataValue readResponse;
                     //ToDo check timestamp to return logic
-                    //ToDo public API uses admin session in the next call level therefore e.g. access level are wrong
                     readResponse = UA_Server_readWithSession(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, &sessionId);
                     //readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);

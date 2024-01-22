@@ -694,7 +694,6 @@ readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
                 UA_TimestampsToReturn timestampsToReturn) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     UA_DataValue dv;
     UA_DataValue_init(&dv);
     Operation_Read(server, session, &timestampsToReturn, item, &dv);
@@ -2057,7 +2056,13 @@ UA_StatusCode
 UA_Server_writeWithSession(UA_Server *server, const UA_WriteValue *value, UA_NodeId *sessionId) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(&server->serviceMutex);
-    UA_Session *session = getSessionById(server, sessionId);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
+    if(!sessionId || !session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
     Operation_Write(server, session, NULL, value, &res);
     UA_UNLOCK(&server->serviceMutex);
     return res;

@@ -534,7 +534,9 @@ UA_Server_callWithSession(UA_Server *server, const UA_CallMethodRequest *request
     UA_CallMethodResult result;
     UA_CallMethodResult_init(&result);
     UA_LOCK(&server->serviceMutex);
-    UA_Session *session = getSessionById(server, sessionId);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
     Operation_CallMethod(server, session, NULL, request, &result);
     UA_UNLOCK(&server->serviceMutex);
     return result;
