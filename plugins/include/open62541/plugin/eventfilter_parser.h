@@ -61,7 +61,7 @@ typedef union UA_Parsed_Element{
     UA_Parsed_Operand operand;
 }UA_Parsed_Element;
 
-TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
+typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
 
 typedef struct Parsed_Element{
     char *ref;
@@ -71,7 +71,7 @@ typedef struct Parsed_Element{
 }UA_Parsed_Element_List;
 
 typedef struct UA_Element_List{
-    struct parsed_filter_elements head;
+    parsed_filter_elements head;
 }UA_Element_List;
 
 typedef union UA_Local_Operand{
