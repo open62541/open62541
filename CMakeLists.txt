@@ -990,8 +990,12 @@ if(UA_ENABLE_PARSING)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/eventfilter_parser.c)
 
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser_grammar.h)
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser.h)
 
+    if(UA_ENABLE_AMALGAMATION)
+        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser.h)
+    else()
+        list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser.h)
+    endif()
     # read in the txt files for the eventfilter parser examples
     file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_0.txt CASE_0 NEWLINE_CONSUME)
     file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_1.txt CASE_1 NEWLINE_CONSUME)

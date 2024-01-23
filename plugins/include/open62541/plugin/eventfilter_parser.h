@@ -8,7 +8,7 @@
 #ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
 #define OPEN62541_NODEID_SETUP_FUNCTIONS_H
 
-
+#ifdef UA_ENABLE_PARSING
 
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
@@ -134,4 +134,6 @@ UA_EXPORT void create_nodeid_element(UA_Element_List *elements, UA_NodeId *id, c
 UA_EXPORT void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_size, UA_Parsed_Operator *element, UA_FilterOperator oper);
 
 _UA_END_DECLS
+
+#endif
 #endif //OPEN62541_NODEID_SETUP_FUNCTIONS_H
