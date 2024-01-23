@@ -5,9 +5,11 @@
  *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-
-#include "open62541/plugin/eventfilter_parser.h"
-
+#ifdef UA_ENABLE_AMALGAMATION
+#include "eventfilter_parser.h"
+#else
+#include "../include/open62541/plugin/eventfilter_parser.h"
+#endif
 
 static UA_Parsed_Element_List *create_next_operator_element(UA_Element_List *elements){
     UA_Parsed_Element_List *element = (UA_Parsed_Element_List *) UA_calloc(1, sizeof(UA_Parsed_Element_List));
