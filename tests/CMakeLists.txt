@@ -94,7 +94,7 @@ endif()
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
 # This also requires to disable the phtread cache with no-nptl-pthread-stackcache
-set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=no --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
+set(VALGRIND_FLAGS --quiet --trace-children=yes --leak-check=full --run-libc-freeres=yes --sim-hints=no-nptl-pthread-stackcache --track-fds=yes)
 macro(add_test_valgrind TEST_NAME)
     if(UA_ENABLE_UNIT_TESTS_MEMCHECK)
         if(MSVC)
