@@ -137,14 +137,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
         print(unicode(line), end='\n', file=outfilec)
         
     def parentNodeString(node,L):
-        if node is None:
+        if node is None or node.parent is None:
             return ""
-        else: 
-            if node.parent is None:
-                return ""
-            else:
-                return str(parentNodeString(node.parent,L)) + "_" + str(node.displayName).upper()
-
+        return str(parentNodeString(node.parent,L)) + "_" + str(node.displayName).upper()
+        
     dict = { }
     additionalHeaders = ""
     
@@ -245,7 +241,10 @@ _UA_END_DECLS
                 continue
             else:
                 if not node.parent is None:
-                    dict[node.id.i] = "NS" + str(node.id.ns) + parentNodeString(node,"")
+                    cc = "NS" + str(node.id.ns) + parentNodeString(node,"")
+                    # Avoid entering a value twice (weird that this occurs frequently)
+                    if not cc in dict.values():
+                        dict[node.id.i] = cc
                 if len(code_global) > 0:
                     writec("\n".join(code_global))
                     writec("\n")
@@ -345,7 +344,8 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     
     sorted_dict = OrderedDict(sorted(dict.items(), key=lambda t: t[0]))
     for i in sorted_dict:
-        writeh("#define UA_" + sorted_dict[i] + " " + str(i)) 
+        if not any(c in set(' <>.') for c in sorted_dict[i]):
+            writeh("#define UA_" + sorted_dict[i] + " " + str(i)) 
    
     writeh("""
 #endif /* %s_H_ */""" % (outfilebase.upper()))
