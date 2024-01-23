@@ -49,39 +49,38 @@ typedef struct {
 } LogContext;
 
 #ifdef __clang__
-__attribute__((__format__(__printf__, 4 , 0)))
+__attribute__((__format__(__printf__, 5 , 0)))
 #endif
-static void
-UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
-                  const char *msg, va_list args) {
-    LogContext *logContext = (LogContext*)context;
-    if(logContext) {
-        if(logContext->minlevel > level)
-            return;
-        UA_LOCK(&logContext->lock);
-    }
+void UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category, unsigned int line, 
+                  const char *msg, va_list args) 
+{
+	extern void dk_trace_v(PNIO_UINT32 ModId, PNIO_UINT32 Line, PNIO_UINT32 subsys, PNIO_UINT32 level, const PNIO_INT8 * fmt, va_list argptr);
 
-    UA_Int64 tOffset = UA_DateTime_localTimeUtcOffset();
-    UA_DateTimeStruct dts = UA_DateTime_toStruct(UA_DateTime_now() + tOffset);
+	static const BYTE dk_levels[] = { LSA_TRACE_LEVEL_CHAT,  /* UA_LOGLEVEL_TRACE */
+			LSA_TRACE_LEVEL_NOTE,               /* UA_LOGLEVEL_DEBUG */
+			LSA_TRACE_LEVEL_NOTE_HIGH,          /* UA_LOGLEVEL_INFO */
+			LSA_TRACE_LEVEL_WARN,               /* UA_LOGLEVEL_WARNING */
+			LSA_TRACE_LEVEL_ERROR,              /* UA_LOGLEVEL_ERROR */
+			LSA_TRACE_LEVEL_FATAL};             /* UA_LOGLEVEL_FATAL */
+	
+	static const BYTE dk_categories[] = { TRACE_SUBSYS_UA_NETWORK,  /* UA_LOGCATEGORY_NETWORK */
+			TRACE_SUBSYS_UA_SECURECHANNEL,             /* UA_LOGCATEGORY_SECURECHANNEL */
+			TRACE_SUBSYS_UA_SESSION,                   /* UA_LOGCATEGORY_SESSION */
+			TRACE_SUBSYS_UA_SERVER,                    /* UA_LOGCATEGORY_SERVER */
+			TRACE_SUBSYS_UA_CLIENT,                    /* UA_LOGCATEGORY_CLIENT */
+			TRACE_SUBSYS_UA_USERLAND,                  /* UA_LOGCATEGORY_USERLAND */
+			TRACE_SUBSYS_UA_SECURITYPOLICY};           /* UA_LOGCATEGORY_SECURITYPOLICY */
 
-    printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
-           dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
-           (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[level],
-           logCategoryNames[category]);
-    vprintf(msg, args);
-    printf("\n");
-    fflush(stdout);
-
-    if(logContext) {
-        UA_UNLOCK(&logContext->lock);
-    }
+	LSA_TRACE_V(dk_categories[category], dk_levels[level], line, msg, args);
 }
 
-static void
-UA_Log_Stdout_clear(void *context) {
-    if(!context)
+void UA_Log_Stdout_clear(void *context) 
+{
+	if(!context)
         return;
+#if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&((LogContext*)context)->lock);
+#endif
     UA_free(context);
 }
 

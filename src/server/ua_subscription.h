@@ -384,6 +384,9 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
 
 /* Logging
  * See a description of the tricks used in ua_session.h */
+#ifdef CPPCHECK
+#define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...)
+#else 
 #define UA_LOG_SUBSCRIPTION_INTERNAL(LOGGER, LEVEL, SUB, MSG, ...)      \
     do {                                                                \
         if((SUB) && (SUB)->session) {                                   \
@@ -396,6 +399,7 @@ UA_Server_evaluateWhereClauseContentFilter(UA_Server *server, UA_Session *sessio
                            (SUB) ? (SUB)->subscriptionId : 0, __VA_ARGS__); \
         }                                                               \
     } while(0)
+#endif
 
 #if UA_LOGLEVEL <= 100
 # define UA_LOG_TRACE_SUBSCRIPTION(LOGGER, SUB, ...)                     \

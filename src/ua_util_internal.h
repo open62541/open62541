@@ -164,6 +164,22 @@ isTrue(uint8_t expr) {
  *    rv = bar_func(...);
  *    UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SERVER, "msg & args %s", "arg");
  */
+ 
+#ifdef CPPCHECK
+#define UA_CHECK_FATAL(A, EVAL, LOGGER, CAT, ...)                 if(a) return 0;
+#define UA_CHECK_ERROR(A, EVAL, LOGGER, CAT, ...)                 if(a) return 0;
+#define UA_CHECK_WARN(A, EVAL, LOGGER, CAT, ...)                  if(a) return 0;
+#define UA_CHECK_INFO(A, EVAL, LOGGER, CAT, ...)                  if(a) return 0;
+#define UA_CHECK_STATUS_FATAL(STATUSCODE, EVAL, LOGGER, CAT, ...) if(a) return 0;
+#define UA_CHECK_STATUS_ERROR(STATUSCODE, EVAL, LOGGER, CAT, ...) if(a) return 0;
+#define UA_CHECK_STATUS_WARN(STATUSCODE, EVAL, LOGGER, CAT, ...)  if(a) return 0;
+#define UA_CHECK_STATUS_INFO(STATUSCODE, EVAL, LOGGER, CAT, ...)  if(a) return 0;
+#define UA_CHECK_MEM_FATAL(PTR, EVAL, LOGGER, CAT, ...)           if(a) return 0;
+#define UA_CHECK_MEM_ERROR(PTR, EVAL, LOGGER, CAT, ...)           if(a) return 0;
+#define UA_CHECK_MEM_WARN(PTR, EVAL, LOGGER, CAT, ...)            if(a) return 0;
+#define UA_CHECK_MEM_INFO(PTR, EVAL, LOGGER, CAT, ...)            if(a) return 0;
+
+#else
 #define UA_CHECK_FATAL(A, EVAL, LOGGER, CAT, ...)                                        \
     UA_MACRO_EXPAND(UA_CHECK_LOG(A, EVAL, FATAL, LOGGER, CAT, __VA_ARGS__))
 #define UA_CHECK_ERROR(A, EVAL, LOGGER, CAT, ...)                                        \
@@ -198,7 +214,7 @@ isTrue(uint8_t expr) {
 #define UA_CHECK_MEM_INFO(PTR, EVAL, LOGGER, CAT, ...)                         \
     UA_MACRO_EXPAND(                                                                     \
         UA_CHECK_MEM_LOG(PTR, EVAL, INFO, LOGGER, CAT, __VA_ARGS__))
-
+#endif
 /**
  * Utility Functions
  * ----------------- */
