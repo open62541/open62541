@@ -17,6 +17,7 @@
 *.gcno
 *.gcda
 *.swp
+*.cmake
 .dirstamp
 /bin
 m4
@@ -70,10 +71,15 @@ tests/check_encode
 tests/check_memory
 tests/check_namespace
 tests/coverage
+tests/**/CMakeFiles
+Testing
 Makefile
 /CMakeCache.txt
 /CMakeFiles/
 /cmake_install.cmake
+doc/
+doc_src/
+examples/
 /exampleClient
 /exampleClient_legacy
 /src_generated/
