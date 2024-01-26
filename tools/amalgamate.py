@@ -17,6 +17,8 @@ parser.add_argument('outfile', help='outfile with extension .c/.h')
 parser.add_argument('inputs', nargs='*', action='store', help='input filenames')
 args = parser.parse_args()
 
+# Evaluate internal from commandline
+internal = "msg"
 outname = args.outfile.split("/")[-1]
 is_c = False
 if outname[-2:] == ".c":
@@ -26,6 +28,13 @@ if pos > 0:
     outname = outname[:pos]
 include_re = re.compile("^#[\s]*include (\".*\").*$|^#[\s]*include (<open62541/.*>).*$")
 guard_re = re.compile("^#(?:(?:ifndef|define)\s*[A-Z_]+_H_|endif /\* [A-Z_]+_H_ \*/|endif // [A-Z_]+_H_|endif\s*/\*\s*!?[A-Z_]+_H[_]+\s*\*/)")
+
+hname = outname
+if len(internal):
+    if is_c:
+        hname = outname + u"_" + internal + u"_c"
+    else:
+        hname = outname + u"_" + internal + u"_h"
 
 print ("Starting amalgamating file "+ args.outfile)
 
@@ -59,11 +68,16 @@ if is_c:
 #endif
 
 #include "%s.h"
-''' % outname)
+''' % hname)
 else:
     file.write(u'''#ifndef %s
 #define %s
 ''' % (outname.upper() + u"_H_", outname.upper() + u"_H_"))
+    if len(internal):
+        file.write(u'''
+#include "%s.h"
+    ''' % hname)
+        
 
 # Remove the filesystem folder prefix
 initial = 999

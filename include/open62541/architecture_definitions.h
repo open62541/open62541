@@ -227,7 +227,10 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
  * Likely/Unlikely Conditions
  * --------------------------
  * Condition is likely/unlikely, to help branch prediction. */
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef CPPCHECK
+# define UA_LIKELY(x) x
+# define UA_UNLIKELY(x) x
+#elif defined(__GNUC__) || defined(__clang__)
 # define UA_LIKELY(x) __builtin_expect((x), 1)
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
@@ -238,7 +241,13 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 /**
  * Function attributes
  * ------------------- */
-#if defined(__GNUC__) || defined(__clang__)
+#ifdef CPPCHECK
+# define UA_FUNC_ATTR_MALLOC
+# define UA_FUNC_ATTR_PURE
+# define UA_FUNC_ATTR_CONST
+# define UA_FUNC_ATTR_WARN_UNUSED_RESULT
+# define UA_FORMAT(X,Y)
+#elif defined(__GNUC__) || defined(__clang__)
 # define UA_FUNC_ATTR_MALLOC __attribute__((malloc))
 # define UA_FUNC_ATTR_PURE __attribute__ ((pure))
 # define UA_FUNC_ATTR_CONST __attribute__((const))
