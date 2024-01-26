@@ -152,7 +152,7 @@ class CGenerator(object):
         if len(datatype.members) == 0:
             return "#define %s_members NULL" % (idName)
         isUnion = isinstance(datatype, StructType) and datatype.is_union
-        members = "static UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
+        members = "static const UA_DataTypeMember %s_members[%s] = {" % (idName, len(datatype.members))
         before = None
         size = len(datatype.members)
         for i, member in enumerate(datatype.members):
