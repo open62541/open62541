@@ -254,7 +254,8 @@ _UA_END_DECLS
                 writec(code)
 
         # Print inverse references leading to this node
-        for ref in node.references:
+        sorted_references = sorted(node.references)
+        for ref in sorted_references:
             if ref.target not in printed_ids:
                 continue
             if node.hidden and nodeset.nodes[ref.target].hidden:

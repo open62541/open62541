@@ -53,6 +53,9 @@ class Reference(object):
 
     def __hash__(self):
         return hash(str(self))
+        
+    def __lt__(self,other):
+        return str(self) < str(other)
 
 def RefOrAlias(s):
     try:
