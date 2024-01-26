@@ -116,7 +116,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         if(!readerGroup)
             return;
         switch(nodeContext->elementClassiefier){
-        case UA_NS0ID_READERGROUPTYPE_STATUS_STATE:
+        case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
             UA_Variant_setScalar(&value, &readerGroup->state,
                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
@@ -155,7 +155,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_Variant_setScalar(&value, &writerGroup->config.publishingInterval,
                                  &UA_TYPES[UA_TYPES_DURATION]);
             break;
-        case UA_NS0ID_WRITERGROUPTYPE_STATUS_STATE:
+        case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
             UA_Variant_setScalar(&value, &writerGroup->state,
                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
@@ -207,12 +207,12 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                 &UA_TYPES[UA_TYPES_PUBLISHEDVARIABLEDATATYPE]);
             break;
         }
-        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA: {
+        case UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA: {
             UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData,
                                  &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
             break;
         }
-        case UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION: {
+        case UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION: {
             UA_Variant_setScalar(&value, &publishedDataSet->dataSetMetaData.configurationVersion,
                                      &UA_TYPES[UA_TYPES_CONFIGURATIONVERSIONDATATYPE]);
             break;
@@ -1095,7 +1095,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     configurationVersionContext->parentNodeId = publishedDataSet->identifier;
     configurationVersionContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     configurationVersionContext->elementClassiefier =
-        UA_NS0ID_PUBLISHEDDATAITEMSTYPE_CONFIGURATIONVERSION;
+        UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION;
     retVal |= addVariableValueSource(server, valueCallback, configurationVersionNode,
                                      configurationVersionContext);
 
@@ -1125,7 +1125,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
         UA_malloc(sizeof(UA_NodePropertyContext));
     metaDataContext->parentNodeId = publishedDataSet->identifier;
     metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
-    metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_DATASETMETADATA;
+    metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA;
     retVal |= addVariableValueSource(server, valueCallback,
                                      dataSetMetaDataNode, metaDataContext);
 
@@ -1432,7 +1432,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
     stateContext->parentNodeId = writerGroup->identifier;
     stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
-    stateContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_STATUS_STATE;
+    stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
     UA_ValueCallback stateValueCallback;
     stateValueCallback.onRead = onRead;
     stateValueCallback.onWrite = NULL;
@@ -1666,7 +1666,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
     stateContext->parentNodeId = readerGroup->identifier;
     stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
-    stateContext->elementClassiefier = UA_NS0ID_READERGROUPTYPE_STATUS_STATE;
+    stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
     UA_ValueCallback stateValueCallback;
     stateValueCallback.onRead = onRead;
     stateValueCallback.onWrite = NULL;
