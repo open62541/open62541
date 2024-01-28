@@ -285,6 +285,7 @@ endforeach()
 
 add_library(autoinject_library ${UA_NODESETINJECTOR_SOURCE_FILES} ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c)
 target_link_libraries(autoinject_library open62541)
+set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
 foreach(EXAMPLE_NAME ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
     if(UA_NODESETINJECTOR_GENERATORS)
         target_link_libraries(${EXAMPLE_NAME} autoinject_library)

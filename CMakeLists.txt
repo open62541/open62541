@@ -110,7 +110,7 @@ option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
 
-if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_ENABLE_NODESETLOADER AND NOT UA_BUILD_FUZZING)
+if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
 endif()
 
@@ -1652,4 +1652,5 @@ set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/gen
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
     add_subdirectory(tools/nodeset_injector)
+    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
 endif()
