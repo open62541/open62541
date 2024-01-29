@@ -480,6 +480,27 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
+
+    /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+     * Add if not already there. */
+    UA_SecureChannel *channel = session->header.channel;
+    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
+        if(UA_String_equal(&channel->endpointUrl,
+                           &server->config.applicationDescription.discoveryUrls[i])) {
+            return;
+        }
+    }
+    if(server->config.applicationDescription.discoveryUrls == NULL){
+        server->config.applicationDescription.discoveryUrls = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+        server->config.applicationDescription.discoveryUrlsSize = 0;
+    }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval = UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
+                        &server->config.applicationDescription.discoveryUrlsSize,
+                        &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Error adding the ServerUrl to theDiscoverUrl list.");
 }
 
 #ifdef UA_ENABLE_DISCOVERY
