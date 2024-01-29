@@ -105,6 +105,8 @@ struct UA_SecureChannel {
     UA_ShutdownReason shutdownReason;
     UA_ConnectionConfig config;
 
+    UA_String endpointUrl;
+
     /* Connection handling in the EventLoop */
     UA_ConnectionManager *connectionManager;
     uintptr_t connectionId;

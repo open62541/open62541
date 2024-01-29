@@ -23,6 +23,13 @@
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"
 #include "ua_services.h"
+#include "mp_printf.h"
+
+#ifdef _WIN32
+# include <winsock2.h>
+#else
+# include <unistd.h>
+#endif
 
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
@@ -481,6 +488,7 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
         return retval;
 
     /* Currently not checked */
+    UA_String_copy(&helloMessage.endpointUrl, &channel->endpointUrl);
     UA_String_clear(&helloMessage.endpointUrl);
 
     /* Parameterize the connection. The TcpHelloMessage casts to a
@@ -1278,8 +1286,8 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
             continue;
 
         /* Set up the parameters */
-        UA_KeyValuePair params[3];
-        size_t paramsSize = 2;
+        UA_KeyValuePair params[4];
+        size_t paramsSize = 3;
 
         params[0].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
@@ -1288,11 +1296,53 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
         params[1].key = UA_QUALIFIEDNAME(0, "listen");
         UA_Variant_setScalar(&params[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+        UA_Boolean reuseaddr = config->tcpReuseAddr;
+        params[2].key = UA_QUALIFIEDNAME(0, "reuse");
+        UA_Variant_setScalar(&params[2].value, &reuseaddr, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
         if(hostname.length > 0) {
             /* The hostname is non-empty */
-            params[2].key = UA_QUALIFIEDNAME(0, "address");
-            UA_Variant_setArray(&params[2].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
-            paramsSize = 3;
+            params[3].key = UA_QUALIFIEDNAME(0, "address");
+            UA_Variant_setArray(&params[3].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
+            paramsSize = 4;
+        } else {
+            /* Add DiscoveryServerUrl */
+            char hostnamestr[1024];
+            hostnamestr[1023] = '\0';
+#ifdef _WIN32
+            WSADATA wsaData;
+            WSAStartup(MAKEWORD(2, 2), &wsaData);
+#endif
+            gethostname(hostnamestr, 1023);
+#ifdef _WIN32
+            WSACleanup();
+#endif
+
+            char urlstr[1024];
+            mp_snprintf(urlstr, 1024, "opc.tcp://%s:%d", hostnamestr, port);
+            UA_String discoveryServerUrl = UA_STRING(urlstr);
+
+            /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+             * Add if not already there. */
+            bool isContaining = false;
+            for(size_t i = 0; i < config->applicationDescription.discoveryUrlsSize; i++) {
+                if(UA_String_equal(&discoveryServerUrl,
+                                   &config->applicationDescription.discoveryUrls[i])) {
+                    isContaining = true;
+                }
+            }
+            if(!isContaining) {
+                if(config->applicationDescription.discoveryUrls == NULL) {
+                    config->applicationDescription.discoveryUrls = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+                    config->applicationDescription.discoveryUrlsSize = 0;
+                }
+                UA_StatusCode retval = UA_STATUSCODE_GOOD;
+                retval = UA_Array_appendCopy((void **)&config->applicationDescription.discoveryUrls,
+                                             &config->applicationDescription.discoveryUrlsSize,
+                                             &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
+                if(retval != UA_STATUSCODE_GOOD)
+                    return retval;
+            }
         }
 
         UA_KeyValueMap paramsMap;
@@ -1760,6 +1810,7 @@ UA_BinaryProtocolManager_start(UA_Server *server,
     if(!haveServerSocket) {
         UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
                      "The server has no server socket");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Update the application description to include the server urls for

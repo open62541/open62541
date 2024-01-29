@@ -783,6 +783,19 @@ UA_Server_run_startup(UA_Server *server) {
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
              startServerComponent, server);
 
+    /* Check that the binary protocol support component have been started */
+    UA_ServerComponent *binaryProtocolManager =
+        getServerComponentByName(server, UA_STRING("binary"));
+    if(binaryProtocolManager->state != UA_LIFECYCLESTATE_STARTED) {
+        UA_LOG_ERROR(config->logging, UA_LOGCATEGORY_SERVER,
+                       "The binary protocol support component could not been started.");
+        /* Stop all server components that have already been started */
+        ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+                 stopServerComponent, server);
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Set the server to STARTED. From here on, only use
      * UA_Server_run_shutdown(server) to stop the server. */
     setServerLifecycleState(server, UA_LIFECYCLESTATE_STARTED);
