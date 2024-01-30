@@ -34,10 +34,8 @@ typedef struct {
  * @param filter generated eventfilter
  */
 UA_EXPORT UA_StatusCode
-UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content);
 
-UA_EXPORT void
-clear_event_filter(UA_EventFilter *filter);
 
 /**
  * Random Number Generator

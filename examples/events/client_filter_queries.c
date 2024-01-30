@@ -41,35 +41,35 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
     switch(filterSelection){
         case 0 : {
             UA_ByteString case_0 = UA_String_fromChars(CASE_0);
-            UA_EventFilter_parse(&case_0, filter);
+            UA_EventFilter_parse(filter, &case_0);
             check_eventfilter(filter);
             UA_ByteString_clear(&case_0);
             break;
         }
         case 1 : {
             UA_ByteString case_1 = UA_String_fromChars(CASE_1);
-            UA_EventFilter_parse(&case_1, filter);
+            UA_EventFilter_parse(filter, &case_1);
             check_eventfilter(filter);
             UA_ByteString_clear(&case_1);
             break;
         }
         case 2 : {
             UA_ByteString case_2 = UA_String_fromChars(CASE_2);
-            UA_EventFilter_parse(&case_2, filter);
+            UA_EventFilter_parse(filter, &case_2);
             check_eventfilter(filter);
             UA_ByteString_clear(&case_2);
             break;
         }
         case 3 : {
             UA_ByteString case_3 = UA_String_fromChars(CASE_3);
-            UA_EventFilter_parse(&case_3, filter);
+            UA_EventFilter_parse(filter, &case_3);
             check_eventfilter(filter);
             UA_ByteString_clear(&case_3);
             break;
         }
         case 4 : {
             UA_ByteString case_4 = UA_String_fromChars(CASE_4);
-            UA_EventFilter_parse(&case_4, filter);
+            UA_EventFilter_parse(filter, &case_4);
             check_eventfilter(filter);
             UA_ByteString_clear(&case_4);
             break;
@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
     UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
     UA_MonitoredItemCreateResult_delete(result);
     UA_CreateSubscriptionResponse_delete(response);
-    clear_event_filter(&filter);
+    UA_EventFilter_clear(&filter);
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 

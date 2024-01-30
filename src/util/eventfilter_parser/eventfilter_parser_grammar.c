@@ -309,8 +309,8 @@ YY_LOCAL(void) yyPush(yycontext *yy, char *text, int count)
   yy->__val += count;
   while (yy->__valslen <= yy->__val - yy->__vals)
     {
-      long offset= (long)( yy->__val - yy->__vals);
-      yy->__valslen *= 2;
+        long offset= (long)( yy->__val - yy->__vals);
+        yy->__valslen *= 2;
       yy->__vals= (YYSTYPE *)YY_REALLOC(yy, yy->__vals, sizeof(YYSTYPE) * yy->__valslen);
       yy->__val= yy->__vals + offset;
     }
@@ -2835,26 +2835,8 @@ YY_PARSE(static yycontext *) YYRELEASE(yycontext *yyctx)
 #endif
 
 
-void clear_event_filter(UA_EventFilter *filter){
-    for(size_t i=0; i< filter->selectClausesSize; i++){
-        for(size_t j=0; j< filter->selectClauses[i].browsePathSize; j++){
-            UA_QualifiedName_clear(&filter->selectClauses[i].browsePath[j]);
-        }
-        UA_NodeId_clear(&filter->selectClauses[i].typeDefinitionId);
-        UA_String_clear(&filter->selectClauses[i].indexRange);
-        UA_SimpleAttributeOperand_clear(&filter->selectClauses[i]);
-    }
-    for(size_t i=0; i<filter->whereClause.elementsSize; i++){
-        for(size_t j=0; j< filter->whereClause.elements[i].filterOperandsSize; j++){
-            UA_ExtensionObject_clear(&filter->whereClause.elements[i].filterOperands[j]);
-        }
-        UA_ContentFilterElement_clear(&filter->whereClause.elements[i]);
-    }
-    UA_ContentFilter_clear(&filter->whereClause);
-    UA_EventFilter_clear(filter);
-}
 
-UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter) {
+UA_StatusCode UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
     yycontext ctx;
     memset(&ctx, 0, sizeof(yycontext));
     ctx.input = *content;
@@ -2862,12 +2844,12 @@ UA_StatusCode UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filte
     UA_StatusCode retval;
     if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
         UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
-        clear_event_filter(&ctx.parsedFilter.filter);
+        UA_EventFilter_clear(&ctx.parsedFilter.filter);
         yyrelease(&ctx);
         return retval;
     }
     UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
-    clear_event_filter(&ctx.parsedFilter.filter);
+    UA_EventFilter_clear(&ctx.parsedFilter.filter);
     yyrelease(&ctx);
     return UA_STATUSCODE_GOOD;
 }
