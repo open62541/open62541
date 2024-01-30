@@ -65,7 +65,7 @@ function(ua_generate_nodeid_header)
     # Header containing defines for all NodeIds
     add_custom_command(OUTPUT ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME}.h
         PRE_BUILD
-        COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
+        COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_nodeid_header.py
         ${UA_GEN_ID_FILE_CSV}  ${UA_GEN_ID_OUTPUT_DIR}/${UA_GEN_ID_NAME} ${UA_GEN_ID_ID_PREFIX}
         DEPENDS ${open62541_TOOLS_DIR}/generate_nodeid_header.py
         ${UA_GEN_ID_FILE_CSV})
@@ -210,7 +210,7 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
         PRE_BUILD
-        COMMAND ${ARG_CONV_EXCL_ENV} ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
+        COMMAND ${ARG_CONV_EXCL_ENV} ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
         ${SELECTED_TYPES_TMP}
         ${BSD_FILES_TMP}
@@ -386,7 +386,7 @@ function(ua_generate_nodeset)
     add_custom_command(OUTPUT ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
                        ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.h
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
+                       COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_compiler/nodeset_compiler.py
                        ${GEN_INTERNAL_HEADERS}
                        ${GEN_NS0}
                        ${GEN_BIN_SIZE}
@@ -425,7 +425,7 @@ function(ua_generate_nodeset)
             if(NOT TARGET ${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection)
                 add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} open62541-generator-nodesetinjector)
                 add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection
-                                  COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector_content.py
+                                  COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector_content.py
                                   ${CMAKE_BINARY_DIR}/src_generated/open62541/nodesetinjector
                                   "namespace${FILE_SUFFIX}"
                                   DEPENDS
@@ -581,7 +581,7 @@ function(ua_generate_nodeset_and_datatypes)
     if("${UA_GEN_FILE_BSD}" STREQUAL "" AND NOT "${UA_GEN_FILE_CSV}" STREQUAL "")
         string(TOUPPER "${UA_GEN_NAME}" BSD_NAME)
         file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/bsd_files_gen")
-        execute_process(COMMAND ${PYTHON_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_bsd.py
+        execute_process(COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_bsd.py
                         --xml ${UA_GEN_FILE_NS}
                         ${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd)
         if(EXISTS "${PROJECT_BINARY_DIR}/bsd_files_gen/Opc.Ua.${BSD_NAME}.Types.bsd")

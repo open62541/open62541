@@ -24,7 +24,7 @@ macro(generate_rst in out)
     add_custom_command(OUTPUT ${out}
                        DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
                        PRE_BUILD
-                       COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
+                       COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
     list(APPEND GENERATED_RST "${out}")
 endmacro()
 
