@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
 #ifdef UA_ENABLE_AMALGAMATION
 #include "eventfilter_parser.h"
 #else
-#include "../include/open62541/plugin/eventfilter_parser.h"
+#include "eventfilter_parser.h"
 #endif
 
 static UA_Parsed_Element_List *create_next_operator_element(UA_Element_List *elements){

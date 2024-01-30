@@ -1,4 +1,4 @@
-Internal Extensions
+Internal Utilities
 ===================
 
 .. toctree::

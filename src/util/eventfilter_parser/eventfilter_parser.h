@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
 #ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
@@ -11,11 +11,8 @@
 
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
-#include "open62541/server_config_default.h"
-#include <open62541/types_generated.h>
-#include <open62541/statuscodes.h>
+#include "open62541/types_generated.h"
 #include "open62541_queue.h"
-#include <math.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,7 +25,6 @@ typedef struct UA_Parsed_EventFilter {
     UA_EventFilter filter;
     UA_StatusCode status;
 }UA_Parsed_EventFilter;
-
 
 typedef enum OperandIdentifier{
     elementoperand,

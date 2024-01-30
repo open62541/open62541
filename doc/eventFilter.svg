@@ -1,0 +1,64 @@
+<svg class="railroad-diagram" height="152" viewBox="0 0 1238.0 152" width="1238.0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g transform="translate(.5 .5)">
+<g>
+<path d="M20 81v20m10 -20v20m-10 -10h20" /></g><path d="M40 91h10" /><g>
+<path d="M50 91h0.0" /><path d="M368.0 91h0.0" /><g class="terminal ">
+<path d="M50.0 91h0.0" /><path d="M121.0 91h0.0" /><rect height="22" rx="10" ry="10" width="71" x="50" y="80"></rect><text x="85.5" y="95">SELECT</text></g><path d="M121.0 91h10" /><path d="M131.0 91h10" /><g>
+<path d="M141.0 91h0.0" /><path d="M368.0 91h0.0" /><path d="M141.0 91h10" /><g class="terminal ">
+<path d="M151.0 91h0.0" /><path d="M358.0 91h0.0" /><rect height="22" rx="10" ry="10" width="207" x="151" y="80"></rect><text x="254.5" y="95">simpleAttributeOperand</text></g><path d="M358.0 91h10" /><path d="M151.0 91a10 10 0 0 0 -10 10v10a10 10 0 0 0 10 10" /><g class="terminal ">
+<path d="M151.0 121h89.25" /><path d="M268.75 121h89.25" /><rect height="22" rx="10" ry="10" width="28.5" x="240.25" y="110"></rect><text x="254.5" y="125">,</text></g><path d="M358.0 121a10 10 0 0 0 10 -10v-10a10 10 0 0 0 -10 -10" /></g></g><path d="M368.0 91h10" /><path d="M378.0 91h10" /><g>
+<path d="M388.0 91h0.0" /><path d="M1188.0 91h0.0" /><g class="terminal ">
+<path d="M388.0 91h0.0" /><path d="M450.5 91h0.0" /><rect height="22" rx="10" ry="10" width="62.5" x="388" y="80"></rect><text x="419.25" y="95">WHERE</text></g><path d="M450.5 91h10" /><g>
+<path d="M460.5 91h0.0" /><path d="M684.0 91h0.0" /><path d="M460.5 91a10 10 0 0 0 10 -10v-40a10 10 0 0 1 10 -10" /><g class="terminal ">
+<path d="M480.5 31h47.75" /><path d="M616.25 31h47.75" /><rect height="22" rx="10" ry="10" width="88" x="528.25" y="20"></rect><text x="572.25" y="35">operator</text></g><path d="M664.0 31a10 10 0 0 1 10 10v40a10 10 0 0 0 10 10" /><path d="M460.5 91h20" /><g>
+<path d="M480.5 91h0.0" /><path d="M664.0 91h0.0" /><g class="terminal ">
+<path d="M480.5 91h0.0" /><path d="M526.0 91h0.0" /><rect height="22" rx="10" ry="10" width="45.5" x="480.5" y="80"></rect><text x="503.25" y="95">&quot;$&quot;</text></g><path d="M526.0 91h10" /><g>
+<path d="M536.0 91h0.0" /><path d="M664.0 91h0.0" /><path d="M536.0 91a10 10 0 0 0 10 -10v-10a10 10 0 0 1 10 -10" /><g class="terminal ">
+<path d="M556.0 61h0.0" /><path d="M644.0 61h0.0" /><rect height="22" rx="10" ry="10" width="88" x="556" y="50"></rect><text x="600" y="65">&quot;String&quot;</text></g><path d="M644.0 61a10 10 0 0 1 10 10v10a10 10 0 0 0 10 10" /><path d="M536.0 91h20" /><g class="terminal ">
+<path d="M556.0 91h8.5" /><path d="M635.5 91h8.5" /><rect height="22" rx="10" ry="10" width="71" x="564.5" y="80"></rect><text x="600" y="95">Number</text></g><path d="M644.0 91h20" /></g></g><path d="M664.0 91h20" /></g><g>
+<path d="M684.0 91h0.0" /><path d="M1188.0 91h0.0" /><path d="M684.0 91a10 10 0 0 0 10 -10v-29a10 10 0 0 1 10 -10" /><g>
+<path d="M704.0 42h464.0" /></g><path d="M1168.0 42a10 10 0 0 1 10 10v29a10 10 0 0 0 10 10" /><path d="M684.0 91h20" /><g>
+<path d="M704.0 91h0.0" /><path d="M1168.0 91h0.0" /><path d="M704.0 91h10" /><g>
+<path d="M714.0 91h0.0" /><path d="M1158.0 91h0.0" /><g class="terminal ">
+<path d="M714.0 91h0.0" /><path d="M759.5 91h0.0" /><rect height="22" rx="10" ry="10" width="45.5" x="714" y="80"></rect><text x="736.75" y="95">FOR</text></g><path d="M759.5 91h10" /><path d="M769.5 91h10" /><g>
+<path d="M779.5 91h0.0" /><path d="M963.0 91h0.0" /><g class="terminal ">
+<path d="M779.5 91h0.0" /><path d="M825.0 91h0.0" /><rect height="22" rx="10" ry="10" width="45.5" x="779.5" y="80"></rect><text x="802.25" y="95">&quot;$&quot;</text></g><path d="M825.0 91h10" /><g>
+<path d="M835.0 91h0.0" /><path d="M963.0 91h0.0" /><path d="M835.0 91a10 10 0 0 0 10 -10v-10a10 10 0 0 1 10 -10" /><g class="terminal ">
+<path d="M855.0 61h0.0" /><path d="M943.0 61h0.0" /><rect height="22" rx="10" ry="10" width="88" x="855" y="50"></rect><text x="899" y="65">&quot;String&quot;</text></g><path d="M943.0 61a10 10 0 0 1 10 10v10a10 10 0 0 0 10 10" /><path d="M835.0 91h20" /><g class="terminal ">
+<path d="M855.0 91h8.5" /><path d="M934.5 91h8.5" /><rect height="22" rx="10" ry="10" width="71" x="863.5" y="80"></rect><text x="899" y="95">Number</text></g><path d="M943.0 91h20" /></g></g><path d="M963.0 91h10" /><path d="M973.0 91h10" /><g class="terminal ">
+<path d="M983.0 91h0.0" /><path d="M1020.0 91h0.0" /><rect height="22" rx="10" ry="10" width="37" x="983" y="80"></rect><text x="1001.5" y="95">:=</text></g><path d="M1020.0 91h10" /><g>
+<path d="M1030.0 91h0.0" /><path d="M1158.0 91h0.0" /><path d="M1030.0 91a10 10 0 0 0 10 -10v-10a10 10 0 0 1 10 -10" /><g class="terminal ">
+<path d="M1050.0 61h4.25" /><path d="M1133.75 61h4.25" /><rect height="22" rx="10" ry="10" width="79.5" x="1054.25" y="50"></rect><text x="1094" y="65">operand</text></g><path d="M1138.0 61a10 10 0 0 1 10 10v10a10 10 0 0 0 10 10" /><path d="M1030.0 91h20" /><g class="terminal ">
+<path d="M1050.0 91h0.0" /><path d="M1138.0 91h0.0" /><rect height="22" rx="10" ry="10" width="88" x="1050" y="80"></rect><text x="1094" y="95">operator</text></g><path d="M1138.0 91h20" /></g></g><path d="M1158.0 91h10" /><path d="M714.0 91a10 10 0 0 0 -10 10v0a10 10 0 0 0 10 10" /><g>
+<path d="M714.0 111h444.0" /></g><path d="M1158.0 111a10 10 0 0 0 10 -10v0a10 10 0 0 0 -10 -10" /></g><path d="M1168.0 91h20" /></g></g><path d="M1188.0 91h10" /><path d="M 1198.0 91 h 20 m -10 -10 v 20 m 10 -20 v 20"></path></g><style>/* <![CDATA[ */
+	svg.railroad-diagram {
+		background-color:hsl(30,20%,95%);
+	}
+	svg.railroad-diagram path {
+		stroke-width:3;
+		stroke:black;
+		fill:rgba(0,0,0,0);
+	}
+	svg.railroad-diagram text {
+		font:bold 14px monospace;
+		text-anchor:middle;
+	}
+	svg.railroad-diagram text.label{
+		text-anchor:start;
+	}
+	svg.railroad-diagram text.comment{
+		font:italic 12px monospace;
+	}
+	svg.railroad-diagram rect{
+		stroke-width:3;
+		stroke:black;
+		fill:hsl(120,100%,90%);
+	}
+	svg.railroad-diagram rect.group-box {
+		stroke: gray;
+		stroke-dasharray: 10 5;
+		fill: none;
+	}
+
+/* ]]> */
+</style></svg>

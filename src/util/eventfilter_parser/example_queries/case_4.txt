@@ -2,13 +2,19 @@
    License, v. 2.0. If a copy of the MPL was not distributed with this
    file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-   Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+   Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
 SELECT
-PATH "/Message", PATH "/0:Severity", PATH "/EventType"
+
+PATH "/Message",
+PATH "/0:Severity",
+PATH "/EventType"
+
 WHERE
-OR($"ref_1", $"ref_2")
+
+AND($4, TYPEID i=5000 PATH "/Severity" GREATERTHAN $"ref")
+
 FOR
-$"ref_2":= OFTYPE ns=1;i=5003
-$"ref_1":= OFTYPE i=3035
+$"ref":= 99
+$4:= OFTYPE ns=1;i=5000

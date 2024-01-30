@@ -10,16 +10,41 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2023 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#include "open62541/plugin/eventfilter_parser_grammar.h"
+#include <open62541/util.h>
+#include "eventfilter_parser.h"
+
+/*
+ *  Lexing and parsing of OPC UA eventfilter. These are helper functions that
+ *  are not required by the SDk internally. But they are useful for users who want to create
+ *  eventfilter from human readable strings.
+ *
+ *  This compilation unit uses the leg parser generators (https://www.piumarta.com/software/peg/peg.1.html).
+ *  The final C source is generated with the following script:
+ *
+ *  leg -Po eventfilter_parser_grammar.c eventfilter_parser_grammar.leg
+ *
+ *  However, the generated eventfilter_parser_grammar.c file creates some compiler warnings.
+ *  An Explanation on how to remove these warnings can be found in the file:
+ *
+ *  eventfilter_parser_remove_compiler_warnings.txt
+ *
+ *  In order that users of the SDK don't need to use the leg parser, always commit a recent
+ *  eventfilter_parser_grammar.c if changes are made to the lexer.
+ *
+ */
+
 
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \
     UA_Parsed_EventFilter parsedFilter; \
     UA_String input;                    \
-    UA_UInt32 pos;
+    UA_UInt32 pos;                      \
+    UA_Counters ctr;                    \
+    UA_Element_List global;             \
+    UA_Local_Operand operand;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
 {                                              \
@@ -34,9 +59,7 @@
   }                                            \
 }
 
-UA_Counters ctr;
-UA_Element_List global;
-UA_Local_Operand operand;
+
 
 union value{
     char *str;
@@ -281,7 +304,6 @@ YY_LOCAL(void) yyCommit(yycontext *yy)
   yy->__pos= yy->__thunkpos= 0;
 }
 
-
 YY_LOCAL(void) yyPush(yycontext *yy, char *text, int count)
 {
   yy->__val += count;
@@ -344,7 +366,6 @@ YY_ACTION(void) yy_1_ReferenceElement(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ReferenceElement\n"));
   {
-#line 151
   save_string(yytext, &__.str);;
   }
 #undef yythunkpos
@@ -358,8 +379,7 @@ YY_ACTION(void) yy_1_ParsedJsonString(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ParsedJsonString\n"));
   {
-#line 143
-  yy->parsedFilter.status = create_literal_operand(yytext, &operand.literal, yy->parsedFilter.status);;
+  yy->parsedFilter.status = create_literal_operand(yytext, &yy->operand.literal, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -372,8 +392,7 @@ YY_ACTION(void) yy_26_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_26_Literal\n"));
   {
-#line 141
-  set_up_variant_from_qname(yytext, &operand.literal.value, yy->parsedFilter.status);;
+  set_up_variant_from_qname(yytext, &yy->operand.literal.value, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -386,8 +405,7 @@ YY_ACTION(void) yy_25_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_25_Literal\n"));
   {
-#line 140
-  set_up_variant_from_double(yytext, &operand.literal.value);;
+  set_up_variant_from_double(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -400,8 +418,7 @@ YY_ACTION(void) yy_24_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_24_Literal\n"));
   {
-#line 139
-  set_up_variant_from_bool(yytext, &operand.literal.value);;
+  set_up_variant_from_bool(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -414,8 +431,7 @@ YY_ACTION(void) yy_23_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_23_Literal\n"));
   {
-#line 138
-  set_up_variant_from_string(yytext, &operand.literal.value);;
+  set_up_variant_from_string(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -428,8 +444,7 @@ YY_ACTION(void) yy_22_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_22_Literal\n"));
   {
-#line 137
-  set_up_variant_from_int64(yytext, &operand.literal.value);;
+  set_up_variant_from_int64(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -442,8 +457,7 @@ YY_ACTION(void) yy_21_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_21_Literal\n"));
   {
-#line 136
-  set_up_variant_from_nodeId(&operand.id, &operand.literal.value);;
+  set_up_variant_from_nodeId(&yy->operand.id, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -456,8 +470,7 @@ YY_ACTION(void) yy_20_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_20_Literal\n"));
   {
-#line 134
-  set_up_variant_from_localized(yytext, &operand.literal.value);;
+  set_up_variant_from_localized(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -470,8 +483,7 @@ YY_ACTION(void) yy_19_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_19_Literal\n"));
   {
-#line 133
-  yy->parsedFilter.status = set_up_variant_from_qname(yytext, &operand.literal.value, yy->parsedFilter.status);;
+  yy->parsedFilter.status = set_up_variant_from_qname(yytext, &yy->operand.literal.value, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -484,8 +496,7 @@ YY_ACTION(void) yy_18_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_18_Literal\n"));
   {
-#line 132
-  yy->parsedFilter.status = set_up_variant_from_expnodeid(yytext, &operand.literal.value, yy->parsedFilter.status);;
+  yy->parsedFilter.status = set_up_variant_from_expnodeid(yytext, &yy->operand.literal.value, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -498,8 +509,7 @@ YY_ACTION(void) yy_17_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_17_Literal\n"));
   {
-#line 131
-  set_up_variant_from_statuscode(yytext, &operand.literal.value);;
+  set_up_variant_from_statuscode(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -512,8 +522,7 @@ YY_ACTION(void) yy_16_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_16_Literal\n"));
   {
-#line 130
-  set_up_variant_from_bstring(yytext, &operand.literal.value);;
+  set_up_variant_from_bstring(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -526,8 +535,7 @@ YY_ACTION(void) yy_15_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_15_Literal\n"));
   {
-#line 129
-  set_up_variant_from_guid(yytext, &operand.literal.value);;
+  set_up_variant_from_guid(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -540,8 +548,7 @@ YY_ACTION(void) yy_14_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_14_Literal\n"));
   {
-#line 128
-  set_up_variant_from_time(yytext, &operand.literal.value);;
+  set_up_variant_from_time(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -554,8 +561,7 @@ YY_ACTION(void) yy_13_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_13_Literal\n"));
   {
-#line 127
-  set_up_variant_from_byte(yytext, &operand.literal.value);;
+  set_up_variant_from_byte(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -568,8 +574,7 @@ YY_ACTION(void) yy_12_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_12_Literal\n"));
   {
-#line 126
-  set_up_variant_from_sbyte(yytext, &operand.literal.value);;
+  set_up_variant_from_sbyte(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -582,8 +587,7 @@ YY_ACTION(void) yy_11_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_11_Literal\n"));
   {
-#line 125
-  set_up_variant_from_nodeId(&operand.id, &operand.literal.value);;
+  set_up_variant_from_nodeId(&yy->operand.id, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -596,8 +600,7 @@ YY_ACTION(void) yy_10_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_10_Literal\n"));
   {
-#line 124
-  set_up_variant_from_float(yytext, &operand.literal.value);;
+  set_up_variant_from_float(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -610,8 +613,7 @@ YY_ACTION(void) yy_9_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_9_Literal\n"));
   {
-#line 123
-  set_up_variant_from_double(yytext, &operand.literal.value);;
+  set_up_variant_from_double(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -624,8 +626,7 @@ YY_ACTION(void) yy_8_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_8_Literal\n"));
   {
-#line 122
-  set_up_variant_from_uint64(yytext, &operand.literal.value);;
+  set_up_variant_from_uint64(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -638,8 +639,7 @@ YY_ACTION(void) yy_7_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_7_Literal\n"));
   {
-#line 121
-  set_up_variant_from_uint32(yytext, &operand.literal.value);;
+  set_up_variant_from_uint32(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -652,8 +652,7 @@ YY_ACTION(void) yy_6_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_6_Literal\n"));
   {
-#line 120
-  set_up_variant_from_uint16(yytext, &operand.literal.value);;
+  set_up_variant_from_uint16(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -666,8 +665,7 @@ YY_ACTION(void) yy_5_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_Literal\n"));
   {
-#line 119
-  set_up_variant_from_int64(yytext, &operand.literal.value);;
+  set_up_variant_from_int64(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -680,8 +678,7 @@ YY_ACTION(void) yy_4_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_Literal\n"));
   {
-#line 118
-  set_up_variant_from_int16(yytext, &operand.literal.value);;
+  set_up_variant_from_int16(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -694,8 +691,7 @@ YY_ACTION(void) yy_3_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_Literal\n"));
   {
-#line 117
-  set_up_variant_from_bool(yytext, &operand.literal.value);;
+  set_up_variant_from_bool(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -708,8 +704,7 @@ YY_ACTION(void) yy_2_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_Literal\n"));
   {
-#line 116
-  set_up_variant_from_string(yytext, &operand.literal.value);;
+  set_up_variant_from_string(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -722,8 +717,7 @@ YY_ACTION(void) yy_1_Literal(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Literal\n"));
   {
-#line 115
-  set_up_variant_from_int32(yytext, &operand.literal.value);;
+  set_up_variant_from_int32(yytext, &yy->operand.literal.value);;
   }
 #undef yythunkpos
 #undef yypos
@@ -737,8 +731,7 @@ YY_ACTION(void) yy_1_LiteralOperand(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_LiteralOperand\n"));
   {
-#line 114
-  handle_literal_operand(&__.operand, &operand.literal);;
+  handle_literal_operand(&__.operand, &yy->operand.literal);;
   }
 #undef yythunkpos
 #undef yypos
@@ -752,8 +745,7 @@ YY_ACTION(void) yy_7_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_7_NodeId\n"));
   {
-#line 113
-  yy->parsedFilter.status = create_nodeId_from_string(operand.str, &operand.id, yy->parsedFilter.status);;
+  yy->parsedFilter.status = create_nodeId_from_string(yy->operand.str, &yy->operand.id, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -766,8 +758,7 @@ YY_ACTION(void) yy_6_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_6_NodeId\n"));
   {
-#line 112
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -780,8 +771,7 @@ YY_ACTION(void) yy_5_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_NodeId\n"));
   {
-#line 111
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -794,8 +784,7 @@ YY_ACTION(void) yy_4_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_NodeId\n"));
   {
-#line 110
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -808,8 +797,7 @@ YY_ACTION(void) yy_3_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_NodeId\n"));
   {
-#line 109
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -822,8 +810,7 @@ YY_ACTION(void) yy_2_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_NodeId\n"));
   {
-#line 108
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -836,8 +823,7 @@ YY_ACTION(void) yy_1_NodeId(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_NodeId\n"));
   {
-#line 107
-  append_string(&operand.str, yytext);;
+  append_string(&yy->operand.str, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -850,8 +836,7 @@ YY_ACTION(void) yy_5_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_SimpleAttributeOperand\n"));
   {
-#line 105
-  handle_sao(&operand.sao, &__.operand);;
+  handle_sao(&yy->operand.sao, &__.operand);;
   }
 #undef yythunkpos
 #undef yypos
@@ -864,8 +849,7 @@ YY_ACTION(void) yy_4_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_SimpleAttributeOperand\n"));
   {
-#line 104
-  operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");;
+  yy->operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");;
   }
 #undef yythunkpos
 #undef yypos
@@ -878,8 +862,7 @@ YY_ACTION(void) yy_3_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_SimpleAttributeOperand\n"));
   {
-#line 103
-  operand.sao.attributeId = (UA_UInt32) atoi(yytext);;
+  yy->operand.sao.attributeId = (UA_UInt32) atoi(yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -892,8 +875,7 @@ YY_ACTION(void) yy_2_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SimpleAttributeOperand\n"));
   {
-#line 102
-  yy->parsedFilter.status = set_up_browsepath(&operand.sao.browsePath, &operand.sao.browsePathSize, yytext, yy->parsedFilter.status);;
+  yy->parsedFilter.status = set_up_browsepath(&yy->operand.sao.browsePath, &yy->operand.sao.browsePathSize, yytext, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -906,8 +888,7 @@ YY_ACTION(void) yy_1_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SimpleAttributeOperand\n"));
   {
-#line 101
-  set_up_typeid(&operand);;
+  set_up_typeid(&yy->operand);;
   }
 #undef yythunkpos
 #undef yypos
@@ -920,7 +901,6 @@ YY_ACTION(void) yy_1_Operand(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Operand\n"));
   {
-#line 96
   handle_elementoperand(&__.operand, yytext);;
   }
 #undef yythunkpos
@@ -934,7 +914,6 @@ YY_ACTION(void) yy_9_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_9_TwoOperandsOperatorType\n"));
   {
-#line 94
   __.element.filter = UA_FILTEROPERATOR_BITWISEOR;;
   }
 #undef yythunkpos
@@ -948,7 +927,6 @@ YY_ACTION(void) yy_8_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_8_TwoOperandsOperatorType\n"));
   {
-#line 93
   __.element.filter = UA_FILTEROPERATOR_BITWISEAND;;
   }
 #undef yythunkpos
@@ -962,7 +940,6 @@ YY_ACTION(void) yy_7_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_7_TwoOperandsOperatorType\n"));
   {
-#line 92
   __.element.filter = UA_FILTEROPERATOR_CAST;;
   }
 #undef yythunkpos
@@ -976,7 +953,6 @@ YY_ACTION(void) yy_6_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_6_TwoOperandsOperatorType\n"));
   {
-#line 91
   __.element.filter = UA_FILTEROPERATOR_LIKE;;
   }
 #undef yythunkpos
@@ -990,7 +966,6 @@ YY_ACTION(void) yy_5_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_TwoOperandsOperatorType\n"));
   {
-#line 90
   __.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;;
   }
 #undef yythunkpos
@@ -1004,7 +979,6 @@ YY_ACTION(void) yy_4_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_TwoOperandsOperatorType\n"));
   {
-#line 89
   __.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;;
   }
 #undef yythunkpos
@@ -1018,7 +992,6 @@ YY_ACTION(void) yy_3_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_TwoOperandsOperatorType\n"));
   {
-#line 88
   __.element.filter = UA_FILTEROPERATOR_LESSTHAN;;
   }
 #undef yythunkpos
@@ -1032,7 +1005,6 @@ YY_ACTION(void) yy_2_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_TwoOperandsOperatorType\n"));
   {
-#line 87
   __.element.filter = UA_FILTEROPERATOR_EQUALS;;
   }
 #undef yythunkpos
@@ -1046,7 +1018,6 @@ YY_ACTION(void) yy_1_TwoOperandsOperatorType(yycontext *yy, char *yytext, int yy
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_TwoOperandsOperatorType\n"));
   {
-#line 86
   __.element.filter = UA_FILTEROPERATOR_GREATERTHAN;;
   }
 #undef yythunkpos
@@ -1061,7 +1032,6 @@ YY_ACTION(void) yy_4_SingleOperatorType(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_SingleOperatorType\n"));
   {
-#line 84
   add_child_operands(&oper.operand, 1, &__.element, UA_FILTEROPERATOR_OFTYPE);;
   }
 #undef yythunkpos
@@ -1077,8 +1047,7 @@ YY_ACTION(void) yy_3_SingleOperatorType(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_SingleOperatorType\n"));
   {
-#line 83
-  handle_oftype_nodeId(&__.element, &operand.id);;
+  handle_oftype_nodeId(&__.element, &yy->operand.id);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1093,7 +1062,6 @@ YY_ACTION(void) yy_2_SingleOperatorType(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SingleOperatorType\n"));
   {
-#line 80
   add_child_operands(&oper.operand, 1, &__.element, UA_FILTEROPERATOR_ISNULL);;
   }
 #undef yythunkpos
@@ -1109,7 +1077,6 @@ YY_ACTION(void) yy_1_SingleOperatorType(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SingleOperatorType\n"));
   {
-#line 79
   add_child_operands(&oper.operand, 1, &__.element, UA_FILTEROPERATOR_NOT);;
   }
 #undef yythunkpos
@@ -1128,7 +1095,6 @@ YY_ACTION(void) yy_2_OperatorInstance(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_OperatorInstance\n"));
   {
-#line 77
   handle_between_operator(&__.element, &oper_1.operand, &oper_2.operand, &oper_3.operand);;
   }
 #undef yythunkpos
@@ -1150,7 +1116,6 @@ YY_ACTION(void) yy_1_OperatorInstance(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_OperatorInstance\n"));
   {
-#line 76
   handle_two_operands_operator(&__.element, &oper_1.operand, &oper_2.operand, &operator.element.filter);;
   }
 #undef yythunkpos
@@ -1172,8 +1137,7 @@ YY_ACTION(void) yy_5_ReferencedOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_ReferencedOperator\n"));
   {
-#line 74
-  add_in_list_children(&global, &oper.operand);;
+  add_in_list_children(&yy->global, &oper.operand);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1194,8 +1158,7 @@ YY_ACTION(void) yy_4_ReferencedOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_ReferencedOperator\n"));
   {
-#line 73
-  add_in_list_children(&global, &oper.operand);;
+  add_in_list_children(&yy->global, &oper.operand);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1216,8 +1179,7 @@ YY_ACTION(void) yy_3_ReferencedOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_ReferencedOperator\n"));
   {
-#line 72
-  create_in_list_operator(&global, &oper.operand, ref.str);;
+  create_in_list_operator(&yy->global, &oper.operand, ref.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1238,8 +1200,7 @@ YY_ACTION(void) yy_2_ReferencedOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_ReferencedOperator\n"));
   {
-#line 71
-  change_element_reference(&global, op1.str, ref.str);;
+  change_element_reference(&yy->global, op1.str, ref.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1260,8 +1221,7 @@ YY_ACTION(void) yy_1_ReferencedOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ReferencedOperator\n"));
   {
-#line 70
-  add_new_operator(&global, ref.str, &operator.element);;
+  add_new_operator(&yy->global, ref.str, &operator.element);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1280,8 +1240,7 @@ YY_ACTION(void) yy_2_ReferencedElement(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_ReferencedElement\n"));
   {
-#line 68
-  create_nodeid_element(&global, &operand.id, ref.str);;
+  create_nodeid_element(&yy->global, &yy->operand.id, ref.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1298,8 +1257,7 @@ YY_ACTION(void) yy_1_ReferencedElement(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ReferencedElement\n"));
   {
-#line 67
-  create_next_operand_element(&global, &oper.operand, ref.str);;
+  create_next_operand_element(&yy->global, &oper.operand, ref.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1315,8 +1273,7 @@ YY_ACTION(void) yy_1_ForOperator(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ForOperator\n"));
   {
-#line 65
-  handle_for_operator(&global, &ctr.for_operator_reference, &__.str, &operator.element);;
+  handle_for_operator(&yy->global, &yy->ctr.for_operator_reference, &__.str, &operator.element);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1331,8 +1288,7 @@ YY_ACTION(void) yy_3_Child_2(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_Child_2\n"));
   {
-#line 63
-  add_operand_from_branch(&__.str, &ctr.operand_ctr, &oper.operand, &global);;
+  add_operand_from_branch(&__.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1347,8 +1303,7 @@ YY_ACTION(void) yy_2_Child_2(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_Child_2\n"));
   {
-#line 62
-  add_operand_from_branch(&__.str, &ctr.operand_ctr, &oper.operand, &global);;
+  add_operand_from_branch(&__.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1363,7 +1318,6 @@ YY_ACTION(void) yy_1_Child_2(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Child_2\n"));
   {
-#line 61
   save_string(yytext, &__.str);;
   }
 #undef yythunkpos
@@ -1379,8 +1333,7 @@ YY_ACTION(void) yy_3_Child_1(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_Child_1\n"));
   {
-#line 59
-  add_operand_from_branch(&__.str, &ctr.operand_ctr, &oper.operand, &global);;
+  add_operand_from_branch(&__.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1395,8 +1348,7 @@ YY_ACTION(void) yy_2_Child_1(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_Child_1\n"));
   {
-#line 58
-  add_operand_from_branch(&__.str, &ctr.operand_ctr, &oper.operand, &global);;
+  add_operand_from_branch(&__.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1411,7 +1363,6 @@ YY_ACTION(void) yy_1_Child_1(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Child_1\n"));
   {
-#line 57
   save_string(yytext, &__.str);;
   }
 #undef yythunkpos
@@ -1427,7 +1378,6 @@ YY_ACTION(void) yy_1_SingleBranchStructure(yycontext *yy, char *yytext, int yyle
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SingleBranchStructure\n"));
   {
-#line 54
   save_string(yytext, &__.str);;
   }
 #undef yythunkpos
@@ -1444,8 +1394,7 @@ YY_ACTION(void) yy_2_BranchStructure(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_BranchStructure\n"));
   {
-#line 52
-  create_branch_element(&global, &ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &__.str);;
+  create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &__.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1462,8 +1411,7 @@ YY_ACTION(void) yy_1_BranchStructure(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_BranchStructure\n"));
   {
-#line 51
-  create_branch_element(&global, &ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &__.str);;
+  create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &__.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1479,8 +1427,7 @@ YY_ACTION(void) yy_1_ContentFilter(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ContentFilter\n"));
   {
-#line 50
-  yy->parsedFilter.status = create_content_filter(&global, &yy->parsedFilter.filter.whereClause, element.str, yy->parsedFilter.status);;
+  yy->parsedFilter.status = create_content_filter(&yy->global, &yy->parsedFilter.filter.whereClause, element.str, yy->parsedFilter.status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1494,8 +1441,7 @@ YY_ACTION(void) yy_1_Select(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Select\n"));
   {
-#line 47
-  init_item_list(&global, &ctr);;
+  init_item_list(&yy->global, &yy->ctr);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1509,7 +1455,6 @@ YY_ACTION(void) yy_2_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SelectClauses\n"));
   {
-#line 46
   yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);;
   }
 #undef yythunkpos
@@ -1525,7 +1470,6 @@ YY_ACTION(void) yy_1_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SelectClauses\n"));
   {
-#line 45
   yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);;
   }
 #undef yythunkpos
@@ -2889,7 +2833,6 @@ YY_PARSE(static yycontext *) YYRELEASE(yycontext *yyctx)
 }
 
 #endif
-#line 162 "eventfilter_parser_grammar.leg"
 
 
 void clear_event_filter(UA_EventFilter *filter){

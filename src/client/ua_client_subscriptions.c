@@ -26,33 +26,6 @@ struct UA_Client_MonitoredItem_ForDelete {
 /* Subscriptions */
 /*****************/
 
-UA_StatusCode UA_Client_Subscriptions_create_EventFilter(UA_Client *client, UA_CreateSubscriptionResponse *response, UA_ByteString *content, UA_EventFilter *filter){
-    /* Create a subscription */
-    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    *response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        return response->responseHeader.serviceResult;
-    }
-    UA_StatusCode retval = UA_EventFilter_parse(content, filter);
-    if(retval != UA_STATUSCODE_GOOD){
-        UA_Client_disconnect(client);
-        UA_Client_delete(client);
-        goto cleanup;
-    }
-    return UA_STATUSCODE_GOOD;
-
-    /* Delete the subscription */
-cleanup:
-    UA_Client_Subscriptions_deleteSingle(client, response->subscriptionId);
-    UA_Array_delete(filter->selectClauses, filter->selectClausesSize, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    UA_Array_delete(filter->whereClause.elements, filter->whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
-    UA_Client_disconnect(client);
-    UA_Client_delete(client);
-    return retval;
-}
-
 
 static enum ZIP_CMP
 /* For ZIP_TREE we use clientHandle comparison */

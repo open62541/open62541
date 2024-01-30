@@ -4,7 +4,7 @@ QueryLanguage EventFilter
 
 
 The following gives a short introduction into a newly proposed query langue to create OPC UA EventFilter.
-The OPC Foundation specifies OPC UA EventFilter in the OPC UA Specification part 4:Services. EventFilter
+The OPC Foundation specifies OPC UA EventFilter in the OPC UA Specification part 4:Services. Each eventFilter
 consists of a selectClauses that defines a list of values to be returned from a filtered event and a whereClause
 that defines a ContentFilter that contains criteria which have to be met to receive a notifications about the event. The values
 listed in the selectCaluses are defined as SimpleAttributeOperands, so that the selectClauses consists of one or
@@ -71,7 +71,7 @@ Usage
 
 An implementation of this Query Language is accomplished with the open source open62541 OPC UA Stack. Examples on how to use it can be found here https://github.com/open62541/open62541/blob/master/examples/events
 
-The open62541 stack provides two functions to generate EventFilters from queries. First, a single function to convert a ByteString, holding the Query, into an OPC UA EventFilter:
+The open62541 stack provides the function UA_EventFilter_parse to generate EventFilters from queries. Its usage is shown below:
 
 .. code-block:: c
 
@@ -83,25 +83,64 @@ The open62541 stack provides two functions to generate EventFilters from queries
                                        UA_EventFilter *filter)
 
 
-Second, a function that does not only create the EventFilter, but also subscribes the event with a client:
+Extended Backus-Naur Form
+-------------------------
 
-.. code-block:: c
+EventFilter
+...........
 
-    /*
-     * UA_Client *client: Pointer to the client that should Subscribe the filtered Events
-     * UA_CreateSubscriptionResponse *response: Response from the Client Subscription
-     * UA_ByteString *content: query string in form of a UA_BytesString
-     * UA_EventFilter *filter: returned EventFilter from the query
-     */
-    UA_StatusCode
-        UA_Client_Subscriptions_create_EventFilter(UA_Client *client,
-                                                   UA_CreateSubscriptionResponse *response,
-                                                   UA_ByteString *content,
-                                                   UA_EventFilter *filter)
-
-
-The following figure gives an short overview of the Extended Backus-Naur form (EBNF) of the query language.
+The following figure gives an short overview of the Extended Backus-Naur form (EBNF) of the query language. In this context, String represents any given string value.
+However, to use quotation marks within a string, it has to be escaped with \\\. Number represents any give number. The simpleAttributeOperand is explained in more detail in section Simple Attribute Operand.
+The same applies to operands in Section Operand and operator in section Operator.
 
 .. raw:: html
 
-    <iframe src="_static/parser_ebnf.html" height="500px" width="100%"></iframe>
+    <iframe src="_static/eventFilter.svg" height="200px" width="100%"></iframe>
+
+
+Operator
+........
+
+The operators cover all Filteroperators specified in OPC UA Specification part 4:Services. Here, operators are defined by a keyword to select the corresponding Filteroperator and
+a set of operands. The number of operands for the corresponding operator is determined by its definition. The nodeId is explained in more detail in section NodeId.
+
+.. raw:: html
+
+    <iframe src="_static/operator.svg" height="600px" width="100%"></iframe>
+
+
+Operand
+.......
+
+Operands are either simple attribute operands, literal operands or elementoperands. Each elementoperand is defined by "$:" and an identifier, which can either be a string or a number.
+Literal operands can be declare either with a JSON-String that corresponds to the OPC UA Json-encoding, or as a single value literal. In this context, only Json-encoded varaints can be interpreted by the parser.
+The usage of the literal values are explained in section Literal.
+
+.. raw:: html
+
+    <iframe src="_static/operand.svg" height="250px" width="100%"></iframe>
+
+
+Simple Attribute Operand
+........................
+
+.. raw:: html
+
+    <iframe src="_static/simpleAttributeOperand.svg" height="150px" width="100%"></iframe>
+
+
+Literal
+.......
+Literals can be used to define single values for most build-in OPC UA types.
+
+.. raw:: html
+
+    <iframe src="_static/literal.svg" height="600px" width="100%"></iframe>
+
+
+NodeId
+......
+
+.. raw:: html
+
+    <iframe src="_static/nodeId.svg" height="200px" width="100%"></iframe>

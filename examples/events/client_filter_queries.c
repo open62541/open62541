@@ -18,7 +18,6 @@
  * This Tutorial repeats the client_eventfilter.c tutorial,
  * however the filter are created based on the Query Language for Eventfilter
  */
-
 static void check_eventfilter(UA_EventFilter *filter){
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
@@ -37,7 +36,6 @@ static void check_eventfilter(UA_EventFilter *filter){
 }
 
 static UA_Boolean running = true;
-
 static UA_StatusCode
 read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
     switch(filterSelection){
@@ -116,130 +114,49 @@ handler_events_filter(UA_Client *client, UA_UInt32 subId, void *subContext,
 }
 
 
-static UA_StatusCode create_event_filter_with_monitored_item(UA_UInt16 methodSelection, UA_UInt16 filterSelection, UA_Client *client, UA_EventFilter *filter, UA_CreateSubscriptionResponse *response, UA_MonitoredItemCreateResult *result){
-    switch(methodSelection) {
-        /*create an eventfilter and a corresponding subscription with the function
-         * UA_Client_Subscriptions_create_EventFilter
-         * */
-        case 0: {
-            /* load the query statement into a UA_ByteString */
-            UA_ByteString content;
-            UA_ByteString_init(&content);
-            switch(filterSelection){
-                case 0: {
-                    content = UA_String_fromChars(CASE_0);
-                    break;
-                }
-                case 1: {
-                    content = UA_String_fromChars(CASE_1);
-                    break;
-                }
-                case 2: {
-                    content = UA_String_fromChars(CASE_2);
-                    break;
-                }
-                case 3: {
-                    content = UA_String_fromChars(CASE_3);
-                    break;
-                }
-                case 4: {
-                    content = UA_String_fromChars(CASE_4);
-                    break;
-                }
-                default:
-                    UA_ByteString_clear(&content);
-                    return UA_STATUSCODE_BADCONFIGURATIONERROR;
-            }
-            /* interprete the query statement and create a corresponding eventFilter */
-            UA_StatusCode retval = UA_Client_Subscriptions_create_EventFilter(client, response, &content, filter);
-            UA_ByteString_clear(&content);
-            if(retval != UA_STATUSCODE_GOOD){
-                return UA_STATUSCODE_BADCONFIGURATIONERROR;
-            }
-            check_eventfilter(filter);
-            /* Add a MonitoredItem */
-            UA_MonitoredItemCreateRequest item;
-            UA_MonitoredItemCreateRequest_init(&item);
-            item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
-            item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-            item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+static UA_StatusCode create_event_filter_with_monitored_item(UA_UInt16 filterSelection, UA_Client *client, UA_EventFilter *filter, UA_CreateSubscriptionResponse *response, UA_MonitoredItemCreateResult *result){
+    /* read the eventfilter query string and create the corresponding eventfilter */
+    UA_StatusCode retval = read_queries(filterSelection, filter);
+    if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to parse the filter query with statuscode %s \n", UA_StatusCode_name(retval));
+            return retval;
+    }
+    /* Create a subscription */
+    UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
+    *response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
+        return response->responseHeader.serviceResult;
 
-            item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-            item.requestedParameters.filter.content.decoded.data = filter;
-            item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    UA_UInt32 subId = response->subscriptionId;
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
 
-            UA_UInt32 monId = 0;
-            UA_UInt32 subId = response->subscriptionId;
-            *result = UA_Client_MonitoredItems_createEvent(client, subId,
-                                                     UA_TIMESTAMPSTORETURN_BOTH,
-                                                     item, &monId, handler_events_filter, NULL);
+    /* Add a MonitoredItem */
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
+    item.requestedParameters.filter.content.decoded.data = filter;
+    item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
 
-            if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Could not add the MonitoredItem with %s",
-                            UA_StatusCode_name(result->statusCode));
-                //UA_MonitoredItemCreateResult_clear(result);
-                return UA_STATUSCODE_BAD;
-            }
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                            "Monitoring 'Root->Objects->Server', id %u",
-                            response->subscriptionId);
-            monId = result->monitoredItemId;
-            break;
-        }
-        /*create an eventfilter based on the function UA_EventFilter_parse */
-        case 1:{
-            /* provide the query statement and create a corresponding eventFilter*/
-            UA_StatusCode retval = read_queries(filterSelection, filter);
-            if(retval != UA_STATUSCODE_GOOD) {
-                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Failed to parse the filter query with statuscode %s \n", UA_StatusCode_name(retval));
-                return retval;
-            }
-
-            /* Create a subscription */
-            UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-            *response = UA_Client_Subscriptions_create(client, request, NULL, NULL, NULL);
-            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
-                return response->responseHeader.serviceResult;
-            }
-
-            UA_UInt32 subId = response->subscriptionId;
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
-
-            /* Add a MonitoredItem */
-            UA_MonitoredItemCreateRequest item;
-            UA_MonitoredItemCreateRequest_init(&item);
-            item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
-            item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
-            item.monitoringMode = UA_MONITORINGMODE_REPORTING;
-
-            item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
-            item.requestedParameters.filter.content.decoded.data = filter;
-            item.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
-
-            UA_UInt32 monId = 0;
-            *result =
-                UA_Client_MonitoredItems_createEvent(client, subId,
+    UA_UInt32 monId = 0;
+    *result = UA_Client_MonitoredItems_createEvent(client, subId,
                                                      UA_TIMESTAMPSTORETURN_BOTH,
                                                      item,
                                                      &monId, handler_events_filter, NULL);
 
-            if(result->statusCode != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+    if(result->statusCode != UA_STATUSCODE_GOOD) {
+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Could not add the MonitoredItem with %s",
                             UA_StatusCode_name(result->statusCode));
-                //UA_MonitoredItemCreateResult_clear(&result);
-                return UA_STATUSCODE_BAD;
-            }
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+            //UA_MonitoredItemCreateResult_clear(&result);
+            return UA_STATUSCODE_BAD;
+    }
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Monitoring 'Root->Objects->Server', id %u",
                             response->subscriptionId);
-            monId = result->monitoredItemId;
-            break;
-        }
-        default:
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
+    monId = result->monitoredItemId;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -269,7 +186,7 @@ int main(int argc, char *argv[]) {
     UA_EventFilter_init(&filter);
     UA_CreateSubscriptionResponse *response = UA_CreateSubscriptionResponse_new();
     UA_MonitoredItemCreateResult *result = UA_MonitoredItemCreateResult_new();
-    retval = create_event_filter_with_monitored_item(1, 2, client, &filter, response, result);
+    retval = create_event_filter_with_monitored_item(2, client, &filter, response, result);
     if(retval == UA_STATUSCODE_GOOD){
         while(running)
             UA_Client_run_iterate(client, true);

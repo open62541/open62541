@@ -985,35 +985,11 @@ list(APPEND plugin_sources
 
 if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
-    #for open62541 eventfilter query language plugin
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/eventfilter_parser_grammar.c)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/eventfilter_parser.c)
-
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser_grammar.h)
-
-    if(UA_ENABLE_AMALGAMATION)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser.h)
-    else()
-        list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/eventfilter_parser.h)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND lib_sources src/util/eventfilter_parser/eventfilter_parser_grammar.c)
+        list(APPEND lib_sources src/util/eventfilter_parser/eventfilter_parser.c)
+        list(APPEND lib_headers src/util/eventfilter_parser/eventfilter_parser.h)
     endif()
-    # read in the txt files for the eventfilter parser examples
-    file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_0.txt CASE_0 NEWLINE_CONSUME)
-    file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_1.txt CASE_1 NEWLINE_CONSUME)
-    file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_2.txt CASE_2 NEWLINE_CONSUME)
-    file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_3.txt CASE_3 NEWLINE_CONSUME)
-    file(STRINGS ${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/example_queries/case_4.txt CASE_4 NEWLINE_CONSUME)
-
-    STRING(REGEX REPLACE "\n" " " CASE_0 ${CASE_0})
-    STRING(REGEX REPLACE "\"" "\\\\\"" CASE_0 "${CASE_0}")
-    STRING(REGEX REPLACE "\n" " " CASE_1 ${CASE_1})
-    STRING(REGEX REPLACE "\"" "\\\\\"" CASE_1 "${CASE_1}")
-    STRING(REGEX REPLACE "\n" " " CASE_2 ${CASE_2})
-    STRING(REGEX REPLACE "\"" "\\\\\"" CASE_2 "${CASE_2}")
-    STRING(REGEX REPLACE "\n" " " CASE_3 ${CASE_3})
-    STRING(REGEX REPLACE "\"" "\\\\\"" CASE_3 "${CASE_3}")
-    STRING(REGEX REPLACE "\n" " " CASE_4 ${CASE_4})
-    STRING(REGEX REPLACE "\"" "\\\\\"" CASE_4 "${CASE_4}")
-    configure_file(${PROJECT_SOURCE_DIR}/plugins/eventfilter_parser/eventfilter_parser_examples.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/eventfilter_parser_examples.h @ONLY)
 endif()
 
 # For file based server configuration

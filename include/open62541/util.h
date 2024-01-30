@@ -29,6 +29,17 @@ typedef struct {
 } UA_DurationRange;
 
 /**
+ * Query Language Eventfilter
+ * @param content eventfilter query
+ * @param filter generated eventfilter
+ */
+UA_EXPORT UA_StatusCode
+UA_EventFilter_parse(UA_ByteString *content, UA_EventFilter *filter);
+
+UA_EXPORT void
+clear_event_filter(UA_EventFilter *filter);
+
+/**
  * Random Number Generator
  * -----------------------
  * If UA_MULTITHREADING is defined, then the seed is stored in thread
