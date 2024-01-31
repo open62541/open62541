@@ -986,9 +986,9 @@ list(APPEND plugin_sources
 if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND lib_sources src/util/eventfilter_parser/eventfilter_parser_grammar.c)
-        list(APPEND lib_sources src/util/eventfilter_parser/eventfilter_parser.c)
-        list(APPEND lib_headers src/util/eventfilter_parser/eventfilter_parser.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/eventfilter_parser/eventfilter_parser_grammar.c)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/eventfilter_parser/eventfilter_parser.c)
+        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/eventfilter_parser/eventfilter_parser.h)
     endif()
 endif()
 
