@@ -2,7 +2,6 @@
 <project version="4">
   <component name="PublishConfigData">
     <serverData>
-      <paths name="Remote Host Docker (c24a9a3b-23f0-4d99-a99b-dbfd6f07a74b)">
         <serverdata>
           <mappings>
             <mapping local="$PROJECT_DIR$" web="/" />

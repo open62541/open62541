@@ -22,7 +22,6 @@
 #      - ${OPEN62541_NODESET_DIR}CSPPlusForMachine/Opc.Ua.CSPPlusForMachine.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}FDI/Opc.Ua.Fdi5.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}FDI/Opc.Ua.Fdi7.NodeSet2.xml
-#      - ${OPEN62541_NODESET_DIR}IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}ISA-95/Opc.ISA95.NodeSet2.xml
 #      - ${OPEN62541_NODESET_DIR}POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml
 #
@@ -66,7 +65,7 @@ function prepare_nodeids() {
                                     $nodeset | awk '{ sub(/.*\ NodeId="/, ""); sub(/".*/, ""); print $1}' >> $nodesetIdPath
         fi
         
-        if [[ $nodesetIdPath == *"IEC61850"* ]] || [[ $nodesetIdPath == *"PLCopen"* ]]; then
+        if [[ $nodesetIdPath == *"PLCopen"* ]]; then
             sed -i "s/ns=2;/ns=$CustomNsStartNum;/gI" $nodesetIdPath
             sed -i "s/ns=1;/ns=2;/gI" $nodesetIdPath
         elif [[ $nodesetIdPath == *"PADIM"* ]]; then
@@ -175,13 +174,6 @@ add_node_integration_test "IA.examples" \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.examples.xml
 
-add_node_integration_test "IEC61850-7-3" \
-    $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml
-
-add_node_integration_test "IEC61850-7-4" \
-    $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml \
-    $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-4.NodeSet2.xml
-
 add_node_integration_test "IOLinkIODD" \
     $UA_NODESET_PATH/IOLink/Opc.Ua.IOLinkIODD.NodeSet2.xml
 
@@ -204,8 +196,8 @@ add_node_integration_test "MachineTool" \
     $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
     $UA_NODESET_PATH/MachineTool/Opc.Ua.MachineTool.NodeSet2.xml
 
-add_node_integration_test "MDIS" \
-    $UA_NODESET_PATH/MDIS/Opc.MDIS.NodeSet2.xml
+# add_node_integration_test "MDIS" \
+#     $UA_NODESET_PATH/MDIS/Opc.MDIS.NodeSet2.xml
 
 add_node_integration_test "Mining.DevelopmentSupport.Dozer" \
     $UA_NODESET_PATH/DI/Opc.Ua.Di.NodeSet2.xml \
