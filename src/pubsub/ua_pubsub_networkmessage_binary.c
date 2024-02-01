@@ -1404,6 +1404,9 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
                 if(fmd->maxStringLength != 0 &&
                    (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
                     v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+                    if(((UA_String *)v->value.data)->length > fmd->maxStringLength){
+                        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+                    }
                     rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
                                                  NULL, NULL, NULL);
                     size_t lengthDifference = fmd->maxStringLength - ((UA_String *)valuePtr)->length;
