@@ -150,7 +150,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
         /* todo: malloc may fail: return a statuscode */
         adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
         if(!adapter_addresses) {
-            UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_DISCOVERY,
+            UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "GetAdaptersAddresses out of memory");
             adapter_addresses = NULL;
             break;
@@ -172,7 +172,7 @@ getInterfaces(UA_DiscoveryManager *dm) {
         }
 
         /* Unexpected error */
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "GetAdaptersAddresses returned an unexpected error. "
                      "Not setting mDNS A records.");
         UA_free(adapter_addresses);
