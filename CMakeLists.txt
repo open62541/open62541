@@ -536,11 +536,6 @@ if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
-if(MINGW)
-    # GCC stack protector support
-    list(APPEND open62541_LIBRARIES ssp)
-endif()
-
 #####################
 # Compiler Settings #
 #####################
