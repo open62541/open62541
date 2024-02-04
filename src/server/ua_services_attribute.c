@@ -1949,6 +1949,7 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId
         *opResult = UA_Server_editNode(server, session, &opRequest->nodesToWrite[opIndex].nodeId,
                                      (UA_EditNodeCallback)copyAttributeIntoNode,
                                      (void*)(uintptr_t) &opRequest->nodesToWrite[opIndex]);
+        goto cleanup;
     }
 
      /* Async Write No AsyncResponse allocated so far */
