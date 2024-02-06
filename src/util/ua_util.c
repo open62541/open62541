@@ -572,6 +572,33 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) 
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
+UA_StatusCode
+getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
+    /* Canonical name known? */
+    if(refTypeId->namespaceIndex == 0 &&
+       refTypeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
+        for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+            if(refTypeId->identifier.numeric != knownRefTypes[i].identifier)
+                continue;
+            memcpy(outBN->data, knownRefTypes[i].browseName.data, knownRefTypes[i].browseName.length);
+            outBN->length = knownRefTypes[i].browseName.length;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Print the NodeId */
+    UA_StatusCode res = UA_NodeId_print(refTypeId, outBN);
+
+    /* Ensure we have no '>', which would make a RelativePath ambiguous */
+    if(res == UA_STATUSCODE_GOOD) {
+        for(size_t j = 0; j < outBN->length; j++) {
+            if(outBN->data[j] == '>')
+                return UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+    return res;
+}
+
 /************************/
 /* Cryptography Helpers */
 /************************/
