@@ -2025,11 +2025,12 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
 
     /* Clear removed members or initialize the new ones. Note that deleteMembers
      * depends on type->pointerFree. */
-    if(newSize > *size)
+    if(newSize > *size) {
         memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
                (newSize - *size) * type->memSize);
-    else if(deleteMembers)
+    } else if(deleteMembers) {
         UA_Array_delete(deleteMembers, *size - newSize, type);
+    }
 
     /* Set the new array */
     *p = newP;
