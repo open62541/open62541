@@ -237,24 +237,32 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * Parse RelativePath Expressions
  * ------------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
- * used e.g. for the BrowsePath structure. For now, only the standard
- * ReferenceTypes from Namespace 0 are recognized (see Part 3).
+ * used e.g. for the BrowsePath structure.
  *
  *   ``RelativePath := ( ReferenceType BrowseName )+``
  *
- * The ReferenceTypes have either of the following formats:
+ * The ReferenceType has one of the following formats:
  *
  * - ``/``: *HierarchicalReferences* and subtypes
  * - ``.``: *Aggregates* ReferenceTypes and subtypes
- * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName
- *   (a QualifiedName). Prefixed modifiers can be as follows:
+ *
+ * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
+ *   Reserved characters in the BrowseName are and-escaped. The following
+ *   prefix-modifiers are defined for the ReferenceType.
  *   - ``!`` switches to inverse References
  *   - ``#`` excludes subtypes of the ReferenceType.
+ *   - As a non-standard extension we allow the ReferenceType in angle-brackets
+ *     as a NodeId. For example ``<ns=1;i=345>``. If a string NodeId is used,
+ *     the string identifier is and-escaped.
  *
- * QualifiedNames consist of an optional NamespaceIndex and the name itself:
- * The name is and-escaped (see above).
+ * The BrowseName is a QualifiedName. It consist of an optional NamespaceIndex
+ * and the name itself. The NamespaceIndex can be left out for the default
+ * Namespace zero. The name component is and-escaped (see above).
  *
- *   ``QualifiedName := [0-9]+ ":" Name``
+ *   ``BrowseName := ([0-9]+ ":")? Name``
+ *
+ * The last BrowseName in a RelativePath can be omitted. This acts as a wildcard
+ * that matches any BrowseName.
  *
  * Example RelativePaths
  * `````````````````````
@@ -265,10 +273,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<#Aggregates>1:Boiler/``
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
- *
- * As a non-standard extension we allow the ReferenceType in angle-brackets to
- * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``. If
- * a string NodeId is used, the string identifier is and-escaped. */
+ */
 
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
