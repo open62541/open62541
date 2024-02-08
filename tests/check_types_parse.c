@@ -295,6 +295,26 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(printSimpleAttributeOperand) {
+    UA_QualifiedName browsePath[2];
+    browsePath[0] = UA_QUALIFIEDNAME(1, "Boiler");
+    browsePath[1] = UA_QUALIFIEDNAME(0, "Temperature");
+
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NODEID("ns=1;i=123");
+    sao.browsePath = browsePath;
+    sao.browsePathSize = 2;
+    sao.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    sao.indexRange = UA_STRING("0:5");
+
+    UA_String encoding = UA_STRING_NULL;
+    UA_SimpleAttributeOperand_print(&sao, &encoding);
+    UA_String expected = UA_STRING("ns=1;i=123/1:Boiler/Temperature#BrowseName[0:5]");
+    ck_assert(UA_String_equal(&encoding, &expected));
+    UA_String_clear(&encoding);
+} END_TEST
+
 int main(void) {
     Suite *s  = suite_create("Test Builtin Type Parsing");
     TCase *tc = tcase_create("test cases");
@@ -313,6 +333,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathWithServer);
+    tcase_add_test(tc, printSimpleAttributeOperand);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

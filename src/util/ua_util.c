@@ -752,6 +752,66 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
     return moveTmpToOut(&tmp, out);
 }
 
+UA_StatusCode
+UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
+                                UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &sao->typeDefinitionId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res = UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        res = UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the BrowsePath */
+    for(size_t i = 0; i < sao->browsePathSize; i++) {
+        res |= UA_String_append(&tmp, UA_STRING("/"));
+        UA_QualifiedName *qn = &sao->browsePath[i];
+        if(qn->namespaceIndex > 0) {
+            char nsStr[8]; /* Enough for a uint16 */
+            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
+            res |= UA_String_append(&tmp, UA_STRING(nsStr));
+            res |= UA_String_append(&tmp, UA_STRING(":"));
+        }
+        res |= UA_String_escapeAppend(&tmp, qn->name, true);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the attribute name */
+    if(sao->attributeId != UA_ATTRIBUTEID_VALUE) {
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)sao->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the IndexRange
+     * TODO: Validate the indexRange string */
+    if(sao->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, sao->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
+ cleanup:
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
 /************************/
 /* Cryptography Helpers */
 /************************/
