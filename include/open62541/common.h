@@ -31,6 +31,7 @@ _UA_BEGIN_DECLS
  * the node type. Possible attributes are as follows: */
 
 typedef enum {
+    UA_ATTRIBUTEID_INVALID                 = 0,
     UA_ATTRIBUTEID_NODEID                  = 1,
     UA_ATTRIBUTEID_NODECLASS               = 2,
     UA_ATTRIBUTEID_BROWSENAME              = 3,
