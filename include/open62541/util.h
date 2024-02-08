@@ -226,10 +226,10 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * So the string ``My.String`` becomes ``My&.String``.
  *
  * In addition to the standard we define "extended-and-escaping" where
- * additionaly commas, square brackets and whitespace characters are escaped.
- * This improves the parsing in a larger context, as a lexer can find the end of
- * the escaped string. The reserved characters for the extended escaping (in
- * addition to the above escape-characters) are ``,[] \t\n\v\f\r``.
+ * additionaly commas, semicolons, brackets and whitespace characters are
+ * escaped. This improves the parsing in a larger context, as a lexer can find
+ * the end of the escaped string. The additionally reserved characters for the
+ * extended escaping are ``,()[] \t\n\v\f\r``.
  *
  * This documentation always states whether "and-escaping" or the
  * "extended-and-escaping is used.

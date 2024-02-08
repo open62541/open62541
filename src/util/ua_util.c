@@ -620,8 +620,9 @@ isReserved(char c) {
 
 static UA_INLINE UA_Boolean
 isReservedExtended(char c) {
-    return (isReserved(c) || c == ','  || c == '[' || c == ']' || c == ' ' ||
-            c == '\t' || c == '\n' || c == '\v' || c == '\f' || c == '\r');
+    return (isReserved(c) || c == ',' || c == '(' || c == ')' ||
+            c == '[' || c == ']' || c == ' ' || c == '\t' ||
+            c == '\n' || c == '\v' || c == '\f' || c == '\r');
 }
 
 void
