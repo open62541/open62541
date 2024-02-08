@@ -234,8 +234,8 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * This documentation always states whether "and-escaping" or the
  * "extended-and-escaping is used.
  *
- * Parse RelativePath Expressions
- * ------------------------------
+ * Print and Parse RelativePath Expressions
+ * ----------------------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
  * used e.g. for the BrowsePath structure.
  *
@@ -245,7 +245,6 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  *
  * - ``/``: *HierarchicalReferences* and subtypes
  * - ``.``: *Aggregates* ReferenceTypes and subtypes
- *
  * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
  *   Reserved characters in the BrowseName are and-escaped. The following
  *   prefix-modifiers are defined for the ReferenceType.
