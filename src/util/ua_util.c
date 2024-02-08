@@ -14,11 +14,28 @@
 #include <open62541/types_generated_handling.h>
 #include <open62541/server.h>
 #include <open62541/util.h>
+#include <open62541/common.h>
 
 #include "ua_util_internal.h"
 #include "pcg_basic.h"
 #include "base64.h"
 #include "itoa.h"
+
+const char * attributeIdNames[28] = {
+    "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
+    "WriteMask", "UserWriteMask", "IsAbstract", "Symmetric", "InverseName",
+    "ContainsNoLoops", "EventNotifier", "Value", "DataType", "ValueRank",
+    "ArrayDimensions", "AccessLevel", "UserAccessLevel", "MinimumSamplingInterval",
+    "Historizing", "Executable", "UserExecutable", "DataTypeDefinition",
+    "RolePermissions", "UserRolePermissions", "AccessRestrictions", "AccessLevelEx"
+};
+
+const char *
+UA_AttributeId_name(UA_AttributeId attrId) {
+    if(attrId < 0 || attrId > UA_ATTRIBUTEID_ACCESSLEVELEX)
+        return attributeIdNames[0];
+    return attributeIdNames[attrId];
+}
 
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {

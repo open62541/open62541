@@ -61,6 +61,11 @@ typedef enum {
     UA_ATTRIBUTEID_ACCESSLEVELEX           = 27
 } UA_AttributeId;
 
+/* Returns a readable attribute name like "NodeId" or "Invalid" if the attribute
+ * does not exist */
+UA_EXPORT const char *
+UA_AttributeId_name(UA_AttributeId attrId);
+
 /**
  * .. _access-level-mask:
  *
