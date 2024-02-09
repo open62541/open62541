@@ -358,7 +358,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
         rh->serviceResult = Service_Publish(server, session, &request->publishRequest, requestId);
-        return true;
+        return (rh->serviceResult == UA_STATUSCODE_GOOD);
     }
 #endif
 
