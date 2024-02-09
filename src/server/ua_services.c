@@ -79,6 +79,7 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
         *service = (UA_Service)Service_ActivateSession;
         *requestType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST];
         *responseType = &UA_TYPES[UA_TYPES_ACTIVATESESSIONRESPONSE];
+        *requiresSession = false;
         break;
     case UA_NS0ID_CLOSESESSIONREQUEST_ENCODING_DEFAULTBINARY:
         *service = (UA_Service)Service_CloseSession;
@@ -270,17 +271,14 @@ static const UA_String securityPolicyNone =
 /* Returns a status of the SecureChannel. The detailed service status (usually
  * part of the response) is set in the serviceResult argument. */
 UA_StatusCode
-processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-               UA_Service service, const UA_Request *request,
+processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+               UA_UInt32 requestId, UA_Service service, const UA_Request *request,
                const UA_DataType *requestType, UA_Response *response,
                const UA_DataType *responseType, UA_Boolean sessionRequired,
                size_t counterOffset) {
     UA_Session anonymousSession;
-    UA_Session *session = NULL;
     UA_StatusCode channelRes = UA_STATUSCODE_GOOD;
     UA_ResponseHeader *rh = &response->responseHeader;
-
-    UA_LOCK(&server->serviceMutex);
 
     /* If it is an unencrypted (#None) channel, only allow the discovery services */
     if(server->config.securityPolicyNoneDiscoveryOnly &&
@@ -309,14 +307,6 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId
         }
 #endif
         goto send_response;
-    }
-
-    /* Get the Session bound to the SecureChannel (not necessarily activated) */
-    if(!UA_NodeId_isNull(&request->requestHeader.authenticationToken)) {
-        rh->serviceResult = getBoundSession(server, channel,
-                      &request->requestHeader.authenticationToken, &session);
-        if(rh->serviceResult != UA_STATUSCODE_GOOD)
-            goto send_response;
     }
 
     /* Set an anonymous, inactive session for services that need no session */
@@ -375,7 +365,6 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId
             Service_Publish(server, session, &request->publishRequest, requestId);
 
         /* Don't send a response */
-        UA_UNLOCK(&server->serviceMutex);
         goto update_statistics;
     }
 #endif
@@ -392,7 +381,6 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId
          * statistic. */
         if(UA_LIKELY(finished))
             goto send_response;
-        UA_UNLOCK(&server->serviceMutex);
         goto update_statistics;
     }
 #endif
@@ -402,7 +390,6 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId
 
     /* Upon success, send the response. Otherwise a ServiceFault. */
  send_response:
-    UA_UNLOCK(&server->serviceMutex);
     channelRes = sendResponse(server, session, channel,
                               requestId, response, responseType);
     goto update_statistics; /* pacify warnings if no other goto to

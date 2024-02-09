@@ -550,14 +550,34 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    /* Prepare the respone and process the request */
+    /* Prepare the respone */
     UA_Response response;
     UA_init(&response, responseType);
     response.responseHeader.requestHandle = requestHeader->requestHandle;
-    retval = processService(server, channel, requestId, service, &request, requestType,
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* Get the session bound to the SecureChannel (not necessarily activated) */
+    UA_Session *session = NULL;
+    if(sessionRequired) {
+        if(!UA_NodeId_isNull(&request.requestHeader.authenticationToken))
+            response.responseHeader.serviceResult =
+                getBoundSession(server, channel, &request.requestHeader.authenticationToken, &session);
+        if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD && !session)
+            response.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        if(!session) {
+            retval = sendResponse(server, NULL, channel, requestId, &response, responseType);
+            goto cleanup;
+        }
+    }
+
+    /* Process the request */
+    retval = processService(server, channel, session, requestId, service, &request, requestType,
                             &response, responseType, sessionRequired, counterOffset);
 
     /* Clean up */
+ cleanup:
+    UA_UNLOCK(&server->serviceMutex);
     UA_clear(&request, requestType);
     UA_clear(&response, responseType);
     return retval;
