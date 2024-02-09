@@ -223,8 +223,8 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 request
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 UA_StatusCode
-processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-               UA_Service service, const UA_Request *request,
+processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+               UA_UInt32 requestId, UA_Service service, const UA_Request *request,
                const UA_DataType *requestType, UA_Response *response,
                const UA_DataType *responseType, UA_Boolean sessionRequired,
                size_t counterOffset);
