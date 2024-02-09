@@ -222,13 +222,6 @@ UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
-UA_StatusCode
-processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
-               UA_UInt32 requestId, UA_Service service, const UA_Request *request,
-               const UA_DataType *requestType, UA_Response *response,
-               const UA_DataType *responseType, UA_Boolean sessionRequired,
-               size_t counterOffset);
-
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */
 UA_SecurityPolicy *
@@ -358,9 +351,17 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
+/* Returns whether we send a response right away (async call or not) */
+UA_Boolean
+UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_Service service, const UA_Request *request,
+                         const UA_DataType *requestType, UA_Response *response,
+                         const UA_DataType *responseType, UA_Boolean sessionRequired,
+                         size_t counterOffset);
+
 UA_StatusCode
-sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
-             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
+sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+             UA_Response *response, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */

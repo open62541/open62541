@@ -268,16 +268,11 @@ getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
 static const UA_String securityPolicyNone =
     UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
 
-/* Returns a status of the SecureChannel. The detailed service status (usually
- * part of the response) is set in the serviceResult argument. */
-UA_StatusCode
-processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
-               UA_UInt32 requestId, UA_Service service, const UA_Request *request,
-               const UA_DataType *requestType, UA_Response *response,
-               const UA_DataType *responseType, UA_Boolean sessionRequired,
-               size_t counterOffset) {
-    UA_Session anonymousSession;
-    UA_StatusCode channelRes = UA_STATUSCODE_GOOD;
+static UA_Boolean
+processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session *session,
+                       UA_UInt32 requestId, UA_Service service, const UA_Request *request,
+                       const UA_DataType *requestType, UA_Response *response,
+                       const UA_DataType *responseType, UA_Boolean sessionRequired) {
     UA_ResponseHeader *rh = &response->responseHeader;
 
     /* If it is an unencrypted (#None) channel, only allow the discovery services */
@@ -290,7 +285,7 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
 #endif
        ) {
         rh->serviceResult = UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
-        goto send_response;
+        return false;
     }
 
     /* Session lifecycle services. */
@@ -306,10 +301,11 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
-        goto send_response;
+        return false;
     }
 
     /* Set an anonymous, inactive session for services that need no session */
+    UA_Session anonymousSession;
     if(!session) {
         if(sessionRequired) {
 #ifdef UA_ENABLE_TYPEDESCRIPTION
@@ -322,7 +318,7 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
                                    requestType->binaryEncodingId.identifier.numeric);
 #endif
             rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-            goto send_response;
+            return false;
         }
 
         UA_Session_init(&anonymousSession);
@@ -349,7 +345,7 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
                                            UA_SHUTDOWNREASON_ABORT);
         }
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-        goto send_response;
+        return false;
     }
 
     /* Update the session lifetime */
@@ -361,11 +357,8 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* The publish request is not answered immediately */
     if(requestType == &UA_TYPES[UA_TYPES_PUBLISHREQUEST]) {
-        rh->serviceResult =
-            Service_Publish(server, session, &request->publishRequest, requestId);
-
-        /* Don't send a response */
-        goto update_statistics;
+        rh->serviceResult = Service_Publish(server, session, &request->publishRequest, requestId);
+        return true;
     }
 #endif
 
@@ -375,42 +368,58 @@ processService(UA_Server *server, UA_SecureChannel *channel, UA_Session *session
         UA_Boolean finished = true;
         Service_CallAsync(server, session, requestId, &request->callRequest,
                           &response->callResponse, &finished);
-
-        /* Async method calls remain. Don't send a response now. In case we have
-         * an async call, count as a "good" request for the diagnostics
-         * statistic. */
-        if(UA_LIKELY(finished))
-            goto send_response;
-        goto update_statistics;
+        return !finished;
     }
 #endif
 
     /* Execute the synchronous service call */
     service(server, session, request, response);
+    return false;
+}
 
-    /* Upon success, send the response. Otherwise a ServiceFault. */
- send_response:
-    channelRes = sendResponse(server, session, channel,
-                              requestId, response, responseType);
-    goto update_statistics; /* pacify warnings if no other goto to
-                             * update_statistics is enabled */
+UA_Boolean
+UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+                         UA_Service service, const UA_Request *request,
+                         const UA_DataType *requestType, UA_Response *response,
+                         const UA_DataType *responseType, UA_Boolean sessionRequired,
+                         size_t counterOffset) {
+    UA_LOCK(&server->serviceMutex);
 
-    /* Update the diagnostics statistics */
- update_statistics:
+    /* Get the session bound to the SecureChannel (not necessarily activated) */
+    UA_Session *session = NULL;
+    if(sessionRequired) {
+        if(!UA_NodeId_isNull(&request->requestHeader.authenticationToken))
+            response->responseHeader.serviceResult =
+                getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
+        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD && !session)
+            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        if(!session) {
+            UA_UNLOCK(&server->serviceMutex);
+            return false;
+        }
+    }
+
+    /* Process the service */
+    UA_Boolean async =
+        processServiceInternal(server, channel, session, requestId, service, request,
+                               requestType, response, responseType, sessionRequired);
+
+    /* Update the service statistics */
 #ifdef UA_ENABLE_DIAGNOSTICS
-    if(session && session != &server->adminSession) {
+    if(session) {
         session->diagnostics.totalRequestCount.totalCount++;
-        if(rh->serviceResult != UA_STATUSCODE_GOOD)
+        if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
             session->diagnostics.totalRequestCount.errorCount++;
         if(counterOffset != 0) {
             UA_ServiceCounterDataType *serviceCounter = (UA_ServiceCounterDataType*)
                 (((uintptr_t)&session->diagnostics) + counterOffset);
             serviceCounter->totalCount++;
-            if(rh->serviceResult != UA_STATUSCODE_GOOD)
+            if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
                 serviceCounter->errorCount++;
         }
     }
 #endif
 
-    return channelRes;
+    UA_UNLOCK(&server->serviceMutex);
+    return async;
 }

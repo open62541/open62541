@@ -368,8 +368,8 @@ processOPN(UA_Server *server, UA_SecureChannel *channel,
 
 /* The responseHeader must have the requestHandle already set */
 UA_StatusCode
-sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
-             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType) {
+sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+             UA_Response *response, const UA_DataType *responseType) {
     if(!channel)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -382,28 +382,6 @@ sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
     /* Prepare the ResponseHeader */
     UA_EventLoop *el = server->config.eventLoop;
     response->responseHeader.timestamp = el->dateTime_now(el);
-
-    if(session) {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                             "Sending response for RequestId %u of type %s",
-                             (unsigned)requestId, responseType->typeName);
-#else
-        UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                             "Sending reponse for RequestId %u of type %" PRIu32,
-                             (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
-#endif
-    } else {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
-                             "Sending response for RequestId %u of type %s",
-                             (unsigned)requestId, responseType->typeName);
-#else
-        UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
-                             "Sending reponse for RequestId %u of type %" PRIu32,
-                             (unsigned)requestId, responseType->binaryEncodingId.identifier.numeric);
-#endif
-    }
 
     /* Start the message context */
     UA_MessageContext mc;
@@ -550,34 +528,20 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    /* Prepare the respone */
+    /* Process the request */
     UA_Response response;
     UA_init(&response, responseType);
     response.responseHeader.requestHandle = requestHeader->requestHandle;
+    UA_Boolean async =
+        UA_Server_processRequest(server, channel, requestId, service, &request, requestType,
+                                 &response, responseType, sessionRequired, counterOffset);
 
-    UA_LOCK(&server->serviceMutex);
-
-    /* Get the session bound to the SecureChannel (not necessarily activated) */
-    UA_Session *session = NULL;
-    if(sessionRequired) {
-        if(!UA_NodeId_isNull(&request.requestHeader.authenticationToken))
-            response.responseHeader.serviceResult =
-                getBoundSession(server, channel, &request.requestHeader.authenticationToken, &session);
-        if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD && !session)
-            response.responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        if(!session) {
-            retval = sendResponse(server, NULL, channel, requestId, &response, responseType);
-            goto cleanup;
-        }
+    /* Send response if not async */
+    if(UA_LIKELY(!async)) {
+        retval = sendResponse(server, channel, requestId, &response, responseType);
     }
 
-    /* Process the request */
-    retval = processService(server, channel, session, requestId, service, &request, requestType,
-                            &response, responseType, sessionRequired, counterOffset);
-
     /* Clean up */
- cleanup:
-    UA_UNLOCK(&server->serviceMutex);
     UA_clear(&request, requestType);
     UA_clear(&response, responseType);
     return retval;
