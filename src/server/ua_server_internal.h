@@ -24,6 +24,7 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
+#include "ua_services.h"
 #include "ua_server_async.h"
 #include "util/ua_util_internal.h"
 #include "ziptree.h"
@@ -220,6 +221,13 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
+
+UA_StatusCode
+processService(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+               UA_Service service, const UA_Request *request,
+               const UA_DataType *requestType, UA_Response *response,
+               const UA_DataType *responseType, UA_Boolean sessionRequired,
+               size_t counterOffset);
 
 /* Gets the a pointer to the context of a security policy supported by the
  * server matched by the security policy uri. */

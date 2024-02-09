@@ -105,7 +105,8 @@ static void setup(void) {
     }
 }
 
-static void teardown(void) {
+static void
+teardown(void) {
     /* cleanup */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
@@ -131,7 +132,8 @@ setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
     return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
 
-static UA_DateTime* sortDateTimes(UA_DateTime *data) {
+static UA_DateTime *
+sortDateTimes(UA_DateTime *data) {
     size_t count = 0;
     while(data[count++]);
     UA_DateTime* ret;
@@ -152,8 +154,7 @@ static UA_DateTime* sortDateTimes(UA_DateTime *data) {
 }
 
 static void
-printTimestamp(UA_DateTime timestamp)
-{
+printTimestamp(UA_DateTime timestamp) {
     if (timestamp == TIMESTAMP_FIRST) {
         fprintf(stderr, "FIRST,");
     } else if (timestamp == TIMESTAMP_LAST) {
@@ -164,16 +165,14 @@ printTimestamp(UA_DateTime timestamp)
 }
 
 static void
-printResult(UA_DataValue * value)
-{
+printResult(UA_DataValue * value) {
     if (value->status != UA_STATUSCODE_GOOD)
         fprintf(stderr, "%s:", UA_StatusCode_name(value->status));
     printTimestamp(value->sourceTimestamp);
 }
 
 static UA_Boolean
-resultIsEqual(const UA_DataValue * result, const testTuple * tuple, size_t index)
-{
+resultIsEqual(const UA_DataValue * result, const testTuple * tuple, size_t index) {
     switch (tuple->result[index]) {
     case TIMESTAMP_FIRST:
         if (result->status != UA_STATUSCODE_BADBOUNDNOTFOUND
@@ -205,8 +204,7 @@ resultIsEqual(const UA_DataValue * result, const testTuple * tuple, size_t index
 }
 
 static UA_Boolean
-fillHistoricalDataBackend(UA_HistoryDataBackend backend)
-{
+fillHistoricalDataBackend(UA_HistoryDataBackend backend) {
     int i = 0;
     UA_DateTime currentDateTime = testData[i];
     fprintf(stderr, "Adding to historical data backend: ");
@@ -234,19 +232,10 @@ fillHistoricalDataBackend(UA_HistoryDataBackend backend)
     return true;
 }
 
-void
-Service_HistoryRead(UA_Server *server, UA_Session *session,
-                    const UA_HistoryReadRequest *request,
-                    UA_HistoryReadResponse *response);
-
 static void
-requestHistory(UA_DateTime start,
-               UA_DateTime end,
-               UA_HistoryReadResponse * response,
-               UA_UInt32 numValuesPerNode,
-               UA_Boolean returnBounds,
-               UA_ByteString *continuationPoint)
-{
+requestHistory(UA_DateTime start, UA_DateTime end, UA_HistoryReadResponse * response,
+               UA_UInt32 numValuesPerNode, UA_Boolean returnBounds,
+               UA_ByteString *continuationPoint) {
     UA_ReadRawModifiedDetails *details = UA_ReadRawModifiedDetails_new();
     details->startTime = start;
     details->endTime = end;
@@ -442,15 +431,8 @@ testHistoricalDataBackend(size_t maxResponseSize) {
     return retval;
 }
 
-void
-Service_HistoryUpdate(UA_Server *server, UA_Session *session,
-                      const UA_HistoryUpdateRequest *request,
-                      UA_HistoryUpdateResponse *response);
-
 static UA_StatusCode
-deleteHistory(UA_DateTime start,
-              UA_DateTime end)
-{
+deleteHistory(UA_DateTime start, UA_DateTime end) {
     UA_DeleteRawModifiedDetails *details = UA_DeleteRawModifiedDetails_new();
     details->startTime = start;
     details->endTime = end;
@@ -488,8 +470,8 @@ deleteHistory(UA_DateTime start,
 }
 
 static UA_StatusCode
-updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_StatusCode ** operationResults, size_t *operationResultsSize)
-{
+updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData,
+              UA_StatusCode **operationResults, size_t *operationResultsSize) {
     UA_UpdateDataDetails *details = UA_UpdateDataDetails_new();
     details->performInsertReplace = updateType;
     UA_NodeId_copy(&outNodeId, &details->nodeId);
@@ -497,7 +479,8 @@ updateHistory(UA_PerformUpdateType updateType, UA_DateTime *updateData, UA_Statu
     while(updateData[++updateDataSize]);
     fprintf(stderr, "updateHistory for %d values.\n", updateDataSize);
     details->updateValuesSize = (size_t)updateDataSize;
-    details->updateValues = (UA_DataValue*)UA_Array_new(details->updateValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    details->updateValues = (UA_DataValue*)
+        UA_Array_new(details->updateValuesSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
     for (size_t i = 0; i < details->updateValuesSize; ++i) {
         UA_DataValue_init(&details->updateValues[i]);
         details->updateValues[i].hasValue = true;

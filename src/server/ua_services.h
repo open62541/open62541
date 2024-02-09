@@ -50,6 +50,11 @@ typedef void (*UA_Service)(UA_Server*, UA_Session*,
 typedef void (*UA_ChannelService)(UA_Server*, UA_SecureChannel*,
                                   const void *request, void *response);
 
+void
+getServicePointers(UA_UInt32 requestTypeId, const UA_DataType **requestType,
+                   const UA_DataType **responseType, UA_Service *service,
+                   UA_Boolean *requiresSession, size_t *counterOffset);
+
 /**
  * Discovery Service Set
  * ---------------------
