@@ -280,17 +280,15 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
 
     /* Get the session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
-    if(sd->sessionRequired) {
-        if(!UA_NodeId_isNull(&request->requestHeader.authenticationToken))
-            response->responseHeader.serviceResult =
-                getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-        if(response->responseHeader.serviceResult == UA_STATUSCODE_GOOD && !session)
-            response->responseHeader.serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-        if(!session) {
-            UA_UNLOCK(&server->serviceMutex);
-            return false;
-        }
+    response->responseHeader.serviceResult =
+        getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD && sd->sessionRequired) {
+        UA_UNLOCK(&server->serviceMutex);
+        return false;
     }
+
+    /* The session can be NULL if not required */
+    response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
 
     /* Process the service */
     UA_Boolean async =
