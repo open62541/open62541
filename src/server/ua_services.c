@@ -185,7 +185,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
         return false;
     }
 
-    /* Session lifecycle services. */
+    /* Session lifecycle services */
     if(sd->requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
@@ -204,20 +204,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
     /* Set an anonymous, inactive session for services that need no session */
     UA_Session anonymousSession;
     if(!session) {
-        if(sd->sessionRequired) {
-#ifdef UA_ENABLE_TYPEDESCRIPTION
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "%s refused without a valid session",
-                                   sd->requestType->typeName);
-#else
-            UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                                   "Service %" PRIu32 " refused without a valid session",
-                                   sd->requestType->binaryEncodingId.identifier.numeric);
-#endif
-            rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-            return false;
-        }
-
+        UA_assert(!sd->sessionRequired);
         UA_Session_init(&anonymousSession);
         anonymousSession.sessionId = UA_NODEID_GUID(0, UA_GUID_NULL);
         anonymousSession.channel = channel;
@@ -226,6 +213,7 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
 
     /* Trying to use a non-activated session? */
     if(sd->sessionRequired && !session->activated) {
+        UA_assert(session != &anonymousSession); /* because sd->sessionRequired */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "%s refused on a non-activated session",
@@ -235,10 +223,8 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                                "Service %" PRIu32 " refused on a non-activated session",
                                sd->requestType->binaryEncodingId.identifier.numeric);
 #endif
-        if(session != &anonymousSession) {
-            UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                           UA_SHUTDOWNREASON_ABORT);
-        }
+        UA_Server_removeSessionByToken(server, &session->authenticationToken,
+                                       UA_SHUTDOWNREASON_ABORT);
         rh->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         return false;
     }
@@ -282,7 +268,7 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     UA_Session *session = NULL;
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD && sd->sessionRequired)
+    if(!session && sd->sessionRequired)
         return false;
 
     /* The session can be NULL if not required */
