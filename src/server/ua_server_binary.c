@@ -463,17 +463,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
        requestTypeId.identifierType != UA_NODEIDTYPE_NUMERIC)
         UA_NodeId_clear(&requestTypeId); /* leads to badserviceunsupported */
 
-    size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
-
     /* Get the service pointers */
-    UA_Service service = NULL;
-    UA_Boolean sessionRequired = true;
-    const UA_DataType *requestType = NULL;
-    const UA_DataType *responseType = NULL;
-    size_t counterOffset = 0;
-    getServicePointers(requestTypeId.identifier.numeric, &requestType,
-                       &responseType, &service, &sessionRequired, &counterOffset);
-    if(!requestType) {
+    UA_ServiceDescription *sd = getServiceDescription(requestTypeId.identifier.numeric);
+    if(!sd) {
         if(requestTypeId.identifier.numeric ==
            UA_NS0ID_CREATESUBSCRIPTIONREQUEST_ENCODING_DEFAULTBINARY) {
             UA_LOG_INFO_CHANNEL(server->config.logging, channel,
@@ -484,22 +476,22 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                 "Unknown request with type identifier %" PRIi32,
                                 requestTypeId.identifier.numeric);
         }
-        return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
+        return decodeHeaderSendServiceFault(server, channel, msg, offset,
                                             &UA_TYPES[UA_TYPES_SERVICEFAULT],
                                             requestId, UA_STATUSCODE_BADSERVICEUNSUPPORTED);
     }
-    UA_assert(responseType);
 
     /* Decode the request */
     UA_Request request;
+    size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
     retval = UA_decodeBinaryInternal(msg, &offset, &request,
-                                     requestType, server->config.customDataTypes);
+                                     sd->requestType, server->config.customDataTypes);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Could not decode the request with StatusCode %s",
                              UA_StatusCode_name(retval));
         return decodeHeaderSendServiceFault(server, channel, msg, requestPos,
-                                            responseType, requestId, retval);
+                                            sd->responseType, requestId, retval);
     }
 
     /* Check timestamp in the request header */
@@ -513,7 +505,7 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             retval = sendServiceFault(server, channel, requestId,
                                       requestHeader->requestHandle,
                                       UA_STATUSCODE_BADINVALIDTIMESTAMP);
-            UA_clear(&request, requestType);
+            UA_clear(&request, sd->requestType);
             return retval;
         }
     }
@@ -530,20 +522,19 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
     /* Process the request */
     UA_Response response;
-    UA_init(&response, responseType);
+    UA_init(&response, sd->responseType);
     response.responseHeader.requestHandle = requestHeader->requestHandle;
     UA_Boolean async =
-        UA_Server_processRequest(server, channel, requestId, service, &request, requestType,
-                                 &response, responseType, sessionRequired, counterOffset);
+        UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
 
     /* Send response if not async */
     if(UA_LIKELY(!async)) {
-        retval = sendResponse(server, channel, requestId, &response, responseType);
+        retval = sendResponse(server, channel, requestId, &response, sd->responseType);
     }
 
     /* Clean up */
-    UA_clear(&request, requestType);
-    UA_clear(&response, responseType);
+    UA_clear(&request, sd->requestType);
+    UA_clear(&response, sd->responseType);
     return retval;
 }
 
