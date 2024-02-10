@@ -353,11 +353,9 @@ getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
 /* Returns whether we send a response right away (async call or not) */
 UA_Boolean
-UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
-                         UA_Service service, const UA_Request *request,
-                         const UA_DataType *requestType, UA_Response *response,
-                         const UA_DataType *responseType, UA_Boolean sessionRequired,
-                         size_t counterOffset);
+UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
+                         UA_UInt32 requestId, UA_ServiceDescription *sd,
+                         const UA_Request *request, UA_Response *response);
 
 UA_StatusCode
 sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
