@@ -518,12 +518,16 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    /* Process the request */
+    /* Initialize the response */
     UA_Response response;
     UA_init(&response, sd->responseType);
     response.responseHeader.requestHandle = requestHeader->requestHandle;
+
+    /* Process the request */
+    UA_LOCK(&server->serviceMutex);
     UA_Boolean async =
         UA_Server_processRequest(server, channel, requestId, sd, &request, &response);
+    UA_UNLOCK(&server->serviceMutex);
 
     /* Send response if not async */
     if(UA_LIKELY(!async)) {
