@@ -276,16 +276,14 @@ UA_Boolean
 UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
                          UA_UInt32 requestId, UA_ServiceDescription *sd,
                          const UA_Request *request, UA_Response *response) {
-    UA_LOCK(&server->serviceMutex);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Get the session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
     response->responseHeader.serviceResult =
         getBoundSession(server, channel, &request->requestHeader.authenticationToken, &session);
-    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD && sd->sessionRequired) {
-        UA_UNLOCK(&server->serviceMutex);
+    if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD && sd->sessionRequired)
         return false;
-    }
 
     /* The session can be NULL if not required */
     response->responseHeader.serviceResult = UA_STATUSCODE_GOOD;
@@ -310,6 +308,5 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     }
 #endif
 
-    UA_UNLOCK(&server->serviceMutex);
     return async;
 }
