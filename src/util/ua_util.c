@@ -671,6 +671,8 @@ UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
     return UA_STATUSCODE_GOOD;
 }
 
+#ifdef UA_ENABLE_PARSING
+
 static UA_StatusCode
 moveTmpToOut(UA_String *tmp, UA_String *out) {
     /* Output has zero length */
@@ -813,6 +815,8 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
 
     return moveTmpToOut(&tmp, out);
 }
+
+#endif
 
 /************************/
 /* Cryptography Helpers */
