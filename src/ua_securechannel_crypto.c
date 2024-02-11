@@ -559,3 +559,31 @@ checkSymHeader(UA_SecureChannel *channel, const UA_UInt32 tokenId,
 
     return UA_STATUSCODE_GOOD;
 }
+
+UA_Boolean
+UA_SecureChannel_checkTimeout(UA_SecureChannel *channel, UA_DateTime nowMonotonic) {
+    /* Compute the timeout date of the SecurityToken */
+    UA_DateTime timeout = channel->securityToken.createdAt +
+        (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+
+    /* The token has timed out. Try to do the token revolving now instead of
+     * shutting the channel down.
+     *
+     * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
+     * secure outgoing Messages until the SecurityToken expires or the
+     * Server receives a Message secured with a new SecurityToken.*/
+    if(timeout < nowMonotonic && channel->renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
+        /* Revolve the token manually. This is otherwise done in checkSymHeader. */
+        channel->renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
+        channel->securityToken = channel->altSecurityToken;
+        UA_ChannelSecurityToken_init(&channel->altSecurityToken);
+        UA_SecureChannel_generateLocalKeys(channel);
+        generateRemoteKeys(channel);
+
+        /* Use the timeout of the new SecurityToken */
+        timeout = channel->securityToken.createdAt +
+            (UA_DateTime)(channel->securityToken.revisedLifetime * UA_DATETIME_MSEC);
+    }
+
+    return (timeout < nowMonotonic);
+}

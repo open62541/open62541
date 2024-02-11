@@ -911,36 +911,12 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
 
     UA_EventLoop *el = server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+
     channel_entry *entry;
     TAILQ_FOREACH(entry, &bpm->channels, pointers) {
-        /* Compute the timeout date of the SecurityToken */
-        UA_DateTime timeout =
-            entry->channel.securityToken.createdAt +
-            (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
-
-        /* The token has timed out. Try to do the token revolving now instead of
-         * shutting the channel down.
-         *
-         * Part 4, 5.5.2 says: Servers shall use the existing SecurityToken to
-         * secure outgoing Messages until the SecurityToken expires or the
-         * Server receives a Message secured with a new SecurityToken.*/
-        if(timeout < nowMonotonic &&
-           entry->channel.renewState == UA_SECURECHANNELRENEWSTATE_NEWTOKEN_SERVER) {
-            /* Revolve the token manually. This is otherwise done in checkSymHeader. */
-            entry->channel.renewState = UA_SECURECHANNELRENEWSTATE_NORMAL;
-            entry->channel.securityToken = entry->channel.altSecurityToken;
-            UA_ChannelSecurityToken_init(&entry->channel.altSecurityToken);
-            UA_SecureChannel_generateLocalKeys(&entry->channel);
-            generateRemoteKeys(&entry->channel);
-
-            /* Use the timeout of the new SecurityToken */
-            timeout = entry->channel.securityToken.createdAt +
-                (UA_DateTime)(entry->channel.securityToken.revisedLifetime * UA_DATETIME_MSEC);
-        }
-
-        if(timeout < nowMonotonic) {
-            UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
-                                "SecureChannel has timed out");
+        UA_Boolean timeout = UA_SecureChannel_checkTimeout(&entry->channel, nowMonotonic);
+        if(timeout) {
+            UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel, "SecureChannel has timed out");
             UA_SecureChannel_shutdown(&entry->channel, UA_SHUTDOWNREASON_TIMEOUT);
         }
     }
