@@ -178,6 +178,18 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
                        const UA_Request *request, UA_Response *response) {
     UA_ResponseHeader *rh = &response->responseHeader;
 
+    /* Check timestamp in the request header */
+    if(request->requestHeader.timestamp == 0 &&
+       server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
+        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
+                               "The server sends no timestamp in the request header. "
+                               "See the 'verifyRequestTimestamp' setting.");
+        if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
+            rh->serviceResult = UA_STATUSCODE_BADINVALIDTIMESTAMP;
+            return false;
+        }
+    }
+
     /* If it is an unencrypted (#None) channel, only allow the discovery services */
     if(server->config.securityPolicyNoneDiscoveryOnly &&
        UA_String_equal(&channel->securityPolicy->policyUri, &securityPolicyNone ) &&

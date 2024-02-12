@@ -486,26 +486,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
                                             sd->responseType, requestId, retval);
     }
 
-    /* Check timestamp in the request header */
-    UA_RequestHeader *requestHeader = &request.requestHeader;
-    if(requestHeader->timestamp == 0 &&
-       server->config.verifyRequestTimestamp <= UA_RULEHANDLING_WARN) {
-        UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
-                               "The server sends no timestamp in the request header. "
-                               "See the 'verifyRequestTimestamp' setting.");
-        if(server->config.verifyRequestTimestamp <= UA_RULEHANDLING_ABORT) {
-            retval = sendServiceFault(server, channel, requestId,
-                                      requestHeader->requestHandle,
-                                      UA_STATUSCODE_BADINVALIDTIMESTAMP);
-            UA_clear(&request, sd->requestType);
-            return retval;
-        }
-    }
-
     /* Initialize the response */
     UA_Response response;
     UA_init(&response, sd->responseType);
-    response.responseHeader.requestHandle = requestHeader->requestHandle;
+    response.responseHeader.requestHandle = request.requestHeader.requestHandle;
 
     /* Process the request */
     UA_LOCK(&server->serviceMutex);
