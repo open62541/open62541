@@ -27,12 +27,6 @@
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-// store the authentication token and session ID so we can help fuzzing by setting
-// these values in the next request automatically
-UA_NodeId unsafe_fuzz_authenticationToken = {0, UA_NODEIDTYPE_NUMERIC, {0}};
-#endif
-
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
 void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
                                 UA_ByteString *messageBuffer);
@@ -507,16 +501,6 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
             return retval;
         }
     }
-
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    /* Set the authenticationToken from the create session request to help
-     * fuzzing cover more lines */
-    if(!UA_NodeId_isNull(&unsafe_fuzz_authenticationToken) &&
-       !UA_NodeId_isNull(&requestHeader->authenticationToken)) {
-        UA_NodeId_clear(&requestHeader->authenticationToken);
-        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, &requestHeader->authenticationToken);
-    }
-#endif
 
     /* Initialize the response */
     UA_Response response;
