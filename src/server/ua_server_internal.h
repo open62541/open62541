@@ -211,12 +211,18 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
+/* Exposed for fuzzing */
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       void *application, void **connectionContext,
                       UA_ConnectionState state,
                       const UA_KeyValueMap *params,
                       UA_ByteString msg);
+
+UA_StatusCode
+processSecureChannelMessage(void *application, UA_SecureChannel *channel,
+                            UA_MessageType messagetype, UA_UInt32 requestId,
+                            UA_ByteString *message);
 
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
@@ -550,6 +556,9 @@ UA_DiscoveryManager_new(UA_Server *server);
 
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server);
+
+UA_ServerComponent *
+UA_ReverseBinaryProtocolManager_new(UA_Server *server);
 
 /***********/
 /* RefTree */
