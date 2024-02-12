@@ -961,8 +961,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
 }
 
 void Service_Cancel(UA_Server *server, UA_Session *session,
-                    const UA_CancelRequest *request,
-                    UA_CancelResponse *response) {
+                    const UA_CancelRequest *request, UA_CancelResponse *response) {
     /* If multithreading is disabled, then there are no async services. If all
      * services are answered "right away", then there are no services that can
      * be cancelled. */
@@ -990,8 +989,8 @@ void Service_Cancel(UA_Server *server, UA_Session *session,
 
         /* Send response and clean up */
         response->responseHeader.serviceResult = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-        sendResponse(server, session, session->channel, pre->requestId,
-                     (UA_Response *)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
+        sendResponse(server, session->channel, pre->requestId, (UA_Response *)response,
+                     &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(&pre->response);
         UA_free(pre);
 

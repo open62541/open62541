@@ -378,8 +378,11 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize the binay protocol support */
+    /* Initialize the binary protocol support */
     addServerComponent(server, UA_BinaryProtocolManager_new(server), NULL);
+
+    /* Initialize the reverse binary connections support */
+    addServerComponent(server, UA_ReverseBinaryProtocolManager_new(server), NULL);
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY

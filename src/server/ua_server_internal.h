@@ -24,6 +24,7 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
+#include "ua_services.h"
 #include "ua_server_async.h"
 #include "util/ua_util_internal.h"
 #include "ziptree.h"
@@ -210,12 +211,18 @@ ZIP_FUNCTIONS(UA_ReferenceNameTree, UA_ReferenceTargetTreeElem, nameTreeEntry,
 /* SecureChannel Handling */
 /**************************/
 
+/* Exposed for fuzzing */
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       void *application, void **connectionContext,
                       UA_ConnectionState state,
                       const UA_KeyValueMap *params,
                       UA_ByteString msg);
+
+UA_StatusCode
+processSecureChannelMessage(void *application, UA_SecureChannel *channel,
+                            UA_MessageType messagetype, UA_UInt32 requestId,
+                            UA_ByteString *message);
 
 UA_StatusCode
 sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
@@ -350,9 +357,15 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
+/* Returns whether we send a response right away (async call or not) */
+UA_Boolean
+UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
+                         UA_UInt32 requestId, UA_ServiceDescription *sd,
+                         const UA_Request *request, UA_Response *response);
+
 UA_StatusCode
-sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
-             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
+sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+             UA_Response *response, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
@@ -543,6 +556,9 @@ UA_DiscoveryManager_new(UA_Server *server);
 
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server);
+
+UA_ServerComponent *
+UA_ReverseBinaryProtocolManager_new(UA_Server *server);
 
 /***********/
 /* RefTree */
