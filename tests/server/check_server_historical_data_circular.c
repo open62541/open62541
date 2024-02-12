@@ -125,11 +125,6 @@ setUInt32(UA_Client *thisClient, UA_NodeId node, UA_UInt32 value) {
     return UA_Client_writeValueAttributeEx(thisClient, node, &dv);
 }
 
-void
-Service_HistoryRead(UA_Server *server, UA_Session *session,
-                    const UA_HistoryReadRequest *request,
-                    UA_HistoryReadResponse *response);
-
 static void
 requestHistory(UA_DateTime start,
                UA_DateTime end,
