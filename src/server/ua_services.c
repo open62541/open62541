@@ -22,6 +22,12 @@
 #include "ua_server_internal.h"
 #include "ua_services.h"
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+/* store the authentication token and session ID so we can help fuzzing by
+ * setting these values in the next request automatically */
+UA_NodeId unsafe_fuzz_authenticationToken = {0, UA_NODEIDTYPE_NUMERIC, {0}};
+#endif
+
 /* The counterOffset is the offset of the UA_ServiceCounterDataType for the
  * service in the UA_ SessionDiagnosticsDataType. */
 #ifdef UA_ENABLE_DIAGNOSTICS
@@ -190,11 +196,12 @@ processServiceInternal(UA_Server *server, UA_SecureChannel *channel, UA_Session 
        sd->requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
        sd->requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST]) {
         ((UA_ChannelService)sd->serviceCallback)(server, channel, request, response);
+        /* Store the authentication token created during CreateSession to help
+         * fuzzing cover more lines */
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-        /* Store the authentication token so we can help fuzzing by setting
-         * these values in the next request automatically */
         if(sd->requestType == &UA_TYPES[UA_TYPES_CREATESESSIONREQUEST]) {
             UA_CreateSessionResponse *res = &response->createSessionResponse;
+            UA_NodeId_clear(&unsafe_fuzz_authenticationToken);
             UA_NodeId_copy(&res->authenticationToken, &unsafe_fuzz_authenticationToken);
         }
 #endif
@@ -263,6 +270,17 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
                          UA_UInt32 requestId, UA_ServiceDescription *sd,
                          const UA_Request *request, UA_Response *response) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Set the authenticationToken from the create session request to help
+     * fuzzing cover more lines */
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    UA_NodeId *authenticationToken = &request->requestHeader.authenticationToken;
+    if(!UA_NodeId_isNull(authenticationToken) &&
+       !UA_NodeId_isNull(&unsafe_fuzz_authenticationToken)) {
+        UA_NodeId_clear(authenticationToken);
+        UA_NodeId_copy(&unsafe_fuzz_authenticationToken, authenticationToken);
+    }
+#endif
 
     /* Get the session bound to the SecureChannel (not necessarily activated) */
     UA_Session *session = NULL;
