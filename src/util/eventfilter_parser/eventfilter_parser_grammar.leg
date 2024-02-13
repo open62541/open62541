@@ -20,13 +20,60 @@
  *  leg -Po eventfilter_parser_grammar.c eventfilter_parser_grammar.leg
  *
  *  However, the generated eventfilter_parser_grammar.c file creates some compiler warnings.
- *  An Explanation on how to remove these warnings can be found in the file:
+ *  Here is an Explanation on how to remove these warnings:
+ *  windows build:
  *
- *  eventfilter_parser_remove_compiler_warnings.txt
+ *   1 #define YY_INPUT(yyctx, buf, result, max_size) \
+ *   2 {                                              \
+ *   3  if(yyctx->input.length <= yyctx->pos) {      \
+ *   4      result = 0;                              \
+ *   5  } else {                                     \
+ *   6      result = ((int) yyctx->input.length) - yyctx->pos;\
+ *   7      if(result > max_size)                     \
+ *   8          result = max_size;                   \
+ *   9      memcpy(buf, &yyctx->input.data[yyctx->pos], result); \
+ *   10      yyctx->pos += result;                    \
+ *   11  }                                            \
+ *   12}
+ *   replace: yyctx->input.length with  ((int) yyctx->input.length) in line 6
+ *
+ *   13 YY_LOCAL(void) yyPush(yycontext *yy, char *text, int count)
+ *   14 {
+ *   15   yy->__val += count;
+ *   16   while (yy->__valslen <= yy->__val - yy->__vals)
+ *   17     {
+ *   18       long offset= (long)( yy->__val - yy->__vals);
+ *   19       yy->__valslen *= 2;
+ *   20       yy->__vals= (YYSTYPE *)YY_REALLOC(yy, yy->__vals, sizeof(YYSTYPE) * yy->__valslen);
+ *   21       yy->__val= yy->__vals + offset;
+ *   22     }
+ *   23 }
+ *   replace: long offset= yy->__val - yy->__vals; with long offset= (long)( yy->__val - yy->__vals); in line 18
+ *
+ *   linux build:
+ *
+ *   replace YY_PARSE(int) YYPARSEFROM(YY_CTX_PARAM_ yyrule yystart) with YY_PARSE(static int) YYPARSEFROM(YY_CTX_PARAM_ yyrule yystart)
+ *   replace YY_PARSE(int) YYPARSE(YY_CTX_PARAM) with YY_PARSE(static int) YYPARSE(YY_CTX_PARAM)
+ *   replace YY_PARSE(yycontext *) YYRELEASE(yycontext *yyctx) with YY_PARSE(static yycontext *) YYRELEASE(yycontext *yyctx)
+ *
+ *   remove:
+ *   YY_LOCAL(int) yyAccept(yycontext *yy, int tp0)
+ *   {
+ *     if (tp0)
+ *       {
+ *         fprintf(stderr, "accept denied at %d\n", tp0);
+ *         return 0;
+ *       }
+ *     else
+ *       {
+ *         yyDone(yy);
+ *         yyCommit(yy);
+ *       }
+ *     return 1;
+ *   }
  *
  *  In order that users of the SDK don't need to use the leg parser, always commit a recent
  *  eventfilter_parser_grammar.c if changes are made to the lexer.
- *
  */
 
 

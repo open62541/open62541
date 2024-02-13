@@ -7,10 +7,8 @@
 #ifndef VERSION_H_IN
 #define VERSION_H_IN
 
-#define CASE_0 "@CASE_0@"
+
 #define CASE_1 "@CASE_1@"
 #define CASE_2 "@CASE_2@"
-#define CASE_3 "@CASE_3@"
-#define CASE_4 "@CASE_4@"
 
 #endif // VERSION_H_IN
