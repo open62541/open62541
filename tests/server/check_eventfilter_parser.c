@@ -40,9 +40,10 @@ START_TEST(Case_0) {
                 "OFTYPE ns=1;i=5001";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_eq(filter, empty_filter);
+    UA_EventFilter empty_filter;
+    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter_parse(&filter, &case_);
+    ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -63,9 +64,10 @@ START_TEST(Case_2) {
                 "$8:= ns=1;i=5001";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_eq(filter, empty_filter);
+    UA_EventFilter empty_filter;
+    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter_parse(&filter, &case_);
+    ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -107,9 +109,10 @@ START_TEST(Case_4) {
                 "$4:= OFTYPE ns=1;i=5000";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_eq(filter, empty_filter);
+    UA_EventFilter empty_filter;
+    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter_parse(&filter, &case_);
+    ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST*/
 
