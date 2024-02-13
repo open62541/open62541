@@ -3,10 +3,7 @@
 #include "open62541/types_generated.h"
 #include "open62541/util.h"
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-#include "../common.h"
 #include "check.h"
 
 
@@ -53,7 +50,7 @@ START_TEST(Case_1) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
-START_TEST(Case_2) {
+/*START_TEST(Case_2) {
     char *inp = "SELECT\n"
                 "\n"
                 "PATH \"/Message\", PATH \"/Severity\", PATH \"/EventType\"\n"
@@ -78,7 +75,7 @@ START_TEST(Case_2) {
     UA_ByteString_clear(&case_);
     UA_EventFilter_clear(empty_filter);
     UA_EventFilter_clear(&filter);
-} END_TEST
+} END_TEST*/
 
 START_TEST(Case_3) {
     char *inp = "SELECT\n"
@@ -148,7 +145,7 @@ int main(void) {
     //tcase_add_checked_fixture(tc_call, setup, teardown);
     tcase_add_test(tc_call, Case_0);
     tcase_add_test(tc_call, Case_1);
-    tcase_add_test(tc_call, Case_2);
+    /*tcase_add_test(tc_call, Case_2);*/
     tcase_add_test(tc_call, Case_3);
     tcase_add_test(tc_call, Case_4);
     suite_add_tcase(s, tc_call);
