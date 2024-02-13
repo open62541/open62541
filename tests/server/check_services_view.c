@@ -367,7 +367,7 @@ START_TEST(Service_Browse_Localization) {
 }
 END_TEST
 
-START_TEST(Service_TranslateBrowsePathsToNodeIds) {
+START_TEST(ServiceTest_TranslateBrowsePathsToNodeIds) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -507,7 +507,7 @@ static Suite *testSuite_Service_TranslateBrowsePathsToNodeIds(void) {
 
     TCase *tc_translate = tcase_create("TranslateBrowsePathsToNodeIds");
     tcase_add_unchecked_fixture(tc_translate, setup_server, teardown_server);
-    tcase_add_test(tc_translate, Service_TranslateBrowsePathsToNodeIds);
+    tcase_add_test(tc_translate, ServiceTest_TranslateBrowsePathsToNodeIds);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsWithHashCollision);
     tcase_add_test(tc_translate, Service_TranslateBrowsePathsNoMatches);
     tcase_add_test(tc_translate, BrowseSimplifiedBrowsePath);

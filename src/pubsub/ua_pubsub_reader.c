@@ -233,6 +233,29 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
         }
     }
 
+    /* Check if used dataSet metaData is valid in context of the rest of the config */
+    if(newDataSetReader->config.dataSetFieldContentMask &
+       UA_DATASETFIELDCONTENTMASK_RAWDATA) {
+        for(size_t fieldIdx = 0;
+            fieldIdx < newDataSetReader->config.dataSetMetaData.fieldsSize; fieldIdx++) {
+            const UA_FieldMetaData *field =
+                &newDataSetReader->config.dataSetMetaData.fields[fieldIdx];
+            if((field->builtInType == UA_TYPES_STRING ||
+                field->builtInType == UA_TYPES_BYTESTRING) &&
+               field->maxStringLength == 0) {
+                /* Fields of type String or ByteString need to have defined
+                 * MaxStringLength*/
+                UA_LOG_ERROR_READER(server->config.logging, newDataSetReader,
+                                    "Add DataSetReader failed. MaxStringLength must be "
+                                    "set in MetaData when using RawData field encoding.");
+                UA_DataSetReaderConfig_clear(&newDataSetReader->config);
+                UA_free(newDataSetReader);
+                newDataSetReader = NULL;
+                return UA_STATUSCODE_BADCONFIGURATIONERROR;
+            }
+        }
+    }
+
     if(readerIdentifier)
         UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
 
@@ -778,7 +801,19 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         const UA_DataType *type =
             UA_findDataTypeWithCustom(&dsr->config.dataSetMetaData.fields[i].dataType,
                                       server->config.customDataTypes);
-        msg->data.keyFrameData.rawFields.length += type->memSize;
+        size_t fieldLength = 0;
+        if(type->typeKind == UA_DATATYPEKIND_STRING || type->typeKind == UA_DATATYPEKIND_BYTESTRING)
+        {
+            UA_assert(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0);
+            // Length of binary encoded string = 4 (string length encoded as uint32) + N (actual string data) bytes.
+            // For fixed message layout N equals maxStringlength.
+            fieldLength = sizeof(UA_UInt32) + dsr->config.dataSetMetaData.fields[i].maxStringLength;
+        }
+        else
+        {
+            fieldLength = type->memSize;
+        }
+        msg->data.keyFrameData.rawFields.length += fieldLength;
         UA_STACKARRAY(UA_Byte, value, type->memSize);
         UA_StatusCode res =
             UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,

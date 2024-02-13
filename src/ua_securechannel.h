@@ -179,6 +179,12 @@ UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
 UA_Boolean
 UA_SecureChannel_isConnected(UA_SecureChannel *channel);
 
+/* Returns true if the channel has timed out. Performs the SecurityToken
+ * rollover if required and possible. */
+UA_Boolean
+UA_SecureChannel_checkTimeout(UA_SecureChannel *channel,
+                              UA_DateTime nowMonotonic);
+
 /* When a fatal error occurs the Server shall send an Error Message to the
  * Client and close the socket. When a Client encounters one of these errors, it
  * shall also close the socket but does not send an Error Message. After the
