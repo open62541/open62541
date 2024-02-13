@@ -113,6 +113,7 @@ START_TEST(Case_4) {
 } END_TEST
 
 static void setup(void) {
+    filter = NULL;
     filter= (UA_EventFilter*) UA_calloc(1, sizeof(UA_EventFilter));
 }
 
