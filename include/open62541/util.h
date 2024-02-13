@@ -228,35 +228,52 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
 #endif
 
 /**
- * Parse RelativePath Expressions
- * ------------------------------
+ * And-Escaping of Strings
+ * -----------------------
+ * The "and-escaping" of strings for is described in Part 4, A2. The ``&``
+ * character is used to escape the reserved characters ``/.<>:#!&``.
+ * So the string ``My.String`` becomes ``My&.String``.
  *
+ * In addition to the standard we define "extended-and-escaping" where
+ * additionaly commas, semicolons, brackets and whitespace characters are
+ * escaped. This improves the parsing in a larger context, as a lexer can find
+ * the end of the escaped string. The additionally reserved characters for the
+ * extended escaping are ``,()[] \t\n\v\f\r``.
+ *
+ * This documentation always states whether "and-escaping" or the
+ * "extended-and-escaping is used.
+ *
+ * Print and Parse RelativePath Expressions
+ * ----------------------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
- * used e.g. for the BrowsePath structure. For now, only the standard
- * ReferenceTypes from Namespace 0 are recognized (see Part 3).
+ * used e.g. for the BrowsePath structure.
  *
  *   ``RelativePath := ( ReferenceType BrowseName )+``
  *
- * The ReferenceTypes have either of the following formats:
+ * The ReferenceType has one of the following formats:
  *
  * - ``/``: *HierarchicalReferences* and subtypes
  * - ``.``: *Aggregates* ReferenceTypes and subtypes
- * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName
- *   (a QualifiedName). Prefixed modifiers can be as follows:
+ * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
+ *   Reserved characters in the BrowseName are and-escaped. The following
+ *   prefix-modifiers are defined for the ReferenceType.
  *   - ``!`` switches to inverse References
  *   - ``#`` excludes subtypes of the ReferenceType.
+ *   - As a non-standard extension we allow the ReferenceType in angle-brackets
+ *     as a NodeId. For example ``<ns=1;i=345>``. If a string NodeId is used,
+ *     the string identifier is and-escaped.
  *
- * QualifiedNames consist of an optional NamespaceIndex and the name itself:
+ * The BrowseName is a QualifiedName. It consist of an optional NamespaceIndex
+ * and the name itself. The NamespaceIndex can be left out for the default
+ * Namespace zero. The name component is and-escaped (see above).
  *
- *   ``QualifiedName := [0-9]+ ":" Name``
+ *   ``BrowseName := ([0-9]+ ":")? Name``
  *
- * The QualifiedName representation for RelativePaths uses ``&`` as the escape
- * character. Occurences of the characters ``/.<>:#!&`` in a QualifiedName have
- * to be escaped (prefixed with ``&``).
+ * The last BrowseName in a RelativePath can be omitted. This acts as a wildcard
+ * that matches any BrowseName.
  *
  * Example RelativePaths
  * `````````````````````
- *
  * - ``/2:Block&.Output``
  * - ``/3:Truck.0:NodeVersion``
  * - ``<0:HasProperty>1:Boiler/1:HeatSensor``
@@ -264,13 +281,8 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``<#Aggregates>1:Boiler/``
  * - ``<!HasChild>Truck``
  * - ``<HasChild>``
- *
- * Extension: ReferenceTypeNodeIds
- * ```````````````````````````````
- *
- * As a non-standard extension we allow the ReferenceType in angle-brackets to
- * be defined as a NodeId. For example ``/1:Boiler<ns=1;i=345>1:HeatSensor``.
  */
+
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
@@ -281,6 +293,55 @@ UA_RelativePath_parse(UA_RelativePath *rp, const UA_String str);
 UA_EXPORT UA_StatusCode
 UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
                                 const UA_String str);
+
+/* The out-string can be pre-allocated. Then the size is adjusted or an error
+ * returned. If the out-string is NULL, then memory is allocated for it. */
+UA_EXPORT UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
+#endif
+
+/**
+ * Print and Parse SimpleAttributeOperand Expression
+ * -------------------------------------------------
+ * The SimpleAttributeOperand is used to specify the location of up values.
+ * SimpleAttributeOperands are used for example in EventFilters to select the
+ * values reported for each event instance.
+ *
+ * The TypeDefinitionId is a NodeId and restricts the starting point for the
+ * lookup to instances of the TypeDefinitionNode or one of its subtypes. The
+ * NodeId defaults to the wildcard ns=0;i=0. The NodeId is extended-and-escaped.
+ *
+ * The BrowsePath is a list of BrowseNames (QualifiedName expression with
+ * extended-and-escaping) to be followed from the TypeDefinitionNode instance.
+ * The implied ReferenceTypeIds (cf. the RelativePath expressions) are always
+ * the HierarchicalReferences and their subtypes. So the ``/`` separator is
+ * mandatory here. The BrowsePath for the SimpleAttributeOperand is defined to
+ * only follow into Variable- and ObjectNodes. If the BrowsePath is empty, the
+ * value is taken from the instance of the TypeDefinition itself.
+ *
+ * The attribute is the textual name of the possible node attributes.
+ * For the index range, see the section on :ref:`numericrange`.::
+ *
+ *   SimpleAttributeOperand :=
+ *     TypeDefinitionId? SimpleBrowsePath ("#" Attribute)? ("[" IndexRange "]")?
+ *
+ *   SimpleBrowsePath := ("/" BrowseName)*
+ *
+ * Example SimpleAttributeOperands
+ * ```````````````````````````````
+ * - ``ns=2;s=TruckEventType/3:Truck/5:Wheel#Value[1:3]``
+ * - ``/3:Truck/5:Wheel``
+ * - ``#BrowseName``
+ * - Empty String: No NodeId, BrowsePath, Attribute and NumericRange. This
+ *   indicates the value attribute of the event instance.
+ */
+
+#ifdef UA_ENABLE_PARSING
+/* The out-string can be pre-allocated. Then the size is adjusted or an error
+ * returned. If the out-string is NULL, then memory is allocated for it. */
+UA_EXPORT UA_StatusCode
+UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
+                                UA_String *out);
 #endif
 
 /**

@@ -14,10 +14,28 @@
 #include <open62541/types_generated_handling.h>
 #include <open62541/server.h>
 #include <open62541/util.h>
+#include <open62541/common.h>
 
 #include "ua_util_internal.h"
 #include "pcg_basic.h"
 #include "base64.h"
+#include "itoa.h"
+
+const char * attributeIdNames[28] = {
+    "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
+    "WriteMask", "UserWriteMask", "IsAbstract", "Symmetric", "InverseName",
+    "ContainsNoLoops", "EventNotifier", "Value", "DataType", "ValueRank",
+    "ArrayDimensions", "AccessLevel", "UserAccessLevel", "MinimumSamplingInterval",
+    "Historizing", "Executable", "UserExecutable", "DataTypeDefinition",
+    "RolePermissions", "UserRolePermissions", "AccessRestrictions", "AccessLevelEx"
+};
+
+const char *
+UA_AttributeId_name(UA_AttributeId attrId) {
+    if(attrId < 0 || attrId > UA_ATTRIBUTEID_ACCESSLEVELEX)
+        return attributeIdNames[0];
+    return attributeIdNames[attrId];
+}
 
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
@@ -570,6 +588,230 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId) 
     }
 
     return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN) {
+    /* Canonical name known? */
+    if(refTypeId->namespaceIndex == 0 &&
+       refTypeId->identifierType == UA_NODEIDTYPE_NUMERIC) {
+        for(size_t i = 0; i < KNOWNREFTYPES; i++) {
+            if(refTypeId->identifier.numeric != knownRefTypes[i].identifier)
+                continue;
+            memcpy(outBN->data, knownRefTypes[i].browseName.data, knownRefTypes[i].browseName.length);
+            outBN->length = knownRefTypes[i].browseName.length;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Print the NodeId */
+    return UA_NodeId_print(refTypeId, outBN);
+}
+
+/************************/
+/* Printing and Parsing */
+/************************/
+
+static UA_INLINE UA_Boolean
+isReserved(char c) {
+    return (c == '/' || c == '.' || c == '<' || c == '>' ||
+            c == ':' || c == '#' || c == '!' || c == '&');
+}
+
+static UA_INLINE UA_Boolean
+isReservedExtended(char c) {
+    return (isReserved(c) || c == ',' || c == '(' || c == ')' ||
+            c == '[' || c == ']' || c == ' ' || c == '\t' ||
+            c == '\n' || c == '\v' || c == '\f' || c == '\r');
+}
+
+void
+UA_String_unescape(UA_String *s, UA_Boolean extended) {
+    UA_Byte *writepos = s->data;
+    UA_Byte *end = &s->data[s->length];
+    for(UA_Byte *pos = s->data; pos < end; pos++,writepos++) {
+        UA_Boolean skip = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
+        if(skip && ++pos >= end)
+            break;
+        *writepos = *pos;
+    }
+    s->length = (size_t)(writepos - s->data);
+}
+
+UA_StatusCode
+UA_String_append(UA_String *s, const UA_String s2) {
+    if(s2.length == 0)
+        return UA_STATUSCODE_GOOD;
+    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + s2.length);
+    if(!buf)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    memcpy(buf + s->length, s2.data, s2.length);
+    s->data = buf;
+    s->length += s2.length;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
+    /* Allocate memory for the qn name.
+     * We allocate enough space to escape every character. */
+    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + (s2.length*2));
+    if(!buf)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    s->data = buf;
+
+    /* Copy + escape s2 */
+    for(size_t j = 0; j < s2.length; j++) {
+        UA_Boolean reserved = (extended) ?
+            isReservedExtended(s2.data[j]) : isReserved(s2.data[j]);
+        if(reserved)
+            s->data[s->length++] = '&';
+        s->data[s->length++] = s2.data[j];
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+moveTmpToOut(UA_String *tmp, UA_String *out) {
+    /* Output has zero length */
+    if(tmp->length == 0) {
+        UA_assert(tmp->data == NULL);
+        if(out->data == NULL)
+            out->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        out->length = 0;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* No output buffer provided, return the tmp buffer */
+    if(out->length == 0) {
+        *out = *tmp;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* The provided buffer is too short */
+    if(out->length < tmp->length) {
+        UA_String_clear(tmp);
+        return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+    }
+
+    /* Copy output to the provided buffer */
+    memcpy(out->data, tmp->data, tmp->length);
+    out->length = tmp->length;
+    UA_String_clear(tmp);
+    return UA_STATUSCODE_GOOD;
+}
+
+static const UA_NodeId hierarchicalRefs =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
+static const UA_NodeId aggregatesRefs =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
+
+UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
+        /* Print the reference type */
+        UA_RelativePathElement *elm = &rp->elements[i];
+        if(UA_NodeId_equal(&hierarchicalRefs, &elm->referenceTypeId) &&
+           !elm->isInverse && elm->includeSubtypes) {
+            res |= UA_String_append(&tmp, UA_STRING("/"));
+        } else if(UA_NodeId_equal(&aggregatesRefs, &elm->referenceTypeId) &&
+                  !elm->isInverse && elm->includeSubtypes) {
+            res |= UA_String_append(&tmp, UA_STRING("."));
+        } else {
+            res |= UA_String_append(&tmp, UA_STRING("<"));
+            if(!elm->includeSubtypes)
+                res |= UA_String_append(&tmp, UA_STRING("#"));
+            if(elm->isInverse)
+                res |= UA_String_append(&tmp, UA_STRING("!"));
+            UA_Byte bnBuf[512];
+            UA_String bnBufStr = {512, bnBuf};
+            res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
+            if(res != UA_STATUSCODE_GOOD)
+                break;
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, false);
+            res |= UA_String_append(&tmp, UA_STRING(">"));
+        }
+
+        /* Print the qualified name namespace */
+        UA_QualifiedName *qn = &elm->targetName;
+        if(qn->namespaceIndex > 0) {
+            char nsStr[8]; /* Enough for a uint16 */
+            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
+            res |= UA_String_append(&tmp, UA_STRING(nsStr));
+            res |= UA_String_append(&tmp, UA_STRING(":"));
+        }
+        res |= UA_String_escapeAppend(&tmp, qn->name, false);
+    }
+
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
+                                UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &sao->typeDefinitionId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res = UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        res = UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the BrowsePath */
+    for(size_t i = 0; i < sao->browsePathSize; i++) {
+        res |= UA_String_append(&tmp, UA_STRING("/"));
+        UA_QualifiedName *qn = &sao->browsePath[i];
+        if(qn->namespaceIndex > 0) {
+            char nsStr[8]; /* Enough for a uint16 */
+            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
+            res |= UA_String_append(&tmp, UA_STRING(nsStr));
+            res |= UA_String_append(&tmp, UA_STRING(":"));
+        }
+        res |= UA_String_escapeAppend(&tmp, qn->name, true);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the attribute name */
+    if(sao->attributeId != UA_ATTRIBUTEID_VALUE) {
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)sao->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Print the IndexRange
+     * TODO: Validate the indexRange string */
+    if(sao->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, sao->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
+ cleanup:
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
 }
 
 /************************/

@@ -59,6 +59,23 @@ typedef UA_StatusCode status;
 UA_StatusCode
 lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
 
+/* Returns the canonical BrowseName of the ReferenceType or the encoded
+ * NodeId. The outBN is assumed to be pre-allocated with a buffer. This fails if
+ * the NodeId contains an '>' character, which makes the parsing ambigous. */
+UA_StatusCode
+getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
+
+/* Unescape &-escaped string. The string is modified */
+void
+UA_String_unescape(UA_String *s, UA_Boolean extended);
+
+/* Escape s2 and append it to s. Memory is allocated internally. */
+UA_StatusCode
+UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended);
+
+UA_StatusCode
+UA_String_append(UA_String *s, const UA_String s2);
+
 /**
  * Error checking macros
  */
