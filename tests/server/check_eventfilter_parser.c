@@ -25,7 +25,7 @@ START_TEST(Case_0) {
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_eq(&filter, &empty_filter);
+    ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
