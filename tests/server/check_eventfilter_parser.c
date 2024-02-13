@@ -10,7 +10,7 @@
 #include "check.h"
 
 
-static UA_EventFilter filter;
+static UA_EventFilter *filter = NULL;
 
 START_TEST(Case_0) {
     char *inp = "SELECT\n"
@@ -24,8 +24,8 @@ START_TEST(Case_0) {
     UA_ByteString case_ = UA_String_fromChars(inp);
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, &empty_filter);
+    UA_EventFilter_parse(filter, &case_);
+    ck_assert_ptr_ne(filter, &empty_filter);
     UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
@@ -43,8 +43,8 @@ START_TEST(Case_1) {
     UA_ByteString case_ = UA_String_fromChars(inp);
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, &empty_filter);
+    UA_EventFilter_parse(filter, &case_);
+    ck_assert_ptr_ne(filter, &empty_filter);
     UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
@@ -68,8 +68,8 @@ START_TEST(Case_2) {
     UA_ByteString case_ = UA_String_fromChars(inp);
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, &empty_filter);
+    UA_EventFilter_parse(filter, &case_);
+    ck_assert_ptr_ne(filter, &empty_filter);
     UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
@@ -92,8 +92,8 @@ START_TEST(Case_3) {
     UA_ByteString case_ = UA_String_fromChars(inp);
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, &empty_filter);
+    UA_EventFilter_parse(filter, &case_);
+    ck_assert_ptr_ne(filter, &empty_filter);
     UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
@@ -116,18 +116,18 @@ START_TEST(Case_4) {
     UA_ByteString case_ = UA_String_fromChars(inp);
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
-    UA_EventFilter_parse(&filter, &case_);
-    ck_assert_ptr_ne(&filter, &empty_filter);
+    UA_EventFilter_parse(filter, &case_);
+    ck_assert_ptr_ne(filter, &empty_filter);
     UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
 static void setup(void) {
-    UA_EventFilter_init(&filter);
+    UA_EventFilter_init(filter);
 }
 
 static void teardown(void) {
-    UA_EventFilter_delete(&filter);
+    UA_EventFilter_delete(filter);
 }
 
 int main(void) {
