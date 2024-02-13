@@ -87,9 +87,10 @@ START_TEST(Case_3) {
                 "$30:= TYPEID i=5000 PATH \"/Severity\" > 99";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter *empty_filter = UA_EventFilter_new();
-    UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_eq(filter, empty_filter);
+    UA_EventFilter empty_filter;
+    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter_parse(&filter, &case_);
+    ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
