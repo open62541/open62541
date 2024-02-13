@@ -26,7 +26,6 @@ START_TEST(Case_0) {
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(filter, &case_);
     ck_assert_ptr_ne(filter, &empty_filter);
-    UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -45,7 +44,6 @@ START_TEST(Case_1) {
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(filter, &case_);
     ck_assert_ptr_ne(filter, &empty_filter);
-    UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -70,7 +68,6 @@ START_TEST(Case_2) {
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(filter, &case_);
     ck_assert_ptr_ne(filter, &empty_filter);
-    UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -94,7 +91,6 @@ START_TEST(Case_3) {
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(filter, &case_);
     ck_assert_ptr_ne(filter, &empty_filter);
-    UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -118,7 +114,6 @@ START_TEST(Case_4) {
     UA_EventFilter_init(&empty_filter);
     UA_EventFilter_parse(filter, &case_);
     ck_assert_ptr_ne(filter, &empty_filter);
-    UA_EventFilter_clear(&empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -127,7 +122,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_EventFilter_delete(filter);
+    UA_EventFilter_clear(filter);
 }
 
 int main(void) {
