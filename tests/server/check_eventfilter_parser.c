@@ -29,7 +29,7 @@ START_TEST(Case_0) {
     UA_ByteString_clear(&case_);
 } END_TEST
 
-/*START_TEST(Case_1) {
+START_TEST(Case_1) {
     char *inp = "SELECT\n"
                 "\n"
                 "PATH \"/Message\",\n"
@@ -114,7 +114,7 @@ START_TEST(Case_4) {
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, &empty_filter);
     UA_ByteString_clear(&case_);
-} END_TEST*/
+} END_TEST
 
 static void setup(void) {
     UA_EventFilter_init(&filter);
@@ -129,11 +129,11 @@ int main(void) {
 
     TCase *tc_call = tcase_create("eventfilter parser - basics");
     tcase_add_checked_fixture(tc_call, setup, teardown);
-    tcase_add_test(tc_call, Case_0);/*
+    tcase_add_test(tc_call, Case_0);
     tcase_add_test(tc_call, Case_1);
     tcase_add_test(tc_call, Case_2);
     tcase_add_test(tc_call, Case_3);
-    tcase_add_test(tc_call, Case_4);*/
+    tcase_add_test(tc_call, Case_4);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);
