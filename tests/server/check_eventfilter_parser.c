@@ -118,7 +118,7 @@ static void setup(void) {
 }
 
 static void teardown(void) {
-    UA_EventFilter_clear(filter);
+    UA_EventFilter_clear(&filter);
 }
 
 int main(void) {
