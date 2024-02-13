@@ -26,11 +26,11 @@ void save_string(char *str, char **local_str){
 
 void create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand, char *ref){
     UA_Parsed_Element_List *element = (UA_Parsed_Element_List *) UA_calloc(1, sizeof(UA_Parsed_Element_List));
-    element->identifier = parsed_operand;
+    element->identifier = PARSEDOPERAND;
     save_string(ref, &element->ref);
     free(ref);
     memcpy(&element->element.operand.identifier, &operand->identifier, sizeof(OperandIdentifier));
-    if(operand->identifier == extensionobject){
+    if(operand->identifier == EXTENSIONOBJECT){
         UA_ExtensionObject_copy(&operand->value.extension, &element->element.operand.value.extension);
         UA_ExtensionObject_clear(&operand->value.extension);
     }
@@ -67,7 +67,7 @@ static UA_Parsed_Element_List *get_last_element_from_list(UA_Element_List *eleme
 
 static UA_StatusCode solve_children_references(UA_Parsed_Element_List *temp, UA_Element_List *elements, size_t *position, size_t *nbr_children, char ***child_references){
     for(size_t i=0; i< temp->element.oper.nbr_children; i++){
-        if(temp->element.oper.children[i].identifier == elementoperand){
+        if(temp->element.oper.children[i].identifier == ELEMENTOPERAND){
             UA_Parsed_Element_List *temp_1 = get_element_by_reference(elements, &temp->element.oper.children[i].value.element_ref);
             if(temp_1->identifier == parsed_operator){
                 if(temp_1->element.oper.ContentFilterArrayPosition == 0){
@@ -83,15 +83,15 @@ static UA_StatusCode solve_children_references(UA_Parsed_Element_List *temp, UA_
                 extension.content.decoded.type = &UA_TYPES[UA_TYPES_ELEMENTOPERAND];
                 extension.content.decoded.data = &temp_1->element.oper.ContentFilterArrayPosition;
                 UA_ExtensionObject_copy(&extension, &temp->element.oper.children[i].value.extension);
-                temp->element.oper.children[i].identifier = extensionobject;
+                temp->element.oper.children[i].identifier = EXTENSIONOBJECT;
             }
             else{
-                if(temp_1->element.operand.identifier == elementoperand){
+                if(temp_1->element.operand.identifier == ELEMENTOPERAND){
                     UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error! Unsolved reference to an ElementOperand");
                     return UA_STATUSCODE_BAD;
                 }
                 free(temp->element.oper.children[i].value.element_ref);
-                temp->element.oper.children[i].identifier = extensionobject;
+                temp->element.oper.children[i].identifier = EXTENSIONOBJECT;
                 UA_ExtensionObject_copy(&temp_1->element.operand.value.extension, &temp->element.oper.children[i].value.extension);
 
             }
@@ -161,20 +161,20 @@ static UA_StatusCode solve_operand_references(UA_Element_List *elements){
     while(current_nbr > 0){
         current_nbr = 0;
         TAILQ_FOREACH(temp, &elements->head, element_entries){
-            if(temp->identifier == parsed_operand){
-                if(temp->element.operand.identifier == elementoperand){
+            if(temp->identifier == PARSEDOPERAND){
+                if(temp->element.operand.identifier == ELEMENTOPERAND){
                     temp1 = get_element_by_reference(elements, &temp->element.operand.value.element_ref);
                     if(temp1->identifier == parsed_operator){
                         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Error! An operand references an Operator");
                         return UA_STATUSCODE_BAD;
                     }
 
-                    if(temp1->element.operand.identifier == elementoperand){
+                    if(temp1->element.operand.identifier == ELEMENTOPERAND){
                         current_nbr++;
                     }
                     else{
                         free(temp->element.operand.value.element_ref);
-                        temp->element.operand.identifier = extensionobject;
+                        temp->element.operand.identifier = EXTENSIONOBJECT;
                         UA_ExtensionObject_copy(&temp1->element.operand.value.extension, &temp->element.operand.value.extension);
                     }
                 }
@@ -191,7 +191,7 @@ static UA_StatusCode solve_operand_references(UA_Element_List *elements){
 
 static void clear_operand_list(UA_Parsed_Operand *operand_list, size_t list_size){
     for(size_t i=0; i< list_size; i++){
-        operand_list[i].identifier == elementoperand ? free(operand_list[i].value.element_ref):UA_ExtensionObject_clear(&operand_list[i].value.extension);
+        operand_list[i].identifier == ELEMENTOPERAND ? free(operand_list[i].value.element_ref) : UA_ExtensionObject_clear(&operand_list[i].value.extension);
     }
 }
 
@@ -199,7 +199,7 @@ static void clear_linked_list(UA_Element_List *elements){
     UA_Parsed_Element_List *temp, *temp1;
     TAILQ_FOREACH_SAFE(temp, &elements->head, element_entries, temp1){
         free(temp->ref);
-        if(temp->identifier == parsed_operand){
+        if(temp->identifier == PARSEDOPERAND){
             clear_operand_list(&temp->element.operand, 1);
         }
         else{
@@ -260,12 +260,12 @@ UA_StatusCode create_content_filter(UA_Element_List *elements, UA_ContentFilter 
 
 static void copy_children(UA_Parsed_Operator element, UA_Parsed_Element_List *temp){
     for(size_t i=0; i<element.nbr_children; i++){
-        if(element.children[i].identifier == elementoperand){
-            temp->element.oper.children[i].identifier = elementoperand;
+        if(element.children[i].identifier == ELEMENTOPERAND){
+            temp->element.oper.children[i].identifier = ELEMENTOPERAND;
             save_string(element.children[i].value.element_ref, &temp->element.oper.children[i].value.element_ref);
         }
         else{
-            temp->element.oper.children[i].identifier = extensionobject;
+            temp->element.oper.children[i].identifier = EXTENSIONOBJECT;
             UA_ExtensionObject_copy(&element.children[i].value.extension, &temp->element.oper.children[i].value.extension);
         }
     }
@@ -374,7 +374,7 @@ UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_Stat
 
 void handle_elementoperand(UA_Parsed_Operand *operand, char *ref){
     memset(operand, 0, sizeof(UA_Parsed_Operand));
-    operand->identifier = elementoperand;
+    operand->identifier = ELEMENTOPERAND;
     save_string(ref, &operand->value.element_ref);
 }
 
@@ -392,7 +392,7 @@ void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand){
     operand->value.extension.encoding = UA_EXTENSIONOBJECT_DECODED;
     operand->value.extension.content.decoded.type = &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND];
     operand->value.extension.content.decoded.data = sao;
-    operand->identifier = extensionobject;
+    operand->identifier = EXTENSIONOBJECT;
 }
 
 static void create_element_reference(size_t *branch_nbr, char **ref, char *ref_identifier){
@@ -424,7 +424,7 @@ static void add_child_references(UA_Parsed_Element_List *element, char **ref_1, 
     element->element.oper.nbr_children = 2;
     element->element.oper.children = (UA_Parsed_Operand *) UA_calloc(2, sizeof(UA_Parsed_Operand));
     for(size_t i=0; i<2; i++){
-        element->element.oper.children[i].identifier = elementoperand;
+        element->element.oper.children[i].identifier = ELEMENTOPERAND;
         i == 0 ? save_string(*ref_1, &element->element.oper.children[0].value.element_ref)
                : save_string(*ref_2, &element->element.oper.children[1].value.element_ref);
     }
@@ -459,7 +459,7 @@ void create_nodeid_element(UA_Element_List *elements, UA_NodeId *id, char *ref){
     set_up_variant_from_nodeId(id, &lit.value);
     UA_NodeId_clear(id);
     set_up_ext_object_from_literal(&operand.value.extension, &lit);
-    operand.identifier = extensionobject;
+    operand.identifier = EXTENSIONOBJECT;
     create_next_operand_element(elements, &operand, ref);
 }
 
@@ -472,12 +472,12 @@ void handle_oftype_nodeId(UA_Parsed_Operator *element, UA_NodeId *id){
     set_up_variant_from_nodeId(id, &lit.value);
     UA_NodeId_clear(id);
     set_up_ext_object_from_literal(&element->children[0].value.extension, &lit);
-    element->children[0].identifier = extensionobject;
+    element->children[0].identifier = EXTENSIONOBJECT;
 }
 
 void handle_literal_operand(UA_Parsed_Operand *operand, UA_LiteralOperand *literalValue){
     set_up_ext_object_from_literal(&operand->value.extension, literalValue);
-    operand->identifier = extensionobject;
+    operand->identifier = EXTENSIONOBJECT;
     UA_LiteralOperand_clear(literalValue);
 }
 
@@ -491,12 +491,13 @@ void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_siz
     element->filter = oper;
     element->children = (UA_Parsed_Operand*) UA_calloc(operand_list_size, sizeof(UA_Parsed_Operand));
     for(size_t i=0; i< operand_list_size; i++){
-        if(operand_list[i].identifier == elementoperand){
+        if(operand_list[i].identifier == ELEMENTOPERAND){
             save_string(operand_list[i].value.element_ref, &element->children[i].value.element_ref);
-            element->children[i].identifier = elementoperand;
+            element->children[i].identifier = ELEMENTOPERAND;
+            free(operand_list[i].value.element_ref);
         }else{
             UA_ExtensionObject_copy(&operand_list[i].value.extension, &element->children[i].value.extension);
-            element->children[i].identifier = extensionobject;
+            element->children[i].identifier = EXTENSIONOBJECT;
             UA_ExtensionObject_clear(&operand_list[i].value.extension);
         }
     }
@@ -505,13 +506,11 @@ void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_siz
 void handle_between_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_Parsed_Operand *operand_3){
     UA_Parsed_Operand operand_list[3] = {*operand_1, *operand_2, *operand_3};
     add_child_operands(operand_list, 3, element, UA_FILTEROPERATOR_BETWEEN);
-    clear_operand_list(operand_list, 3);
 }
 
 void handle_two_operands_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_FilterOperator *filter){
     UA_Parsed_Operand operand_list[2] = {*operand_1, *operand_2};
     add_child_operands(operand_list, 2, element, *filter);
-    clear_operand_list(operand_list, 2);
 }
 
 void init_item_list(UA_Element_List *global, UA_Counters *ctr){

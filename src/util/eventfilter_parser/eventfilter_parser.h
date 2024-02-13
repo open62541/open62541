@@ -27,8 +27,8 @@ typedef struct UA_Parsed_EventFilter {
 }UA_Parsed_EventFilter;
 
 typedef enum OperandIdentifier{
-    elementoperand,
-    extensionobject
+    ELEMENTOPERAND,
+    EXTENSIONOBJECT
 }OperandIdentifier;
 
 typedef struct UA_Parsed_Operand{
@@ -47,7 +47,7 @@ typedef struct UA_Parsed_Operator{
 }UA_Parsed_Operator;
 
 typedef enum ElementIdentifier{
-    parsed_operand,
+    PARSEDOPERAND,
     parsed_operator
 }ElementIdentifier;
 
