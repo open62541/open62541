@@ -22,10 +22,9 @@ START_TEST(Case_0) {
                 "$\"ref_1\":= OFTYPE i=3035";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_ne(filter, &empty_filter);
+    ck_assert_ptr_ne(filter, empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -40,10 +39,9 @@ START_TEST(Case_1) {
                 "OFTYPE ns=1;i=5001";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_ne(filter, &empty_filter);
+    ck_assert_ptr_ne(filter, empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -64,10 +62,9 @@ START_TEST(Case_2) {
                 "$8:= ns=1;i=5001";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_ne(filter, &empty_filter);
+    ck_assert_ptr_ne(filter, empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -87,10 +84,9 @@ START_TEST(Case_3) {
                 "$30:= TYPEID i=5000 PATH \"/Severity\" > 99";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_ne(filter, &empty_filter);
+    ck_assert_ptr_ne(filter, empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -110,19 +106,18 @@ START_TEST(Case_4) {
                 "$4:= OFTYPE ns=1;i=5000";
 
     UA_ByteString case_ = UA_String_fromChars(inp);
-    UA_EventFilter empty_filter;
-    UA_EventFilter_init(&empty_filter);
+    UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(filter, &case_);
-    ck_assert_ptr_ne(filter, &empty_filter);
+    ck_assert_ptr_ne(filter, empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
 static void setup(void) {
-    UA_EventFilter_init(filter);
+    filter= (UA_EventFilter*) UA_calloc(1, sizeof(UA_EventFilter));
 }
 
 static void teardown(void) {
-    UA_EventFilter_clear(filter);
+    UA_free(filter);
 }
 
 int main(void) {
