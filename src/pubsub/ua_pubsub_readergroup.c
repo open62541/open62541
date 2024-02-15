@@ -197,6 +197,14 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    UA_PubSubConnection *connection = rg->linkedConnection;
+    if(connection && connection->configurationFreezeCounter > 0) {
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
+                                   "Deleting the ReaderGroup failed. "
+                                   "PubSubConnection is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
     UA_DataSetReader *dsr, *tmp_dsr;
     LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
         UA_DataSetReader_remove(server, dsr);
