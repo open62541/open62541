@@ -188,6 +188,8 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
 UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(rg->configurationFrozen) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Remove ReaderGroup failed. "
