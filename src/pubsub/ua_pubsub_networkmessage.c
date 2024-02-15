@@ -1339,19 +1339,34 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
             UA_FieldMetaData *fmd =
                 &src->data.keyFrameData.dataSetMetaDataType->fields[i];
-            if(fmd->maxStringLength != 0 &&
-               (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
-                v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)){
-                rv = UA_encodeBinaryInternal(v->value.data, v->value.type,
-                                             bufPos, &bufEnd, NULL, NULL);
-                size_t lengthDifference = fmd->maxStringLength -
-                    ((UA_String *)v->value.data)->length;
-                memset(*bufPos, 0, lengthDifference);
-                *bufPos += lengthDifference;
-            } else {
-                /* padding not yet supported for strings as part of structures */
-                rv = UA_encodeBinaryInternal(v->value.data, v->value.type,
-                                             bufPos, &bufEnd, NULL, NULL);
+            // For arrays we need to encode the dimension sizes before the actual data
+            size_t elementCount = 1;
+            for(size_t cnt = 0; cnt < fmd->arrayDimensionsSize; cnt++) {
+                elementCount *= fmd->arrayDimensions[cnt];
+                rv = UA_UInt32_encodeBinary(&fmd->arrayDimensions[cnt], bufPos, bufEnd);
+                UA_CHECK_STATUS(rv, return rv);
+            }
+            // Check if Array size matches the one specified in metadata
+            if(fmd->valueRank > 0 && elementCount != v->value.arrayLength) {
+                return UA_STATUSCODE_BADENCODINGERROR;
+            }
+            UA_Byte *valuePtr = (UA_Byte *)v->value.data;
+            for(size_t cnt = 0; cnt < elementCount; cnt++) {
+                if(fmd->maxStringLength != 0 &&
+                   (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
+                    v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
+                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
+                                                 NULL, NULL);
+                    size_t lengthDifference =
+                        fmd->maxStringLength - ((UA_String *)valuePtr)->length;
+                    memset(*bufPos, 0, lengthDifference);
+                    *bufPos += lengthDifference;
+                } else {
+                    /* padding not yet supported for strings as part of structures */
+                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
+                                                 NULL, NULL);
+                }
+                valuePtr += v->value.type->memSize;
             }
         } else if(src->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
             rv = UA_DataValue_encodeBinary(v, bufPos, bufEnd);
@@ -1687,13 +1702,20 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                         offsetBuffer->rawMessageLength += v->value.type->memSize;
                         nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW;
                     }
-                    size += UA_calcSizeBinary(v->value.data, v->value.type);
+                    UA_FieldMetaData *fmd =
+                        &p->data.keyFrameData.dataSetMetaDataType->fields[i];
+                    // For arrays add encoded array length (4 bytes for each dimension)
+                    size += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
+                    // We need to know how many elements there are
+                    size_t elemCnt = 1;
+                    for(size_t cnt = 0; cnt < fmd->arrayDimensionsSize; cnt++) {
+                        elemCnt *= fmd->arrayDimensions[cnt];
+                    }
+                    size += (elemCnt * UA_calcSizeBinary(v->value.data, v->value.type));
 
                     /* Handle zero-padding for strings with max-string-length.
                      * Currently not supported for strings that are a part of larger
                      * structures. */
-                    UA_FieldMetaData *fmd =
-                        &p->data.keyFrameData.dataSetMetaDataType->fields[i];
                     if(fmd->maxStringLength != 0 &&
                        (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
                         v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
