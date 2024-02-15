@@ -232,9 +232,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     UA_PubSubConnection *connection = wg->linkedConnection;
-    if(!connection)
-        return UA_STATUSCODE_BADNOTFOUND;
-
+    UA_assert(connection);
     if(connection->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
                                    "Deleting the WriterGroup failed. "
@@ -264,23 +262,31 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 #endif
 
+    /* Disconnect only once */
     if(!wg->deleteFlag)
         UA_WriterGroup_disconnect(wg);
     wg->deleteFlag = true;
 
     if(wg->sendChannel == 0) {
+        /* Unlink from the connection */
+        LIST_REMOVE(wg, listEntry);
+        connection->writerGroupsSize--;
+        wg->linkedConnection = NULL;
+
+        /* Actually remove the WriterGroup */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
         deleteNode(server, wg->identifier, true);
 #endif
-
-        LIST_REMOVE(wg, listEntry);
-        connection->writerGroupsSize--;
-
         UA_WriterGroupConfig_clear(&wg->config);
         UA_NodeId_clear(&wg->identifier);
         UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
         UA_free(wg);
     }
+
+    /* Update the connection state */
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
+                                       UA_STATUSCODE_GOOD);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -296,7 +302,6 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
-
 
 UA_StatusCode
 UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
