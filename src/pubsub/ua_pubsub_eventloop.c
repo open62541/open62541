@@ -297,29 +297,48 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
         return res;
     }
 
+    /* Detect a wildcard address for unicast receiving. The individual
+     * DataSetWriters then contain additional target hostnames for sending.
+     *
+     * "localhost" and the empty hostname are used as a special "receive all"
+     * wildcard for PubSub UDP. All other addresses (also the 127.0.0/8 and ::1
+     * range) are handled differently. For them we only receive messages that
+     * originate from these addresses.
+     *
+     * The EventLoop backend detects whether an address is multicast capable and
+     * registers it for the multicast group in the background. */
+    UA_String localhostAddr = UA_STRING_STATIC("localhost");
+    UA_Boolean receive_all =
+        (address.length == 0) || UA_String_equal(&localhostAddr, &address);
+
     /* Set up the connection parameters */
     UA_Boolean listen = true;
     UA_Boolean reuse = true;
     UA_Boolean loopback = true;
     UA_KeyValuePair kvp[7];
-    UA_KeyValueMap kvm = {6, kvp};
-    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
-    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
-    kvp[1].key = UA_QUALIFIEDNAME(0, "port");
-    UA_Variant_setScalar(&kvp[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-    kvp[2].key = UA_QUALIFIEDNAME(0, "listen");
-    UA_Variant_setScalar(&kvp[2].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
-    UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    kvp[4].key = UA_QUALIFIEDNAME(0, "reuse");
-    UA_Variant_setScalar(&kvp[4].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    kvp[5].key = UA_QUALIFIEDNAME(0, "loopback");
-    UA_Variant_setScalar(&kvp[5].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    UA_KeyValueMap kvm = {5, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&kvp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[2].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "reuse");
+    UA_Variant_setScalar(&kvp[3].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "loopback");
+    UA_Variant_setScalar(&kvp[4].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!receive_all) {
+        /* The "receive all" wildcard is different in the eventloop UDP layer.
+         * Omit the address entirely to receive all.*/
+        kvp[5].key = UA_QUALIFIEDNAME(0, "address");
+        UA_Variant_setScalar(&kvp[5].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+        kvm.mapSize++;
+    }
     if(!UA_String_isEmpty(&addressUrl->networkInterface)) {
-        kvp[6].key = UA_QUALIFIEDNAME(0, "interface");
-        UA_Variant_setScalar(&kvp[6].value, &addressUrl->networkInterface,
+        kvp[kvm.mapSize].key = UA_QUALIFIEDNAME(0, "interface");
+        UA_Variant_setScalar(&kvp[kvm.mapSize].value, &addressUrl->networkInterface,
                              &UA_TYPES[UA_TYPES_STRING]);
-        kvm.mapSize = 7;
+        kvm.mapSize++;
     }
 
     /* Open a recv connection */
@@ -343,25 +362,15 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
         }
     }
 
-    /* Detect whether this is a localhost address */
-    UA_String localhostAddrs[3] = {
-        UA_STRING_STATIC("localhost"),
-        UA_STRING_STATIC("127.0.0."), /* begins with */
-        UA_STRING_STATIC(":1"),       /* ends with */
-    };
-
-    /* Open a send connection */
-    if(UA_String_equal(&address, &localhostAddrs[0]) ||
-       (address.length > localhostAddrs[1].length &&
-        strncmp((const char*)address.data, (const char*)localhostAddrs[1].data,
-                localhostAddrs[1].length) == 0) ||
-       (address.length > localhostAddrs[2].length &&
-        strncmp((const char*)&address.data[address.length - localhostAddrs[2].length],
-                (const char*)localhostAddrs[2].data, localhostAddrs[2].length) == 0)) {
-        /* Localhost address -- no send connection */
+    /* Receive all -- sending is handled in the DataSetWriter */
+    if(receive_all) {
         UA_LOG_INFO_CONNECTION(server->config.logging, c,
                                "Localhost address - don't open UDP send connection");
-    } else if(c->sendChannel == 0) {
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Open a send connection */
+    if(c->sendChannel == 0) {
         /* Validate only if no WriterGroup configured */
         validate = (c->writerGroupsSize == 0);
         if(validate) {
@@ -371,7 +380,6 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
                                    "instead of opening a channel for sending.");
         }
 
-        /* Open a send-channel */
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
@@ -379,10 +387,11 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                     "Could not open an UDP recv channel");
+            return res;
         }
     }
 
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
