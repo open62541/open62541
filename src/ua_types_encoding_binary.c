@@ -1591,6 +1591,9 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         u8 **bufPos, const u8 **bufEnd,
                         UA_exchangeEncodeBuffer exchangeCallback,
                         void *exchangeHandle) {
+    if(!type || !src)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
     /* Set up the context */
     Ctx ctx;
     ctx.pos = *bufPos;
