@@ -616,7 +616,11 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
 
         /* Check if the reader is enabled */
         if(reader->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           reader->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+           reader->state != UA_PUBSUBSTATE_PREOPERATIONAL
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+           && reader->state != UA_PUBSUBSTATE_ERROR
+#endif
+        )
             continue;
 
         /* Update the ReaderGroup state if this is the first received message */

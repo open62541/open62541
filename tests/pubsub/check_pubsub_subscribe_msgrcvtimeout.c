@@ -973,21 +973,13 @@ START_TEST(Test_wrong_timeout) {
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
     ck_assert(state == UA_PUBSUBSTATE_ERROR);
 
+    expectedState = UA_PUBSUBSTATE_OPERATIONAL;
     ServerDoProcess("2", (UA_UInt32) PublishingInterval_Conn1_WG1, 1);
     ServerDoProcess("2", (UA_UInt32) 100, 1);
 
     /* now the reader should have received something and the state changes to operational */
     ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_ERROR);
-
-    ServerDoProcess("3", 300, 1);
-
-    /* then there should have happened another timeout */
-    ck_assert_int_eq(CallbackCnt, 11);
-
-    /* DataSetReader state toggles from error to operational, because it receives messages but always too late */
-    ck_assert(UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state) == UA_STATUSCODE_GOOD);
-    ck_assert(state == UA_PUBSUBSTATE_ERROR);
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_wrong_timeout\n\n");
 } END_TEST
