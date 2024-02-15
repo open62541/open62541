@@ -198,7 +198,8 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     UA_PubSubConnection *connection = rg->linkedConnection;
-    if(connection && connection->configurationFreezeCounter > 0) {
+    UA_assert(connection);
+    if(connection->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Deleting the ReaderGroup failed. "
                                    "PubSubConnection is frozen.");
@@ -224,26 +225,29 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 #endif
 
+    /* Disconnect only once */
     if(!rg->deleteFlag)
         UA_ReaderGroup_disconnect(rg);
     rg->deleteFlag = true;
 
     if(rg->recvChannelsSize == 0) {
-        UA_PubSubConnection* pConn = rg->linkedConnection;
-        if(pConn != NULL) {
-            LIST_REMOVE(rg, listEntry);
-            pConn->readerGroupsSize--;
-            UA_PubSubConnection_setPubSubState(server, pConn, pConn->state,
-                                               UA_STATUSCODE_GOOD);
-        }
+        /* Unlink from the connection */
+        LIST_REMOVE(rg, listEntry);
+        connection->readerGroupsSize--;
+        rg->linkedConnection = NULL;
 
+        /* Actually remove the ReaderGroup */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
         deleteNode(server, rg->identifier, true);
 #endif
-        UA_NodeId_clear(&rg->identifier);
         UA_ReaderGroupConfig_clear(&rg->config);
+        UA_NodeId_clear(&rg->identifier);
         UA_free(rg);
     }
+
+    /* Update the connection state */
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
+                                       UA_STATUSCODE_GOOD);
 
     return UA_STATUSCODE_GOOD;
 }
