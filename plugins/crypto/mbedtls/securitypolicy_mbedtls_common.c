@@ -60,13 +60,13 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
 
     mbedtls_hmac(context, secret, seed, A.data);
 
-    UA_StatusCode retval = 0;
     for(size_t offset = 0; offset < out->length; offset += hashLen) {
         UA_ByteString outSegment = {
             hashLen,
             out->data + offset
         };
         UA_Boolean bufferAllocated = UA_FALSE;
+        UA_StatusCode retval = 0;
         // Not enough room in out buffer to write the hash.
         if(offset + hashLen > out->length) {
             outSegment.data = NULL;
@@ -82,12 +82,6 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
 
         mbedtls_hmac(context, secret, &A_and_seed, outSegment.data);
         mbedtls_hmac(context, secret, &A, ANext.data);
-
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_ByteString_clear(&A_and_seed);
-            UA_ByteString_clear(&ANext_and_seed);
-            return retval;
-        }
 
         if(bufferAllocated) {
             memcpy(out->data + offset, outSegment.data, out->length - offset);
