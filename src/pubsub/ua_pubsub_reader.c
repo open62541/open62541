@@ -71,7 +71,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         }
         if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
             if(reader->config.writerGroupId != msg->groupHeader.writerGroupId) {
-                UA_LOG_INFO_READER(server->config.logging, reader,
+                UA_LOG_DEBUG_READER(server->config.logging, reader,
                                    "WriterGroupId doesn't match");
                 return UA_STATUSCODE_BADNOTFOUND;
             }
@@ -85,7 +85,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                 }
             }
             if (iterator == totalDataSets) {
-                UA_LOG_INFO_READER(server->config.logging, reader, "DataSetWriterId doesn't match");
+                UA_LOG_DEBUG_READER(server->config.logging, reader, "DataSetWriterId doesn't match");
                 return UA_STATUSCODE_BADNOTFOUND;
             }
         }
