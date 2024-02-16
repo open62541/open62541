@@ -71,7 +71,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         }
         if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
             if(reader->config.writerGroupId != msg->groupHeader.writerGroupId) {
-                UA_LOG_INFO_READER(server->config.logging, reader,
+                UA_LOG_DEBUG_READER(server->config.logging, reader,
                                    "WriterGroupId doesn't match");
                 return UA_STATUSCODE_BADNOTFOUND;
             }
@@ -85,7 +85,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                 }
             }
             if (iterator == totalDataSets) {
-                UA_LOG_INFO_READER(server->config.logging, reader, "DataSetWriterId doesn't match");
+                UA_LOG_DEBUG_READER(server->config.logging, reader, "DataSetWriterId doesn't match");
                 return UA_STATUSCODE_BADNOTFOUND;
             }
         }
@@ -809,29 +809,54 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
             // For fixed message layout N equals maxStringlength.
             fieldLength = sizeof(UA_UInt32) + dsr->config.dataSetMetaData.fields[i].maxStringLength;
         }
-        else
+else
         {
             fieldLength = type->memSize;
         }
-        msg->data.keyFrameData.rawFields.length += fieldLength;
-        UA_STACKARRAY(UA_Byte, value, type->memSize);
-        UA_StatusCode res =
-            UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
-                                    &offset, value, type, NULL);
-        if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
-            if(type->typeKind == UA_DATATYPEKIND_STRING ||
-                type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                UA_ByteString *bs = (UA_ByteString *) value;
-                //check if length < maxStringLength, The types ByteString and String are equal in their base definition
-                size_t lengthDifference = dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
-                offset += lengthDifference;
+
+        // For arrays the length of the array is encoded before the actual data
+        size_t elementCount = 1;
+        size_t dimCnt = 0;
+        for(int cnt = 0; cnt < dsr->config.dataSetMetaData.fields[i].valueRank; cnt++) {
+            UA_UInt32 dimSize =
+                *(UA_UInt32 *)&msg->data.keyFrameData.rawFields.data[offset];
+            if(dimSize != dsr->config.dataSetMetaData.fields[i].arrayDimensions[cnt]) {
+                UA_LOG_INFO_READER(
+                    server->config.logging, dsr,
+                    "Error during Raw-decode KeyFrame field %u: "
+                    "Dimension size in received data doesn't match the dataSetMetaData",
+                    (unsigned)i);
+                return;
             }
+            offset += sizeof(UA_UInt32);
+            elementCount *= dimSize;
+            dimCnt++;
         }
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(server->config.logging, dsr,
-                               "Error during Raw-decode KeyFrame field %u: %s",
-                               (unsigned)i, UA_StatusCode_name(res));
-            return;
+
+        msg->data.keyFrameData.rawFields.length +=
+            fieldLength * elementCount + dimCnt * sizeof(UA_UInt32);
+        UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
+        UA_Byte *valPtr = value;
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        for(size_t cnt = 0; cnt < elementCount; cnt++) {
+            res = UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields, &offset,
+                                          valPtr, type, NULL);
+            if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
+                if(type->typeKind == UA_DATATYPEKIND_STRING ||
+                    type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                    UA_ByteString *bs = (UA_ByteString *) valPtr;
+                    //check if length < maxStringLength, The types ByteString and String are equal in their base definition
+                    size_t lengthDifference = dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
+                    offset += lengthDifference;
+                }
+            }
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_INFO_READER(server->config.logging, dsr,
+                                "Error during Raw-decode KeyFrame field %u: %s",
+                                (unsigned)i, UA_StatusCode_name(res));
+                return;
+            }
+            valPtr += type->memSize;
         }
 
         UA_FieldTargetVariable *tv =
@@ -864,7 +889,11 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
         writeVal.attributeId = tv->targetVariable.attributeId;
         writeVal.indexRange = tv->targetVariable.receiverIndexRange;
         writeVal.nodeId = tv->targetVariable.targetNodeId;
-        UA_Variant_setScalar(&writeVal.value.value, value, type);
+        if(dsr->config.dataSetMetaData.fields[i].valueRank > 0) {
+            UA_Variant_setArray(&writeVal.value.value, value, elementCount, type);
+        } else {
+            UA_Variant_setScalar(&writeVal.value.value, value, type);
+        }
         writeVal.value.hasValue = true;
         Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
         UA_clear(value, type);

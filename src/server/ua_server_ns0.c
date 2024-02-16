@@ -446,6 +446,8 @@ readServiceLevel(UA_Server *server, const UA_NodeId *sessionId, void *sessionCon
     value->value.type = &UA_TYPES[UA_TYPES_BYTE];
     value->value.arrayLength = 0;
     UA_Byte *byte = UA_Byte_new();
+    if(!byte)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     *byte = 255;
     value->value.data = byte;
     value->value.arrayDimensionsSize = 0;
@@ -473,6 +475,8 @@ readAuditing(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     value->value.type = &UA_TYPES[UA_TYPES_BOOLEAN];
     value->value.arrayLength = 0;
     UA_Boolean *boolean = UA_Boolean_new();
+    if(!boolean)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     *boolean = false;
     value->value.data = boolean;
     value->value.arrayDimensionsSize = 0;

@@ -357,7 +357,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
         strncmp((const char*)&address.data[address.length - localhostAddrs[2].length],
                 (const char*)localhostAddrs[2].data, localhostAddrs[2].length) == 0)) {
         /* Localhost address -- no send connection */
-        UA_LOG_INFO_CONNECTION(server->config.logging, c,
+        UA_LOG_DEBUG_CONNECTION(server->config.logging, c,
                                "Localhost address - don't open UDP send connection");
     } else if(c->sendChannel == 0) {
         /* Validate only if no WriterGroup configured */

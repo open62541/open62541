@@ -65,6 +65,8 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
+    if(!bReq.nodesToBrowse)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     bReq.nodesToBrowseSize = 1;
     UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
