@@ -76,7 +76,7 @@ START_TEST(Case_3) {
                 "\n"
                 "FOR\n"
                 "$1:=  AND($20, $30)\n"
-                "$20:= 99 == Int64 99\n"
+                "$20:= 99 == INT64 99\n"
                 "$30:= TYPEID i=5000 PATH \"/Severity\" > 99";
 
     UA_ByteString case_ = UA_String_fromChars(inp);

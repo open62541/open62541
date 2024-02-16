@@ -18,7 +18,7 @@
  * This Tutorial repeats the client_eventfilter.c tutorial,
  * however the filter are created based on the Query Language for Eventfilter
  */
-static void check_eventfilter(UA_EventFilter *filter){
+static void check_eventfilter(UA_EventFilter *filter, UA_Boolean print_filter){
     UA_EventFilter empty_filter;
     UA_EventFilter_init(&empty_filter);
     if(memcmp(&empty_filter, filter, sizeof(UA_EventFilter)) == 0){
@@ -28,10 +28,12 @@ static void check_eventfilter(UA_EventFilter *filter){
     else{
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                      "EventFilter parsing succeeded");
-        UA_String out = UA_STRING_NULL;
-        UA_print(filter, &UA_TYPES[UA_TYPES_EVENTFILTER], &out);
-        printf("%.*s\n", (int)out.length, out.data);
-        UA_String_clear(&out);
+        if(print_filter == UA_TRUE){
+            UA_String out = UA_STRING_NULL;
+            UA_print(filter, &UA_TYPES[UA_TYPES_EVENTFILTER], &out);
+            printf("%.*s\n", (int)out.length, out.data);
+            UA_String_clear(&out);
+        }
     }
 }
 
@@ -50,7 +52,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
 
             UA_ByteString case_0 = UA_String_fromChars(inp);
             UA_EventFilter_parse(filter, &case_0);
-            check_eventfilter(filter);
+            check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_0);
             break;
         }
@@ -58,7 +60,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             /*query can be found in the file example_queries/case_1 */
             UA_ByteString case_1 = UA_String_fromChars(CASE_1);
             UA_EventFilter_parse(filter, &case_1);
-            check_eventfilter(filter);
+            check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_1);
             break;
         }
@@ -66,7 +68,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
             /*query can be found in the file example_queries/case_2 */
             UA_ByteString case_2 = UA_String_fromChars(CASE_2);
             UA_EventFilter_parse(filter, &case_2);
-            check_eventfilter(filter);
+            check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_2);
             break;
         }
@@ -87,7 +89,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
 
             UA_ByteString case_3 = UA_String_fromChars(inp);
             UA_EventFilter_parse(filter, &case_3);
-            check_eventfilter(filter);
+            check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_3);
             break;
         }
@@ -107,7 +109,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
                         "$4:= OFTYPE ns=1;i=5000";
             UA_ByteString case_4 = UA_String_fromChars(inp);
             UA_EventFilter_parse(filter, &case_4);
-            check_eventfilter(filter);
+            check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_4);
             break;
         }
