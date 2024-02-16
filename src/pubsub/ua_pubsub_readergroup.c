@@ -670,6 +670,10 @@ UA_StatusCode
 UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Already unfrozen */
+    if(!rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+
     /* PubSubConnection freezeCounter-- */
     UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
     pubSubConnection->configurationFreezeCounter--;
