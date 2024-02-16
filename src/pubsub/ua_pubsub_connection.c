@@ -19,14 +19,6 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-static void
-delayedPubSubConnection_delete(void *application, void *context) {
-    UA_PubSubConnection *c = (UA_PubSubConnection*)context;
-    UA_PubSubConnectionConfig_clear(&c->config);
-    UA_NodeId_clear(&c->identifier);
-    UA_free(c);
-}
-
 UA_StatusCode
 decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
                      UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
@@ -227,6 +219,15 @@ UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig
     return res;
 }
 
+static void
+delayedPubSubConnection_delete(void *application, void *context) {
+    UA_Server *server = (UA_Server*)application;
+    UA_PubSubConnection *c = (UA_PubSubConnection*)context;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubConnection_delete(server, c);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 /* Clean up the PubSubConnection. If no EventLoop connection is attached we can
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
@@ -234,45 +235,64 @@ void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Stop, unfreeze and delete all WriterGroups attached to the Connection */
-    UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
-                                      UA_STATUSCODE_BADSHUTDOWN);
-        UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
-        UA_WriterGroup_remove(server, writerGroup);
-    }
-
-    /* Stop, unfreeze and delete all ReaderGroups attached to the Connection */
+    /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
+     * Connection. Do this before removing them because we need to unfreeze all
+     * to remove the Connection.*/
     UA_ReaderGroup *readerGroup, *tmpReaderGroup;
-    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
+    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
         UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED,
                                       UA_STATUSCODE_BADSHUTDOWN);
         UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
+    }
+
+    UA_WriterGroup *writerGroup, *tmpWriterGroup;
+    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED,
+                                      UA_STATUSCODE_BADSHUTDOWN);
+        UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
+    }
+
+    /* Remove all ReaderGorups and WriterGroups */
+    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
         UA_ReaderGroup_remove(server, readerGroup);
     }
 
-    /* Shutting down and  unlinking in the server is done only once */
-    if(!c->deleteFlag) {
-        UA_PubSubConnection_disconnect(c);
-        TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
-        server->pubSubManager.connectionsSize--;
+    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
+        UA_WriterGroup_remove(server, writerGroup);
     }
+
+    /* Disconnect only once */
+    if(!c->deleteFlag)
+        UA_PubSubConnection_disconnect(c);
     c->deleteFlag = true;
 
-    /* No open sockets -> delete delayed */
-    if(c->sendChannel == 0 && c->recvChannelsSize == 0) {
-        /* Remove from the information model */
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-        deleteNode(server, c->identifier, true);
-#endif
+    /* Not all sockets are closed. This method will be called again */
+    if(c->sendChannel != 0 || c->recvChannelsSize > 0)
+        return;
 
-        /* Free the memory delayed to ensure nobody is accessing any more */
+    /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
+     * iteration of the event loop.*/
+    if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
         c->dc.callback = delayedPubSubConnection_delete;
+        c->dc.application = server;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
+        return;
     }
+
+    /* Remove from the information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    deleteNode(server, c->identifier, true);
+#endif
+
+    /* Unlink from the server */
+    TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
+    server->pubSubManager.connectionsSize--;
+
+    UA_PubSubConnectionConfig_clear(&c->config);
+    UA_NodeId_clear(&c->identifier);
+    UA_free(c);
 }
 
 UA_StatusCode
