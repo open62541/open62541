@@ -37,6 +37,23 @@ UA_AttributeId_name(UA_AttributeId attrId) {
     return attributeIdNames[attrId];
 }
 
+/* OR-ing 32 goes from upper-case to lower-case */
+UA_AttributeId
+UA_AttributeId_fromName(const UA_String name) {
+    for(size_t i = 0; i < 28; i++) {
+        if(strlen(attributeIdNames[i]) != name.length)
+            continue;
+        for(size_t j = 0; j < name.length; j++) {
+            if((attributeIdNames[i][j] | 32) != (name.data[j] | 32))
+                goto next;
+        }
+        return (UA_AttributeId)i;
+    next:
+        continue;
+    }
+    return UA_ATTRIBUTEID_INVALID;
+}
+
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);
