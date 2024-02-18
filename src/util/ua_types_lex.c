@@ -912,3 +912,121 @@ UA_RelativePath_parseWithServer(UA_Server *server, UA_RelativePath *rp,
         UA_RelativePath_clear(rp);
     return res;
 }
+
+UA_StatusCode
+UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
+                                const UA_String str) {
+    /* Initialize */
+    UA_SimpleAttributeOperand_init(sao);
+
+    /* Make a copy of the input. Used to de-escape the reserved characters. */
+    UA_String edit_str;
+    UA_StatusCode res = UA_String_copy(&str, &edit_str);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    char *pos = (char*)edit_str.data;
+    char *end = (char*)(edit_str.data + edit_str.length);
+
+    /* Parse the TypeDefinitionId */
+    if(pos < end && *pos != '/' && *pos != '#' && *pos != '[') {
+        char *typedef_pos = pos;
+        pos = find_unescaped(pos, end, true);
+        UA_String typeString = {(size_t)(pos - typedef_pos), (UA_Byte*)typedef_pos};
+        UA_String_unescape(&typeString, true);
+        res = UA_NodeId_parse(&sao->typeDefinitionId, typeString);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Parse the BrowsePath */
+    while(pos < end && *pos == '/') {
+        UA_QualifiedName browseName;
+        UA_QualifiedName_init(&browseName);
+        char *browsename_pos = ++pos;
+
+        /* Skip namespace index and colon */
+        char *browsename_name_pos = pos;
+        if(pos < end && *pos >= '0' && *pos <= '9') {
+ check_colon:
+            pos++;
+            if(pos < end) {
+                if(*pos >= '0' && *pos <= '9')
+                    goto check_colon;
+                if(*pos ==':')
+                    browsename_name_pos = ++pos;
+            }
+        }
+
+        /* Find the end of the QualifiedName */
+        pos = find_unescaped(browsename_name_pos, end, true);
+
+        /* Unescape the name element of the QualifiedName */
+        UA_String bnString = {(size_t)(pos - browsename_name_pos), (UA_Byte*)browsename_name_pos};
+        UA_String_unescape(&bnString, true);
+
+        /* Parse the QualifiedName */
+        res = parse_refpath_qn(&browseName, browsename_pos, (char*)bnString.data + bnString.length);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+
+        /* Append to the BrowsePath */
+        res = UA_Array_append((void**)&sao->browsePath, &sao->browsePathSize,
+                              &browseName, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_QualifiedName_clear(&browseName);
+            goto cleanup;
+        }
+    }
+
+    /* Parse the AttributeId */
+    if(pos < end && *pos == '#') {
+        /* Find the first non-alphabet character */
+        char *attr_pos = ++pos;
+        while(pos < end && ((*pos >= 'a' && *pos <= 'z') ||
+                            (*pos >= 'A' && *pos <= 'Z'))) {
+            pos++;
+        }
+        /* Parse the AttributeId */
+        UA_String attrString = {(size_t)(pos - attr_pos), (UA_Byte*)attr_pos};
+        sao->attributeId = UA_AttributeId_fromName(attrString);
+        if(sao->attributeId == UA_ATTRIBUTEID_INVALID) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+    }
+
+    /* Check whether the IndexRange can be parsed.
+     * But just copy the string. */
+    if(pos < end && *pos == '[') {
+        /* Find the end character */
+        char *range_pos = ++pos;
+        while(pos < end && *pos != ']') {
+            pos++;
+        }
+        if(pos == end) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+        UA_String rangeString = {(size_t)(pos - range_pos), (UA_Byte*)range_pos};
+        UA_NumericRange nr;
+        memset(&nr, 0, sizeof(UA_NumericRange));
+        res = UA_NumericRange_parse(&nr, rangeString);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+        res = UA_String_copy(&rangeString, &sao->indexRange);
+        if(nr.dimensionsSize > 0)
+            UA_free(nr.dimensions);
+        pos++;
+    }
+
+    /* Check that we have parsed the entire string */
+    if(pos != end)
+        res = UA_STATUSCODE_BADDECODINGERROR;
+
+ cleanup:
+    UA_String_clear(&edit_str);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_SimpleAttributeOperand_clear(sao);
+    return res;
+}
