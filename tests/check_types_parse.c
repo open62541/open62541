@@ -295,6 +295,41 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server_delete(server);
 } END_TEST
 
+START_TEST(parseSimpleAttributeOperand) {
+    UA_String sao1_str = UA_STRING("");
+    UA_SimpleAttributeOperand sao1;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&sao1, sao1_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String sao2_str = UA_STRING("#Value");
+    UA_SimpleAttributeOperand sao2;
+    res = UA_SimpleAttributeOperand_parse(&sao2, sao2_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String sao3_str = UA_STRING("[1:2]");
+    UA_SimpleAttributeOperand sao3;
+    res = UA_SimpleAttributeOperand_parse(&sao3, sao3_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao3);
+
+    UA_String sao4_str = UA_STRING("ns=1;s=1&&23/1:& Boiler/Temperature#BrowseName[0:5]");
+    UA_SimpleAttributeOperand sao4;
+    UA_String cmp1 = UA_STRING("1&23");
+    UA_String cmp2 = UA_STRING(" Boiler");
+    res = UA_SimpleAttributeOperand_parse(&sao4, sao4_str);
+    ck_assert(UA_String_equal(&sao4.typeDefinitionId.identifier.string, &cmp1));
+    ck_assert(UA_String_equal(&sao4.browsePath[0].name, &cmp2));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao4);
+
+    UA_String sao5_str = UA_STRING("///");
+    UA_SimpleAttributeOperand sao5;
+    res = UA_SimpleAttributeOperand_parse(&sao5, sao5_str);
+    ck_assert(sao5.browsePathSize == 3);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao5);
+} END_TEST
+
 START_TEST(printSimpleAttributeOperand) {
     UA_QualifiedName browsePath[2];
     browsePath[0] = UA_QUALIFIEDNAME(1, "Boiler");
@@ -313,6 +348,12 @@ START_TEST(printSimpleAttributeOperand) {
     UA_String expected = UA_STRING("ns=1;i=123/1:Boiler/Temperature#BrowseName[0:5]");
     ck_assert(UA_String_equal(&encoding, &expected));
     UA_String_clear(&encoding);
+
+    UA_SimpleAttributeOperand sao2;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&sao2, expected);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_SimpleAttributeOperand_equal(&sao, &sao2));
+    UA_SimpleAttributeOperand_clear(&sao2);
 } END_TEST
 
 int main(void) {
@@ -333,6 +374,7 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     tcase_add_test(tc, parseRelativePath);
     tcase_add_test(tc, parseRelativePathWithServer);
+    tcase_add_test(tc, parseSimpleAttributeOperand);
     tcase_add_test(tc, printSimpleAttributeOperand);
     suite_add_tcase(s, tc);
 
