@@ -183,10 +183,21 @@ UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
 
 UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     if(rg->configurationFrozen) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Remove ReaderGroup failed. "
                                    "Subscriber configuration is frozen.");
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+    }
+
+    UA_PubSubConnection *connection = rg->linkedConnection;
+    UA_assert(connection);
+    if(connection->configurationFreezeCounter > 0) {
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
+                                   "Deleting the ReaderGroup failed. "
+                                   "PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -209,26 +220,29 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 #endif
 
+    /* Disconnect only once */
     if(!rg->deleteFlag)
         UA_ReaderGroup_disconnect(rg);
     rg->deleteFlag = true;
 
     if(rg->recvChannelsSize == 0) {
-        UA_PubSubConnection* pConn = rg->linkedConnection;
-        if(pConn != NULL) {
-            LIST_REMOVE(rg, listEntry);
-            pConn->readerGroupsSize--;
-            UA_PubSubConnection_setPubSubState(server, pConn, pConn->state,
-                                               UA_STATUSCODE_GOOD);
-        }
+        /* Unlink from the connection */
+        LIST_REMOVE(rg, listEntry);
+        connection->readerGroupsSize--;
+        rg->linkedConnection = NULL;
 
+        /* Actually remove the ReaderGroup */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
         deleteNode(server, rg->identifier, true);
 #endif
-        UA_NodeId_clear(&rg->identifier);
         UA_ReaderGroupConfig_clear(&rg->config);
+        UA_NodeId_clear(&rg->identifier);
         UA_free(rg);
     }
+
+    /* Update the connection state */
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
+                                       UA_STATUSCODE_GOOD);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -566,6 +580,10 @@ UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
 UA_StatusCode
 UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Already unfrozen */
+    if(!rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
 
     /* PubSubConnection freezeCounter-- */
     UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
