@@ -33,9 +33,12 @@ typedef struct {
  * @param content eventfilter query
  * @param filter generated eventfilter
  */
+#ifdef UA_ENABLE_PARSING
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content);
-
+#endif
+#endif
 
 /**
  * Random Number Generator
