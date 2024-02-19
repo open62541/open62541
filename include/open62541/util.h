@@ -312,12 +312,12 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * NodeId defaults to the wildcard ns=0;i=0. The NodeId is extended-and-escaped.
  *
  * The BrowsePath is a list of BrowseNames (QualifiedName expression with
- * extended-and-escaping) to be followed from the TypeDefinitionNode instance.
- * The implied ReferenceTypeIds (cf. the RelativePath expressions) are always
- * the HierarchicalReferences and their subtypes. So the ``/`` separator is
- * mandatory here. The BrowsePath for the SimpleAttributeOperand is defined to
- * only follow into Variable- and ObjectNodes. If the BrowsePath is empty, the
- * value is taken from the instance of the TypeDefinition itself.
+ * extended-and-escaping of the name) to be followed from the TypeDefinitionNode
+ * instance. The implied ReferenceTypeIds (cf. the RelativePath expressions) are
+ * always the HierarchicalReferences and their subtypes. So the ``/`` separator
+ * is mandatory here. The BrowsePath for the SimpleAttributeOperand is defined
+ * to only follow into Variable- and ObjectNodes. If the BrowsePath is empty,
+ * the value is taken from the instance of the TypeDefinition itself.
  *
  * The attribute is the textual name of the possible node attributes.
  * For the index range, see the section on :ref:`numericrange`.::
@@ -337,6 +337,10 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  */
 
 #ifdef UA_ENABLE_PARSING
+UA_EXPORT UA_StatusCode
+UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
+                                const UA_String str);
+
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
 UA_EXPORT UA_StatusCode

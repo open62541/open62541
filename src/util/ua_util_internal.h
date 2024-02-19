@@ -69,12 +69,21 @@ getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
 void
 UA_String_unescape(UA_String *s, UA_Boolean extended);
 
+/* Returns the position of the first unescaped reserved character (or the end
+ * position) */
+char *
+find_unescaped(char *pos, char *end, UA_Boolean extended);
+
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode
 UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended);
 
 UA_StatusCode
 UA_String_append(UA_String *s, const UA_String s2);
+
+/* Case insensitive lookup. Returns UA_ATTRIBUTEID_INVALID if not found. */
+UA_AttributeId
+UA_AttributeId_fromName(const UA_String name);
 
 /**
  * Error checking macros
