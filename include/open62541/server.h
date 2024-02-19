@@ -1831,11 +1831,11 @@ UA_Server_addNamespace(UA_Server *server, const char* name);
 /* Get namespace by name from the server. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByName(UA_Server *server, const UA_String namespaceUri,
-                             size_t* foundIndex);
+                             UA_UInt16* foundIndex);
 
 /* Get namespace by id from the server. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
+UA_Server_getNamespaceByIndex(UA_Server *server, const UA_UInt16 namespaceIndex,
                               UA_String *foundUri);
 
 /**
