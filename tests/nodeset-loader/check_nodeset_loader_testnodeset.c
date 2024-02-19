@@ -65,7 +65,7 @@ START_TEST(Server_loadTestNodeset) {
     UA_UInt16 nsIndex = UINT_MAX;
     retVal = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
     ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
-    testNamespaceIndex = (UA_UInt16) nsIndex;
+    testNamespaceIndex = nsIndex;
 }
 END_TEST
 
