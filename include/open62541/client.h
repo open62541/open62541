@@ -73,8 +73,8 @@ _UA_BEGIN_DECLS
  * The :ref:`tutorials` provide a good starting point for this. */
 
 struct UA_ClientConfig {
-    void *clientContext;       /* User-defined pointer attached to the client */
-    const UA_Logger *logging;  /* Plugin for log output */
+    void *clientContext; /* User-defined pointer attached to the client */
+    UA_Logger *logging;  /* Plugin for log output */
 
     /* Response timeout in ms (0 -> no timeout). If the server does not answer a
      * request within this time a StatusCode UA_STATUSCODE_BADTIMEOUT is
