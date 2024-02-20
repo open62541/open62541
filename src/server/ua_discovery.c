@@ -466,9 +466,6 @@ UA_Server_register(UA_Server *server, UA_ClientConfig *cc, UA_Boolean unregister
     cc->eventLoop = sc->eventLoop;
     cc->externalEventLoop = true;
 
-    /* Use the logging from the server */
-    cc->logging = sc->logging;
-
     /* Set the state callback method and context */
     cc->stateCallback = discoveryClientStateCallback;
     cc->clientContext = ar;
