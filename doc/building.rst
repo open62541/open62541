@@ -244,6 +244,11 @@ Main Build Options
    - 200: Debug
    - 100: Trace
 
+   This compilation flag defines which log levels get compiled into the code. In
+   addition, the implementations of :ref:`logging` allow to set a filter for the
+   logging level at runtime. So the logging level can be changed in the
+   configuration without recompiling.
+
 **UA_MULTITHREADING**
    Level of multi-threading support. The supported levels are currently as follows:
 
