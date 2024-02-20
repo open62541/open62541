@@ -966,10 +966,12 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     for(size_t i = 0; i < modifiedRequest.itemsToModifySize; ++i) {
         ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
                  UA_MonitoredItem_change_clientHandle, &modifiedRequest.itemsToModify[i]);
-        __Client_Service(client, &modifiedRequest,
-                         &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
-                         &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
     }
+
+    __Client_Service(client, &modifiedRequest,
+                     &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
+                     &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
+
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
 
     UA_UNLOCK(&client->clientMutex);
