@@ -16,6 +16,8 @@
 _UA_BEGIN_DECLS
 
 /**
+ * .. _logging:
+ *
  * Logging Plugin API
  * ==================
  *
