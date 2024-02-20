@@ -949,16 +949,12 @@ UA_ModifyMonitoredItemsResponse
 UA_Client_MonitoredItems_modify(UA_Client *client,
                                 const UA_ModifyMonitoredItemsRequest request) {
     UA_ModifyMonitoredItemsResponse response;
+    UA_ModifyMonitoredItemsResponse_init(&response);
 
     UA_LOCK(&client->clientMutex);
-    UA_Client_Subscription *sub;
-    LIST_FOREACH(sub, &client->subscriptions, listEntry) {
-        if (sub->subscriptionId == request.subscriptionId)
-            break;
-    }
+    UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
 
     if(!sub) {
-        UA_ModifyMonitoredItemsResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         UA_UNLOCK(&client->clientMutex);
         return response;
