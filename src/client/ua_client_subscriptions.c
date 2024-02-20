@@ -936,13 +936,23 @@ UA_Client_MonitoredItems_deleteSingle(UA_Client *client, UA_UInt32 subscriptionI
 }
 
 static void *
-UA_MonitoredItem_change_clientHandle(void *data, UA_Client_MonitoredItem *mon) {
+UA_MonitoredItem_change_clientHandle_wrapper(void *data, UA_Client_MonitoredItem *mon) {
     UA_MonitoredItemModifyRequest *monitoredItemModifyRequest =
         (UA_MonitoredItemModifyRequest *)data;
     if(monitoredItemModifyRequest &&
        mon->monitoredItemId == monitoredItemModifyRequest->monitoredItemId)
         monitoredItemModifyRequest->requestedParameters.clientHandle = mon->clientHandle;
     return NULL;
+}
+
+static void
+UA_MonitoredItem_change_clientHandle(UA_Client_Subscription *sub,
+                                     UA_ModifyMonitoredItemsRequest *request) {
+    for(size_t i = 0; i < request->itemsToModifySize; ++i) {
+        ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
+                 UA_MonitoredItem_change_clientHandle_wrapper,
+                 &request->itemsToModify[i]);
+    }
 }
 
 UA_ModifyMonitoredItemsResponse
@@ -962,19 +972,14 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 
     UA_ModifyMonitoredItemsRequest modifiedRequest;
     UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
-
-    for(size_t i = 0; i < modifiedRequest.itemsToModifySize; ++i) {
-        ZIP_ITER(MonitorItemsTree, &sub->monitoredItems,
-                 UA_MonitoredItem_change_clientHandle, &modifiedRequest.itemsToModify[i]);
-    }
+    UA_MonitoredItem_change_clientHandle(sub, &modifiedRequest);
 
     __Client_Service(client, &modifiedRequest,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
-    UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
-
     UA_UNLOCK(&client->clientMutex);
+    UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
 
