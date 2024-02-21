@@ -22,6 +22,7 @@ START_TEST(Case_0) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -39,6 +40,7 @@ START_TEST(Case_1) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -62,6 +64,7 @@ START_TEST(Case_2) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -84,6 +87,7 @@ START_TEST(Case_3) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -106,6 +110,7 @@ START_TEST(Case_4) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -142,6 +147,7 @@ START_TEST(Case_5) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -164,6 +170,7 @@ START_TEST(Case_6) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -181,6 +188,7 @@ START_TEST(Case_7) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -202,6 +210,7 @@ START_TEST(Case_8) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -219,6 +228,7 @@ START_TEST(Case_9) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -236,6 +246,7 @@ START_TEST(Case_10) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -260,6 +271,7 @@ START_TEST(Case_11) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -288,6 +300,7 @@ START_TEST(Case_12) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -315,6 +328,7 @@ START_TEST(Case_13) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -365,6 +379,7 @@ START_TEST(Case_14) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -387,6 +402,7 @@ START_TEST(Case_15) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -413,6 +429,7 @@ START_TEST(Case_16) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
@@ -454,6 +471,7 @@ START_TEST(Case_17) {
     UA_EventFilter *empty_filter = UA_EventFilter_new();
     UA_EventFilter_parse(&filter, &case_);
     ck_assert_ptr_ne(&filter, empty_filter);
+    UA_EventFilter_delete(empty_filter);
     UA_ByteString_clear(&case_);
 } END_TEST
 
