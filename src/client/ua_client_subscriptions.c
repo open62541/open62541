@@ -963,8 +963,8 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
 
     UA_LOCK(&client->clientMutex);
     UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
-    UA_UNLOCK(&client->clientMutex);
     if(!sub) {
+        UA_UNLOCK(&client->clientMutex);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return response;
     }
@@ -973,10 +973,11 @@ UA_Client_MonitoredItems_modify(UA_Client *client,
     UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
     UA_MonitoredItem_change_clientHandle(sub, &modifiedRequest);
 
-    __UA_Client_Service(client, &modifiedRequest,
+    __Client_Service(client, &modifiedRequest,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], &response,
                      &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE]);
 
+    UA_UNLOCK(&client->clientMutex);
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return response;
 }
@@ -988,8 +989,8 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
                                       void *userdata, UA_UInt32 *requestId) {
     UA_LOCK(&client->clientMutex);
     UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
-    UA_UNLOCK(&client->clientMutex);
     if(!sub) {
+        UA_UNLOCK(&client->clientMutex);
         return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
     }
 
@@ -997,10 +998,11 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     UA_ModifyMonitoredItemsRequest_copy(&request, &modifiedRequest);
     UA_MonitoredItem_change_clientHandle(sub, &modifiedRequest);
 
-    UA_StatusCode statusCode = __UA_Client_AsyncService(
+    UA_StatusCode statusCode = __Client_AsyncService(
         client, &modifiedRequest, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST],
         callback, &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE], userdata, requestId);
 
+    UA_UNLOCK(&client->clientMutex);
     UA_ModifyMonitoredItemsRequest_clear(&modifiedRequest);
     return statusCode;
 }
