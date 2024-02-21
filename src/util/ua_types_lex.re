@@ -434,6 +434,9 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
         res = UA_NodeId_parse(&sao->typeDefinitionId, typeString);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
+    } else {
+        /* BaseEventType is the default */
+        sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     }
 
     /* Parse the BrowsePath */
@@ -491,6 +494,9 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto cleanup;
         }
+    } else {
+        /* The value attribute is the default */
+        sao->attributeId = UA_ATTRIBUTEID_VALUE;
     }
 
     /* Check whether the IndexRange can be parsed.

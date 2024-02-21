@@ -299,8 +299,9 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * values reported for each event instance.
  *
  * The TypeDefinitionId is a NodeId and restricts the starting point for the
- * lookup to instances of the TypeDefinitionNode or one of its subtypes. The
- * NodeId defaults to the wildcard ns=0;i=0. The NodeId is extended-and-escaped.
+ * lookup to instances of the TypeDefinitionNode or one of its subtypes. If not
+ * defined, the NodeId defaults to the BaseEventType. The NodeId is
+ * extended-and-escaped.
  *
  * The BrowsePath is a list of BrowseNames (QualifiedName expression with
  * extended-and-escaping of the name) to be followed from the TypeDefinitionNode
@@ -310,8 +311,10 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * to only follow into Variable- and ObjectNodes. If the BrowsePath is empty,
  * the value is taken from the instance of the TypeDefinition itself.
  *
- * The attribute is the textual name of the possible node attributes.
- * For the index range, see the section on :ref:`numericrange`.::
+ * The attribute is the textual name of the selected node attribute.
+ * If undefined, the attribute defaults to the Value attribute.
+ * For the index range, see the section on :ref:`numericrange`.
+ * The BNF definition of the SimpleAttributeOperand is as follows::
  *
  *   SimpleAttributeOperand :=
  *     TypeDefinitionId? SimpleBrowsePath ("#" Attribute)? ("[" IndexRange "]")?
