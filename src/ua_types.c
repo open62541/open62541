@@ -1648,7 +1648,10 @@ extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
     }
 }
 
-/* Don't compare overlayable types as "binary blobs". We have specific order
+/* Part 4: When testing for equality, a Server shall treat null and empty arrays
+ * as equal.
+ *
+ * Don't compare overlayable types as "binary blobs". We have specific order
  * rules also for some overlayable types. For example how NaN floats are
  * compared. */
 static UA_Order
@@ -1657,11 +1660,6 @@ arrayOrder(const void *p1, size_t p1Length,
            const UA_DataType *type) {
     if(p1Length != p2Length)
         return (p1Length < p2Length) ? UA_ORDER_LESS : UA_ORDER_MORE;
-    /* For zero-length arrays, every pointer not NULL is considered a
-     * UA_EMPTY_ARRAY_SENTINEL. */
-    if(p1 == p2) return UA_ORDER_EQ;
-    if(p1 == NULL) return UA_ORDER_LESS;
-    if(p2 == NULL) return UA_ORDER_MORE;
     uintptr_t u1 = (uintptr_t)p1;
     uintptr_t u2 = (uintptr_t)p2;
     for(size_t i = 0; i < p1Length; i++) {
