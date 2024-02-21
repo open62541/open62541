@@ -434,7 +434,7 @@ readSessionDiagnostics(UA_Server *server,
         res = UA_Variant_setScalarCopy(&value->value, content, type);
     } else {
         size_t len = *(size_t*)content;
-        content = (void*)(((uintptr_t)content) + sizeof(size_t));
+        content = *(void**)((uintptr_t)content + sizeof(size_t));
         res = UA_Variant_setArrayCopy(&value->value, content, len, type);
     }
     if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
