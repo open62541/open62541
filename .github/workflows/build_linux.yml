@@ -112,7 +112,7 @@ jobs:
     name: ${{matrix.build_name}}
     runs-on: ubuntu-20.04
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       with:
         submodules: true
     - name: Install Dependencies
