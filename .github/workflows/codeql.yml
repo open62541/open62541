@@ -27,7 +27,7 @@ jobs:
 
     steps:
       - name: Checkout open62541
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
         with:
           submodules: recursive
       
@@ -39,7 +39,7 @@ jobs:
           sudo apt-get install -y -qq libmbedtls-dev openssl
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v1
+        uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
       
@@ -49,4 +49,4 @@ jobs:
           ETHERNET_INTERFACE: eth0
       
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v1
+        uses: github/codeql-action/analyze@v3
