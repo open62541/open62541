@@ -1125,6 +1125,11 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
     if(UA_NodeId_isNull(&sao->typeDefinitionId))
         return UA_STATUSCODE_BADTYPEDEFINITIONINVALID;
 
+    /* If the BrowsePath is empty, the Node is the instance of the
+     * TypeDefinition. (Part 4, 7.4.4.5) */
+    if(sao->browsePathSize == 0)
+        return UA_STATUSCODE_GOOD;
+
     /* EventType is a subtype of BaseEventType? */
     UA_NodeId baseEventTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     if(!isNodeInTree_singleRef(server, &sao->typeDefinitionId,
@@ -1134,11 +1139,6 @@ UA_SimpleAttributeOperandValidation(UA_Server *server,
     /* AttributeId is valid ? */
     if(sao->attributeId == 0 || sao->attributeId >= 28)
         return UA_STATUSCODE_BADATTRIBUTEIDINVALID;
-
-    /* If the BrowsePath is empty, the Node is the instance of the
-     * TypeDefinition. (Part 4, 7.4.4.5) */
-    if(sao->browsePathSize == 0)
-        return UA_STATUSCODE_GOOD;
 
     /* BrowsePath contains empty BrowseNames? */
     for(size_t j = 0; j < sao->browsePathSize; ++j) {
