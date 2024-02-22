@@ -441,7 +441,7 @@ class CSVBSDTypeParser(TypeParser):
             fileContent = fileContent.decode("utf-8")
 
         # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
-        fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\g<1>\g<2>\g<3>>", fileContent)
+        fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
 
         nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
         if len(nodesets) == 0 or len(nodesets) > 1:
