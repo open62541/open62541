@@ -261,7 +261,7 @@ UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server,
                                    UA_PubSubConnection *connection,
-                                   UA_PubSubState state,
+                                   UA_PubSubState targetState,
                                    UA_StatusCode cause);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
@@ -327,7 +327,7 @@ UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server,
                                 UA_DataSetWriter *dataSetWriter,
-                                UA_PubSubState state);
+                                UA_PubSubState targetState);
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
