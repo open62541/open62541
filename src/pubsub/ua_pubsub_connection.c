@@ -313,7 +313,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
-                                   UA_PubSubState state, UA_StatusCode cause) {
+                                   UA_PubSubState targetState, UA_StatusCode cause) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -321,15 +321,15 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     UA_WriterGroup *writerGroup;
     UA_ReaderGroup *readerGroup;
 
-    switch(state) {
+    switch(targetState) {
         case UA_PUBSUBSTATE_ERROR:
         case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_DISABLED:
-            if(state == oldState)
+            if(targetState == oldState)
                 break;
 
             /* Close the EventLoop connection */
-            c->state = state;
+            c->state = targetState;
             UA_PubSubConnection_disconnect(c);
 
             /* Disable Reader and WriterGroups */
@@ -366,7 +366,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         UA_ServerConfig *config = &server->config;
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->identifier, state, cause);
+            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, cause);
         UA_LOCK(&server->serviceMutex);
     }
     return ret;
