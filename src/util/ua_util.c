@@ -788,6 +788,8 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
     return moveTmpToOut(&tmp, out);
 }
 
+static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
+
 UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out) {
@@ -795,7 +797,7 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&UA_NODEID_NULL, &sao->typeDefinitionId)) {
+    if(!UA_NodeId_equal(&baseEventTypeId, &sao->typeDefinitionId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res = UA_NodeId_print(&sao->typeDefinitionId, &nodeIdBufStr);
