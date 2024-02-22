@@ -500,9 +500,6 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    c->cm = cm;
-    c->json = profile->json;
-
     /* Check the configuration address type */
     if(!UA_Variant_hasScalarType(&c->config.address,
                                  &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
@@ -512,12 +509,9 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     }
 
     /* Connect */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(profile->connect)
-        res = profile->connect(server, c, validate);
-    if(res != UA_STATUSCODE_GOOD && !validate)
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR, res);
-    return res;
+    c->cm = cm;
+    c->json = profile->json;
+    return (profile->connect) ? profile->connect(server, c, validate) : UA_STATUSCODE_GOOD;
 }
 
 /***************/
