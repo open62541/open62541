@@ -321,6 +321,8 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     UA_WriterGroup *writerGroup;
     UA_ReaderGroup *readerGroup;
 
+ set_state:
+
     switch(targetState) {
         case UA_PUBSUBSTATE_ERROR:
         case UA_PUBSUBSTATE_PAUSED:
@@ -332,7 +334,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             c->state = targetState;
             UA_PubSubConnection_disconnect(c);
 
-            /* Disable Reader and WriterGroups */
+            /* Update Reader and WriterGroups. This will set them to PAUSED (if
+             * they were operational) as the Connection is now
+             * non-operational. */
             LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
                 UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
             }
@@ -351,9 +355,11 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             else
                 c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
             ret = UA_PubSubConnection_connect(server, c, false);
-            if(ret != UA_STATUSCODE_GOOD)
-                UA_PubSubConnection_setPubSubState(server, c,
-                                                   UA_PUBSUBSTATE_ERROR, ret);
+            if(ret != UA_STATUSCODE_GOOD) {
+                cause = ret;
+                targetState = UA_PUBSUBSTATE_ERROR;
+                goto set_state;
+            }
             break;
         default:
             UA_LOG_WARNING_CONNECTION(server->config.logging, c,
