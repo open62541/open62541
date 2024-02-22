@@ -483,9 +483,18 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     UA_ConnectionManager *cm = NULL;
     if(profile)
         cm = getCM(el, profile->protocol);
-    if(!cm || (c->cm && cm != c->cm)) {
+    if(!cm) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                 "The requested protocol is not supported");
+        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
+                                           UA_STATUSCODE_BADINTERNALERROR);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Are we changing the protocol after the initial connect? */
+    if(c->cm && cm != c->cm) {
+        UA_LOG_ERROR_CONNECTION(server->config.logging, c,
+                                "The connection is configured for a different protocol already");
         UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
                                            UA_STATUSCODE_BADINTERNALERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
