@@ -121,7 +121,7 @@ endfunction()
 function(ua_generate_datatypes)
     set(options BUILTIN INTERNAL AUTOLOAD)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
-    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
+    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -483,7 +483,7 @@ endfunction()
 # This is a combination of the ua_generate_datatypes, ua_generate_nodeset, and
 # ua_generate_nodeid_header macros.
 # This function can also be used to just create a nodeset without datatypes by
-# omitting the CSV, BSD, and NAMESPACE_MAP parameter.
+# omitting the CSV and BSD parameter.
 # If only one of the previous parameters is given, all of them are required.
 #
 # It is possible to define dependencies of nodesets by using the DEPENDS argument.
@@ -530,7 +530,7 @@ function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
+    set(multiValueArgs DEPENDS IMPORT_BSD)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -612,7 +612,6 @@ function(ua_generate_nodeset_and_datatypes)
             NAME "types_${UA_GEN_NAME}"
             TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
-            NAMESPACE_MAP "${NAMESPACE_MAP_DEPENDS}"
             FILE_XML "${UA_GEN_FILE_NS}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"
