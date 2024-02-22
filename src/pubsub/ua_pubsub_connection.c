@@ -354,6 +354,10 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                 c->state = UA_PUBSUBSTATE_OPERATIONAL;
             else
                 c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+
+            /* This is the only place where UA_PubSubConnection_connect is
+             * called (other than to validate the parameters). So we handle the
+             * fallout of a failed connection here. */
             ret = UA_PubSubConnection_connect(server, c, false);
             if(ret != UA_STATUSCODE_GOOD) {
                 cause = ret;
