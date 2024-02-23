@@ -305,10 +305,10 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
     }
 
     if(request->clientCertificate.length > 0) {
-        UA_CertificateVerification *cv = &server->config.sessionPKI;
         response->responseHeader.serviceResult =
-            cv->verifyApplicationURI(cv, &request->clientCertificate,
-                                     &request->clientDescription.applicationUri);
+            UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
+                                                     &request->clientCertificate,
+                                                     &request->clientDescription.applicationUri);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "The client's ApplicationURI did not match the certificate");
@@ -869,10 +869,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
         UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
             req->userIdentityToken.content.decoded.data;
-        if(server->config.sessionPKI.getSubjectName)
-            server->config.sessionPKI.
-                getSubjectName(&session->clientUserIdOfSession,
-                               &userCertToken->certificateData);
+        UA_CertificateUtils_getSubjectName(&session->clientUserIdOfSession,
+                                           &userCertToken->certificateData);
     } else {
         /* TODO: Handle issued token */
     }

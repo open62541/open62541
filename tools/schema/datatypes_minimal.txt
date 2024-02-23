@@ -120,3 +120,4 @@ KeyValuePair
 NamingRuleType
 CancelRequest
 CancelResponse
+TrustListDataType

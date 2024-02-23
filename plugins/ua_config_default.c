@@ -18,7 +18,7 @@
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/plugin/nodestore_default.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
@@ -869,7 +869,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
     UA_StatusCode keySuccess = UA_STATUSCODE_GOOD;
 
     if (privateKey && privateKey->length > 0)
-        keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
+        keySuccess = UA_CertificateUtils_decryptPrivateKey(localPrivateKey, keyPassword,
                                               &decryptedPrivateKey);
 
     /* Get the password and decrypt. An application might want to loop / retry
@@ -881,7 +881,7 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
             keySuccess = readPrivateKeyPassword(&keyPassword);
         if(keySuccess != UA_STATUSCODE_GOOD)
             return keySuccess;
-        keySuccess = UA_PKI_decryptPrivateKey(localPrivateKey, keyPassword,
+        keySuccess = UA_CertificateUtils_decryptPrivateKey(localPrivateKey, keyPassword,
                                               &decryptedPrivateKey);
         UA_ByteString_memZero(&keyPassword);
         UA_ByteString_clear(&keyPassword);
@@ -1205,7 +1205,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     UA_StatusCode keySuccess = UA_STATUSCODE_GOOD;
 
     if (privateKey.length > 0)
-        keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword,
+        keySuccess = UA_CertificateUtils_decryptPrivateKey(privateKey, keyPassword,
                                               &decryptedPrivateKey);
 
     /* Get the password and decrypt. An application might want to loop / retry
@@ -1217,7 +1217,7 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
             keySuccess = readPrivateKeyPassword(&keyPassword);
         if(keySuccess != UA_STATUSCODE_GOOD)
             return keySuccess;
-        keySuccess = UA_PKI_decryptPrivateKey(privateKey, keyPassword, &decryptedPrivateKey);
+        keySuccess = UA_CertificateUtils_decryptPrivateKey(privateKey, keyPassword, &decryptedPrivateKey);
         UA_ByteString_memZero(&keyPassword);
         UA_ByteString_clear(&keyPassword);
     }

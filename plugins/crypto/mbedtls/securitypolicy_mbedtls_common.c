@@ -1,5 +1,5 @@
 #include <open62541/plugin/securitypolicy.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 #include <open62541/types.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_PUBSUB_ENCRYPTION)

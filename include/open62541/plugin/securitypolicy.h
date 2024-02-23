@@ -12,7 +12,7 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 
 _UA_BEGIN_DECLS
 

@@ -134,6 +134,8 @@ struct UA_Client {
 
     UA_ApplicationDescription serverDescription;
 
+    UA_RuleHandling allowAllCertificateUris;
+
     /* SecureChannel */
     UA_SecureChannel channel;
     UA_UInt32 requestId; /* Unique, internally defined for each request */

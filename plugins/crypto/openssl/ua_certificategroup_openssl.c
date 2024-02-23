@@ -3,11 +3,11 @@
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
-
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include <open62541/util.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/log_stdout.h>
 
 #include "securitypolicy_openssl_common.h"
@@ -78,7 +78,7 @@ typedef struct {
     STACK_OF(X509) *      skTrusted;
     STACK_OF(X509_CRL) *  skCrls; /* Revocation list*/
 
-    UA_CertificateVerification *cv;
+    UA_CertificateGroup *certGroup;
 } CertContext;
 
 static UA_StatusCode
@@ -101,24 +101,24 @@ UA_CertContext_sk_free (CertContext * context) {
 }
 
 static UA_StatusCode
-UA_CertContext_Init (CertContext * context, UA_CertificateVerification *cv) {
+UA_CertContext_Init (CertContext * context, UA_CertificateGroup *certGroup) {
     (void) memset (context, 0, sizeof (CertContext));
     UA_ByteString_init (&context->trustListFolder);
     UA_ByteString_init (&context->issuerListFolder);
     UA_ByteString_init (&context->revocationListFolder);
     UA_ByteString_init (&context->rejectedListFolder);
 
-    context->cv = cv;
+    context->certGroup = certGroup;
 
     return UA_CertContext_sk_Init (context);
 }
 
 static void
-UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
-    if (cv == NULL) {
+UA_CertificateGroup_clear (UA_CertificateGroup *certGroup) {
+    if (certGroup == NULL) {
         return;
     }
-    CertContext * context = (CertContext *) cv->context;
+    CertContext * context = (CertContext *) certGroup->context;
     if (context == NULL) {
         return;
     }
@@ -128,10 +128,10 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_ByteString_clear (&context->rejectedListFolder);
 
     UA_CertContext_sk_free (context);
-    context->cv = NULL;
+    context->certGroup = NULL;
     UA_free (context);
 
-    cv->context = NULL;
+    certGroup->context = NULL;
 
     return;
 }
@@ -294,7 +294,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     UA_ByteString_init (&strCert);
 
     if (ctx->trustListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
+        UA_LOG_INFO(ctx->certGroup->logging, UA_LOGCATEGORY_SERVER, "Reloading the trust-list");
 
         sk_X509_pop_free (ctx->skTrusted, X509_free);
         ctx->skTrusted = sk_X509_new_null();
@@ -315,12 +315,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO(ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skTrusted_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -330,7 +330,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     }
 
     if (ctx->issuerListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
+        UA_LOG_INFO(ctx->certGroup->logging, UA_LOGCATEGORY_SERVER, "Reloading the issuer-list");
 
         sk_X509_pop_free (ctx->skIssue, X509_free);
         ctx->skIssue = sk_X509_new_null();
@@ -350,12 +350,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the certificate file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skIssuer_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the certificate file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -365,7 +365,7 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
     }
 
     if (ctx->revocationListFolder.length > 0) {
-        UA_LOG_INFO(ctx->cv->logging, UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
+        UA_LOG_INFO(ctx->certGroup->logging, UA_LOGCATEGORY_SERVER, "Reloading the revocation-list");
 
         sk_X509_CRL_pop_free (ctx->skCrls, X509_CRL_free);
         ctx->skCrls = sk_X509_CRL_new_null();
@@ -385,12 +385,12 @@ UA_ReloadCertFromFolder (CertContext * ctx) {
             }
             ret = UA_loadCertFromFile (certFile, &strCert);
             if (ret != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to load the revocation file %s", certFile);
                 continue;  /* continue or return ? */
             }
             if (UA_skCrls_Cert2X509 (&strCert, 1, ctx) != UA_STATUSCODE_GOOD) {
-                UA_LOG_INFO (ctx->cv->logging, UA_LOGCATEGORY_SERVER,
+                UA_LOG_INFO (ctx->certGroup->logging, UA_LOGCATEGORY_SERVER,
                             "Failed to decode the revocation file %s", certFile);
                 UA_ByteString_clear (&strCert);
                 continue;  /* continue or return ? */
@@ -443,17 +443,17 @@ UA_X509_Store_CTX_Error_To_UAError (int opensslErr) {
     }
 
 static UA_StatusCode
-UA_CertificateVerification_Verify (const UA_CertificateVerification *cv,
-                                   const UA_ByteString * certificate) {
+UA_CertificateGroup_Verify(UA_CertificateGroup *certGroup,
+                           const UA_ByteString *certificate) {
     X509_STORE_CTX *storeCtx = NULL;
     X509_STORE *store = NULL;
     CertContext *ctx = NULL;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
 
-    if ((cv == NULL) || (cv->context == NULL)) {
+    if ((certGroup == NULL) || (certGroup->context == NULL)) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    ctx = (CertContext *) cv->context;
+    ctx = (CertContext *) certGroup->context;
 
     /* Parse the certificate */
     X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
@@ -474,7 +474,7 @@ UA_CertificateVerification_Verify (const UA_CertificateVerification *cv,
     if(sk_X509_CRL_num(ctx->skCrls) == 0 &&
        sk_X509_num(ctx->skIssue) == 0 &&
        sk_X509_num(ctx->skTrusted) == 0) {
-        UA_LOG_WARNING(cv->logging, UA_LOGCATEGORY_USERLAND,
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_USERLAND,
                        "No certificate store configured. Accepting the certificate.");
         goto cleanup;
     }
@@ -601,166 +601,46 @@ cleanup:
     return ret;
 }
 
-static UA_StatusCode
-UA_CertificateVerification_VerifyApplicationURI (const UA_CertificateVerification *cv,
-                                                 const UA_ByteString * certificate,
-                                                 const UA_String *     applicationURI) {
-    const unsigned char * pData;
-    X509 *                certificateX509;
-    UA_String             subjectURI = UA_STRING_NULL;
-    GENERAL_NAMES *       pNames;
-    int                   i;
-    UA_StatusCode         ret;
-    CertContext *         ctx;
-
-    if (cv == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    ctx = (CertContext *)cv->context;
-    if (ctx == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    pData = certificate->data;
-    if (pData == NULL) {
-        UA_LOG_ERROR(cv->logging, UA_LOGCATEGORY_USERLAND, "Error Empty Certificate");
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-
-    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
-    if (certificateX509 == NULL) {
-        UA_LOG_ERROR(cv->logging, UA_LOGCATEGORY_USERLAND, "Error loading X509 Certificate");
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-
-    pNames = (GENERAL_NAMES *) X509_get_ext_d2i(certificateX509, NID_subject_alt_name,
-                                                NULL, NULL);
-    if (pNames == NULL) {
-        X509_free (certificateX509);
-        UA_LOG_ERROR(cv->logging, UA_LOGCATEGORY_USERLAND, "Error processing X509 Certificate");
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
-    
-    UA_String_init(&subjectURI);
-    
-    for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
-         GENERAL_NAME * value = sk_GENERAL_NAME_value (pNames, i);
-         if (value->type == GEN_URI) {
-             subjectURI.length = (size_t) (value->d.ia5->length);
-             subjectURI.data = (UA_Byte *) UA_malloc (subjectURI.length);
-             if (subjectURI.data == NULL) {
-                 UA_LOG_ERROR(cv->logging, UA_LOGCATEGORY_USERLAND, "Error Empty subjectURI");
-                 X509_free (certificateX509);
-                 sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
-                 return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-             }
-             (void) memcpy (subjectURI.data, value->d.ia5->data, subjectURI.length);
-             break;
-         }
-
-    }
-
-    ret = UA_STATUSCODE_GOOD;
-    if (UA_Bstrstr (subjectURI.data, subjectURI.length,
-                    applicationURI->data, applicationURI->length) == NULL) {
-        UA_LOG_ERROR(cv->logging, UA_LOGCATEGORY_USERLAND, "Empty comparing subjectURI and applicationURI");
-        ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
-    }
-
-    X509_free (certificateX509);
-    sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
-    UA_String_clear (&subjectURI);
-    return ret;
-}
-
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
-static UA_StatusCode
-UA_GetCertificate_ExpirationDate(UA_DateTime *expiryDateTime, 
-                                 UA_ByteString *certificate) {
-    const unsigned char *pData = certificate->data;
-    X509 * x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
-    if (x509 == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Get the certificate Expiry date */
-    ASN1_TIME *not_after = X509_get_notAfter(x509);
-
-    struct tm dtTime;
-    ASN1_TIME_to_tm(not_after, &dtTime);
-    X509_free(x509);
-
-    struct mytm dateTime;
-    memset(&dateTime, 0, sizeof(struct mytm));
-    dateTime.tm_year = dtTime.tm_year;
-    dateTime.tm_mon = dtTime.tm_mon;
-    dateTime.tm_mday = dtTime.tm_mday;
-    dateTime.tm_hour = dtTime.tm_hour;
-    dateTime.tm_min = dtTime.tm_min;
-    dateTime.tm_sec = dtTime.tm_sec;
-
-    long long sec_epoch = __tm_to_secs(&dateTime);
-    *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
-    *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
-    return UA_STATUSCODE_GOOD;
-}
-#endif
-
-static UA_StatusCode
-UA_GetCertificate_SubjectName(UA_String *subjectName,
-                              UA_ByteString *certificate) {
-    const unsigned char *pData = certificate->data;
-    X509 *x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
-    if(!x509)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    X509_NAME *sn = X509_get_subject_name(x509);
-    char buf[1024];
-    *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
-    X509_free(x509);
-    return UA_STATUSCODE_GOOD;
-}
-
 /* main entry */
 
 UA_StatusCode
-UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
-                                     const UA_ByteString *        certificateTrustList,
-                                     size_t                       certificateTrustListSize,
-                                     const UA_ByteString *        certificateIssuerList,
-                                     size_t                       certificateIssuerListSize,
-                                     const UA_ByteString *        certificateRevocationList,
-                                     size_t                       certificateRevocationListSize) {
+UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
+                                     const UA_ByteString *certificateTrustList,
+                                     size_t certificateTrustListSize,
+                                     const UA_ByteString *certificateIssuerList,
+                                     size_t certificateIssuerListSize,
+                                     const UA_ByteString *certificateRevocationList,
+                                     size_t certificateRevocationListSize) {
     UA_StatusCode ret;
 
-    if (cv == NULL) {
+    if (certGroup == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if (cv->logging == NULL) {
+    if (certGroup->logging == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Clear if the plugin is already initialized */
-    if(cv->clear)
-        cv->clear(cv);
+    if(certGroup->clear)
+        certGroup->clear(certGroup);
 
     CertContext * context = (CertContext *) UA_malloc (sizeof (CertContext));
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    ret = UA_CertContext_Init (context, cv);
+    ret = UA_CertContext_Init (context, certGroup);
     if (ret != UA_STATUSCODE_GOOD) {
         return ret;
     }
 
-    cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
-    cv->clear = UA_CertificateVerification_clear;
-    cv->context = context;
-    cv->verifyCertificate = UA_CertificateVerification_Verify;
-#ifdef UA_ENABLE_ENCRYPTION_OPENSSL
-    cv->getExpirationDate     = UA_GetCertificate_ExpirationDate;
-#endif
-    cv->getSubjectName = UA_GetCertificate_SubjectName;
-    
+    certGroup->context = context;
+    certGroup->verifyCertificate = UA_CertificateGroup_Verify;
+    certGroup->clear = UA_CertificateGroup_clear;
+    certGroup->getTrustList = NULL;
+    certGroup->setTrustList = NULL;
+    certGroup->addToTrustList = NULL;
+    certGroup->removeFromTrustList = NULL;
+
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
                                     context) != UA_STATUSCODE_GOOD) {
@@ -788,41 +668,44 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     return UA_STATUSCODE_GOOD;
 
 errout:
-    UA_CertificateVerification_clear (cv);
+    UA_CertificateGroup_clear(certGroup);
     return ret;
 }
 
 #ifdef __linux__ /* Linux only so far */
 UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
-                                       const char *                 trustListFolder,
-                                       const char *                 issuerListFolder,
-                                       const char *                 revocationListFolder) {
+UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
+                                       const char *trustListFolder,
+                                       const char *issuerListFolder,
+                                       const char *revocationListFolder) {
     UA_StatusCode ret;
-    if (cv == NULL) {
+    if (certGroup == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    if (cv->logging == NULL) {
+    if (certGroup->logging == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Clear if the plugin is already initialized */
-    if(cv->clear)
-        cv->clear(cv);
+    if(certGroup->clear)
+        certGroup->clear(certGroup);
 
     CertContext * context = (CertContext *) UA_malloc (sizeof (CertContext));
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    ret = UA_CertContext_Init (context, cv);
+    ret = UA_CertContext_Init (context, certGroup);
     if (ret != UA_STATUSCODE_GOOD) {
         return ret;
     }
 
-    cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
-    cv->clear = UA_CertificateVerification_clear;
-    cv->context = context;
-    cv->verifyCertificate = UA_CertificateVerification_Verify;
+    certGroup->context = context;
+    certGroup->verifyCertificate = UA_CertificateGroup_Verify;
+    certGroup->clear = UA_CertificateGroup_clear;
+    certGroup->getTrustList = NULL;
+    certGroup->setTrustList = NULL;
+    certGroup->addToTrustList = NULL;
+    certGroup->removeFromTrustList = NULL;
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 
@@ -844,9 +727,119 @@ privateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
 }
 
 UA_StatusCode
-UA_PKI_decryptPrivateKey(const UA_ByteString privateKey,
-                         const UA_ByteString password,
-                         UA_ByteString *outDerKey) {
+UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
+                                         const UA_ByteString *certificate,
+                                         const UA_String *applicationURI) {
+    const unsigned char * pData;
+    X509 *                certificateX509;
+    UA_String             subjectURI = UA_STRING_NULL;
+    GENERAL_NAMES *       pNames;
+    int                   i;
+    UA_StatusCode         ret;
+
+    pData = certificate->data;
+    if (pData == NULL) {
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    if (certificateX509 == NULL) {
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    pNames = (GENERAL_NAMES *) X509_get_ext_d2i(certificateX509, NID_subject_alt_name,
+                                                NULL, NULL);
+    if (pNames == NULL) {
+        X509_free (certificateX509);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    UA_String_init(&subjectURI);
+
+    for (i = 0; i < sk_GENERAL_NAME_num (pNames); i++) {
+        GENERAL_NAME * value = sk_GENERAL_NAME_value (pNames, i);
+        if (value->type == GEN_URI) {
+            subjectURI.length = (size_t) (value->d.ia5->length);
+            subjectURI.data = (UA_Byte *) UA_malloc (subjectURI.length);
+            if (subjectURI.data == NULL) {
+                X509_free (certificateX509);
+                sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
+                return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+            }
+            (void) memcpy (subjectURI.data, value->d.ia5->data, subjectURI.length);
+            break;
+        }
+
+    }
+
+    ret = UA_STATUSCODE_GOOD;
+    if (UA_Bstrstr (subjectURI.data, subjectURI.length,
+                    applicationURI->data, applicationURI->length) == NULL) {
+        ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    }
+
+    if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                       "The certificate's application URI could not be verified. StatusCode %s",
+                       UA_StatusCode_name(ret));
+        ret = UA_STATUSCODE_GOOD;
+    }
+
+    X509_free (certificateX509);
+    sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
+    UA_String_clear (&subjectURI);
+    return ret;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
+                                      UA_DateTime *expiryDateTime) {
+    const unsigned char *pData = certificate->data;
+    X509 * x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
+    if (x509 == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Get the certificate Expiry date */
+    ASN1_TIME *not_after = X509_get_notAfter(x509);
+
+    struct tm dtTime;
+    ASN1_TIME_to_tm(not_after, &dtTime);
+    X509_free(x509);
+
+    struct mytm dateTime;
+    memset(&dateTime, 0, sizeof(struct mytm));
+    dateTime.tm_year = dtTime.tm_year;
+    dateTime.tm_mon = dtTime.tm_mon;
+    dateTime.tm_mday = dtTime.tm_mday;
+    dateTime.tm_hour = dtTime.tm_hour;
+    dateTime.tm_min = dtTime.tm_min;
+    dateTime.tm_sec = dtTime.tm_sec;
+
+    long long sec_epoch = __tm_to_secs(&dateTime);
+    *expiryDateTime = UA_DATETIME_UNIX_EPOCH;
+    *expiryDateTime += sec_epoch * UA_DATETIME_SEC;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
+                                   UA_String *subjectName) {
+    const unsigned char *pData = certificate->data;
+    X509 *x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
+    if(!x509)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    X509_NAME *sn = X509_get_subject_name(x509);
+    char buf[1024];
+    *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
+    X509_free(x509);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
+                                      const UA_ByteString password,
+                                      UA_ByteString *outDerKey) {
     if(!outDerKey)
         return UA_STATUSCODE_BADINTERNALERROR;
 

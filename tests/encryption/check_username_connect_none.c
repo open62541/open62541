@@ -5,7 +5,7 @@
 
 #include <open62541/client_config_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 #include <open62541/server_config_default.h>
 
