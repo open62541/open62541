@@ -47,7 +47,7 @@ generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DO
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h ${DOC_SRC_DIR}/plugin_log.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h ${DOC_SRC_DIR}/plugin_nodestore.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h ${DOC_SRC_DIR}/plugin_eventloop.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h ${DOC_SRC_DIR}/plugin_pki.rst)
+generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup.h ${DOC_SRC_DIR}/plugin_certificategroup.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h ${DOC_SRC_DIR}/plugin_securitypolicy.rst)
 
 # Doc from tutorial code

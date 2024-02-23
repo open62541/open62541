@@ -3,25 +3,26 @@
  *
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#ifndef UA_PKI_CERTIFICATE_H_
-#define UA_PKI_CERTIFICATE_H_
+#ifndef UA_CERTIFICATEGROUP_CERTIFICATE_H_
+#define UA_CERTIFICATEGROUP_CERTIFICATE_H_
 
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 
 _UA_BEGIN_DECLS
 
 /* Default implementation that accepts all certificates */
 UA_EXPORT void
-UA_CertificateVerification_AcceptAll(UA_CertificateVerification *cv);
+UA_CertificateVerification_AcceptAll(UA_CertificateGroup *certGroup);
 
 #ifdef UA_ENABLE_ENCRYPTION
 
 /* Accept certificates based on a trust-list and a revocation-list. Based on
  * mbedTLS. */
 UA_EXPORT UA_StatusCode
-UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
+UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
                                      const UA_ByteString *certificateTrustList,
                                      size_t certificateTrustListSize,
                                      const UA_ByteString *certificateIssuerList,
@@ -33,14 +34,14 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification *cv,
 
 #ifdef UA_ENABLE_CERT_REJECTED_DIR
 UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
+UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
                                        const char *trustListFolder,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder,
                                        const char *rejectedListFolder);
 #else
 UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
+UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
                                        const char *trustListFolder,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder);
@@ -51,4 +52,4 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
 
 _UA_END_DECLS
 
-#endif /* UA_PKI_CERTIFICATE_H_ */
+#endif /* UA_CERTIFICATEGROUP_CERTIFICATE_H_ */

@@ -9,7 +9,7 @@
 #include "cj5.h"
 #include "open62541/server_config_default.h"
 #ifdef UA_ENABLE_ENCRYPTION
-#include "open62541/plugin/pki_default.h"
+#include "open62541/plugin/certificategroup_default.h"
 #endif
 
 #define MAX_TOKENS 256
@@ -759,7 +759,7 @@ PARSE_JSON(SecurityPolciesField) {
 
 PARSE_JSON(SecurityPkiField) {
 #ifdef UA_ENABLE_ENCRYPTION
-    UA_CertificateVerification *field = (UA_CertificateVerification*)configField;
+    UA_CertificateGroup *field = (UA_CertificateGroup*)configField;
     UA_String trustListFolder = {.length = 0, .data = NULL};
     UA_String issuerListFolder = {.length = 0, .data = NULL};
     UA_String revocationListFolder = {.length = 0, .data = NULL};

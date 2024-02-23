@@ -1543,6 +1543,21 @@
       <Field Name="ShutdownReason" DataType="i=21" />
     </Definition>
   </UADataType>
+  <UADataType NodeId="i=12554" BrowseName="TrustListDataType">
+    <DisplayName>TrustListDataType</DisplayName>
+    <Category>GDS Certificate Manager Pull Model</Category>
+    <Category>Push Model for Global Certificate and TrustList Management</Category>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="TrustListDataType">
+      <Field Name="SpecifiedLists" DataType="i=7" />
+      <Field Name="TrustedCertificates" DataType="i=15" ValueRank="1" />
+      <Field Name="TrustedCrls" DataType="i=15" ValueRank="1" />
+      <Field Name="IssuerCertificates" DataType="i=15" ValueRank="1" />
+      <Field Name="IssuerCrls" DataType="i=15" ValueRank="1" />
+    </Definition>
+  </UADataType>
   <UAObject NodeId="i=298" BrowseName="Default Binary" SymbolicName="DefaultBinary">
     <DisplayName>Default Binary</DisplayName>
     <References>

@@ -150,7 +150,7 @@ struct UA_SecureChannel {
     UA_ByteString incompleteChunk; /* A half-received chunk (TCP is a
                                     * streaming protocol) is stored here */
 
-    UA_CertificateVerification *certificateVerification;
+    UA_CertificateGroup *certificateVerification;
     UA_StatusCode (*processOPNHeader)(void *application, UA_SecureChannel *channel,
                                       const UA_AsymmetricAlgorithmSecurityHeader *asymHeader);
 };

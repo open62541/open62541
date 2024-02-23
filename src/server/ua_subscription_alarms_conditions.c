@@ -3127,16 +3127,16 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_CertificateVerification *cv = &server->config.sessionPKI;
-    UA_DateTime getExpiryDateAndTime;
-    if(cv == NULL && cv->getExpirationDate == NULL) {
+    UA_CertificateGroup *cv = &server->config.sessionPKI;
+    UA_DateTime getExpiryDateAndTime = 0;
+    if(cv == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "Certificate verification and get Expiration date function is not registered");
+                    "Certificate verification is not registered");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    
-    retval = cv->getExpirationDate(&getExpiryDateAndTime, &cert);
-    if(retval != UA_STATUSCODE_GOOD){
+
+    retval = UA_CertificateUtils_getExpirationDate(&cert, &getExpiryDateAndTime);
+    if(retval != UA_STATUSCODE_GOOD || getExpiryDateAndTime == 0){
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                     "Failed to get certificate expiration date");
         return UA_STATUSCODE_BADINTERNALERROR;

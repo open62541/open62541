@@ -62,7 +62,7 @@ typedef struct {
     UA_UsernamePasswordLogin *usernamePasswordLogin;
     UA_UsernamePasswordLoginCallback loginCallback;
     void *loginContext;
-    UA_CertificateVerification verifyX509;
+    UA_CertificateGroup verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"

@@ -768,7 +768,7 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/util.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/log.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/pki.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/plugin/certificategroup.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/securitypolicy.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
@@ -951,7 +951,7 @@ endif()
 
 # Plugins
 set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/pki_default.h
+    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
@@ -963,7 +963,7 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                   ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Always add the POSIX eventloop. The files internally check for the configured architecture
@@ -1034,7 +1034,7 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_mbedtls_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_pki_mbedtls.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_mbedtls.c)
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
@@ -1054,7 +1054,7 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes256sha256rsapss.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_openssl.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)

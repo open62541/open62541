@@ -7,8 +7,8 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
-#include <open62541/plugin/pki.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
 
 #include "test_helpers.h"

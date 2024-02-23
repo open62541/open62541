@@ -22,7 +22,7 @@
 #include <open62541/util.h>
 
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
@@ -126,6 +126,8 @@ struct UA_ServerConfig {
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
 
+    UA_RuleHandling allowAllCertificateUris;
+
     /**
      * Custom Data Types
      * ^^^^^^^^^^^^^^^^^
@@ -206,8 +208,8 @@ struct UA_ServerConfig {
     UA_Boolean allowNonePolicyPassword;
 
     /* Different sets of certificates are trusted for SecureChannel / Session */
-    UA_CertificateVerification secureChannelPKI;
-    UA_CertificateVerification sessionPKI;
+    UA_CertificateGroup secureChannelPKI;
+    UA_CertificateGroup sessionPKI;
 
     /**
      * See the section for :ref:`access-control
