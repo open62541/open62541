@@ -46,12 +46,14 @@ int main(int argc, char **argv) {
     }
 #endif
 
-    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
-
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    config->logging = &logger;
+
+    /* Exchange the logger */
+    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+    logger.clear = config->logging->clear;
+    *config->logging = logger;
 
     /* Some data */
     UA_StatusCode retval;

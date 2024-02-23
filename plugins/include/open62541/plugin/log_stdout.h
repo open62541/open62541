@@ -17,6 +17,10 @@ extern UA_EXPORT const UA_Logger *UA_Log_Stdout; /* Shorthand pointer */
 UA_EXPORT UA_Logger
 UA_Log_Stdout_withLevel(UA_LogLevel minlevel);
 
+/* Allocates memory for the logger. Automatically cleared up via _clear. */
+UA_EXPORT UA_Logger *
+UA_Log_Stdout_new(UA_LogLevel minlevel);
+
 _UA_END_DECLS
 
 #endif /* UA_LOG_STDOUT_H_ */

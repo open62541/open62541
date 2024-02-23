@@ -88,7 +88,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
 
     /* Logger */
     if(config->logging != NULL && config->logging->clear != NULL)
-        config->logging->clear(config->logging->context);
+        config->logging->clear(config->logging);
     config->logging = NULL;
 
 #ifdef UA_ENABLE_PUBSUB
