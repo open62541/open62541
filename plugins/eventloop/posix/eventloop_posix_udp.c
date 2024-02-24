@@ -803,9 +803,9 @@ UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
     if(rfd->dc.callback) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "UDP %u\t| Cannot close - already closing",
-                    (unsigned)rfd->fd);
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "UDP %u\t| Cannot close - already closing",
+                     (unsigned)rfd->fd);
         return;
     }
 

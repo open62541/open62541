@@ -577,7 +577,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
 
     if(conn->rfd.dc.callback) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP %u\t| Cannot shutdown - already triggered",
+                     "TCP %u\t| Cannot close - already closing",
                      (unsigned)conn->rfd.fd);
         return;
     }
