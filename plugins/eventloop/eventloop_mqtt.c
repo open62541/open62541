@@ -210,12 +210,13 @@ MQTT_eventSourceStart(UA_ConnectionManager *cm) {
 
 static void
 shutdownBrokerConnection(MQTTBrokerConnection *bc) {
-    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSED &&
-       bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSING) {
-        UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                     "MQTT-TCP %u\t| Closing the broker connection",
-                     (unsigned)bc->tcpConnectionId);
-    }
+    if(bc->tcpConnectionState == UA_CONNECTIONSTATE_CLOSED ||
+       bc->tcpConnectionState == UA_CONNECTIONSTATE_CLOSING)
+        return;
+
+    UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                 "MQTT-TCP %u\t| Closing the broker connection",
+                 (unsigned)bc->tcpConnectionId);
 
     /* Shutdown and delete all associated topic connections. We immediately send
      * the DISCONNECT and clear up the topic connections without sending an
@@ -231,12 +232,10 @@ shutdownBrokerConnection(MQTTBrokerConnection *bc) {
     }
 
     /* Close the TCP connection -> callback in the next el iteration */
-    if(bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSED &&
-       bc->tcpConnectionState != UA_CONNECTIONSTATE_CLOSING) {
-        UA_ConnectionManager *tcpCM = bc->mcm->tcpCM;
-        tcpCM->closeConnection(tcpCM, bc->tcpConnectionId);
-        bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
-    }
+    UA_ConnectionManager *tcpCM = bc->mcm->tcpCM;
+    tcpCM->closeConnection(tcpCM, bc->tcpConnectionId);
+
+    bc->tcpConnectionState = UA_CONNECTIONSTATE_CLOSING;
 }
 
 static void
@@ -283,13 +282,6 @@ MQTT_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static void
-deleteTopicConnection(void *application, MQTTTopicConnection *tc) {
-    (void)application;
-    UA_String_clear(&tc->topic);
-    UA_free(tc);
-}
-
-static void
 removeTopicConnection(MQTTTopicConnection *tc) {
     UA_LOG_INFO(tc->brokerConnection->mcm->cm.eventSource.eventLoop->logger,
                 UA_LOGCATEGORY_NETWORK, "MQTT %u\t| Closing the connection",
@@ -315,18 +307,14 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     UA_Variant_setScalar(&kvp[0].value, &tc->subscribe, &UA_TYPES[UA_TYPES_BOOLEAN]);
     UA_KeyValueMap kvm = {2, kvp};
 
-    if(tc->callback) {
+    /* Notify the application */
+    if(tc->callback)
         tc->callback(&bc->mcm->cm, tc->topicConnectionId, tc->application, &tc->context,
                      UA_CONNECTIONSTATE_CLOSING, &kvm, UA_BYTESTRING_NULL);
-    }
-    tc->callback = NULL;
 
-    /* Register delayed callback to free the memory */
-    UA_EventLoop *el = bc->mcm->cm.eventSource.eventLoop;
-    tc->dc.callback = (UA_Callback)deleteTopicConnection;
-    tc->dc.application = NULL;
-    tc->dc.context = tc;
-    el->addDelayedCallback(el, &tc->dc);
+    /* Free the memory */
+    UA_String_clear(&tc->topic);
+    UA_free(tc);
 
     /* The last topic connection was removed. Close the broker connection. */
     if(LIST_EMPTY(&bc->topicConnections))
@@ -343,9 +331,9 @@ static void
 removeBrokerConnection(MQTTBrokerConnection *bc) {
     MQTTConnectionManager *mcm = bc->mcm;
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
-    UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger,
-                 UA_LOGCATEGORY_NETWORK, "MQTT-TCP %u\t| Removing the broker connection",
-                 (unsigned)bc->tcpConnectionId);
+
+    UA_LOG_DEBUG(bc->mcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                 "MQTT-TCP %u\t| Removing the broker connection", (unsigned)bc->tcpConnectionId);
 
     /* Remove the keepalive callback */
     if(bc->keepAliveCallbackId > 0)
@@ -373,16 +361,13 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
 
 /* Look for BrokerConnections with identical broker connection parameters */
 static MQTTBrokerConnection *
-findIdenticalBrokerConnection(MQTTConnectionManager *mcm,
-                              const UA_KeyValueMap *kvm) {
+findIdenticalBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *kvm) {
     MQTTBrokerConnection *bc;
     LIST_FOREACH(bc, &mcm->connections, next) {
         UA_Boolean found = true;
         for(size_t i = 0; i < MQTT_BROKERPARAMETERSSIZE; i++) {
-            const UA_Variant *v1 =
-                UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
-            const UA_Variant *v2 =
-                UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
+            const UA_Variant *v1 = UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
+            const UA_Variant *v2 = UA_KeyValueMap_get(kvm, MQTTConnectionParameters[i].name);
             if(v1 == v2)
                 continue;
             if(!v2)
