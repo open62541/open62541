@@ -183,8 +183,8 @@ typedef enum {
 typedef enum {
     UA_CONNECTIONSTATE_CLOSED,     /* The socket has been closed and the connection
                                     * will be deleted */
-    UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the HEL/ACK handshake
-                                    * is not done */
+    UA_CONNECTIONSTATE_OPENING,    /* The socket is open, but the connection not yet
+                                      fully established */
     UA_CONNECTIONSTATE_ESTABLISHED,/* The socket is open and the connection
                                     * configured */
     UA_CONNECTIONSTATE_CLOSING     /* The socket is closing down */
