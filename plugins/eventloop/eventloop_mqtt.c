@@ -305,7 +305,7 @@ removeTopicConnection(MQTTTopicConnection *tc) {
     }
 
     /* Remove from linked list */
-    LIST_REMOVE(bc, next);
+    LIST_REMOVE(tc, next);
 
     /* Signal the closed connection to the application */
     UA_KeyValuePair kvp[2];
