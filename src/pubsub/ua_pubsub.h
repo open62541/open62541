@@ -105,6 +105,9 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 struct UA_SecurityGroup;
 typedef struct UA_SecurityGroup UA_SecurityGroup;
 
+const char *
+UA_PubSubState_name(UA_PubSubState state);
+
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/

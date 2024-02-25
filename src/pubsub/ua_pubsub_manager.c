@@ -23,6 +23,17 @@
 #define UA_DATETIMESTAMP_2000 125911584000000000
 #define UA_RESERVEID_FIRST_ID 0x8000
 
+static const char *pubSubStateNames[6] = {
+    "Disabled", "Paused", "Operational", "Error", "PreOperational", "Invalid"
+};
+
+const char *
+UA_PubSubState_name(UA_PubSubState state) {
+    if(state < UA_PUBSUBSTATE_DISABLED || state > UA_PUBSUBSTATE_PREOPERATIONAL)
+        return pubSubStateNames[5];
+    return pubSubStateNames[state];
+}
+
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
     TAILQ_INSERT_TAIL(&pubSubManager->topicAssign, topicAssign, listEntry);
