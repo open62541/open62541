@@ -747,10 +747,6 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    ret = UA_CertContext_Init (context, cv);
-    if (ret != UA_STATUSCODE_GOOD) {
-        return ret;
-    }
 
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
@@ -760,6 +756,11 @@ UA_CertificateVerification_Trustlist(UA_CertificateVerification * cv,
     cv->getExpirationDate     = UA_GetCertificate_ExpirationDate;
 #endif
     cv->getSubjectName = UA_GetCertificate_SubjectName;
+
+    ret = UA_CertContext_Init (context, cv);
+    if (ret != UA_STATUSCODE_GOOD) {
+        return ret;
+    }
     
     if (certificateTrustListSize > 0) {
         if (UA_skTrusted_Cert2X509 (certificateTrustList, certificateTrustListSize,
@@ -814,15 +815,16 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    ret = UA_CertContext_Init (context, cv);
-    if (ret != UA_STATUSCODE_GOOD) {
-        return ret;
-    }
 
     cv->verifyApplicationURI = UA_CertificateVerification_VerifyApplicationURI;
     cv->clear = UA_CertificateVerification_clear;
     cv->context = context;
     cv->verifyCertificate = UA_CertificateVerification_Verify;
+
+    ret = UA_CertContext_Init (context, cv);
+    if (ret != UA_STATUSCODE_GOOD) {
+        return ret;
+    }
 
     /* Only set the folder paths. They will be reloaded during runtime. */
 

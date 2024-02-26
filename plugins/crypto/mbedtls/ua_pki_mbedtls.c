@@ -691,6 +691,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
                                        const char *issuerListFolder,
                                        const char *revocationListFolder) {
 #endif
+    UA_StatusCode ret;
     if(cv == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -719,14 +720,14 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
     ci->rejectedListFolder = UA_STRING_ALLOC(rejectedListFolder);
 #endif
 
-    reloadCertificates(cv, ci);
-
     cv->context = (void*)ci;
     cv->verifyCertificate = certificateVerification_verify;
     cv->clear = certificateVerification_clear;
     cv->verifyApplicationURI = certificateVerification_verifyApplicationURI;
 
-    return UA_STATUSCODE_GOOD;
+    ret = reloadCertificates(cv, ci);
+
+    return ret;
 }
 
 #endif
