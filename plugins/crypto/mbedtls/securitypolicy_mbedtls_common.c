@@ -31,7 +31,7 @@ mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
     {
         if(mbedtls_md_hmac_update(context, in->data, in->length) == 0)
         {
-            if(mbedtls_md_hmac_finish(context, out) != 0)
+            if(mbedtls_md_hmac_finish(context, out) == 0)
             {
                 retval = UA_STATUSCODE_GOOD;
             }
