@@ -129,12 +129,8 @@ UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dsw->linkedWriterGroup);
-    if(!wg) {
-        /* Misconfiguration */
-        res = UA_STATUSCODE_BADINTERNALERROR;
-        targetState = UA_PUBSUBSTATE_ERROR;
-    }
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
+    UA_assert(wg);
 
     UA_PubSubState oldState = dsw->state;
     dsw->state = targetState;
@@ -237,6 +233,7 @@ UA_DataSetWriter_create(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newDataSetWriter->componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
+    newDataSetWriter->linkedWriterGroup = wg;
 
     /* Copy the config into the new dataSetWriter */
     UA_StatusCode res =
@@ -273,8 +270,6 @@ UA_DataSetWriter_create(UA_Server *server,
         newDataSetWriter->connectedDataSetVersion.minorVersion = 0;
         newDataSetWriter->connectedDataSet = UA_NODEID_NULL;
     }
-
-    newDataSetWriter->linkedWriterGroup = wg->identifier;
 
     /* Add the new writer to the group */
     LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
@@ -439,16 +434,12 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 #endif
 
     /* Remove DataSetWriter from group */
-    UA_WriterGroup *linkedWriterGroup =
-        UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
-    if(linkedWriterGroup) {
-        LIST_REMOVE(dataSetWriter, listEntry);
-        linkedWriterGroup->writersCount--;
-    }
+    UA_WriterGroup *linkedWriterGroup = dataSetWriter->linkedWriterGroup;
+    LIST_REMOVE(dataSetWriter, listEntry);
+    linkedWriterGroup->writersCount--;
 
     UA_DataSetWriterConfig_clear(&dataSetWriter->config);
     UA_NodeId_clear(&dataSetWriter->identifier);
-    UA_NodeId_clear(&dataSetWriter->linkedWriterGroup);
     UA_NodeId_clear(&dataSetWriter->connectedDataSet);
 
     if(server->config.pubSubConfig.enableDeltaFrames) {
@@ -714,7 +705,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         }
     }
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dataSetWriter->linkedWriterGroup);
+    UA_WriterGroup *wg = dataSetWriter->linkedWriterGroup;
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
 
     /* Reset the message */

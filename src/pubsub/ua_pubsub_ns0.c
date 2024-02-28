@@ -1840,7 +1840,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dswName);
     retVal = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                     dataSetWriter->linkedWriterGroup,
+                     dataSetWriter->linkedWriterGroup->identifier,
                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASDATASETWRITER),
                      UA_QUALIFIEDNAME(0, dswName),
                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETWRITERTYPE),
