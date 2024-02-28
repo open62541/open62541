@@ -159,12 +159,25 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
                                           &newGroup->identifier);
 #endif
 
-    if(readerGroupId)
-        UA_NodeId_copy(&newGroup->identifier, readerGroupId);
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newGroup->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "%.*sReaderGroup %.*s\t| ",
+                (int)connection->logIdString.length,
+                (char*)connection->logIdString.data,
+                (int)idStr.length, idStr.data);
+    newGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
 
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(server, connection,
                                        connection->state, UA_STATUSCODE_GOOD);
+
+    if(readerGroupId)
+        UA_NodeId_copy(&newGroup->identifier, readerGroupId);
 
     return UA_ReaderGroup_setPubSubState(server, newGroup, newGroup->state);
 }
@@ -235,8 +248,12 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
         deleteNode(server, rg->identifier, true);
 #endif
+
+        UA_LOG_INFO_READERGROUP(server->config.logging, rg, "ReaderGroup deleted");
+
         UA_ReaderGroupConfig_clear(&rg->config);
         UA_NodeId_clear(&rg->identifier);
+        UA_String_clear(&rg->logIdString);
         UA_free(rg);
     }
 
