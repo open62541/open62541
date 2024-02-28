@@ -302,7 +302,7 @@ typedef struct UA_DataSetWriter {
     UA_DataSetWriterConfig config;
     LIST_ENTRY(UA_DataSetWriter) listEntry;
     UA_NodeId identifier;
-    UA_NodeId linkedWriterGroup;
+    UA_WriterGroup *linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
     UA_PubSubState state;
@@ -360,7 +360,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
         UA_String groupIdStr = UA_STRING_NULL;                          \
         if(WRITER) {                                                    \
             UA_NodeId_print(&(WRITER)->identifier, &idStr);             \
-            UA_NodeId_print(&(WRITER)->linkedWriterGroup, &groupIdStr); \
+            UA_NodeId_print(&(WRITER)->linkedWriterGroup->identifier, &groupIdStr); \
         }                                                               \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
                        "WriterGroup %.*s\t| Writer %.*s\t| " MSG "%.0s", \
