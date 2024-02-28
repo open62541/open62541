@@ -283,6 +283,19 @@ UA_DataSetWriter_create(UA_Server *server,
                                           &newDataSetWriter->identifier);
 #endif
 
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newDataSetWriter->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "%.*sDataSetWriter %.*s\t| ",
+                (int)newDataSetWriter->linkedWriterGroup->logIdString.length,
+                (char*)newDataSetWriter->linkedWriterGroup->logIdString.data,
+                (int)idStr.length, idStr.data);
+    newDataSetWriter->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_WRITER(server->config.logging, newDataSetWriter, "Writer created");
+
     /* Enable, depending on the state of the WriterGroup */
     UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
                                     UA_PUBSUBSTATE_OPERATIONAL);
@@ -438,6 +451,8 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     LIST_REMOVE(dataSetWriter, listEntry);
     linkedWriterGroup->writersCount--;
 
+    UA_LOG_INFO_WRITER(server->config.logging, dataSetWriter, "Writer deleted");
+
     UA_DataSetWriterConfig_clear(&dataSetWriter->config);
     UA_NodeId_clear(&dataSetWriter->identifier);
     UA_NodeId_clear(&dataSetWriter->connectedDataSet);
@@ -452,6 +467,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
         dataSetWriter->lastSamplesCount = 0;
     }
 
+    UA_String_clear(&dataSetWriter->logIdString);
     UA_free(dataSetWriter);
     return UA_STATUSCODE_GOOD;
 }

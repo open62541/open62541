@@ -297,6 +297,7 @@ typedef struct UA_DataSetWriter {
     UA_DataSetWriterConfig config;
     LIST_ENTRY(UA_DataSetWriter) listEntry;
     UA_NodeId identifier;
+    UA_String logIdString;
     UA_WriterGroup *linkedWriterGroup;
     UA_NodeId connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
@@ -351,19 +352,10 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 #define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        UA_String groupIdStr = UA_STRING_NULL;                          \
-        if(WRITER) {                                                    \
-            UA_NodeId_print(&(WRITER)->identifier, &idStr);             \
-            UA_NodeId_print(&(WRITER)->linkedWriterGroup->identifier, &groupIdStr); \
-        }                                                               \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "WriterGroup %.*s\t| Writer %.*s\t| " MSG "%.0s", \
-                       (int)groupIdStr.length, (char*)groupIdStr.data,  \
-                       (int)idStr.length, (char*)idStr.data,            \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(WRITER)->logIdString.length,               \
+                       (char*)(WRITER)->logIdString.data,               \
                        __VA_ARGS__);                                    \
-        UA_String_clear(&idStr);                                        \
-        UA_String_clear(&groupIdStr);                                   \
     }
 
 #define UA_LOG_TRACE_WRITER(LOGGER, WRITER, ...)                        \
