@@ -194,6 +194,7 @@ typedef struct UA_PubSubConnection {
 
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
     UA_NodeId identifier;
+    UA_String logIdString;
 
     /* The send/recv connections are only opened if the state is operational */
     UA_PubSubState state;
@@ -264,13 +265,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server,
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        if(CONNECTION)                                                  \
-            UA_NodeId_print(&(CONNECTION)->identifier, &idStr);         \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "Connection %.*s\t| " MSG "%.0s", (int)idStr.length, \
-                       (char*)idStr.data, __VA_ARGS__);                 \
-        UA_String_clear(&idStr);                                        \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(CONNECTION)->logIdString.length,           \
+                       (char*)(CONNECTION)->logIdString.data, __VA_ARGS__); \
     }
 
 #define UA_LOG_TRACE_CONNECTION(LOGGER, CONNECTION, ...)                \

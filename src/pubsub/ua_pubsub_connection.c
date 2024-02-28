@@ -188,6 +188,16 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     TAILQ_INSERT_HEAD(&pubSubManager->connections, c, listEntry);
     pubSubManager->connectionsSize++;
 
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&c->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ", (int)idStr.length, idStr.data);
+    c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection created");
+
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(server, c, true);
     if(ret != UA_STATUSCODE_GOOD)
@@ -288,8 +298,11 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
     server->pubSubManager.connectionsSize--;
 
+    UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection deleted");
+
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_NodeId_clear(&c->identifier);
+    UA_String_clear(&c->logIdString);
     UA_free(c);
 }
 
