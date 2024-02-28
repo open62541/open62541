@@ -877,7 +877,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dsrName);
     retVal = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                     dataSetReader->linkedReaderGroup,
+                     dataSetReader->linkedReaderGroup->identifier,
                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASDATASETREADER),
                      UA_QUALIFIEDNAME(0, dsrName),
                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERTYPE),

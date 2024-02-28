@@ -545,7 +545,7 @@ typedef struct UA_DataSetReader {
     UA_PubSubComponentEnumType componentType;
     UA_DataSetReaderConfig config;
     UA_NodeId identifier;
-    UA_NodeId linkedReaderGroup;
+    UA_ReaderGroup *linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
     UA_PubSubState state;
@@ -608,7 +608,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
         UA_String groupIdStr = UA_STRING_NULL;                          \
         if(READER) {                                                    \
             UA_NodeId_print(&(READER)->identifier, &idStr);             \
-            UA_NodeId_print(&(READER)->linkedReaderGroup, &groupIdStr); \
+            UA_NodeId_print(&(READER)->linkedReaderGroup->identifier, &groupIdStr); \
         }                                                               \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
                        "ReaderGroup %.*s\t| Reader %.*s\t| " MSG "%.0s", \

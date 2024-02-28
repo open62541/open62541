@@ -130,10 +130,10 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newDataSetReader->componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
+    newDataSetReader->linkedReaderGroup = readerGroup;
 
     /* Copy the config into the new dataSetReader */
     UA_DataSetReaderConfig_copy(dataSetReaderConfig, &newDataSetReader->config);
-    newDataSetReader->linkedReaderGroup = readerGroup->identifier;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_StatusCode retVal = addDataSetReaderRepresentation(server, newDataSetReader);
@@ -328,19 +328,14 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
     /* Remove DataSetReader from group */
     LIST_REMOVE(dsr, listEntry);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, dsr->linkedReaderGroup);
-    if(rg)
-        rg->readersCount--;
+    UA_ReaderGroup *rg = dsr->linkedReaderGroup;
+    rg->readersCount--;
 
     /* THe offset buffer is only set when the dsr is frozen
      * UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage); */
 
     UA_NodeId_clear(&dsr->identifier);
-    UA_NodeId_clear(&dsr->linkedReaderGroup);
-
-    /* Free memory allocated for DataSetReader */
     UA_free(dsr);
-
     return UA_STATUSCODE_GOOD;
 }
 
@@ -567,12 +562,8 @@ UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, dsr->linkedReaderGroup);
-    if(!rg) {
-        /* Misconfiguration */
-        res = UA_STATUSCODE_BADINTERNALERROR;
-        targetState = UA_PUBSUBSTATE_ERROR;
-    }
+    UA_ReaderGroup *rg = dsr->linkedReaderGroup;
+    UA_assert(rg);
 
     UA_PubSubState oldState = dsr->state;
     dsr->state = targetState;
@@ -866,9 +857,7 @@ else
             if (tv->beforeWrite) {
                 void *pData = (**tv->externalDataValue).value.data;
                 (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
-                tv->beforeWrite(server,
-                                &dsr->identifier,
-                                &dsr->linkedReaderGroup,
+                tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
                                 &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
                                 dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
                                 tv->externalDataValue);
@@ -877,7 +866,7 @@ else
             memcpy((**tv->externalDataValue).value.data, value, type->memSize);
             if(tv->afterWrite)
                 tv->afterWrite(server, &dsr->identifier,
-                                &dsr->linkedReaderGroup,
+                                &dsr->linkedReaderGroup->identifier,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext,
                                 tv->externalDataValue);
@@ -927,12 +916,10 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
 
         if (tv->beforeWrite) {
             UA_DataValue *tmp = &msg->data.keyFrameData.dataSetFields[i];
-            tv->beforeWrite(server,
-                      &dsr->identifier,
-                      &dsr->linkedReaderGroup,
-                      &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
-                      dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
-                      &tmp);
+            tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
+                            dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                            &tmp);
         }
         if(UA_LIKELY(tv->externalDataValue != NULL)) {
             memcpy((**tv->externalDataValue).value.data,
@@ -940,9 +927,9 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
                    msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
         }
         if(tv->afterWrite)
-            tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
-                        &tv->targetVariable.targetNodeId,
-                        tv->targetVariableContext, tv->externalDataValue);
+            tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                           &tv->targetVariable.targetNodeId,
+                           tv->targetVariableContext, tv->externalDataValue);
     }
 }
 
