@@ -150,6 +150,19 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                                           &newDataSetReader->identifier);
 #endif
 
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newDataSetReader->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "%.*sDataSetReader %.*s\t| ",
+                (int)newDataSetReader->linkedReaderGroup->logIdString.length,
+                (char*)newDataSetReader->linkedReaderGroup->logIdString.data,
+                (int)idStr.length, idStr.data);
+    newDataSetReader->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_READER(server->config.logging, newDataSetReader, "DataSetReader created");
+
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Create message receive timeout timer */
     retVal = server->config.pubSubConfig.monitoringInterface.
@@ -334,7 +347,10 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     /* THe offset buffer is only set when the dsr is frozen
      * UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage); */
 
+    UA_LOG_INFO_READER(server->config.logging, dsr, "DataSetReader deleted");
+
     UA_NodeId_clear(&dsr->identifier);
+    UA_String_clear(&dsr->logIdString);
     UA_free(dsr);
     return UA_STATUSCODE_GOOD;
 }

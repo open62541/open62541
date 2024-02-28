@@ -528,6 +528,7 @@ typedef struct UA_DataSetReader {
     UA_PubSubComponentEnumType componentType;
     UA_DataSetReaderConfig config;
     UA_NodeId identifier;
+    UA_String logIdString;
     UA_ReaderGroup *linkedReaderGroup;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
@@ -587,19 +588,10 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
 
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        UA_String groupIdStr = UA_STRING_NULL;                          \
-        if(READER) {                                                    \
-            UA_NodeId_print(&(READER)->identifier, &idStr);             \
-            UA_NodeId_print(&(READER)->linkedReaderGroup->identifier, &groupIdStr); \
-        }                                                               \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "ReaderGroup %.*s\t| Reader %.*s\t| " MSG "%.0s", \
-                       (int)groupIdStr.length, (char*)groupIdStr.data,  \
-                       (int)idStr.length, (char*)idStr.data,            \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(READER)->logIdString.length,               \
+                       (char*)(READER)->logIdString.data,               \
                        __VA_ARGS__);                                    \
-        UA_String_clear(&idStr);                                        \
-        UA_String_clear(&groupIdStr);                                   \
     }
 
 #define UA_LOG_TRACE_READER(LOGGER, READER, ...)                        \
