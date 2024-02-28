@@ -388,6 +388,7 @@ struct UA_WriterGroup {
     UA_WriterGroupConfig config;
     LIST_ENTRY(UA_WriterGroup) listEntry;
     UA_NodeId identifier;
+    UA_String logIdString;
 
     LIST_HEAD(, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
@@ -472,16 +473,11 @@ UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_Server *server,
                                  const UA_NodeId writerGroup);
 
-#define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WRITERGROUP, MSG, ...) \
+#define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WG, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        if(WRITERGROUP)                                                 \
-            UA_NodeId_print(&(WRITERGROUP)->identifier, &idStr);        \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "WriterGroup %.*s\t| " MSG "%.0s",               \
-                       (int)idStr.length, (char*)idStr.data,            \
-                       __VA_ARGS__);                                    \
-        UA_String_clear(&idStr);                                        \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(WG)->logIdString.length,                   \
+                       (char*)(WG)->logIdString.data, __VA_ARGS__);     \
     }
 
 #define UA_LOG_TRACE_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \

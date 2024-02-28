@@ -176,6 +176,19 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
                                           &newWriterGroup->identifier);
 #endif
 
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newWriterGroup->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "%.*sWriterGroup %.*s\t| ",
+                (int)currentConnectionContext->logIdString.length,
+                (char*)currentConnectionContext->logIdString.data,
+                (int)idStr.length, idStr.data);
+    newWriterGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_WRITERGROUP(server->config.logging, newWriterGroup, "WriterGroup created");
+
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -288,8 +301,12 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
         deleteNode(server, wg->identifier, true);
 #endif
+
+        UA_LOG_INFO_WRITERGROUP(server->config.logging, wg, "WriterGroup deleted");
+
         UA_WriterGroupConfig_clear(&wg->config);
         UA_NodeId_clear(&wg->identifier);
+        UA_String_clear(&wg->logIdString);
         UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
         UA_free(wg);
     }
