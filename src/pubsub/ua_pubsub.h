@@ -623,6 +623,7 @@ struct UA_ReaderGroup {
     UA_PubSubComponentEnumType componentType;
     UA_ReaderGroupConfig config;
     UA_NodeId identifier;
+    UA_String logIdString;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
 
     LIST_HEAD(, UA_DataSetReader) readers;
@@ -702,13 +703,10 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
 
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        if(RG)                                                          \
-            UA_NodeId_print(&(RG)->identifier, &idStr);                 \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "ReaderGroup %.*s\t| " MSG "%.0s", (int)idStr.length, \
-                       (char*)idStr.data, __VA_ARGS__);                 \
-        UA_String_clear(&idStr);                                        \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(RG)->logIdString.length,                   \
+                       (char*)(RG)->logIdString.data,                   \
+                       __VA_ARGS__);                                    \
     }
 
 #define UA_LOG_TRACE_READERGROUP(LOGGER, READERGROUP, ...)              \
