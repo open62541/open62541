@@ -169,6 +169,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
     UA_NodeId_clear(&publishedDataSet->identifier);
+    UA_String_clear(&publishedDataSet->logIdString);
 }
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
@@ -716,9 +717,20 @@ UA_PublishedDataSet_create(UA_Server *server,
     /* Generate unique nodeId */
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newPDS->identifier);
 #endif
+
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newPDS->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %.*s\t| ", (int)idStr.length, idStr.data);
+    newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
+
+    /* Return the created identifier */
     if(pdsIdentifier)
         UA_NodeId_copy(&newPDS->identifier, pdsIdentifier);
-
     return result;
 }
 
@@ -759,6 +771,8 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, publishedDataSet->identifier, true);
 #endif
+
+    UA_LOG_INFO_DATASET(server->config.logging, publishedDataSet, "DataSet deleted");
 
     UA_PublishedDataSet_clear(server, publishedDataSet);
     server->pubSubManager.publishedDataSetsSize--;

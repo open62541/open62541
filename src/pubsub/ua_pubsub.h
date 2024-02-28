@@ -21,6 +21,7 @@
 
 #include "open62541_queue.h"
 #include "ziptree.h"
+#include "mp_printf.h"
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS
@@ -109,14 +110,15 @@ typedef struct UA_SecurityGroup UA_SecurityGroup;
 /**********************************************/
 
 typedef struct UA_PublishedDataSet {
+    TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
+    TAILQ_HEAD(, UA_DataSetField) fields;
+    UA_NodeId identifier;
+    UA_String logIdString;
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
-    TAILQ_HEAD(, UA_DataSetField) fields;
     UA_UInt16 fieldSize;
-    UA_NodeId identifier;
     UA_UInt16 promotedFieldsCount;
     UA_UInt16 configurationFreezeCounter;
-    TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
 } UA_PublishedDataSet;
 
 UA_StatusCode
@@ -165,13 +167,9 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
 
 #define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_String idStr = UA_STRING_NULL;                               \
-        if(PDS)                                                         \
-            UA_NodeId_print(&(PDS)->identifier, &idStr);                \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB,                   \
-                       "DataSet %.*s\t| " MSG "%.0s", (int)idStr.length, \
-                       (char*)idStr.data, __VA_ARGS__);                 \
-        UA_String_clear(&idStr);                                        \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
+                       (int)(PDS)->logIdString.length,                  \
+                       (char*)(PDS)->logIdString.data, __VA_ARGS__);    \
     }
 
 #define UA_LOG_TRACE_DATASET(LOGGER, PDS, ...)                          \
