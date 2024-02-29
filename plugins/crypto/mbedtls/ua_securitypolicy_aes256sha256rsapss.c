@@ -274,7 +274,7 @@ sym_sign_sp_aes256sha256rsapss(const Aes256Sha256RsaPss_ChannelContext *cc,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     if(mbedtls_hmac(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
-                 message, signature->data) != UA_STATUSCODE_GOOD)
+                    message, signature->data) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     return UA_STATUSCODE_GOOD;
