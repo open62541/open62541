@@ -25,20 +25,17 @@ swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
 UA_StatusCode
 mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
              const UA_ByteString *in, unsigned char *out) {
-    UA_StatusCode retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    if(mbedtls_md_hmac_starts(context, key->data, key->length) == 0)
-    {
-        if(mbedtls_md_hmac_update(context, in->data, in->length) == 0)
-        {
-            if(mbedtls_md_hmac_finish(context, out) == 0)
-            {
-                retval = UA_STATUSCODE_GOOD;
-            }
-        }
-    }
+    if(mbedtls_md_hmac_starts(context, key->data, key->length) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    return retval;
+    if(mbedtls_md_hmac_update(context, in->data, in->length) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    if(mbedtls_md_hmac_finish(context, out) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
