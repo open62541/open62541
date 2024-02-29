@@ -285,7 +285,7 @@ sym_verify_sp_basic128rsa15(Basic128Rsa15_ChannelContext *cc,
 
     unsigned char mac[UA_SHA1_LENGTH];
     if(mbedtls_hmac(&pc->sha1MdContext, &cc->remoteSymSigningKey,
-                    message, mac) != UA_StatusCode_Good)
+                    message, mac) != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Compare with Signature */
