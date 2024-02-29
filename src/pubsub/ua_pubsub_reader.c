@@ -611,6 +611,9 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
     /* Inform application about state change */
     if(dsr->state != oldState) {
         UA_ServerConfig *config = &server->config;
+        UA_LOG_INFO_READER(config->logging, dsr, "State change: %s -> %s",
+                           UA_PubSubState_name(oldState),
+                           UA_PubSubState_name(dsr->state));
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.
