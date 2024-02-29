@@ -264,7 +264,8 @@ sym_verify_sp_basic256sha256(Basic256Sha256_ChannelContext *cc,
 
     Basic256Sha256_PolicyContext *pc = cc->policyContext;
     unsigned char mac[UA_SHA256_LENGTH];
-    mbedtls_hmac(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac);
+    if(mbedtls_hmac(&pc->sha256MdContext, &cc->remoteSymSigningKey, message, mac) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Compare with Signature */
     if(!UA_constantTimeEqual(signature->data, mac, UA_SHA256_LENGTH))
@@ -279,8 +280,10 @@ sym_sign_sp_basic256sha256(const Basic256Sha256_ChannelContext *cc,
     if(signature->length != UA_SHA256_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    mbedtls_hmac(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
-                 message, signature->data);
+    if(mbedtls_hmac(&cc->policyContext->sha256MdContext, &cc->localSymSigningKey,
+                    message, signature->data) != UA_STATUSCODE_GOOD)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     return UA_STATUSCODE_GOOD;
 }
 
