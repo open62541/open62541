@@ -850,6 +850,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     if(wg->state != oldState) {
         /* Inform application about state change */
         UA_ServerConfig *pConfig = &server->config;
+        UA_LOG_INFO_WRITERGROUP(pConfig->logging, wg, "State change: %s -> %s",
+                               UA_PubSubState_name(oldState),
+                               UA_PubSubState_name(wg->state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.

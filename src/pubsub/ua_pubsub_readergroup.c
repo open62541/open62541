@@ -361,6 +361,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     /* Inform application about state change */
     if(rg->state != oldState) {
         UA_ServerConfig *pConfig = &server->config;
+        UA_LOG_INFO_READERGROUP(pConfig->logging, rg, "State change: %s -> %s",
+                                UA_PubSubState_name(oldState),
+                                UA_PubSubState_name(rg->state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.

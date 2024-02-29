@@ -387,6 +387,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     /* Inform application about state change */
     if(c->state != oldState) {
         UA_ServerConfig *config = &server->config;
+        UA_LOG_INFO_CONNECTION(config->logging, c, "State change: %s -> %s",
+                               UA_PubSubState_name(oldState),
+                               UA_PubSubState_name(c->state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
             config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, cause);
