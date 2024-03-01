@@ -692,14 +692,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
                                   UA_ByteString *buf) {
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
-    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
-                                                     rg->state, UA_STATUSCODE_GOOD);
-        }
-    }
+    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
     UA_Boolean processed = false;
     UA_NetworkMessage currentNetworkMessage;
