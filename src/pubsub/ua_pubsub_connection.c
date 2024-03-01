@@ -153,20 +153,15 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 UA_StatusCode
 UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
-    /* Validate preconditions */
-    UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_CHECK_ERROR(cc != NULL, return UA_STATUSCODE_BADINTERNALERROR,
-                   server->config.logging, UA_LOGCATEGORY_SERVER,
-                   "PubSub Connection creation failed. Missing connection configuration.");
+    if(!server || !cc)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate */
-    UA_PubSubConnection *c = (UA_PubSubConnection *)
+    UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
-    if(!c) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Out of Memory.");
+    if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+
     c->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
 
     /* Copy the connection config */
@@ -192,7 +187,8 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&c->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ", (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ",
+                (int)idStr.length, idStr.data);
     c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 
