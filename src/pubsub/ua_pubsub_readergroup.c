@@ -103,6 +103,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
+    newGroup->linkedConnection = connection;
 
     /* Deep copy of the config */
     UA_StatusCode retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
@@ -110,8 +111,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         UA_free(newGroup);
         return retval;
     }
-
-    newGroup->linkedConnection = connection;
 
     /* Add to the connection */
     LIST_INSERT_HEAD(&connection->readerGroups, newGroup, listEntry);
@@ -172,13 +171,23 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 
     UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
 
+    /* Validate the connection settings */
+    retval = UA_ReaderGroup_connect(server, newGroup, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_READERGROUP(server->config.logging, newGroup,
+                                 "Could not validate the connection parameters");
+        UA_ReaderGroup_remove(server, newGroup);
+        return retval;
+    }
+
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
+    /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
         UA_NodeId_copy(&newGroup->identifier, readerGroupId);
 
-    return UA_ReaderGroup_setPubSubState(server, newGroup, newGroup->state);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
