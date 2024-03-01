@@ -196,8 +196,12 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(server, c, true);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CONNECTION(server->config.logging, c,
+                                "Could not validate connection parameters");
+        UA_PubSubConnection_delete(server, c);
+        return ret;
+    }
 
     /* Make the connection operational */
     ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL);
