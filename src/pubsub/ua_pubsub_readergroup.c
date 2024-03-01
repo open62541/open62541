@@ -173,8 +173,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
 
     /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, connection,
-                                       connection->state, UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
     if(readerGroupId)
         UA_NodeId_copy(&newGroup->identifier, readerGroupId);
@@ -258,8 +257,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
-                                       UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
     return UA_STATUSCODE_GOOD;
 }
