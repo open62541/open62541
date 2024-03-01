@@ -796,8 +796,8 @@ UA_Server_DataSetReader_createDataSetMirror(UA_Server *server, UA_String *parent
 }*/
 
 static void
-DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
-                         UA_DataSetReader *dsr, UA_DataSetMessage* msg) {
+DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
+                         UA_DataSetMessage* msg) {
     UA_LOG_TRACE_READER(server->config.logging, dsr, "Received RAW Frame");
     msg->data.keyFrameData.fieldCount = (UA_UInt16)
         dsr->config.dataSetMetaData.fieldsSize;
@@ -872,7 +872,7 @@ else
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
 
-        if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        if(dsr->linkedReaderGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
             if (tv->beforeWrite) {
                 void *pData = (**tv->externalDataValue).value.data;
                 (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
@@ -914,9 +914,8 @@ else
 }
 
 static void
-DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
-                               UA_DataSetReader *dsr, UA_DataSetMessage *msg,
-                               size_t fieldCount) {
+DataSetReader_processFixedSize(UA_Server *server, UA_DataSetReader *dsr,
+                               UA_DataSetMessage *msg, size_t fieldCount) {
     for(size_t i = 0; i < fieldCount; i++) {
         if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
             continue;
@@ -952,9 +951,9 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
 }
 
 void
-UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
-                         UA_DataSetReader *dsr, UA_DataSetMessage *msg) {
-    if(!dsr || !rg || !msg || !server)
+UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
+                         UA_DataSetMessage *msg) {
+    if(!dsr || !msg || !server)
         return;
 
     /* Received a (first) message for the Reader.
@@ -984,7 +983,8 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
-        UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server,
+                                                     dsr->linkedReaderGroup->linkedConnection);
         dsr->lastHeartbeatReceived = el->dateTime_nowMonotonic(el);
         return;
     }
@@ -1017,7 +1017,7 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Process message with raw encoding (realtime and non-realtime) */
     if(msg->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
-        DataSetReader_processRaw(server, rg, dsr, msg);
+        DataSetReader_processRaw(server, dsr, msg);
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
@@ -1034,8 +1034,8 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
         fieldCount = dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
 
     /* Process message with fixed size fields (realtime capable) */
-    if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        DataSetReader_processFixedSize(server, rg, dsr, msg, fieldCount);
+    if(dsr->linkedReaderGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        DataSetReader_processFixedSize(server, dsr, msg, fieldCount);
 #ifdef UA_ENABLE_PUBSUB_MONITORING
         UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
@@ -1179,6 +1179,30 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
     reader->bufferedMessage.nm = nm;
 
     return rv;
+}
+
+void
+UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
+                                    UA_ByteString *buf) {
+    size_t pos = 0;
+    UA_StatusCode rv;
+    if(!dsr->bufferedMessage.nm) {
+        /* This is the first message being received for the RT fastpath.
+         * Prepare the offset buffer. */
+        rv = UA_DataSetReader_prepareOffsetBuffer(server, dsr, buf, &pos);
+    } else {
+        /* Decode with offset information and update the networkMessage */
+        rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage, buf, &pos);
+    }
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO_READER(server->config.logging, dsr,
+                           "PubSub decoding failed. Could not decode with "
+                           "status code %s.", UA_StatusCode_name(rv));
+        return;
+    }
+
+    UA_DataSetReader_process(server, dsr,
+                             dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 }
 
 #endif /* UA_ENABLE_PUBSUB */

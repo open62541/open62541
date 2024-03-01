@@ -556,7 +556,6 @@ typedef struct UA_DataSetReader {
 /* Process Network Message using DataSetReader */
 void
 UA_DataSetReader_process(UA_Server *server,
-                         UA_ReaderGroup *readerGroup,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
 
@@ -573,6 +572,10 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 UA_StatusCode
 UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
                                      UA_ByteString *buf, size_t *pos);
+
+void
+UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
+                                    UA_ByteString *buf);
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
