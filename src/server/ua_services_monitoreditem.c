@@ -454,7 +454,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Initialize the MonitoredItem */
     UA_MonitoredItem_init(newMon);
-    newMon->subscription = cmc->sub; /* Can be NULL for local MonitoredItems */
+    newMon->subscription = cmc->sub;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     result->statusCode |= UA_ReadValueId_copy(&request->itemToMonitor,
                                               &newMon->itemToMonitor);
