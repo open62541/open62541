@@ -454,6 +454,38 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     return ret;
 }
 
+static UA_StatusCode
+enablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
+    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL)
+        : UA_STATUSCODE_BADNOTFOUND;
+}
+
+static UA_StatusCode
+disablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
+    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED)
+        : UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_enablePubSubConnection(UA_Server *server,
+                                 const UA_NodeId connectionId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = enablePubSubConnection(server, connectionId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_disablePubSubConnection(UA_Server *server,
+                                  const UA_NodeId connectionId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = disablePubSubConnection(server, connectionId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 UA_EventLoop *
 UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c) {
     if(c->config.eventLoop)
