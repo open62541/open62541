@@ -440,6 +440,7 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     if(mon->registered)
         return;
+    mon->registered = true;
 
     /* Register in Subscription and Server */
     UA_Subscription *sub = mon->subscription;
@@ -463,8 +464,6 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
                                                      mon->itemToMonitor.attributeId, false);
         UA_LOCK(&server->serviceMutex);
     }
-
-    mon->registered = true;
 }
 
 static void
@@ -473,6 +472,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     if(!mon->registered)
         return;
+    mon->registered = false;
 
     UA_Subscription *sub = mon->subscription;
     UA_LOG_INFO_SUBSCRIPTION(server->config.logging, sub,
@@ -481,10 +481,7 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
     /* Deregister MonitoredItem in userland */
     if(server->config.monitoredItemRegisterCallback) {
-        UA_Session *session = &server->adminSession;
-        if(sub)
-            session = sub->session;
-
+        UA_Session *session = sub->session;
         void *targetContext = NULL;
         getNodeContext(server, mon->itemToMonitor.nodeId, &targetContext);
         UA_UNLOCK(&server->serviceMutex);
@@ -498,12 +495,9 @@ UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     }
 
     /* Deregister in Subscription and server */
-    if(sub)
-        sub->monitoredItemsSize--;
-    LIST_REMOVE(mon, listEntry); /* Also for LocalMonitoredItems */
+    sub->monitoredItemsSize--;
+    LIST_REMOVE(mon, listEntry);
     server->monitoredItemsSize--;
-
-    mon->registered = false;
 }
 
 UA_StatusCode
@@ -720,20 +714,20 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->samplingType != UA_MONITOREDITEMSAMPLINGTYPE_NONE)
         return UA_STATUSCODE_GOOD;
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    /* The subscription is attached to a session at this point */
     UA_Subscription *sub = mon->subscription;
+    if(!sub->session)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER ||
        mon->parameters.samplingInterval == 0.0) {
         /* Add to the linked list in the node */
-        UA_Session *session = &server->adminSession;
-        if(sub)
-            session = sub->session;
-        res = UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
+        res = UA_Server_editNode(server, sub->session, &mon->itemToMonitor.nodeId,
                                  addMonitoredItemBackpointer, mon);
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
-        return res;
-    } else if(sub && mon->parameters.samplingInterval == sub->publishingInterval) {
+    } else if(mon->parameters.samplingInterval == sub->publishingInterval) {
         /* Add to the subscription for sampling before every publish */
         LIST_INSERT_HEAD(&sub->samplingMonitoredItems, mon,
                          sampling.subscriptionSampling);
@@ -764,12 +758,9 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
         break;
 
     case UA_MONITOREDITEMSAMPLINGTYPE_EVENT: {
-        /* Added to a node */
-        UA_Subscription *sub = mon->subscription;
-        UA_Session *session = &server->adminSession;
-        if(sub)
-            session = sub->session;
-        UA_Server_editNode(server, session, &mon->itemToMonitor.nodeId,
+        /* Removing is always done with the AdminSession. So it also works when
+         * the Subscription has been detached from its Session. */
+        UA_Server_editNode(server, &server->adminSession, &mon->itemToMonitor.nodeId,
                            removeMonitoredItemBackPointer, mon);
         break;
     }
