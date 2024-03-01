@@ -1154,7 +1154,11 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
  * MonitoredItems are used with the Subscription mechanism of OPC UA to
  * transported notifications for data changes and events. MonitoredItems can
  * also be registered locally. Notifications are then forwarded to a
- * user-defined callback instead of a remote client. */
+ * user-defined callback instead of a remote client.
+ *
+ * Local MonitoredItems are delivered asynchronously. That is, the notification
+ * is inserted as a *Delayed Callback* for the EventLoop. The callback is then
+ * triggered when the control flow next returns to the EventLoop. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 
