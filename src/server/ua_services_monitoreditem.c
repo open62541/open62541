@@ -741,6 +741,7 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing SetMonitoringMode");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Check the max number if items */
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
@@ -748,17 +749,20 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     }
 
     /* Get the subscription */
-    struct setMonitoringContext smc;
-    smc.sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
-    if(!smc.sub) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
 
     /* Reset the lifetime counter of the Subscription */
-    Subscription_resetLifetime(smc.sub);
+    Subscription_resetLifetime(sub);
 
+    /* Call the service */
+    struct setMonitoringContext smc;
+    smc.sub = sub;
     smc.monitoringMode = request->monitoringMode;
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_SetMonitoringMode,
