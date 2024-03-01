@@ -13,8 +13,8 @@
 
 #include <check.h>
 
-//#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
-#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
+#define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
+//#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
 
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
