@@ -512,6 +512,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                          "Processing CreateMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Check the upper bound for the number of items */
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->itemsToCreateSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
@@ -519,22 +520,27 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the timestampstoreturn is valid */
-    struct createMonContext cmc;
-    cmc.timestampsToReturn = request->timestampsToReturn;
-    if(cmc.timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+    if(request->timestampsToReturn < UA_TIMESTAMPSTORETURN_SOURCE ||
+       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
         return;
     }
 
     /* Find the subscription */
-    cmc.sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
-    if(!cmc.sub) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
 
     /* Reset the lifetime counter of the Subscription */
-    Subscription_resetLifetime(cmc.sub);
+    Subscription_resetLifetime(sub);
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.timestampsToReturn = request->timestampsToReturn;
+    cmc.sub = sub;
+    cmc.localMon = NULL;
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
