@@ -571,6 +571,10 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier);
 
 UA_StatusCode
+UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
+                                     UA_ByteString *buf, size_t *pos);
+
+UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
 
 /* Copy the configuration of Target Variables */
