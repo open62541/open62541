@@ -191,7 +191,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Connection open, set to operational if not already done */
-    UA_PubSubConnection_setPubSubState(server, psc, psc->state, UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, psc, psc->state);
 
     /* Message received */
     if(UA_LIKELY(recv && msg.length > 0))
@@ -414,8 +414,7 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
     if(!el) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c, "No EventLoop configured");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -427,8 +426,7 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     if(!cm) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                 "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -436,8 +434,7 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     if(c->cm && cm != c->cm) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                 "The connection is configured for a different protocol already");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -696,8 +693,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     if(!cm || (c->cm && cm != c->cm)) {
         UA_LOG_ERROR_CONNECTION(server->config.logging, c,
                                 "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR,
-                                           UA_STATUSCODE_BADINTERNALERROR);
+        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

@@ -227,8 +227,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(server, currentConnectionContext,
-                                       currentConnectionContext->state,
-                                       UA_STATUSCODE_GOOD);
+                                       currentConnectionContext->state);
 
     return UA_WriterGroup_setPubSubState(server, newWriterGroup, newWriterGroup->state);
 }
@@ -312,8 +311,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
-                                       UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -954,7 +952,7 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
                                  "Sending NetworkMessage failed");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
-        UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR, res);
+        UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR);
         return;
     }
 

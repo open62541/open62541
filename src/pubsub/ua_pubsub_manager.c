@@ -417,8 +417,7 @@ void
 UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
-        UA_PubSubConnection_setPubSubState(server, tmpConnection,
-                                           UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+        UA_PubSubConnection_setPubSubState(server, tmpConnection, UA_PUBSUBSTATE_DISABLED);
     }
 }
 

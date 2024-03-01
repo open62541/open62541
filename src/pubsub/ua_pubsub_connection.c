@@ -204,8 +204,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
         goto cleanup;
 
     /* Make the connection operational */
-    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL,
-                                             UA_STATUSCODE_GOOD);
+    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -315,10 +314,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    /* Make the connection disabled */
-    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED,
-                                             UA_STATUSCODE_GOOD);
-
+    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED);
     UA_PubSubConnection_delete(server, psc);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
@@ -387,7 +383,7 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
-                                   UA_PubSubState targetState, UA_StatusCode cause) {
+                                   UA_PubSubState targetState) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -434,7 +430,6 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
              * fallout of a failed connection here. */
             ret = UA_PubSubConnection_connect(server, c, false);
             if(ret != UA_STATUSCODE_GOOD) {
-                cause = ret;
                 targetState = UA_PUBSUBSTATE_ERROR;
                 goto set_state;
             }
@@ -453,7 +448,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                UA_PubSubState_name(c->state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, cause);
+            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, ret);
         UA_LOCK(&server->serviceMutex);
     }
     return ret;
