@@ -877,8 +877,8 @@ else
                 void *pData = (**tv->externalDataValue).value.data;
                 (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
-                                &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
-                                dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
+                                &tv->targetVariable.targetNodeId,
+                                tv->targetVariableContext,
                                 tv->externalDataValue);
                 (**tv->externalDataValue).value.data = pData;  // restore previous data pointer
             }
@@ -936,9 +936,8 @@ DataSetReader_processFixedSize(UA_Server *server, UA_ReaderGroup *rg,
         if (tv->beforeWrite) {
             UA_DataValue *tmp = &msg->data.keyFrameData.dataSetFields[i];
             tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
-                            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariable.targetNodeId,
-                            dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i].targetVariableContext,
-                            &tmp);
+                            &tv->targetVariable.targetNodeId,
+                            tv->targetVariableContext, &tmp);
         }
         if(UA_LIKELY(tv->externalDataValue != NULL)) {
             memcpy((**tv->externalDataValue).value.data,
