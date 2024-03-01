@@ -347,10 +347,7 @@ binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 struct createMonContext {
     UA_Subscription *sub;
     UA_TimestampsToReturn timestampsToReturn;
-
-    /* If sub is NULL, use local callbacks */
-    UA_Server_DataChangeNotificationCallback dataChangeCallback;
-    void *context;
+    UA_LocalMonitoredItem *localMon; /* used if non-null */
 };
 
 static void
@@ -361,7 +358,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check available capacity */
-    if(cmc->sub != server->adminSubscription &&
+    if(!cmc->localMon &&
        (((server->config.maxMonitoredItems != 0) &&
          (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
         ((server->config.maxMonitoredItemsPerSubscription != 0) &&
@@ -419,15 +416,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Adding an Event MonitoredItem */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
-        if(!cmc->sub) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Only remote clients can add Event-MonitoredItems");
-            result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
-            UA_DataValue_clear(&v);
-            return;
-        }
-
         /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
          * zero, then the object cannot be subscribed to monitor events */
         if(!v.hasValue || !v.value.data) {
@@ -453,21 +441,15 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Allocate the MonitoredItem */
     UA_MonitoredItem *newMon = NULL;
-    if(cmc->sub == server->adminSubscription) {
-        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
-            UA_malloc(sizeof(UA_LocalMonitoredItem));
-        if(localMon) {
-            /* Set special values only for the LocalMonitoredItem */
-            localMon->context = cmc->context;
-            localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
-        }
-        newMon = &localMon->monitoredItem;
+    if(cmc->localMon) {
+        newMon = &cmc->localMon->monitoredItem;
+        cmc->localMon = NULL; /* clean up internally from now on */
     } else {
         newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
-    }
-    if(!newMon) {
-        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        if(!newMon) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
     }
 
     /* Initialize the MonitoredItem */
@@ -501,8 +483,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_Server_registerMonitoredItem(server, newMon);
 
     /* Activate the MonitoredItem */
-    result->statusCode |=
-        UA_MonitoredItem_setMonitoringMode(server, newMon, request->monitoringMode);
+    result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
+                                                            request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoredItem_delete(server, newMon);
         return;
@@ -569,17 +551,42 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
                                         const UA_MonitoredItemCreateRequest item,
                                         void *monitoredItemContext,
                                         UA_Server_DataChangeNotificationCallback callback) {
-    struct createMonContext cmc;
-    cmc.sub = server->adminSubscription;
-    cmc.context = monitoredItemContext;
-    cmc.dataChangeCallback = callback;
-    cmc.timestampsToReturn = timestampsToReturn;
-
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
+
+    /* Check that we don't use the DataChange callback for events */
+    if(item.itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "DataChange-MonitoredItem cannot be created for the "
+                     "EventNotifier attribute");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    /* Pre-allocate the local MonitoredItem structure */
+    UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
+        UA_calloc(1, sizeof(UA_LocalMonitoredItem));
+    if(!localMon) {
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->context = monitoredItemContext;
+    localMon->callback.dataChangeCallback = callback;
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.sub = server->adminSubscription;
+    cmc.localMon = localMon;
+    cmc.timestampsToReturn = timestampsToReturn;
+
     UA_LOCK(&server->serviceMutex);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
     UA_UNLOCK(&server->serviceMutex);
+
+    /* If this failed, clean up the local MonitoredItem structure */
+    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon)
+        UA_free(localMon);
+
     return result;
 }
 
