@@ -388,8 +388,6 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->state;
-    UA_WriterGroup *writerGroup;
-    UA_ReaderGroup *readerGroup;
 
  set_state:
 
@@ -397,22 +395,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         case UA_PUBSUBSTATE_ERROR:
         case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_DISABLED:
-            if(targetState == oldState)
-                break;
-
             /* Close the EventLoop connection */
-            c->state = targetState;
             UA_PubSubConnection_disconnect(c);
-
-            /* Update Reader and WriterGroups. This will set them to PAUSED (if
-             * they were operational) as the Connection is now
-             * non-operational. */
-            LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-                UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
-            }
-            LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-                UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
-            }
+            c->state = targetState;
             break;
 
         case UA_PUBSUBSTATE_PREOPERATIONAL:
@@ -450,6 +435,18 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         if(config->pubSubConfig.stateChangeCallback)
             config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, ret);
         UA_LOCK(&server->serviceMutex);
+    }
+
+    /* Update Reader and WriterGroups. This will set them to PAUSED (if
+     * they were operational) as the Connection is now
+     * non-operational. */
+    UA_ReaderGroup *readerGroup;
+    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
+        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+    }
+    UA_WriterGroup *writerGroup;
+    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
     }
     return ret;
 }

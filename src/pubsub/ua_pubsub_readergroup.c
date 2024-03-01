@@ -649,6 +649,10 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
        readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
+    readerGroup->hasReceived = true;
+    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_OPERATIONAL);
+
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
     UA_Boolean processed = false;
@@ -699,6 +703,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
                                   UA_ByteString *buf) {
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
+    rg->hasReceived = true;
     if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
