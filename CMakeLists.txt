@@ -884,18 +884,15 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
-        MESSAGE(WARNING "Payload encryption with JSON encoding is not possible according to the specification. The message security is only defined for the UADP message mapping.")
-    endif()
-    if(UA_ENABLE_PUBSUB)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
-    endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+    endif()
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
