@@ -958,14 +958,8 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
 
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
-    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        dsr->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &dsr->identifier,
-                                                     dsr->state, UA_STATUSCODE_GOOD);
-        }
-    }
+    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
 
     /* Check the metadata, to see if this reader is configured for a heartbeat */
     if(dsr->config.dataSetMetaData.fieldsSize == 0 &&
