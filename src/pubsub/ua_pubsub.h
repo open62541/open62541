@@ -253,6 +253,11 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
                             UA_Boolean validate);
 
 void
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+                            UA_ByteString msg);
+
+
+void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
 /* Returns either the eventloop configured in the connection or, in its absence,

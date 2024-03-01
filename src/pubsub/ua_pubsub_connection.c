@@ -324,6 +324,67 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
     return UA_STATUSCODE_GOOD;
 }
 
+void
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+                            UA_ByteString msg) {
+    /* Process RT ReaderGroups */
+    UA_ReaderGroup *rg;
+    UA_Boolean processed = false;
+    UA_ReaderGroup *nonRtRg = NULL;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE) {
+            nonRtRg = rg;
+            continue;
+        } 
+        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
+    }
+
+    /* Any non-RT ReaderGroups? */
+    if(!nonRtRg)
+        goto finish;
+
+    /* Decode the received message for the non-RT ReaderGroups */
+    UA_StatusCode res;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        size_t currentPosition = 0;
+        res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, c);
+    } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
+        res = UA_NetworkMessage_decodeJson(&nm, &msg);
+#else
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
+                                  "Verify, decrypt and decode network message failed");
+        return;
+    }
+
+    /* Process the received message for the non-RT ReaderGroups */
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+            continue;
+        processed |= UA_ReaderGroup_process(server, rg, &nm);
+    }
+    UA_NetworkMessage_clear(&nm);
+
+ finish:
+    if(!processed) {
+        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
+                                  "Message received that could not be processed. "
+                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
+    }
+}
+
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                    UA_PubSubState targetState, UA_StatusCode cause) {

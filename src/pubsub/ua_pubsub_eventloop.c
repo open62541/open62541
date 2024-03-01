@@ -193,67 +193,10 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Connection open, set to operational if not already done */
     UA_PubSubConnection_setPubSubState(server, psc, psc->state, UA_STATUSCODE_GOOD);
 
-    /* No message received */
-    if(!recv || msg.length == 0) {
-        UA_UNLOCK(&server->serviceMutex);
-        return;
-    }
-
-    UA_ReaderGroup *nonRtRg = NULL;
-    UA_Boolean processed = false;
-
-    /* Process RT ReaderGroups */
-    UA_ReaderGroup *rg;
-    LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
-        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
-            continue;
-        if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE) {
-            nonRtRg = rg;
-            continue;
-        } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
-    }
-
-    /* Process the received message for the non-RT ReaderGroups */
-    if(nonRtRg) {
-        UA_NetworkMessage nm;
-        memset(&nm, 0, sizeof(UA_NetworkMessage));
-        /* Decode once for all nonRT ReaderGroups */
-        if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-            size_t currentPosition = 0;
-            res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, psc);
-        } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
-#ifdef UA_ENABLE_JSON_ENCODING
-            res = UA_NetworkMessage_decodeJson(&nm, &msg);
-#else
-            res = UA_STATUSCODE_BADNOTSUPPORTED;
-#endif
-        }
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_CONNECTION(server->config.logging, psc,
-                                      "Verify, decrypt and decode network message failed");
-            UA_UNLOCK(&server->serviceMutex);
-            return;
-        }
-
-        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
-            if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-               rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
-                continue;
-            if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
-                continue;
-            processed |= UA_ReaderGroup_process(server, rg, &nm);
-        }
-        UA_NetworkMessage_clear(&nm);
-    }
-
-    if(!processed) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, psc,
-                                  "Message received that could not be processed. "
-                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
-    }
-
+    /* Message received */
+    if(UA_LIKELY(recv && msg.length > 0))
+        UA_PubSubConnection_process(server, psc, msg);
+    
     UA_UNLOCK(&server->serviceMutex);
 }
 
