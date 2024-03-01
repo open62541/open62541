@@ -1941,6 +1941,7 @@ START_TEST(Test_fast_path) {
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable writergroup");
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn2_RG1_DSR1) == UA_STATUSCODE_GOOD);
 
     ServerDoProcess("2", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 
