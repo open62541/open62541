@@ -599,6 +599,14 @@ UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
     /* Remove the last samples */
     UA_DataValue_clear(&mon->lastValue);
 
+    /* If this is a local MonitoredItem, clean up additional values */
+    if(mon->subscription == server->adminSubscription) {
+        UA_LocalMonitoredItem *lm = (UA_LocalMonitoredItem*)mon;
+        for(size_t i = 0; i < lm->eventFields.mapSize; i++)
+            UA_Variant_init(&lm->eventFields.map[i].value);
+        UA_KeyValueMap_clear(&lm->eventFields);
+    }
+
     /* Add a delayed callback to remove the MonitoredItem when the current jobs
      * have completed. This is needed to allow that a local MonitoredItem can
      * remove itself in the callback. */

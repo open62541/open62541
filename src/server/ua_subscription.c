@@ -433,7 +433,18 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         switch(mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            /* Event-Notifications are not supported for the local subscription */
+            /* Set the fields in the key-value map */
+            UA_assert(n->data.event.eventFieldsSize == localMon->eventFields.mapSize);
+            for(size_t i = 0; i < localMon->eventFields.mapSize; i++) {
+                localMon->eventFields.map[i].value = n->data.event.eventFields[i];
+            }
+
+            /* Call the callback */
+            UA_UNLOCK(&server->serviceMutex);
+            localMon->callback.
+                eventCallback(server, mon->monitoredItemId, localMon->context,
+                              localMon->eventFields);
+            UA_LOCK(&server->serviceMutex);
             break;
 #endif
         default:
