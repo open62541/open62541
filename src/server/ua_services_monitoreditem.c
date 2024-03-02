@@ -591,6 +591,106 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
     return result;
 }
 
+UA_MonitoredItemCreateResult
+UA_Server_createEventMonitoredItemEx(UA_Server *server,
+                                     const UA_MonitoredItemCreateRequest item,
+                                     void *monitoredItemContext,
+                                     UA_Server_EventNotificationCallback callback) {
+    UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+
+    /* Check that we don't use the DataChange callback for events */
+    if(item.itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Event-MonitoredItem must monitor the EventNotifier attribute");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    const UA_ExtensionObject *filter = &item.requestedParameters.filter;
+    if((filter->encoding != UA_EXTENSIONOBJECT_DECODED &&
+        filter->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       filter->content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER]) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Filter is not of EventFilter data type");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    UA_EventFilter *ef = (UA_EventFilter*)filter->content.decoded.data;
+    if(ef->selectClausesSize == 0) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Event filter must define at least one select clause");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    /* Pre-allocate the local MonitoredItem structure */
+    UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
+        UA_calloc(1, sizeof(UA_LocalMonitoredItem));
+    if(!localMon) {
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->context = monitoredItemContext;
+    localMon->callback.eventCallback = callback;
+
+    /* Create the string names for the event fields */
+    localMon->eventFields.map = (UA_KeyValuePair*)
+        UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
+    if(!localMon->eventFields.map) {
+        UA_free(localMon);
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->eventFields.mapSize = ef->selectClausesSize;
+
+#ifdef UA_ENABLE_PARSING
+    for(size_t i = 0; i < ef->selectClausesSize; i++) {
+        result.statusCode |=
+            UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
+                                            &localMon->eventFields.map[i].key.name);
+    }
+    if(result.statusCode != UA_STATUSCODE_GOOD) {
+        UA_KeyValueMap_clear(&localMon->eventFields);
+        UA_free(localMon);
+        return result;
+    }
+#endif
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.sub = server->adminSubscription;
+    cmc.localMon = localMon;
+    cmc.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+
+    UA_LOCK(&server->serviceMutex);
+    Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
+    UA_UNLOCK(&server->serviceMutex);
+
+    /* If the service failed, clean up the local MonitoredItem structure */
+    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon) {
+        UA_KeyValueMap_clear(&localMon->eventFields);
+        UA_free(localMon);
+    }
+    return result;
+}
+
+UA_MonitoredItemCreateResult
+UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_EventFilter filter, void *monitoredItemContext,
+                                   UA_Server_EventNotificationCallback callback) {
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = nodeId;
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_ExtensionObject_setValue(&item.requestedParameters.filter,
+                                (void*)(uintptr_t)&filter,
+                                &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    return UA_Server_createEventMonitoredItemEx(server, item, monitoredItemContext, callback);
+}
+
 static void
 Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscription *sub,
                               const UA_MonitoredItemModifyRequest *request,
