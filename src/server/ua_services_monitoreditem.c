@@ -142,12 +142,83 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_StatusCode
+checkEventFilterParam(UA_Server *server, UA_Session *session,
+                      const UA_MonitoredItem *mon,
+                      UA_MonitoringParameters *params,
+                      UA_ExtensionObject *filterResult) {
+    UA_assert(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
+
+    /* Correct data type? */
+    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
+       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
+
+    /* Correct number of elements? */
+    if(eventFilter->selectClausesSize == 0 ||
+       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Allow empty where clauses --> select every event */
+    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Check where-clause */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_ContentFilter *cf = &eventFilter->whereClause;
+    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
+    for(size_t i = 0; i < cf->elementsSize; ++i) {
+        UA_ContentFilterElement *ef = &cf->elements[i];
+        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
+        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = whereRes[i].statusCode;
+    }
+
+    /* Check select clause */
+    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
+    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
+        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
+        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
+        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = selectRes[i];
+    }
+
+    /* Filter bad, return details */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EventFilterResult *efr = UA_EventFilterResult_new();
+        if(!efr) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        } else {
+            UA_EventFilterResult tmp_efr;
+            UA_EventFilterResult_init(&tmp_efr);
+            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
+            tmp_efr.selectClauseResults = selectRes;
+            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
+            tmp_efr.whereClauseResult.elementResults = whereRes;
+            UA_EventFilterResult_copy(&tmp_efr, efr);
+            UA_ExtensionObject_setValue(filterResult, efr,
+                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+        }
+    }
+
+    for(size_t i = 0; i < cf->elementsSize; ++i)
+        UA_ContentFilterElementResult_clear(&whereRes[i]);
+    return res;
+}
+#endif
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                const UA_MonitoredItem *mon,
                                const UA_DataType* valueType,
-                               UA_MonitoringParameters *params) {
+                               UA_MonitoringParameters *params,
+                               UA_ExtensionObject *filterResult) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check the filter */
@@ -156,11 +227,10 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #else
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-            return UA_STATUSCODE_BADEVENTFILTERINVALID;
-        if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
-            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        UA_StatusCode res = checkEventFilterParam(server, session, mon,
+                                                  params, filterResult);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 #endif
     } else {
         /* DataChange MonitoredItem. Can be "no filter" which defaults to
@@ -267,78 +337,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 
     return UA_STATUSCODE_GOOD;
 }
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-static UA_StatusCode
-checkEventFilterParam(UA_Server *server, UA_Session *session,
-                      const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params,
-                      UA_MonitoredItemCreateResult *result) {
-    /* Is an Event MonitoredItem? */
-    if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-        return UA_STATUSCODE_GOOD;
-
-    /* Correct data type? */
-    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
-
-    /* Correct number of elements? */
-    if(eventFilter->selectClausesSize == 0 ||
-       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Allow empty where clauses --> select every event */
-    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Check where-clause */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    const UA_ContentFilter *cf = &eventFilter->whereClause;
-    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
-    for(size_t i = 0; i < cf->elementsSize; ++i) {
-        UA_ContentFilterElement *ef = &cf->elements[i];
-        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
-        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = whereRes[i].statusCode;
-    }
-
-    /* Check select clause */
-    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
-    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
-        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
-        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
-        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = selectRes[i];
-    }
-
-    /* Filter bad, return details */
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_EventFilterResult *efr = UA_EventFilterResult_new();
-        if(!efr) {
-            res = UA_STATUSCODE_BADOUTOFMEMORY;
-        } else {
-            UA_EventFilterResult tmp_efr;
-            UA_EventFilterResult_init(&tmp_efr);
-            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
-            tmp_efr.selectClauseResults = selectRes;
-            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
-            tmp_efr.whereClauseResult.elementResults = whereRes;
-            UA_EventFilterResult_copy(&tmp_efr, efr);
-            UA_ExtensionObject_setValue(&result->filterResult, efr,
-                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
-        }
-    }
-
-    for(size_t i = 0; i < cf->elementsSize; ++i)
-        UA_ContentFilterElementResult_clear(&whereRes[i]);
-    return res;
-}
-#endif
 
 static const UA_String
 binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
@@ -461,11 +459,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     result->statusCode |= UA_MonitoringParameters_copy(&request->requestedParameters,
                                                        &newMon->parameters);
     result->statusCode |= checkAdjustMonitoredItemParams(server, session, newMon,
-                                                         valueType, &newMon->parameters);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters, result);
-#endif
+                                                         valueType, &newMon->parameters,
+                                                         &result->filterResult);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                                  "Could not create a MonitoredItem "
@@ -622,8 +617,8 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     /* Verify and adjust the new parameters. This still leaves the original
      * MonitoredItem untouched. */
     result->statusCode =
-        checkAdjustMonitoredItemParams(server, session, mon,
-                                       v.value.type, &params);
+        checkAdjustMonitoredItemParams(server, session, mon, v.value.type,
+                                       &params, &result->filterResult);
     UA_DataValue_clear(&v);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoringParameters_clear(&params);
