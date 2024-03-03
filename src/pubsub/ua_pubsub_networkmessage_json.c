@@ -129,13 +129,12 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
 
 static UA_StatusCode
 UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx) {
-    status rv = UA_STATUSCODE_GOOD;
     const UA_DataType *publisherIdType;
     /* currently only ua-data is supported, no discovery message implemented */
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    writeJsonObjStart(ctx);
+    status rv = writeJsonObjStart(ctx);
 
     /* Table 91 – JSON NetworkMessage Definition
      * MessageId | String | A globally unique identifier for the message.
@@ -151,7 +150,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
     /* PublisherId */
     if(src->publisherIdEnabled) {
-        rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
+        rv |= writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
         switch (src->publisherIdType) {
         case UA_PUBLISHERIDTYPE_BYTE:
             publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
