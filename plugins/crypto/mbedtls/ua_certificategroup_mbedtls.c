@@ -648,8 +648,6 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
     ci->rejectedListFolder = UA_STRING_ALLOC(rejectedListFolder);
 #endif
 
-    reloadCertificates(certGroup, ci);
-
     certGroup->context = (void*)ci;
     certGroup->verifyCertificate = certificateGroup_verify;
     certGroup->clear = certificateGroup_clear;
@@ -658,7 +656,7 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = NULL;
     certGroup->removeFromTrustList = NULL;
 
-    return UA_STATUSCODE_GOOD;
+    return reloadCertificates(certGroup, ci);
 }
 
 #endif
