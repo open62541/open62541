@@ -225,6 +225,12 @@ UA_ModifyMonitoredItemsResponse UA_EXPORT
 UA_Client_MonitoredItems_modify(UA_Client *client,
     const UA_ModifyMonitoredItemsRequest request);
 
+UA_StatusCode UA_EXPORT
+UA_Client_MonitoredItems_modify_async(UA_Client *client,
+    const UA_ModifyMonitoredItemsRequest request,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
 /**
  * The following service calls go directly to the server. The MonitoredItem
  * settings are not stored in the client. */
@@ -239,27 +245,6 @@ UA_Client_MonitoredItems_setMonitoringMode(UA_Client *client,
     return response;
 }
 
-static UA_INLINE UA_SetTriggeringResponse
-UA_Client_MonitoredItems_setTriggering(UA_Client *client,
-    const UA_SetTriggeringRequest request) {
-    UA_SetTriggeringResponse response;
-    __UA_Client_Service(client,
-        &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
-        &response, &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE]);
-    return response;
-}
-
-static UA_INLINE UA_StatusCode
-UA_Client_MonitoredItems_modify_async(UA_Client *client,
-    const UA_ModifyMonitoredItemsRequest request,
-    UA_ClientAsyncServiceCallback callback,
-    void *userdata, UA_UInt32 *requestId) {
-    return __UA_Client_AsyncService(client, &request,
-        &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSREQUEST], callback,
-        &UA_TYPES[UA_TYPES_MODIFYMONITOREDITEMSRESPONSE],
-        userdata, requestId);
-}
-
 static UA_INLINE UA_StatusCode
 UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
     const UA_SetMonitoringModeRequest request,
@@ -269,6 +254,16 @@ UA_Client_MonitoredItems_setMonitoringMode_async(UA_Client *client,
         &UA_TYPES[UA_TYPES_SETMONITORINGMODEREQUEST], callback,
         &UA_TYPES[UA_TYPES_SETMONITORINGMODERESPONSE],
         userdata, requestId);
+}
+
+static UA_INLINE UA_SetTriggeringResponse
+UA_Client_MonitoredItems_setTriggering(UA_Client *client,
+    const UA_SetTriggeringRequest request) {
+    UA_SetTriggeringResponse response;
+    __UA_Client_Service(client,
+        &request, &UA_TYPES[UA_TYPES_SETTRIGGERINGREQUEST],
+        &response, &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE]);
+    return response;
 }
 
 static UA_INLINE UA_StatusCode
