@@ -1293,10 +1293,6 @@ else()
         add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
     endif()
 
-    if(UA_ENABLE_COVERAGE)
-        add_coverage(open62541-object)
-    endif()
-
     # stack protector and optimization are disabled for the huge ns0 file
     if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
         set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
@@ -1309,6 +1305,11 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+        add_coverage(open62541-plugins)
+    endif()
 
     if(UA_PACK_DEBIAN)
         add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
