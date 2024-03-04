@@ -5,9 +5,8 @@
  *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#ifndef OPEN62541_NODEID_SETUP_FUNCTIONS_H
-#define OPEN62541_NODEID_SETUP_FUNCTIONS_H
-
+#ifndef UA_EVENTFILTER_PARSER_H_
+#define UA_EVENTFILTER_PARSER_H_
 
 #include "open62541/plugin/log_stdout.h"
 #include "open62541/server.h"
@@ -20,43 +19,42 @@
 
 _UA_BEGIN_DECLS
 
-
 typedef struct UA_Parsed_EventFilter {
     UA_EventFilter filter;
     UA_StatusCode status;
-}UA_Parsed_EventFilter;
+} UA_Parsed_EventFilter;
 
-typedef enum OperandIdentifier{
+typedef enum OperandIdentifier {
     ELEMENTOPERAND,
     EXTENSIONOBJECT
-}OperandIdentifier;
+} OperandIdentifier;
 
-typedef struct UA_Parsed_Operand{
+typedef struct UA_Parsed_Operand {
     OperandIdentifier identifier;
-    union{
+    union {
         char *element_ref;
         UA_ExtensionObject extension;
-    }value;
-}UA_Parsed_Operand;
+    } value;
+} UA_Parsed_Operand;
 
-typedef struct UA_Parsed_Operator{
+typedef struct UA_Parsed_Operator {
     UA_FilterOperator filter;
     size_t nbr_children;
     UA_Parsed_Operand *children;
     size_t ContentFilterArrayPosition;
-}UA_Parsed_Operator;
+} UA_Parsed_Operator;
 
-typedef enum ElementIdentifier{
+typedef enum ElementIdentifier {
     PARSEDOPERAND,
     parsed_operator
-}ElementIdentifier;
+} ElementIdentifier;
 
-typedef union UA_Parsed_Element{
+typedef union UA_Parsed_Element {
     UA_Parsed_Operator oper;
     UA_Parsed_Operand operand;
-}UA_Parsed_Element;
+} UA_Parsed_Element;
 
-typedef struct Parsed_Element{
+typedef struct Parsed_Element {
     char *ref;
     ElementIdentifier identifier;
     UA_Parsed_Element element;
@@ -65,18 +63,18 @@ typedef struct Parsed_Element{
 
 typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
 
-typedef struct UA_Element_List{
+typedef struct UA_Element_List {
     parsed_filter_elements head;
 }UA_Element_List;
 
-typedef union UA_Local_Operand{
+typedef union UA_Local_Operand {
     UA_SimpleAttributeOperand sao;
     UA_NodeId id;
     char *str;
     UA_LiteralOperand literal;
 } UA_Local_Operand;
 
-typedef struct counters{
+typedef struct counters {
     size_t branch_element_number;
     size_t for_operator_reference;
     size_t operand_ctr;
@@ -130,4 +128,4 @@ void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_siz
 
 _UA_END_DECLS
 
-#endif //OPEN62541_NODEID_SETUP_FUNCTIONS_H
+#endif /* UA_EVENTFILTER_PARSER_H_ */
