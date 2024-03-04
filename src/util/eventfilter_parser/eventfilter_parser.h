@@ -9,13 +9,8 @@
 #define UA_EVENTFILTER_PARSER_H_
 
 #include "open62541/plugin/log_stdout.h"
-#include "open62541/server.h"
 #include "open62541/types_generated.h"
 #include "open62541_queue.h"
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "cj5.h"
 
 _UA_BEGIN_DECLS
 

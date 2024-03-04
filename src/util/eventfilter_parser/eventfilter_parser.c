@@ -6,6 +6,10 @@
  */
 
 #include "eventfilter_parser.h"
+#include "open62541/util.h"
+
+#include "cj5.h"
+#include "mp_printf.h"
 
 static UA_Parsed_Element_List *
 create_next_operator_element(UA_Element_List *elements) {
@@ -469,7 +473,7 @@ void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand) {
 static void
 create_element_reference(size_t *branch_nbr, char **ref, char *ref_identifier) {
     char ref_nbr[128];
-    int ret = sprintf(ref_nbr, "%lu" PRIu64 , (unsigned long) *branch_nbr);
+    int ret = mp_snprintf(ref_nbr, 128, "%lu" PRIu64 , (unsigned long) *branch_nbr);
     if(ret == 0) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "sprintf Failed");
     }
@@ -758,12 +762,11 @@ set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, UA_StatusCode 
 
 void
 set_up_variant_from_time(const char *yytext, UA_Variant *litvalue) {
-    UA_DateTimeStruct dt;
-    memset(&dt, 0, sizeof(UA_DateTimeStruct));
-    sscanf(yytext, "%hi-%hu-%huT%hu:%hu:%huZ",
-           &dt.year, &dt.month, &dt.day, &dt.hour, &dt.min, &dt.sec);
-    UA_DateTime val = UA_DateTime_fromStruct(dt);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_DateTime val;
+    UA_String str = UA_STRING((char*)(uintptr_t)yytext);
+    UA_StatusCode ret = UA_decodeJson(&str, &val, &UA_TYPES[UA_TYPES_DATETIME], NULL);
+    if(ret == UA_STATUSCODE_GOOD)
+        UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_DATETIME]);
 }
 
 void
