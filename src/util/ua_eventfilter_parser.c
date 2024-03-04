@@ -5,7 +5,7 @@
  *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
  */
 
-#include "eventfilter_parser.h"
+#include "ua_eventfilter_parser.h"
 #include "open62541/util.h"
 
 #include "cj5.h"
