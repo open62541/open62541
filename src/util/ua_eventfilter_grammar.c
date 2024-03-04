@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #define YYRULECOUNT 36
-#line 1 "eventfilter_parser_grammar.leg"
+#line 1 "ua_eventfilter_grammar.leg"
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -14,7 +14,7 @@
  */
 
 #include <open62541/util.h>
-#include "eventfilter_parser.h"
+#include "ua_eventfilter_parser.h"
 
 /*
  *  Lexing and parsing of OPC UA eventfilter. These are helper functions that
@@ -24,7 +24,7 @@
  *  This compilation unit uses the leg parser generators (https://www.piumarta.com/software/peg/peg.1.html).
  *  The final C source is generated with the following script:
  *
- *  leg -Po eventfilter_parser_grammar.c eventfilter_parser_grammar.leg
+ *  leg -Po ua_eventfilter_grammar.c ua_eventfilter_grammar.leg
  *
  *  However, the generated eventfilter_parser_grammar.c file creates some compiler warnings.
  *  Here is an Explanation on how to remove these warnings:
