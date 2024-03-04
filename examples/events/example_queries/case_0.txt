@@ -1,0 +1,11 @@
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+*/
+
+SELECT
+PATH "/Message", PATH "/0:Severity", PATH "/EventType"
+WHERE
+OR($"ref_1", $"ref_2")
+FOR
+$"ref_2":= OFTYPE ns=1;i=5003
+$"ref_1":= OFTYPE i=3035
