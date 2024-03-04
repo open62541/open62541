@@ -356,10 +356,11 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
  * Float Endianness
  * ^^^^^^^^^^^^^^^^
  * The definition ``UA_FLOAT_IEEE754`` is set to true when the floating point
- * number representation of the target architecture is IEEE 754. The definition
- * ``UA_FLOAT_LITTLE_ENDIAN`` is set to true when the floating point number
- * representation is in little-endian encoding. */
-
+ * number representation of the target architecture is IEEE 754. This can be
+ * set from outside with ``-DUA_FLOAT_IEEE754=1``.
+ * The definition ``UA_FLOAT_LITTLE_ENDIAN`` is set to true when the floating
+ * point number representation is in little-endian encoding. */
+#ifndef UA_FLOAT_IEEE754
 #if defined(_WIN32)
 # define UA_FLOAT_IEEE754 1
 #elif defined(__i386__) || defined(__x86_64__) || defined(__amd64__) || \
@@ -368,8 +369,11 @@ UA_STATIC_ASSERT(sizeof(bool) == 1, cannot_overlay_integers_with_large_bool);
 # define UA_FLOAT_IEEE754 1
 #elif defined(__STDC_IEC_559__)
 # define UA_FLOAT_IEEE754 1
+#elif defined(ESP_PLATFORM)
+# define UA_FLOAT_IEEE754 1
 #else
 # define UA_FLOAT_IEEE754 0
+#endif
 #endif
 
 /* Wikipedia says (https://en.wikipedia.org/wiki/Endianness): Although the
