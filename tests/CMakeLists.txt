@@ -163,6 +163,9 @@ ua_add_test(check_types_range.c)
 
 if(UA_ENABLE_PARSING)
     ua_add_test(check_types_parse.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        ua_add_test(server/check_eventfilter_parser.c)
+    endif()
 endif()
 
 ua_add_test(check_types_custom.c)
