@@ -487,4 +487,3 @@ the shared library.
    cp /path-to/examples/tutorial_server_firststeps.c . # copy the example server
    gcc -std=c99 -o server tutorial_server_firststeps.c -lopen62541
 
-.. include:: building_arch.rst
