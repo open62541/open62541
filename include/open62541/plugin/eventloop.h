@@ -31,7 +31,6 @@ typedef struct UA_InterruptManager UA_InterruptManager;
 /**
  * Event Loop Subsystem
  * ====================
- *
  * An OPC UA-enabled application can have several clients and servers. And
  * server can serve different transport-level protocols for OPC UA. The
  * EventLoop is a central module that provides a unified control-flow for all of
@@ -46,7 +45,6 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  *
  * Timer Policies
  * --------------
- *
  * A timer comes with a cyclic interval in which a callback is executed. If an
  * application is congested the interval can be missed. Two different policies
  * can be used when this happens. Either schedule the next execution after the
@@ -377,11 +375,10 @@ struct UA_ConnectionManager {
  * The implementations of the interrupt manager for the different platforms
  * shall be designed such that:
  *
- * Registered interrupts are only intercepted from within the running EventLoop
- *
- * Processing an interrupt in the EventLoop is handled similarly to handling a
- * network event: all methods and also memory allocation are available from
- * within the interrupt callback. */
+ * - Registered interrupts are only intercepted from within the running EventLoop
+ * - Processing an interrupt in the EventLoop is handled similarly to handling a
+ *   network event: all methods and also memory allocation are available from
+ *   within the interrupt callback. */
 
 /* Interrupts can have additional key-value 'instanceInfos' for each individual
  * triggering. See the architecture-specific documentation. */
@@ -448,80 +445,111 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * The following list defines the parameters and their type. Note that some
  * parameters are only set for the first callback when a new connection opens.
  *
- * Configuration parameters for the entire ConnectionManager:
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * **Configuration parameters for the entire ConnectionManager:**
  *
- * Open Connection Parameters:
- * - 0:address [string | array of string]: Hostname or IPv4/v6 address for the
- *             connection (scalar parameter required for active connections).
- *             For listen-connections the address implies the network interfaces
- *             for listening (default: listen on all interfaces).
- * - 0:port [uint16]: Port of the target host (required).
- * - 0:listen [boolean]: Listen-connection or active-connection (default: false)
- * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
- *       without actually creating any connection but solely validating the
- *       provided parameters (default: false)
+ * 0:recv-bufsize [uint32]
+ *    Size of the buffer that is allocated for receiving messages (default 64kB).
  *
- * Connection Callback Parameters (first callback only):
- * - Active Connection
- *   - 0:remote-address [string]: Address of the remote side (hostname or IP address).
- * - Listen Connection
- *   - 0:listen-address [string]: Local address for that particular
- *                                listen-connection.
- *   - 0:listen-port [uint16]: Port on which the connection listens.
+ * **Open Connection Parameters:**
  *
- * Send Parameters:
- * No additional parameters for sending over an established TCP socket defined. */
+ * 0:address [string | array of string]
+ *    Hostname or IPv4/v6 address for the connection (scalar parameter required
+ *    for active connections). For listen-connections the address implies the
+ *    network interfaces for listening (default: listen on all interfaces).
+ *
+ * 0:port [uint16]
+ *    Port of the target host (required).
+ *
+ * 0:listen [boolean]
+ *    Listen-connection or active-connection (default: false)
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * **Active Connection Connection Callback Parameters (first callback only):**
+ *
+ * 0:remote-address [string]
+ *    Address of the remote side (hostname or IP address).
+ *
+ * **Listen Connection Connection Callback Parameters (first callback only):**
+ *
+ * 0:listen-address [string]
+ *    Local address for that particular listen-connection.
+ *
+ * 0:listen-port [uint16]
+ *    Port on which the connection listens.
+ *
+ * **Send Parameters:**
+ *
+ * No additional parameters for sending over an established TCP socket
+ * defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
 
 /**
  * UDP Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~
+ * Manages UDP connections. This should be available for all architectures. The
+ * configuration parameters have to set before calling _start to take effect.
  *
- * Manages UDP connections. This should be available for all architectures.
+ * **Configuration Parameters:**
  *
- * The configuration parameters have to set before calling _start to take
- * effect.
+ * 0:recv-bufsize [uint32]
+ *    Size of the buffer that is allocated for receiving messages (default
+ *    64kB).
  *
- * Configuration Parameters:
+ * **Open Connection Parameters:**
  *
- * - 0:recv-bufsize [uint32]: Size of the buffer that is allocated for receiving
- *                            messages (default 64kB).
+ * 0:listen [boolean]
+ *    Use the connection for listening or for sending (default: false)
  *
- * Open Connection Parameters:
+ * 0:address [string | string array]
+ *    Hostname (or IPv4/v6 address) for sending or receiving. A scalar is
+ *    required for sending. For listening a string array for the list-hostnames
+ *    is possible as well (default: list on all hostnames).
  *
- * - 0:listen [boolean]: Use the connection for listening or for sending
- *       (default: false)
- * - 0:address [string | string array]: Hostname (or IPv4/v6 address) for
- *       sending or receiving. A scalar is required for sending. For listening a
- *       string array for the list-hostnames is possible as well (default: list
- *       on all hostnames).
- * - 0:port [uint16]: Port for sending or listening (required).
- * - 0:interface [string]: Network interface for listening or sending (e.g. when
- *       using multicast addresses)
- * - 0:ttl [uint32]: Multicast time to live, (optional, default: 1 - meaning
- *       multicast is available only to the local subnet).
- * - 0:loopback [boolean]: Whether or not to use multicast loopback, enabling
- *       local interfaces belonging to the multicast group to receive packages.
- *       (default: enabled).
- * - 0:reuse [boolean]: Enables sharing of the same listening address on
- *       different sockets (default: disabled).
- * - 0:sockpriority [uint32]: The socket priority (optional) - only available on
- *       linux. packets with a higher priority may be processed first depending
- *       on the selected device queueing discipline. Setting a priority outside
- *       the range 0 to 6 requires the CAP_NET_ADMIN capability (on Linux).
- * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
- *       without actually creating any connection but solely validating the
- *       provided parameters (default: false)
+ * 0:port [uint16]
+ *    Port for sending or listening (required).
  *
- * Connection Callback Paramters:
+ * 0:interface [string]
+ *    Network interface for listening or sending (e.g. when using multicast
+ *    addresses)
  *
- * - 0:remote-address [string]: Contains the remote IP address.
- * - 0:remote-port [uint16]: Contains the remote port.
+ * 0:ttl [uint32]
+ *    Multicast time to live, (optional, default: 1 - meaning multicast is
+ *    available only to the local subnet).
  *
- * Send Parameters:
+ * 0:loopback [boolean]
+ *    Whether or not to use multicast loopback, enabling local interfaces
+ *    belonging to the multicast group to receive packages. (default: enabled).
+ *
+ * 0:reuse [boolean]
+ *    Enables sharing of the same listening address on different sockets
+ *    (default: disabled).
+ *
+ * 0:sockpriority [uint32]
+ *    The socket priority (optional) - only available on linux. packets with a
+ *    higher priority may be processed first depending on the selected device
+ *    queueing discipline. Setting a priority outside the range 0 to 6 requires
+ *    the CAP_NET_ADMIN capability (on Linux).
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * **Connection Callback Paramters:**
+ *
+ * 0:remote-address [string]
+ *    Contains the remote IP address.
+ *
+ * 0:remote-port [uint16]
+ *    Contains the remote port.
+ *
+ * **Send Parameters:**
+ *
  * No additional parameters for sending over an UDP connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
@@ -530,33 +558,47 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * Ethernet Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
  * Listens on the network and manages UDP connections. This should be available
- * for all architectures.
+ * for all architectures. The configuration parameters have to set before
+ * calling _start to take effect.
  *
- * The configuration parameters have to set before calling _start to take
- * effect.
+ * **Open Connection Parameters:**
  *
- * Open Connection Parameters:
- * - 0:listen [bool]: The connection is either for sending or for listening
- *                    (default: false).
- * - 0:interface [string]: The name of the Ethernet interface to use (required).
- * - 0:address [string]: MAC target address consisting of six groups of
- *                       hexadecimal digits separated by hyphens such as
- *                       01-23-45-67-89-ab. For sending this is a required
- *                       parameter. For listening this is a multicast address
- *                       that the connections tries to register for.
- * - 0:ethertype [uint16]: EtherType for sending and receiving frames (optional).
- *                         For listening connections, this filters out all frames
- *                         with different EtherTypes.
- * - 0:promiscuous [bool]: Receive frames also for different target addresses.
- *                         Defined only for listening connections (default: false).
- * - 0:vid [uint16]: 12-bit VLAN identifier (optional for send connections).
- * - 0:pcp [byte]: 3-bit priority code point (optional for send connections).
- * - 0:dei [bool]: 1-bit drop eligible indicator (optional for seond connections).
- * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
- *       without actually creating any connection but solely validating the
- *       provided parameters (default: false)
+ * 0:listen [bool]
+ *    The connection is either for sending or for listening (default: false).
  *
- * Send Parameters:
+ * 0:interface [string]
+ *    The name of the Ethernet interface to use (required).
+ *
+ * 0:address [string]
+ *    MAC target address consisting of six groups of hexadecimal digits
+ *    separated by hyphens such as 01-23-45-67-89-ab. For sending this is a
+ *    required parameter. For listening this is a multicast address that the
+ *    connections tries to register for.
+ *
+ * 0:ethertype [uint16]
+ *    EtherType for sending and receiving frames (optional). For listening
+ *    connections, this filters out all frames with different EtherTypes.
+ *
+ * 0:promiscuous [bool]
+ *    Receive frames also for different target addresses. Defined only for
+ *    listening connections (default: false).
+ *
+ * 0:vid [uint16]
+ *    12-bit VLAN identifier (optional for send connections).
+ *
+ * 0:pcp [byte]
+ *    3-bit priority code point (optional for send connections).
+ *
+ * 0:dei [bool]
+ *    1-bit drop eligible indicator (optional for seond connections).
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * **Send Parameters:**
+ *
  * No additional parameters for sending over an Ethernet connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
@@ -564,7 +606,6 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
 /**
  * MQTT Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~
- *
  * The MQTT ConnectionManager reuses the TCP ConnectionManager that is
  * configured in the EventLoop. Hence the MQTT ConnectionManager is platform
  * agnostic and does not require porting. An MQTT connection is for a
@@ -574,26 +615,46 @@ UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
  * separate connections are created for each topic and for each direction
  * (publishing / subscribing).
  *
- * Open Connection Parameters:
- * - 0:address [string]: Hostname or IPv4/v6 address of the MQTT broker
- *                       (required).
- * - 0:port [uint16]: Port of the MQTT broker (default: 1883).
- * - 0:username [string]: Username to use (default: none)
- * - 0:password [string]: Password to use (default: none)
- * - 0:keep-alive [uint16]: Number of seconds for the keep-alive (ping)
- *                          (default: 400).
- * - 0:validate [boolean]: If true, the connection setup will act as a dry-run
- *       without actually creating any connection but solely validating the
- *       provided parameters (default: false)
+ * **Open Connection Parameters:**
  *
- * - 0:topic [string]: Topic to which the connection is associated (required).
- * - 0:subscribe [bool]: Subscribe to the topic (default: false).
- *                       Otherwise it is only possible to publish on the topic.
- *                       Subscribed topics can also be published to.
+ * 0:address [string]
+ *    Hostname or IPv4/v6 address of the MQTT broker (required).
  *
- * Connection Callback Parameters:
- * - 0:topic [string]: The value set during connect.
- * - 0:subscribe [bool]: The value set during connect. */
+ * 0:port [uint16]
+ *    Port of the MQTT broker (default: 1883).
+ *
+ * 0:username [string]
+ *    Username to use (default: none)
+ *
+ * 0:password [string]
+ *    Password to use (default: none)
+ *
+ * 0:keep-alive [uint16]
+ *   Number of seconds for the keep-alive (ping) (default: 400).
+ *
+ * 0:validate [boolean]
+ *    If true, the connection setup will act as a dry-run without actually
+ *    creating any connection but solely validating the provided parameters
+ *    (default: false)
+ *
+ * 0:topic [string]
+ *    Topic to which the connection is associated (required).
+ *
+ * 0:subscribe [bool]
+ *    Subscribe to the topic (default: false). Otherwise it is only possible to
+ *    publish on the topic. Subscribed topics can also be published to.
+ *
+ * **Connection Callback Parameters:**
+ *
+ * 0:topic [string]
+ *    The value set during connect.
+ *
+ * 0:subscribe [bool]
+ *    The value set during connect.
+ *
+ * **Send Parameters:**
+ *
+ * No additional parameters for sending over an Ethernet connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
 
