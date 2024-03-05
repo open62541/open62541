@@ -64,10 +64,11 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c ${DOC_SRC_D
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_SRC_DIR}/tutorial_client_firststeps.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub/tutorial_pubsub_publish.c ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub/tutorial_pubsub_subscribe.c ${DOC_SRC_DIR}/tutorial_pubsub_subscribe.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_publisher.c ${DOC_SRC_DIR}/pubsub_TSN_publisher.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_loopback.c ${DOC_SRC_DIR}/pubsub_TSN_loopback.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_publisher.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_publisher.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_subscriber.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_subscriber.rst)
+
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_publisher.c ${DOC_SRC_DIR}/pubsub_TSN_publisher.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_loopback.c ${DOC_SRC_DIR}/pubsub_TSN_loopback.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_publisher.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_publisher.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_subscriber.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_subscriber.rst)
 
 # Doc targets
 
