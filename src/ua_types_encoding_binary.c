@@ -91,7 +91,10 @@ static status exchangeBuffer(Ctx *ctx) {
 static status
 encodeWithExchangeBuffer(const void *ptr, const UA_DataType *type, Ctx *ctx) {
     u8 *oldpos = ctx->pos; /* Last known good position */
-#ifndef NDEBUG
+/**
+ * It is often forgotten to include -DNDEBUG in the compiler flags when using the single-file release.
+ * So we make assertions dependent on the UA_DEBUG definition handled by CMake. */
+#ifdef UA_DEBUG
     /* We have to ensure that the buffer was not exchanged AND
      * BADENCODINGLIMITSEXCEEDED was returned. If that were the case, oldpos
      * would be invalid. That means, a type encoding must never return
