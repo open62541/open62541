@@ -881,8 +881,8 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                                     "UDP %u\t| Send failed with error %s",
                                     (unsigned)connectionId, errno_str));
-                    UDP_shutdownConnection(cm, connectionId);
                     UA_UNLOCK(&el->elMutex);
+                    UDP_shutdownConnection(cm, connectionId);
                     UA_ByteString_clear(buf);
                     return UA_STATUSCODE_BADCONNECTIONCLOSED;
                 }
@@ -901,8 +901,8 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         UA_LOGCATEGORY_NETWORK,
                                         "UDP %u\t| Send failed with error %s",
                                         (unsigned)connectionId, errno_str));
-                        UDP_shutdownConnection(cm, connectionId);
                         UA_UNLOCK(&el->elMutex);
+                        UDP_shutdownConnection(cm, connectionId);
                         UA_ByteString_clear(buf);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
