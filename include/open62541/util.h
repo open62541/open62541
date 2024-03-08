@@ -29,6 +29,19 @@ typedef struct {
 } UA_DurationRange;
 
 /**
+ * Query Language Eventfilter
+ * @param content eventfilter query
+ * @param filter generated eventfilter
+ */
+#ifdef UA_ENABLE_PARSING
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+UA_EXPORT UA_StatusCode
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content);
+#endif
+#endif
+
+
+/**
  * Random Number Generator
  * -----------------------
  * If UA_MULTITHREADING is defined, then the seed is stored in thread
@@ -292,6 +305,8 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 #endif
 
 /**
+ * .. _parse-sao:
+ *
  * Print and Parse SimpleAttributeOperand Expression
  * -------------------------------------------------
  * The SimpleAttributeOperand is used to specify the location of up values.

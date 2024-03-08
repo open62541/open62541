@@ -162,6 +162,9 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
     /* Inform application about state change */
     if(dsw->state != oldState) {
         UA_ServerConfig *config = &server->config;
+        UA_LOG_INFO_WRITER(config->logging, dsw, "State change: %s -> %s",
+                           UA_PubSubState_name(oldState),
+                           UA_PubSubState_name(dsw->state));
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.

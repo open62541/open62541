@@ -142,12 +142,83 @@ Service_SetTriggering(UA_Server *server, UA_Session *session,
             UA_MonitoredItem_addLink(sub, mon, request->linksToAdd[i]);
 }
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+static UA_StatusCode
+checkEventFilterParam(UA_Server *server, UA_Session *session,
+                      const UA_MonitoredItem *mon,
+                      UA_MonitoringParameters *params,
+                      UA_ExtensionObject *filterResult) {
+    UA_assert(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER);
+
+    /* Correct data type? */
+    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
+       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
+
+    /* Correct number of elements? */
+    if(eventFilter->selectClausesSize == 0 ||
+       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Allow empty where clauses --> select every event */
+    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
+        return UA_STATUSCODE_BADEVENTFILTERINVALID;
+
+    /* Check where-clause */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    const UA_ContentFilter *cf = &eventFilter->whereClause;
+    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
+    for(size_t i = 0; i < cf->elementsSize; ++i) {
+        UA_ContentFilterElement *ef = &cf->elements[i];
+        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
+        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = whereRes[i].statusCode;
+    }
+
+    /* Check select clause */
+    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
+    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
+        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
+        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
+        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
+            res = selectRes[i];
+    }
+
+    /* Filter bad, return details */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_EventFilterResult *efr = UA_EventFilterResult_new();
+        if(!efr) {
+            res = UA_STATUSCODE_BADOUTOFMEMORY;
+        } else {
+            UA_EventFilterResult tmp_efr;
+            UA_EventFilterResult_init(&tmp_efr);
+            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
+            tmp_efr.selectClauseResults = selectRes;
+            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
+            tmp_efr.whereClauseResult.elementResults = whereRes;
+            UA_EventFilterResult_copy(&tmp_efr, efr);
+            UA_ExtensionObject_setValue(filterResult, efr,
+                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
+        }
+    }
+
+    for(size_t i = 0; i < cf->elementsSize; ++i)
+        UA_ContentFilterElementResult_clear(&whereRes[i]);
+    return res;
+}
+#endif
+
 /* Verify and adjust the parameters of a MonitoredItem */
 static UA_StatusCode
 checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                const UA_MonitoredItem *mon,
                                const UA_DataType* valueType,
-                               UA_MonitoringParameters *params) {
+                               UA_MonitoringParameters *params,
+                               UA_ExtensionObject *filterResult) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check the filter */
@@ -156,11 +227,10 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
 #ifndef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         return UA_STATUSCODE_BADNOTSUPPORTED;
 #else
-        if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-           params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-            return UA_STATUSCODE_BADEVENTFILTERINVALID;
-        if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
-            return UA_STATUSCODE_BADEVENTFILTERINVALID;
+        UA_StatusCode res = checkEventFilterParam(server, session, mon,
+                                                  params, filterResult);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 #endif
     } else {
         /* DataChange MonitoredItem. Can be "no filter" which defaults to
@@ -268,78 +338,6 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-static UA_StatusCode
-checkEventFilterParam(UA_Server *server, UA_Session *session,
-                      const UA_MonitoredItem *mon,
-                      UA_MonitoringParameters *params,
-                      UA_MonitoredItemCreateResult *result) {
-    /* Is an Event MonitoredItem? */
-    if(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-        return UA_STATUSCODE_GOOD;
-
-    /* Correct data type? */
-    if(params->filter.encoding != UA_EXTENSIONOBJECT_DECODED &&
-       params->filter.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-    if(params->filter.content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER])
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    UA_EventFilter *eventFilter = (UA_EventFilter *)params->filter.content.decoded.data;
-
-    /* Correct number of elements? */
-    if(eventFilter->selectClausesSize == 0 ||
-       eventFilter->selectClausesSize > UA_EVENTFILTER_MAXSELECT)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Allow empty where clauses --> select every event */
-    if(eventFilter->whereClause.elementsSize > UA_EVENTFILTER_MAXELEMENTS)
-        return UA_STATUSCODE_BADEVENTFILTERINVALID;
-
-    /* Check where-clause */
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    const UA_ContentFilter *cf = &eventFilter->whereClause;
-    UA_ContentFilterElementResult whereRes[UA_EVENTFILTER_MAXELEMENTS];
-    for(size_t i = 0; i < cf->elementsSize; ++i) {
-        UA_ContentFilterElement *ef = &cf->elements[i];
-        whereRes[i] = UA_ContentFilterElementValidation(server, i, cf->elementsSize, ef);
-        if(whereRes[i].statusCode != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = whereRes[i].statusCode;
-    }
-
-    /* Check select clause */
-    UA_StatusCode selectRes[UA_EVENTFILTER_MAXSELECT];
-    for(size_t i = 0; i < eventFilter->selectClausesSize; i++) {
-        const UA_SimpleAttributeOperand *sao = &eventFilter->selectClauses[i];
-        selectRes[i] = UA_SimpleAttributeOperandValidation(server, sao);
-        if(selectRes[i] != UA_STATUSCODE_GOOD && res == UA_STATUSCODE_GOOD)
-            res = selectRes[i];
-    }
-
-    /* Filter bad, return details */
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_EventFilterResult *efr = UA_EventFilterResult_new();
-        if(!efr) {
-            res = UA_STATUSCODE_BADOUTOFMEMORY;
-        } else {
-            UA_EventFilterResult tmp_efr;
-            UA_EventFilterResult_init(&tmp_efr);
-            tmp_efr.selectClauseResultsSize = eventFilter->selectClausesSize;
-            tmp_efr.selectClauseResults = selectRes;
-            tmp_efr.whereClauseResult.elementResultsSize = cf->elementsSize;
-            tmp_efr.whereClauseResult.elementResults = whereRes;
-            UA_EventFilterResult_copy(&tmp_efr, efr);
-            UA_ExtensionObject_setValue(&result->filterResult, efr,
-                                        &UA_TYPES[UA_TYPES_EVENTFILTERRESULT]);
-        }
-    }
-
-    for(size_t i = 0; i < cf->elementsSize; ++i)
-        UA_ContentFilterElementResult_clear(&whereRes[i]);
-    return res;
-}
-#endif
-
 static const UA_String
 binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 
@@ -347,10 +345,7 @@ binaryEncoding = {sizeof("Default Binary") - 1, (UA_Byte *)"Default Binary"};
 struct createMonContext {
     UA_Subscription *sub;
     UA_TimestampsToReturn timestampsToReturn;
-
-    /* If sub is NULL, use local callbacks */
-    UA_Server_DataChangeNotificationCallback dataChangeCallback;
-    void *context;
+    UA_LocalMonitoredItem *localMon; /* used if non-null */
 };
 
 static void
@@ -361,7 +356,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Check available capacity */
-    if(cmc->sub != server->adminSubscription &&
+    if(!cmc->localMon &&
        (((server->config.maxMonitoredItems != 0) &&
          (server->monitoredItemsSize >= server->config.maxMonitoredItems)) ||
         ((server->config.maxMonitoredItemsPerSubscription != 0) &&
@@ -419,15 +414,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Adding an Event MonitoredItem */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
-        if(!cmc->sub) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Only remote clients can add Event-MonitoredItems");
-            result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
-            UA_DataValue_clear(&v);
-            return;
-        }
-
         /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
          * zero, then the object cannot be subscribed to monitor events */
         if(!v.hasValue || !v.value.data) {
@@ -453,37 +439,28 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
 
     /* Allocate the MonitoredItem */
     UA_MonitoredItem *newMon = NULL;
-    if(cmc->sub == server->adminSubscription) {
-        UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
-            UA_malloc(sizeof(UA_LocalMonitoredItem));
-        if(localMon) {
-            /* Set special values only for the LocalMonitoredItem */
-            localMon->context = cmc->context;
-            localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
-        }
-        newMon = &localMon->monitoredItem;
+    if(cmc->localMon) {
+        newMon = &cmc->localMon->monitoredItem;
+        cmc->localMon = NULL; /* clean up internally from now on */
     } else {
         newMon = (UA_MonitoredItem*)UA_malloc(sizeof(UA_MonitoredItem));
-    }
-    if(!newMon) {
-        result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
-        return;
+        if(!newMon) {
+            result->statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+            return;
+        }
     }
 
     /* Initialize the MonitoredItem */
     UA_MonitoredItem_init(newMon);
-    newMon->subscription = cmc->sub; /* Can be NULL for local MonitoredItems */
+    newMon->subscription = cmc->sub;
     newMon->timestampsToReturn = cmc->timestampsToReturn;
     result->statusCode |= UA_ReadValueId_copy(&request->itemToMonitor,
                                               &newMon->itemToMonitor);
     result->statusCode |= UA_MonitoringParameters_copy(&request->requestedParameters,
                                                        &newMon->parameters);
     result->statusCode |= checkAdjustMonitoredItemParams(server, session, newMon,
-                                                         valueType, &newMon->parameters);
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-    result->statusCode |= checkEventFilterParam(server, session, newMon,
-                                                &newMon->parameters, result);
-#endif
+                                                         valueType, &newMon->parameters,
+                                                         &result->filterResult);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
                                  "Could not create a MonitoredItem "
@@ -501,8 +478,8 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     UA_Server_registerMonitoredItem(server, newMon);
 
     /* Activate the MonitoredItem */
-    result->statusCode |=
-        UA_MonitoredItem_setMonitoringMode(server, newMon, request->monitoringMode);
+    result->statusCode = UA_MonitoredItem_setMonitoringMode(server, newMon,
+                                                            request->monitoringMode);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoredItem_delete(server, newMon);
         return;
@@ -530,6 +507,7 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
                          "Processing CreateMonitoredItemsRequest");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Check the upper bound for the number of items */
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->itemsToCreateSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
@@ -537,22 +515,27 @@ Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the timestampstoreturn is valid */
-    struct createMonContext cmc;
-    cmc.timestampsToReturn = request->timestampsToReturn;
-    if(cmc.timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
+    if(request->timestampsToReturn < UA_TIMESTAMPSTORETURN_SOURCE ||
+       request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTIMESTAMPSTORETURNINVALID;
         return;
     }
 
     /* Find the subscription */
-    cmc.sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
-    if(!cmc.sub) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
 
     /* Reset the lifetime counter of the Subscription */
-    Subscription_resetLifetime(cmc.sub);
+    Subscription_resetLifetime(sub);
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.timestampsToReturn = request->timestampsToReturn;
+    cmc.sub = sub;
+    cmc.localMon = NULL;
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -569,18 +552,143 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
                                         const UA_MonitoredItemCreateRequest item,
                                         void *monitoredItemContext,
                                         UA_Server_DataChangeNotificationCallback callback) {
-    struct createMonContext cmc;
-    cmc.sub = server->adminSubscription;
-    cmc.context = monitoredItemContext;
-    cmc.dataChangeCallback = callback;
-    cmc.timestampsToReturn = timestampsToReturn;
-
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
+
+    /* Check that we don't use the DataChange callback for events */
+    if(item.itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "DataChange-MonitoredItem cannot be created for the "
+                     "EventNotifier attribute");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    /* Pre-allocate the local MonitoredItem structure */
+    UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
+        UA_calloc(1, sizeof(UA_LocalMonitoredItem));
+    if(!localMon) {
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->context = monitoredItemContext;
+    localMon->callback.dataChangeCallback = callback;
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.sub = server->adminSubscription;
+    cmc.localMon = localMon;
+    cmc.timestampsToReturn = timestampsToReturn;
+
     UA_LOCK(&server->serviceMutex);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
     UA_UNLOCK(&server->serviceMutex);
+
+    /* If this failed, clean up the local MonitoredItem structure */
+    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon)
+        UA_free(localMon);
+
     return result;
+}
+
+UA_MonitoredItemCreateResult
+UA_Server_createEventMonitoredItemEx(UA_Server *server,
+                                     const UA_MonitoredItemCreateRequest item,
+                                     void *monitoredItemContext,
+                                     UA_Server_EventNotificationCallback callback) {
+    UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+
+    /* Check that we don't use the DataChange callback for events */
+    if(item.itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Event-MonitoredItem must monitor the EventNotifier attribute");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    const UA_ExtensionObject *filter = &item.requestedParameters.filter;
+    if((filter->encoding != UA_EXTENSIONOBJECT_DECODED &&
+        filter->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       filter->content.decoded.type != &UA_TYPES[UA_TYPES_EVENTFILTER]) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Filter is not of EventFilter data type");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    UA_EventFilter *ef = (UA_EventFilter*)filter->content.decoded.data;
+    if(ef->selectClausesSize == 0) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Event filter must define at least one select clause");
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    /* Pre-allocate the local MonitoredItem structure */
+    UA_LocalMonitoredItem *localMon = (UA_LocalMonitoredItem*)
+        UA_calloc(1, sizeof(UA_LocalMonitoredItem));
+    if(!localMon) {
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->context = monitoredItemContext;
+    localMon->callback.eventCallback = callback;
+
+    /* Create the string names for the event fields */
+    localMon->eventFields.map = (UA_KeyValuePair*)
+        UA_calloc(ef->selectClausesSize, sizeof(UA_KeyValuePair));
+    if(!localMon->eventFields.map) {
+        UA_free(localMon);
+        result.statusCode = UA_STATUSCODE_BADOUTOFMEMORY;
+        return result;
+    }
+    localMon->eventFields.mapSize = ef->selectClausesSize;
+
+#ifdef UA_ENABLE_PARSING
+    for(size_t i = 0; i < ef->selectClausesSize; i++) {
+        result.statusCode |=
+            UA_SimpleAttributeOperand_print(&ef->selectClauses[i],
+                                            &localMon->eventFields.map[i].key.name);
+    }
+    if(result.statusCode != UA_STATUSCODE_GOOD) {
+        UA_KeyValueMap_clear(&localMon->eventFields);
+        UA_free(localMon);
+        return result;
+    }
+#endif
+
+    /* Call the service */
+    struct createMonContext cmc;
+    cmc.sub = server->adminSubscription;
+    cmc.localMon = localMon;
+    cmc.timestampsToReturn = UA_TIMESTAMPSTORETURN_NEITHER;
+
+    UA_LOCK(&server->serviceMutex);
+    Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
+    UA_UNLOCK(&server->serviceMutex);
+
+    /* If the service failed, clean up the local MonitoredItem structure */
+    if(result.statusCode != UA_STATUSCODE_GOOD && cmc.localMon) {
+        UA_KeyValueMap_clear(&localMon->eventFields);
+        UA_free(localMon);
+    }
+    return result;
+}
+
+UA_MonitoredItemCreateResult
+UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_EventFilter filter, void *monitoredItemContext,
+                                   UA_Server_EventNotificationCallback callback) {
+    UA_MonitoredItemCreateRequest item;
+    UA_MonitoredItemCreateRequest_init(&item);
+    item.itemToMonitor.nodeId = nodeId;
+    item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    item.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    UA_ExtensionObject_setValue(&item.requestedParameters.filter,
+                                (void*)(uintptr_t)&filter,
+                                &UA_TYPES[UA_TYPES_EVENTFILTER]);
+    return UA_Server_createEventMonitoredItemEx(server, item, monitoredItemContext, callback);
 }
 
 static void
@@ -609,8 +717,8 @@ Operation_ModifyMonitoredItem(UA_Server *server, UA_Session *session, UA_Subscri
     /* Verify and adjust the new parameters. This still leaves the original
      * MonitoredItem untouched. */
     result->statusCode =
-        checkAdjustMonitoredItemParams(server, session, mon,
-                                       v.value.type, &params);
+        checkAdjustMonitoredItemParams(server, session, mon, v.value.type,
+                                       &params, &result->filterResult);
     UA_DataValue_clear(&v);
     if(result->statusCode != UA_STATUSCODE_GOOD) {
         UA_MonitoringParameters_clear(&params);
@@ -728,6 +836,7 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing SetMonitoringMode");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Check the max number if items */
     if(server->config.maxMonitoredItemsPerCall != 0 &&
        request->monitoredItemIdsSize > server->config.maxMonitoredItemsPerCall) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADTOOMANYOPERATIONS;
@@ -735,17 +844,20 @@ Service_SetMonitoringMode(UA_Server *server, UA_Session *session,
     }
 
     /* Get the subscription */
-    struct setMonitoringContext smc;
-    smc.sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
-    if(!smc.sub) {
+    UA_Subscription *sub = UA_Session_getSubscriptionById(session, request->subscriptionId);
+    if(!sub) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
         return;
     }
 
     /* Reset the lifetime counter of the Subscription */
-    Subscription_resetLifetime(smc.sub);
+    Subscription_resetLifetime(sub);
 
+    /* Call the service */
+    struct setMonitoringContext smc;
+    smc.sub = sub;
     smc.monitoringMode = request->monitoringMode;
+
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
                                            (UA_ServiceOperation)Operation_SetMonitoringMode,

@@ -628,8 +628,10 @@ UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
     ret = UA_CertContext_Init (context, certGroup);
     if (ret != UA_STATUSCODE_GOOD) {
+        UA_free(context);
         return ret;
     }
 
@@ -694,8 +696,10 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
     if (context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
+
     ret = UA_CertContext_Init (context, certGroup);
     if (ret != UA_STATUSCODE_GOOD) {
+        UA_free(context);
         return ret;
     }
 
@@ -708,7 +712,6 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
     certGroup->removeFromTrustList = NULL;
 
     /* Only set the folder paths. They will be reloaded during runtime. */
-
     context->trustListFolder = UA_STRING_ALLOC(trustListFolder);
     context->issuerListFolder = UA_STRING_ALLOC(issuerListFolder);
     context->revocationListFolder = UA_STRING_ALLOC(revocationListFolder);

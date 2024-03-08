@@ -87,9 +87,6 @@ endif()
 add_library(open62541-testplugins OBJECT ${test_plugin_sources})
 add_dependencies(open62541-testplugins open62541)
 target_compile_definitions(open62541-testplugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if(UA_ENABLE_COVERAGE)
-    add_coverage(open62541-testplugins)
-endif()
 
 # Unit Test Definition Macro
 # For now we need to disable the libc freeres. See https://github.com/open62541/open62541/pull/1003#issuecomment-315045143
@@ -166,6 +163,9 @@ ua_add_test(check_types_range.c)
 
 if(UA_ENABLE_PARSING)
     ua_add_test(check_types_parse.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        ua_add_test(server/check_eventfilter_parser.c)
+    endif()
 endif()
 
 ua_add_test(check_types_custom.c)
@@ -225,6 +225,7 @@ if(UA_ENABLE_SUBSCRIPTIONS)
   ua_add_test(server/check_monitoreditem_filter.c)
 if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   ua_add_test(server/check_subscription_events.c)
+  ua_add_test(server/check_subscription_events_local.c)
   ua_add_test(server/check_subscription_event_filter.c)
 endif()
 endif()

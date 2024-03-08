@@ -16,3 +16,4 @@ open62541 Documentation
    nodeset_compiler
    plugin
    generated
+   open62541_extensions

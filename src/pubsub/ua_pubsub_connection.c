@@ -153,20 +153,15 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 UA_StatusCode
 UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
-    /* Validate preconditions */
-    UA_CHECK_MEM(server, return UA_STATUSCODE_BADINTERNALERROR);
-    UA_CHECK_ERROR(cc != NULL, return UA_STATUSCODE_BADINTERNALERROR,
-                   server->config.logging, UA_LOGCATEGORY_SERVER,
-                   "PubSub Connection creation failed. Missing connection configuration.");
+    if(!server || !cc)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Allocate */
-    UA_PubSubConnection *c = (UA_PubSubConnection *)
+    UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
-    if(!c) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "PubSub Connection creation failed. Out of Memory.");
+    if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
+
     c->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
 
     /* Copy the connection config */
@@ -192,7 +187,8 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&c->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ", (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ",
+                (int)idStr.length, idStr.data);
     c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 
@@ -200,12 +196,15 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(server, c, true);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_CONNECTION(server->config.logging, c,
+                                "Could not validate connection parameters");
+        UA_PubSubConnection_delete(server, c);
+        return ret;
+    }
 
     /* Make the connection operational */
-    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL,
-                                             UA_STATUSCODE_GOOD);
+    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 
@@ -315,24 +314,80 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    /* Make the connection disabled */
-    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED,
-                                             UA_STATUSCODE_GOOD);
-
+    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED);
     UA_PubSubConnection_delete(server, psc);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
+void
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+                            UA_ByteString msg) {
+    /* Process RT ReaderGroups */
+    UA_ReaderGroup *rg;
+    UA_Boolean processed = false;
+    UA_ReaderGroup *nonRtRg = NULL;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE) {
+            nonRtRg = rg;
+            continue;
+        } 
+        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
+    }
+
+    /* Any non-RT ReaderGroups? */
+    if(!nonRtRg)
+        goto finish;
+
+    /* Decode the received message for the non-RT ReaderGroups */
+    UA_StatusCode res;
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        size_t currentPosition = 0;
+        res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, c);
+    } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
+        res = UA_NetworkMessage_decodeJson(&nm, &msg);
+#else
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
+                                  "Verify, decrypt and decode network message failed");
+        return;
+    }
+
+    /* Process the received message for the non-RT ReaderGroups */
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+        if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+            continue;
+        processed |= UA_ReaderGroup_process(server, rg, &nm);
+    }
+    UA_NetworkMessage_clear(&nm);
+
+ finish:
+    if(!processed) {
+        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
+                                  "Message received that could not be processed. "
+                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
+    }
+}
+
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
-                                   UA_PubSubState targetState, UA_StatusCode cause) {
+                                   UA_PubSubState targetState) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->state;
-    UA_WriterGroup *writerGroup;
-    UA_ReaderGroup *readerGroup;
 
  set_state:
 
@@ -340,22 +395,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         case UA_PUBSUBSTATE_ERROR:
         case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_DISABLED:
-            if(targetState == oldState)
-                break;
-
             /* Close the EventLoop connection */
-            c->state = targetState;
             UA_PubSubConnection_disconnect(c);
-
-            /* Update Reader and WriterGroups. This will set them to PAUSED (if
-             * they were operational) as the Connection is now
-             * non-operational. */
-            LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-                UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
-            }
-            LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-                UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
-            }
+            c->state = targetState;
             break;
 
         case UA_PUBSUBSTATE_PREOPERATIONAL:
@@ -373,7 +415,6 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
              * fallout of a failed connection here. */
             ret = UA_PubSubConnection_connect(server, c, false);
             if(ret != UA_STATUSCODE_GOOD) {
-                cause = ret;
                 targetState = UA_PUBSUBSTATE_ERROR;
                 goto set_state;
             }
@@ -387,12 +428,59 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     /* Inform application about state change */
     if(c->state != oldState) {
         UA_ServerConfig *config = &server->config;
+        UA_LOG_INFO_CONNECTION(config->logging, c, "State change: %s -> %s",
+                               UA_PubSubState_name(oldState),
+                               UA_PubSubState_name(c->state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, cause);
+            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, ret);
         UA_LOCK(&server->serviceMutex);
     }
+
+    /* Update Reader and WriterGroups. This will set them to PAUSED (if
+     * they were operational) as the Connection is now
+     * non-operational. */
+    UA_ReaderGroup *readerGroup;
+    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
+        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+    }
+    UA_WriterGroup *writerGroup;
+    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
+    }
     return ret;
+}
+
+static UA_StatusCode
+enablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
+    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL)
+        : UA_STATUSCODE_BADNOTFOUND;
+}
+
+static UA_StatusCode
+disablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
+    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED)
+        : UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_enablePubSubConnection(UA_Server *server,
+                                 const UA_NodeId connectionId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = enablePubSubConnection(server, connectionId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_disablePubSubConnection(UA_Server *server,
+                                  const UA_NodeId connectionId) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = disablePubSubConnection(server, connectionId);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 UA_EventLoop *

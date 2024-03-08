@@ -1,0 +1,251 @@
+%{
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
+ *
+ *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ */
+
+#include <open62541/util.h>
+#include "ua_eventfilter_parser.h"
+
+/*
+ *  Lexing and parsing of OPC UA eventfilter. These are helper functions that
+ *  are not required by the SDk internally. But they are useful for users who want to create
+ *  eventfilter from human readable strings.
+ *
+ *  This compilation unit uses the leg parser generators (https://www.piumarta.com/software/peg/peg.1.html).
+ *  The final C source is generated with the following script:
+ *
+ *  leg -Po ua_eventfilter_grammar.c ua_eventfilter_grammar.leg
+ *
+ *  However, the generated eventfilter_parser_grammar.c file creates some compiler warnings.
+ *  Here is an Explanation on how to remove these warnings:
+ *  windows build:
+ *
+ *   1 #define YY_INPUT(yyctx, buf, result, max_size) \
+ *   2 {                                              \
+ *   3  if(yyctx->input.length <= yyctx->pos) {      \
+ *   4      result = 0;                              \
+ *   5  } else {                                     \
+ *   6      result = ((int) yyctx->input.length) - yyctx->pos;\
+ *   7      if(result > max_size)                     \
+ *   8          result = max_size;                   \
+ *   9      memcpy(buf, &yyctx->input.data[yyctx->pos], result); \
+ *   10      yyctx->pos += result;                    \
+ *   11  }                                            \
+ *   12}
+ *   replace: yyctx->input.length with  ((int) yyctx->input.length) in line 6
+ *
+ *   13 YY_LOCAL(void) yyPush(yycontext *yy, char *text, int count)
+ *   14 {
+ *   15   yy->__val += count;
+ *   16   while (yy->__valslen <= yy->__val - yy->__vals)
+ *   17     {
+ *   18       long offset= (long)( yy->__val - yy->__vals);
+ *   19       yy->__valslen *= 2;
+ *   20       yy->__vals= (YYSTYPE *)YY_REALLOC(yy, yy->__vals, sizeof(YYSTYPE) * yy->__valslen);
+ *   21       yy->__val= yy->__vals + offset;
+ *   22     }
+ *   23 }
+ *   replace: long offset= yy->__val - yy->__vals; with long offset= (long)( yy->__val - yy->__vals); in line 18
+ *
+ *   linux build:
+ *
+ *   replace YY_PARSE(int) YYPARSEFROM(YY_CTX_PARAM_ yyrule yystart) with YY_PARSE(static int) YYPARSEFROM(YY_CTX_PARAM_ yyrule yystart)
+ *   replace YY_PARSE(int) YYPARSE(YY_CTX_PARAM) with YY_PARSE(static int) YYPARSE(YY_CTX_PARAM)
+ *   replace YY_PARSE(yycontext *) YYRELEASE(yycontext *yyctx) with YY_PARSE(static yycontext *) YYRELEASE(yycontext *yyctx)
+ *
+ *   remove:
+ *   YY_LOCAL(int) yyAccept(yycontext *yy, int tp0)
+ *   {
+ *     if (tp0)
+ *       {
+ *         fprintf(stderr, "accept denied at %d\n", tp0);
+ *         return 0;
+ *       }
+ *     else
+ *       {
+ *         yyDone(yy);
+ *         yyCommit(yy);
+ *       }
+ *     return 1;
+ *   }
+ *
+ *  In order that users of the SDK don't need to use the leg parser, always commit a recent
+ *  eventfilter_parser_grammar.c if changes are made to the lexer.
+ */
+
+
+#define YY_CTX_LOCAL 1
+#define YY_CTX_MEMBERS                  \
+    UA_Parsed_EventFilter parsedFilter; \
+    UA_String input;                    \
+    UA_UInt32 pos;                      \
+    UA_Counters ctr;                    \
+    UA_Element_List global;             \
+    UA_Local_Operand operand;
+
+#define YY_INPUT(yyctx, buf, result, max_size) \
+{                                              \
+  if(yyctx->input.length <= yyctx->pos) {      \
+      result = 0;                              \
+  } else {                                     \
+      result = yyctx->input.length - yyctx->pos;\
+      if(result > max_size)                     \
+          result = max_size;                   \
+      memcpy(buf, &yyctx->input.data[yyctx->pos], result); \
+      yyctx->pos += result;                    \
+  }                                            \
+}
+
+
+
+union value{
+    char *str;
+    UA_Parsed_Operand operand;
+    UA_Parsed_Operator element;
+};
+
+# define YYSTYPE union value
+%}
+
+EventFilter = SelectClauses ContentFilter
+SelectClauses =
+        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);}
+        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);}
+Select = _ 'SELECT' _                                                                                                   {init_item_list(&yy->global, &yy->ctr);}
+ContentFilter = _ 'WHERE' _ (
+            element:SingleBranchStructure _ ('FOR' _ (ReferencedElement)+)?
+        |   element:BranchStructure   _ ('FOR' _ (ReferencedElement)+)?)                                                {yy->parsedFilter.status = create_content_filter(&yy->global, &yy->parsedFilter.filter.whereClause, element.str, yy->parsedFilter.status);}
+BranchStructure = (   'OR' _  op1:Child_1 op2:Child_2                                                                   {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &$$.str);}
+                    | 'AND' _  op1:Child_1 op2:Child_2                                                                  {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &$$.str);}
+                  )
+SingleBranchStructure = ( ElementOperand                                                                                {save_string(yytext, &$$.str);}
+                        | oper:ForOperator
+                        )
+Child_1 = ((       '(' _  ElementOperand _  "," _                                                                       {save_string(yytext, &$$.str);}
+                 | '(' _  oper:SimpleAttributeOperand _  "," _                                                          {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
+                 | '(' _  oper:LiteralOperand _  "," _                                                                  {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
+                )| '(' _  BranchStructure _  "," _ |  '(' _  ForOperator _  "," _ )
+Child_2 = ((      ElementOperand           _  ')'                                                                       {save_string(yytext, &$$.str);}
+                 | oper:SimpleAttributeOperand   _  ')'                                                                 {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
+                 | oper:LiteralOperand      _  ')'                                                                      {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
+               ) | BranchStructure _  ')' | ForOperator    _  ')')
+ForOperator = (operator:OperatorInstance | "(" _  operator:OperatorInstance _  ")")                                     {handle_for_operator(&yy->global, &yy->ctr.for_operator_reference, &$$.str, &operator.element);}
+ReferencedElement = ( ReferencedOperator
+                    | (ref:ReferenceElement oper:Operand) _                                                             {create_next_operand_element(&yy->global, &oper.operand, ref.str);}
+                    | (ref:ReferenceElement _ NodeId) _                                                                 {create_nodeid_element(&yy->global, &yy->operand.id, ref.str);}
+                    )
+ReferencedOperator = (  ref:ReferenceElement _  operator:OperatorInstance _)                                            {add_new_operator(&yy->global, ref.str, &operator.element);}
+                     | (ref:ReferenceElement _  op1:BranchStructure _)                                                  {change_element_reference(&yy->global, op1.str, ref.str);}
+                     | (ref:ReferenceElement _  (oper:Operand _                                                         {create_in_list_operator(&yy->global, &oper.operand, ref.str);}
+                     _  ('INLIST') _  '[' _ (oper:Operand _  "," _                                                      {add_in_list_children(&yy->global, &oper.operand);}
+                     )* _  oper:Operand _ ']') _                                                                        {add_in_list_children(&yy->global, &oper.operand);}
+                     )
+OperatorInstance = ( (oper_1:Operand operator:TwoOperandsOperatorType oper_2:Operand)                                   {handle_two_operands_operator(&$$.element, &oper_1.operand, &oper_2.operand, &operator.element.filter);}
+                   | (oper_1:Operand _  ('BETWEEN') _  '[' _ oper_2:Operand _  "," _  oper_3:Operand _ ']')             {handle_between_operator(&$$.element, &oper_1.operand, &oper_2.operand, &oper_3.operand);}
+                   | (_  operator:SingleOperatorType)) _
+SingleOperatorType = ( ("NOT" | '!') _  oper:Operand _                                                                  {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_NOT);}
+                     | ("ISNULL" | '0=' | '0' _  '=' ) _  oper:Operand _                                                {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_ISNULL);}
+                     )
+                     | 'OFTYPE' _  (
+                     (NodeId | "(" _  NodeId _  ")")                                                                    {handle_oftype_nodeId(&$$.element, &yy->operand.id);}
+                     | oper:Operand                                                                                     {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_OFTYPE);}
+                     ) _
+TwoOperandsOperatorType = ( "GREATERTHAN" | '>' ![>=]| 'GT')                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHAN;}
+                        | ( "EQUALS" | '==' | 'EQ' )                                                                    {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
+                        | ( "LESSTHAN" | '<' ![<=] ![<=>] | 'LT')                                                       {$$.element.filter = UA_FILTEROPERATOR_LESSTHAN;}
+                        | ( "GREATEROREQUAL" | '>=' | 'GE' )                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;}
+                        | ( "LESSOREQUAL" | '<=' ![<=>] | 'LE')                                                         {$$.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;}
+                        | ( "LIKE" | '<=>')                                                                             {$$.element.filter = UA_FILTEROPERATOR_LIKE;}
+                        | ( "CAST" | '->')                                                                              {$$.element.filter = UA_FILTEROPERATOR_CAST;}
+                        | ( "BITAND" | '&' )                                                                            {$$.element.filter = UA_FILTEROPERATOR_BITWISEAND;}
+                        | ( "BITOR" | '|' )                                                                              {$$.element.filter = UA_FILTEROPERATOR_BITWISEOR;}
+Operand = _  ( (LiteralOperand | '('_   LiteralOperand _ ')')
+             | (ElementOperand | '(' _  ElementOperand _  ')')                                                          {handle_elementoperand(&$$.operand, yytext);}
+             | ('(' _ SimpleAttributeOperand _ ')'| SimpleAttributeOperand)
+             ) _
+ElementOperand = (_  '$'  (<[0-9]+>| ParsedString) _ )
+SimpleAttributeOperand =
+        (   _  (_ 'TYPEID' _  NodeId)?                                                                                  {set_up_typeid(&yy->operand);}
+               (_  'PATH' _  '"' <(QualifiedName+)> '"')                                                                {yy->parsedFilter.status = set_up_browsepath(&yy->operand.sao.browsePath, &yy->operand.sao.browsePathSize, yytext, yy->parsedFilter.status);}
+               (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {yy->operand.sao.attributeId = (UA_UInt32) atoi(yytext);}
+               (_  'INDEX' _   NumericRange                                                                             {yy->operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
+        )?) _                                                                                                           {handle_sao(&yy->operand.sao, &$$.operand);}
+NodeId = (
+               (<('ns=' [0-9]+ ";")? 'i=' [0-9]+>)                                                                      {append_string(&yy->operand.str, yytext);}
+            |  (<('ns=' [0-9]+ ";")?'s='>                                                                               {append_string(&yy->operand.str, yytext);}
+                    ParsedString)                                                                                       {append_string(&yy->operand.str, yytext);}
+            |  <('ns=' [0-9]+ ";")?'g=' ([a-zA-Z_] | [0-9] | "-")+ >                                                    {append_string(&yy->operand.str, yytext);}
+            |  (<('ns=' [0-9]+ ";")?'b=' >                                                                              {append_string(&yy->operand.str, yytext);}
+                    ParsedString)                                                                                       {append_string(&yy->operand.str, yytext);}
+         )                                                                                                              {yy->parsedFilter.status = create_nodeId_from_string(yy->operand.str, &yy->operand.id, yy->parsedFilter.status);}
+LiteralOperand = ( litValue:ParsedJsonString| litValue:Literal)                                                         {handle_literal_operand(&$$.operand, &yy->operand.literal);}
+Literal =           ( 'INT32' _  <"-"? [0-9]+>                                                                          {set_up_variant_from_int32(yytext, &yy->operand.literal.value);}
+                    | 'STRING' _  ParsedString                                                                          {set_up_variant_from_string(yytext, &yy->operand.literal.value);}
+                    | 'BOOL' _  (<('true' | 'True' | 'false' | 'False')> | <[0-1]> )                                    {set_up_variant_from_bool(yytext, &yy->operand.literal.value);}
+                    | 'INT16' _  <"-"? [0-9]+>                                                                          {set_up_variant_from_int16(yytext, &yy->operand.literal.value);}
+                    | 'INT64' _  <"-"? [0-9]+>                                                                          {set_up_variant_from_int64(yytext, &yy->operand.literal.value);}
+                    | 'UINT16' _  <[0-9]+>                                                                              {set_up_variant_from_uint16(yytext, &yy->operand.literal.value);}
+                    | 'UINT32' _  <[0-9]+>                                                                              {set_up_variant_from_uint32(yytext, &yy->operand.literal.value);}
+                    | 'UINT64' _  <[0-9]+>                                                                              {set_up_variant_from_uint64(yytext, &yy->operand.literal.value);}
+                    | 'DOUBLE' _  <("-")? [0-9]+ ('.' [0-9]+)? >                                                        {set_up_variant_from_double(yytext, &yy->operand.literal.value);}
+                    | 'FLOAT' _  <("-")? [0-9]+ ('.' [0-9]+)?>                                                          {set_up_variant_from_float(yytext, &yy->operand.literal.value);}
+                    | 'NODEID' _  NodeId                                                                                {set_up_variant_from_nodeId(&yy->operand.id, &yy->operand.literal.value);}
+                    | 'SBYTE' _  <"-"? [0-9]+>                                                                          {set_up_variant_from_sbyte(yytext, &yy->operand.literal.value);}
+                    | 'BYTE' _  <[0-9]+>                                                                                {set_up_variant_from_byte(yytext, &yy->operand.literal.value);}
+                    | 'TIME' _  ('"' <("-" | [0-9] | [a-zA-Z] | "." | ":")+> '"')                                       {set_up_variant_from_time(yytext, &yy->operand.literal.value);}
+                    | 'GUID' _  <([a-zA-Z_] | [0-9] | "-")+>                                                            {set_up_variant_from_guid(yytext, &yy->operand.literal.value);}
+                    | 'BSTRING' _  ParsedString                                                                         {set_up_variant_from_bstring(yytext, &yy->operand.literal.value);}
+                    | 'STATUSCODE' _  <([a-zA-Z_] | [0-9])+>                                                            {set_up_variant_from_statuscode(yytext, &yy->operand.literal.value);}
+                    | 'EXPNODEID' _  ParsedString                                                                       {yy->parsedFilter.status = set_up_variant_from_expnodeid(yytext, &yy->operand.literal.value, yy->parsedFilter.status);}
+                    | 'QNAME' _  '"' <(QualifiedName)> '"'                                                              {yy->parsedFilter.status = set_up_variant_from_qname(yytext, &yy->operand.literal.value, yy->parsedFilter.status);}
+                    | 'LOCALIZED' _  ParsedString                                                                       {set_up_variant_from_localized(yytext, &yy->operand.literal.value);}
+                    | ((
+                                   _  NodeId                                                                            {set_up_variant_from_nodeId(&yy->operand.id, &yy->operand.literal.value);}
+                                 | _  <"-"? [0-9]+> !'.'                                                                {set_up_variant_from_int64(yytext, &yy->operand.literal.value);}
+                                 | _  !('"'_ ReferenceType) ParsedString                                                {set_up_variant_from_string(yytext, &yy->operand.literal.value);}
+                                 | _  <('true' | 'True' | 'false' | 'False')>                                           {set_up_variant_from_bool(yytext, &yy->operand.literal.value);}
+                                 | _  <(("-")? [0-9]+ '.' [0-9]*)> _                                                    {set_up_variant_from_double(yytext, &yy->operand.literal.value);}
+                                 | _  '"' <(QualifiedName)>  '"'  !('true' | 'True' | 'false' | 'False' )               {set_up_variant_from_qname(yytext, &yy->operand.literal.value, yy->parsedFilter.status);}
+                    )))
+ParsedJsonString = (JsonObject | '(' JsonObject ')')   _                                                                {yy->parsedFilter.status = create_literal_operand(yytext, &yy->operand.literal, yy->parsedFilter.status);}
+JsonObject =    <"{" _ (JsonElement _',' _ )* JsonElement _ "}">
+JsonArray = '[' _  ( (JsonValue _ ',' _ )* JsonValue) _']'
+JsonElement =   _ ('"'(StringElement)+'"' _ ':' _ JsonValue) _
+JsonValue = ( JsonArray | '"'(StringElement)+'"' | [0-9]+ | 'true' | 'false' | 'null')
+QualifiedName = ( ReferenceType ([0-9]+ _ ":")? (StringElement+)? )
+ReferenceType =  References | ('<' ('!'| '#')? ([0-9]+ _ ":")? [a-zA-Z_]+ '>')
+References = ('/' | '.')
+ReferenceElement = ElementOperand (':=')                                                                                {save_string(yytext, &$$.str);}
+ParsedString = ('"' < (StringElement)+ > '"')
+StringElement =  ('\\\"' | !["] . )
+NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?
+                (',' _ [0-9]+ _ (':' _ [0-9]+)?)* > ']'
+_ = (Space | comment)*
+
+Space =		' ' | '\t' | Enter
+comment =	('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')
+Enter =	( '\r\n' | '\n' | '\r' )
+
+%%
+
+
+UA_StatusCode UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
+    yycontext ctx;
+    memset(&ctx, 0, sizeof(yycontext));
+    ctx.input = *content;
+    while (yyparse(&ctx));
+    UA_StatusCode retval;
+    if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
+        UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
+        UA_EventFilter_clear(&ctx.parsedFilter.filter);
+        yyrelease(&ctx);
+        return retval;
+    }
+    UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
+    UA_EventFilter_clear(&ctx.parsedFilter.filter);
+    yyrelease(&ctx);
+    return UA_STATUSCODE_GOOD;
+}

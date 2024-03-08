@@ -139,7 +139,6 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    memset(newWriterGroup, 0, sizeof(UA_WriterGroup));
     newWriterGroup->componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
 
@@ -189,6 +188,15 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
     UA_LOG_INFO_WRITERGROUP(server->config.logging, newWriterGroup, "WriterGroup created");
 
+    /* Validate the connection settings */
+    res = UA_WriterGroup_connect(server, newWriterGroup, true);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_WRITERGROUP(server->config.logging, newWriterGroup,
+                                 "Could not validate the connection parameters");
+        UA_WriterGroup_remove(server, newWriterGroup);
+        return res;
+    }
+
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGN ||
        writerGroupConfig->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
@@ -222,15 +230,15 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
 #endif
 
+    /* Trigger the connection */
+    UA_PubSubConnection_setPubSubState(server, currentConnectionContext,
+                                       currentConnectionContext->state);
+
+    /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
         UA_NodeId_copy(&newWriterGroup->identifier, writerGroupIdentifier);
 
-    /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, currentConnectionContext,
-                                       currentConnectionContext->state,
-                                       UA_STATUSCODE_GOOD);
-
-    return UA_WriterGroup_setPubSubState(server, newWriterGroup, newWriterGroup->state);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -312,8 +320,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
-                                       UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -850,6 +857,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     if(wg->state != oldState) {
         /* Inform application about state change */
         UA_ServerConfig *pConfig = &server->config;
+        UA_LOG_INFO_WRITERGROUP(pConfig->logging, wg, "State change: %s -> %s",
+                               UA_PubSubState_name(oldState),
+                               UA_PubSubState_name(wg->state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
@@ -951,7 +961,7 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
                                  "Sending NetworkMessage failed");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
-        UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR, res);
+        UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR);
         return;
     }
 

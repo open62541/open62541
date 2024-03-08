@@ -1154,34 +1154,44 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
  * MonitoredItems are used with the Subscription mechanism of OPC UA to
  * transported notifications for data changes and events. MonitoredItems can
  * also be registered locally. Notifications are then forwarded to a
- * user-defined callback instead of a remote client. */
+ * user-defined callback instead of a remote client.
+ *
+ * Local MonitoredItems are delivered asynchronously. That is, the notification
+ * is inserted as a *Delayed Callback* for the EventLoop. The callback is then
+ * triggered when the control flow next returns to the EventLoop. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
+/* Delete a local MonitoredItem. Used for both DataChange- and
+ * Event-MonitoredItems. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 typedef void (*UA_Server_DataChangeNotificationCallback)
     (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
      const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
      const UA_DataValue *value);
 
-typedef void (*UA_Server_EventNotificationCallback)
-    (UA_Server *server, UA_UInt32 monId, void *monContext,
-     size_t nEventFields, const UA_Variant *eventFields);
+/**
+ * DataChange MonitoredItem use a sampling interval and filter criteria to
+ * notify the userland about value changes. Note that the sampling interval can
+ * also be zero to be notified about changes "right away". For this we hook the
+ * MonitoredItem into the observed Node and check the filter after every call of
+ * the Write-Service. */
 
-/* Create a local MonitoredItem with a sampling interval that detects data
- * changes.
+/* Create a local MonitoredItem to detect data changes.
  *
  * @param server The server executing the MonitoredItem
- * @timestampsToReturn Shall timestamps be added to the value for the callback?
- * @item The parameters of the new MonitoredItem. Note that the attribute of the
- *       ReadValueId (the node that is monitored) can not be
- *       ``UA_ATTRIBUTEID_EVENTNOTIFIER``. A different callback type needs to be
- *       registered for event notifications.
- * @monitoredItemContext A pointer that is forwarded with the callback
- * @callback The callback that is executed on detected data changes
- *
+ * @param timestampsToReturn Shall timestamps be added to the value for the
+ *        callback?
+ * @param item The parameters of the new MonitoredItem. Note that the attribute
+ *        of the ReadValueId (the node that is monitored) can not be
+ *        ``UA_ATTRIBUTEID_EVENTNOTIFIER``. See below for event notifications.
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed on detected data changes
  * @return Returns a description of the created MonitoredItem. The structure
- * also contains a StatusCode (in case of an error) and the identifier of the
- * new MonitoredItem. */
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
 UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
 UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           UA_TimestampsToReturn timestampsToReturn,
@@ -1189,14 +1199,75 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           void *monitoredItemContext,
           UA_Server_DataChangeNotificationCallback callback);
 
-/* UA_MonitoredItemCreateResult UA_EXPORT */
-/* UA_Server_createEventMonitoredItem(UA_Server *server, */
-/*           UA_TimestampsToReturn timestampsToReturn, */
-/*           const UA_MonitoredItemCreateRequest item, void *context, */
-/*           UA_Server_EventNotificationCallback callback); */
+/**
+ * See the section on :ref`events` for how to emit events in the server.
+ *
+ * Event-MonitoredItems emit notifications with a list of "fields" (variants).
+ * The fields are specified as *SimpleAttributeOperands* in the select-clause of
+ * the MonitoredItem's event filter. For the local event callback, instead of
+ * using a list of variants, we use a key-value map for the event fields. They
+ * key names are generated with ``UA_SimpleAttributeOperand_print`` to get a
+ * human-readable representation.
+ *
+ * The received event-fields map could look like this::
+ *
+ *   0:/Severity   => UInt16(1000)
+ *   0:/Message    => LocalizedText("en-US", "My Event Message")
+ *   0:/EventType  => NodeId(i=50831)
+ *   0:/SourceNode => NodeId(i=2253)
+ *
+ * The order of the keys is identical to the order of SimpleAttributeOperands in
+ * the select-clause. This feature requires the build flag ``UA_ENABLE_PARSING``
+ * enabled. Otherwise the key-value map uses empty keys (the order of fields is
+ * still the same as the specified select-clauses). */
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+typedef void (*UA_Server_EventNotificationCallback)
+    (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     const UA_KeyValueMap eventFields);
+
+/* Create a local MonitoredItem for Events. The API is simplifed compared to a
+ * UA_MonitoredItemCreateRequest. The unavailable options are not relevant for
+ * local MonitoredItems (e.g. the queue size) or not relevant for Event
+ * MonitoredItems (e.g. the sampling interval).
+ *
+ * @param server The server executing the MonitoredItem
+ * @param nodeId The node where events are collected. Note that events "bubble
+ *        up" to their parents (via hierarchical references).
+ * @param filter The filter defined which event fields are selected (select
+ *        clauses) and which events are considered for this particular
+ *        MonitoredItem (where clause).
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed for each event
+ * @return Returns a description of the created MonitoredItem. The structure
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_EventFilter filter,
+                                   void *monitoredItemContext,
+                                   UA_Server_EventNotificationCallback callback);
+
+/* Extended version UA_Server_createEventMonitoredItem that allows setting of
+ * uncommon parameters (for local MonitoredItems) like the MonitoringMode and
+ * queue sizes.
+ *
+ * @param server The server executing the MonitoredItem
+ * @param item The description of the MonitoredItem. Must use
+ *        UA_ATTRIBUTEID_EVENTNOTIFIER and an EventFilter.
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed for each event
+ * @return Returns a description of the created MonitoredItem. The structure
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Server_createEventMonitoredItemEx(UA_Server *server,
+                                     const UA_MonitoredItemCreateRequest item,
+                                     void *monitoredItemContext,
+                                     UA_Server_EventNotificationCallback callback);
+
+#endif
 
 #endif
 

@@ -103,6 +103,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     newGroup->componentType = UA_PUBSUB_COMPONENT_READERGROUP;
+    newGroup->linkedConnection = connection;
 
     /* Deep copy of the config */
     UA_StatusCode retval = UA_ReaderGroupConfig_copy(rgc, &newGroup->config);
@@ -110,8 +111,6 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         UA_free(newGroup);
         return retval;
     }
-
-    newGroup->linkedConnection = connection;
 
     /* Add to the connection */
     LIST_INSERT_HEAD(&connection->readerGroups, newGroup, listEntry);
@@ -172,14 +171,23 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 
     UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
 
-    /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, connection,
-                                       connection->state, UA_STATUSCODE_GOOD);
+    /* Validate the connection settings */
+    retval = UA_ReaderGroup_connect(server, newGroup, true);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_READERGROUP(server->config.logging, newGroup,
+                                 "Could not validate the connection parameters");
+        UA_ReaderGroup_remove(server, newGroup);
+        return retval;
+    }
 
+    /* Trigger the connection */
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
+
+    /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
         UA_NodeId_copy(&newGroup->identifier, readerGroupId);
 
-    return UA_ReaderGroup_setPubSubState(server, newGroup, newGroup->state);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -258,8 +266,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state,
-                                       UA_STATUSCODE_GOOD);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -361,6 +368,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     /* Inform application about state change */
     if(rg->state != oldState) {
         UA_ServerConfig *pConfig = &server->config;
+        UA_LOG_INFO_READERGROUP(pConfig->logging, rg, "State change: %s -> %s",
+                                UA_PubSubState_name(oldState),
+                                UA_PubSubState_name(rg->state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
@@ -639,6 +649,10 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
        readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
+    readerGroup->hasReceived = true;
+    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_OPERATIONAL);
+
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
     UA_Boolean processed = false;
@@ -666,7 +680,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
         /* No payload header. The message ontains a single DataSetMessage that
          * is processed by every Reader. */
         if(!nm->payloadHeaderEnabled) {
-            UA_DataSetReader_process(server, readerGroup, reader,
+            UA_DataSetReader_process(server, reader,
                                      nm->payload.dataSetPayload.dataSetMessages);
             continue;
         }
@@ -675,12 +689,86 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
         UA_DataSetPayloadHeader *ph = &nm->payloadHeader.dataSetPayloadHeader;
         for(UA_Byte i = 0; i < ph->count; i++) {
             if(reader->config.dataSetWriterId == ph->dataSetWriterIds[i]) {
-                UA_DataSetReader_process(server, readerGroup, reader,
+                UA_DataSetReader_process(server, reader,
                                          &nm->payload.dataSetPayload.dataSetMessages[i]);
             }
         }
     }
 
+    return processed;
+}
+
+UA_Boolean
+UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
+                                  UA_ByteString *buf) {
+    /* Received a (first) message for the ReaderGroup.
+     * Transition from PreOperational to Operational. */
+    rg->hasReceived = true;
+    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
+
+    UA_Boolean processed = false;
+    UA_NetworkMessage currentNetworkMessage;
+    memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
+
+    /* Decode headers necessary for matching identifiers. This can use malloc.
+     * So enable membufAlloc if you need RT timings. Reset back to the normal
+     * malloc before processing the message. The userland (callbacks) below
+     * might rely on that. It needs to be ensured that the membuf-memory is not
+     * reset (zeroed out) in "useNormalAlloc". So the decoded memory can be used
+     * until the end of this method. */
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+    useMembufAlloc();
+#endif
+    size_t pos = 0;
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, &pos, &currentNetworkMessage);
+#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
+    useNormalAlloc();
+#endif
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
+                              "PubSub receive. decoding headers failed");
+        goto cleanup;
+    }
+
+    /* Decrypt the message. Keep pos right after the header. */
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+    rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &pos,
+                                        &currentNetworkMessage, rg);
+    if(rv != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
+                                   "Subscribe failed. verify and decrypt network "
+                                   "message failed.");
+        goto cleanup;
+    }
+#endif
+
+    /* Process the message for each reader */
+    UA_DataSetReader *dsr;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        /* Check if the reader is enabled */
+        if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
+           dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+
+        /* Check the identifier */
+        rv = UA_DataSetReader_checkIdentifier(server, &currentNetworkMessage,
+                                              dsr, rg->config);
+        if(rv != UA_STATUSCODE_GOOD) {
+            UA_LOG_DEBUG_READER(server->config.logging, dsr,
+                                "PubSub receive. Message intended for a different reader.");
+            continue;
+        }
+
+        /* Process the message */
+        UA_DataSetReader_decodeAndProcessRT(server, dsr, buf);
+        processed = true;
+    }
+
+ cleanup:
+#ifndef UA_ENABLE_PUBSUB_BUFMALLOC
+    UA_NetworkMessage_clear(&currentNetworkMessage);
+#endif
     return processed;
 }
 

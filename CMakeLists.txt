@@ -871,6 +871,11 @@ endif()
 
 if(UA_ENABLE_PARSING)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_types_lex.c)
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
+                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
+    endif()
 endif()
 
 if(UA_ENABLE_PUBSUB)
@@ -884,18 +889,15 @@ if(UA_ENABLE_PUBSUB)
 endif()
 
 if(UA_ENABLE_JSON_ENCODING)
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
-        MESSAGE(WARNING "Payload encryption with JSON encoding is not possible according to the specification. The message security is only defined for the UADP message mapping.")
-    endif()
-    if(UA_ENABLE_PUBSUB)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
-    endif()
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
+    if(UA_ENABLE_PUBSUB)
+        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
+    endif()
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
@@ -1293,10 +1295,6 @@ else()
         add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
     endif()
 
-    if(UA_ENABLE_COVERAGE)
-        add_coverage(open62541-object)
-    endif()
-
     # stack protector and optimization are disabled for the huge ns0 file
     if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
         set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
@@ -1309,6 +1307,11 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+
+    if(UA_ENABLE_COVERAGE)
+        add_coverage(open62541-object)
+        add_coverage(open62541-plugins)
+    endif()
 
     if(UA_PACK_DEBIAN)
         add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)

@@ -105,6 +105,9 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 struct UA_SecurityGroup;
 typedef struct UA_SecurityGroup UA_SecurityGroup;
 
+const char *
+UA_PubSubState_name(UA_PubSubState state);
+
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
@@ -250,6 +253,11 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
                             UA_Boolean validate);
 
 void
+UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+                            UA_ByteString msg);
+
+
+void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
 /* Returns either the eventloop configured in the connection or, in its absence,
@@ -260,8 +268,7 @@ UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server,
                                    UA_PubSubConnection *connection,
-                                   UA_PubSubState targetState,
-                                   UA_StatusCode cause);
+                                   UA_PubSubState targetState);
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -548,7 +555,6 @@ typedef struct UA_DataSetReader {
 /* Process Network Message using DataSetReader */
 void
 UA_DataSetReader_process(UA_Server *server,
-                         UA_ReaderGroup *readerGroup,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
 
@@ -561,6 +567,14 @@ UA_StatusCode
 UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         const UA_DataSetReaderConfig *dataSetReaderConfig,
                         UA_NodeId *readerIdentifier);
+
+UA_StatusCode
+UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
+                                     UA_ByteString *buf, size_t *pos);
+
+void
+UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
+                                    UA_ByteString *buf);
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
