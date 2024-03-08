@@ -329,7 +329,7 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         sub->delayedMoreNotifications.application = server;
         sub->delayedMoreNotifications.context = sub;
 
-        UA_EventLoop *el = server->config.eventLoop;
+        el = server->config.eventLoop;
         el->addDelayedCallback(el, &sub->delayedMoreNotifications);
     }
 }

@@ -704,7 +704,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
         sub->delayedMoreNotifications.application = server;
         sub->delayedMoreNotifications.context = sub;
 
-        UA_EventLoop *el = server->config.eventLoop;
+        el = server->config.eventLoop;
         el->addDelayedCallback(el, &sub->delayedMoreNotifications);
     }
 }
