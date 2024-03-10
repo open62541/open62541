@@ -6,6 +6,7 @@
  */
 
 #include "ua_eventfilter_parser.h"
+#include <open62541/types.h>
 #include "open62541/util.h"
 
 #include "cj5.h"
@@ -37,8 +38,7 @@ create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operan
         element->element.operand.value.extension = operand->value.extension;
         UA_ExtensionObject_init(&operand->value.extension);
     } else {
-        element->element.operand.value.element_ref = operand->value.element_ref;
-        operand->value.element_ref = NULL;
+        save_string(operand->value.element_ref, &element->element.operand.value.element_ref);
     }
     TAILQ_INSERT_TAIL(&elements->head, element, element_entries);
 }
@@ -494,6 +494,28 @@ add_operand_from_branch(char **ref, size_t *operand_ctr, UA_Parsed_Operand *oper
     save_string(temp1, ref);
 }
 
+void
+add_operand_from_literal(char **ref, size_t *operand_ctr, UA_Variant *lit, UA_Element_List *global) {
+    UA_Parsed_Element_List *element = (UA_Parsed_Element_List*)UA_calloc(1, sizeof(UA_Parsed_Element_List));
+    element->identifier = PARSEDOPERAND;
+    element->ref = *ref;
+    element->element.operand.identifier = EXTENSIONOBJECT;
+    UA_ExtensionObject_setValue(&element->element.operand.value.extension, lit->data, lit->type);
+    TAILQ_INSERT_TAIL(&global->head, element, element_entries);
+}
+
+void
+add_operand_nodeid(UA_Parsed_Operator *element, char *nodeid, UA_FilterOperator filter) {
+    element->children = (UA_Parsed_Operand*)UA_realloc(element->children, (element->nbr_children + 1) * sizeof(UA_Parsed_Operand));
+    element->filter = filter;
+    UA_Parsed_Operand *op = &element->children[element->nbr_children];
+    UA_NodeId *id = UA_NodeId_new();
+    UA_NodeId_parse(id, UA_STRING(nodeid));
+    op->identifier = EXTENSIONOBJECT;
+    UA_ExtensionObject_setValue(&op->value.extension, id, &UA_TYPES[UA_TYPES_NODEID]);
+    element->nbr_children++;
+}
+
 static void
 add_child_references(UA_Parsed_Element_List *element, char **ref_1,
                      char **ref_2) {
@@ -672,172 +694,21 @@ create_in_list_operator(UA_Element_List *global, UA_Parsed_Operand *oper,
     add_in_list_children(global, oper);
 }
 
-void
-append_string(char **string, char *yytext) {
-    size_t old_size = (*string)? strlen(*string):0;
-    size_t new_size = old_size+strlen(yytext)+1;
-    *string = (char *)UA_realloc(*string, new_size*sizeof(char));
-    memset((void*)((char*)(*string) + old_size),0, (new_size-old_size)*sizeof(char));
-    strcat(*string, yytext);
-}
+UA_Variant
+parse_literal(char *yytext, const UA_DataType *type) {
+    UA_Variant var;
+    UA_Variant_init(&var);
 
-void
-set_up_variant_from_bool(char *yytext, UA_Variant *litvalue) {
-    UA_Boolean val;
-    if(strcmp(yytext, "false") == 0 || strcmp(yytext, "False") == 0 ||
-       strcmp(yytext, "0") == 0) {
-        val = false;
-        UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    void *data = UA_new(type);
+    if(!data)
+        return var;
+    UA_String src = UA_STRING(yytext);
+    UA_StatusCode res = UA_decodeJson(&src, data, type, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(data);
+        return var;
     }
-    else if(strcmp(yytext, "true") == 0 || strcmp(yytext, "True") == 0 ||
-            strcmp(yytext, "1") == 0) {
-        val = true;
-        UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    }
-}
 
-void
-set_up_variant_from_string(char *yytext, UA_Variant *litvalue) {
-    UA_String val = UA_String_fromChars(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_STRING]);
-    UA_String_clear(&val);
-}
-
-void
-set_up_variant_from_bstring(char *yytext, UA_Variant *litvalue) {
-    UA_ByteString val = UA_BYTESTRING(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_BYTESTRING]);
-}
-
-void
-set_up_variant_from_float(char *yytext, UA_Variant *litvalue) {
-    UA_Float val = (UA_Float) strtod(yytext, NULL);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_FLOAT]);
-}
-
-void
-set_up_variant_from_double(char *yytext, UA_Variant *litvalue) {
-    UA_Double val = (UA_Double) strtod(yytext, NULL);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_DOUBLE]);
-}
-
-void
-set_up_variant_from_sbyte(char *yytext, UA_Variant *litvalue) {
-    UA_SByte val = (UA_SByte) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_SBYTE]);
-}
-
-void
-set_up_variant_from_statuscode(char *yytext, UA_Variant *litvalue) {
-    UA_StatusCode val = (uint32_t) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_STATUSCODE]);
-}
-
-UA_StatusCode
-set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
-    UA_ExpandedNodeId val;
-    UA_ExpandedNodeId_init(&val);
-    UA_String temp = UA_String_fromChars(yytext);
-    UA_StatusCode retval = UA_ExpandedNodeId_parse(&val, temp);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Failed to parse the ExpandedNodeId %s", UA_StatusCode_name(retval));
-        UA_ExpandedNodeId_clear(&val);
-        UA_String_clear(&temp);
-        return retval;
-    }
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
-    UA_ExpandedNodeId_clear(&val);
-    UA_String_clear(&temp);
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-set_up_variant_from_time(const char *yytext, UA_Variant *litvalue) {
-    UA_DateTime val;
-    UA_String str = UA_STRING((char*)(uintptr_t)yytext);
-    UA_StatusCode ret = UA_decodeJson(&str, &val, &UA_TYPES[UA_TYPES_DATETIME], NULL);
-    if(ret == UA_STATUSCODE_GOOD)
-        UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_DATETIME]);
-}
-
-void
-set_up_variant_from_byte(char *yytext, UA_Variant *litvalue) {
-    UA_Byte val = (UA_Byte) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_BYTE]);
-}
-
-UA_StatusCode
-set_up_variant_from_qname(char *str, UA_Variant *litvalue,
-                          UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
-    UA_RelativePath path;
-    UA_String parsed_string = UA_String_fromChars(str);
-    UA_StatusCode ret_val = UA_RelativePath_parse(&path, parsed_string);
-    if(ret_val != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                       "Failed to parse the RelativePath %s", UA_StatusCode_name(ret_val));
-        UA_String_clear(&parsed_string);
-        UA_RelativePath_clear(&path);
-        return ret_val;
-    }
-    UA_Variant_setScalarCopy(litvalue, &path.elements[0].targetName,
-                             &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
-    UA_String_clear(&parsed_string);
-    UA_RelativePath_clear(&path);
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-set_up_variant_from_guid(char *yytext, UA_Variant *litvalue) {
-    UA_Guid val;
-    UA_String str = UA_String_fromChars(yytext);
-    UA_Guid_parse(&val, str);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_GUID]);
-    UA_String_clear(&str);
-}
-
-void
-set_up_variant_from_int64(char *yytext, UA_Variant *litvalue) {
-    UA_Int64 val = (UA_Int64) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_INT64]);
-}
-
-void
-set_up_variant_from_localized(char *yytext, UA_Variant *litvalue) {
-    UA_LocalizedText val = UA_LOCALIZEDTEXT("en-us", yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-}
-
-void
-set_up_variant_from_uint16(char *yytext, UA_Variant *litvalue) {
-    UA_UInt16 val = (UA_UInt16) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_UINT16]);
-}
-
-void
-set_up_variant_from_uint32(char *yytext, UA_Variant *litvalue) {
-    UA_UInt32 val = (UA_UInt32) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_UINT32]);
-}
-
-void
-set_up_variant_from_uint64(char *yytext, UA_Variant *litvalue) {
-    UA_UInt64 val = (UA_UInt64) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_INT64]);
-}
-
-void
-set_up_variant_from_int16(char *yytext, UA_Variant *litvalue) {
-    UA_Int16 val = (UA_Int16) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_INT16]);
-}
-
-void
-set_up_variant_from_int32(char *yytext, UA_Variant *litvalue) {
-    UA_Int32 val = (UA_Int32) atoi(yytext);
-    UA_Variant_setScalarCopy(litvalue, &val, &UA_TYPES[UA_TYPES_INT32]);
+    UA_Variant_setScalar(&var, data, type);
+    return var;
 }
