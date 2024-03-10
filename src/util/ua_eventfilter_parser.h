@@ -86,6 +86,8 @@ UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_Stat
 void handle_elementoperand(UA_Parsed_Operand *operand, char *ref);
 void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand);
 void add_operand_from_branch(char **ref, size_t *operand_ctr, UA_Parsed_Operand *operand, UA_Element_List *global);
+void add_operand_from_literal(char **ref, size_t *operand_ctr, UA_Variant *lit, UA_Element_List *global);
+void add_operand_nodeid(UA_Parsed_Operator *element, char *nodeid, UA_FilterOperator op);
 void set_up_variant_from_nodeId(UA_NodeId *id, UA_Variant *litvalue);
 void handle_oftype_nodeId(UA_Parsed_Operator *element, UA_NodeId *id);
 void handle_literal_operand(UA_Parsed_Operand *operand, UA_LiteralOperand *literalValue);
@@ -98,28 +100,9 @@ void handle_for_operator(UA_Element_List *global, size_t *for_operator_reference
 void change_element_reference(UA_Element_List *global, char *element_name, char *new_element_reference);
 void add_in_list_children(UA_Element_List *global, UA_Parsed_Operand *oper);
 void create_in_list_operator(UA_Element_List *global, UA_Parsed_Operand *oper, char *element_ref);
-void append_string(char **string, char *yytext);
-void set_up_variant_from_bool(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_string(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_bstring(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_float(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_double(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_sbyte(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_statuscode(char *yytext, UA_Variant *litvalue);
-UA_StatusCode set_up_variant_from_expnodeid(char *yytext, UA_Variant *litvalue, UA_StatusCode status);
-void set_up_variant_from_time(const char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_byte(char *yytext, UA_Variant *litvalue);
-UA_StatusCode set_up_variant_from_qname(char *str, UA_Variant *litvalue, UA_StatusCode status);
-void set_up_variant_from_guid(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int64(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_localized(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint16(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint32(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_uint64(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int16(char *yytext, UA_Variant *litvalue);
-void set_up_variant_from_int32(char *yytext, UA_Variant *litvalue);
 void create_nodeid_element(UA_Element_List *elements, UA_NodeId *id, char *ref);
 void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_size, UA_Parsed_Operator *element, UA_FilterOperator oper);
+UA_Variant parse_literal(char *yytext, const UA_DataType *type);
 
 _UA_END_DECLS
 
