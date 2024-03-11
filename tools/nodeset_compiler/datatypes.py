@@ -17,7 +17,7 @@ from datetime import datetime
 import xml.dom.minidom as dom
 from base64 import b64decode
 
-from type_parser import BuiltinType, EnumerationType, StructMember, StructType
+from type_parser import Type, BuiltinType, EnumerationType, StructMember, StructType, BaseNodeId
 
 """ __all__ = ['valueIsInternalType', 'Value', 'Boolean', 'Number', 'Integer',
            'UInteger', 'Byte', 'SByte',
@@ -28,8 +28,6 @@ from type_parser import BuiltinType, EnumerationType, StructMember, StructType
 
 logger = logging.getLogger(__name__)
 
-namespaceMapping = {}
-
 if sys.version_info[0] >= 3:
     # strings are already parsed to unicode
     def unicode(s):
@@ -37,7 +35,7 @@ if sys.version_info[0] >= 3:
 
     string_types = str
 else:
-    string_types = basestring 
+    string_types = basestring
 
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
@@ -137,7 +135,6 @@ class Value(object):
             return
 
     def parseXMLEncoding(self, xmlvalue, parentDataTypeNode, parent, parser):
-        global namespaceMapping
         self.checkXML(xmlvalue)
         if not "value" in xmlvalue.localName.lower():
             logger.error("Expected <Value> , but found " + xmlvalue.localName + \
@@ -153,7 +150,6 @@ class Value(object):
                 xmlvalue = n
                 break
 
-        namespaceMapping = parent.namespaceMapping
         if "ListOf" in xmlvalue.localName:
             self.value = []
             for el in xmlvalue.childNodes:
@@ -162,12 +158,10 @@ class Value(object):
                 val = self.__parseXMLSingleValue(el, parentDataTypeNode, parent, parser)
                 if val is None:
                     self.value = []
-                    namespaceMapping = {}
                     return
                 self.value.append(val)
         else:
             self.value = [self.__parseXMLSingleValue(xmlvalue, parentDataTypeNode, parent, parser)]
-            namespaceMapping = {}
 
     def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, parser, alias=None, encodingPart=None, valueRank=None):
         enc = None
@@ -206,8 +200,7 @@ class Value(object):
                 logger.error(str(parent.id) + ": Did not find <Identifier> for ExtensionObject")
                 return extobj
 
-            etype = NodeId(etype[0].firstChild.data.strip(' \t\n\r'))
-            extobj.typeId = etype
+            extobj.typeId = parent.nodeset.refOrAlias(etype[0].firstChild.data)
 
             ebody = xmlvalue.getElementsByTagName("Body")
             if len(ebody) == 0:
@@ -254,16 +247,16 @@ class Value(object):
                 # in the ExtensionObject and none of them is set.
                 if(ebodypart is not None):
                     if ebodypart.localName == "SwitchField":
-                        # The switch field is the index of the available union fields starting with 1
+                        # The switch field is the index of the available union
+                        # fields starting with 1
                         data = int(ebodypart.firstChild.data)
-                        if data == 0:
-                            # If the switch field is 0 then no field is present. A Union with no fields present has the same meaning as a NULL value.
-                            members = []
-                        else:
-                            members = []
+                        members = []
+                        # If the switch field is 0 then no field is present. A
+                        # Union with no fields present has the same meaning as a
+                        # NULL value.
+                        if data != 0:
                             members.append(enc.members[data-1])
                             ebodypart = getNextElementNode(ebodypart)
-
 
                 for e in members:
                     # ebodypart can be None if the field is not set, although the field is not optional.
@@ -291,7 +284,10 @@ class Value(object):
                                 t = self.getTypeByString(e.member_type.name, None)
                                 if t is not None:   # cannot get Type for 'Variant' now
                                     t.alias = ebodypart.localName
-                                    t.parseXML(ebodypart)
+                                    if type(t) == NodeId:
+                                        t.parseXML(ebodypart, parent.nodeset)
+                                    else:
+                                        t.parseXML(ebodypart)
                                 extobj.value.append(t)
                         elif isinstance(e.member_type, StructType):
                             # information is_array!
@@ -656,88 +652,41 @@ class LocalizedText(Value):
     def isNone(self):
         return self.text is None
 
-class NodeId(Value):
-    def __init__(self, idstring=None):
+class NodeId(Value, BaseNodeId):
+    def __init__(self, idstring=None, namespaceMapping={}):
         Value.__init__(self)
-        self.i = None
-        self.b = None
-        self.g = None
-        self.s = None
-        self.ns = 0
-        self.setFromIdString(idstring)
-
-    def setFromIdString(self, idstring):
-        global namespaceMapping
-
-        if not idstring:
-            self.i = 0
-            return
-
-        # The ID will encoding itself appropriatly as string. If multiple ID's
-        # (numeric, string, guid) are defined, the order of preference for the ID
-        # string is always numeric, guid, bytestring, string. Binary encoding only
-        # applies to numeric values (UInt16).
-        idparts = idstring.strip().split(";")
-        for p in idparts:
-            if p[:2] == "ns":
-                self.ns = int(p[3:])
-                if(len(namespaceMapping.values()) > 0):
-                    self.ns = namespaceMapping[self.ns]
-            elif p[:2] == "i=":
-                self.i = int(p[2:])
-            elif p[:2] == "o=":
-                self.b = p[2:]
-            elif p[:2] == "g=":
-                tmp = []
-                self.g = p[2:].split("-")
-                for i in self.g:
-                    i = "0x" + i
-                    tmp.append(int(i, 16))
-                self.g = tmp
-            elif p[:2] == "s=":
-                self.s = p[2:]
-            else:
-                raise Exception("no valid nodeid: " + idstring)
+        BaseNodeId.__init__(self, idstring, namespaceMapping)
 
     # The parsing can be called with an optional namespace mapping dict.
-    def parseXML(self, xmlvalue):
+    def parseXML(self, xmlvalue, nodeset=None):
         # Expect <NodeId> or <Alias>
         #           <Identifier> # It is unclear whether or not this is manditory. Identifier tags are used in Namespace 0.
         #                ns=x;i=y or similar string representation of id()
         #           </Identifier>
         #        </NodeId> or </Alias>
         if not isinstance(xmlvalue, dom.Element):
-            self.text = xmlvalue # Alias
+            if nodeset:
+                self = nodeset.aliases[xmlvalue]
+            else:
+                raise Exception("Could not look up Alias without nodeset context")
             return
-        self.checkXML(xmlvalue)
 
         # Catch XML <NodeId />
+        self.checkXML(xmlvalue)
         if xmlvalue.firstChild is None:
-            logger.error("No value is given, which is illegal for Node Types...")
-            self.value = None
-        else:
-            # Check if there is an <Identifier> tag
-            if len(xmlvalue.getElementsByTagName("Identifier")) != 0:
-                xmlvalue = xmlvalue.getElementsByTagName("Identifier")[0]
-            self.setFromIdString(unicode(xmlvalue.firstChild.data))
+            raise Exception ("No value is given, which is illegal for Node Types...")
+
+        # Check if there is an <Identifier> tag
+        if len(xmlvalue.getElementsByTagName("Identifier")) != 0:
+            xmlvalue = xmlvalue.getElementsByTagName("Identifier")[0]
+
+        namespaceMapping = {}
+        if nodeset:
+            namespaceMapping = nodeset.namespaceMapping
+        self._parseFromString(unicode(xmlvalue.firstChild.data), namespaceMapping)
 
     def __str__(self):
-        s = "ns=" + str(self.ns) + ";"
-        # Order of preference is numeric, guid, bytestring, string
-        if self.i != None:
-            return s + "i=" + str(self.i)
-        elif self.g != None:
-            s = s + "g="
-            tmp = []
-            for i in self.g:
-                tmp.append(hex(i).replace("0x", ""))
-            for i in tmp:
-                s = s + "-" + i
-            return s.replace("g=-", "g=")
-        elif self.b != None:
-            return s + "b=" + str(self.b)
-        elif self.s != None:
-            return s + "s=" + str(self.s)
+        return BaseNodeId.__str__(self)
 
     def isNone(self):
         return self.i is None and self.b is None and self.s is None and self.g is None

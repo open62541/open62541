@@ -50,16 +50,16 @@ def makeCIdentifier(value):
     else:
         return sanitized
 
-def getNodeidTypeAndId(nodeId):
-    if not nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {0}"
-    if '=' not in nodeId:
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId)
-    if nodeId.startswith("i="):
-        return "UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId[2:])
-    if nodeId.startswith("s="):
-        strId = nodeId[2:]
-        return "UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=strId.replace("\"", "\\\""))
+def getNodeIdCStr(nodeId):
+    cstr = ["{%i," % (nodeId.ns)]
+    if nodeId.i != None:
+        cstr.append("UA_NODEIDTYPE_NUMERIC, {{{0}LU}}".format(nodeId.i))
+    elif nodeId.s:
+        cstr.append("UA_NODEIDTYPE_STRING, {{ .string = UA_STRING_STATIC(\"{id}\") }}".format(id=nodeId.s.replace("\"", "\\\"")))
+    else:
+        raise Exception("Unsupported NodeId for datatypes: ", str(nodeId))
+    cstr.append("}")
+    return "".join(cstr)
 
 class CGenerator(object):
     def __init__(self, parser, inname, outfile, is_internal_types, namespaceMap):
@@ -68,6 +68,8 @@ class CGenerator(object):
         self.outfile = outfile
         self.is_internal_types = is_internal_types
         self.filtered_types = None
+        self.ordered_types = None # ordered by nodeid
+        self.ordered_index = None # ordered by nodeid
         self.namespaceMap = namespaceMap
         self.fh = None
         self.ff = None
@@ -129,9 +131,8 @@ class CGenerator(object):
         raise RuntimeError("Unknown datatype")
 
     def print_datatype(self, datatype, namespaceMap):
-        typeid = "{%s, %s}" % ("0", getNodeidTypeAndId(datatype.nodeId))
-        binaryEncodingId = "{%s, %s}" % ("0",
-                                         getNodeidTypeAndId(datatype.binaryEncodingId))
+        typeid = getNodeIdCStr(datatype.nodeId)
+        binaryEncodingId = getNodeIdCStr(datatype.binaryEncodingId)
         idName = makeCIdentifier(datatype.name)
         pointerfree = "true" if datatype.pointerfree else "false"
         return "{\n" + \
@@ -336,7 +337,19 @@ class CGenerator(object):
         self.ff = open(self.outfile + "_generated_handling.h", 'w')
         self.fc = open(self.outfile + "_generated.c", 'w')
 
-        self.filtered_types = self.iter_types(self.parser.types)
+        self.filtered_types = self.filter_types(self.parser.types)
+
+        # We want to do binary search for the ns0 types.
+        # Order according to the NodeId
+        self.ordered_index = {} # map for each ns, maps each type to its index in the nodeid-order
+        self.ordered_types = {} # map for each ns, list of types
+        for ns in self.filtered_types:
+            O = sorted(self.filtered_types[ns].values(), key=lambda t: t.nodeId)
+            I = {}
+            for i,v in enumerate(O):
+                I[v.name] = i
+            self.ordered_types[ns] = O
+            self.ordered_index[ns] = I
 
         self.print_header()
         self.print_handling()
@@ -355,7 +368,7 @@ class CGenerator(object):
     def printc(self, string):
         print(string, end='\n', file=self.fc)
 
-    def iter_types(self, v):
+    def filter_types(self, v):
         # Make a copy. We cannot delete from the map that is iterated over at
         # the same time.
         l = copy.deepcopy(v)
@@ -443,8 +456,9 @@ _UA_BEGIN_DECLS
                         self.printh(" * " + t.description + " */")
                     if not isinstance(t, BuiltinType):
                         self.printh(self.print_datatype_typedef(t) + "\n")
-                    self.printh(
-                        "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+
+                    order_index = self.ordered_index[ns][t.name]
+                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(order_index))
         else:
             self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
@@ -496,21 +510,18 @@ _UA_END_DECLS
 #include "''' + self.parser.outname + '''_generated.h"''')
 
         totalCount = 0
-        for ns in self.filtered_types:
-            totalCount += len(self.filtered_types[ns])
-            for i, t_name in enumerate(self.filtered_types[ns]):
-                t = self.filtered_types[ns][t_name]
+        for ns in self.ordered_types:
+            totalCount += len(self.ordered_types[ns])
+            for i, t in enumerate(self.ordered_types[ns]):
                 self.printc("")
                 self.printc("/* " + t.name + " */")
                 self.printc(CGenerator.print_members(t, self.namespaceMap))
 
         if totalCount > 0:
-            self.printc(
-                "UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
+            self.printc("UA_DataType UA_%s[UA_%s_COUNT] = {" % (self.parser.outname.upper(), self.parser.outname.upper()))
 
-            for ns in self.filtered_types:
-                for i, t_name in enumerate(self.filtered_types[ns]):
-                    t = self.filtered_types[ns][t_name]
+            for ns in self.ordered_types:
+                for i, t in enumerate(self.ordered_types[ns]):
                     self.printc("/* " + t.name + " */")
                     self.printc(self.print_datatype(t, self.namespaceMap) + ",")
             self.printc("};\n")

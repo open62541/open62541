@@ -10,6 +10,7 @@
 #include "ua_util_internal.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <check.h>
 #include <float.h>
 #include <math.h>
@@ -1711,6 +1712,22 @@ START_TEST(UA_StatusCode_utils) {
 
 } END_TEST
 
+START_TEST(UA_type_lookup_speed) {
+    clock_t begin, finish;
+    begin = clock();
+
+    UA_NodeId readRequestId = UA_TYPES[UA_TYPES_READREQUEST].typeId;
+
+    for(size_t i = 0; i < 1000; i++) {
+        const UA_DataType *t = UA_findDataType(&readRequestId);
+        ck_assert(t == &UA_TYPES[UA_TYPES_READREQUEST]);
+    }
+
+    finish = clock();
+    double time_spent = (double)(finish - begin) / CLOCKS_PER_SEC;
+    printf("duration of the type lookup was %f s\n", time_spent);
+} END_TEST
+
 static Suite *testSuite_builtin(void) {
     Suite *s = suite_create("Built-in Data Types 62541-6 Table 1");
 
@@ -1802,6 +1819,10 @@ static Suite *testSuite_builtin(void) {
     TCase *tc_utils = tcase_create("utils");
     tcase_add_test(tc_utils, UA_StatusCode_utils);
     suite_add_tcase(s, tc_utils);
+
+    TCase *tc_speed = tcase_create("speed");
+    tcase_add_test(tc_speed, UA_type_lookup_speed);
+    suite_add_tcase(s, tc_speed);
 
     return s;
 }
