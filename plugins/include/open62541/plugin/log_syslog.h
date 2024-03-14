@@ -30,6 +30,10 @@ _UA_BEGIN_DECLS
 UA_EXPORT UA_Logger
 UA_Log_Syslog_withLevel(UA_LogLevel minlevel);
 
+/* Allocates memory for the logger. Automatically cleared up via _clear. */
+UA_EXPORT UA_Logger *
+UA_Log_Syslog_new(UA_LogLevel minlevel);
+
 /* Log all warning levels supported by syslog (no trace-warnings).
  * The programm must call openlog(3) before using this logger. */
 UA_EXPORT UA_Logger

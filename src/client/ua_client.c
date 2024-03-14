@@ -172,7 +172,7 @@ UA_ClientConfig_clear(UA_ClientConfig *config) {
 
     /* Logging */
     if(config->logging != NULL && config->logging->clear != NULL)
-        config->logging->clear(config->logging->context);
+        config->logging->clear(config->logging);
     config->logging = NULL;
 
     UA_String_clear(&config->sessionName);
