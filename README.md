@@ -1,6 +1,6 @@
 # open62541
 
-open62541 (<http://open62541.org>) is an open source and free implementation of OPC UA (OPC Unified Architecture) written in the common subset of the C99 and C++98 languages. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent. All platform-specific functionality is implemented via exchangeable plugins. Plugin implementations are provided for the major operating systems.
+open62541 (<http://open62541.org>) is an open source implementation of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications. open62541 library is platform independent: All platform-specific functionality is implemented via exchangeable plugins for porting to different (embedded) platforms.
 
 open62541 is licensed under the Mozilla Public License v2.0 (MPLv2). This allows the open62541 library to be combined and distributed with any proprietary software. Only changes to the open62541 library itself need to be licensed under the MPLv2 when copied and distributed. The plugins, as well as the server and client examples are in the public domain (CC0 license). They can be reused under any license and changes do not have to be published.
 
@@ -103,9 +103,8 @@ On most systems, open62541 requires the C standard library only. For dependencie
 - Building and Code Generation: The build environment is generated via CMake. Some code is auto-generated from XML definitions that are part of the OPC UA standard. The code generation scripts run with both Python 2 and 3.
 
 **Note:**
-Specific optional features are dependent on third-party libraries. These are all listed under the `deps/` folder.
+Some (optional) features are dependent on third-party libraries. These are all listed under the `deps/` folder.
 Depending on the selected feature set, some of these libraries will be included in the resulting library.
-
 More information on the third-party libraries can be found in the corresponding [deps/README.md](deps/README.md)
 
 ### Code Quality
@@ -126,20 +125,13 @@ For every release, we provide some pre-packed release packages which you can dir
 Have a look at the [release page](https://github.com/open62541/open62541/releases) and the corresponding attached assets.
 
 A more detailed explanation on how to install the open62541 SDK is given in our [documentation](https://www.open62541.org/doc/master/building.html#building-the-library).
+In essence, clone the repository and initialize all the submodules using `git submodule update --init --recursive`. Then use CMake to configure your build.
 
-You can not directly download a .zip package from the main branches using the Github UI, since then some of the submodules and version strings are missing.
-Therefore you have three options to install and use this stack:
+Furthermore we provide "pack branches" that are up-to-date with the corresponding base branches, and in addition have the git submodules in-place for a zip download.
+Here are some direct download links for the current pack branches:  
 
-- **Recommended:** Use any of the prepared packages attached to every release or in the package repository of your distro (if available).  
-  Please check the install guide for more info.
-  
-- Download a .zip package of special `pack/` branches.  
-  These pack branches are up-to-date with the corresponding base branches, but already have the submodules in-place and the version string set correctly.  
-  Here are some direct download links for the current pack branches:  
   - [pack/master.zip](https://github.com/open62541/open62541/archive/pack/master.zip)
   - [pack/1.0.zip](https://github.com/open62541/open62541/archive/pack/1.0.zip)
-   
-- Clone this repository and initialize all the submodules using `git submodule update --init --recursive`. Then either use `make install` or setup your CMake project correspondingly.
 
 ## Examples
 
