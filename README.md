@@ -136,15 +136,12 @@ Here are some direct download links for the current pack branches:
 ## Examples
 
 A complete list of examples can be found in the [examples directory](https://github.com/open62541/open62541/tree/master/examples).
-
-To build the examples, we recommend to install the open62541 project as mentioned in previous section.
+To build the examples, we recommend to install open62541 as mentioned in the previous section.
+Using the GCC compiler, just run ```gcc -std=c99 <server.c> -lopen62541 -o server``` (under Windows you may need to add additionally link against the ```ws2_32``` 
+socket library).
 
 ### Example Server Implementation
 
-The following simple server example can be built using gcc, after you installed open62541 on your system.
-
-Using the GCC compiler, just run ```gcc -std=c99 -DUA_ARCHITECTURE_POSIX <server.c> -lopen62541 -o server``` (under Windows you may need to add ``` -lws2_32``` 
-and change `-DUA_ARCHITECTURE_POSIX` to `-DUA_ARCHITECTURE_WIN32`).
 ```c
 #include <open62541/server.h>
 
@@ -183,6 +180,7 @@ int main(int argc, char** argv)
 ```
 
 ### Example Client Implementation
+
 ```c
 #include <stdio.h>
 #include <open62541/client.h>
