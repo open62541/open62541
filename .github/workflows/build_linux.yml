@@ -63,7 +63,7 @@ jobs:
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
           - build_name: "Debug Build & Unit Tests (clang-15)"
             runs_on: "ubuntu-22.04"
-            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto
+            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
