@@ -279,7 +279,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* Logging */
     if(conf->logging == NULL)
-        conf->logging = UA_Log_Stdout;
+        conf->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
@@ -1110,7 +1110,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->secureChannelLifeTime = 10 * 60 * 1000; /* 10 minutes */
 
     if(config->logging == NULL)
-        config->logging = UA_Log_Stdout;
+        config->logging = UA_Log_Stdout_new(UA_LOGLEVEL_INFO);
 
     /* EventLoop */
     if(config->eventLoop == NULL) {

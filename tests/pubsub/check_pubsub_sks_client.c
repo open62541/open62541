@@ -130,139 +130,10 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
                               const UA_NodeId *objectId, void *objectContext) {
     if(!objectContext)
         return true;
-    if(!sessionContext)
-        return false;
-    UA_ExtensionObject *userIdentityToken = (UA_ExtensionObject*)sessionContext;
-    if(userIdentityToken->content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
-        return false;
-    UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken*)
-        userIdentityToken->content.decoded.data;
+
+    UA_Session *session = getSessionById(server, sessionId);
     UA_ByteString *username = (UA_ByteString *)objectContext;
-    UA_Boolean isUsernameEqual = UA_ByteString_equal(username, &token->userName);
-
-    /* clear session context */
-    UA_ExtensionObject_clear(userIdentityToken);
-    UA_free(sessionContext);
-
-    return isUsernameEqual;
-}
-
-static UA_StatusCode
-activateSession_default(UA_Server *server, UA_AccessControl *ac,
-                        const UA_EndpointDescription *endpointDescription,
-                        const UA_ByteString *secureChannelRemoteCertificate,
-                        const UA_NodeId *sessionId,
-                        const UA_ExtensionObject *userIdentityToken,
-                        void **sessionContext) {
-    AccessControlContext *context = (AccessControlContext*)ac->context;
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    /* The empty token is interpreted as anonymous */
-    UA_AnonymousIdentityToken anonToken;
-    UA_ExtensionObject tmpIdentity;
-    if(userIdentityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-        UA_AnonymousIdentityToken_init(&anonToken);
-        UA_ExtensionObject_init(&tmpIdentity);
-        UA_ExtensionObject_setValueNoDelete(&tmpIdentity,
-                                            &anonToken,
-                                            &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]);
-        userIdentityToken = &tmpIdentity;
-    }
-
-    /* Could the token be decoded? */
-    if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-    const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
-    if(tokenType == &UA_TYPES[UA_TYPES_ANONYMOUSIDENTITYTOKEN]) {
-        /* Anonymous login */
-        if(!context->allowAnonymous)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        const UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
-            userIdentityToken->content.decoded.data;
-
-        /* Match the beginnig of the PolicyId.
-         * Compatibility notice: Siemens OPC Scout v10 provides an empty
-         * policyId. This is not compliant. For compatibility, assume that empty
-         * policyId == ANONYMOUS_POLICY */
-        if(token->policyId.data &&
-           (token->policyId.length < anonymousPolicy.length ||
-            strncmp((const char*)token->policyId.data,
-                    (const char*)anonymousPolicy.data,
-                    anonymousPolicy.length) != 0)) {
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        }
-    } else if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
-        /* Username and password */
-        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
-            userIdentityToken->content.decoded.data;
-
-        /* Match the beginnig of the PolicyId */
-        if(userToken->policyId.length < usernamePolicy.length ||
-           strncmp((const char*)userToken->policyId.data,
-                   (const char*)usernamePolicy.data,
-                   usernamePolicy.length) != 0) {
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        }
-
-        /* The userToken has been decrypted by the server before forwarding
-         * it to the plugin. This information can be used here. */
-        /* if(userToken->encryptionAlgorithm.length > 0) {} */
-
-        /* Empty username and password */
-        if(userToken->userName.length == 0 && userToken->password.length == 0)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        /* Try to match username/pw */
-        UA_Boolean match = false;
-        if(context->loginCallback) {
-            if(context->loginCallback(&userToken->userName, &userToken->password,
-                                      context->usernamePasswordLoginSize, context->usernamePasswordLogin,
-                                      sessionContext, context->loginContext) == UA_STATUSCODE_GOOD)
-                match = true;
-        } else {
-            for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
-                if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-                   UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
-                    UA_ExtensionObject *mySessionContext = (UA_ExtensionObject *)malloc(sizeof(UA_ExtensionObject));
-                    // Copy data from userIdentityToken to the session context
-                    UA_ExtensionObject_copy(userIdentityToken, mySessionContext);
-                    if(!*sessionContext)
-                        *sessionContext = (void*)mySessionContext;
-                    match = true;
-                    break;
-                }
-            }
-        }
-        if(!match)
-            return UA_STATUSCODE_BADUSERACCESSDENIED;
-    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
-        /* x509 certificate */
-        const UA_X509IdentityToken *userToken = (UA_X509IdentityToken*)
-            userIdentityToken->content.decoded.data;
-
-        /* Match the beginnig of the PolicyId */
-        if(userToken->policyId.length < certificatePolicy.length ||
-           strncmp((const char*)userToken->policyId.data,
-                   (const char*)certificatePolicy.data,
-                   certificatePolicy.length) != 0) {
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-        }
-
-        if(!config->sessionPKI.verifyCertificate)
-            return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-
-        UA_StatusCode res = config->sessionPKI.
-            verifyCertificate(&config->sessionPKI, &userToken->certificateData);
-        if(res != UA_STATUSCODE_GOOD)
-            return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
-    } else {
-        /* Unsupported token type */
-        return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
-    }
-
-    return UA_STATUSCODE_GOOD;
+    return UA_ByteString_equal(username, &session->clientUserIdOfSession);
 }
 
 static void
@@ -305,7 +176,6 @@ skssetup(void) {
                                       config->logging);
 
     /*User Access Control*/
-    config->accessControl.activateSession = activateSession_default;
     config->accessControl.getUserExecutableOnObject = getUserExecutableOnObject_sks;
 
     addSecurityGroup();

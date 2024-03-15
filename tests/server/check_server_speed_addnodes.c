@@ -15,9 +15,6 @@ static UA_Server *server;
 static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    /* Disable logging */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->logging = NULL;
 }
 
 static void teardown(void) {

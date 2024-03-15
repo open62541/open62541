@@ -105,14 +105,26 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 
 static void
-UA_Log_Stdout_clear(void *context) {}
+UA_Log_Stdout_clear(UA_Logger *logger) {
+    UA_free(logger);
+}
 
-const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear};
+const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, NULL};
 const UA_Logger *UA_Log_Stdout = &UA_Log_Stdout_;
 
 UA_Logger
 UA_Log_Stdout_withLevel(UA_LogLevel minlevel) {
     UA_Logger logger =
-        {UA_Log_Stdout_log, (void*)(uintptr_t)minlevel, UA_Log_Stdout_clear};
+        {UA_Log_Stdout_log, (void*)(uintptr_t)minlevel, NULL};
+    return logger;
+}
+
+UA_Logger *
+UA_Log_Stdout_new(UA_LogLevel minlevel) {
+    UA_Logger *logger = (UA_Logger*)UA_malloc(sizeof(UA_Logger));
+    if(!logger)
+        return NULL;
+    *logger = UA_Log_Stdout_withLevel(minlevel);
+    logger->clear = UA_Log_Stdout_clear;
     return logger;
 }
