@@ -50,7 +50,7 @@ printh(u'''/**********************************
 ''')
 
 for row in rows:
-    printh(u"/* %s */\n#define UA_STATUSCODE_%s %s\n" % (row[2], row[0].upper(), row[1]))
+    printh(u"/* %s */\n#define UA_STATUSCODE_%s %s\n" % (row[2][1:-1], row[0].upper(), row[1]))
 
 printh(u'''/* Depending on the version of the schema, the following might be already defined: */
 #ifndef UA_STATUSCODE_GOOD
