@@ -65,6 +65,11 @@ parser.add_argument('--internal',
                     dest="internal",
                     help='Given bsd are internal types which do not have any .csv file')
 
+parser.add_argument('--gen-doc',
+                    action='store_true',
+                    dest="gen_doc",
+                    help='Generate a .rst documentation version of the type definition')
+
 parser.add_argument('-t', '--type-bsd',
                     metavar="<typeBsds>",
                     type=argparse.FileType('r'),
@@ -102,5 +107,5 @@ parser = CSVBSDTypeParser(args.opaque_map, args.selected_types, args.no_builtin,
                           args.type_bsd, args.type_csv, args.type_xml, namespaceMap)
 parser.create_types()
 
-generator = backend.CGenerator(parser, inname, args.outfile, args.internal, namespaceMap)
+generator = backend.CGenerator(parser, inname, args.outfile, args.internal, args.gen_doc, namespaceMap)
 generator.write_definitions()
