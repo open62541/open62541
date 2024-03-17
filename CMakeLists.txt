@@ -1180,7 +1180,7 @@ else()
 endif()
 
 # standard-defined data types
-ua_generate_datatypes(BUILTIN NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
+ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_FILE_NODEIDS}"
                       FILES_BSD "${UA_FILE_TYPES_BSD}"
                       FILES_SELECTED ${UA_FILE_DATATYPES})
