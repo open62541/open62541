@@ -1886,12 +1886,14 @@ typedef union {
  *        be set in UA_Server_setAsyncOperationResult in any case.
  * @return false if queue is empty, true else */
 UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server,
+                                       UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
                                        void **context, UA_DateTime *timeout);
 
 /* UA_Boolean UA_EXPORT */
-/* UA_Server_getAsyncOperationBlocking(UA_Server *server, UA_AsyncOperationType *type, */
+/* UA_Server_getAsyncOperationBlocking(UA_Server *server, */
+/*                                     UA_AsyncOperationType *type, */
 /*                                     const UA_AsyncOperationRequest **request, */
 /*                                     void **context, UA_DateTime *timeout); */
 
