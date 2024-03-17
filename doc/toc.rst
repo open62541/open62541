@@ -6,12 +6,11 @@ open62541 Documentation
    index
    core_concepts
    building
-   tutorials
    types
-   services
    server
    client
    pubsub
+   tutorials
    common
    nodeset_compiler
    statuscodes
