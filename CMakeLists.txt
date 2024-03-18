@@ -815,7 +815,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/transport_generated.c
                 ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
                 ${PROJECT_SOURCE_DIR}/src/util/ua_util.c
-                ${PROJECT_SOURCE_DIR}/src/util/ua_clock.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/ua_securechannel_crypto.c
                 # server
@@ -973,19 +972,20 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 
 # Always add the POSIX eventloop. The files internally check for the configured architecture
 list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_timer.h
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_timer.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_common.h
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_select.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_epoll.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/plugins/eventloop/eventloop_mqtt.c)
+     ${PROJECT_SOURCE_DIR}/arch/clock.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.h
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.h
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_select.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_epoll.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
+     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
