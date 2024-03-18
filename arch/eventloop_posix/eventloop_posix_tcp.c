@@ -709,10 +709,6 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
     if(reuseaddrTmp)
         reuseaddr = *reuseaddrTmp;
 
-#ifdef UA_ENABLE_ALLOW_REUSEADDR
-    reuseaddr = true;
-#endif
-
     /* Undefined or empty addresses array -> listen on all interfaces */
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,

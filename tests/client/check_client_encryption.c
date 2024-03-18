@@ -56,14 +56,13 @@ static void setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    server = UA_Server_newForUnitTest();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          trustList, trustListSize,
+                                                          issuerList, issuerListSize,
+                                                          revocationList, revocationListSize);
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   trustList, trustListSize,
-                                                   issuerList, issuerListSize,
-                                                   revocationList, revocationListSize);
 
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
     UA_CertificateVerification_AcceptAll(&config->sessionPKI);
 

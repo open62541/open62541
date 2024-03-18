@@ -7,6 +7,7 @@
 
 #include <open62541/client.h>
 #include <open62541/server.h>
+#include <open62541/server_config_default.h>
 #include "testing_clock.h"
 
 static UA_INLINE
@@ -18,7 +19,32 @@ UA_Server * UA_Server_newForUnitTest(void) {
     /* Manually set the eventloop clock to the fake clock */
     config->eventLoop->dateTime_now = UA_DateTime_now_fake;
     config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config->tcpReuseAddr = true;
     return server;
+}
+
+static UA_INLINE UA_Server *
+UA_Server_newForUnitTestWithSecurityPolicies(UA_UInt16 portNumber,
+                                             const UA_ByteString *certificate,
+                                             const UA_ByteString *privateKey,
+                                             const UA_ByteString *trustList,
+                                             size_t trustListSize,
+                                             const UA_ByteString *issuerList,
+                                             size_t issuerListSize,
+                                             const UA_ByteString *revocationList,
+                                             size_t revocationListSize) {
+    UA_ServerConfig config;
+    memset(&config, 0, sizeof(UA_ServerConfig));
+#ifdef UA_ENABLE_ENCRYPTION
+    UA_ServerConfig_setDefaultWithSecurityPolicies(&config, portNumber, certificate, privateKey,
+                                                   trustList, trustListSize,
+                                                   issuerList, issuerListSize,
+                                                   revocationList, revocationListSize);
+#endif
+    config.eventLoop->dateTime_now = UA_DateTime_now_fake;
+    config.eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config.tcpReuseAddr = true;
+    return UA_Server_newWithConfig(&config);
 }
 
 static UA_INLINE

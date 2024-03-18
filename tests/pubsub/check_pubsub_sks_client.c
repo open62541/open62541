@@ -155,11 +155,11 @@ skssetup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    sksServer = UA_Server_newForUnitTest();
+    sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                             trustList, trustListSize,
+                                                             issuerList, issuerListSize,
+                                                             revocationList, revocationListSize);
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(
-        config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");

@@ -359,43 +359,20 @@ static void setup(void) {
     privateKey.length = KEY_PEM_LENGTH;
     privateKey.data = KEY_PEM_DATA;
 
-    server = UA_Server_newForUnitTest();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          NULL, 0, NULL, 0, NULL, 0);
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-#ifndef __linux__
-    /* Load the trustlist */
-    size_t trustListSize = 0;
-    UA_ByteString *trustList = NULL;
-
-    /* Load the issuerList */
-    size_t issuerListSize = 0;
-    UA_ByteString *issuerList = NULL;
-
-    /* Loading of a revocation list currently unsupported */
-    UA_ByteString *revocationList = NULL;
-    size_t revocationListSize = 0;
-
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       trustList, trustListSize,
-                                                       issuerList, issuerListSize,
-                                                       revocationList, revocationListSize);
-        ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-#else /* On Linux we can monitor the certs folder and reload when changes are made */
-    UA_StatusCode res =
-        UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840,
-                                                       &certificate, &privateKey,
-                                                       NULL, 0, NULL, 0, NULL, 0);
-    ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-
+    /* On Linux we can monitor the certs folder and reload when changes are made */
+#ifdef __linux__
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_CertificateVerification_CertFolders(&config->secureChannelPKI,
                                                   NULL, NULL, NULL, ".");
     res |= UA_CertificateVerification_CertFolders(&config->sessionPKI,
                                                   NULL, NULL, NULL, ".");
     ck_assert_uint_eq(res, UA_STATUSCODE_GOOD);
-#endif /* __linux__ */
+#endif
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
