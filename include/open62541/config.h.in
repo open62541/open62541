@@ -98,6 +98,9 @@
 #cmakedefine UA_DEBUG_DUMP_PKGS
 #cmakedefine UA_DEBUG_FILE_LINE_INFO
 
+/* Options for Tests */
+#cmakedefine UA_ENABLE_ALLOW_REUSEADDR
+
 /**
  * Function Export
  * ---------------

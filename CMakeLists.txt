@@ -121,6 +121,9 @@ endif()
 set(UA_MULTITHREADING ${MULTITHREADING_DEFAULT} CACHE STRING
     "Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)")
 
+option(UA_ENABLE_ALLOW_REUSEADDR "Enable reuseaddr (only for tests)" OFF)
+mark_as_advanced(UA_ENABLE_ALLOW_REUSEADDR)
+
 option(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS "Enable the use of A&C. (EXPERIMENTAL)" OFF)
 mark_as_advanced(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
 
@@ -1159,7 +1162,7 @@ else()
 endif()
 
 # standard-defined data types
-ua_generate_datatypes(BUILTIN NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
+ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
                       FILE_CSV "${UA_FILE_NODEIDS}"
                       FILES_BSD "${UA_FILE_TYPES_BSD}"
                       FILES_SELECTED ${UA_FILE_DATATYPES})

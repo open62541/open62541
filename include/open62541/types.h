@@ -1486,10 +1486,13 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
  * Generated Data Type Definitions
  * -------------------------------
  *
- * The OPC UA standard defines many data types that are combinations of the 25
- * builtin data types. See the section on :ref:`generated-definitions` for the
- * list of data types that are integrated for this build of the open62541
- * library. */
+ * The following standard-defined datatypes are auto-generated from XML files
+ * that are part of the OPC UA standard. All datatypes are built up from the 25
+ * builtin-in datatypes from the :ref:`types` section.
+ *
+ * .. include:: types_generated.rst */
+
+/* stop-doc-generation */
 
 /* Helper used to exclude type names in the definition of UA_DataType structures
  * if the feature is disabled. */

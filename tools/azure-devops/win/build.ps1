@@ -43,6 +43,7 @@ cd build
         -DCMAKE_BUILD_TYPE=Debug `
         -DUA_BUILD_EXAMPLES=OFF `
         -DUA_BUILD_UNIT_TESTS=ON `
+        -DUA_ENABLE_ALLOW_REUSEADDR=ON `
         -DUA_ENABLE_DA=ON `
         -DUA_ENABLE_DISCOVERY=ON `
         -DUA_ENABLE_ENCRYPTION:STRING=$build_encryption `
