@@ -140,6 +140,10 @@ struct UA_ClientConfig {
     UA_String applicationUri;
 
     /**
+     * The following settings are specific to OPC UA with TCP transport. */
+    UA_Boolean tcpReuseAddr;
+
+    /**
      * Custom Data Types
      * ~~~~~~~~~~~~~~~~~
      * The following is a linked list of arrays with custom data types. All data

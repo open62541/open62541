@@ -56,6 +56,7 @@ UA_Client * UA_Client_newForUnitTest(void) {
     /* Manually set the eventloop clock to the fake clock */
     config->eventLoop->dateTime_now = UA_DateTime_now_fake;
     config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
+    config->tcpReuseAddr = true;
     return client;
 }
 
