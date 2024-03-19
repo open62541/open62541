@@ -1126,7 +1126,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
  ********************************************************************************/
 
 static UA_StatusCode
-prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *reader,
+prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
                     UA_ByteString *buf, size_t *pos) {
     UA_NetworkMessage *nm = (UA_NetworkMessage*)UA_calloc(1, sizeof(UA_NetworkMessage));
     if(!nm)
@@ -1157,17 +1157,6 @@ prepareOffsetBuffer(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetReader *rea
 
     /* Set the offset buffer in the reader */
     reader->bufferedMessage.nm = nm;
-
-    /* If pre-operational, set to operational after the first message was
-     * processed */
-    if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
-        rg->state = UA_PUBSUBSTATE_OPERATIONAL;
-        UA_ServerConfig *config = &server->config;
-        if(config->pubSubConfig.stateChangeCallback != 0) {
-            config->pubSubConfig.stateChangeCallback(server, &rg->identifier,
-                                                     rg->state, UA_STATUSCODE_GOOD);
-        }
-    }
 
     return rv;
 }
@@ -1253,7 +1242,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
         if(!dsr->bufferedMessage.nm) {
             /* This is the first message being received for the RT fastpath.
              * Prepare the offset buffer and set operational. */
-            rv = prepareOffsetBuffer(server, readerGroup, dsr, buf, &pos);
+            rv = prepareOffsetBuffer(server, dsr, buf, &pos);
         } else {
             /* Decode with offset information and update the networkMessage */
             rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage, buf, &pos);
@@ -1263,6 +1252,15 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup
                                "PubSub decoding failed. Could not decode with "
                                "status code %s.", UA_StatusCode_name(rv));
             return false;
+        } else if (readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL) {
+            /* If pre-operational, set to operational after the first message was
+             * processed */
+            readerGroup->state = UA_PUBSUBSTATE_OPERATIONAL;
+            UA_ServerConfig *config = &server->config;
+            if(config->pubSubConfig.stateChangeCallback != 0) {
+                config->pubSubConfig.stateChangeCallback(server, &readerGroup->identifier,
+                                                         readerGroup->state, UA_STATUSCODE_GOOD);
+            }
         }
     }
 
