@@ -101,7 +101,7 @@ def generateNodeIdCode(value):
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
     elif value.g != None:
         return u"UA_NODEID_GUID(ns[%s], %s)" % (value.ns, generateGuidCode(value.gAsStrings()))
-    raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
+    raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
