@@ -524,17 +524,26 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             UA_Byte currentServiceLevel = UA_ACCESSLEVELMASK_READ;
             for (iteratorRole = 0; iteratorRole < (int)node->variableNode.head.rolePermissionsSize; iteratorRole++)
             {
-                if (UA_NodeId_equal(&session->role, &node->variableNode.head.rolePermissions[iteratorRole].roleId))
+                int subIterator = 0;
+                for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
                 {
-                    UA_Byte outAccessLevel;
-                    UA_UNLOCK(&server->serviceMutex);
-                    UA_Server_readAccessLevel(server, node->variableNode.head.nodeId, &outAccessLevel);
-                    UA_LOCK(&server->serviceMutex);
-                    
-                    currentServiceLevel = (UA_Byte)node->variableNode.head.rolePermissions[iteratorRole].permissions & outAccessLevel;
-                    roleFlag = true;
-                    break;
+                    if (UA_NodeId_equal(&session->roleInfo[subIterator], &node->variableNode.head.rolePermissions[iteratorRole].roleId))
+                    {
+                        UA_Byte outAccessLevel;
+                        UA_UNLOCK(&server->serviceMutex);
+                        UA_Server_readAccessLevel(server, node->variableNode.head.nodeId, &outAccessLevel);
+                        UA_LOCK(&server->serviceMutex);
+                        
+                        currentServiceLevel = (UA_Byte)node->variableNode.head.rolePermissions[iteratorRole].permissions & outAccessLevel;
+                        roleFlag = true;
+                        break;
+                    }
+
                 }
+
+                if (roleFlag)
+                    break;
+
             }
 
             if (roleFlag)
@@ -580,16 +589,24 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
             UA_Boolean userExecData = true;
             for (iteratorRole = 0; iteratorRole < (int)node->methodNode.head.rolePermissionsSize; iteratorRole++)
             {
-                if (UA_NodeId_equal(&session->role, &node->methodNode.head.rolePermissions[iteratorRole].roleId))
+                int subIterator = 0;
+                for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
                 {
-                    userExecData = false;
-                    if (node->methodNode.head.rolePermissions[iteratorRole].permissions < 64)
+                    if (UA_NodeId_equal(&session->roleInfo[subIterator], &node->variableNode.head.rolePermissions[iteratorRole].roleId))
                     {
-                        userExecutable = false;
-                        break;
+                        userExecData = false;
+                        if (node->methodNode.head.rolePermissions[iteratorRole].permissions < 64)
+                        {
+                            userExecutable = false;
+                            break;
+                        }
+
                     }
 
                 }
+
+                if (!userExecData)
+                    break;
 
             }
 
@@ -702,11 +719,20 @@ Operation_Read(UA_Server *server, UA_Session *session, UA_ReadRequest *request,
         {
             for (iteratorRole = 0; iteratorRole < (int)node->head.rolePermissionsSize; iteratorRole++)
             {
-                if (UA_NodeId_equal(&session->role, &node->head.rolePermissions[iteratorRole].roleId))
+                int subIterator = 0;
+                for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
                 {
-                    checkAccess = true;
-                    break;
+                    if (UA_NodeId_equal(&session->roleInfo[subIterator], &node->head.rolePermissions[iteratorRole].roleId))
+                    {
+                        checkAccess = true;
+                        break;
+                    }
+
                 }
+
+                if (checkAccess)
+                    break;
+
             }
         }
         else
@@ -1941,11 +1967,18 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
                 UA_Boolean checkAccessToNode = false;
                 for (iteratorRole = 0; iteratorRole < (int)node->variableNode.head.rolePermissionsSize; iteratorRole++)
                 {
-                    if (UA_NodeId_equal(&session->role, &node->variableNode.head.rolePermissions[iteratorRole].roleId))
+                    int subIterator = 0;
+                    for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
                     {
-                        if (node->variableNode.head.rolePermissions[iteratorRole].permissions >= UA_PERMISSIONTYPE_WRITE)
-                            checkAccessToNode = true;
+                        if (UA_NodeId_equal(&session->roleInfo[subIterator], &node->head.rolePermissions[iteratorRole].roleId))
+                        {
+                            if (node->variableNode.head.rolePermissions[iteratorRole].permissions >= UA_PERMISSIONTYPE_WRITE)
+                                checkAccessToNode = true;
+
+                        }
+
                     }
+
                 }
 
                 if (checkAccessToNode != true) {

@@ -1,5 +1,19 @@
+/* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
+ * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
+ * 
+ * Copyright 2023 (c) Asish Ganesh, Eclatron Technologies Private Limited
+ */
+
+/**
+ * Set user role permissions for nodes
+ * -----------------------------------
+ * In this example, we will verify the login user and confirm their
+ * access rights before disclosing the details of the nodes.
+ */
+
 #include <open62541/server.h>
 #include <open62541/plugin/log_stdout.h>
+#include <server/ua_services.h>
 
 UA_StatusCode addNewTestNode(UA_Server *server);
 
@@ -169,6 +183,25 @@ addHelloWorldMethod(UA_Server *server) {
 }
 
 int main(void) {
+    const UA_String user1 = {5, (UA_Byte*)"user1"};
+    const UA_String user2 = {5, (UA_Byte*)"user2"};
+    const UA_String user3 = {5, (UA_Byte*)"user3"};
+    
+    const RoleGroup roleGroupInfo1 = (RoleGroup)(configureAdminRole | engineerRole);
+    const RoleGroup roleGroupInfo2 = (RoleGroup)(authenticatedUserRole | operatorRole);
+    const RoleGroup roleGroupInfo3 = (RoleGroup)(authenticatedUserRole | observerRole);
+
+    UsernameRolePair userNameRolePairInfo1 = {user1, roleGroupInfo1};
+    UsernameRolePair userNameRolePairInfo2 = {user2, roleGroupInfo2};
+    UsernameRolePair userNameRolePairInfo3 = {user3, roleGroupInfo3};
+
+    UsernameRolePair userNameRolePairInfo[3];
+    userNameRolePairInfo[0] = userNameRolePairInfo1;
+    userNameRolePairInfo[1] = userNameRolePairInfo2;
+    userNameRolePairInfo[2] = userNameRolePairInfo3;
+    setUserRoleDetailInfo(userNameRolePairInfo, 3);
+    // setUserRoleDetails(userRoleDetail);
+
     UA_Server *server = UA_Server_new();
 
     // Add 1 - Object, & 3 - Variable nodes

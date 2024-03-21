@@ -389,15 +389,21 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
         int iteratorRole = 0;
         for (iteratorRole = 0; iteratorRole < (int)method->head.rolePermissionsSize; iteratorRole++)
         {
-            if (UA_NodeId_equal(&session->role, &method->head.rolePermissions[iteratorRole].roleId))
+            int subIterator = 0;
+            for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
             {
-                if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                if (UA_NodeId_equal(&session->roleInfo[subIterator], &method->head.rolePermissions[iteratorRole].roleId))
                 {
-                    opResult->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-                    return;
-                    break;
+                    if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                    {
+                        opResult->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                        return;
+                        break;
+                    }
                 }
+
             }
+
         }
     }
 
@@ -503,15 +509,21 @@ Operation_CallMethod(UA_Server *server, UA_Session *session, void *context,
         int iteratorRole = 0;
         for (iteratorRole = 0; iteratorRole < (int)method->head.rolePermissionsSize; iteratorRole++)
         {
-            if (UA_NodeId_equal(&session->role, &method->head.rolePermissions[iteratorRole].roleId))
+            int subIterator = 0;
+            for (subIterator = 0; subIterator < (int)session->roleInfoSize; subIterator++)
             {
-                if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                if (UA_NodeId_equal(&session->roleInfo[subIterator], &method->head.rolePermissions[iteratorRole].roleId))
                 {
-                    result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
-                    return;
-                    break;
+                    if (method->head.rolePermissions[iteratorRole].permissions < 64)
+                    {
+                        result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                        return;
+                        break;
+                    }
                 }
+
             }
+
         }
     }
 

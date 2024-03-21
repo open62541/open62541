@@ -50,6 +50,27 @@ typedef void (*UA_Service)(UA_Server*, UA_Session*,
 typedef void (*UA_ChannelService)(UA_Server*, UA_SecureChannel*,
                                   const void *request, void *response);
 
+typedef enum {
+    anonymousRole = 1,
+    authenticatedUserRole = 2,
+    observerRole = 4,
+    operatorRole = 8,
+    engineerRole = 16,
+    supervisorRole = 32,
+    configureAdminRole = 64,
+    securityAdminRole = 128
+} RoleGroup;
+
+// Define a struct for the pair
+typedef struct {
+    UA_String userName;
+    RoleGroup roleGroupInfo;
+} UsernameRolePair;
+
+// void setUserRoleDetails (UA_String* userRoleDetails);
+
+void setUserRoleDetailInfo (UsernameRolePair* usernameRoleInfo, UA_Int16 roleCount);
+
 /**
  * Discovery Service Set
  * ---------------------

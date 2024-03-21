@@ -18,28 +18,54 @@
 
 #define UA_NUMBER_OF_ROLES 8
 
-static const UA_NodeId userRoles[8] = {
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_ANONYMOUS}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_OBSERVER}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_OPERATOR}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_ENGINEER}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_SUPERVISOR}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN}},
-  {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN}},
-};
+static UsernameRolePair* userRoleDetailInfo;
+static UA_Int16 userRoleCount;
 
+UA_NodeId* setUserRoleInstance(RoleGroup roleGroup, size_t* roleInfoCount);
 
-static const UA_String userRoleDetail[8] = {
-  {9, (UA_Byte*)"Anonymous"},    
-  {17, (UA_Byte*)"AuthenticatedUser"},
-  {8, (UA_Byte*)"Observer"},
-  {8, (UA_Byte*)"Operator"},
-  {8, (UA_Byte*)"Engineer"},
-  {10, (UA_Byte*)"Supervisor"},
-  {14, (UA_Byte*)"ConfigureAdmin"},
-  {13, (UA_Byte*)"SecurityAdmin"}
-};
+UA_NodeId* setUserRoleInstance(RoleGroup roleGroup, size_t* roleInfoCount)
+{
+    UA_NodeId* roleGroupNodeId;
+    size_t numNodes = 0; // Variable to store the number of nodes
+    // Dynamically allocate memory for the nodes array
+    roleGroupNodeId = (UA_NodeId*)malloc(numNodes * sizeof(UA_NodeId));
+
+    if (roleGroup == 0)
+        return NULL;
+    
+    if (roleGroup & anonymousRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS);
+
+    if (roleGroup & authenticatedUserRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER);
+
+    if (roleGroup & observerRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER);
+
+    if (roleGroup & operatorRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR);
+
+    if (roleGroup & engineerRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER);
+
+    if (roleGroup & supervisorRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR);
+
+    if (roleGroup & configureAdminRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN);
+
+    if (roleGroup & securityAdminRole)
+        roleGroupNodeId[numNodes++] =  UA_NODEID_NUMERIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN);
+
+    *roleInfoCount = numNodes;
+    return roleGroupNodeId;
+}
+
+void setUserRoleDetailInfo (UsernameRolePair* usernameRoleInfo, UA_Int16 roleCount)
+{
+    userRoleDetailInfo = usernameRoleInfo;
+    userRoleCount = roleCount;
+}
 
 /* Delayed callback to free the session memory */
 static void
@@ -704,11 +730,23 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
         * to different users.
         * TODO: Implement handle to support custom callbacks for setting role permissions
         */
+
+       /* Steps:
+        * 1. There should be a function f1 call that returns array of roles
+        *    Meaning, it should be an array of pair -> arrayof<usernamepassword, {arrayof<roles>}>
+        * 2. The funtion f1 should have a callback within from the application layer
+        *    which allows the user to set username-password & its corresponding role
+        */
+
        int userRoleIterator = 0;
-       for (userRoleIterator = 0; userRoleIterator < UA_NUMBER_OF_ROLES; userRoleIterator++)
+       for (userRoleIterator = 0; userRoleIterator < userRoleCount; userRoleIterator++)
        {
-           if (UA_String_equal(&userToken->userName, &userRoleDetail[userRoleIterator]))
-               session->role = userRoles[userRoleIterator];
+            if (strcmp((char*)userToken->userName.data, (char*)userRoleDetailInfo[userRoleIterator].userName.data) == 0)
+            {
+                size_t roleInfoCount;
+                session->roleInfo = setUserRoleInstance(userRoleDetailInfo[userRoleIterator].roleGroupInfo, &roleInfoCount);
+                session->roleInfoSize = roleInfoCount;
+            }
        }
 
        /* If the userTokenPolicy doesn't specify a security policy the security

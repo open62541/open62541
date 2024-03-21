@@ -714,13 +714,6 @@ UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
 }
 
 static UA_INLINE UA_THREADSAFE UA_StatusCode
-UA_Server_readUserAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                              UA_Byte *outAccessLevel) {
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL,
-                            outAccessLevel);
-}
-
-static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
                                       UA_Double *outMinimumSamplingInterval) {
     return __UA_Server_read(server, &nodeId,
@@ -739,13 +732,6 @@ static UA_INLINE UA_THREADSAFE UA_StatusCode
 UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
                          UA_Boolean *outExecutable) {
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                            outExecutable);
-}
-
-static UA_INLINE UA_THREADSAFE UA_StatusCode
-UA_Server_readUserExecutable(UA_Server *server, const UA_NodeId nodeId,
-                         UA_Boolean *outExecutable) {
-    return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_USEREXECUTABLE,
                             outExecutable);
 }
 

@@ -215,15 +215,23 @@ addEndpoint(UA_ServerConfig *conf,
     return retval;
 }
 
-static const size_t usernamePasswordsSize = 7;
-static UA_UsernamePasswordLogin usernamePasswords[7] = {
-    {UA_STRING_STATIC("AuthenticatedUser"), UA_STRING_STATIC("AuthenticatedUser")},
-    {UA_STRING_STATIC("Observer"), UA_STRING_STATIC("Observer")},
-    {UA_STRING_STATIC("Operator"), UA_STRING_STATIC("Operator")},
-    {UA_STRING_STATIC("Engineer"), UA_STRING_STATIC("Engineer")},
-    {UA_STRING_STATIC("Supervisor"), UA_STRING_STATIC("Supervisor")},
-    {UA_STRING_STATIC("ConfigureAdmin"), UA_STRING_STATIC("ConfigureAdmin")},
-    {UA_STRING_STATIC("SecurityAdmin"), UA_STRING_STATIC("SecurityAdmin")}};
+static const size_t usernamePasswordsSize = 3;
+static UA_UsernamePasswordLogin usernamePasswords[3] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")},
+    {UA_STRING_STATIC("user3"), UA_STRING_STATIC("password2")}};
+
+// static const size_t usernamePasswordsSize = 9;
+// static UA_UsernamePasswordLogin usernamePasswords[9] = {
+//     {UA_STRING_STATIC("AuthenticatedUser"), UA_STRING_STATIC("AuthenticatedUser")},
+//     {UA_STRING_STATIC("Observer"), UA_STRING_STATIC("Observer")},
+//     {UA_STRING_STATIC("Operator"), UA_STRING_STATIC("Operator")},
+//     {UA_STRING_STATIC("Engineer"), UA_STRING_STATIC("Engineer")},
+//     {UA_STRING_STATIC("Supervisor"), UA_STRING_STATIC("Supervisor")},
+//     {UA_STRING_STATIC("ConfigureAdmin"), UA_STRING_STATIC("ConfigureAdmin")},
+//     {UA_STRING_STATIC("SecurityAdmin"), UA_STRING_STATIC("SecurityAdmin")},
+//     {UA_STRING_STATIC("User2"), UA_STRING_STATIC("User2")},
+//     {UA_STRING_STATIC("User3"), UA_STRING_STATIC("User3")}};
 
 static UA_StatusCode
 setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
