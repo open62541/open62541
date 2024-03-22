@@ -750,7 +750,7 @@ YY_ACTION(void) yy_2_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SimpleAttributeOperand\n"));
   {
-  yy->status = set_up_browsepath(&__.sao.browsePath, &__.sao.browsePathSize, yytext, yy->status);;
+  yy->status |= set_up_browsepath(&__.sao.browsePath, &__.sao.browsePathSize, yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -763,7 +763,7 @@ YY_ACTION(void) yy_1_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SimpleAttributeOperand\n"));
   {
-  yy->status = UA_NodeId_parse(&__.sao.typeDefinitionId, UA_STRING(yytext));;
+  yy->status |= UA_NodeId_parse(&__.sao.typeDefinitionId, UA_STRING(yytext));;
   }
 #undef yythunkpos
 #undef yypos
@@ -1317,7 +1317,7 @@ YY_ACTION(void) yy_1_ContentFilter(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ContentFilter\n"));
   {
-  yy->status = create_content_filter(&yy->global, &yy->filter.whereClause, element.str, yy->status);;
+  yy->status |= create_content_filter(&yy->global, &yy->filter.whereClause, element.str);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1345,7 +1345,7 @@ YY_ACTION(void) yy_2_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SelectClauses\n"));
   {
-  yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);;
+  yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1360,7 +1360,7 @@ YY_ACTION(void) yy_1_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SelectClauses\n"));
   {
-  yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);;
+  yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);;
   }
 #undef yythunkpos
 #undef yypos
