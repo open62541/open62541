@@ -53,12 +53,12 @@ typedef struct {
 
 char * save_string(char *str);
 void create_next_operand_element(ElementList *elements, Operand *operand, char *ref);
-UA_StatusCode create_content_filter(ElementList *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
+UA_StatusCode create_content_filter(ElementList *elements, UA_ContentFilter *filter, char *first_element);
 void add_new_operator(ElementList *global, char *operator_ref, Operator *element);
-UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
-UA_StatusCode set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str, UA_StatusCode status);
-UA_StatusCode create_literal_operand(char *string, UA_LiteralOperand *lit, UA_StatusCode status);
-UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_StatusCode status);
+UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension);
+UA_StatusCode set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str);
+UA_StatusCode create_literal_operand(char *string, UA_LiteralOperand *lit);
+UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id);
 void handle_elementoperand(Operand *operand, char *ref);
 void handle_sao(UA_SimpleAttributeOperand *simple, Operand *operand);
 void add_operand_from_branch(char **ref, size_t *operand_ctr, Operand *operand, ElementList *global);

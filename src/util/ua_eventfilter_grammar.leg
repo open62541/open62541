@@ -111,12 +111,12 @@ union value{
 
 EventFilter = SelectClauses ContentFilter
 SelectClauses =
-        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);}
-        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);}
+        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);}
+        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);}
 Select = _ 'SELECT' _                                                                                                   {init_item_list(&yy->global, &yy->ctr);}
 ContentFilter = _ 'WHERE' _ (
             element:SingleBranchStructure _ ('FOR' _ ReferencedElement+)?
-        |   element:BranchStructure   _ ('FOR' _ ReferencedElement+)?)                                                  {yy->status = create_content_filter(&yy->global, &yy->filter.whereClause, element.str, yy->status);}
+        |   element:BranchStructure   _ ('FOR' _ ReferencedElement+)?)                                                  {yy->status |= create_content_filter(&yy->global, &yy->filter.whereClause, element.str);}
 BranchStructure = (   'OR' _  op1:Child_1 op2:Child_2                                                                   {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &$$.str);}
                     | 'AND' _  op1:Child_1 op2:Child_2                                                                  {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &$$.str);}
                   )
@@ -168,8 +168,8 @@ Operand = _  ( (lit:Literal | '('_ lit:Literal _ ')')                           
              ) _
 ElementOperand = (_ '$' ([0-9]+ | ParsedString) _ )
 SimpleAttributeOperand =
-        (   _  (_ 'TYPEID' _  <NodeId>)?                                                                                {yy->status = UA_NodeId_parse(&$$.sao.typeDefinitionId, UA_STRING(yytext));}
-               (_  'PATH' _  '"' <QualifiedName+> '"')                                                                  {yy->status = set_up_browsepath(&$$.sao.browsePath, &$$.sao.browsePathSize, yytext, yy->status);}
+        (   _  (_ 'TYPEID' _  <NodeId>)?                                                                                {yy->status |= UA_NodeId_parse(&$$.sao.typeDefinitionId, UA_STRING(yytext));}
+               (_  'PATH' _  '"' <QualifiedName+> '"')                                                                  {yy->status |= set_up_browsepath(&$$.sao.browsePath, &$$.sao.browsePathSize, yytext);}
                (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {$$.sao.attributeId = (UA_UInt32) atoi(yytext);}
                (_  'INDEX' _   NumericRange                                                                             {$$.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
         )?) _                                                                                                           {handle_sao(&$$.sao, &$$.operand);}
