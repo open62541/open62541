@@ -113,9 +113,7 @@ solve_children_references(Element *temp, ElementList *elements,
 
 static UA_StatusCode
 check_recursion_on_operands(Element *element, size_t init_element,
-                            ElementList *elements, size_t *ctr, UA_StatusCode *status){
-    if(*status != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_GOOD;
+                            ElementList *elements, size_t *ctr){
     for(size_t i = 0; i<element->element.oper.childrenSize; i++) {
         if(element->element.oper.children[i].value.extension.content.decoded.type == &UA_TYPES[UA_TYPES_ELEMENTOPERAND]){
             UA_ElementOperand *temp = (UA_ElementOperand*)
@@ -140,8 +138,7 @@ check_recursion_on_operands(Element *element, size_t init_element,
                 break;
             }
             (*ctr)++;
-            UA_StatusCode retval =
-                check_recursion_on_operands(next_element, init_element, elements, ctr, status);
+            UA_StatusCode retval = check_recursion_on_operands(next_element, init_element, elements, ctr);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
@@ -258,12 +255,7 @@ add_content_filter_element(UA_ContentFilterElement *filterElement,
 
 UA_StatusCode
 create_content_filter(ElementList *elements, UA_ContentFilter *filter,
-                      char *first_element, UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD) {
-        clear_linked_list(elements);
-        free(first_element);
-        return status;
-    }
+                      char *first_element) {
     size_t position = 0;
     UA_StatusCode retval = solve_operand_references(elements);
     if(retval!= UA_STATUSCODE_GOOD) {
@@ -276,8 +268,7 @@ create_content_filter(ElementList *elements, UA_ContentFilter *filter,
     Element *temp;
     TAILQ_FOREACH(temp, elements, element_entries) {
         size_t ctr = 0;
-        retval = check_recursion_on_operands(temp, temp->element.oper.ContentFilterArrayPosition,
-                                             elements, &ctr, &status);
+        retval = check_recursion_on_operands(temp, temp->element.oper.ContentFilterArrayPosition, elements, &ctr);
         if(retval != UA_STATUSCODE_GOOD) {
             clear_linked_list(elements);
             return retval;
@@ -347,11 +338,7 @@ check_SAO(UA_SimpleAttributeOperand *sao) {
 
 UA_StatusCode
 append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size,
-                      UA_ExtensionObject *extension, UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD) {
-        UA_ExtensionObject_clear(extension);
-        return status;
-    }
+                      UA_ExtensionObject *extension) {
     if(*sao_size == 0) {
         *sao_size = 1;
         *select_clauses = (UA_SimpleAttributeOperand*)
@@ -376,10 +363,7 @@ append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_si
 }
 
 UA_StatusCode
-set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str,
-                  UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
+set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str) {
     UA_RelativePath *path = UA_RelativePath_new();
     UA_String parsed_string = UA_String_fromChars(str);
     UA_StatusCode ret_val = UA_RelativePath_parse(path, parsed_string);
@@ -400,10 +384,7 @@ set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str,
 }
 
 UA_StatusCode
-create_literal_operand(char *string, UA_LiteralOperand *lit,
-                       UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD)
-        return status;
+create_literal_operand(char *string, UA_LiteralOperand *lit) {
     UA_ByteString input_val = UA_String_fromChars(string);
     UA_StatusCode ret_val = UA_decodeJson(&input_val, (void *)&lit->value,
                                           &UA_TYPES[UA_TYPES_VARIANT], NULL);
@@ -418,11 +399,7 @@ create_literal_operand(char *string, UA_LiteralOperand *lit,
 }
 
 UA_StatusCode
-create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_StatusCode status) {
-    if(status != UA_STATUSCODE_GOOD) {
-        free(identifier);
-        return status;
-    }
+create_nodeId_from_string(char *identifier, UA_NodeId *id) {
     UA_String str = UA_String_fromChars(identifier);
     free(identifier);
     UA_NodeId_init(id);
