@@ -235,6 +235,10 @@ void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    /* Disable the PubSubConnection */
+    UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+    c->deleteFlag = true; /* Prevent reconnect from this point on */
+
     /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
      * Connection. Do this before removing them because we need to unfreeze all
      * to remove the Connection.*/
@@ -260,11 +264,6 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
         UA_WriterGroup_remove(server, writerGroup);
     }
-
-    /* Disconnect only once */
-    if(!c->deleteFlag)
-        UA_PubSubConnection_disconnect(c);
-    c->deleteFlag = true;
 
     /* Not all sockets are closed. This method will be called again */
     if(c->sendChannel != 0 || c->recvChannelsSize > 0)
@@ -313,6 +312,12 @@ UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                    UA_PubSubState state, UA_StatusCode cause) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(c->deleteFlag && state != UA_PUBSUBSTATE_DISABLED) {
+        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
+                                  "The connection is being deleted. Can only be disabled.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->state;
