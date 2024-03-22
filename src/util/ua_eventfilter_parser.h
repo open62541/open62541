@@ -29,6 +29,9 @@ typedef struct {
     size_t childrenSize;
     Operand *children;
     size_t ContentFilterArrayPosition;
+    size_t elementPosition; /* If non-null, then the Operator has been printed
+                             * out already to the final EventFilter in the
+                             * element array. */
 } Operator;
 
 typedef enum { ET_OPERAND, ET_OPERATOR } ElementType;

@@ -13,12 +13,24 @@
 #include "mp_printf.h"
 
 static Element *
-create_next_operator_element(ElementList *elements) {
+ElementList_newElement(ElementList *elements) {
     Element *element = (Element*)UA_calloc(1, sizeof(Element));
     element->type = ET_OPERATOR;
     element->element.oper.ContentFilterArrayPosition = 0;
     TAILQ_INSERT_TAIL(elements, element, element_entries);
     return element;
+}
+
+static Element *
+ElementList_find(ElementList *elements, char *ref) {
+    Element *temp;
+    TAILQ_FOREACH(temp, elements, element_entries) {
+        if(strcmp(temp->ref, ref) == 0)
+            return temp;
+    }
+    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                 "Failed to find the element with reference: %s", ref);
+    return temp;
 }
 
 char *
@@ -30,7 +42,7 @@ save_string(char *str) {
 
 void
 create_next_operand_element(ElementList *elements, Operand *operand, char *ref) {
-    Element *element = (Element*)UA_calloc(1, sizeof(Element));
+    Element *element = ElementList_newElement(elements);
     element->type = ET_OPERAND;
     element->ref = ref;
     element->element.operand.type = operand->type ;
@@ -41,18 +53,6 @@ create_next_operand_element(ElementList *elements, Operand *operand, char *ref) 
         element->element.operand.value.elementRef = save_string(operand->value.elementRef);
     }
     TAILQ_INSERT_TAIL(elements, element, element_entries);
-}
-
-static Element *
-get_element_by_reference(ElementList *elements, char **reference) {
-    Element *temp;
-    TAILQ_FOREACH(temp, elements, element_entries) {
-        if(strcmp(temp->ref, *reference) == 0)
-            return temp;
-    }
-    UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                 "Failed to find the element with reference: %s", *reference);
-    return temp;
 }
 
 static Element *
@@ -77,8 +77,7 @@ solve_children_references(Element *temp, ElementList *elements,
                           size_t *position, size_t *childrenSize, char ***child_references) {
     for(size_t i = 0; i < temp->element.oper.childrenSize; i++) {
         if(temp->element.oper.children[i].type == OT_ELEMENTREF) {
-            Element *temp_1 =
-                get_element_by_reference(elements, &temp->element.oper.children[i].value.elementRef);
+            Element *temp_1 = ElementList_find(elements,temp->element.oper.children[i].value.elementRef);
             if(temp_1->type == ET_OPERATOR) {
                 if(temp_1->element.oper.ContentFilterArrayPosition == 0) {
                     (*childrenSize)++;
@@ -151,7 +150,7 @@ handle_filter_structure(char *first_element, ElementList *elements, size_t *posi
     Element *temp;
     size_t childrenSize = 0;
     char **children_list = (char**) UA_calloc(0, sizeof(char*));
-    temp = get_element_by_reference(elements, &first_element);
+    temp = ElementList_find(elements, first_element);
     solve_children_references(temp, elements, position, &childrenSize, &children_list);
     while(childrenSize > 0) {
         size_t temp_ctr = childrenSize;
@@ -164,7 +163,7 @@ handle_filter_structure(char *first_element, ElementList *elements, size_t *posi
         childrenSize = 0;
         children_list = (char**) UA_realloc(children_list, childrenSize);
         for(size_t i=0; i< temp_ctr; i++){
-            Element *child = get_element_by_reference(elements, &temp_list[i]);
+            Element *child = ElementList_find(elements, temp_list[i]);
             solve_children_references(child, elements, position, &childrenSize, &children_list);
             free(temp_list[i]);
         }
@@ -183,8 +182,7 @@ solve_operand_references(ElementList *elements) {
         TAILQ_FOREACH(temp, elements, element_entries) {
             if(temp->type == ET_OPERAND){
                 if(temp->element.operand.type == OT_ELEMENTREF) {
-                    temp1 = get_element_by_reference(elements,
-                                                     &temp->element.operand.value.elementRef);
+                    temp1 = ElementList_find(elements, temp->element.operand.value.elementRef);
                     if(temp1->type == ET_OPERATOR) {
                         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                                      "Error! An operand references an Operator");
@@ -313,7 +311,8 @@ add_operator_children(ElementList *global, Operator element) {
 void
 add_new_operator(ElementList *global, char *operator_ref,
                  Operator *element) {
-    Element *temp = create_next_operator_element(global);
+    Element *temp = ElementList_newElement(global);
+    temp->type = ET_OPERATOR;
     temp->ref = save_string(operator_ref);
     free(operator_ref);
     add_operator_children(global, *element);
@@ -470,7 +469,7 @@ add_operand_from_branch(char **ref, size_t *operand_ctr, Operand *operand,
 
 void
 add_operand_from_literal(char **ref, size_t *operand_ctr, UA_Variant *lit, ElementList *global) {
-    Element *element = (Element*)UA_calloc(1, sizeof(Element));
+    Element *element = ElementList_newElement(global);
     element->type = ET_OPERAND;
     element->ref = *ref;
     element->element.operand.type = OT_EXTENSIONOBJECT;
@@ -597,7 +596,8 @@ init_item_list(ElementList *global, Counters *ctr) {
 void
 create_branch_element(ElementList *global, size_t *branch_element_number,
                       UA_FilterOperator filteroperator, char *ref_1, char *ref_2, char **ref) {
-    Element *temp = create_next_operator_element(global);
+    Element *temp = ElementList_newElement(global);
+    temp->type = ET_OPERATOR;
     handle_branch_operator(temp, filteroperator, branch_element_number);
     add_child_references(temp, &ref_1, &ref_2);
     *ref = save_string(temp->ref);
@@ -608,7 +608,8 @@ create_branch_element(ElementList *global, size_t *branch_element_number,
 void
 handle_for_operator(ElementList *global, size_t *for_operator_reference,
                     char **ref, Operator *element) {
-    Element *temp = create_next_operator_element(global);
+    Element *temp = ElementList_newElement(global);
+    temp->type = ET_OPERATOR;
     create_element_reference(for_operator_reference, &temp->ref, "for_reference_");
     memcpy(&temp->element.oper.childrenSize, &element->childrenSize, sizeof(size_t));
     temp->element.oper.filter = element->filter;
@@ -622,8 +623,8 @@ handle_for_operator(ElementList *global, size_t *for_operator_reference,
 void
 change_element_reference(ElementList *global, char *element_name,
                          char *new_element_reference) {
-    Element *temp = get_element_by_reference(global, &element_name);
-    temp->ref = (char*) UA_realloc(temp->ref, (strlen(new_element_reference)+1)*sizeof(char));
+    Element *temp = ElementList_find(global, element_name);
+    temp->ref= (char*) UA_realloc(temp->ref, (strlen(new_element_reference)+1)*sizeof(char));
     memset(temp->ref, 0, (strlen(new_element_reference)+1)*sizeof(char));
     strcpy(temp->ref, new_element_reference);
     free(new_element_reference);
@@ -641,7 +642,8 @@ add_in_list_children(ElementList *global, Operand *oper) {
 
 void
 create_in_list_operator(ElementList *global, Operand *oper, char *element_ref) {
-    Element *temp = create_next_operator_element(global);
+    Element *temp = ElementList_newElement(global);
+    temp->type = ET_OPERATOR;
     temp->ref = save_string(element_ref);
     temp->element.oper.filter = UA_FILTEROPERATOR_INLIST;
     free(element_ref);
