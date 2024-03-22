@@ -120,14 +120,14 @@ ContentFilter = _ 'WHERE' _ (
 BranchStructure = (   'OR' _  op1:Child_1 op2:Child_2                                                                   {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &$$.str);}
                     | 'AND' _  op1:Child_1 op2:Child_2                                                                  {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &$$.str);}
                   )
-SingleBranchStructure = ( ElementOperand                                                                                {save_string(yytext, &$$.str);}
+SingleBranchStructure = ( ElementOperand                                                                                {$$.str = save_string(yytext);}
                         | oper:ForOperator
                         )
-Child_1 = ((       '(' _  ElementOperand _  "," _                                                                       {save_string(yytext, &$$.str);}
+Child_1 = ((       '(' _  ElementOperand _  "," _                                                                       {$$.str = save_string(yytext);}
                  | '(' _  oper:SimpleAttributeOperand _  "," _                                                          {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
                  | '(' _  oper:Literal _  "," _                                                                         {add_operand_from_literal(&$$.str, &yy->ctr.operand_ctr, &oper.literal, &yy->global);}
                 )| '(' _  BranchStructure _  "," _ |  '(' _  ForOperator _  "," _ )
-Child_2 = ((      ElementOperand           _  ')'                                                                       {save_string(yytext, &$$.str);}
+Child_2 = ((      ElementOperand           _  ')'                                                                       {$$.str = save_string(yytext);}
                  | oper:SimpleAttributeOperand   _  ')'                                                                 {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
                  | oper:Literal _  ')'                                                                                  {add_operand_from_literal(&$$.str, &yy->ctr.operand_ctr, &oper.literal, &yy->global);}
                ) | BranchStructure _  ')' | ForOperator    _  ')')
@@ -209,7 +209,7 @@ JsonValue = ( JsonArray | '"'(StringElement)+'"' | [0-9]+ | 'true' | 'false' | '
 QualifiedName = ( ReferenceType ([0-9]+ _ ":")? (StringElement+)? )
 ReferenceType =  References | ('<' ('!'| '#')? ([0-9]+ _ ":")? [a-zA-Z_]+ '>')
 References = ('/' | '.')
-ReferenceElement = ElementOperand (':=')                                                                                {save_string(yytext, &$$.str);}
+ReferenceElement = ElementOperand (':=')                                                                                {$$.str = save_string(yytext);}
 ParsedString = ('"' < (StringElement)+ > '"')
 StringElement =  ('\\\"' | !["] . )
 NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?

@@ -21,10 +21,11 @@ create_next_operator_element(ElementList *elements) {
     return element;
 }
 
-void
-save_string(char *str, char **local_str) {
-    *local_str = (char*) UA_calloc(strlen(str)+1, sizeof(char));
-    strcpy(*local_str, str);
+char *
+save_string(char *str) {
+    char *local_str = (char*) UA_calloc(strlen(str)+1, sizeof(char));
+    strcpy(local_str, str);
+    return local_str;
 }
 
 void
@@ -37,7 +38,7 @@ create_next_operand_element(ElementList *elements, Operand *operand, char *ref) 
         element->element.operand.value.extension = operand->value.extension;
         UA_ExtensionObject_init(&operand->value.extension);
     } else {
-        save_string(operand->value.elementRef, &element->element.operand.value.elementRef);
+        element->element.operand.value.elementRef = save_string(operand->value.elementRef);
     }
     TAILQ_INSERT_TAIL(elements, element, element_entries);
 }
@@ -81,10 +82,8 @@ solve_children_references(Element *temp, ElementList *elements,
             if(temp_1->type == ET_OPERATOR) {
                 if(temp_1->element.oper.ContentFilterArrayPosition == 0) {
                     (*childrenSize)++;
-                    *child_references = (char**)
-                        UA_realloc(*child_references, *childrenSize*sizeof(char*));
-                    save_string(temp->element.oper.children[i].value.elementRef,
-                                &(*child_references)[*childrenSize-1]);
+                    *child_references = (char**) UA_realloc(*child_references, *childrenSize*sizeof(char*));
+                    (*child_references)[*childrenSize-1] = save_string(temp->element.oper.children[i].value.elementRef);
                     (*position)++;
                     temp_1->element.oper.ContentFilterArrayPosition = *position;
                 }
@@ -301,8 +300,7 @@ copy_children(Operator element, Element *temp) {
     for(size_t i=0; i<element.childrenSize; i++) {
         if(element.children[i].type == OT_ELEMENTREF) {
             temp->element.oper.children[i].type = OT_ELEMENTREF;
-            save_string(element.children[i].value.elementRef,
-                        &temp->element.oper.children[i].value.elementRef);
+            temp->element.oper.children[i].value.elementRef = save_string(element.children[i].value.elementRef);
         } else {
             temp->element.oper.children[i].type = OT_EXTENSIONOBJECT;
             UA_ExtensionObject_copy(&element.children[i].value.extension,
@@ -325,7 +323,7 @@ void
 add_new_operator(ElementList *global, char *operator_ref,
                  Operator *element) {
     Element *temp = create_next_operator_element(global);
-    save_string(operator_ref, &temp->ref);
+    temp->ref = save_string(operator_ref);
     free(operator_ref);
     add_operator_children(global, *element);
     clear_operand_list(element->children, element->childrenSize);
@@ -443,7 +441,7 @@ void
 handle_elementoperand(Operand *operand, char *ref) {
     memset(operand, 0, sizeof(Operand));
     operand->type = OT_ELEMENTREF;
-    save_string(ref, &operand->value.elementRef);
+    operand->value.elementRef = save_string(ref);
 }
 
 void handle_sao(UA_SimpleAttributeOperand *simple, Operand *operand) {
@@ -490,7 +488,7 @@ add_operand_from_branch(char **ref, size_t *operand_ctr, Operand *operand,
     create_element_reference(operand_ctr, &temp, "operand_reference_");
     strcpy(temp1, temp);
     create_next_operand_element(global, operand, temp);
-    save_string(temp1, ref);
+    *ref = save_string(temp1);
 }
 
 void
@@ -516,15 +514,15 @@ add_operand_nodeid(Operator *element, char *nodeid, UA_FilterOperator filter) {
 }
 
 static void
-add_child_references(Element *element, char **ref_1,
-                     char **ref_2) {
+add_child_references(Element *element, char **ref_1, char **ref_2) {
     element->element.oper.childrenSize = 2;
     element->element.oper.children = (Operand *)UA_calloc(2, sizeof(Operand));
-    for(size_t i=0; i<2; i++) {
-        element->element.oper.children[i].type = OT_ELEMENTREF;
-        i == 0 ? save_string(*ref_1, &element->element.oper.children[0].value.elementRef)
-               : save_string(*ref_2, &element->element.oper.children[1].value.elementRef);
-    }
+
+    element->element.oper.children[0].type = OT_ELEMENTREF;
+    element->element.oper.children[0].value.elementRef = save_string(*ref_1);
+
+    element->element.oper.children[1].type = OT_ELEMENTREF;
+    element->element.oper.children[1].value.elementRef = save_string(*ref_2);
 }
 
 static void
@@ -585,7 +583,7 @@ add_child_operands(Operand *operand_list, size_t operand_list_size,
     element->children = (Operand*)UA_calloc(operand_list_size, sizeof(Operand));
     for(size_t i=0; i< operand_list_size; i++) {
         if(operand_list[i].type == OT_ELEMENTREF) {
-            save_string(operand_list[i].value.elementRef, &element->children[i].value.elementRef);
+            element->children[i].value.elementRef = save_string(operand_list[i].value.elementRef);
             element->children[i].type = OT_ELEMENTREF;
             free(operand_list[i].value.elementRef);
         } else {
@@ -625,7 +623,7 @@ create_branch_element(ElementList *global, size_t *branch_element_number,
     Element *temp = create_next_operator_element(global);
     handle_branch_operator(temp, filteroperator, branch_element_number);
     add_child_references(temp, &ref_1, &ref_2);
-    save_string(temp->ref, ref);
+    *ref = save_string(temp->ref);
     free(ref_1);
     free(ref_2);
 }
@@ -639,7 +637,7 @@ handle_for_operator(ElementList *global, size_t *for_operator_reference,
     temp->element.oper.filter = element->filter;
     temp->element.oper.children = (Operand*)UA_calloc(element->childrenSize, sizeof(Operand));
     copy_children(*element, temp);
-    save_string(temp->ref, ref);
+    *ref = save_string(temp->ref);
     clear_operand_list(element->children, element->childrenSize);
     free(element->children);
 }
@@ -667,7 +665,7 @@ add_in_list_children(ElementList *global, Operand *oper) {
 void
 create_in_list_operator(ElementList *global, Operand *oper, char *element_ref) {
     Element *temp = create_next_operator_element(global);
-    save_string(element_ref, &temp->ref);
+    temp->ref = save_string(element_ref);
     temp->element.oper.filter = UA_FILTEROPERATOR_INLIST;
     free(element_ref);
     add_in_list_children(global, oper);
