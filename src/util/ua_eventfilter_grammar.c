@@ -83,15 +83,14 @@
  *  eventfilter_parser_grammar.c if changes are made to the lexer.
  */
 
-
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \
-    UA_Parsed_EventFilter parsedFilter; \
+    UA_StatusCode status;               \
+    UA_EventFilter filter;              \
     UA_String input;                    \
     UA_UInt32 pos;                      \
     Counters ctr;                       \
-    ElementList global;                 \
-    UA_Local_Operand operand;
+    ElementList global;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
 {                                              \
@@ -106,14 +105,15 @@
   }                                            \
 }
 
+# define YYSTYPE union value
 union value{
     char *str;
+    UA_SimpleAttributeOperand sao;
     UA_Variant literal;
     Operand operand;
     Operator element;
 };
 
-# define YYSTYPE union value
 
 #ifndef YY_MALLOC
 #define YY_MALLOC(C, N)		malloc(N)
@@ -711,7 +711,7 @@ YY_ACTION(void) yy_5_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_5_SimpleAttributeOperand\n"));
   {
-  handle_sao(&yy->operand.sao, &__.operand);;
+  handle_sao(&__.sao, &__.operand);;
   }
 #undef yythunkpos
 #undef yypos
@@ -724,7 +724,7 @@ YY_ACTION(void) yy_4_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_4_SimpleAttributeOperand\n"));
   {
-  yy->operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");;
+  __.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");;
   }
 #undef yythunkpos
 #undef yypos
@@ -737,7 +737,7 @@ YY_ACTION(void) yy_3_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_3_SimpleAttributeOperand\n"));
   {
-  yy->operand.sao.attributeId = (UA_UInt32) atoi(yytext);;
+  __.sao.attributeId = (UA_UInt32) atoi(yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -750,7 +750,7 @@ YY_ACTION(void) yy_2_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SimpleAttributeOperand\n"));
   {
-  yy->parsedFilter.status = set_up_browsepath(&yy->operand.sao.browsePath, &yy->operand.sao.browsePathSize, yytext, yy->parsedFilter.status);;
+  yy->status = set_up_browsepath(&__.sao.browsePath, &__.sao.browsePathSize, yytext, yy->status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -763,7 +763,7 @@ YY_ACTION(void) yy_1_SimpleAttributeOperand(yycontext *yy, char *yytext, int yyl
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SimpleAttributeOperand\n"));
   {
-  yy->parsedFilter.status = UA_NodeId_parse(&yy->operand.sao.typeDefinitionId, UA_STRING(yytext));;
+  yy->status = UA_NodeId_parse(&__.sao.typeDefinitionId, UA_STRING(yytext));;
   }
 #undef yythunkpos
 #undef yypos
@@ -1317,7 +1317,7 @@ YY_ACTION(void) yy_1_ContentFilter(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ContentFilter\n"));
   {
-  yy->parsedFilter.status = create_content_filter(&yy->global, &yy->parsedFilter.filter.whereClause, element.str, yy->parsedFilter.status);;
+  yy->status = create_content_filter(&yy->global, &yy->filter.whereClause, element.str, yy->status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1345,7 +1345,7 @@ YY_ACTION(void) yy_2_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_2_SelectClauses\n"));
   {
-  yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);;
+  yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1360,7 +1360,7 @@ YY_ACTION(void) yy_1_SelectClauses(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SelectClauses\n"));
   {
-  yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);;
+  yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);;
   }
 #undef yythunkpos
 #undef yypos
@@ -2621,21 +2621,21 @@ YY_PARSE(yycontext *) YYRELEASE(yycontext *yyctx)
 #endif
 
 
-
-UA_StatusCode UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
+UA_StatusCode
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
     yycontext ctx;
     memset(&ctx, 0, sizeof(yycontext));
     ctx.input = *content;
     while (yyparse(&ctx));
     UA_StatusCode retval;
-    if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
-        UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
-        UA_EventFilter_clear(&ctx.parsedFilter.filter);
+    if(ctx.status != UA_STATUSCODE_GOOD){
+        UA_StatusCode_copy(&ctx.status ,&retval);
+        UA_EventFilter_clear(&ctx.filter);
         yyrelease(&ctx);
         return retval;
     }
-    UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
-    UA_EventFilter_clear(&ctx.parsedFilter.filter);
+    UA_EventFilter_copy(&ctx.filter, filter);
+    UA_EventFilter_clear(&ctx.filter);
     yyrelease(&ctx);
     return UA_STATUSCODE_GOOD;
 }
