@@ -1,4 +1,4 @@
-/* This Source Code Form is subject to the terms of the Mozilla Public
+/* This Source Code Form is subjec&t to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
@@ -14,53 +14,47 @@
 
 _UA_BEGIN_DECLS
 
-typedef struct UA_Parsed_EventFilter {
+typedef struct {
     UA_EventFilter filter;
     UA_StatusCode status;
 } UA_Parsed_EventFilter;
 
-typedef enum OperandIdentifier {
-    ELEMENTOPERAND,
-    EXTENSIONOBJECT
-} OperandIdentifier;
+typedef enum {
+    OT_ELEMENT_REF,
+    OT_EXTENSIONOBJECT
+} OperandType;
 
-typedef struct UA_Parsed_Operand {
-    OperandIdentifier identifier;
+typedef struct {
+    OperandType type;
     union {
         char *element_ref;
         UA_ExtensionObject extension;
     } value;
-} UA_Parsed_Operand;
+} Operand;
 
-typedef struct UA_Parsed_Operator {
+typedef struct {
     UA_FilterOperator filter;
     size_t nbr_children;
-    UA_Parsed_Operand *children;
+    Operand *children;
     size_t ContentFilterArrayPosition;
-} UA_Parsed_Operator;
+} Operator;
 
-typedef enum ElementIdentifier {
-    PARSEDOPERAND,
-    parsed_operator
-} ElementIdentifier;
+typedef enum {
+    ET_OPERAND,
+    ET_OPERATOR
+} ElementType;
 
-typedef union UA_Parsed_Element {
-    UA_Parsed_Operator oper;
-    UA_Parsed_Operand operand;
-} UA_Parsed_Element;
-
-typedef struct Parsed_Element {
+typedef struct Element {
     char *ref;
-    ElementIdentifier identifier;
-    UA_Parsed_Element element;
-    TAILQ_ENTRY(Parsed_Element) element_entries;
-}UA_Parsed_Element_List;
+    ElementType type;
+    union {
+        Operator oper;
+        Operand operand;
+    } element;
+    TAILQ_ENTRY(Element) element_entries;
+} Element;
 
-typedef TAILQ_HEAD(parsed_filter_elements, Parsed_Element) parsed_filter_elements;
-
-typedef struct UA_Element_List {
-    parsed_filter_elements head;
-}UA_Element_List;
+typedef TAILQ_HEAD(ElementList, Element) ElementList;
 
 typedef union UA_Local_Operand {
     UA_SimpleAttributeOperand sao;
@@ -69,39 +63,39 @@ typedef union UA_Local_Operand {
     UA_LiteralOperand literal;
 } UA_Local_Operand;
 
-typedef struct counters {
+typedef struct {
     size_t branch_element_number;
     size_t for_operator_reference;
     size_t operand_ctr;
-}UA_Counters;
+} Counters;
 
 void save_string(char *str, char **local_str);
-void create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand, char *ref);
-UA_StatusCode create_content_filter(UA_Element_List *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
-void add_new_operator(UA_Element_List *global, char *operator_ref, UA_Parsed_Operator *element);
+void create_next_operand_element(ElementList *elements, Operand *operand, char *ref);
+UA_StatusCode create_content_filter(ElementList *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
+void add_new_operator(ElementList *global, char *operator_ref, Operator *element);
 UA_StatusCode append_select_clauses(UA_SimpleAttributeOperand **select_clauses, size_t *sao_size, UA_ExtensionObject *extension, UA_StatusCode status);
 UA_StatusCode set_up_browsepath(UA_QualifiedName **q_name_list, size_t *size, char *str, UA_StatusCode status);
 UA_StatusCode create_literal_operand(char *string, UA_LiteralOperand *lit, UA_StatusCode status);
 UA_StatusCode create_nodeId_from_string(char *identifier, UA_NodeId *id, UA_StatusCode status);
-void handle_elementoperand(UA_Parsed_Operand *operand, char *ref);
-void handle_sao(UA_SimpleAttributeOperand *simple, UA_Parsed_Operand *operand);
-void add_operand_from_branch(char **ref, size_t *operand_ctr, UA_Parsed_Operand *operand, UA_Element_List *global);
-void add_operand_from_literal(char **ref, size_t *operand_ctr, UA_Variant *lit, UA_Element_List *global);
-void add_operand_nodeid(UA_Parsed_Operator *element, char *nodeid, UA_FilterOperator op);
+void handle_elementoperand(Operand *operand, char *ref);
+void handle_sao(UA_SimpleAttributeOperand *simple, Operand *operand);
+void add_operand_from_branch(char **ref, size_t *operand_ctr, Operand *operand, ElementList *global);
+void add_operand_from_literal(char **ref, size_t *operand_ctr, UA_Variant *lit, ElementList *global);
+void add_operand_nodeid(Operator *element, char *nodeid, UA_FilterOperator op);
 void set_up_variant_from_nodeId(UA_NodeId *id, UA_Variant *litvalue);
-void handle_oftype_nodeId(UA_Parsed_Operator *element, UA_NodeId *id);
-void handle_literal_operand(UA_Parsed_Operand *operand, UA_LiteralOperand *literalValue);
+void handle_oftype_nodeId(Operator *element, UA_NodeId *id);
+void handle_literal_operand(Operand *operand, UA_LiteralOperand *literalValue);
 void set_up_typeid(UA_Local_Operand *operand);
-void handle_between_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_Parsed_Operand *operand_3);
-void handle_two_operands_operator(UA_Parsed_Operator *element, UA_Parsed_Operand *operand_1, UA_Parsed_Operand *operand_2, UA_FilterOperator *filter);
-void init_item_list(UA_Element_List *global, UA_Counters *ctr);
-void create_branch_element(UA_Element_List *global, size_t *branch_element_number, UA_FilterOperator filteroperator, char *ref_1, char *ref_2, char **ref);
-void handle_for_operator(UA_Element_List *global, size_t *for_operator_reference, char **ref, UA_Parsed_Operator *element);
-void change_element_reference(UA_Element_List *global, char *element_name, char *new_element_reference);
-void add_in_list_children(UA_Element_List *global, UA_Parsed_Operand *oper);
-void create_in_list_operator(UA_Element_List *global, UA_Parsed_Operand *oper, char *element_ref);
-void create_nodeid_element(UA_Element_List *elements, UA_NodeId *id, char *ref);
-void add_child_operands(UA_Parsed_Operand *operand_list, size_t operand_list_size, UA_Parsed_Operator *element, UA_FilterOperator oper);
+void handle_between_operator(Operator *element, Operand *operand_1, Operand *operand_2, Operand *operand_3);
+void handle_two_operands_operator(Operator *element, Operand *operand_1, Operand *operand_2, UA_FilterOperator *filter);
+void init_item_list(ElementList *global, Counters *ctr);
+void create_branch_element(ElementList *global, size_t *branch_element_number, UA_FilterOperator filteroperator, char *ref_1, char *ref_2, char **ref);
+void handle_for_operator(ElementList *global, size_t *for_operator_reference, char **ref, Operator *element);
+void change_element_reference(ElementList *global, char *element_name, char *new_element_reference);
+void add_in_list_children(ElementList *global, Operand *oper);
+void create_in_list_operator(ElementList *global, Operand *oper, char *element_ref);
+void create_nodeid_element(ElementList *elements, UA_NodeId *id, char *ref);
+void add_child_operands(Operand *operand_list, size_t operand_list_size, Operator *element, UA_FilterOperator oper);
 UA_Variant parse_literal(char *yytext, const UA_DataType *type);
 
 _UA_END_DECLS
