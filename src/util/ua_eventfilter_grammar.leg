@@ -76,15 +76,14 @@
  *  eventfilter_parser_grammar.c if changes are made to the lexer.
  */
 
-
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \
-    UA_Parsed_EventFilter parsedFilter; \
+    UA_StatusCode status;               \
+    UA_EventFilter filter;              \
     UA_String input;                    \
     UA_UInt32 pos;                      \
     Counters ctr;                       \
-    ElementList global;                 \
-    UA_Local_Operand operand;
+    ElementList global;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
 {                                              \
@@ -99,24 +98,25 @@
   }                                            \
 }
 
+# define YYSTYPE union value
 union value{
     char *str;
+    UA_SimpleAttributeOperand sao;
     UA_Variant literal;
     Operand operand;
     Operator element;
 };
 
-# define YYSTYPE union value
 %}
 
 EventFilter = SelectClauses ContentFilter
 SelectClauses =
-        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);}
-        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->parsedFilter.status = append_select_clauses(&yy->parsedFilter.filter.selectClauses, &yy->parsedFilter.filter.selectClausesSize, &oper.operand.value.extension, yy->parsedFilter.status);}
+        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);}
+        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->status = append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension, yy->status);}
 Select = _ 'SELECT' _                                                                                                   {init_item_list(&yy->global, &yy->ctr);}
 ContentFilter = _ 'WHERE' _ (
             element:SingleBranchStructure _ ('FOR' _ ReferencedElement+)?
-        |   element:BranchStructure   _ ('FOR' _ ReferencedElement+)?)                                                  {yy->parsedFilter.status = create_content_filter(&yy->global, &yy->parsedFilter.filter.whereClause, element.str, yy->parsedFilter.status);}
+        |   element:BranchStructure   _ ('FOR' _ ReferencedElement+)?)                                                  {yy->status = create_content_filter(&yy->global, &yy->filter.whereClause, element.str, yy->status);}
 BranchStructure = (   'OR' _  op1:Child_1 op2:Child_2                                                                   {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &$$.str);}
                     | 'AND' _  op1:Child_1 op2:Child_2                                                                  {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &$$.str);}
                   )
@@ -168,11 +168,11 @@ Operand = _  ( (lit:Literal | '('_ lit:Literal _ ')')                           
              ) _
 ElementOperand = (_ '$' ([0-9]+ | ParsedString) _ )
 SimpleAttributeOperand =
-        (   _  (_ 'TYPEID' _  <NodeId>)?                                                                                {yy->parsedFilter.status = UA_NodeId_parse(&yy->operand.sao.typeDefinitionId, UA_STRING(yytext));}
-               (_  'PATH' _  '"' <QualifiedName+> '"')                                                                  {yy->parsedFilter.status = set_up_browsepath(&yy->operand.sao.browsePath, &yy->operand.sao.browsePathSize, yytext, yy->parsedFilter.status);}
-               (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {yy->operand.sao.attributeId = (UA_UInt32) atoi(yytext);}
-               (_  'INDEX' _   NumericRange                                                                             {yy->operand.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
-        )?) _                                                                                                           {handle_sao(&yy->operand.sao, &$$.operand);}
+        (   _  (_ 'TYPEID' _  <NodeId>)?                                                                                {yy->status = UA_NodeId_parse(&$$.sao.typeDefinitionId, UA_STRING(yytext));}
+               (_  'PATH' _  '"' <QualifiedName+> '"')                                                                  {yy->status = set_up_browsepath(&$$.sao.browsePath, &$$.sao.browsePathSize, yytext, yy->status);}
+               (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {$$.sao.attributeId = (UA_UInt32) atoi(yytext);}
+               (_  'INDEX' _   NumericRange                                                                             {$$.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
+        )?) _                                                                                                           {handle_sao(&$$.sao, &$$.operand);}
 
 NodeId = (('ns=' [0-9]+ ";")? 'i=' [0-9]+)
        | (('ns=' [0-9]+ ";")? 's=' ParsedString)
@@ -222,21 +222,21 @@ Enter =	( '\r\n' | '\n' | '\r' )
 
 %%
 
-
-UA_StatusCode UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
+UA_StatusCode
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
     yycontext ctx;
     memset(&ctx, 0, sizeof(yycontext));
     ctx.input = *content;
     while (yyparse(&ctx));
     UA_StatusCode retval;
-    if(ctx.parsedFilter.status != UA_STATUSCODE_GOOD){
-        UA_StatusCode_copy(&ctx.parsedFilter.status ,&retval);
-        UA_EventFilter_clear(&ctx.parsedFilter.filter);
+    if(ctx.status != UA_STATUSCODE_GOOD){
+        UA_StatusCode_copy(&ctx.status ,&retval);
+        UA_EventFilter_clear(&ctx.filter);
         yyrelease(&ctx);
         return retval;
     }
-    UA_EventFilter_copy(&ctx.parsedFilter.filter, filter);
-    UA_EventFilter_clear(&ctx.parsedFilter.filter);
+    UA_EventFilter_copy(&ctx.filter, filter);
+    UA_EventFilter_clear(&ctx.filter);
     yyrelease(&ctx);
     return UA_STATUSCODE_GOOD;
 }
