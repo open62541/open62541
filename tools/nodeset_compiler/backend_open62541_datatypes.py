@@ -86,6 +86,8 @@ def generateQualifiedNameCode(value, alloc=False,):
                                                      str(value.ns), splitStringLiterals(vn))
 
 def generateGuidCode(value):
+    if isinstance(value, str):
+        return "UA_GUID(\"{}\")".format(value)
     if not value or len(value) != 5:
         return "UA_GUID_NULL"
     else:
@@ -100,7 +102,7 @@ def generateNodeIdCode(value):
         v = makeCLiteral(value.s)
         return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
     elif value.g != None:
-        return u"UA_NODEID_GUID(ns[%s], %s)" % (value.ns, generateGuidCode(value.gAsStrings()))
+        return u"UA_NODEID_GUID(ns[%s], %s)" % (value.ns, generateGuidCode(value.gAsString()))
     raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
 
 def generateExpandedNodeIdCode(value):

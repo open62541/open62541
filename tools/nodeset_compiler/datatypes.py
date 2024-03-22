@@ -699,11 +699,8 @@ class NodeId(Value):
             else:
                 raise Exception("no valid nodeid: " + idstring)
 
-    def gAsStrings(self):
-        tmp = []
-        for i in self.g:
-            tmp.append(hex(i).replace("0x", ""))
-        return tmp
+    def gAsString(self):
+        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g);
 
     # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
