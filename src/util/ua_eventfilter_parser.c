@@ -28,23 +28,17 @@ save_string(char *str, char **local_str) {
 }
 
 void
-create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand,
-                            char *ref) {
-    UA_Parsed_Element_List *element = (UA_Parsed_Element_List*)
-        UA_calloc(1, sizeof(UA_Parsed_Element_List));
+create_next_operand_element(UA_Element_List *elements, UA_Parsed_Operand *operand, char *ref) {
+    UA_Parsed_Element_List *element = (UA_Parsed_Element_List*)UA_calloc(1, sizeof(UA_Parsed_Element_List));
     element->identifier = PARSEDOPERAND;
-    save_string(ref, &element->ref);
-    free(ref);
-    memcpy(&element->element.operand.identifier, &operand->identifier,
-           sizeof(OperandIdentifier));
+    element->ref = ref;
+    element->element.operand.identifier = operand->identifier;
     if(operand->identifier == EXTENSIONOBJECT) {
-        UA_ExtensionObject_copy(&operand->value.extension,
-                                &element->element.operand.value.extension);
-        UA_ExtensionObject_clear(&operand->value.extension);
+        element->element.operand.value.extension = operand->value.extension;
+        UA_ExtensionObject_init(&operand->value.extension);
     } else {
-        save_string(operand->value.element_ref,
-                    &element->element.operand.value.element_ref);
-        free(operand->value.element_ref);
+        element->element.operand.value.element_ref = operand->value.element_ref;
+        operand->value.element_ref = NULL;
     }
     TAILQ_INSERT_TAIL(&elements->head, element, element_entries);
 }
