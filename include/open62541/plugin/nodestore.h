@@ -418,6 +418,9 @@ struct UA_NodeHead {
     UA_MonitoredItem *monitoredItems; /* MonitoredItems for Events and immediate
                                        * DataChanges (no sampling interval). */
 #endif
+#if UA_MULTITHREADING >= 100
+    UA_Boolean async; /* Indicates an async method call */
+#endif
 };
 
 /**
@@ -622,9 +625,6 @@ typedef struct {
                            * background. Only dynamic variables conserve source
                            * and server timestamp for the value attribute.
                            * Static variables have timestamps of "now". */
-#if UA_MULTITHREADING >= 100
-    UA_Boolean async; /* Indicates an async method call */
-#endif
 } UA_VariableNode;
 
 /**
@@ -658,9 +658,6 @@ typedef struct {
 
     /* Members specific to open62541 */
     UA_MethodCallback method;
-#if UA_MULTITHREADING >= 100
-    UA_Boolean async; /* Indicates an async method call */
-#endif
 } UA_MethodNode;
 
 /**

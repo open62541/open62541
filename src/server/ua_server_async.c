@@ -52,25 +52,24 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return;
     }
 
-    UA_StatusCode res;
     if(ar->operationType == UA_ASYNCOPERATIONTYPE_CALL){
         /* Okay, here we go, send the UA_CallResponse */
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.callResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_READ) {
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.readResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_READRESPONSE]);
     } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_WRITE) {
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.writeResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_WRITERESPONSE]);
     }
 
@@ -496,7 +495,7 @@ setMethodNodeAsync(UA_Server *server, UA_Session *session,
                    UA_Node *node, UA_Boolean *isAsync) {
     if(node->head.nodeClass != UA_NODECLASS_METHOD)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->methodNode.async = *isAsync;
+    node->head.async = *isAsync;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -535,13 +534,10 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
     /* Finish / dispatch the operations. This may allocate a new AsyncResponse internally */
     uintptr_t respOp = (uintptr_t)*respPos;
     //uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
-    uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requests);
+    uintptr_t reqOp = *(uintptr_t*)((uintptr_t) requests);
     for(size_t i = 0; i < ops; i++) {
         operationCallback(server, session, requestId, requestHandle,
                           i, (void*)reqOp, (void*)respOp, ar);
-        if(!UA_NodeId_equal(&requestOperationsType->typeId, &UA_TYPES[UA_TYPES_READREQUEST].typeId)){
-            reqOp += requestOperationsType->memSize;
-        }
         respOp += responseOperationsType->memSize;
     }
 
@@ -624,7 +620,7 @@ setVariableNodeAsync(UA_Server *server, UA_Session *session,
                    UA_Node *node, UA_Boolean *isAsync) {
     if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->variableNode.async = *isAsync;
+    node->head.async = *isAsync;
     return UA_STATUSCODE_GOOD;
 }
 

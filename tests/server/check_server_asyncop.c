@@ -366,6 +366,7 @@ START_TEST(Async_read) {
     item.nodeId = variableNode;
     retval = UA_Client_sendAsyncReadRequest(client, &readRequest, clientReceiveCallbackRead, NULL, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(clientCounter, 0);
 
     /* Receive the answer of the sync call */
     while(clientCounter == 0) {
@@ -486,8 +487,8 @@ static Suite* method_async_suite(void) {
     tcase_add_test(tc_manager, Async_cancel);
     tcase_add_test(tc_manager, Async_cancel_multiple);
     tcase_add_test(tc_manager, Async_timeout_worker);
-    //tcase_add_test(tc_manager, Async_read);
-    //tcase_add_test(tc_manager, Async_write);
+    tcase_add_test(tc_manager, Async_read);
+    tcase_add_test(tc_manager, Async_write);
     suite_add_tcase(s, tc_manager);
 
     return s;
