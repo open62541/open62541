@@ -425,7 +425,7 @@ YY_ACTION(void) yy_1_ReferenceElement(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_ReferenceElement\n"));
   {
-  save_string(yytext, &__.str);;
+  __.str = save_string(yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1208,7 +1208,7 @@ YY_ACTION(void) yy_1_Child_2(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Child_2\n"));
   {
-  save_string(yytext, &__.str);;
+  __.str = save_string(yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1253,7 +1253,7 @@ YY_ACTION(void) yy_1_Child_1(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Child_1\n"));
   {
-  save_string(yytext, &__.str);;
+  __.str = save_string(yytext);;
   }
 #undef yythunkpos
 #undef yypos
@@ -1268,7 +1268,7 @@ YY_ACTION(void) yy_1_SingleBranchStructure(yycontext *yy, char *yytext, int yyle
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_SingleBranchStructure\n"));
   {
-  save_string(yytext, &__.str);;
+  __.str = save_string(yytext);;
   }
 #undef yythunkpos
 #undef yypos

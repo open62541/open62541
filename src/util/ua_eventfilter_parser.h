@@ -51,7 +51,7 @@ typedef struct {
     size_t operand_ctr;
 } Counters;
 
-void save_string(char *str, char **local_str);
+char * save_string(char *str);
 void create_next_operand_element(ElementList *elements, Operand *operand, char *ref);
 UA_StatusCode create_content_filter(ElementList *elements, UA_ContentFilter *filter, char *first_element, UA_StatusCode status);
 void add_new_operator(ElementList *global, char *operator_ref, Operator *element);
