@@ -1123,7 +1123,7 @@ Operation_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
     }
 
     /* Synchronous execution */
-    if(!node->variableNode.async) {
+    if(!node->head.async) {
         /* Perform the read operation */
         ReadWithNode(node, server, session, opRequest->timestampsToReturn, &opRequest->nodesToRead[opIndex], opResult);
         goto cleanup;
@@ -1931,7 +1931,6 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId
                     UA_WriteRequest *opRequest, UA_StatusCode *opResult,
                     UA_AsyncResponse **ar) {
     UA_assert(session != NULL);
-
     /* Get the node (with only the selected attribute if the NodeStore supports that) */
     const UA_Node *node =
         UA_NODESTORE_GET_SELECTIVE(server, &opRequest->nodesToWrite[opIndex].nodeId,
@@ -1942,9 +1941,8 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId
         *opResult = UA_STATUSCODE_BADNODEIDUNKNOWN;
         return;
     }
-
     //Synchronous execution
-    if(!node->variableNode.async) {
+    if(!node->head.async) {
         *opResult = UA_Server_editNode(server, session, &opRequest->nodesToWrite[opIndex].nodeId,
                                      (UA_EditNodeCallback)copyAttributeIntoNode,
                                      (void*)(uintptr_t) &opRequest->nodesToWrite[opIndex]);

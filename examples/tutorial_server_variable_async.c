@@ -182,9 +182,9 @@ addHelloWorldMethod2(UA_Server *server) {
 }
 
 THREAD_CALLBACK(ThreadWorker) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+                "Started Async worker Thread. Try do dequeue operations.");
     while(running) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                    "Try to dequeue an async operation");
         const UA_AsyncOperationRequest* request = NULL;
         void *context = NULL;
         UA_AsyncOperationType type; UA_NodeId sessionId;
@@ -203,7 +203,6 @@ THREAD_CALLBACK(ThreadWorker) {
                     UA_DataValue readResponse;
                     //ToDo check timestamp to return logic
                     readResponse = UA_Server_readWithSession(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, &sessionId);
-                    //readResponse = UA_Server_read(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
                     UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
@@ -212,7 +211,6 @@ THREAD_CALLBACK(ThreadWorker) {
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Got entry: OKAY");
                     UA_StatusCode result;
                     result = UA_Server_writeWithSession(globalServer, &request->writeValue, &sessionId);
-                    //result = UA_Server_writeValue(globalServer, request->writeValue.nodeId, request->writeValue.value.value);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &result, context);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncWrite_Testing: Write done: OKAY");
                     break;

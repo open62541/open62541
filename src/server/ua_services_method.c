@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2020 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_services.h"
@@ -265,6 +266,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Verify access rights */
     UA_Boolean executable = method->executable;
+    if(!session) {
+        result->statusCode = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
     if(session != &server->adminSession) {
         UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
@@ -398,7 +403,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
     }
 
     /* Synchronous execution */
-    if(!method->methodNode.async) {
+    if(!method->head.async) {
         callWithMethodAndObject(server, session, opRequest, opResult,
                                 &method->methodNode, &object->objectNode);
         goto cleanup;
