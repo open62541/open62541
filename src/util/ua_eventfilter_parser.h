@@ -14,35 +14,24 @@
 
 _UA_BEGIN_DECLS
 
-typedef struct {
-    UA_EventFilter filter;
-    UA_StatusCode status;
-} UA_Parsed_EventFilter;
-
-typedef enum {
-    OT_ELEMENT_REF,
-    OT_EXTENSIONOBJECT
-} OperandType;
+typedef enum { OT_ELEMENTREF, OT_EXTENSIONOBJECT } OperandType;
 
 typedef struct {
     OperandType type;
     union {
-        char *element_ref;
+        char *elementRef;
         UA_ExtensionObject extension;
     } value;
 } Operand;
 
 typedef struct {
     UA_FilterOperator filter;
-    size_t nbr_children;
+    size_t childrenSize;
     Operand *children;
     size_t ContentFilterArrayPosition;
 } Operator;
 
-typedef enum {
-    ET_OPERAND,
-    ET_OPERATOR
-} ElementType;
+typedef enum { ET_OPERAND, ET_OPERATOR } ElementType;
 
 typedef struct Element {
     char *ref;
@@ -55,13 +44,6 @@ typedef struct Element {
 } Element;
 
 typedef TAILQ_HEAD(ElementList, Element) ElementList;
-
-typedef union UA_Local_Operand {
-    UA_SimpleAttributeOperand sao;
-    UA_NodeId id;
-    char *str;
-    UA_LiteralOperand literal;
-} UA_Local_Operand;
 
 typedef struct {
     size_t branch_element_number;
@@ -85,7 +67,6 @@ void add_operand_nodeid(Operator *element, char *nodeid, UA_FilterOperator op);
 void set_up_variant_from_nodeId(UA_NodeId *id, UA_Variant *litvalue);
 void handle_oftype_nodeId(Operator *element, UA_NodeId *id);
 void handle_literal_operand(Operand *operand, UA_LiteralOperand *literalValue);
-void set_up_typeid(UA_Local_Operand *operand);
 void handle_between_operator(Operator *element, Operand *operand_1, Operand *operand_2, Operand *operand_3);
 void handle_two_operands_operator(Operator *element, Operand *operand_1, Operand *operand_2, UA_FilterOperator *filter);
 void init_item_list(ElementList *global, Counters *ctr);
