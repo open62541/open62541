@@ -89,8 +89,8 @@
     UA_Parsed_EventFilter parsedFilter; \
     UA_String input;                    \
     UA_UInt32 pos;                      \
-    UA_Counters ctr;                    \
-    UA_Element_List global;             \
+    Counters ctr;                       \
+    ElementList global;                 \
     UA_Local_Operand operand;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
@@ -109,8 +109,8 @@
 union value{
     char *str;
     UA_Variant literal;
-    UA_Parsed_Operand operand;
-    UA_Parsed_Operator element;
+    Operand operand;
+    Operator element;
 };
 
 # define YYSTYPE union value
@@ -792,7 +792,7 @@ YY_ACTION(void) yy_1_Operand(yycontext *yy, char *yytext, int yyleng)
 #define yythunkpos yy->__thunkpos
   yyprintf((stderr, "do yy_1_Operand\n"));
   {
-  __.operand.identifier = EXTENSIONOBJECT; UA_ExtensionObject_setValue(&__.operand.value.extension, lit.literal.data, lit.literal.type); ;
+  __.operand.type = OT_EXTENSIONOBJECT; UA_ExtensionObject_setValue(&__.operand.value.extension, lit.literal.data, lit.literal.type); ;
   }
 #undef yythunkpos
 #undef yypos

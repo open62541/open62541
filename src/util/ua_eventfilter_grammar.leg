@@ -82,8 +82,8 @@
     UA_Parsed_EventFilter parsedFilter; \
     UA_String input;                    \
     UA_UInt32 pos;                      \
-    UA_Counters ctr;                    \
-    UA_Element_List global;             \
+    Counters ctr;                       \
+    ElementList global;                 \
     UA_Local_Operand operand;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
@@ -102,8 +102,8 @@
 union value{
     char *str;
     UA_Variant literal;
-    UA_Parsed_Operand operand;
-    UA_Parsed_Operator element;
+    Operand operand;
+    Operator element;
 };
 
 # define YYSTYPE union value
@@ -162,7 +162,7 @@ TwoOperandsOperatorType = ( "GREATERTHAN" | '>' ![>=]| 'GT')                    
                         | ( "CAST" | '->')                                                                              {$$.element.filter = UA_FILTEROPERATOR_CAST;}
                         | ( "BITAND" | '&' )                                                                            {$$.element.filter = UA_FILTEROPERATOR_BITWISEAND;}
                         | ( "BITOR" | '|' )                                                                             {$$.element.filter = UA_FILTEROPERATOR_BITWISEOR;}
-Operand = _  ( (lit:Literal | '('_ lit:Literal _ ')')                                                                   {$$.operand.identifier = EXTENSIONOBJECT; UA_ExtensionObject_setValue(&$$.operand.value.extension, lit.literal.data, lit.literal.type); }
+Operand = _  ( (lit:Literal | '('_ lit:Literal _ ')')                                                                   {$$.operand.type = OT_EXTENSIONOBJECT; UA_ExtensionObject_setValue(&$$.operand.value.extension, lit.literal.data, lit.literal.type); }
              | (ElementOperand | '(' _  ElementOperand _  ')')                                                          {handle_elementoperand(&$$.operand, yytext);}
              | ('(' _ SimpleAttributeOperand _ ')'| SimpleAttributeOperand)
              ) _
