@@ -52,25 +52,24 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return;
     }
 
-    UA_StatusCode res;
     if(ar->operationType == UA_ASYNCOPERATIONTYPE_CALL){
         /* Okay, here we go, send the UA_CallResponse */
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.callResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_READ) {
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.readResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_READRESPONSE]);
     } else if(ar->operationType == UA_ASYNCOPERATIONTYPE_WRITE) {
         responseHeader = (UA_ResponseHeader*)
                          &ar->response.writeResponse.responseHeader;
         responseHeader->requestHandle = ar->requestHandle;
-        sendResponse(server, channel, ar->requestId,
+        res = sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_WRITERESPONSE]);
     }
 
