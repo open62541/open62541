@@ -116,7 +116,7 @@ for example in examples:
     if example in blacklist:
         print(f"Skipping {example}")
         continue
-    
+
     # get the arguments for the example
     args = example_args.get(example)
     cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1", "./bin/examples/"+example]
