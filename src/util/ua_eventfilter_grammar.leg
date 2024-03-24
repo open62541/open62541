@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2023-2024 (c) Fraunhofer IOSB (Author: Florian Düwel)
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #include <open62541/util.h>
@@ -79,15 +80,14 @@
 #define YY_CTX_LOCAL 1
 #define YY_CTX_MEMBERS                  \
     UA_StatusCode status;               \
-    UA_EventFilter filter;              \
     UA_String input;                    \
     UA_UInt32 pos;                      \
-    Counters ctr;                       \
-    ElementList global;
+    OperandList global;                 \
+    Operand *top;
 
 #define YY_INPUT(yyctx, buf, result, max_size) \
 {                                              \
-  if(yyctx->input.length <= yyctx->pos) {      \
+  if(yyctx->input.length <= yyctx->pos)  {      \
       result = 0;                              \
   } else {                                     \
       result = yyctx->input.length - yyctx->pos;\
@@ -98,127 +98,96 @@
   }                                            \
 }
 
-# define YYSTYPE union value
-union value{
-    char *str;
-    UA_SimpleAttributeOperand sao;
-    UA_Variant literal;
-    Operand operand;
-    Operator element;
-};
+#define YYSTYPE Operand *
 
 %}
 
-EventFilter = SelectClauses ContentFilter
-SelectClauses =
-        Select (_  ( (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')') _  "," _                 {yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);}
-        )* (oper:SimpleAttributeOperand | '(' _  oper:SimpleAttributeOperand _  ')')) _                                 {yy->status |= append_select_clauses(&yy->filter.selectClauses, &yy->filter.selectClausesSize, &oper.operand.value.extension);}
-Select = _ 'SELECT' _                                                                                                   {init_item_list(&yy->global, &yy->ctr);}
-ContentFilter = _ 'WHERE' _ (
-            element:SingleBranchStructure _ ('FOR' _ ReferencedElement+)?
-        |   element:BranchStructure   _ ('FOR' _ ReferencedElement+)?)                                                  {yy->status |= create_content_filter(&yy->global, &yy->filter.whereClause, element.str);}
-BranchStructure = (   'OR' _  op1:Child_1 op2:Child_2                                                                   {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_OR, op1.str, op2.str, &$$.str);}
-                    | 'AND' _  op1:Child_1 op2:Child_2                                                                  {create_branch_element(&yy->global, &yy->ctr.branch_element_number, UA_FILTEROPERATOR_AND, op1.str, op2.str, &$$.str);}
-                  )
-SingleBranchStructure = ( ElementOperand                                                                                {$$.str = save_string(yytext);}
-                        | oper:ForOperator
-                        )
-Child_1 = ((       '(' _  ElementOperand _  "," _                                                                       {$$.str = save_string(yytext);}
-                 | '(' _  oper:SimpleAttributeOperand _  "," _                                                          {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
-                 | '(' _  oper:Literal _  "," _                                                                         {add_operand_from_literal(&$$.str, &yy->ctr.operand_ctr, &oper.literal, &yy->global);}
-                )| '(' _  BranchStructure _  "," _ |  '(' _  ForOperator _  "," _ )
-Child_2 = ((      ElementOperand           _  ')'                                                                       {$$.str = save_string(yytext);}
-                 | oper:SimpleAttributeOperand   _  ')'                                                                 {add_operand_from_branch(&$$.str, &yy->ctr.operand_ctr, &oper.operand, &yy->global);}
-                 | oper:Literal _  ')'                                                                                  {add_operand_from_literal(&$$.str, &yy->ctr.operand_ctr, &oper.literal, &yy->global);}
-               ) | BranchStructure _  ')' | ForOperator    _  ')')
-ForOperator = (operator:OperatorInstance | "(" _  operator:OperatorInstance _  ")")                                     {handle_for_operator(&yy->global, &yy->ctr.for_operator_reference, &$$.str, &operator.element);}
-ReferencedElement = ( ReferencedOperator
-                    | ref:ReferenceElement oper:Operand _                                                               {create_next_operand_element(&yy->global, &oper.operand, ref.str);}
-                    )
-ReferencedOperator = (  ref:ReferenceElement _  operator:OperatorInstance _)                                            {add_new_operator(&yy->global, ref.str, &operator.element);}
-                     | (ref:ReferenceElement _  op1:BranchStructure _)                                                  {change_element_reference(&yy->global, op1.str, ref.str);}
-                     | (ref:ReferenceElement _  (oper:Operand _                                                         {create_in_list_operator(&yy->global, &oper.operand, ref.str);}
-                     _  ('INLIST') _  '[' _ (oper:Operand _  "," _                                                      {add_in_list_children(&yy->global, &oper.operand);}
-                     )* _  oper:Operand _ ']') _                                                                        {add_in_list_children(&yy->global, &oper.operand);}
-                     )
-OperatorInstance = ( (oper_1:Operand operator:TwoOperandsOperatorType oper_2:Operand)                                   {handle_two_operands_operator(&$$.element, &oper_1.operand, &oper_2.operand, &operator.element.filter);}
-                   | (oper_1:Operand _  ('BETWEEN') _  '[' _ oper_2:Operand _  "," _  oper_3:Operand _ ']')             {handle_between_operator(&$$.element, &oper_1.operand, &oper_2.operand, &oper_3.operand);}
-                   | (_  operator:SingleOperatorType)) _
-SingleOperatorType = { memset(&$$.element, 0, sizeof($$.element)); }
-                     (
-                     ( ("NOT" | '!') _  oper:Operand _                                                                  {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_NOT);}
-                     | ("ISNULL" | '0=' | '0' _  '=' ) _  oper:Operand _                                                {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_ISNULL);}
-                     )
-                     | 'OFTYPE' _  (
-                     <NodeId>                                                                                           {add_operand_nodeid(&$$.element, yytext, UA_FILTEROPERATOR_OFTYPE);}
-                     | oper:Operand                                                                                     {add_child_operands(&oper.operand, 1, &$$.element, UA_FILTEROPERATOR_OFTYPE);}
-                     )) _
-TwoOperandsOperatorType = ( "GREATERTHAN" | '>' ![>=]| 'GT')                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHAN;}
-                        | ( "EQUALS" | '==' | 'EQ' )                                                                    {$$.element.filter = UA_FILTEROPERATOR_EQUALS;}
-                        | ( "LESSTHAN" | '<' ![<=] ![<=>] | 'LT')                                                       {$$.element.filter = UA_FILTEROPERATOR_LESSTHAN;}
-                        | ( "GREATEROREQUAL" | '>=' | 'GE' )                                                            {$$.element.filter = UA_FILTEROPERATOR_GREATERTHANOREQUAL;}
-                        | ( "LESSOREQUAL" | '<=' ![<=>] | 'LE')                                                         {$$.element.filter = UA_FILTEROPERATOR_LESSTHANOREQUAL;}
-                        | ( "LIKE" | '<=>')                                                                             {$$.element.filter = UA_FILTEROPERATOR_LIKE;}
-                        | ( "CAST" | '->')                                                                              {$$.element.filter = UA_FILTEROPERATOR_CAST;}
-                        | ( "BITAND" | '&' )                                                                            {$$.element.filter = UA_FILTEROPERATOR_BITWISEAND;}
-                        | ( "BITOR" | '|' )                                                                             {$$.element.filter = UA_FILTEROPERATOR_BITWISEOR;}
-Operand = _  ( (lit:Literal | '('_ lit:Literal _ ')')                                                                   {$$.operand.type = OT_EXTENSIONOBJECT; UA_ExtensionObject_setValue(&$$.operand.value.extension, lit.literal.data, lit.literal.type); }
-             | (ElementOperand | '(' _  ElementOperand _  ')')                                                          {handle_elementoperand(&$$.operand, yytext);}
-             | ('(' _ SimpleAttributeOperand _ ')'| SimpleAttributeOperand)
-             ) _
-ElementOperand = (_ '$' ([0-9]+ | ParsedString) _ )
-SimpleAttributeOperand =
-        (   _  (_ 'TYPEID' _  <NodeId>)?                                                                                {yy->status |= UA_NodeId_parse(&$$.sao.typeDefinitionId, UA_STRING(yytext));}
-               (_  'PATH' _  '"' <QualifiedName+> '"')                                                                  {yy->status |= set_up_browsepath(&$$.sao.browsePath, &$$.sao.browsePathSize, yytext);}
-               (_  'ATTRIBUTE' _  <[0-9]+>)?                                                                            {$$.sao.attributeId = (UA_UInt32) atoi(yytext);}
-               (_  'INDEX' _   NumericRange                                                                             {$$.sao.indexRange = UA_String_fromChars(yytext); UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Index Range in SimpleAttributeOperands is not supported in the current implementation");}
-        )?) _                                                                                                           {handle_sao(&$$.sao, &$$.operand);}
+EventFilter  = _ SelectClause _ (WhereClause _)? (ForClause _)? !.
+SelectClause = 'SELECT' _ sao:Operand  _ {append_select(&yy->global, sao)} (',' _ sao2:Operand _ {append_select(&yy->global, sao2)} )*
+WhereClause  = 'WHERE'  _ (t:Operator | t:RefOperand) {yy->top = t}
+ForClause    = 'FOR'    _ RefAssignment _ ('AND' _ RefAssignment _)*
 
-NodeId = (('ns=' [0-9]+ ";")? 'i=' [0-9]+)
-       | (('ns=' [0-9]+ ";")? 's=' ParsedString)
-       | (('ns=' [0-9]+ ";")? 'g=' ([a-zA-Z_] | [0-9] | "-")+)
-       | (('ns=' [0-9]+ ";")?'b=' ParsedString)
+Operand  = '(' _ Operand _ ')' | RefOperand | Literal | Operator | SimpleAttributeOperand
+Operator = UnaryOperator | BinaryOperator | BetweenOperator | InListOperator
 
-Literal =   'INT32' _ <"-"? [0-9]+>                                                                           {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_INT32]);}
-          | 'STRING' _ <ParsedString>                                                                         {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_STRING]);}
-          | 'BOOL' _  <('true' | 'True' | 'false' | 'False' | [0-1])>                                         {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_BOOLEAN]);}
-          | 'INT16' _  <"-"? [0-9]+>                                                                          {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_INT16]);}
-          | 'INT64' _  <"-"? [0-9]+>                                                                          {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_INT64]);}
-          | 'UINT16' _  <[0-9]+>                                                                              {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_UINT16]);}
-          | 'UINT32' _  <[0-9]+>                                                                              {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_UINT32]);}
-          | 'UINT64' _  <[0-9]+>                                                                              {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_UINT64]);}
-          | 'DOUBLE' _  <("-")? [0-9]+ ('.' [0-9]+)? >                                                        {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_DOUBLE]);}
-          | 'FLOAT' _  <("-")? [0-9]+ ('.' [0-9]+)?>                                                          {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_FLOAT]);}
-          | 'NODEID' _  <NodeId>                                                                              {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_NODEID]);}
-          | 'SBYTE' _  <"-"? [0-9]+>                                                                          {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_SBYTE]);}
-          | 'BYTE' _  <[0-9]+>                                                                                {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_BYTE]);}
-          | 'TIME' _ ('"' <("-" | [0-9] | [a-zA-Z] | "." | ":")+> '"')                                        {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_DATETIME]);}
-          | 'GUID' _ <([a-zA-Z_] | [0-9] | "-")+>                                                             {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_GUID]);}
-          | 'BSTRING' _ <ParsedString>                                                                        {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_BYTESTRING]);}
-          | 'STATUSCODE' _  <([a-zA-Z_] | [0-9])+>                                                            {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_STATUSCODE]);}
-          | 'EXPNODEID' _  <ParsedString>                                                                     {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);}
-          | 'QNAME' _  '"' <(QualifiedName)> '"'                                                              {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);}
-          | 'LOCALIZED' _ <ParsedString>                                                                      {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);}
-          | <JsonObject>                                                                                      {$$.literal = parse_literal(yytext, &UA_TYPES[UA_TYPES_VARIANT]);}
+UnaryFilter = ('NOT' | '!') {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_NOT)}
+            |  'ISNULL'     {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_ISNULL)}
+            |  'OFTYPE'     {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_OFTYPE)}
+UnaryOperator = filter:UnaryFilter _ '(' _ op1:Operand _ ')' {$$ = filter; append_operand(&$$->operand.op, op1)}
 
-JsonObject =    <"{" _ (JsonElement _',' _ )* JsonElement _ "}">      
-JsonArray = '[' _  ( (JsonValue _ ',' _ )* JsonValue) _']'
-JsonElement =   _ ('"'(StringElement)+'"' _ ':' _ JsonValue) _
-JsonValue = ( JsonArray | '"'(StringElement)+'"' | [0-9]+ | 'true' | 'false' | 'null')
+BinaryFilter = ( 'LIKE'         | '<=>') {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_LIKE)}
+             | ( 'GREATEREQUAL' | '>=')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_GREATERTHANOREQUAL)}
+             | ( 'LESSEQUAL'    | '<=')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_LESSTHANOREQUAL)}
+             | ( 'EQUAL'        | '==')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_EQUALS)}
+             | ( 'GREATER'      | '>')   {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_GREATERTHAN)}
+             | ( 'LESS'         | '<')   {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_LESSTHAN)}
+             | ( 'CAST'         | '->')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_CAST)}
+             | ( 'OR'           | '||')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_OR)}
+             | ( 'AND'          | '&&')  {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_AND)}
+             | ( 'BITAND'       | '&')   {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_BITWISEAND)}
+             | ( 'BITOR'        | '|')   {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_BITWISEOR)}
+BinaryOperator = filter:BinaryFilter _ '(' _ op1:Operand ',' _ op2:Operand _ ')'
+    {$$ = filter; append_operand(&$$->operand.op, op1); append_operand(&$$->operand.op, op1)}
 
-QualifiedName = ( ReferenceType ([0-9]+ _ ":")? (StringElement+)? )
-ReferenceType =  References | ('<' ('!'| '#')? ([0-9]+ _ ":")? [a-zA-Z_]+ '>')
-References = ('/' | '.')
-ReferenceElement = ElementOperand (':=')                                                                                {$$.str = save_string(yytext);}
-ParsedString = ('"' < (StringElement)+ > '"')
-StringElement =  ('\\\"' | !["] . )
-NumericRange = '[' < _ [0-9]+ _ (':' _ [0-9]+)?
-                (',' _ [0-9]+ _ (':' _ [0-9]+)?)* > ']'
-_ = (Space | comment)*
+BetweenOperator = 'BETWEEN' _ op1:Operand _ '[' _ op2:Operand _  "," _  op3:Operand _ ']'
+    {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_BETWEEN); append_operand(&$$->operand.op, op1);
+     append_operand(&$$->operand.op, op2); append_operand(&$$->operand.op, op3)}
 
-Space =		' ' | '\t' | Enter
-comment =	('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')
-Enter =	( '\r\n' | '\n' | '\r' )
+InListOperator  = {$$ = create_operator(&yy->global, UA_FILTEROPERATOR_INLIST)}
+    'INLIST' _ op1:Operand _  '[' _ {append_operand(&$$->operand.op, op1)}
+        (op2: Operand _             {append_operand(&$$->operand.op, op2)}
+            (',' _ op3:Operand _    {append_operand(&$$->operand.op, op3)} )* )? _ ']'     
+
+SimpleAttributeOperand = < NodeId? Path? Attribute? NumericRange? >
+    {$$ = create_operand(&yy->global, OT_SAO);
+     yy->status |= UA_SimpleAttributeOperand_parse(&$$->operand.sao, UA_STRING(yytext))}
+
+Literal =   'INT32' _ <"-"? [0-9]+>                                  {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_INT32])}
+        | 'STRING' _ <QuotedString>                                  {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_STRING])}
+        | 'BOOL' _  <('true' | 'True' | 'false' | 'False' | [0-1])>  {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_BOOLEAN])}
+        | 'INT16' _  <"-"? [0-9]+>                                   {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_INT16])}
+        | 'INT64' _  <"-"? [0-9]+>                                   {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_INT64])}
+        | 'UINT16' _  <[0-9]+>                                       {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_UINT16])}
+        | 'UINT32' _  <[0-9]+>                                       {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_UINT32])}
+        | 'UINT64' _  <[0-9]+>                                       {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_UINT64])}
+        | 'DOUBLE' _  <("-")? [0-9]+ ('.' [0-9]+)? >                 {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_DOUBLE])}
+        | 'FLOAT' _  <("-")? [0-9]+ ('.' [0-9]+)?>                   {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_FLOAT])}
+        | 'NODEID' _  <NodeId>                                       {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_NODEID])}
+        | 'SBYTE' _  <"-"? [0-9]+>                                   {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_SBYTE])}
+        | 'BYTE' _  <[0-9]+>                                         {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_BYTE])}
+        | 'TIME' _ ('"' <("-" | [0-9] | [a-zA-Z] | "." | ":")+> '"') {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_DATETIME])}
+        | 'GUID' _ <([a-zA-Z_] | [0-9] | "-")+>                      {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_GUID])}
+        | 'BSTRING' _ <QuotedString>                                 {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_BYTESTRING])}
+        | 'STATUSCODE' _  <([a-zA-Z_] | [0-9])+>                     {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_STATUSCODE])}
+        | 'EXPNODEID' _  <QuotedString>                              {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_EXPANDEDNODEID])}
+        | 'QNAME' _ <QualifiedName>                                  {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_QUALIFIEDNAME])}
+        | 'LOCALIZED' _ <QuotedString>                               {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT])}
+        | <JsonObject>                                               {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_VARIANT])}
+        | <QuotedString>                                             {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_STRING])}
+        | <"-"? [0-9]+>                                              {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_INT32])}
+        | <('true' | 'True' | 'false' | 'False')>                    {$$ = parse_literal(&yy->global, yytext, &UA_TYPES[UA_TYPES_BOOLEAN])}
+
+Ref           = '$' [a-zA-Z][a-zA-Z0-9_]*
+RefOperand    = <Ref>                            {$$ = create_operand(&yy->global, OT_REF); $$->operand.ref = save_string(yytext)}
+RefAssignment = r:RefOperand _ ':=' _ op:Operand {op->ref = save_string(r->operand.ref)}
+
+NodeId = ('ns=' [0-9]+ ';')? ( 'i=' [0-9]+ | 's=' EscapedString | 'g=' [a-zA-Z0-9-]+ | 'b=' [a-zA-Z_0-9=]+ )
+
+JsonObject  = '{' _ (JsonElement _ ',' _ )* JsonElement _ '}'
+JsonArray   = '[' _ (JsonValue   _ ',' _ )* JsonValue   _ ']'
+JsonElement = QuotedString _ ':' _ JsonValue
+JsonValue   = JsonArray | QuotedString | [0-9]+ | 'true' | 'false' | 'null'
+
+Attribute     = '#' [a-zA-Z]+
+EscapedString = ( '&' . | ![/.<>:#!& ,()\[\] \t\n\v\f\r] . )+
+QualifiedName = ([0-9]+ ':')? EscapedString
+Path          = '/' QualifiedName ('/' QualifiedName)*
+NumericRange  = '[' [0-9,:]+ ']'
+QuotedString  = '"' ( '\\\"' | !["] . )* '"'
+Space   = (' ' | '\t' | Enter)*
+Comment = ('#' (!Enter .)* Enter | '/*' (![*/] . | '/')* '*/')
+Enter   = '\r\n' | '\n' | '\r'
+_       = Space | Comment
 
 %%
 
@@ -226,17 +195,22 @@ UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
     yycontext ctx;
     memset(&ctx, 0, sizeof(yycontext));
+    TAILQ_INIT(&ctx.global.select_list);
     ctx.input = *content;
-    while (yyparse(&ctx));
-    UA_StatusCode retval;
-    if(ctx.status != UA_STATUSCODE_GOOD){
-        UA_StatusCode_copy(&ctx.status ,&retval);
-        UA_EventFilter_clear(&ctx.filter);
+    int res = yyparse(&ctx);
+    if(res == 0)
+        ctx.status = UA_STATUSCODE_BADINTERNALERROR;
+    if(ctx.status != UA_STATUSCODE_GOOD) {
         yyrelease(&ctx);
-        return retval;
+        OperandList_clear(&ctx.global);
+        return ctx.status;
     }
-    UA_EventFilter_copy(&ctx.filter, filter);
-    UA_EventFilter_clear(&ctx.filter);
+
+    UA_EventFilter_init(filter);
+    ctx.status = create_filter(&ctx.global, filter, ctx.top);
     yyrelease(&ctx);
-    return UA_STATUSCODE_GOOD;
+    OperandList_clear(&ctx.global);
+    if(ctx.status != UA_STATUSCODE_GOOD)
+        UA_EventFilter_clear(filter);
+    return ctx.status;
 }
