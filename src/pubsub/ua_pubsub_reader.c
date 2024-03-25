@@ -315,10 +315,11 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     UA_DataSetReaderConfig_clear(&dsr->config);
 
     /* Remove DataSetReader from group */
-    LIST_REMOVE(dsr, listEntry);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, dsr->linkedReaderGroup);
-    if(rg)
+    if(rg) {
+        LIST_REMOVE(dsr, listEntry);
         rg->readersCount--;
+    }
 
     /* THe offset buffer is only set when the dsr is frozen
      * UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage); */
