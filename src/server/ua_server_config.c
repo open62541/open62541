@@ -86,11 +86,6 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
-    /* Logger */
-    if(config->logging != NULL && config->logging->clear != NULL)
-        config->logging->clear(config->logging->context);
-    config->logging = NULL;
-
 #ifdef UA_ENABLE_PUBSUB
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(config->pubSubConfig.securityPolicies != NULL) {
@@ -103,6 +98,11 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
     }
 #endif
 #endif /* UA_ENABLE_PUBSUB */
+
+    /* Logger */
+    if(config->logging != NULL && config->logging->clear != NULL)
+        config->logging->clear(config->logging);
+    config->logging = NULL;
 
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);

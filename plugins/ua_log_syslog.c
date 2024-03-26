@@ -73,10 +73,11 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 
 static void
-UA_Log_Syslog_clear(void *logContext) {
+UA_Log_Syslog_clear(UA_Logger *logger) {
     /* closelog is optional. We don't use it as several loggers might be
      * instantiated in parallel. */
     /* closelog(); */
+    UA_free(logger);
 }
 
 UA_Logger
@@ -86,7 +87,17 @@ UA_Log_Syslog(void) {
 
 UA_Logger
 UA_Log_Syslog_withLevel(UA_LogLevel minlevel) {
-    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, UA_Log_Syslog_clear};
+    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, NULL};
+    return logger;
+}
+
+UA_Logger *
+UA_Log_Syslog_new(UA_LogLevel minlevel) {
+    UA_Logger *logger = (UA_Logger*)UA_malloc(sizeof(UA_Logger));
+    if(!logger)
+        return NULL;
+    *logger = UA_Log_Syslog_withLevel(minlevel);
+    logger->clear = UA_Log_Syslog_clear;
     return logger;
 }
 

@@ -438,6 +438,7 @@ Next we can generate the PLCopen nodeset. Since it doesn't require any additiona
             "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         DEPENDS_TARGET "open62541-generator-ns-di"
     )
+
 This call is quite similar to the compilation of the DI nodeset. As you can see, we do not define any specific types array for the PLCopen nodeset. Since the PLCopen nodeset depends on the NS0 and DI nodeset, we need to tell the nodeset compiler that these two nodesets should be seen as already existing. Make sure that the order is the same as in your XML file, e.g., in this case the order indicated in ``Opc.Ua.PLCopen.NodeSet2_V1.02.xml -> UANodeSet -> Models -> Model``.
 
 As a result of the previous scripts you will have multiple source files:
@@ -478,24 +479,22 @@ Finally you need to include all these files in your build process and call the c
     retval = UA_Server_run(server, &running);
 
 Outstanding Companion Spec Issues
-................................
+.................................
 
 There are some Companion Specifications that currently cannot be compiled with the Nodeset compiler.
 Which Companion Specifications are affected and what causes this is described below.
 
-* Safety, Glass, DEXPI
-Do not specify a BSD file or BSD blob in the XML file. The BSD file is considered deprecated. However, it is currently still required by the Nodeser compiler.
+Safety, Glass, DEXPI
+   Do not specify a BSD file or BSD blob in the XML file. The BSD file is considered deprecated. However, it is currently still required by the Nodeser compiler.
 
-* I4AAS, RSL, FDI
-Attempting to load will result in a runtime error ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
+I4AAS, RSL, FDI
+   Attempting to load will result in a runtime error ("Type-checking failed with error code BadTypeMismatch" or "Parent node not found").
 
-* BACnet
-Defines data types whose fields have the names signed or unsigned. This leads to errors when creating C structures, because signed and unsigned are keywords in C.
-
-
+BACnet
+   Defines data types whose fields have the names signed or unsigned. This leads to errors when creating C structures, because signed and unsigned are keywords in C.
 
 Automatic Nodesetinjection
-................................
+..........................
 
 The nodesetinjector is a mechanism for automatically loading nodeset/companion specifications during server initialization.
 It provides a fast and easy way to load nodesets in all applications, focusing on the official OPCFoundation/UANodeset Repository ( https://github.com/OPCFoundation/UA-Nodeset ).
@@ -514,6 +513,8 @@ A CMake call could look like this.
     -DUA_NAMESPACE_ZERO=FULL
 
 The order of nodesets is important! Nodesets that build on other nodesets must be placed after them in the list.
-The following nodesets are currently supported.
+The following nodesets are currently supported:
 
-* DI, CNC, ISA95-JOBCONTROL, OpenSCS, AMB, AutoID, POWERLINK, IA, Machinery, PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT, CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
+DI, CNC, ISA95-JOBCONTROL, OpenSCS, AMB, AutoID, POWERLINK, IA, Machinery,
+PackML, PNEM, PLCopen, MachineTool, PROFINET, MachineVision, FDT,
+CommercialKitchenEquipment, PNRIO, Scales, Weihenstephan, Pumps, CAS, TMC, IJT
