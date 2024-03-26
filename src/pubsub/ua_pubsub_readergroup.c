@@ -312,6 +312,9 @@ static UA_StatusCode
 UA_ReaderGroup_setPubSubState_disable(UA_Server *server,
                                       UA_ReaderGroup *rg,
                                       UA_StatusCode cause) {
+    /* Disconnect if not already done */
+    UA_ReaderGroup_disconnect(rg);
+
     UA_DataSetReader *dataSetReader;
     switch(rg->state) {
     case UA_PUBSUBSTATE_DISABLED:
