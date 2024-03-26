@@ -737,6 +737,13 @@ UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
                               UA_PubSubState state, UA_StatusCode cause) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(writerGroup->deleteFlag && state != UA_PUBSUBSTATE_DISABLED) {
+        UA_LOG_WARNING_WRITERGROUP(server->config.logging, writerGroup,
+                                  "The WriterGroup is being deleted. Can only be disabled.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_DataSetWriter *dataSetWriter;
     UA_PubSubState oldState = writerGroup->state;
