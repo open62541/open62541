@@ -437,6 +437,12 @@ UA_ReaderGroup_setPubSubState(UA_Server *server,
                               UA_StatusCode cause) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    if(readerGroup->deleteFlag && state != UA_PUBSUBSTATE_DISABLED) {
+        UA_LOG_WARNING_READERGROUP(server->config.logging, readerGroup,
+                                  "The ReaderGroup is being deleted. Can only be disabled.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_StatusCode ret = UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_PubSubState oldState = readerGroup->state;
     switch(state) {
