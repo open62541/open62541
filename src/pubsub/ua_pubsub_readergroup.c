@@ -206,6 +206,12 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    /* Disable (and disconnect) and set the deleteFlag. This prevents a
+     * reconnect and triggers the deletion when the last open socket is
+     * closed. */
+    rg->deleteFlag = true;
+    UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+
     UA_DataSetReader *dsr, *tmp_dsr;
     LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
         UA_DataSetReader_remove(server, dsr);
@@ -224,11 +230,6 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         rg->keyStorage = NULL;
     }
 #endif
-
-    /* Disconnect only once */
-    if(!rg->deleteFlag)
-        UA_ReaderGroup_disconnect(rg);
-    rg->deleteFlag = true;
 
     if(rg->recvChannelsSize == 0) {
         /* Unlink from the connection */
