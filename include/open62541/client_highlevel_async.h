@@ -102,7 +102,7 @@ typedef void
 (*UA_ClientAsyncReadAttributeCallback)(UA_Client *client, void *userdata,
                                        UA_UInt32 requestId, UA_StatusCode status,
                                        UA_DataValue *attribute);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readAttribute_async(UA_Client *client, const UA_ReadValueId *rvi,
                               UA_TimestampsToReturn timestampsToReturn,
                               UA_ClientAsyncReadAttributeCallback callback,
@@ -113,7 +113,7 @@ typedef void
 (*UA_ClientAsyncReadValueAttributeCallback)(UA_Client *client, void *userdata,
                                             UA_UInt32 requestId, UA_StatusCode status,
                                             UA_DataValue *value);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                    UA_ClientAsyncReadValueAttributeCallback callback,
                                    void *userdata, UA_UInt32 *requestId);
@@ -123,7 +123,7 @@ typedef void
 (*UA_ClientAsyncReadDataTypeAttributeCallback)(UA_Client *client, void *userdata,
                                                UA_UInt32 requestId, UA_StatusCode status,
                                                UA_NodeId *dataType);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                       UA_ClientAsyncReadDataTypeAttributeCallback callback,
                                       void *userdata, UA_UInt32 *requestId);
@@ -134,7 +134,7 @@ typedef void
 (*UA_ClientReadArrayDimensionsAttributeCallback)(UA_Client *client, void *userdata,
                                                  UA_UInt32 requestId, UA_StatusCode status,
                                                  UA_Variant *arrayDimensions);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readArrayDimensionsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientReadArrayDimensionsAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId);
@@ -144,7 +144,7 @@ typedef void
 (*UA_ClientAsyncReadNodeClassAttributeCallback)(UA_Client *client, void *userdata,
                                                 UA_UInt32 requestId, UA_StatusCode status,
                                                 UA_NodeClass *nodeClass);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadNodeClassAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId);
@@ -154,7 +154,7 @@ typedef void
 (*UA_ClientAsyncReadBrowseNameAttributeCallback)(UA_Client *client, void *userdata,
                                                  UA_UInt32 requestId, UA_StatusCode status,
                                                  UA_QualifiedName *browseName);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readBrowseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadBrowseNameAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId);
@@ -164,7 +164,7 @@ typedef void
 (*UA_ClientAsyncReadDisplayNameAttributeCallback)(UA_Client *client, void *userdata,
                                                   UA_UInt32 requestId, UA_StatusCode status,
                                                   UA_LocalizedText *displayName);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadDisplayNameAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
@@ -174,7 +174,7 @@ typedef void
 (*UA_ClientAsyncReadDescriptionAttributeCallback)(UA_Client *client, void *userdata,
                                                   UA_UInt32 requestId, UA_StatusCode status,
                                                   UA_LocalizedText *description);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readDescriptionAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadDescriptionAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
@@ -184,7 +184,7 @@ typedef void
 (*UA_ClientAsyncReadWriteMaskAttributeCallback)(UA_Client *client, void *userdata,
                                                 UA_UInt32 requestId, UA_StatusCode status,
                                                 UA_UInt32 *writeMask);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadWriteMaskAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId);
@@ -194,7 +194,7 @@ typedef void
 (*UA_ClientAsyncReadUserWriteMaskAttributeCallback)(UA_Client *client, void *userdata,
                                                     UA_UInt32 requestId, UA_StatusCode status,
                                                     UA_UInt32 *writeMask);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadUserWriteMaskAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId);
@@ -204,7 +204,7 @@ typedef void
 (*UA_ClientAsyncReadIsAbstractAttributeCallback)(UA_Client *client, void *userdata,
                                                  UA_UInt32 requestId, UA_StatusCode status,
                                                  UA_Boolean *isAbstract);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadIsAbstractAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId);
@@ -214,7 +214,7 @@ typedef void
 (*UA_ClientAsyncReadSymmetricAttributeCallback)(UA_Client *client, void *userdata,
                                                 UA_UInt32 requestId, UA_StatusCode status,
                                                 UA_Boolean *symmetric);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadSymmetricAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId);
@@ -224,7 +224,7 @@ typedef void
 (*UA_ClientAsyncReadInverseNameAttributeCallback)(UA_Client *client, void *userdata,
                                                   UA_UInt32 requestId, UA_StatusCode status,
                                                   UA_LocalizedText *inverseName);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readInverseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadInverseNameAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
@@ -234,7 +234,7 @@ typedef void
 (*UA_ClientAsyncReadContainsNoLoopsAttributeCallback)(UA_Client *client, void *userdata,
                                                       UA_UInt32 requestId, UA_StatusCode status,
                                                       UA_Boolean *containsNoLoops);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientAsyncReadContainsNoLoopsAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId);
@@ -244,7 +244,7 @@ typedef void
 (*UA_ClientAsyncReadEventNotifierAttributeCallback)(UA_Client *client, void *userdata,
                                                     UA_UInt32 requestId, UA_StatusCode status,
                                                     UA_Byte *eventNotifier);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readEventNotifierAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadEventNotifierAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId);
@@ -254,7 +254,7 @@ typedef void
 (*UA_ClientAsyncReadValueRankAttributeCallback)(UA_Client *client, void *userdata,
                                                 UA_UInt32 requestId, UA_StatusCode status,
                                                 UA_Int32 *valueRank);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        UA_ClientAsyncReadValueRankAttributeCallback callback,
                                        void *userdata, UA_UInt32 *requestId);
@@ -264,7 +264,7 @@ typedef void
 (*UA_ClientAsyncReadAccessLevelAttributeCallback)(UA_Client *client, void *userdata,
                                                   UA_UInt32 requestId, UA_StatusCode status,
                                                   UA_Byte *accessLevel);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadAccessLevelAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
@@ -274,7 +274,7 @@ typedef void
 (*UA_ClientAsyncReadAccessLevelExAttributeCallback)(UA_Client *client, void *userdata,
                                                     UA_UInt32 requestId, UA_StatusCode status,
                                                     UA_UInt32 *accessLevelEx);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                            UA_ClientAsyncReadAccessLevelExAttributeCallback callback,
                                            void *userdata, UA_UInt32 *requestId);
@@ -284,7 +284,7 @@ typedef void
 (*UA_ClientAsyncReadUserAccessLevelAttributeCallback)(UA_Client *client, void *userdata,
                                                       UA_UInt32 requestId, UA_StatusCode status,
                                                       UA_Byte *userAccessLevel);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              UA_ClientAsyncReadUserAccessLevelAttributeCallback callback,
                                              void *userdata, UA_UInt32 *requestId);
@@ -294,7 +294,7 @@ typedef void
 (*UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback)(UA_Client *client, void *userdata,
                                                               UA_UInt32 requestId, UA_StatusCode status,
                                                               UA_Double *minimumSamplingInterval);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readMinimumSamplingIntervalAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                                      UA_ClientAsyncReadMinimumSamplingIntervalAttributeCallback callback,
                                                      void *userdata, UA_UInt32 *requestId);
@@ -304,7 +304,7 @@ typedef void
 (*UA_ClientAsyncReadHistorizingAttributeCallback)(UA_Client *client, void *userdata,
                                                   UA_UInt32 requestId, UA_StatusCode status,
                                                   UA_Boolean *historizing);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readHistorizingAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          UA_ClientAsyncReadHistorizingAttributeCallback callback,
                                          void *userdata, UA_UInt32 *requestId);
@@ -314,7 +314,7 @@ typedef void
 (*UA_ClientAsyncReadExecutableAttributeCallback)(UA_Client *client, void *userdata,
                                                  UA_UInt32 requestId, UA_StatusCode status,
                                                  UA_Boolean *executable);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         UA_ClientAsyncReadExecutableAttributeCallback callback,
                                         void *userdata, UA_UInt32 *requestId);
@@ -324,7 +324,7 @@ typedef void
 (*UA_ClientAsyncReadUserExecutableAttributeCallback)(UA_Client *client, void *userdata,
                                                      UA_UInt32 requestId, UA_StatusCode status,
                                                      UA_Boolean *userExecutable);
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             UA_ClientAsyncReadUserExecutableAttributeCallback callback,
                                             void *userdata, UA_UInt32 *requestId);
@@ -333,14 +333,14 @@ UA_Client_readUserExecutableAttribute_async(UA_Client *client, const UA_NodeId n
  * Write Attribute
  * ^^^^^^^^^^^^^^^ */
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
                                  UA_AttributeId attributeId, const void *in,
                                  const UA_DataType *inDataType,
                                  UA_ClientAsyncServiceCallback callback, void *userdata,
                                  UA_UInt32 *reqId);
 
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                     const UA_Variant *newValue,
                                     UA_ClientAsyncWriteCallback callback, void *userdata,
@@ -351,7 +351,7 @@ UA_Client_writeValueAttribute_async(UA_Client *client, const UA_NodeId nodeId,
         (UA_ClientAsyncServiceCallback)callback, userdata, reqId);
 })
 
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeNodeIdAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                      const UA_NodeId *outNodeId,
                                      UA_ClientAsyncServiceCallback callback,
@@ -360,7 +360,7 @@ UA_Client_writeNodeIdAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             outNodeId, &UA_TYPES[UA_TYPES_NODEID],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_NodeClass *outNodeClass,
                                         UA_ClientAsyncServiceCallback callback,
@@ -369,7 +369,7 @@ UA_Client_writeNodeClassAttribute_async(UA_Client *client, const UA_NodeId nodeI
                                             outNodeClass, &UA_TYPES[UA_TYPES_NODECLASS],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeBrowseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_QualifiedName *outBrowseName,
                                          UA_ClientAsyncServiceCallback callback,
@@ -378,7 +378,7 @@ UA_Client_writeBrowseNameAttribute_async(UA_Client *client, const UA_NodeId node
         client, &nodeId, UA_ATTRIBUTEID_BROWSENAME, outBrowseName,
         &UA_TYPES[UA_TYPES_QUALIFIEDNAME], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outDisplayName,
                                           UA_ClientAsyncServiceCallback callback,
@@ -387,7 +387,7 @@ UA_Client_writeDisplayNameAttribute_async(UA_Client *client, const UA_NodeId nod
         client, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME, outDisplayName,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeDescriptionAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outDescription,
                                           UA_ClientAsyncServiceCallback callback,
@@ -396,7 +396,7 @@ UA_Client_writeDescriptionAttribute_async(UA_Client *client, const UA_NodeId nod
         client, &nodeId, UA_ATTRIBUTEID_DESCRIPTION, outDescription,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_UInt32 *outWriteMask,
                                         UA_ClientAsyncServiceCallback callback,
@@ -405,7 +405,7 @@ UA_Client_writeWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeI
                                             outWriteMask, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_UInt32 *outUserWriteMask,
                                             UA_ClientAsyncServiceCallback callback,
@@ -414,7 +414,7 @@ UA_Client_writeUserWriteMaskAttribute_async(UA_Client *client, const UA_NodeId n
                                             outUserWriteMask, &UA_TYPES[UA_TYPES_UINT32],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeIsAbstractAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_Boolean *outIsAbstract,
                                          UA_ClientAsyncServiceCallback callback,
@@ -423,7 +423,7 @@ UA_Client_writeIsAbstractAttribute_async(UA_Client *client, const UA_NodeId node
                                             outIsAbstract, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Boolean *outSymmetric,
                                         UA_ClientAsyncServiceCallback callback,
@@ -432,7 +432,7 @@ UA_Client_writeSymmetricAttribute_async(UA_Client *client, const UA_NodeId nodeI
                                             outSymmetric, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeInverseNameAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_LocalizedText *outInverseName,
                                           UA_ClientAsyncServiceCallback callback,
@@ -441,7 +441,7 @@ UA_Client_writeInverseNameAttribute_async(UA_Client *client, const UA_NodeId nod
         client, &nodeId, UA_ATTRIBUTEID_INVERSENAME, outInverseName,
         &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                               const UA_Boolean *outContainsNoLoops,
                                               UA_ClientAsyncServiceCallback callback,
@@ -450,7 +450,7 @@ UA_Client_writeContainsNoLoopsAttribute_async(UA_Client *client, const UA_NodeId
         client, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS, outContainsNoLoops,
         &UA_TYPES[UA_TYPES_BOOLEAN], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeEventNotifierAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_Byte *outEventNotifier,
                                             UA_ClientAsyncServiceCallback callback,
@@ -459,7 +459,7 @@ UA_Client_writeEventNotifierAttribute_async(UA_Client *client, const UA_NodeId n
                                             outEventNotifier, &UA_TYPES[UA_TYPES_BYTE],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                        const UA_NodeId *outDataType,
                                        UA_ClientAsyncServiceCallback callback,
@@ -468,7 +468,7 @@ UA_Client_writeDataTypeAttribute_async(UA_Client *client, const UA_NodeId nodeId
                                             outDataType, &UA_TYPES[UA_TYPES_NODEID],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                         const UA_Int32 *outValueRank,
                                         UA_ClientAsyncServiceCallback callback,
@@ -477,7 +477,7 @@ UA_Client_writeValueRankAttribute_async(UA_Client *client, const UA_NodeId nodeI
                                             outValueRank, &UA_TYPES[UA_TYPES_INT32],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_Byte *outAccessLevel,
                                           UA_ClientAsyncServiceCallback callback,
@@ -487,7 +487,7 @@ UA_Client_writeAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nod
                                             callback, userdata, reqId);
 })
 
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                             const UA_UInt32 *outAccessLevelEx,
                                             UA_ClientAsyncServiceCallback callback,
@@ -497,7 +497,7 @@ UA_Client_writeAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId n
                                             callback, userdata, reqId);
 })
 
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                               const UA_Byte *outUserAccessLevel,
                                               UA_ClientAsyncServiceCallback callback,
@@ -506,7 +506,7 @@ UA_Client_writeUserAccessLevelAttribute_async(UA_Client *client, const UA_NodeId
         client, &nodeId, UA_ATTRIBUTEID_USERACCESSLEVEL, outUserAccessLevel,
         &UA_TYPES[UA_TYPES_BYTE], callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeMinimumSamplingIntervalAttribute_async(
     UA_Client *client, const UA_NodeId nodeId,
     const UA_Double *outMinimumSamplingInterval, UA_ClientAsyncServiceCallback callback,
@@ -516,7 +516,7 @@ UA_Client_writeMinimumSamplingIntervalAttribute_async(
         outMinimumSamplingInterval, &UA_TYPES[UA_TYPES_DOUBLE], callback, userdata,
         reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeHistorizingAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                           const UA_Boolean *outHistorizing,
                                           UA_ClientAsyncServiceCallback callback,
@@ -525,7 +525,7 @@ UA_Client_writeHistorizingAttribute_async(UA_Client *client, const UA_NodeId nod
                                             outHistorizing, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                          const UA_Boolean *outExecutable,
                                          UA_ClientAsyncServiceCallback callback,
@@ -534,7 +534,7 @@ UA_Client_writeExecutableAttribute_async(UA_Client *client, const UA_NodeId node
                                             outExecutable, &UA_TYPES[UA_TYPES_BOOLEAN],
                                             callback, userdata, reqId);
 })
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_writeUserExecutableAttribute_async(UA_Client *client, const UA_NodeId nodeId,
                                              const UA_Boolean *outUserExecutable,
                                              UA_ClientAsyncServiceCallback callback,
@@ -547,7 +547,7 @@ UA_Client_writeUserExecutableAttribute_async(UA_Client *client, const UA_NodeId 
 /**
  * Method Calling
  * ^^^^^^^^^^^^^^ */
-UA_StatusCode UA_EXPORT
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                        const UA_NodeId methodId, size_t inputSize,
                        const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
@@ -556,7 +556,7 @@ __UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
 typedef void (*UA_ClientAsyncCallCallback)(UA_Client *client, void *userdata,
                                            UA_UInt32 requestId, UA_CallResponse *cr);
 
-UA_INLINABLE( UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
                      const UA_NodeId methodId, size_t inputSize, const UA_Variant *input,
                      UA_ClientAsyncCallCallback callback, void *userdata,
