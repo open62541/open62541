@@ -235,9 +235,11 @@ void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Disable the PubSubConnection */
+    /* Disable (and disconnect) and set the deleteFlag. This prevents a
+     * reconnect and triggers the deletion when the last open socket is
+     * closed. */
+    c->deleteFlag = true;
     UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
-    c->deleteFlag = true; /* Prevent reconnect from this point on */
 
     /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
      * Connection. Do this before removing them because we need to unfreeze all
