@@ -471,6 +471,19 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier) {
+
+    // search WriterGroup ToDo create lookup table for more efficiency
+    UA_WriterGroup *writerGroup;
+    writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(writerGroup == NULL) {
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_WriterGroup_publishCallback(server, writerGroup);
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubConnection *tmpConnection;

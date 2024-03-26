@@ -519,6 +519,9 @@ UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifie
                                UA_PubSubState *state);
 
 UA_StatusCode UA_EXPORT
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId wgId);
+
+UA_StatusCode UA_EXPORT
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup);
 
 UA_StatusCode UA_EXPORT
@@ -614,6 +617,14 @@ typedef enum {
     UA_PUBSUB_SDS_MIRROR
 } UA_SubscribedDataSetEnumType;
 
+/* Callback for target field value changes*/
+typedef struct {
+    UA_NodeId nodeId;
+    UA_Variant value;
+} UA_SubscribedDataChange;
+
+typedef void OnDataChange(UA_SubscribedDataChange* data);
+
 typedef struct {
     /* Standard-defined FieldTargetDataType */
     UA_FieldTargetDataType targetVariable;
@@ -638,6 +649,9 @@ typedef struct {
                        const UA_NodeId *targetVariableIdentifier,
                        void *targetVariableContext,
                        UA_DataValue **externalDataValue);
+                       
+    /* callback for value changes*/
+    OnDataChange* onDataChange_callback;
 } UA_FieldTargetVariable;
 
 typedef struct {
