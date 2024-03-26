@@ -208,7 +208,6 @@ START_TEST(Server_HistorizingStrategyValueSet) {
         UA_HistoryData * data = (UA_HistoryData *)response.results[i].historyData.content.decoded.data;
         ck_assert(data->dataValuesSize > 0);
         for (size_t j = 0; j < data->dataValuesSize; ++j) {
-            assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
             ck_assert_str_eq(UA_StatusCode_name(data->dataValues[j].status),

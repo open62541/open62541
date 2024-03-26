@@ -906,9 +906,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                                         UA_LOGCATEGORY_NETWORK,
                                         "UDP %u\t| Send failed with error %s",
                                         (unsigned)connectionId, errno_str));
-                        UDP_shutdownConnection(cm, connectionId);
-                        UA_UNLOCK(&el->elMutex);
                         UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+                        UDP_shutdown(cm, &conn->rfd);
+                        UA_UNLOCK(&el->elMutex);
                         return UA_STATUSCODE_BADCONNECTIONCLOSED;
                     }
                 } while(poll_ret <= 0);
