@@ -10,7 +10,7 @@
 #include <open62541/types_generated_handling.h>
 
 #include <stdio.h>
-#if _WIN32
+#if defined(_MSC_VER)
 # include <BaseTsd.h>
 typedef SSIZE_T ssize_t;
 #else
