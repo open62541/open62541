@@ -742,6 +742,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *writerGroup,
     UA_PubSubState oldState = writerGroup->state;
     switch(state) {
         case UA_PUBSUBSTATE_DISABLED:
+            UA_WriterGroup_disconnect(writerGroup);
             switch (writerGroup->state){
                 case UA_PUBSUBSTATE_DISABLED:
                     break;
