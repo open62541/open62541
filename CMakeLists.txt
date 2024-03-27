@@ -647,10 +647,6 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         add_definitions(-Wno-unused-function)
     endif()
 
-    if(UA_PACK_DEBIAN)
-        remove_definitions(-Wno-static-in-inline)
-    endif()
-
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
@@ -1334,10 +1330,6 @@ else()
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-    if(UA_PACK_DEBIAN)
-        add_library(open62541-static STATIC $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-        set_target_properties(open62541-static PROPERTIES OUTPUT_NAME open62541)
-    endif()
     add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -1462,160 +1454,52 @@ include(linting_target)
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
 
-set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
-set(open62541_install_tools_dir share/open62541/tools)
-set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
-
-# This list of components allows to define a find_package requirement.
-# E.g.:
-# find_package(open62541 1.0.0 REQUIRED COMPONENTS Events Methods FullNamespace)
-set(open62541_enabled_components "")
-if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    list(APPEND open62541_enabled_components "FullNamespace")
-endif()
-if(UA_ENABLE_METHODCALLS)
-    list(APPEND open62541_enabled_components "Methods")
-endif()
-if(UA_ENABLE_SUBSCRIPTIONS)
-    list(APPEND open62541_enabled_components "Subscriptions")
-endif()
-if(UA_ENABLE_PUBSUB)
-    list(APPEND open62541_enabled_components "PubSub")
-endif()
-list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
-if(${_tmp} GREATER -1)
-    list(APPEND open62541_enabled_components "Encryption")
-endif()
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-    list(APPEND open62541_enabled_components "EncryptionMbedTLS")
-endif()
-if(UA_ENABLE_ENCRYPTION_OPENSSL)
-    list(APPEND open62541_enabled_components "EncryptionOpenSSL")
-endif()
-if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    list(APPEND open62541_enabled_components "EncryptionLibreSSL")
-endif()
 if(UA_ENABLE_AMALGAMATION)
-    list(APPEND open62541_enabled_components "Amalgamation")
-endif()
-if(UA_ENABLE_HISTORIZING)
-    list(APPEND open62541_enabled_components "Historizing")
-endif()
-if(UA_ENABLE_EXPERIMENTAL_HISTORIZING)
-    list(APPEND open62541_enabled_components "ExperimentalHistorizing")
-endif()
-if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-    list(APPEND open62541_enabled_components "Events")
-endif()
-if(UA_MULTITHREADING GREATER_EQUAL 100)
-    list(APPEND open62541_enabled_components "Multithreading")
-endif()
-if(UA_ENABLE_DISCOVERY)
-    list(APPEND open62541_enabled_components "Discovery")
-endif()
-if(UA_ENABLE_DISCOVERY_MULTICAST)
-    list(APPEND open62541_enabled_components "DiscoveryMulticast")
+    install(CODE "MESSAGE(FATAL_ERROR \"Installation with UA_ENABLE_AMALGAMATION=ON is not possible.\")")
 endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
-if(UA_PACK_DEBIAN)
-    set(EXTRATARGETS "open62541-static")
-else()
-    set(EXTRATARGETS "")
-endif()
-install(TARGETS open62541 ${EXTRATARGETS}
+install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
-if(UA_ENABLE_AMALGAMATION)
-# Our default way of installation is the non-amalgamated version.
-# See also https://github.com/open62541/open62541/pull/2292#discussion_r241106424
-install(CODE "MESSAGE(WARNING \"Installation with UA_ENABLE_AMALGAMATION=ON is not recommended.\")")
-endif()
-
+# Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
+set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-                              INSTALL_DESTINATION "${cmake_configfile_install}"
-                              PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir
-                                        open62541_enabled_components
-                              )
+                              INSTALL_DESTINATION "${cmake_configfile_install}")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
+        DESTINATION "${cmake_configfile_install}")
 
+# Create open62541ConfigVersion.cmake
 set(open62541_VERSION)
 get_target_property(open62541_VERSION open62541 VERSION)
-
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
-                                 VERSION ${open62541_VERSION}
-                                 COMPATIBILITY AnyNewerVersion)
+                                 VERSION ${open62541_VERSION} COMPATIBILITY AnyNewerVersion)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
+        DESTINATION "${cmake_configfile_install}")
 
+# Create open62541Targets.cmake
 install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
-
 export(TARGETS open62541 NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
-               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
-
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
-              "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
-        DESTINATION "${cmake_configfile_install}")
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/FindMbedTLS.cmake"
-            DESTINATION "${cmake_configfile_install}")
-endif()
-
+# Create open62541Targets.cmake
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
-set(UA_install_tools_dirs "tools/certs"
-    "tools/nodeset_compiler"
-    "tools/schema"
-    ${UA_NODESET_DIR})
-
-set(UA_install_tools_files "tools/generate_datatypes.py"
-    "tools/generate_nodeid_header.py"
-    "tools/generate_statuscode_descriptions.py")
-
-install(DIRECTORY ${UA_install_tools_dirs}
-        DESTINATION ${open62541_install_tools_dir}
-        USE_SOURCE_PERMISSIONS
-        FILES_MATCHING
-        PATTERN "*"
-        PATTERN "*.pyc" EXCLUDE
-        PATTERN ".git*" EXCLUDE)
-
-install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
-
-if(UA_PACK_DEBIAN)
-    set(UA_install_examples_dirs "examples/"
-        "examples/access_control"
-        "examples/custom_datatype"
-        "examples/discovery"
-        "examples/encryption"
-        "examples/nodeset"
-        "examples/pubsub")
-
-    set(open62541_install_examples_dir share/open62541/examples)
-    install(DIRECTORY ${UA_install_examples_dirs} COMPONENT examples
-            DESTINATION ${open62541_install_examples_dir} USE_SOURCE_PERMISSIONS)
-endif()
-
+# Recreate the include folder structure from the source also in /usr/lib/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
-    # Recreate the include folder structure from the source also in /usr/lib/include/open62541
-
     set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
-
     set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
     set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
     set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
@@ -1640,10 +1524,6 @@ if(NOT UA_ENABLE_AMALGAMATION)
             install(FILES ${full_path} DESTINATION include/open62541${dir})
         endif()
     endforeach()
-else()
-    # Export amalgamated header open62541.h which is generated due to build of
-    # open62541-object
-    install(FILES ${PROJECT_BINARY_DIR}/open62541.h DESTINATION include)
 endif()
 
 if(UA_PACK_DEBIAN)
