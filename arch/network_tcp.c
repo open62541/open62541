@@ -576,6 +576,15 @@ ServerNetworkLayerTCP_listen(UA_ServerNetworkLayer *nl, UA_Server *server,
             /* Process packets */
             UA_Server_processBinaryMessage(server, &e->connection, &buf);
             connection_releaserecvbuffer(&e->connection, &buf);
+        } else if(retval == UA_STATUSCODE_BADOUTOFMEMORY) {
+            UA_TcpErrorMessage error;
+            
+            error.error = UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
+            error.reason = UA_STRING_NULL;
+            UA_Connection_sendError(&e->connection, &error);
+            (&e->connection)->close(&e->connection);
+
+            return retval;
         } else if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
             /* The socket is shutdown but not closed */
             UA_LOG_INFO(layer->logger, UA_LOGCATEGORY_NETWORK,
