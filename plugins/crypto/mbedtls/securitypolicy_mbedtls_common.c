@@ -174,6 +174,34 @@ mbedtls_sign_sha1(mbedtls_pk_context *localPrivateKey,
     return UA_STATUSCODE_GOOD;
 }
 
+static size_t
+get_der_size(const UA_ByteString *data) {
+
+    size_t p = 0;
+
+    if(data->length > p && data->data[p++] == 0x30) {
+        if(data->length > p) {
+            size_t cert = 0;
+            if(data->data[p] & 0x80) {
+                size_t c = data->data[p++] & 0x7F;
+                if(data->length > p + c) {
+                    for(size_t n = 0; n < c; n++) {
+                        cert = (cert << 8) + data->data[p++];
+                    }
+                }
+            } else {
+                cert = data->data[p++];
+            }
+
+            if(cert && data->length > (cert += p)) {
+                return cert;
+            }
+        }
+    }
+
+    return data->length;
+}
+
 UA_StatusCode
 mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
                         UA_ByteString *thumbprint) {
@@ -183,11 +211,18 @@ mbedtls_thumbprint_sha1(const UA_ByteString *certificate,
     if(thumbprint->length != UA_SHA1_LENGTH)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the Specification. */
+    /* If we have a certificate chain, we have to be careful to only hash
+    the leaf node rather than the whole chain. We can pick up the length of
+    the first cert by checking the extent of the first DER element. */
+
+    size_t length = get_der_size(certificate);
+
+    /* The certificate thumbprint is always a 20 bit sha1 hash, see Part 4 of the
+     * Specification. */
 #if MBEDTLS_VERSION_NUMBER >= 0x02070000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    mbedtls_sha1_ret(certificate->data, certificate->length, thumbprint->data);
+    mbedtls_sha1_ret(certificate->data, length, thumbprint->data);
 #else
-    mbedtls_sha1(certificate->data, certificate->length, thumbprint->data);
+    mbedtls_sha1(certificate->data, length, thumbprint->data);
 #endif
     return UA_STATUSCODE_GOOD;
 }
