@@ -348,8 +348,9 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 
     /* Get the hostname information */
     char hoststr[UA_MAXHOSTNAME_LENGTH];
-    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen, hoststr,
-                                 sizeof(hoststr), NULL, 0, NI_NUMERICHOST);
+    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+                                 hoststr, sizeof(hoststr),
+                                 NULL, 0, 0);
     if(get_res != 0) {
         hoststr[0] = 0;
         UA_LOG_SOCKET_ERRNO_WRAP(

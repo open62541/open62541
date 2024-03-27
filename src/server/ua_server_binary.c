@@ -25,12 +25,6 @@
 #include "ua_services.h"
 #include "mp_printf.h"
 
-#ifdef _WIN32
-# include <winsock2.h>
-#else
-# include <unistd.h>
-#endif
-
 #define STARTCHANNELID 1
 #define STARTTOKENID 1
 
@@ -1141,6 +1135,36 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     return UA_STATUSCODE_GOOD;
 }
 
+static void
+addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
+    char urlstr[1024];
+    mp_snprintf(urlstr, 1024, "opc.tcp://%*s:%d",
+                (int)hostname.length, (char*)hostname.data, port);
+    UA_String discoveryServerUrl = UA_STRING(urlstr);
+
+    /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+     * Add if not already there. */
+    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
+        if(UA_String_equal(&discoveryServerUrl,
+                           &server->config.applicationDescription.discoveryUrls[i]))
+            return;
+    }
+
+    /* Add to the list of discovery url */
+    UA_StatusCode res =
+        UA_Array_appendCopy((void **)&server->config.applicationDescription.discoveryUrls,
+                            &server->config.applicationDescription.discoveryUrlsSize,
+                            &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                    "New DiscoveryUrl added: %*s", (int)discoveryServerUrl.length,
+                    (char*)discoveryServerUrl.data);
+    } else {
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                       "Could not register DiscoveryUrl -- out of memory");
+    }
+}
+
 /* Callback of a TCP socket (server socket or an active connection) */
 void
 serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -1178,6 +1202,16 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         sc->connectionId = connectionId;
         sc->connectionManager = cm;
         *connectionContext = (void*)sc; /* Set the context pointer in the connection */
+
+        /* Add to the DiscoveryUrls */
+        const UA_UInt16 *port = (const UA_UInt16*)
+            UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "listen-port"),
+                                     &UA_TYPES[UA_TYPES_UINT16]);
+        const UA_String *address = (const UA_String*)
+            UA_KeyValueMap_getScalar(params, UA_QUALIFIEDNAME(0, "listen-address"),
+                                     &UA_TYPES[UA_TYPES_STRING]);
+        if(port && address)
+            addDiscoveryUrl(bpm->server, *address, *port);
         return;
     }
 
@@ -1300,49 +1334,11 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
         params[2].key = UA_QUALIFIEDNAME(0, "reuse");
         UA_Variant_setScalar(&params[2].value, &reuseaddr, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
+        /* The hostname is non-empty */
         if(hostname.length > 0) {
-            /* The hostname is non-empty */
             params[3].key = UA_QUALIFIEDNAME(0, "address");
             UA_Variant_setArray(&params[3].value, &hostname, 1, &UA_TYPES[UA_TYPES_STRING]);
             paramsSize = 4;
-        } else {
-            /* Add DiscoveryServerUrl */
-            char hostnamestr[1024];
-            hostnamestr[1023] = '\0';
-#ifdef _WIN32
-            WSADATA wsaData;
-            WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-            gethostname(hostnamestr, 1023);
-#ifdef _WIN32
-            WSACleanup();
-#endif
-
-            char urlstr[1024];
-            mp_snprintf(urlstr, 1024, "opc.tcp://%s:%d", hostnamestr, port);
-            UA_String discoveryServerUrl = UA_STRING(urlstr);
-
-            /* Check if the ServerUrl is already present in the DiscoveryUrl array.
-             * Add if not already there. */
-            bool isContaining = false;
-            for(size_t i = 0; i < config->applicationDescription.discoveryUrlsSize; i++) {
-                if(UA_String_equal(&discoveryServerUrl,
-                                   &config->applicationDescription.discoveryUrls[i])) {
-                    isContaining = true;
-                }
-            }
-            if(!isContaining) {
-                if(config->applicationDescription.discoveryUrls == NULL) {
-                    config->applicationDescription.discoveryUrls = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
-                    config->applicationDescription.discoveryUrlsSize = 0;
-                }
-                UA_StatusCode retval = UA_STATUSCODE_GOOD;
-                retval = UA_Array_appendCopy((void **)&config->applicationDescription.discoveryUrls,
-                                             &config->applicationDescription.discoveryUrlsSize,
-                                             &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
-                if(retval != UA_STATUSCODE_GOOD)
-                    return retval;
-            }
         }
 
         UA_KeyValueMap paramsMap;
