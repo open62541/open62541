@@ -619,7 +619,15 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
+#ifndef _WIN32
+    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
+                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
+    res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
+                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
+    return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+#else
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+#endif
 }

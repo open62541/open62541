@@ -10,6 +10,7 @@
 #include "check.h"
 #include <limits.h>
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "unistd.h"
 
 UA_Server *server = NULL;
@@ -40,9 +41,8 @@ typedef struct {
 } UA_Point;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 

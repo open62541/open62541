@@ -334,6 +334,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         }
     }
 
+    conf->tcpReuseAddr = false;
+
     /* --> Start setting the default static config <-- */
 
     conf->shutdownDelay = 0.0;
@@ -380,10 +382,9 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     /* Networking */
     /* Set up the local ServerUrls. They are used during startup to initialize
      * the server sockets. */
-    UA_String serverUrls[2];
+    UA_String serverUrls[1];
     size_t serverUrlsSize = 0;
-    char hostnamestr[256];
-    char serverUrlBuffer[2][512];
+    char serverUrlBuffer[1][512];
 
     if(portNumber == 0) {
         UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
@@ -398,7 +399,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->serverUrlsSize = 0;
         }
 
-        /* 1) Listen on all interfaces (also external). This must be the first
+        /* Listen on all interfaces (also external). This must be the first
          * entry if this is desired. Otherwise some interfaces may be blocked
          * (already in use) with a hostname that is only locally reachable.*/
         mp_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
@@ -406,25 +407,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
         serverUrlsSize++;
 
-        /* 2) Use gethostname to get the local hostname. For that temporarily
-         * initialize the Winsock API on Win32. */
-#ifdef _WIN32
-        WSADATA wsaData;
-        WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-        int err = gethostname(hostnamestr, sizeof(hostnamestr));
-#ifdef _WIN32
-        WSACleanup();
-#endif
-
-        if(err == 0) {
-            mp_snprintf(serverUrlBuffer[1], sizeof(serverUrlBuffer[1]),
-                        "opc.tcp://%s:%u", hostnamestr, portNumber);
-            serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[1]);
-            serverUrlsSize++;
-        }
-
-        /* 3) Add to the config */
+        /* Add to the config */
         UA_StatusCode retval =
             UA_Array_copy(serverUrls, serverUrlsSize,
                           (void**)&conf->serverUrls, &UA_TYPES[UA_TYPES_STRING]);

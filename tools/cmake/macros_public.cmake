@@ -83,6 +83,7 @@ endfunction()
 # - NAME_generated.c
 # - NAME_generated.h
 # - NAME_generated_handling.h
+# - NAME_generated.rst (optional)
 #
 # The cmake resulting cmake target will be named like this:
 #   open62541-generator-${TARGET_SUFFIX}
@@ -93,6 +94,7 @@ endfunction()
 #   [BUILTIN]       Optional argument. If given, then builtin types will be generated.
 #   [INTERNAL]      Optional argument. If given, then the given types file is seen as internal file (e.g. does not require a .csv)
 #   [AUTOLOAD]      Optional argument. If given, the nodeset is automatically attached to the server.
+#   [GEN_DOC]       Optional argument. If given, a .rst file for documenting the generated datatypes is generated.
 #
 #   Arguments taking one value:
 #
@@ -119,7 +121,7 @@ endfunction()
 #
 #
 function(ua_generate_datatypes)
-    set(options BUILTIN INTERNAL AUTOLOAD)
+    set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
@@ -164,6 +166,11 @@ function(ua_generate_datatypes)
     set(UA_GEN_DT_NO_BUILTIN "--no-builtin")
     if (UA_GEN_DT_BUILTIN)
         set(UA_GEN_DT_NO_BUILTIN "")
+    endif()
+
+    set(UA_GEN_DOC_ARG "")
+    if(UA_GEN_DT_GEN_DOC)
+        set(UA_GEN_DOC_ARG "--gen-doc")
     endif()
 
     set(UA_GEN_DT_INTERNAL_ARG "")
@@ -220,6 +227,7 @@ function(ua_generate_datatypes)
         ${UA_GEN_DT_NO_BUILTIN}
         ${UA_GEN_DT_INTERNAL_ARG}
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}
+        ${UA_GEN_DOC_ARG}
         DEPENDS ${open62541_TOOLS_DIR}/generate_datatypes.py
                 ${open62541_TOOLS_DIR}/nodeset_compiler/backend_open62541_typedefinitions.py
         ${UA_GEN_DT_FILES_BSD}
