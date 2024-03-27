@@ -672,10 +672,9 @@ copyChild(UA_Server *server, UA_Session *session,
          * here. */
         if(node->head.nodeClass == UA_NODECLASS_VARIABLE ||
            node->head.nodeClass == UA_NODECLASS_VARIABLETYPE) {
-            if(node->variableNode.valueSource != UA_VALUESOURCE_DATA)
+            if(node->variableNode.valueSource != UA_VALUESOURCE_INTERNAL)
                 memset(&node->variableNode.value, 0, sizeof(node->variableNode.value));
-            node->variableNode.valueSource = UA_VALUESOURCE_DATA;
-            memset(&node->variableNode.valueBackend, 0, sizeof(UA_ValueBackend));
+            node->variableNode.valueSource = UA_VALUESOURCE_INTERNAL;
         }
 
         /* Reset the NodeId (random numeric id will be assigned in the nodestore) */
@@ -1087,10 +1086,11 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
 
     /* Create a current source timestamp for values that don't have any */
     if(node->head.nodeClass == UA_NODECLASS_VARIABLE &&
-       !node->variableNode.value.data.value.hasSourceTimestamp) {
+       node->variableNode.valueSource == UA_VALUESOURCE_INTERNAL &&
+       !node->variableNode.value.internal.value.hasSourceTimestamp) {
         UA_EventLoop *el = server->config.eventLoop;
-        node->variableNode.value.data.value.sourceTimestamp = el->dateTime_now(el);
-        node->variableNode.value.data.value.hasSourceTimestamp = true;
+        node->variableNode.value.internal.value.sourceTimestamp = el->dateTime_now(el);
+        node->variableNode.value.internal.value.hasSourceTimestamp = true;
     }
 
     /* Add the node to the nodestore */
@@ -2380,12 +2380,14 @@ UA_Server_deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
 /* Set Value Callback */
 /**********************/
 
+/* Automatically switches to the internal data source if not already the case */
 static UA_StatusCode
 setValueCallback(UA_Server *server, UA_Session *session,
                  UA_VariableNode *node, const UA_ValueCallback *callback) {
     if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->value.data.callback = *callback;
+    node->value.internal.valueCallback = *callback;
+    node->valueSource = UA_VALUESOURCE_INTERNAL;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -2477,8 +2479,8 @@ setDataSource(UA_Server *server, UA_Session *session,
               UA_VariableNode *node, const UA_DataSource *dataSource) {
     if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    if(node->valueSource == UA_VALUESOURCE_DATA)
-        UA_DataValue_clear(&node->value.data.value);
+    if(node->valueSource == UA_VALUESOURCE_INTERNAL)
+        UA_DataValue_clear(&node->value.internal.value);
     node->value.dataSource = *dataSource;
     node->valueSource = UA_VALUESOURCE_DATASOURCE;
     return UA_STATUSCODE_GOOD;
@@ -2503,77 +2505,46 @@ UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
     return retval;
 }
 
-/******************************/
-/* Set External Value Source  */
-/******************************/
+struct ExternalSource {
+    UA_DataValue **value;
+    UA_ExternalValueCallback valueCallback;
+};
+
 static UA_StatusCode
-setExternalValueSource(UA_Server *server, UA_Session *session,
-                 UA_VariableNode *node, const UA_ValueBackend *externalValueSource) {
+setExternalValue(UA_Server *server, UA_Session *session,
+                 UA_VariableNode *node, struct ExternalSource *s) {
     if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
         return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    node->valueBackend.backend.external.value =
-        externalValueSource->backend.external.value;
-    node->valueBackend.backend.external.callback.notificationRead =
-        externalValueSource->backend.external.callback.notificationRead;
-    node->valueBackend.backend.external.callback.userWrite =
-        externalValueSource->backend.external.callback.userWrite;
+    if(node->valueSource == UA_VALUESOURCE_INTERNAL)
+        UA_DataValue_clear(&node->value.internal.value);
+    node->value.external.value = s->value;
+    node->value.external.valueCallback = s->valueCallback;
+    node->valueSource = UA_VALUESOURCE_EXTERNAL;
     return UA_STATUSCODE_GOOD;
 }
 
-/****************************/
-/* Set Data Source Callback */
-/****************************/
 static UA_StatusCode
-setDataSourceCallback(UA_Server *server, UA_Session *session,
-                 UA_VariableNode *node, const UA_DataSource *dataSource) {
-    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->valueBackend.backendType = UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK;
-    node->valueBackend.backend.dataSource.read = dataSource->read;
-    node->valueBackend.backend.dataSource.write = dataSource->write;
-    return UA_STATUSCODE_GOOD;
+setVariableNode_externalValue(UA_Server *server, const UA_NodeId nodeId,
+                              UA_DataValue **value,
+                              UA_ExternalValueCallback valueCallback) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    struct ExternalSource s;
+    s.value = value;
+    s.valueCallback = valueCallback;
+    return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              (UA_EditNodeCallback)setExternalValue, &s);
 }
-
-/**********************/
-/* Set Value Backend  */
-/**********************/
 
 UA_StatusCode
-UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId,
-                                       const UA_ValueBackend valueBackend){
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+UA_Server_setVariableNode_externalValue(UA_Server *server, const UA_NodeId nodeId,
+                                        UA_DataValue **value,
+                                        UA_ExternalValueCallback valueCallback) {
     UA_LOCK(&server->serviceMutex);
-    switch(valueBackend.backendType){
-        case UA_VALUEBACKENDTYPE_NONE:
-            UA_UNLOCK(&server->serviceMutex);
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
-            retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                        (UA_EditNodeCallback) setDataSourceCallback,
-                                        (UA_DataSource *)(uintptr_t) &valueBackend.backend.dataSource);
-            break;
-        case UA_VALUEBACKENDTYPE_INTERNAL:
-            break;
-        case UA_VALUEBACKENDTYPE_EXTERNAL:
-            retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-                                        (UA_EditNodeCallback) setExternalValueSource,
-                /* cast away const because callback uses const anyway */
-                                        (UA_ValueCallback *)(uintptr_t) &valueBackend);
-            break;
-    }
-
-
-    // UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
-    // (UA_EditNodeCallback)setValueCallback,
-    /* cast away const because callback uses const anyway */
-    // (UA_ValueCallback *)(uintptr_t) &callback);
-
-
+    UA_StatusCode retval = setVariableNode_externalValue(server, nodeId,
+                                                         value, valueCallback);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
-
 
 /************************************/
 /* Special Handling of Method Nodes */

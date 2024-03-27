@@ -1120,32 +1120,44 @@ UA_Server_setNodeContext(UA_Server *server, UA_NodeId nodeId,
                          void *nodeContext);
 
 /**
+ * Value Callback
+ * ^^^^^^^^^^^^^^
+ * The value callback is used to notify before-read / after-write of the
+ * variable value to the userland. This sets the node to have an "internal"
+ * value attribute */
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
+                                        const UA_ValueCallback callback);
+
+/**
  * .. _datasource:
  *
  * Data Source Callback
  * ^^^^^^^^^^^^^^^^^^^^
- * The server has a unique way of dealing with the content of variables. Instead
- * of storing a variant attached to the variable node, the node can point to a
- * function with a local data provider. Whenever the value attribute is read,
- * the function will be called and asked to provide a UA_DataValue return value
- * that contains the value content and additional timestamps.
+ * Instead of storing a variant attached to the variable node, the node can
+ * point to a function with a local data provider. Whenever the value attribute
+ * is read, the function will be called and asked to provide a UA_DataValue
+ * return value that contains the value content and additional timestamps.
  *
- * It is expected that the read callback is implemented. The write callback can
- * be set to a null-pointer. */
+ * See the Chapter :ref:`node-datasource` for the definition of an external data
+ * source. It is expected that the read callback is implemented. The write
+ * callback can be set to a null-pointer. */
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                                      const UA_DataSource dataSource);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_valueCallback(UA_Server *server,
-                                        const UA_NodeId nodeId,
-                                        const UA_ValueCallback callback);
+/**
+ * External Value
+ * ^^^^^^^^^^^^^^
+ * The external value allows asynchronous updates to the value without locking
+ * the server. */
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setVariableNode_valueBackend(UA_Server *server,
-                                       const UA_NodeId nodeId,
-                                       const UA_ValueBackend valueBackend);
+UA_StatusCode
+UA_Server_setVariableNode_externalValue(UA_Server *server, const UA_NodeId nodeId,
+                                        UA_DataValue **value,
+                                        UA_ExternalValueCallback valueCallback);
 
 /**
  * .. _local-monitoreditems:

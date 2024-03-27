@@ -393,7 +393,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
         const UA_VariableNode *rtNode = (const UA_VariableNode*)
             UA_NODESTORE_GET(server, publishedVariable);
         if(rtNode != NULL &&
-           rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
+           rtNode->valueSource != UA_VALUESOURCE_EXTERNAL) {
             UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains field without external data source");
