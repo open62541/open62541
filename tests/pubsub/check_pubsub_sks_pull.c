@@ -120,11 +120,12 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    sksServer = UA_Server_newForUnitTest();
+    sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                             trustList, trustListSize,
+                                                             issuerList, issuerListSize,
+                                                             revocationList, revocationListSize);
+
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(
-        config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);

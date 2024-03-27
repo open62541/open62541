@@ -32,7 +32,6 @@ static void setup(void) {
     running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     ck_assert_uint_eq(2, UA_Server_addNamespace(server, CUSTOM_NS));
 

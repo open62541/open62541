@@ -138,10 +138,9 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert_msg(server, "UA_Server_new");
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_String policy = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_UsernamePasswordLogin login[] = {
         { UA_STRING_STATIC("user"),

@@ -17,6 +17,7 @@
 
 #include "certificates.h"
 #include "thread_wrapper.h"
+#include "test_helpers.h"
 
 UA_Server *server;
 UA_Boolean running;
@@ -44,12 +45,11 @@ static void setup(void) {
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                          NULL, 0, NULL, 0, NULL, 0);
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(config, 4840, &certificate, &privateKey,
-                                                   NULL, 0, NULL, 0, NULL, 0);
 
+    UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
     UA_AccessControl_default(config, false, NULL, usernamePasswordsSize, usernamePasswords);
 
@@ -70,7 +70,7 @@ static void teardown(void) {
 
 START_TEST(none_policy_connect) {
     server->config.allowNonePolicyPassword = true;
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 
@@ -84,7 +84,7 @@ END_TEST
 START_TEST(none_policy_connect_fail) {
     server->config.allowNonePolicyPassword = false;
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 

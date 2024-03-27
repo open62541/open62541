@@ -67,6 +67,7 @@ configure_lds_server(UA_Server *pServer) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(config_lds, 4840,
                                                    &certificate, &privateKey,
                                                    NULL, 0, NULL, 0, NULL, 0);
+    config_lds->tcpReuseAddr = true;
 
     UA_CertificateVerification_AcceptAll(&config_lds->secureChannelPKI);
     UA_CertificateVerification_AcceptAll(&config_lds->sessionPKI);
@@ -150,6 +151,8 @@ setup_register(void) {
     UA_ServerConfig_setDefaultWithSecurityPolicies(config_register, 16664,
                                                    &certificate, &privateKey,
                                                    NULL, 0, NULL, 0, NULL, 0);
+
+    config_register->tcpReuseAddr = true;
 
     UA_CertificateVerification_AcceptAll(&config_register->secureChannelPKI);
     UA_CertificateVerification_AcceptAll(&config_register->sessionPKI);

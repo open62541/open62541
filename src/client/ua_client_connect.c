@@ -1699,15 +1699,18 @@ initConnect(UA_Client *client) {
             continue;
 
         /* Set up the parameters */
-        UA_KeyValuePair params[2];
+        UA_KeyValuePair params[3];
         params[0].key = UA_QUALIFIEDNAME(0, "port");
         UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
         params[1].key = UA_QUALIFIEDNAME(0, "address");
         UA_Variant_setScalar(&params[1].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
+        params[2].key = UA_QUALIFIEDNAME(0, "reuse");
+        UA_Variant_setScalar(&params[2].value, &client->config.tcpReuseAddr,
+                             &UA_TYPES[UA_TYPES_BOOLEAN]);
 
         UA_KeyValueMap paramMap;
         paramMap.map = params;
-        paramMap.mapSize = 2;
+        paramMap.mapSize = 3;
 
         /* Open the client TCP connection */
         UA_UNLOCK(&client->clientMutex);
@@ -2072,7 +2075,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
 
     client->channel.connectionManager = cm;
 
-    UA_KeyValuePair params[3];
+    UA_KeyValuePair params[4];
     bool booleanTrue = true;
     params[0].key = UA_QUALIFIEDNAME(0, "port");
     UA_Variant_setScalar(&params[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
@@ -2081,10 +2084,13 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
             listenHostnamesLength, &UA_TYPES[UA_TYPES_STRING]);
     params[2].key = UA_QUALIFIEDNAME(0, "listen");
     UA_Variant_setScalar(&params[2].value, &booleanTrue, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    params[3].key = UA_QUALIFIEDNAME(0, "reuse");
+    UA_Variant_setScalar(&params[3].value, &client->config.tcpReuseAddr,
+                         &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_KeyValueMap paramMap;
     paramMap.map = params;
-    paramMap.mapSize = 3;
+    paramMap.mapSize = 4;
 
     UA_UNLOCK(&client->clientMutex);
     res = cm->openConnection(cm, &paramMap, client, NULL, __Client_reverseConnectCallback);

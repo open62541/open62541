@@ -69,7 +69,7 @@ UA_Client_Subscriptions_create(UA_Client *client,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback);
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE UA_THREADSAFE
+UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_Subscriptions_create_async(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
