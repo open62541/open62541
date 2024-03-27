@@ -976,8 +976,6 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_select.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_epoll.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
