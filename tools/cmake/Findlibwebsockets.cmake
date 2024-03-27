@@ -6,28 +6,12 @@
 # LIBWEBSOCKETS_FOUND, If false, do not try to use libWebSockets
 #
 # This currently works probably only for Linux
+set(FPHSA_NAME_MISMATCHED 1) # Suppress warnings, see https://cmake.org/cmake/help/v3.17/module/FindPackageHandleStandardArgs.html
+include(FindPkgConfig)
 
-FIND_PATH ( LIBWEBSOCKETS_INCLUDE_DIR libwebsockets.h
-    /usr/local/include
-    /usr/include
-)
+pkg_search_module(LIBWEBSOCKETS libwebsockets)
+if(LIBWEBSOCKETS_FOUND)
+    message(STATUS "Got libwebsockets ${LIBWEBSOCKETS_VERSION}")
+endif()
 
-FIND_LIBRARY ( LIBWEBSOCKETS_LIBRARIES websockets
-    /usr/local/lib
-    /usr/lib
-)
-
-GET_FILENAME_COMPONENT( LIBWEBSOCKETS_LIBRARY_DIR ${LIBWEBSOCKETS_LIBRARIES} PATH )
-
-SET ( LIBWEBSOCKETS_FOUND "NO" )
-IF ( LIBWEBSOCKETS_INCLUDE_DIR )
-    IF ( LIBWEBSOCKETS_LIBRARIES )
-        SET ( LIBWEBSOCKETS_FOUND "YES" )
-    ENDIF ( LIBWEBSOCKETS_LIBRARIES )
-ENDIF ( LIBWEBSOCKETS_INCLUDE_DIR )
-
-MARK_AS_ADVANCED(
-    LIBWEBSOCKETS_LIBRARY_DIR
-    LIBWEBSOCKETS_INCLUDE_DIR
-    LIBWEBSOCKETS_LIBRARIES
-)
+unset(FPHSA_NAME_MISMATCHED)

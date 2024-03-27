@@ -136,6 +136,9 @@ mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
 
+option(UA_ENABLE_LWS "Includes the libwebsockets library" OFF)
+mark_as_advanced(UA_ENABLE_LWS)
+
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
 set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
@@ -534,6 +537,14 @@ endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
+endif()
+
+if(UA_ENABLE_LWS)
+    find_package(libwebsockets REQUIRED)
+    if(${LIBWEBSOCKETS_VERSION} VERSION_LESS "4.3")
+        message(FATAL_ERROR "The version of libwebsockets is too old (required at least v4.3)")
+    endif()
+    list(APPEND open62541_LIBRARIES ${LIBWEBSOCKETS_LIBRARIES})
 endif()
 
 #####################
@@ -949,7 +960,6 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
-
 # Plugins
 set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
     ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
@@ -981,6 +991,13 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+
+if(UA_ENABLE_LWS)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/eventloop/lws/eventloop_lws_http.c
+         ${PROJECT_SOURCE_DIR}/plugins/eventloop/lws/eventloop_lws_posix.h
+         ${PROJECT_SOURCE_DIR}/plugins/eventloop/lws/eventloop_lws_posix.c)
+endif()
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1364,6 +1381,9 @@ else()
     endif()
     if(UA_ENABLE_NODESETLOADER)
         include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
+    endif()
+    if(UA_ENABLE_LWS)
+        include_directories_private(${LIBWEBSOCKETS_INCLUDE_DIR})
     endif()
 endif()
 
