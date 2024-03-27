@@ -1068,18 +1068,31 @@ elseif(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 elseif(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32 OR UA_ENABLE_AMALGAMATION)
-    # POSIX eventloop (default for amalgamation)
+    # POSIX/Win32 eventloop. The folder containing the architecture-specific files
+    # can be overridden via UA_ARCH_FOLDER (e.g. for custom/private architectures).
+    #
+    # Example (custom code in /mnt/d/opcua-test/linux, building in WSL2):
+    #   mkdir build-wsl2
+    #   cd build-wsl2
+    #   cmake -DUA_ARCH_FOLDER=/mnt/d/opcua-test/linux ../
+    if(NOT DEFINED UA_ARCH_FOLDER)
+        set(UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/posix)
+    endif()
+    # Add the architecture-specific folder to the include path so that the
+    # mandatory header "eventloop_arch.h" can be found without a path prefix.
+    include_directories("${UA_ARCH_FOLDER}")
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/common/timer.h
          ${PROJECT_SOURCE_DIR}/arch/common/timer.c
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
          ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+         ${UA_ARCH_FOLDER}/eventloop_arch.h
+         ${UA_ARCH_FOLDER}/eventloop_arch_clock.c
+         ${UA_ARCH_FOLDER}/eventloop_arch.c
+         ${UA_ARCH_FOLDER}/eventloop_arch_tcp.c
+         ${UA_ARCH_FOLDER}/eventloop_arch_udp.c
+         ${UA_ARCH_FOLDER}/eventloop_arch_eth.c
+         ${UA_ARCH_FOLDER}/eventloop_arch_interrupt.c)
 endif()
 
 if(UA_ARCHITECTURE_FREERTOS)

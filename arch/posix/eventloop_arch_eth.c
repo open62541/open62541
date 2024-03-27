@@ -9,7 +9,7 @@
  *   Copyright 2025 (c) SICK AG (Author: Joerg Fischer)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) && defined(__linux__)
 
