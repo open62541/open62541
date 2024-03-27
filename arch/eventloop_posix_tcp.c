@@ -340,23 +340,28 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 
 static UA_StatusCode
 TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
-                         UA_UInt16 port, void *application, void *context,
+                         const char *hostname, UA_UInt16 port,
+                         void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate, UA_Boolean reuseaddr) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
-    /* Get the hostname information */
-    char hoststr[UA_MAXHOSTNAME_LENGTH];
+    /* Translate INADDR_ANY to IPv4/IPv6 address */
+    char addrstr[UA_MAXHOSTNAME_LENGTH];
     int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
-                                 hoststr, sizeof(hoststr),
-                                 NULL, 0, 0);
+                                 addrstr, sizeof(addrstr), NULL, 0, 0);
     if(get_res != 0) {
-        hoststr[0] = 0;
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| getnameinfo(...) could not resolve the "
-                          "hostname (%s)", errno_str));
+        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+                                 addrstr, sizeof(addrstr),
+                                 NULL, 0, NI_NUMERICHOST);
+        if(get_res != 0) {
+            addrstr[0] = 0;
+            UA_LOG_SOCKET_ERRNO_WRAP(
+                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                               "TCP\t| getnameinfo(...) could not resolve the "
+                               "hostname (%s)", errno_str));
+        }
     }
 
     /* Create the server socket */
@@ -366,13 +371,24 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error opening the listen socket for "
                           "\"%s\" on port %u (%s)",
-                          (unsigned)listenSocket, hoststr, port, errno_str));
+                          (unsigned)listenSocket, addrstr, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| Creating server socket for \"%s\" on port %u",
-                (unsigned)listenSocket, hoststr, port);
+    /* If the INADDR_ANY is used, use the local hostname */
+    char hoststr[UA_MAXHOSTNAME_LENGTH];
+    if(hostname) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Creating listen socket for \"%s\" on port %u",
+                    (unsigned)listenSocket, hostname, port);
+    } else {
+        gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
+        hostname = hoststr;
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Creating listen socket for \"%s\" "
+                    "(with local hostname \"%s\") on port %u",
+                    (unsigned)listenSocket, addrstr, hostname, port);
+    }
 
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
@@ -390,15 +406,14 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 #endif
 
-    if(reuseaddr) {
-        /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
-        if(UA_EventLoopPOSIX_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                           "TCP %u\t| Could not make the socket addr reusable",
-                           (unsigned)listenSocket);
-            UA_close(listenSocket);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
+    /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
+    if(reuseaddr &&
+       UA_EventLoopPOSIX_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "TCP %u\t| Could not make the socket addr reusable",
+                       (unsigned)listenSocket);
+        UA_close(listenSocket);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Set the socket non-blocking */
@@ -425,7 +440,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error binding the socket to the address %s (%s)",
-                          (unsigned)listenSocket, hoststr, errno_str));
+                          (unsigned)listenSocket, hostname, errno_str));
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -480,19 +495,13 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     pcm->fdsSize++;
 
     /* Set up the callback parameters */
+    UA_String listenAddress = UA_STRING((char*)(uintptr_t)hostname);
     UA_KeyValuePair params[2];
     params[0].key = UA_QUALIFIEDNAME(0, "listen-address");
+    UA_Variant_setScalar(&params[0].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
     params[1].key = UA_QUALIFIEDNAME(0, "listen-port");
-    UA_KeyValueMap paramMap;
-    paramMap.mapSize = 0;
-    UA_String hostname;
-    if(hoststr[0] != 0) {
-        paramMap.mapSize = 2;
-        hostname = UA_STRING(hoststr);
-        UA_Variant_setScalar(&params[0].value, &hostname, &UA_TYPES[UA_TYPES_STRING]);
-        UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
-        paramMap.map = params;
-    }
+    UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_KeyValueMap paramMap = {2, params};
 
     /* Announce the listen-socket in the application */
     UA_UNLOCK(&el->elMutex);
@@ -548,7 +557,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     UA_StatusCode total_result = UA_INT32_MAX;
     struct addrinfo *ai = res;
     while(ai) {
-        total_result &= TCP_registerListenSocket(pcm, ai, port, application, context,
+        total_result &= TCP_registerListenSocket(pcm, ai, hostname, port, application, context,
                                                  connectionCallback, validate, reuseaddr);
         ai = ai->ai_next;
     }
@@ -874,7 +883,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     pcm->fdsSize++;
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| New connection to \"%s\" on port %s",
+                "TCP %u\t| Opening a connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
     /* Signal the new connection to the application as asynchonously opening */
