@@ -5,7 +5,7 @@
  *    Copyright 2021, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 #include <signal.h>
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
