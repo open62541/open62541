@@ -10,13 +10,5 @@ override_dh_auto_configure:
 override_dh_auto_test:
 	dh_auto_test -- ARGS+=--output-on-failure
 
-override_dh_auto_build:
-	dh_auto_build -- -j`nproc --ignore=2`
-	make -C obj-${DEB_HOST_GNU_TYPE} doc doc_pdf
-
-override_dh_install:
-	dh_install
-	dh_sphinxdoc -X_sources
-
 %:
 	dh $@ --buildsystem=cmake --parallel
