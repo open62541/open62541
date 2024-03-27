@@ -7,7 +7,7 @@
  */
 
 #include "open62541/types.h"
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 
 /* Configuration parameters */
 #define TCP_MANAGERPARAMS 2

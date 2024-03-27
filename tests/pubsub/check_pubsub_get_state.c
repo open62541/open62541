@@ -12,7 +12,6 @@
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
-#include "../arch/eventloop_posix/eventloop_posix.h"
 #include "test_helpers.h"
 #include "testing_clock.h"
 

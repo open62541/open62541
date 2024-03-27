@@ -964,23 +964,48 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
+                   ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
-# Always add the POSIX eventloop. The files internally check for the configured architecture
+# Add architecture-neutral eventloop files:
 list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/arch/clock.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.h
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.h
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+     
+# Add architecture-specific eventloop files. 
+
+# First define the folder where architecture-specific files are located. Can be outside of the open62541 source code tree.
+
+# Example of building with custom architecture-specific code for Linux, located in the folder d:/opcua-test/linux of the Windows host machine, in WSL2:
+# mkdir build-wsl2
+# cd build-wsl2
+# cmake -UA_ARCH_FOLDER=/mnt/d/opcua-test/linux ../
+
+# Define default location for Windows and POSIX-supporting Linux targets:
+if (NOT DEFINED UA_ARCH_FOLDER)
+    if("${UA_ARCHITECTURE}" STREQUAL "posix" OR "${UA_ARCHITECTURE}" STREQUAL "win32")
+        set (UA_ARCH_FOLDER ${PROJECT_SOURCE_DIR}/arch/eventloop_posix)
+    else()
+        message(FATAL_ERROR "build option UA_PLATFORM_FOLDER is not defined")
+    endif()
+endif()
+
+# Add the architecture-specific folder to the include directories, so the mandatory header file "eventloop_arch.h" can be found:
+include_directories("${UA_ARCH_FOLDER}")
+
+# And add architecture-specific files to the source files list:
+ list(APPEND plugin_sources
+     ${UA_ARCH_FOLDER}/eventloop_arch.h
+     # The rest of files could have any name, without architecture-specific part, for example just "clock.c"
+     ${UA_ARCH_FOLDER}/eventloop_arch_clock.c
+     ${UA_ARCH_FOLDER}/eventloop_arch.c
+     ${UA_ARCH_FOLDER}/eventloop_arch_tcp.c
+     ${UA_ARCH_FOLDER}/eventloop_arch_udp.c
+     ${UA_ARCH_FOLDER}/eventloop_arch_eth.c
+     ${UA_ARCH_FOLDER}/eventloop_arch_interrupt.c)
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
