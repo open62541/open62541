@@ -8,6 +8,7 @@
 
 #include "check.h"
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "tests/namespace_tests_testnodeset_generated.h"
 #include "tests/types_tests_testnodeset_generated_handling.h"
 #include "namespace_tests_di_generated.h"
@@ -19,10 +20,9 @@ UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->customDataTypes = &customTypesArray;
     UA_Server_run_startup(server);
 }

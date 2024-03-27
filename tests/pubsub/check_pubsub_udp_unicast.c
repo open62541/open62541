@@ -71,7 +71,9 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
     }
     retVal |= UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
     *server = UA_Server_newWithConfig(&stack_config);
-    *config = UA_Server_getConfig(*server);
+    UA_ServerConfig *sc = UA_Server_getConfig(*server);
+    sc->tcpReuseAddr = true;
+    *config = sc;
 
     retVal |= UA_Server_run_startup(*server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

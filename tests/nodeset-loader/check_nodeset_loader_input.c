@@ -10,15 +10,15 @@
 #include <stdlib.h>
 
 #include "testing_clock.h"
+#include "test_helpers.h"
 
 UA_Server *server = NULL;
 char **nodesetPaths = NULL;
 int nodesetsNum = 0;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 

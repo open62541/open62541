@@ -6,6 +6,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
 
+#include "test_helpers.h"
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,8 +21,7 @@ int main(int argc, const char *argv[]) {
     signal(SIGINT, stopHandler);
     signal(SIGTERM, stopHandler);
 
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+    UA_Server *server = UA_Server_newForUnitTest();
 
     for (int cnt = 1; cnt < argc; cnt++) {
         if (UA_StatusCode_isBad(UA_Server_loadNodeset(server, argv[cnt], NULL))) {
