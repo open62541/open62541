@@ -16,6 +16,7 @@ from os.path import basename
 import logging
 import codecs
 import os
+import re
 try:
     from StringIO import StringIO
 except ImportError:
@@ -184,7 +185,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
 # endif // UA_INTERNAL
 
 #else // UA_ENABLE_AMALGAMATION
-# include <open62541/server.h>
+#include <open62541/server.h>
 #endif
 
 %s
@@ -192,9 +193,9 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId);
     else:
         writeh("""
 #ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
+#include "open62541.h"
 #else
-# include <open62541/server.h>
+#include <open62541/server.h>
 #endif
 %s
 """ % (additionalHeaders))
@@ -310,13 +311,24 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
     # but only if it defines its own data types, otherwise it is not necessary.
     if len(typesArray) > 0:
         typeArr = typesArray[-1]
-        if typeArr != "UA_TYPES" and typeArr != "ns0":
+        # Check if the TypesArray also belongs to the current namespace.
+        # If the namespace does not define any data types, the TypesArray does not match the namespace and
+        # no code needs to be generated to change the NamespaceIndex in the TypesArray.
+        # typeArr != "UA_TYPES" and typeArr != "ns0" and
+        nsName_match = re.search(r"namespace_(.*?)_generated", outfilebase)
+        typeArrName_match = re.search(r"UA_TYPES_(.*)", typeArr)
+
+        nsName = nsName_match.group(1) if nsName_match else None
+        typeArrName = typeArrName_match.group(1) if typeArrName_match else None
+
+        if typeArrName and nsName and typeArrName == nsName.upper():
             writec("/* Change namespaceIndex from current namespace */")
             writec("#if " + typeArr + "_COUNT" + " > 0")
             writec("for(int i = 0; i < " + typeArr + "_COUNT" + "; i++) {")
             writec(typeArr + "[i]" + ".typeId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
             writec(typeArr + "[i]" + ".binaryEncodingId.namespaceIndex = ns[" + str(nodeset.namespaceMapping[1]) + "];")
             writec("}")
+            writec("UA_Server_addTypeArray(server, " + typeArr + ", " + typeArr + "_COUNT);")
             writec("#endif")
 
     # Add generated types to the server

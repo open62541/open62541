@@ -155,6 +155,9 @@ struct UA_Server {
     size_t namespacesSize;
     UA_String *namespaces;
 
+    /* Type Arrays */
+    const UA_DataTypeArray *typeArrays;
+
     /* For bootstrapping, omit some consistency checks, creating a reference to
      * the parent and member instantiation */
     UA_Boolean bootstrapNS0;
@@ -294,7 +297,12 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);
-UA_UInt16 addNamespace(UA_Server *server, const UA_String name);
+
+UA_UInt16
+addNamespace(UA_Server *server, const UA_String name);
+
+UA_StatusCode
+addTypeArray(UA_Server *server, UA_DataType *typeArray, size_t typeArraySize);
 
 UA_Boolean
 UA_Node_hasSubTypeOrInstances(const UA_NodeHead *head);

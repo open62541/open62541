@@ -1912,6 +1912,10 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
                               UA_String *foundUri);
 
+/* Add a new typeArray to the server. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_addTypeArray(UA_Server *server, UA_DataType *typeArray, size_t typeArraySize);
+
 /**
  * .. _async-operations:
  *

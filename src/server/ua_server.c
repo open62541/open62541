@@ -146,6 +146,38 @@ UA_Server_getNamespaceByIndex(UA_Server *server, const size_t namespaceIndex,
 }
 
 UA_StatusCode
+addTypeArray(UA_Server *server, UA_DataType *typeArray, size_t typeArraySize) {
+    UA_DataTypeArray *newEntry = (UA_DataTypeArray*)UA_calloc(1, sizeof(UA_DataTypeArray));
+    if(!newEntry) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,"Could not allocate memory for TypesArray.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    newEntry->next = NULL;
+    newEntry->cleanup = true;
+    newEntry->typesSize = typeArraySize;
+    newEntry->types = (UA_DataType*)UA_calloc(newEntry->typesSize, sizeof(UA_DataType));
+    if(!newEntry->types) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,"Could not allocate memory for TypesArray.");
+        UA_free(newEntry);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    memcpy((void*)(uintptr_t)newEntry->types, typeArray, sizeof(UA_DataType)*newEntry->typesSize);
+
+    /* Add to the server */
+    newEntry->next = server->typeArrays;
+    server->typeArrays = newEntry;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addTypeArray(UA_Server *server, UA_DataType *typeArray, size_t typeArraySize) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addTypeArray(server, typeArray, typeArraySize);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
 UA_Server_forEachChildNodeCall(UA_Server *server, UA_NodeId parentNodeId,
                                UA_NodeIteratorCallback callback, void *handle) {
     UA_BrowseDescription bd;
@@ -261,6 +293,14 @@ UA_Server_delete(UA_Server *server) {
     }
     UA_Array_delete(server->namespaces, server->namespacesSize, &UA_TYPES[UA_TYPES_STRING]);
 
+    /* Type Arrays */
+    while(server->typeArrays) {
+        const UA_DataTypeArray *next = server->typeArrays->next;
+        UA_free((void*)(uintptr_t)server->typeArrays->types);
+        UA_free((void*)(uintptr_t)server->typeArrays);
+        server->typeArrays = next;
+    }
+
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* Remove subscriptions without a session */
     UA_Subscription *sub, *sub_tmp;
@@ -373,6 +413,9 @@ UA_Server_init(UA_Server *server) {
     /* Initialize Session Management */
     LIST_INIT(&server->sessions);
     server->sessionCount = 0;
+
+    /* Initialize TypesArray */
+    server->typeArrays = NULL;
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
