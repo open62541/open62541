@@ -22,12 +22,20 @@ swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB) {
     *bufB = tmp;
 }
 
-void
+UA_StatusCode
 mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
              const UA_ByteString *in, unsigned char *out) {
-    mbedtls_md_hmac_starts(context, key->data, key->length);
-    mbedtls_md_hmac_update(context, in->data, in->length);
-    mbedtls_md_hmac_finish(context, out);
+
+    if(mbedtls_md_hmac_starts(context, key->data, key->length) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    if(mbedtls_md_hmac_update(context, in->data, in->length) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    if(mbedtls_md_hmac_finish(context, out) != 0)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -58,7 +66,13 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
         ANext_and_seed.data
     };
 
-    mbedtls_hmac(context, secret, seed, A.data);
+    UA_StatusCode retval = mbedtls_hmac(context, secret, seed, A.data);
+
+    if(retval != UA_STATUSCODE_GOOD){
+        UA_ByteString_clear(&A_and_seed);
+        UA_ByteString_clear(&ANext_and_seed);
+        return retval;
+    }
 
     for(size_t offset = 0; offset < out->length; offset += hashLen) {
         UA_ByteString outSegment = {
@@ -66,7 +80,6 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
             out->data + offset
         };
         UA_Boolean bufferAllocated = UA_FALSE;
-        UA_StatusCode retval = 0;
         // Not enough room in out buffer to write the hash.
         if(offset + hashLen > out->length) {
             outSegment.data = NULL;
@@ -80,8 +93,18 @@ mbedtls_generateKey(mbedtls_md_context_t *context,
             bufferAllocated = UA_TRUE;
         }
 
-        mbedtls_hmac(context, secret, &A_and_seed, outSegment.data);
-        mbedtls_hmac(context, secret, &A, ANext.data);
+        retval = mbedtls_hmac(context, secret, &A_and_seed, outSegment.data);
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_ByteString_clear(&A_and_seed);
+            UA_ByteString_clear(&ANext_and_seed);
+            return retval;
+        }
+        retval = mbedtls_hmac(context, secret, &A, ANext.data);
+        if(retval != UA_STATUSCODE_GOOD){
+            UA_ByteString_clear(&A_and_seed);
+            UA_ByteString_clear(&ANext_and_seed);
+            return retval;
+        }
 
         if(bufferAllocated) {
             memcpy(out->data + offset, outSegment.data, out->length - offset);

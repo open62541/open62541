@@ -222,11 +222,11 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(server, true);
     return 0;
 }
+
 static void setup(void) {
     running = true;
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     addCurrentTimeVariable();
     addValueCallbackToCurrentTimeVariable();

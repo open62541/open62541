@@ -67,6 +67,9 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     UA_ServerConfig *sc = UA_Server_getConfig(server);
     sc->reverseReconnectInterval = 15000;
+    UA_Array_delete(sc->serverUrls, sc->serverUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    sc->serverUrls = NULL;
+    sc->serverUrlsSize = 0;
     ck_assert(server != NULL);
 
     client = UA_Client_newForUnitTest();

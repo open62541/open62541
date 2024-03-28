@@ -48,7 +48,6 @@ static void setup(void) {
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     gathering = (UA_HistoryDataGathering*)UA_calloc(1, sizeof(UA_HistoryDataGathering));
     *gathering = UA_HistoryDataGathering_Circular(1);
@@ -208,7 +207,6 @@ START_TEST(Server_HistorizingStrategyValueSet) {
         UA_HistoryData * data = (UA_HistoryData *)response.results[i].historyData.content.decoded.data;
         ck_assert(data->dataValuesSize > 0);
         for (size_t j = 0; j < data->dataValuesSize; ++j) {
-            assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert(data->dataValues[j].sourceTimestamp >= start && data->dataValues[j].sourceTimestamp < end);
             ck_assert_uint_eq(data->dataValues[j].hasSourceTimestamp, true);
             ck_assert_str_eq(UA_StatusCode_name(data->dataValues[j].status),

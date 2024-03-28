@@ -23,7 +23,6 @@ static void
 setup(void) {
     tc.running = true;
     tc.server = UA_Server_newForUnitTest();
-    UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
     UA_Server_run_startup(tc.server);
     THREAD_CREATE(server_thread, serverloop);
 }

@@ -24,7 +24,7 @@ _UA_BEGIN_DECLS
 void
 swapBuffers(UA_ByteString *const bufA, UA_ByteString *const bufB);
 
-void
+UA_StatusCode
 mbedtls_hmac(mbedtls_md_context_t *context, const UA_ByteString *key,
              const UA_ByteString *in, unsigned char *out);
 

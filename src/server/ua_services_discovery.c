@@ -22,14 +22,14 @@
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
                                               UA_ApplicationDescription *target,
-                                              const UA_RegisteredServer *registeredServer) {
+                                              const UA_RegisteredServer *rs) {
     UA_ApplicationDescription_init(target);
     UA_StatusCode retval =
-        UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
+        UA_String_copy(&rs->serverUri, &target->applicationUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_String_copy(&registeredServer->productUri, &target->productUri);
+    retval = UA_String_copy(&rs->productUri, &target->productUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -37,10 +37,10 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
     if(request->localeIdsSize) {
         UA_Boolean appNameFound = false;
         for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
-            for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
+            for(size_t j =0; j<rs->serverNamesSize; j++) {
                 if(UA_String_equal(&request->localeIds[i],
-                                   &registeredServer->serverNames[j].locale)) {
-                    retval = UA_LocalizedText_copy(&registeredServer->serverNames[j],
+                                   &rs->serverNames[j].locale)) {
+                    retval = UA_LocalizedText_copy(&rs->serverNames[j],
                                                    &target->applicationName);
                     if(retval != UA_STATUSCODE_GOOD)
                         return retval;
@@ -52,34 +52,34 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 
         // server does not have the requested local, therefore we can select the
         // most suitable one
-        if(!appNameFound && registeredServer->serverNamesSize) {
-            retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+        if(!appNameFound && rs->serverNamesSize) {
+            retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                            &target->applicationName);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-    } else if(registeredServer->serverNamesSize) {
+    } else if(rs->serverNamesSize) {
         // just take the first name
-        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+        retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                        &target->applicationName);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    target->applicationType = registeredServer->serverType;
-    retval = UA_String_copy(&registeredServer->gatewayServerUri, &target->gatewayServerUri);
+    target->applicationType = rs->serverType;
+    retval = UA_String_copy(&rs->gatewayServerUri, &target->gatewayServerUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     // TODO where do we get the discoveryProfileUri for application data?
 
-    target->discoveryUrlsSize = registeredServer->discoveryUrlsSize;
-    if(registeredServer->discoveryUrlsSize) {
-        size_t duSize = sizeof(UA_String) * registeredServer->discoveryUrlsSize;
+    target->discoveryUrlsSize = rs->discoveryUrlsSize;
+    if(rs->discoveryUrlsSize) {
+        size_t duSize = sizeof(UA_String) * rs->discoveryUrlsSize;
         target->discoveryUrls = (UA_String *)UA_malloc(duSize);
         if(!target->discoveryUrls)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        for(size_t i = 0; i < registeredServer->discoveryUrlsSize; i++) {
-            retval = UA_String_copy(&registeredServer->discoveryUrls[i],
+        for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
+            retval = UA_String_copy(&rs->discoveryUrls[i],
                                     &target->discoveryUrls[i]);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
@@ -480,6 +480,27 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
         setCurrentEndPointsArray(server, request->endpointUrl,
                                  request->profileUris, request->profileUrisSize,
                                  &response->endpoints, &response->endpointsSize);
+
+    /* Check if the ServerUrl is already present in the DiscoveryUrl array.
+     * Add if not already there. */
+    UA_SecureChannel *channel = session->channel;
+    for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
+        if(UA_String_equal(&channel->endpointUrl,
+                           &server->config.applicationDescription.discoveryUrls[i])) {
+            return;
+        }
+    }
+    if(server->config.applicationDescription.discoveryUrls == NULL){
+        server->config.applicationDescription.discoveryUrls = (UA_String*)UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
+        server->config.applicationDescription.discoveryUrlsSize = 0;
+    }
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    retval = UA_Array_appendCopy((void**)&server->config.applicationDescription.discoveryUrls,
+                        &server->config.applicationDescription.discoveryUrlsSize,
+                        &request->endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Error adding the ServerUrl to theDiscoverUrl list.");
 }
 
 #ifdef UA_ENABLE_DISCOVERY

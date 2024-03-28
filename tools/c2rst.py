@@ -53,6 +53,8 @@ def last_line(c):
     "Searches for the latest ifdef (closing the include guard)"
     reg = re.compile("^#ifdef")
     for i in range(len(c)-1,1,-1):
+        if "stop-doc-generation" in c[i]:
+            return i
         if "_UA_END_DECLS" in c[i]:
             reg = re.compile("^_UA_END_DECLS")
     last = 1

@@ -10,7 +10,6 @@
 #include "eventloop_posix.h"
 
 /* Configuration parameters */
-
 #define TCP_MANAGERPARAMS 2
 
 static UA_KeyValueRestriction tcpManagerParams[TCP_MANAGERPARAMS] = {
@@ -18,17 +17,19 @@ static UA_KeyValueRestriction tcpManagerParams[TCP_MANAGERPARAMS] = {
     {{0, UA_STRING_STATIC("send-bufsize")}, &UA_TYPES[UA_TYPES_UINT32], false, true, false}
 };
 
-#define TCP_PARAMETERSSIZE 4
+#define TCP_PARAMETERSSIZE 5
 #define TCP_PARAMINDEX_ADDR 0
 #define TCP_PARAMINDEX_PORT 1
 #define TCP_PARAMINDEX_LISTEN 2
 #define TCP_PARAMINDEX_VALIDATE 3
+#define TCP_PARAMINDEX_REUSE 4
 
 static UA_KeyValueRestriction tcpConnectionParams[TCP_PARAMETERSSIZE] = {
     {{0, UA_STRING_STATIC("address")}, &UA_TYPES[UA_TYPES_STRING], false, true, true},
     {{0, UA_STRING_STATIC("port")}, &UA_TYPES[UA_TYPES_UINT16], true, true, false},
     {{0, UA_STRING_STATIC("listen")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
-    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
+    {{0, UA_STRING_STATIC("validate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false},
+    {{0, UA_STRING_STATIC("reuse")}, &UA_TYPES[UA_TYPES_BOOLEAN], false, true, false}
 };
 
 typedef struct {
@@ -345,7 +346,7 @@ static UA_StatusCode
 TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                          UA_UInt16 port, void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
-                         UA_Boolean validate) {
+                         UA_Boolean validate, UA_Boolean reuseaddr) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex, 1);
 
@@ -392,26 +393,17 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 #endif
 
-    /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
-    if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR,
-                     (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not make the socket addr reusable",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADINTERNALERROR;
+    if(reuseaddr) {
+        /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
+        if(UA_EventLoopPOSIX_setReusable(listenSocket) != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                           "TCP %u\t| Could not make the socket addr reusable",
+                           (unsigned)listenSocket);
+            UA_close(listenSocket);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
     }
-#ifndef _WIN32
-    /* Allow rebinding to the IP/port combination. Eg. to restart the server. */
-    if(UA_setsockopt(listenSocket, SOL_SOCKET, SO_REUSEPORT,
-                     (const char *)&optval, sizeof(optval)) == -1) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP %u\t| Could not make the socket port reusable",
-                       (unsigned)listenSocket);
-        UA_close(listenSocket);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-#endif
+
     /* Set the socket non-blocking */
     if(UA_EventLoopPOSIX_setNonBlocking(listenSocket) != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -520,7 +512,7 @@ static UA_StatusCode
 TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
-                          UA_Boolean validate) {
+                          UA_Boolean validate, UA_Boolean reuseaddr) {
     UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
 
     /* Create a string for the port */
@@ -560,7 +552,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     struct addrinfo *ai = res;
     while(ai) {
         total_result &= TCP_registerListenSocket(pcm, ai, port, application, context,
-                                                 connectionCallback, validate);
+                                                 connectionCallback, validate, reuseaddr);
         ai = ai->ai_next;
     }
     freeaddrinfo(res);
@@ -709,27 +701,36 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
             addrsSize = addrs->arrayLength;
     }
 
+    /* Get the reuseaddr parameter */
+    UA_Boolean reuseaddr = false;
+    const UA_Boolean *reuseaddrTmp = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, tcpConnectionParams[TCP_PARAMINDEX_REUSE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(reuseaddrTmp)
+        reuseaddr = *reuseaddrTmp;
+
     /* Undefined or empty addresses array -> listen on all interfaces */
     if(addrsSize == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP\t| Listening on all interfaces");
         return TCP_registerListenSockets(pcm, NULL, *port, application,
-                                         context, connectionCallback, validate);
+                                         context, connectionCallback, validate, reuseaddr);
     }
 
     /* Iterate over the configured hostnames */
     UA_String *hostStrings = (UA_String*)addrs->data;
+    UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
         if(hostStrings[i].length >= sizeof(hostname))
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        TCP_registerListenSockets(pcm, hostname, *port, application,
-                                  context, connectionCallback, validate);
+        if(TCP_registerListenSockets(pcm, hostname, *port, application,
+                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOOD;
     }
-
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 /* Open a TCP connection to a remote host */

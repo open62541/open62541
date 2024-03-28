@@ -17,8 +17,14 @@ file(COPY ${DOC_SRC} DESTINATION ${DOC_SRC_DIR})
 
 configure_file("${PROJECT_SOURCE_DIR}/doc/conf.py" "${DOC_SRC_DIR}/conf.py")
 
-
 list(APPEND GENERATED_RST "")
+
+# Generated type definitions
+add_custom_command(OUTPUT ${DOC_SRC_DIR}/types_generated.rst
+                   COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst ${DOC_SRC_DIR}
+                   PRE_BUILD
+                   DEPENDS ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst)
+list(APPEND GENERATED_RST ${DOC_SRC_DIR}/types_generated.rst)
 
 macro(generate_rst in out)
     add_custom_command(OUTPUT ${out}
@@ -28,19 +34,16 @@ macro(generate_rst in out)
     list(APPEND GENERATED_RST "${out}")
 endmacro()
 
-
 # Doc from headers
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/types.h ${DOC_SRC_DIR}/types.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/common.h ${DOC_SRC_DIR}/common.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/util.h ${DOC_SRC_DIR}/util.rst)
 generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h ${DOC_SRC_DIR}/statuscodes.rst)
-generate_rst(${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.h ${DOC_SRC_DIR}/types_generated.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server.h ${DOC_SRC_DIR}/server.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h ${DOC_SRC_DIR}/client_subscriptions.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client.h ${DOC_SRC_DIR}/client.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h ${DOC_SRC_DIR}/client_highlevel.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h ${DOC_SRC_DIR}/client_highlevel_async.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/src/server/ua_services.h ${DOC_SRC_DIR}/services.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h ${DOC_SRC_DIR}/pubsub.rst)
 
 generate_rst(${PROJECT_SOURCE_DIR}/include/open62541/plugin/accesscontrol.h ${DOC_SRC_DIR}/plugin_accesscontrol.rst)
@@ -64,10 +67,11 @@ generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_server_method.c ${DOC_SRC_D
 generate_rst(${PROJECT_SOURCE_DIR}/examples/tutorial_client_firststeps.c ${DOC_SRC_DIR}/tutorial_client_firststeps.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub/tutorial_pubsub_publish.c ${DOC_SRC_DIR}/tutorial_pubsub_publish.rst)
 generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub/tutorial_pubsub_subscribe.c ${DOC_SRC_DIR}/tutorial_pubsub_subscribe.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_publisher.c ${DOC_SRC_DIR}/pubsub_TSN_publisher.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_loopback.c ${DOC_SRC_DIR}/pubsub_TSN_loopback.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_publisher.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_publisher.rst)
-generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_subscriber.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_subscriber.rst)
+
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_publisher.c ${DOC_SRC_DIR}/pubsub_TSN_publisher.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/pubsub_TSN_loopback.c ${DOC_SRC_DIR}/pubsub_TSN_loopback.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_publisher.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_publisher.rst)
+# generate_rst(${PROJECT_SOURCE_DIR}/examples/pubsub_realtime/nodeset/pubsub_nodeset_rt_subscriber.c ${DOC_SRC_DIR}/pubsub_nodeset_rt_subscriber.rst)
 
 # Doc targets
 

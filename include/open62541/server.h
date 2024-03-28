@@ -72,10 +72,10 @@ typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
  * The :ref:`tutorials` provide a good starting point for this. */
 
 struct UA_ServerConfig {
-    const UA_Logger *logging; /* Plugin for log output */
     void *context; /* Used to attach custom data to a server config. This can
                     * then be retrieved e.g. in a callback that forwards a
                     * pointer to the server. */
+    UA_Logger *logging; /* Plugin for log output */
 
     /**
      * Server Description
@@ -178,6 +178,7 @@ struct UA_ServerConfig {
                               * (default: 0 -> unbounded) */
     UA_UInt32 tcpMaxChunks;  /* Max number of chunks per message
                               * (default: 0 -> unbounded) */
+    UA_Boolean tcpReuseAddr;
 
     /**
      * Security and Encryption
@@ -1966,12 +1967,14 @@ typedef union {
  *        be set in UA_Server_setAsyncOperationResult in any case.
  * @return false if queue is empty, true else */
 UA_Boolean UA_EXPORT
-UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
+UA_Server_getAsyncOperationNonBlocking(UA_Server *server,
+                                       UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
                                        void **context, UA_DateTime *timeout);
 
 /* UA_Boolean UA_EXPORT */
-/* UA_Server_getAsyncOperationBlocking(UA_Server *server, UA_AsyncOperationType *type, */
+/* UA_Server_getAsyncOperationBlocking(UA_Server *server, */
+/*                                     UA_AsyncOperationType *type, */
 /*                                     const UA_AsyncOperationRequest **request, */
 /*                                     void **context, UA_DateTime *timeout); */
 
