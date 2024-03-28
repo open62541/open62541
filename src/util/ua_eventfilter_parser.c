@@ -11,6 +11,8 @@
 #include "cj5.h"
 #include "mp_printf.h"
 
+#include <stdlib.h>
+
 static UA_Parsed_Element_List *
 create_next_operator_element(UA_Element_List *elements) {
     UA_Parsed_Element_List *element = (UA_Parsed_Element_List*)
