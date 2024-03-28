@@ -264,7 +264,7 @@ void UA_DataSetMessage_clear(UA_DataSetMessage* p);
 
 /* If dataToEncryptStart not-NULL, then it will be set to the start-position of
  * the payload in the buffer. */
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
                                UA_Byte **bufPos, const UA_Byte *bufEnd,
                                UA_Byte **dataToEncryptStart);
@@ -298,7 +298,7 @@ UA_StatusCode
 UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
                                 UA_NetworkMessage *dst);
 
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_NetworkMessage* dst, const UA_DataTypeArray *customTypes);
                                
@@ -307,7 +307,7 @@ UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_NetworkMessage *dst);
 
 /* Also stores the offset if offsetBuffer != NULL */
-size_t
+UA_EXPORT size_t
 UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
                                  UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
@@ -320,23 +320,24 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
                               UA_Byte *sigStart);
 #endif
 
-void
+UA_EXPORT void
 UA_NetworkMessage_clear(UA_NetworkMessage* p);
 
 #ifdef UA_ENABLE_JSON_ENCODING
-UA_StatusCode
+UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
                              UA_Byte **bufPos, const UA_Byte **bufEnd, UA_String *namespaces,
                              size_t namespaceSize, UA_String *serverUris,
                              size_t serverUriSize, UA_Boolean useReversible);
 
-size_t
+UA_EXPORT size_t
 UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
                                UA_String *namespaces, size_t namespaceSize,
                                UA_String *serverUris, size_t serverUriSize,
                                UA_Boolean useReversible);
 
-UA_StatusCode UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src);
+UA_EXPORT UA_StatusCode
+UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src);
 #endif
 
 _UA_END_DECLS
