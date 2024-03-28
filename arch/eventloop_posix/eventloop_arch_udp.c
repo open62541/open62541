@@ -6,7 +6,7 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0

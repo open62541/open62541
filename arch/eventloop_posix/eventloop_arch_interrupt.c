@@ -5,7 +5,7 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 #include <signal.h>
 
 /* Different implementation approaches:

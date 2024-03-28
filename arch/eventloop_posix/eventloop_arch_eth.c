@@ -8,7 +8,7 @@
  *   Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_arch.h"
 
 #if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
 
