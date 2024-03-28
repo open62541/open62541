@@ -10,7 +10,7 @@
 #include <time.h>
 
 #include "securitypolicy_mbedtls_common.h"
-#include "open62541/../arch/eventloop_posix/eventloop_arch.h"
+#include "eventloop_arch.h"
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
 #include <mbedtls/x509_crt.h>

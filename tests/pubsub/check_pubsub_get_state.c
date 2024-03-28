@@ -12,7 +12,7 @@
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
-#include "open62541/../arch/eventloop_posix/eventloop_arch.h"
+#include "eventloop_arch.h"
 #include "test_helpers.h"
 #include "testing_clock.h"
 
