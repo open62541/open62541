@@ -7,49 +7,48 @@
  */
 
 #include "ua_eventfilter_parser.h"
-#include "open62541/plugin/log_stdout.h"
 
 static Operand *
-OperandList_newOperand(OperandList *ol) {
+newOperand(EFParseContext *ctx) {
     Operand *op = (Operand*)UA_calloc(1, sizeof(Operand));
-    LIST_INSERT_HEAD(&ol->list, op, entries);
-    ol->listSize++;
+    LIST_INSERT_HEAD(&ctx->operands, op, entries);
+    ctx->operandsSize++;
     return op;
 }
 
 static Operand *
-OperandList_find(OperandList *ol, char *ref) {
+findOperand(EFParseContext *ctx, char *ref) {
     Operand *temp, *found = NULL;
-    LIST_FOREACH(temp, &ol->list, entries) {
+    LIST_FOREACH(temp, &ctx->operands, entries) {
         if(!temp->ref || strcmp(temp->ref, ref) != 0)
             continue;
         if(found) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Duplicate definition of reference: %s", ref);
+            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                         "Duplicate definition of operand reference %s", ref);
             return NULL;
         }
         found = temp;
     }
     if(!found) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "Failed to find the operand with reference: %s", ref);
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                     "Failed to find the operand reference %s", ref);
     }
     return found;
 }
 
 static Operand *
-OperandList_resolve(OperandList *ol, Operand *op, size_t depth) {
-    if(depth > ol->listSize)
+resolveOperandRef(EFParseContext *ctx, Operand *op, size_t depth) {
+    if(depth > ctx->operandsSize)
         return NULL; /* prevent infinite recursion */
     if(!op)
         return NULL;
     if(op->type != OT_REF)
         return op;
-    return OperandList_resolve(ol, OperandList_find(ol, op->operand.ref), depth+1);
+    return resolveOperandRef(ctx, findOperand(ctx, op->operand.ref), depth+1);
 }
 
 static void
-Operand_delete(Operand *on) {
+deleteOperand(Operand *on) {
     UA_free(on->ref);
     if(on->type == OT_OPERATOR) {
         UA_free(on->operand.op.children);
@@ -64,16 +63,16 @@ Operand_delete(Operand *on) {
 }
 
 void
-OperandList_clear(OperandList *ol) {
+EFParseContext_clear(EFParseContext *ctx) {
     Operand *temp, *temp1;
-    LIST_FOREACH_SAFE(temp, &ol->list, entries, temp1) {
+    LIST_FOREACH_SAFE(temp, &ctx->operands, entries, temp1) {
         LIST_REMOVE(temp, entries);
-        Operand_delete(temp);
+        deleteOperand(temp);
     }
 }
 
-void append_select(OperandList *ol, Operand *on) {
-    TAILQ_INSERT_TAIL(&ol->select_list, on, select_entries);
+void append_select(EFParseContext *ctx, Operand *on) {
+    TAILQ_INSERT_TAIL(&ctx->select_operands, on, select_entries);
 }
 
 char *
@@ -84,62 +83,33 @@ save_string(char *str) {
 }
 
 Operand *
-create_operand(OperandList *ol, OperandType ot) {
-    Operand *on = OperandList_newOperand(ol);
+create_operand(EFParseContext *ctx, OperandType ot) {
+    Operand *on = newOperand(ctx);
     on->type = ot;
     return on;
 }
 
 Operand *
-create_operator(OperandList *ol, UA_FilterOperator fo) {
-    Operand *on = create_operand(ol, OT_OPERATOR);
+create_operator(EFParseContext *ctx, UA_FilterOperator fo) {
+    Operand *on = create_operand(ctx, OT_OPERATOR);
     on->operand.op.filter = fo;
     return on;
 }
 
 void
-append_operand(Operator *op, Operand *on) {
-    op->children = (Operand**)UA_realloc(op->children,
-                                         (op->childrenSize + 1) * sizeof(Operand*));
-    op->children[op->childrenSize] = on;
-    op->childrenSize++;
-}
-
-Operand *
-parse_literal(OperandList *ol, char *yytext, const UA_DataType *type) {
-    Operand *on = OperandList_newOperand(ol);
-    on->type = OT_LITERAL;
-
-    void *data = UA_new(type);
-    if(!data)
-        return on;
-
-    UA_StatusCode res;
-    UA_String src = UA_STRING(yytext);
-    if(type == &UA_TYPES[UA_TYPES_NODEID]) {
-        res = UA_NodeId_parse((UA_NodeId*)data, src);
-    } else if(type == &UA_TYPES[UA_TYPES_EXPANDEDNODEID]) {
-        res = UA_ExpandedNodeId_parse((UA_ExpandedNodeId*)data, src);
-    } else if(type == &UA_TYPES[UA_TYPES_GUID]) {
-        res = UA_Guid_parse((UA_Guid*)data, src);
-    } else {
-        res = UA_decodeJson(&src, data, type, NULL);
-    }
-
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_free(data);
-        return on;
-    }
-
-    UA_Variant_setScalar(&on->operand.literal, data, type);
-    return on;
+append_operand(Operand *op, Operand *on) {
+    Operator *optr = &op->operand.op;
+    optr->children = (Operand**)
+        UA_realloc(optr->children, (optr->childrenSize + 1) * sizeof(Operand*));
+    optr->children[optr->childrenSize] = on;
+    optr->childrenSize++;
 }
 
 /* Count the number of elements for the filter. Mark all required elements that
  * appear in the hierarchy from the top element. */
 static size_t
-countElements(OperandList *ol, Operand *top, UA_StatusCode *res) {
-    top = OperandList_resolve(ol, top, 0);
+markPrinted(EFParseContext *ctx, Operand *top, UA_StatusCode *res) {
+    top = resolveOperandRef(ctx, top, 0);
     if(!top) {
         *res |= UA_STATUSCODE_BADINTERNALERROR;
         return 0;
@@ -151,16 +121,16 @@ countElements(OperandList *ol, Operand *top, UA_StatusCode *res) {
     top->operand.op.required = true;
     size_t count = 1;
     for(size_t i = 0; i < top->operand.op.childrenSize; i++)
-        count += countElements(ol, top->operand.op.children[i], res);
+        count += markPrinted(ctx, top->operand.op.children[i], res);
     return count;
 }
 
 /* Return the first printable operator from the list. It must be required and
  * all child-operators must be printed already. */
 static Operator *
-getPrintable(OperandList *ol) {
+getPrintable(EFParseContext *ctx) {
     Operand *on;
-    LIST_FOREACH(on, &ol->list, entries) {
+    LIST_FOREACH(on, &ctx->operands, entries) {
         if(on->type != OT_OPERATOR)
             continue;
 
@@ -171,9 +141,9 @@ getPrintable(OperandList *ol) {
         /* Check all children */
         size_t i = 0;
         for(; i < op->childrenSize; i++) {
-            Operand *op_i = OperandList_resolve(ol, op->children[i], 0);
-            UA_assert(op_i);
-            /* Must resolve. Otherwise countElements would have found the error. */
+            Operand *op_i = resolveOperandRef(ctx, op->children[i], 0);
+            UA_assert(op_i); /* Must resolve. Otherwise markPrinted would have
+                              * found error. */
             if(op_i->type == OT_OPERATOR && op_i->operand.op.elementIndex == 0)
                 break;
         }
@@ -184,14 +154,14 @@ getPrintable(OperandList *ol) {
 }
 
 static UA_StatusCode
-print_element(OperandList *ol, UA_ContentFilterElement *elm, Operator *op) {
+printOperator(EFParseContext *ctx, UA_ContentFilterElement *elm, Operator *op) {
     UA_ContentFilterElement_init(elm);
     elm->filterOperandsSize = op->childrenSize;
     elm->filterOperands = (UA_ExtensionObject*)
         UA_calloc(op->childrenSize, sizeof(UA_ExtensionObject));
     elm->filterOperator = op->filter;
     for(size_t i = 0; i < op->childrenSize; i++) {
-        Operand *op_i = OperandList_resolve(ol, op->children[i], 0);
+        Operand *op_i = resolveOperandRef(ctx, op->children[i], 0);
         if(op_i->type == OT_OPERATOR) {
             UA_ElementOperand *elmo = UA_ElementOperand_new();
             elmo->index = (UA_UInt32)op_i->operand.op.elementIndex;
@@ -212,12 +182,12 @@ print_element(OperandList *ol, UA_ContentFilterElement *elm, Operator *op) {
     return UA_STATUSCODE_GOOD;
 }
 
-//#define UA_EVENTFILTERPARSER_DEBUG 1
+// #define UA_EVENTFILTERPARSER_DEBUG 1
 
 #ifdef UA_EVENTFILTERPARSER_DEBUG
 #include <stdio.h>
 static void
-debug_element(OperandList *ol, Operand *on) {
+debug_element(Operand *on) {
     if(on->ref)
         printf("%s: ", on->ref);
     if(on->type == OT_REF) {
@@ -233,24 +203,24 @@ debug_element(OperandList *ol, Operand *on) {
 #endif
 
 UA_StatusCode
-create_filter(OperandList *ol, UA_EventFilter *filter, Operand *top) {
+create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
 #ifdef UA_EVENTFILTERPARSER_DEBUG
     Operand *temp;
-    LIST_FOREACH(temp, &ol->list, entries) {
-        debug_element(ol, temp);
+    LIST_FOREACH(temp, &ctx->operands, entries) {
+        debug_element(temp);
     }
 #endif
 
     /* Create the select filter */
     Operand *sao;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    TAILQ_FOREACH(sao, &ol->select_list, select_entries) {
-        sao = OperandList_resolve(ol, sao, 0);
+    TAILQ_FOREACH(sao, &ctx->select_operands, select_entries) {
+        sao = resolveOperandRef(ctx, sao, 0);
         if(!sao)
             return UA_STATUSCODE_BADINTERNALERROR;
         if(sao->type != OT_SAO) {
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                         "Select Clause not a SimpleAttributeOperand");
+            UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                         "The select clause must only contain SimpleAttributeOperands");
             return UA_STATUSCODE_BADINTERNALERROR;
         }
         res = UA_Array_append((void **)&filter->selectClauses,
@@ -261,10 +231,10 @@ create_filter(OperandList *ol, UA_EventFilter *filter, Operand *top) {
     }
 
     /* Create the where filter */
-    if(!top)
+    if(!ctx->top)
         return UA_STATUSCODE_GOOD; /* No where clause */
 
-    size_t count = countElements(ol, top, &res); /* Count relevant filter elements */
+    size_t count = markPrinted(ctx, ctx->top, &res); /* Count relevant filter elements */
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
@@ -275,16 +245,19 @@ create_filter(OperandList *ol, UA_EventFilter *filter, Operand *top) {
 
     /* Get the next printable operator and print it */
     Operator *printable;
-    while(count > 0 && (printable = getPrintable(ol))) {
+    while(count > 0 && (printable = getPrintable(ctx))) {
         count--;
-        res |= print_element(ol, &filter->whereClause.elements[count], printable);
+        res |= printOperator(ctx, &filter->whereClause.elements[count], printable);
         printable->elementIndex = count;
     }
 
     /* Cycles are not allowed. Detected if we could not print all relevant
      * elements */
-    if(count > 0)
+    if(count > 0) {
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                     "Cyclic operand references detected");
         res |= UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     return res;
 }
