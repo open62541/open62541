@@ -511,16 +511,19 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
 status
 UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
     /* Set up the context */
+    cj5_token tokens[UA_JSON_MAXTOKENCOUNT];
     ParseCtx ctx;
     memset(&ctx, 0, sizeof(ParseCtx));
-    ctx.tokens = (cj5_token*)
-        UA_calloc(UA_JSON_MAXTOKENCOUNT, sizeof(cj5_token));
-    if(!ctx.tokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT);
+    ctx.tokens = tokens;
+    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT, NULL);
     if(ret != UA_STATUSCODE_GOOD)
-        return ret;
+        goto cleanup;
+
     ret = NetworkMessage_decodeJsonInternal(&ctx, dst);
-    UA_free((void*)(uintptr_t)ctx.tokens);
+
+ cleanup:
+    /* Free token array on the heap */
+    if(ctx.tokens != tokens)
+        UA_free((void*)(uintptr_t)ctx.tokens);
     return ret;
 }
