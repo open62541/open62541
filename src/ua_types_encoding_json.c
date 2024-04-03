@@ -2829,10 +2829,13 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
+tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
+         size_t *decodedLength) {
     /* Tokenize */
+    cj5_options options;
+    options.stop_early = (decodedLength != NULL);
     cj5_result r = cj5_parse((char*)src->data, (unsigned int)src->length,
-                             ctx->tokens, (unsigned int)tokensSize, NULL);
+                             ctx->tokens, (unsigned int)tokensSize, &options);
 
     /* Handle overflow error by allocating the number of tokens the parser would
      * have needed */
@@ -2842,12 +2845,15 @@ tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
             UA_malloc(sizeof(cj5_token) * r.num_tokens);
         if(!ctx->tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        return tokenize(ctx, src, r.num_tokens);
+        return tokenize(ctx, src, r.num_tokens, decodedLength);
     }
 
     /* Cannot recover from other errors */
     if(r.error != CJ5_ERROR_NONE)
         return UA_STATUSCODE_BADDECODINGERROR;
+
+    if(decodedLength)
+        *decodedLength = ctx->tokens[0].end + 1;
 
     /* Set up the context */
     ctx->json5 = (char*)src->data;
@@ -2878,7 +2884,8 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
-    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT);
+    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT,
+                          options ? options->decodedLength : NULL);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 
