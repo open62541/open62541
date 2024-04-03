@@ -1318,6 +1318,10 @@ typedef struct {
     size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
+    size_t *decodedLength; /* If non-NULL, the length of the decoded input is
+                            * stored to the pointer. When this is set, decoding
+                            * succeeds also if there is more content after the
+                            * first JSON element in the input string. */
 } UA_DecodeJsonOptions;
 
 /* Decodes a scalar value described by type from json encoding.
@@ -1328,7 +1332,7 @@ typedef struct {
  *        decoding fails, members are deleted and the value is reset (zeroed)
  *        again.
  * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding, currently unused
+ * @param options The options struct for decoding.
  * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
