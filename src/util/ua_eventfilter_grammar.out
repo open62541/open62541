@@ -1,0 +1,625 @@
+State 0:
+          eventFilter ::= * selectClause whereClause forClause
+     (18) selectClause ::= *
+          selectClause ::= * SELECT selectClauseList
+
+                        SELECT shift        1      
+                   eventFilter accept
+                  selectClause shift        17     
+                     {default} reduce       18     selectClause ::=
+
+State 1:
+          selectClause ::= SELECT * selectClauseList
+          selectClauseList ::= * operand
+          selectClauseList ::= * selectClauseList COMMA operand
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+              selectClauseList shift        30     
+                       operand shift        21     
+                      operator shift-reduce 4      operand ::= operator
+
+State 2:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+          operandList ::= * operand
+          operandList ::= * operator COMMA operandList
+          operandList ::= operator COMMA * operandList
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        25     
+                      operator shift        32     
+                   operandList shift-reduce 15     operandList ::= operator COMMA operandList
+
+State 3:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+          operator ::= operand INLIST LBRACKET * operandList RBRACKET
+          operandList ::= * operand
+          operandList ::= * operator COMMA operandList
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        25     
+                      operator shift        32     
+                   operandList shift        31     
+
+State 4:
+          selectClauseList ::= selectClauseList COMMA * operand
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        22     
+                      operator shift-reduce 4      operand ::= operator
+
+State 5:
+          whereClause ::= WHERE * operand
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        23     
+                      operator shift-reduce 4      operand ::= operator
+
+State 6:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand BETWEEN LBRACKET operand COMMA * operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        18     
+                      operator shift-reduce 4      operand ::= operator
+
+State 7:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand BETWEEN LBRACKET * operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        19     
+                      operator shift-reduce 4      operand ::= operator
+
+State 8:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= operand BINARY_OP * operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift-reduce 11     operator ::= operand BINARY_OP operand
+                      operator shift-reduce 4      operand ::= operator
+
+State 9:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= operand OR * operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        28     
+                      operator shift-reduce 4      operand ::= operator
+
+State 10:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= UNARY_OP * operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        29     
+                      operator shift-reduce 4      operand ::= operator
+
+State 11:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= operand AND * operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        26     
+                      operator shift-reduce 4      operand ::= operator
+
+State 12:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= LPAREN * operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        20     
+                      operator shift-reduce 4      operand ::= operator
+
+State 13:
+          operand ::= * LPAREN operand RPAREN
+          operand ::= * operator
+          operand ::= * LITERAL
+          operand ::= * SAO
+          operand ::= * NAMEDOPERAND
+          operator ::= * UNARY_OP operand
+          operator ::= * operand AND operand
+          operator ::= * operand OR operand
+          operator ::= * operand BINARY_OP operand
+          operator ::= * operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= * operand INLIST LBRACKET operandList RBRACKET
+          namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL * operand
+
+                      UNARY_OP shift        10     
+                        LPAREN shift        12     
+                       LITERAL shift-reduce 5      operand ::= LITERAL
+                           SAO shift-reduce 6      operand ::= SAO
+                  NAMEDOPERAND shift-reduce 7      operand ::= NAMEDOPERAND
+                       operand shift        24     
+                      operator shift-reduce 4      operand ::= operator
+
+State 14:
+          forClause ::= FOR * namedOperandAssignmentList
+          namedOperandAssignmentList ::= * namedOperandAssignment
+          namedOperandAssignmentList ::= * namedOperandAssignmentList COMMA namedOperandAssignment
+          namedOperandAssignment ::= * NAMEDOPERAND COLONEQUAL operand
+
+                  NAMEDOPERAND shift        35     
+    namedOperandAssignmentList shift        36     
+        namedOperandAssignment shift        36       /* because namedOperandAssignment==namedOperandAssignmentList */
+
+State 15:
+          namedOperandAssignmentList ::= namedOperandAssignmentList COMMA * namedOperandAssignment
+          namedOperandAssignment ::= * NAMEDOPERAND COLONEQUAL operand
+
+                  NAMEDOPERAND shift        35     
+        namedOperandAssignment shift-reduce 24     namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment
+
+State 16:
+          eventFilter ::= selectClause whereClause * forClause
+     (21) forClause ::= *
+          forClause ::= * FOR namedOperandAssignmentList
+
+                           FOR shift        14     
+                     forClause shift        37     
+                     {default} reduce       21     forClause ::=
+
+State 17:
+          eventFilter ::= selectClause * whereClause forClause
+     (20) whereClause ::= *
+          whereClause ::= * WHERE operand
+
+                         WHERE shift        5      
+                   whereClause shift        16     
+                     {default} reduce       20     whereClause ::=
+
+State 18:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand BETWEEN LBRACKET operand COMMA operand * RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                      RBRACKET shift-reduce 12     operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET
+
+State 19:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand BETWEEN LBRACKET operand * COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                         COMMA shift        6      
+
+State 20:
+          operand ::= LPAREN operand * RPAREN
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                        RPAREN shift-reduce 3      operand ::= LPAREN operand RPAREN
+
+State 21:
+      (0) selectClauseList ::= operand *
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       0      selectClauseList ::= operand
+
+State 22:
+      (1) selectClauseList ::= selectClauseList COMMA operand *
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       1      selectClauseList ::= selectClauseList COMMA operand
+
+State 23:
+      (2) whereClause ::= WHERE operand *
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       2      whereClause ::= WHERE operand
+
+State 24:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+     (16) namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand *
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       16     namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand
+
+State 25:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+     (14) operandList ::= operand *
+
+                           AND shift        11     
+                            OR shift        9      
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       14     operandList ::= operand
+
+State 26:
+          operator ::= operand * AND operand
+      (9) operator ::= operand AND operand *
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       9      operator ::= operand AND operand
+
+State 27:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+     (11) operator ::= operand BINARY_OP operand *
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                     BINARY_OP error
+                       BETWEEN error
+                        INLIST error
+                     {default} reduce       11     operator ::= operand BINARY_OP operand
+
+State 28:
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+     (10) operator ::= operand OR operand *
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       10     operator ::= operand OR operand
+
+State 29:
+      (8) operator ::= UNARY_OP operand *
+          operator ::= operand * AND operand
+          operator ::= operand * OR operand
+          operator ::= operand * BINARY_OP operand
+          operator ::= operand * BETWEEN LBRACKET operand COMMA operand RBRACKET
+          operator ::= operand * INLIST LBRACKET operandList RBRACKET
+
+                     BINARY_OP shift        8      
+                       BETWEEN shift        34     
+                        INLIST shift        33     
+                     {default} reduce       8      operator ::= UNARY_OP operand
+
+State 30:
+     (19) selectClause ::= SELECT selectClauseList *
+          selectClauseList ::= selectClauseList * COMMA operand
+
+                         COMMA shift        4      
+                     {default} reduce       19     selectClause ::= SELECT selectClauseList
+
+State 31:
+          operator ::= operand INLIST LBRACKET operandList * RBRACKET
+
+                      RBRACKET shift-reduce 13     operator ::= operand INLIST LBRACKET operandList RBRACKET
+
+State 32:
+      (4) operand ::= operator *
+          operandList ::= operator * COMMA operandList
+
+                         COMMA shift        2      
+                     {default} reduce       4      operand ::= operator
+
+State 33:
+          operator ::= operand INLIST * LBRACKET operandList RBRACKET
+
+                      LBRACKET shift        3      
+
+State 34:
+          operator ::= operand BETWEEN * LBRACKET operand COMMA operand RBRACKET
+
+                      LBRACKET shift        7      
+
+State 35:
+          namedOperandAssignment ::= NAMEDOPERAND * COLONEQUAL operand
+
+                    COLONEQUAL shift        13     
+
+State 36:
+     (22) forClause ::= FOR namedOperandAssignmentList *
+          namedOperandAssignmentList ::= namedOperandAssignmentList * COMMA namedOperandAssignment
+
+                         COMMA shift        15     
+                     {default} reduce       22     forClause ::= FOR namedOperandAssignmentList
+
+State 37:
+     (17) eventFilter ::= selectClause whereClause forClause *
+
+                             $ reduce       17     eventFilter ::= selectClause whereClause forClause
+
+----------------------------------------------------
+Symbols:
+The first-set of non-terminals is shown after the name.
+
+    0: $:
+    1: AND (precedence=1)
+    2: OR (precedence=1)
+    3: UNARY_OP (precedence=2)
+    4: BINARY_OP (precedence=3)
+    5: BETWEEN (precedence=3)
+    6: INLIST (precedence=3)
+    7: SELECT
+    8: COMMA
+    9: WHERE
+   10: LPAREN
+   11: RPAREN
+   12: LITERAL
+   13: SAO
+   14: NAMEDOPERAND
+   15: LBRACKET
+   16: RBRACKET
+   17: FOR
+   18: COLONEQUAL
+   19: eventFilter: <lambda> SELECT WHERE FOR
+   20: selectClause: <lambda> SELECT
+   21: whereClause: <lambda> WHERE
+   22: forClause: <lambda> FOR
+   23: selectClauseList: UNARY_OP LPAREN LITERAL SAO NAMEDOPERAND
+   24: operand: UNARY_OP LPAREN LITERAL SAO NAMEDOPERAND
+   25: operator: UNARY_OP LPAREN LITERAL SAO NAMEDOPERAND
+   26: operandList: UNARY_OP LPAREN LITERAL SAO NAMEDOPERAND
+   27: namedOperandAssignmentList: NAMEDOPERAND
+   28: namedOperandAssignment: NAMEDOPERAND
+----------------------------------------------------
+Syntax-only Symbols:
+The following symbols never carry semantic content.
+
+$ SELECT COMMA WHERE LPAREN RPAREN LBRACKET RBRACKET FOR COLONEQUAL
+eventFilter selectClause whereClause forClause selectClauseList
+namedOperandAssignmentList namedOperandAssignment
+----------------------------------------------------
+Rules:
+   0: selectClauseList ::= operand.
+   1: selectClauseList ::= selectClauseList COMMA operand.
+   2: whereClause ::= WHERE operand.
+   3: operand ::= LPAREN operand RPAREN.
+   4: operand ::= operator.
+   5: operand ::= LITERAL.
+   6: operand ::= SAO.
+   7: operand ::= NAMEDOPERAND.
+   8: operator ::= UNARY_OP operand. [UNARY_OP precedence=2]
+   9: operator ::= operand AND operand. [AND precedence=1]
+  10: operator ::= operand OR operand. [OR precedence=1]
+  11: operator ::= operand BINARY_OP operand. [BINARY_OP precedence=3]
+  12: operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET. [BETWEEN precedence=3]
+  13: operator ::= operand INLIST LBRACKET operandList RBRACKET. [INLIST precedence=3]
+  14: operandList ::= operand.
+  15: operandList ::= operator COMMA operandList.
+  16: namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand.
+  17: eventFilter ::= selectClause whereClause forClause.
+  18: selectClause ::=.
+  19: selectClause ::= SELECT selectClauseList.
+  20: whereClause ::=.
+  21: forClause ::=.
+  22: forClause ::= FOR namedOperandAssignmentList.
+  23: namedOperandAssignmentList ::= namedOperandAssignment.
+  24: namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment.
