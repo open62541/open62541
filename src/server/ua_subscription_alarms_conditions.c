@@ -11,12 +11,12 @@
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 typedef enum {
-  UA_INACTIVE,
-  UA_ACTIVE,
-  UA_ACTIVE_HIGHHIGH,
-  UA_ACTIVE_HIGH,
-  UA_ACTIVE_LOW,
-  UA_ACTIVE_LOWLOW
+    UA_INACTIVE = 0,
+    UA_ACTIVE,
+    UA_ACTIVE_HIGHHIGH,
+    UA_ACTIVE_HIGH,
+    UA_ACTIVE_LOW,
+    UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
 /* In Alarms and Conditions first implementation, conditionBranchId is always
@@ -39,7 +39,8 @@ typedef struct UA_Condition {
     UA_UInt16 lastSeverity;
     UA_DateTime lastSeveritySourceTimeStamp;
 
-    /* These callbacks must only be called with a taken server lock */
+    /* These callbacks are defined by the user and must not be called with a
+     * locked server mutex */
     struct {
         UA_TwoStateVariableChangeCallback enableStateCallback;
         UA_TwoStateVariableChangeCallback ackStateCallback;
@@ -284,8 +285,8 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
 
 static UA_StatusCode
 getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
-                                    UA_Condition *condition, UA_Boolean *removeBranch,
-                                    UA_TwoStateVariableCallbackType callbackType) {
+                                     UA_Condition *condition, UA_Boolean *removeBranch,
+                                     UA_TwoStateVariableCallbackType callbackType) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     switch(callbackType) {
@@ -372,6 +373,7 @@ copyFieldParent(void *context, UA_ReferenceTarget *t) {
 static UA_StatusCode
 getFieldParentNodeId(UA_Server *server, const UA_NodeId *field, UA_NodeId *parent) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     *parent = UA_NODEID_NULL;
     const UA_Node *fieldNode = UA_NODESTORE_GET(server, field);
     if(!fieldNode)
@@ -1848,6 +1850,7 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
@@ -1891,6 +1894,7 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
 
     //TODO implement logic for subscription array
