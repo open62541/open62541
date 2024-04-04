@@ -288,35 +288,44 @@ getConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeId *branch,
                                      UA_Condition *condition, UA_Boolean *removeBranch,
                                      UA_TwoStateVariableCallbackType callbackType) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
 
+    /* That callbacks are defined in the userland. Release the server lock before. */
+    UA_UNLOCK(&server->serviceMutex);
+
+    /* TODO log warning when the callback wasn't set */
     switch(callbackType) {
     case UA_ENTERING_ENABLEDSTATE:
-        if(condition->callbacks.enableStateCallback != NULL)
-            return condition->callbacks.enableStateCallback(server, branch);
-        return UA_STATUSCODE_GOOD;//TODO log warning when the callback wasn't set
+        if(condition->callbacks.enableStateCallback)
+            res = condition->callbacks.enableStateCallback(server, branch);
+        break;
 
     case UA_ENTERING_ACKEDSTATE:
-        if(condition->callbacks.ackStateCallback != NULL) {
+        if(condition->callbacks.ackStateCallback) {
             *removeBranch = condition->callbacks.ackedRemoveBranch;
-            return condition->callbacks.ackStateCallback(server, branch);
+            res = condition->callbacks.ackStateCallback(server, branch);
         }
-        return UA_STATUSCODE_GOOD;
+        break;
 
     case UA_ENTERING_CONFIRMEDSTATE:
-        if(condition->callbacks.confirmStateCallback != NULL) {
+        if(condition->callbacks.confirmStateCallback) {
             *removeBranch = condition->callbacks.confirmedRemoveBranch;
-            return condition->callbacks.confirmStateCallback(server, branch);
+            res = condition->callbacks.confirmStateCallback(server, branch);
         }
-        return UA_STATUSCODE_GOOD;
+        break;
 
     case UA_ENTERING_ACTIVESTATE:
-        if(condition->callbacks.activeStateCallback != NULL)
-            return condition->callbacks.activeStateCallback(server, branch);
-        return UA_STATUSCODE_GOOD;
+        if(condition->callbacks.activeStateCallback)
+            res = condition->callbacks.activeStateCallback(server, branch);
+        break;
 
     default:
-        return UA_STATUSCODE_BADNOTFOUND;
+        res = UA_STATUSCODE_BADNOTFOUND;
+        break;
     }
+    UA_LOCK(&server->serviceMutex);
+
+    return res;
 }
 
 static UA_StatusCode
