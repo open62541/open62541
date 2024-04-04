@@ -19,15 +19,6 @@ typedef enum {
   UA_ACTIVE_LOWLOW
 } UA_ActiveState;
 
-typedef struct {
-    UA_TwoStateVariableChangeCallback enableStateCallback;
-    UA_TwoStateVariableChangeCallback ackStateCallback;
-    UA_Boolean ackedRemoveBranch;
-    UA_TwoStateVariableChangeCallback confirmStateCallback;
-    UA_Boolean confirmedRemoveBranch;
-    UA_TwoStateVariableChangeCallback activeStateCallback;
-} UA_ConditionCallbacks;
-
 /* In Alarms and Conditions first implementation, conditionBranchId is always
  * equal to NULL NodeId (UA_NODEID_NULL). That ConditionBranch represents the
  * current state Condition. The current state is determined by the last Event
@@ -47,7 +38,17 @@ typedef struct UA_Condition {
     UA_NodeId conditionId;
     UA_UInt16 lastSeverity;
     UA_DateTime lastSeveritySourceTimeStamp;
-    UA_ConditionCallbacks callbacks;
+
+    /* These callbacks must only be called with a taken server lock */
+    struct {
+        UA_TwoStateVariableChangeCallback enableStateCallback;
+        UA_TwoStateVariableChangeCallback ackStateCallback;
+        UA_Boolean ackedRemoveBranch;
+        UA_TwoStateVariableChangeCallback confirmStateCallback;
+        UA_Boolean confirmedRemoveBranch;
+        UA_TwoStateVariableChangeCallback activeStateCallback;
+    } callbacks;
+
     UA_ActiveState lastActiveState;
     UA_ActiveState currentActiveState;
     UA_Boolean isLimitAlarm;
