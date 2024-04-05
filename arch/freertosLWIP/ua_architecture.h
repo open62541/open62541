@@ -24,7 +24,7 @@
 #define UA_LOCK_ASSERT(lock, num)
 #endif
 
-#define UA_strncasecmp strncasecmp
+#define UA_strncasecmp lwip_strnicmp
 
 // freeRTOS does not have getifaddr
 #undef UA_HAS_GETIFADDR

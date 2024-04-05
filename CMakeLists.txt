@@ -11,6 +11,9 @@ endif()
 
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
+include(${CMAKE_TOOLCHAIN_FILE})
+
+
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
 find_package(Python3 REQUIRED)
 set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
@@ -102,7 +105,27 @@ message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
 string(TOUPPER ${UA_ARCHITECTURE} UA_ARCHITECTURE_UPPER)
 add_definitions(-DUA_ARCHITECTURE_${UA_ARCHITECTURE_UPPER})
 
+# Set the path to the lwIP source code
+set(LWIP_PATH ${PROJECT_SOURCE_DIR}/deps/lwip)
+
+# Include lwIP source files
+file(GLOB_RECURSE LWIP_SRC "${LWIP_PATH}/src/*.c")
+
+ua_include_directories("${LWIP_PATH}/src/include"
+                       "${LWIP_PATH}/contrib/ports/freertos/include"
+                       "${PROJECT_SOURCE_DIR}/FreeRTOS-Kernel/include"
+                       "${PROJECT_SOURCE_DIR}/FreeRTOS-Kernel/portable/GCC/ARM_CM33/non_secure")
+
+add_library(freertos_config INTERFACE)
+
+target_include_directories(freertos_config
+    INTERFACE
+    "./include"
+)
+
+
 add_subdirectory(arch)
+add_subdirectory(FreeRTOS-Kernel)
 
 GET_PROPERTY(architectures GLOBAL PROPERTY UA_ARCHITECTURES)
 list(SORT architectures)

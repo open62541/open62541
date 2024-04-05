@@ -10,6 +10,7 @@
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP
 
 #include <open62541/types.h>
+#include <FreeRTOS.h>
 #include <task.h>
 
 #ifdef UA_ARCHITECTURE_FREERTOSLWIP_POSIX_CLOCK

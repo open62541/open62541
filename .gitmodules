@@ -9,3 +9,9 @@
 	path = deps/mqtt-c
 	url = https://github.com/LiamBindle/MQTT-C.git
 	branch = master
+[submodule "FreeRTOS-Kernel"]
+	path = FreeRTOS-Kernel
+	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
+[submodule "deps/lwip"]
+	path = deps/lwip
+	url = https://git.savannah.nongnu.org/git/lwip.git/

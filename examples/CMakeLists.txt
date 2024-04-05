@@ -68,208 +68,229 @@ endmacro()
 #############
 # Tutorials #
 #############
-
-add_example(tutorial_datatypes tutorial_datatypes.c)
-
-add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
-
-add_example(tutorial_server_variable tutorial_server_variable.c)
-
-add_example(tutorial_server_datasource tutorial_server_datasource.c)
-
-add_example(server_settimestamp server_settimestamp.c)
-
-if(UA_ENABLE_SUBSCRIPTIONS)
-    add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
-endif()
-
-add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
-
-add_example(tutorial_server_object tutorial_server_object.c)
-
-if(UA_ENABLE_METHODCALLS)
-    add_example(tutorial_server_method tutorial_server_method.c)
-    if (UA_MULTITHREADING EQUAL 100)
-        add_example(tutorial_server_method_async tutorial_server_method_async.c)
-    endif()
-endif()
-
-add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
-
-if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-  add_example(tutorial_client_events tutorial_client_events.c)
-  add_example(tutorial_server_events tutorial_server_events.c)
-  add_example(server_events_random events/server_random_events.c)
-  add_example(client_event_filter events/client_eventfilter.c)
-  if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
-    add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
-  endif()
-endif()
-
-##################
-# Example Server #
-##################
-
-add_example(server_ctt server_ctt.c)
-
-install(PROGRAMS $<TARGET_FILE:server_ctt>
-        DESTINATION bin
-        RENAME ua_server_ctt.exe)
-
-##################
-# Example Client #
-##################
-
-add_example(client client.c)
-
-add_example(client_connect client_connect.c)
-
-if(UA_ENABLE_HISTORIZING)
-    add_example(client_historical client_historical.c)
-endif()
-
-install(PROGRAMS $<TARGET_FILE:client>
-        DESTINATION bin
-        RENAME ua_client)
-
-add_example(client_async client_async.c)
-
-if(UA_ENABLE_METHODCALLS)
-    if (UA_MULTITHREADING EQUAL 100)
-        add_example(client_method_async client_method_async.c)
-    endif()
-endif()
-
-add_example(client_connect_loop client_connect_loop.c)
-
-if(UA_ENABLE_SUBSCRIPTIONS)
-    add_example(client_subscription_loop client_subscription_loop.c)
-endif()
-
-####################
-# Feature Examples #
-####################
-
-add_example(server_mainloop server_mainloop.c)
-
-add_example(server_instantiation server_instantiation.c)
-
-add_example(server_repeated_job server_repeated_job.c)
-
-add_example(server_inheritance server_inheritance.c)
-
-add_example(server_loglevel server_loglevel.c)
-
-if(UA_ENABLE_HISTORIZING)
-    add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
-    add_example(server_encryption encryption/server_encryption.c)
-    add_example(client_encryption encryption/client_encryption.c)
-    target_include_directories(server_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
-    target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
-    if(UA_ENABLE_TPM2_KEYSTORE)
-        add_example(server_encryption_tpm_keystore encryption/server_encryption_tpm_keystore.c)
-        add_example(client_encryption_tpm_keystore encryption/client_encryption_tpm_keystore.c)
-        target_link_libraries(server_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
-        target_link_libraries(client_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
-    endif()
-endif()
-
-if (NOT (BUILD_SHARED_LIBS AND WIN32))
-    add_example(custom_datatype_client custom_datatype/client_types_custom.c)
-    add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+if(UA_ARCHITECTURE STREQUAL "freertosLWIP")
+    # Source files
+    set(CMAKE_C_COMPILER "C:/Program Files (x86)/GNU Arm Embedded Toolchain/10 2021.10/bin/arm-none-eabi-gcc.exe")
+    set(CMAKE_ASM_COMPILER "C:/Program Files (x86)/GNU Arm Embedded Toolchain/10 2021.10/bin/arm-none-eabi-gcc.exe")
+    
+    # Add executable target
+    add_executable(freertos_main freertos_main.c startup_stm32h563zitx.s)
+    set_target_properties(freertos_main PROPERTIES OUTPUT_NAME "freertos_main.elf")
+    
+    # Compiler flags
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=cortex-m33 -mthumb -O2 -ffreestanding -Wall")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--gc-sections -nostartfiles")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -T${CMAKE_SOURCE_DIR}/tools/cmake/stm32.ld -nostartfiles -Wl,--gc-sections")
+    set_target_properties(freertos_main PROPERTIES LINK_DEPENDS "${CMAKE_SOURCE_DIR}/tools/cmake/stm32.ld")
+    target_link_libraries(freertos_main freertos_kernel freertos_kernel_port freertos_kernel_include open62541)
+    set(LWIP_PATH ${PROJECT_SOURCE_DIR}/deps/lwip)
+    include_directories("${LWIP_PATH}/contrib/ports/freertos/include"
+                        "${PROJECT_SOURCE_DIR}/FreeRTOS-Kernel/include"
+                        "${PROJECT_SOURCE_DIR}/deps/cmsis_rtos/"
+                        "${PROJECT_SOURCE_DIR}/FreeRTOS-Kernel/portable/GCC/ARM_CM33/non_secure")
 else()
-    MESSAGE(WARNING "Can't build custom datatype examples on WIN32 when BUILD_SHARED_LIBS enabled. Skipping
-custom_datatype_client and custom_datatype_server!")
-endif()
-
-if(UA_ENABLE_NODEMANAGEMENT)
-    add_example(access_control_server access_control/server_access_control.c)
-    add_example(access_control_client access_control/client_access_control.c)
-    if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
-    add_example(access_control_client_encrypt access_control_encrypt/client_access_control_encrypt.c)
+    add_example(tutorial_datatypes tutorial_datatypes.c)
+    
+    add_example(tutorial_server_firststeps tutorial_server_firststeps.c)
+    
+    add_example(tutorial_server_variable tutorial_server_variable.c)
+    
+    add_example(tutorial_server_datasource tutorial_server_datasource.c)
+    
+    add_example(server_settimestamp server_settimestamp.c)
+    
+    if(UA_ENABLE_SUBSCRIPTIONS)
+        add_example(tutorial_server_monitoreditems tutorial_server_monitoreditems.c)
     endif()
-endif()
-
-if(UA_ENABLE_DISCOVERY_MULTICAST)
-    add_example(discovery_server_lds discovery/server_lds.c)
-    add_example(discovery_server_register discovery/server_register.c)
-    add_example(discovery_client_find_servers discovery/client_find_servers.c)
-    add_example(discovery_server_multicast discovery/server_multicast.c)
-endif()
-
-add_subdirectory(nodeset)
-####################
-#  Example PubSub  #
-####################
-
-if(UA_ENABLE_PUBSUB)
-    add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
-    add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
-    add_example(tutorial_pubsub_publish_raw pubsub/tutorial_pubsub_publish_raw.c)
-    add_example(tutorial_pubsub_subscribe_raw pubsub/tutorial_pubsub_subscribe_raw.c)
-    add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)
-    add_example(server_pubsub_publish_rt_level pubsub/server_pubsub_publisher_rt_level.c)
-    add_example(server_pubsub_publish_rt_level_raw pubsub/server_pubsub_publisher_rt_level_raw.c)
-    add_example(server_pubsub_rt_information_model pubsub/server_pubsub_rt_field_information_model.c)
-    if(CMAKE_SYSTEM MATCHES "Linux")
-        if(UA_ENABLE_PUBSUB_ETH_UADP AND UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_IMMUTABLE_NODES)
-            add_example(rt_publisher pubsub_realtime/pubsub_interrupt_publish.c)
-            target_link_libraries(rt_publisher rt)
+    
+    add_example(tutorial_server_variabletype tutorial_server_variabletype.c)
+    
+    add_example(tutorial_server_object tutorial_server_object.c)
+    
+    if(UA_ENABLE_METHODCALLS)
+        add_example(tutorial_server_method tutorial_server_method.c)
+        if (UA_MULTITHREADING EQUAL 100)
+            add_example(tutorial_server_method_async tutorial_server_method_async.c)
         endif()
     endif()
-    add_example(server_pubsub_subscribe_rt_level pubsub/server_pubsub_subscriber_rt_level.c)
-    add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
-    if (BUILD_SHARED_LIBS)
-        message(WARNING "Build option BUILD_SHARED_LIBS not supported for standalone subscriber and realtime examples. Skipping these examples.")
-    else (NOT BUILD_SHARED_LIBS)
-        add_example(pubsub_subscribe_standalone pubsub/pubsub_subscribe_standalone.c)
+    
+    add_example(tutorial_client_firststeps tutorial_client_firststeps.c)
+    
+    if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+      add_example(tutorial_client_events tutorial_client_events.c)
+      add_example(tutorial_server_events tutorial_server_events.c)
+      add_example(server_events_random events/server_random_events.c)
+      add_example(client_event_filter events/client_eventfilter.c)
+      if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
+        add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
+      endif()
+    endif()
+    
+    ##################
+    # Example Server #
+    ##################
+    
+    add_example(server_ctt server_ctt.c)
+    
+    install(PROGRAMS $<TARGET_FILE:server_ctt>
+            DESTINATION bin
+            RENAME ua_server_ctt.exe)
+    
+    ##################
+    # Example Client #
+    ##################
+    
+    add_example(client client.c)
+    
+    add_example(client_connect client_connect.c)
+    
+    if(UA_ENABLE_HISTORIZING)
+        add_example(client_historical client_historical.c)
+    endif()
+    
+    install(PROGRAMS $<TARGET_FILE:client>
+            DESTINATION bin
+            RENAME ua_client)
+    
+    #add_example(client_async client_async.c)
+    
+    if(UA_ENABLE_METHODCALLS)
+        if (UA_MULTITHREADING EQUAL 100)
+            add_example(client_method_async client_method_async.c)
+        endif()
+    endif()
+    
+    #add_example(client_connect_loop client_connect_loop.c)
+    
+    #if(UA_ENABLE_SUBSCRIPTIONS)
+     #   add_example(client_subscription_loop client_subscription_loop.c)
+    #endif()
+    
+    ####################
+    # Feature Examples #
+    ####################
+    
+    #add_example(server_mainloop server_mainloop.c)
+    
+    add_example(server_instantiation server_instantiation.c)
+    
+    add_example(server_repeated_job server_repeated_job.c)
+    
+    add_example(server_inheritance server_inheritance.c)
+    
+    add_example(server_loglevel server_loglevel.c)
+    
+    if(UA_ENABLE_HISTORIZING)
+        add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
+    endif()
+    
+    if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
+        add_example(server_encryption encryption/server_encryption.c)
+        add_example(client_encryption encryption/client_encryption.c)
+        target_include_directories(server_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+        target_include_directories(client_encryption PRIVATE "${PROJECT_SOURCE_DIR}/examples")
+        if(UA_ENABLE_TPM2_KEYSTORE)
+            add_example(server_encryption_tpm_keystore encryption/server_encryption_tpm_keystore.c)
+            add_example(client_encryption_tpm_keystore encryption/client_encryption_tpm_keystore.c)
+            target_link_libraries(server_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
+            target_link_libraries(client_encryption_tpm_keystore tpm2_pkcs11 ssl crypto)
+        endif()
+    endif()
+    
+    if (NOT (BUILD_SHARED_LIBS AND WIN32))
+        add_example(custom_datatype_client custom_datatype/client_types_custom.c)
+        add_example(custom_datatype_server custom_datatype/server_types_custom.c)
+    else()
+        MESSAGE(WARNING "Can't build custom datatype examples on WIN32 when BUILD_SHARED_LIBS enabled. Skipping
+    custom_datatype_client and custom_datatype_server!")
+    endif()
+    
+    if(UA_ENABLE_NODEMANAGEMENT)
+        add_example(access_control_server access_control/server_access_control.c)
+        add_example(access_control_client access_control/client_access_control.c)
+        if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
+        add_example(access_control_client_encrypt access_control_encrypt/client_access_control_encrypt.c)
+        endif()
+    endif()
+    
+    if(UA_ENABLE_DISCOVERY_MULTICAST)
+        add_example(discovery_server_lds discovery/server_lds.c)
+        add_example(discovery_server_register discovery/server_register.c)
+        add_example(discovery_client_find_servers discovery/client_find_servers.c)
+        add_example(discovery_server_multicast discovery/server_multicast.c)
+    endif()
+    
+    add_subdirectory(nodeset)
+    ####################
+    #  Example PubSub  #
+    ####################
+    
+    if(UA_ENABLE_PUBSUB)
+        add_example(tutorial_pubsub_connection pubsub/tutorial_pubsub_connection.c)
+        add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
+        add_example(tutorial_pubsub_publish_raw pubsub/tutorial_pubsub_publish_raw.c)
+        add_example(tutorial_pubsub_subscribe_raw pubsub/tutorial_pubsub_subscribe_raw.c)
+        add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)
+        add_example(server_pubsub_publish_rt_level pubsub/server_pubsub_publisher_rt_level.c)
+        add_example(server_pubsub_publish_rt_level_raw pubsub/server_pubsub_publisher_rt_level_raw.c)
+        add_example(server_pubsub_rt_information_model pubsub/server_pubsub_rt_field_information_model.c)
         if(CMAKE_SYSTEM MATCHES "Linux")
-            add_example(pubsub_TSN_publisher_multiple_thread pubsub_realtime/pubsub_TSN_publisher_multiple_thread.c)
-            add_example(pubsub_TSN_loopback_single_thread pubsub_realtime/pubsub_TSN_loopback_single_thread.c)
-            target_link_libraries(pubsub_TSN_publisher_multiple_thread rt pthread)
-            target_link_libraries(pubsub_TSN_loopback_single_thread rt pthread)
-            if(UA_ENABLE_PUBSUB_ETH_UADP)
-                add_subdirectory(pubsub_realtime/nodeset)
-                add_example(pubsub_TSN_publisher pubsub_realtime/pubsub_TSN_publisher.c)
-                add_example(pubsub_TSN_loopback pubsub_realtime/pubsub_TSN_loopback.c)
-                target_link_libraries(pubsub_TSN_publisher rt pthread)
-                target_link_libraries(pubsub_TSN_loopback rt pthread)
+            if(UA_ENABLE_PUBSUB_ETH_UADP AND UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_IMMUTABLE_NODES)
+                add_example(rt_publisher pubsub_realtime/pubsub_interrupt_publish.c)
+                target_link_libraries(rt_publisher rt)
             endif()
         endif()
-    endif()
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
-        add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
-        add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
-        if(UA_ENABLE_TPM2_SECURITY)
-            add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
-            add_example(pubsub_subscribe_encrypted_tpm pubsub/pubsub_subscribe_encrypted_tpm.c)
+        add_example(server_pubsub_subscribe_rt_level pubsub/server_pubsub_subscriber_rt_level.c)
+        add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
+        if (BUILD_SHARED_LIBS)
+            message(WARNING "Build option BUILD_SHARED_LIBS not supported for standalone subscriber and realtime examples. Skipping these examples.")
+        else (NOT BUILD_SHARED_LIBS)
+            add_example(pubsub_subscribe_standalone pubsub/pubsub_subscribe_standalone.c)
+            if(CMAKE_SYSTEM MATCHES "Linux")
+                add_example(pubsub_TSN_publisher_multiple_thread pubsub_realtime/pubsub_TSN_publisher_multiple_thread.c)
+                add_example(pubsub_TSN_loopback_single_thread pubsub_realtime/pubsub_TSN_loopback_single_thread.c)
+                target_link_libraries(pubsub_TSN_publisher_multiple_thread rt pthread)
+                target_link_libraries(pubsub_TSN_loopback_single_thread rt pthread)
+                if(UA_ENABLE_PUBSUB_ETH_UADP)
+                    add_subdirectory(pubsub_realtime/nodeset)
+                    add_example(pubsub_TSN_publisher pubsub_realtime/pubsub_TSN_publisher.c)
+                    add_example(pubsub_TSN_loopback pubsub_realtime/pubsub_TSN_loopback.c)
+                    target_link_libraries(pubsub_TSN_publisher rt pthread)
+                    target_link_libraries(pubsub_TSN_loopback rt pthread)
+                endif()
+            endif()
         endif()
-        if(UA_ENABLE_TPM2_KEYSTORE)
-            add_example(pubsub_publish_encrypted_tpm_keystore pubsub/pubsub_publish_encrypted_tpm_keystore.c)
-            add_example(pubsub_subscribe_encrypted_tpm_keystore pubsub/pubsub_subscribe_encrypted_tpm_keystore.c)
-            target_link_libraries(pubsub_publish_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
-            target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
+        if(UA_ENABLE_PUBSUB_ENCRYPTION)
+            add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
+            add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
+            if(UA_ENABLE_TPM2_SECURITY)
+                add_example(pubsub_publish_encrypted_tpm pubsub/pubsub_publish_encrypted_tpm.c)
+                add_example(pubsub_subscribe_encrypted_tpm pubsub/pubsub_subscribe_encrypted_tpm.c)
+            endif()
+            if(UA_ENABLE_TPM2_KEYSTORE)
+                add_example(pubsub_publish_encrypted_tpm_keystore pubsub/pubsub_publish_encrypted_tpm_keystore.c)
+                add_example(pubsub_subscribe_encrypted_tpm_keystore pubsub/pubsub_subscribe_encrypted_tpm_keystore.c)
+                target_link_libraries(pubsub_publish_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
+                target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
+            endif()
         endif()
-    endif()
-
-
-    if(UA_ENABLE_PUBSUB_MQTT)
-        if(NOT WIN32)
-            include_directories(${PROJECT_SOURCE_DIR}/../plugins)
-            add_example(tutorial_pubsub_mqtt_publish pubsub/tutorial_pubsub_mqtt_publish.c)
+    
+    
+        if(UA_ENABLE_PUBSUB_MQTT)
+            if(NOT WIN32)
+                include_directories(${PROJECT_SOURCE_DIR}/../plugins)
+                add_example(tutorial_pubsub_mqtt_publish pubsub/tutorial_pubsub_mqtt_publish.c)
+            endif()
         endif()
-    endif()
-    if(UA_ENABLE_PUBSUB_FILE_CONFIG)
-        add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
-    endif()
-    if (UA_ENABLE_PUBSUB_MONITORING)
-        if(CMAKE_SYSTEM MATCHES "Linux")
-            add_example(server_pubsub_subscribe_custom_monitoring pubsub/monitoring/server_pubsub_subscribe_custom_monitoring.c)
-        else(NOT (CMAKE_SYSTEM MATCHES "Linux"))
-            message(WARNING "PubSub subscriber monitoring example build needs LINUX OS. Skip build.")
+        if(UA_ENABLE_PUBSUB_FILE_CONFIG)
+            add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
+        endif()
+        if (UA_ENABLE_PUBSUB_MONITORING)
+            if(CMAKE_SYSTEM MATCHES "Linux")
+                add_example(server_pubsub_subscribe_custom_monitoring pubsub/monitoring/server_pubsub_subscribe_custom_monitoring.c)
+            else(NOT (CMAKE_SYSTEM MATCHES "Linux"))
+                message(WARNING "PubSub subscriber monitoring example build needs LINUX OS. Skip build.")
+            endif()
         endif()
     endif()
 endif()
