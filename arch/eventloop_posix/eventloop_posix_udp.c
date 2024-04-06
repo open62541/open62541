@@ -221,23 +221,23 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
 static UA_StatusCode
 setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
                 int ai_family, const UA_Logger *logger) {
-    /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
-     * size of an integer. However, channelDataUDPMC->enableLoopback is a
-     * boolean. In order for the code to work for IPv4 and IPv6 propagate it to
-     * a temporary integer here. */
-    UA_Int32 enable = enableLoopback;
+    /* The loopback option has a different integer size between IPv4 and IPv6.
+     * Some operating systems (e.g. OpenBSD) handle this very strict. Hence the
+     * different "enable" variables below are required. */
+    int retcode;
 #if UA_IPV6
-    if(UA_setsockopt(sockfd,
-                     ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     ai_family == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
-                     (const char *)&enable,
-                     sizeof (enable)) < 0)
-#else
-        if(UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
-                     (const char *)&enable,
-                     sizeof (enable)) < 0)
+    if(ai_family == AF_INET6) {
+        unsigned int enable6 = enableLoopback;
+        retcode = UA_setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+                                &enable6, sizeof(enable6));
+    } else
 #endif
     {
+        unsigned char enable = enableLoopback;
+        retcode = UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
+                                &enable, sizeof (enable));
+    }
+    if(retcode < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Loopback setup failed: "
