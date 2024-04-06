@@ -409,20 +409,16 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
         result = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
-                            (const char *)&req.ipv4.imr_interface,
-#else
-                            &req.ipv4.imr_interface,
+                            (const char *)
 #endif
-                            sizeof(struct in_addr));
+                            &req.ipv4.imr_interface, sizeof(struct in_addr));
 #if UA_IPV6
     } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
         result = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
 #ifdef _WIN32
-                            (const char *)&req.ipv6.ipv6mr_interface,
-#else
-                            &req.ipv6.ipv6mr_interface,
+                            (const char *)
 #endif
-                            sizeof(req.ipv6.ipv6mr_interface));
+                            &req.ipv6.ipv6mr_interface, sizeof(req.ipv6.ipv6mr_interface));
 #endif
     }
 
