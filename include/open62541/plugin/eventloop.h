@@ -476,8 +476,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  *
  * 0:address [string | array of string]
  *    Hostname or IPv4/v6 address for the connection (scalar parameter required
- *    for active connections). For listen-connections the address implies the
- *    network interfaces for listening (default: listen on all interfaces).
+ *    for active connections). For listen-connections the address contains the
+ *    local hostnames or IP addresses for listening. If undefined, listen on all
+ *    interfaces INADDR_ANY. (default: undefined)
  *
  * 0:port [uint16]
  *    Port of the target host (required).
@@ -498,10 +499,10 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger);
  * **Listen Connection Connection Callback Parameters (first callback only):**
  *
  * 0:listen-address [string]
- *    Local address for that particular listen-connection.
+ *    Local address (IP or hostname) for the new listen-connection.
  *
  * 0:listen-port [uint16]
- *    Port on which the connection listens.
+ *    Port on which the new connection listens.
  *
  * **Send Parameters:**
  *

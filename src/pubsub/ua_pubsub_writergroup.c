@@ -272,8 +272,11 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
-        UA_WriterGroup_removePublishCallback(server, wg);
+    /* Disable (and disconnect) and set the deleteFlag. This prevents a
+     * reconnect and triggers the deletion when the last open socket is
+     * closed. */
+    wg->deleteFlag = true;
+    UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
@@ -293,11 +296,6 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
         wg->keyStorage = NULL;
     }
 #endif
-
-    /* Disconnect only once */
-    if(!wg->deleteFlag)
-        UA_WriterGroup_disconnect(wg);
-    wg->deleteFlag = true;
 
     if(wg->sendChannel == 0) {
         /* Unlink from the connection */
@@ -795,6 +793,12 @@ UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
                               UA_PubSubState targetState) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(wg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
+        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
+                                  "The WriterGroup is being deleted. Can only be disabled.");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubConnection *connection = wg->linkedConnection;

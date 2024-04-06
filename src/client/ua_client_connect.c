@@ -1362,6 +1362,7 @@ initSecurityPolicy(UA_Client *client) {
 
 static void
 connectActivity(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
     UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
@@ -1647,6 +1648,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
 static void
 initConnect(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
     if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Client connection already initiated");
@@ -1784,6 +1786,8 @@ connectSync(UA_Client *client) {
 
 UA_StatusCode
 connectInternal(UA_Client *client, UA_Boolean async) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
     client->connectStatus = UA_STATUSCODE_GOOD;
@@ -1798,6 +1802,8 @@ connectInternal(UA_Client *client, UA_Boolean async) {
 
 UA_StatusCode
 connectSecureChannel(UA_Client *client, const char *endpointUrl) {
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->noSession = true;
     UA_String_clear(&cc->endpointUrl);
