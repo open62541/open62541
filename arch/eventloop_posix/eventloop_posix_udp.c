@@ -202,10 +202,16 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
     hints.ai_socktype = SOCK_DGRAM;
     int error = getaddrinfo(hostname, portStr, &hints, info);
     if(error != 0) {
+#ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "UDP\t| Lookup of %s failed with error %d - %s",
                            hostname, error, errno_str));
+#else
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| Lookup of %s failed with error %s",
+                       hostname, gai_strerror(error));
+#endif
         return -1;
     }
     return 1;
@@ -774,11 +780,17 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
+#ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                           hostname, port, errno_str));
+#else
+        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
+                       hostname, port, gai_strerror(retcode));
+#endif
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
