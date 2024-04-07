@@ -202,10 +202,16 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
     hints.ai_socktype = SOCK_DGRAM;
     int error = getaddrinfo(hostname, portStr, &hints, info);
     if(error != 0) {
+#ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
             UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                            "UDP\t| Lookup of %s failed with error %d - %s",
                            hostname, error, errno_str));
+#else
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| Lookup of %s failed with error %s",
+                       hostname, gai_strerror(error));
+#endif
         return -1;
     }
     return 1;
@@ -215,23 +221,23 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
 static UA_StatusCode
 setLoopBackData(UA_SOCKET sockfd, UA_Boolean enableLoopback,
                 int ai_family, const UA_Logger *logger) {
-    /* The Linux Kernel IPv6 socket code checks for optlen to be at least the
-     * size of an integer. However, channelDataUDPMC->enableLoopback is a
-     * boolean. In order for the code to work for IPv4 and IPv6 propagate it to
-     * a temporary integer here. */
-    UA_Int32 enable = enableLoopback;
+    /* The loopback option has a different integer size between IPv4 and IPv6.
+     * Some operating systems (e.g. OpenBSD) handle this very strict. Hence the
+     * different "enable" variables below are required. */
+    int retcode;
 #if UA_IPV6
-    if(UA_setsockopt(sockfd,
-                     ai_family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP,
-                     ai_family == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP,
-                     (const char *)&enable,
-                     sizeof (enable)) < 0)
-#else
-        if(UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
-                     (const char *)&enable,
-                     sizeof (enable)) < 0)
+    if(ai_family == AF_INET6) {
+        unsigned int enable6 = enableLoopback;
+        retcode = UA_setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+                                &enable6, sizeof(enable6));
+    } else
 #endif
     {
+        unsigned char enable = enableLoopback;
+        retcode = UA_setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP,
+                                &enable, sizeof (enable));
+    }
+    if(retcode < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_ERROR(logger, UA_LOGCATEGORY_NETWORK,
                          "UDP %u\t| Loopback setup failed: "
@@ -403,20 +409,16 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
         result = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
-                            (const char *)&req.ipv4.imr_interface,
-#else
-                            &req.ipv4.imr_interface,
+                            (const char *)
 #endif
-                            sizeof(struct in_addr));
+                            &req.ipv4.imr_interface, sizeof(struct in_addr));
 #if UA_IPV6
     } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
         result = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
 #ifdef _WIN32
-                            (const char *)&req.ipv6.ipv6mr_interface,
-#else
-                            &req.ipv6.ipv6mr_interface,
+                            (const char *)
 #endif
-                            sizeof(req.ipv6.ipv6mr_interface));
+                            &req.ipv6.ipv6mr_interface, sizeof(req.ipv6.ipv6mr_interface));
 #endif
     }
 
@@ -774,11 +776,17 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
+#ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
            UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger,
                           UA_LOGCATEGORY_NETWORK,
                           "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
                           hostname, port, errno_str));
+#else
+        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                       "UDP\t| getaddrinfo lookup for \"%s\" on port %u failed (%s)",
+                       hostname, port, gai_strerror(retcode));
+#endif
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 

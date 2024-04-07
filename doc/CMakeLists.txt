@@ -97,22 +97,3 @@ add_dependencies(doc open62541)
 
 set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 set_target_properties(doc doc_latex doc_pdf PROPERTIES FOLDER "open62541/doc")
-
-if (UA_PACK_DEBIAN)
-    set(open62541_install_debdoc_html_dir share/doc/open62541/open62541.html)
-    set(open62541_install_debdoc_dir share/doc/open62541)
-
-    set(open62541_debdoc_pdf_files "${DOC_LATEX_DIR}/open62541.pdf")
-
-    install(DIRECTORY ${DOC_HTML_DIR}/
-        COMPONENT htmldoc 
-        DESTINATION ${open62541_install_debdoc_dir}/open62541.html 
-        USE_SOURCE_PERMISSIONS
-        FILES_MATCHING 
-        PATTERN "*.*"
-        PATTERN "_sources" EXCLUDE
-        PATTERN "CMakeFiles" EXCLUDE
-        PATTERN "cmake_install.cmake" EXCLUDE
-        )
-    install(FILES ${open62541_debdoc_pdf_files} COMPONENT pdfdoc DESTINATION ${open62541_install_debdoc_dir})
-endif()

@@ -1021,17 +1021,19 @@ clientHouseKeeping(UA_Client *client, void *_) {
 
 UA_StatusCode
 __UA_Client_startup(UA_Client *client) {
-    /* On entry, the client mutex is already locked */
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
     UA_EventLoop *el = client->config.eventLoop;
     UA_CHECK_ERROR(el != NULL,
                    return UA_STATUSCODE_BADINTERNALERROR,
                    client->config.logging, UA_LOGCATEGORY_CLIENT,
                    "No EventLoop configured");
 
-    /* Set up the regular callback for checking the internal state? */
+    /* Set up the repeated timer callback for checking the internal state. Like
+     * in the public API UA_Client_addRepeatedCallback, but without locking the
+     * mutex again */
     UA_StatusCode rv = UA_STATUSCODE_GOOD;
     if(!client->houseKeepingCallbackId) {
-        /* As per UA_Client_addRepeatedCallback but without locking mutex */
         rv = el->addCyclicCallback(el, (UA_Callback)clientHouseKeeping,
                                    client, NULL, 1000.0, NULL,
                                    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
@@ -1050,10 +1052,15 @@ __UA_Client_startup(UA_Client *client) {
 
 UA_StatusCode
 UA_Client_run_iterate(UA_Client *client, UA_UInt32 timeout) {
+    /* Make sure the EventLoop has been started */
+    UA_LOCK(&client->clientMutex);
     UA_StatusCode rv = __UA_Client_startup(client);
+    UA_UNLOCK(&client->clientMutex);
     UA_CHECK_STATUS(rv, return rv);
 
-    /* Process timed and network events in the EventLoop */
+    /* All timers and network events are triggered in the EventLoop. Release the
+     * client lock before. The callbacks from the EventLoop take the lock
+     * again. */
     UA_EventLoop *el = client->config.eventLoop;
     rv = el->run(el, timeout);
     UA_CHECK_STATUS(rv, return rv);

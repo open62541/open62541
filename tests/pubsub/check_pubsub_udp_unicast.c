@@ -363,8 +363,6 @@ START_TEST(RemoveAndAddReaderGroup) {
         UA_NodeId readerGroupId2;
         setupSubscribing(serverSubscriber, subscriberConnectionId, outVariableNodeId,
                          SUBSCRIBEVARIABLE_NODEID, &readerGroupId2);
-
-        addUDPConnection(serverSubscriber, "localhost", UA_SUBSCRIBER_PORT, &subscriberConnectionId);
         setupSubscribing(serverSubscriber, subscriberConnectionId,
                          outVariableNodeId, SUBSCRIBEVARIABLE_NODEID,
                          &readerGroupId);
