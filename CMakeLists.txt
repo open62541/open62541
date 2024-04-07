@@ -560,6 +560,12 @@ function(check_add_cc_flag CC_FLAG)
         unset(flag_supported CACHE)
     endif()
 endfunction()
+function(add_cc_flag CC_FLAG)
+    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
+    if(flag_already_set EQUAL -1)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" CACHE INTERNAL "C Compiler Flags")
+    endif()
+endfunction()
 
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-std=c99")   # C99 mode
@@ -602,7 +608,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        check_add_cc_flag("-fPIC")
+        add_cc_flag("-fPIC")
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
