@@ -16,8 +16,10 @@
 /* Ternary Logic
  * -------------
  * Similar to SQL, OPC UA Queries use the K3 - Strong Kleene Logic that
- * considers ternary values true/false/null (unknown). Most operators resolve to
- * a ternary value. Some operators can resolve to a literal value (e.g. CAST). */
+ * considers ternary values true/false/null (unknown). Every operator result
+ * (Variant) can be cast to a a ternary truth value. See the v2t method below.
+ * We cast all operands to a ternary truth value before a logical operator is
+ * applied. */
 
 typedef enum {
     UA_TERNARY_FALSE = -1,
@@ -50,13 +52,6 @@ UA_Ternary_not(UA_Ternary v) {
     return (UA_Ternary)((int)v * -1);
 }
 
-static UA_Ternary v2t(const UA_Variant *v) {
-    if(UA_Variant_isEmpty(v) || !UA_Variant_hasScalarType(v, &UA_TYPES[UA_TYPES_BOOLEAN]))
-        return UA_TERNARY_NULL;
-    UA_Boolean b = *(UA_Boolean*)v->data;
-    return (b) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
-}
-
 static const UA_Boolean bFalse = false;
 static const UA_Boolean bTrue  = true;
 
@@ -75,6 +70,34 @@ static UA_Variant t2v(UA_Ternary t) {
     }
     v.storageType = UA_VARIANT_DATA_NODELETE;
     return v;
+}
+
+/* Forward declarations */
+static void
+castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out);
+static UA_StatusCode
+castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out);
+
+/* For translating to a ternary truth-value we apply the rules for the "explicit
+ * casting" to a Boolean. Because implicit casting from numerical to Boolean is
+ * not possible as per Table 125 in the standard. */
+static UA_Ternary v2t(const UA_Variant *v) {
+    /* Empty -> NULL, Arrays are undefined in the standard */
+    if(UA_Variant_isEmpty(v) || !UA_Variant_isScalar(v))
+        return UA_TERNARY_NULL;
+
+    /* Try to cast to Boolean. The variant remains empty if this fails.
+     * Otherwise the bTrue/bFalse singletons are set. */
+    UA_Variant vBool;
+    UA_Variant_init(&vBool);
+    if(v->type != &UA_TYPES[UA_TYPES_STRING])
+        castNumerical(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+    else
+        castImplicitFromString(v, &UA_TYPES[UA_TYPES_BOOLEAN], &vBool);
+
+    if(!vBool.type)
+        return UA_TERNARY_NULL;
+    return (vBool.data == &bTrue) ? UA_TERNARY_TRUE : UA_TERNARY_FALSE;
 }
 
 /* Type Casting Rules
