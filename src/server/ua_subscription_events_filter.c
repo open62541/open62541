@@ -189,7 +189,7 @@ implicitCastTargetType(const UA_DataType *t1, const UA_DataType *t2) {
 static void
 castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     UA_assert(UA_Variant_isScalar(in));
-    UA_Variant_init(out); /* Set to null value */
+    UA_assert(UA_Variant_isEmpty(out));
 
     UA_Int64  i = 0;
     UA_UInt64 u = 0;
@@ -349,10 +349,8 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
 static UA_StatusCode
 castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) {
     /* Of the input is empty, casting results in a NULL value */
-    if(UA_Variant_isEmpty(in)) {
-        UA_Variant_init(out);
+    if(UA_Variant_isEmpty(in))
         return UA_STATUSCODE_GOOD;
-    }
 
     /* TODO: We only support scalar values for now */
     if(!UA_Variant_isScalar(in))
@@ -687,6 +685,7 @@ castResolveOperands(UA_FilterEvalContext *ctx, size_t index, UA_Boolean setError
     /* Cast the operands. Put the result in the same location on the stack. */
     for(size_t pos = 0; pos < ctx->top; pos++) {
         UA_Variant orig = ctx->stack[pos];
+        UA_Variant_init(&ctx->stack[pos]);
         res = castImplicit(&orig, targetType, &ctx->stack[pos]);
         if(res != UA_STATUSCODE_GOOD)
             return (setError) ? setOperandError(ctx, index, pos, res) : res;
