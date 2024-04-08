@@ -293,24 +293,26 @@ castImplicitFromString(const UA_Variant *in, const UA_DataType *outType, UA_Vari
          * Part 4 says: String values containing "true", "false", "1" or "0"
          * can be converted to Boolean values. Other string values cause a
          * conversion error. In this case Strings are case-insensitive. */
-        UA_Boolean b;
+        const UA_Boolean *b;
         const UA_String *inStr = (const UA_String*)in->data;
         if(inStr->length == 1 && inStr->data[0] == '0') {
-            b = false;
+            b = &bFalse;
         } else if(inStr->length == 1 && inStr->data[0] == '1') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 4 &&
                   uppercase(inStr->data[0])== 'T' && uppercase(inStr->data[1])== 'R' &&
                   uppercase(inStr->data[2])== 'U' && uppercase(inStr->data[3])== 'E') {
-            b = true;
+            b = &bTrue;
         } else if(inStr->length == 5              && uppercase(inStr->data[0])== 'F' &&
                   uppercase(inStr->data[1])== 'A' && uppercase(inStr->data[2])== 'L' &&
                   uppercase(inStr->data[3])== 'S' && uppercase(inStr->data[4])== 'E') {
-            b = false;
+            b = &bFalse;
         } else {
             return UA_STATUSCODE_BADTYPEMISMATCH;
         }
-        return UA_Variant_setScalarCopy(out, &b, outType);
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, outType);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+        return UA_STATUSCODE_GOOD;
     }
 
 #ifdef UA_ENABLE_PARSING
