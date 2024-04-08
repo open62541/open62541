@@ -191,7 +191,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 }
 
 UA_StatusCode
-UA_Server_addReaderGroup(UA_Server *server, UA_NodeId connectionIdentifier,
+UA_Server_addReaderGroup(UA_Server *server, const UA_NodeId connectionIdentifier,
                          const UA_ReaderGroupConfig *readerGroupConfig,
                          UA_NodeId *readerGroupIdentifier) {
     UA_LOCK(&server->serviceMutex);
@@ -273,7 +273,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
 }
 
 UA_StatusCode
-UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
+UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId groupIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, groupIdentifier);
@@ -284,7 +284,7 @@ UA_Server_removeReaderGroup(UA_Server *server, UA_NodeId groupIdentifier) {
 }
 
 UA_StatusCode
-UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
+UA_Server_ReaderGroup_getConfig(UA_Server *server, const UA_NodeId readerGroupIdentifier,
                                 UA_ReaderGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -307,7 +307,7 @@ UA_Server_ReaderGroup_getConfig(UA_Server *server, UA_NodeId readerGroupIdentifi
 }
 
 UA_StatusCode
-UA_Server_ReaderGroup_getState(UA_Server *server, UA_NodeId readerGroupIdentifier,
+UA_Server_ReaderGroup_getState(UA_Server *server, const UA_NodeId readerGroupIdentifier,
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;

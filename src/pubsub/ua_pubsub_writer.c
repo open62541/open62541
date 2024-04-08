@@ -52,7 +52,7 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
 }
 
 UA_StatusCode
-UA_Server_DataSetWriter_getState(UA_Server *server, UA_NodeId dataSetWriterIdentifier,
+UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dataSetWriterIdentifier,
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
