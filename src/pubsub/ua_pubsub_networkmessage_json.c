@@ -516,7 +516,7 @@ UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
     ParseCtx ctx;
     memset(&ctx, 0, sizeof(ParseCtx));
     ctx.tokens = tokens;
-    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT, NULL);
+    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 
