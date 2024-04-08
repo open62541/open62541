@@ -212,6 +212,16 @@ castNumerical(const UA_Variant *in, const UA_DataType *type, UA_Variant *out) {
     default: return;
     }
 
+    /* Boolean is true if the numerical input is non-null */
+    if(type == &UA_TYPES[UA_TYPES_BOOLEAN]) {
+        const UA_Boolean *b = &bFalse;
+        if(i != 0 || u != 0 || f != 0.0)
+            b = &bTrue;
+        UA_Variant_setScalar(out, (void*)(uintptr_t)b, type);
+        out->storageType = UA_VARIANT_DATA_NODELETE;
+    }
+
+    /* Allocate the output data. Return NULL value if malloc fails. */
     void *data = UA_new(type);
     if(!data)
         return;
@@ -437,6 +447,12 @@ castImplicit(const UA_Variant *in, const UA_DataType *outType, UA_Variant *out) 
     }
 
     default:
+        /* Implicit casting from a numerical value to Boolean is not possible.
+         * Explicit casting is possible and evaluates to true if the value is
+         * non-null. */
+        if(outType == &UA_TYPES[UA_TYPES_BOOLEAN])
+            return res;
+
         /* Try casting between numericals (also works for Boolean and StatusCode
          * input). The conversion can fail if the limits of the output type are
          * exceeded and then results in a NULL value. */
