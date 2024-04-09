@@ -641,7 +641,7 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
 }
 
 UA_StatusCode
-UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdentifier,
+UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroupIdentifier,
                                   const UA_WriterGroupConfig *config) {
     UA_LOCK(&server->serviceMutex);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
@@ -656,7 +656,7 @@ UA_Server_updateWriterGroupConfig(UA_Server *server, UA_NodeId writerGroupIdenti
 }
 
 UA_StatusCode
-UA_Server_WriterGroup_getState(UA_Server *server, UA_NodeId writerGroupIdentifier,
+UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId writerGroupIdentifier,
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
