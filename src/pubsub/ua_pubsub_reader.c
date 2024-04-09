@@ -443,7 +443,7 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
 }
 
 UA_StatusCode
-UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+UA_Server_DataSetReader_updateConfig(UA_Server *server, const UA_NodeId dataSetReaderIdentifier,
                                      UA_NodeId readerGroupIdentifier,
                                      const UA_DataSetReaderConfig *config) {
     if(config == NULL)
@@ -462,7 +462,7 @@ UA_Server_DataSetReader_updateConfig(UA_Server *server, UA_NodeId dataSetReaderI
 }
 
 UA_StatusCode
-UA_Server_DataSetReader_getConfig(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
+UA_Server_DataSetReader_getConfig(UA_Server *server, const UA_NodeId dataSetReaderIdentifier,
                                  UA_DataSetReaderConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -690,7 +690,7 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
 
 UA_StatusCode
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
-                                              UA_NodeId dataSetReaderIdentifier,
+                                              const UA_NodeId dataSetReaderIdentifier,
                                               size_t targetVariablesSize,
                                               const UA_FieldTargetVariable *targetVariables) {
     UA_LOCK(&server->serviceMutex);
