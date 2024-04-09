@@ -8,6 +8,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
+#include <open62541/server_pubsub.h>
 
 #include <stdio.h>
 #if defined(_MSC_VER)
@@ -16,9 +17,6 @@ typedef SSIZE_T ssize_t;
 #else
 #include <unistd.h>
 #endif
-
-/* Internal headers */
-#include "ua_pubsub_networkmessage.h"
 
 static UA_StatusCode
 encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
