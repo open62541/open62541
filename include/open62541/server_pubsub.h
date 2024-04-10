@@ -66,61 +66,52 @@ typedef enum  {
 } UA_PubSubComponentEnumType;
 
 /**
- * The open62541 PubSub API uses the following scheme:
+ * The following figure shows how the PubSub components are related.
+ * The PubSub Tutorials have more examples about the API usage::
  *
- * 1. Create a configuration for the needed PubSub element.
- *
- * 2. Call the add[element] function and pass in the configuration.
- *
- * 3. The add[element] function returns the unique nodeId of the internally created element.
- *
- * Take a look on the PubSub Tutorials for more details about the API usage::
- *
- *  +-----------+
- *  | UA_Server |
- *  +-----------+
- *   |    |
- *   |    |
- *   |    |
- *   |    |  +----------------------+
- *   |    +--> UA_PubSubConnection  |  UA_Server_addPubSubConnection
- *   |       +----------------------+
- *   |        |    |
- *   |        |    |    +----------------+
- *   |        |    +----> UA_WriterGroup |  UA_PubSubConnection_addWriterGroup
- *   |        |         +----------------+
- *   |        |              |
- *   |        |              |    +------------------+
- *   |        |              +----> UA_DataSetWriter |  UA_WriterGroup_addDataSetWriter     +-+
- *   |        |                   +------------------+                                        |
- *   |        |                                                                               |
- *   |        |         +----------------+                                                    | r
- *   |        +---------> UA_ReaderGroup |    UA_PubSubConnection_addReaderGroup              | e
- *   |                  +----------------+                                                    | f
- *   |                       |                                                                |
- *   |                       |    +------------------+                                        |
- *   |                       +----> UA_DataSetReader |  UA_ReaderGroup_addDataSetReader       |
- *   |                            +------------------+                                        |
- *   |                                 |                                                      |
- *   |                                 |    +----------------------+                          |
- *   |                                 +----> UA_SubscribedDataSet |                          |
- *   |                                      +----------------------+                          |
- *   |                                           |                                            |
- *   |                                           |    +----------------------------+          |
- *   |                                           +----> UA_TargetVariablesDataType |          |
- *   |                                           |    +----------------------------+          |
- *   |                                           |                                            |
- *   |                                           |    +------------------------------------+  |
- *   |                                           +----> UA_SubscribedDataSetMirrorDataType |  |
- *   |                                                +------------------------------------+  |
- *   |                                                                                        |
- *   |       +---------------------------+                                                    |
- *   +-------> UA_PubSubPublishedDataSet |  UA_Server_addPublishedDataSet                   <-+
- *           +---------------------------+
- *                 |
- *                 |    +-----------------+
- *                 +----> UA_DataSetField |  UA_PublishedDataSet_addDataSetField
- *                      +-----------------+
+ *  +--------+
+ *  | Server |
+ *  +--------+
+ *    |  |
+ *    |  |  +------------------------+
+ *    |  +--> PubSubPublishedDataSet <----------+
+ *    |     +------------------------+          |
+ *    |       |                                 |
+ *    |       |    +--------------+             |
+ *    |       +----> DataSetField |             |
+ *    |            +--------------+             |
+ *    |                                         |
+ *    |     +------------------+                |
+ *    +-----> PubSubConnection |                |
+ *          +------------------+                |
+ *            |  |                              |
+ *            |  |    +-------------+           |
+ *            |  +----> WriterGroup |           |
+ *            |       +-------------+           |
+ *            |         |                       |
+ *            |         |    +---------------+  |
+ *            |         +----> DataSetWriter <--+
+ *            |              +---------------+
+ *            |
+ *            |       +-------------+
+ *            +-------> ReaderGroup |
+ *                    +-------------+
+ *                      |
+ *                      |    +---------------+
+ *                      +----> DataSetReader |
+ *                           +---------------+
+ *                             |
+ *                             |    +-------------------+
+ *                             +----> SubscribedDataSet |
+ *                                  +-------------------+
+ *                                    |
+ *                                    |    +-------------------------+
+ *                                    +----> TargetVariablesDataType |
+ *                                    |    +-------------------------+
+ *                                    |
+ *                                    |    +---------------------------------+
+ *                                    +----> SubscribedDataSetMirrorDataType |
+ *                                         +---------------------------------+
  *
  * PubSub Information Model Representation
  * ---------------------------------------
