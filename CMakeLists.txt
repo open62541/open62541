@@ -1491,6 +1491,12 @@ install(EXPORT open62541Targets
 export(TARGETS open62541 NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
+               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
+        DESTINATION "${cmake_configfile_install}")
+
 # Create open62541Targets.cmake
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
