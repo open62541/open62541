@@ -1466,12 +1466,18 @@ install(TARGETS open62541
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
+set(open62541_install_tools_dir share/open62541/tools)
+set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-                              INSTALL_DESTINATION "${cmake_configfile_install}")
+                              INSTALL_DESTINATION "${cmake_configfile_install}"
+                              PATH_VARS open62541_install_tools_dir
+                                        open62541_install_nodeset_dir
+                              )
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
         DESTINATION "${cmake_configfile_install}")
 
@@ -1502,6 +1508,25 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
+
+set(UA_install_tools_dirs "tools/certs"
+    "tools/nodeset_compiler"
+    "tools/schema"
+    ${UA_NODESET_DIR})
+
+set(UA_install_tools_files "tools/generate_datatypes.py"
+    "tools/generate_nodeid_header.py"
+    "tools/generate_statuscode_descriptions.py")
+
+install(DIRECTORY ${UA_install_tools_dirs}
+        DESTINATION ${open62541_install_tools_dir}
+        USE_SOURCE_PERMISSIONS
+        FILES_MATCHING
+        PATTERN "*"
+        PATTERN "*.pyc" EXCLUDE
+        PATTERN ".git*" EXCLUDE)
+
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
 # Recreate the include folder structure from the source also in /usr/lib/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
