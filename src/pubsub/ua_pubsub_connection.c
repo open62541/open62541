@@ -352,7 +352,7 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
         res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, c);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = UA_NetworkMessage_decodeJson(&nm, &msg);
+        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
 #endif

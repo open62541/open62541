@@ -80,7 +80,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_Variant_setScalarCopy(&m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].value, &iv, &UA_TYPES[UA_TYPES_UINT32]);
     m.payload.dataSetPayload.dataSetMessages[0].data.keyFrameData.dataSetFields[0].hasValue = true;
 
-    size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
+    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, 0, NULL, 0, true);
     ck_assert_uint_eq(size, 340);
 
     UA_ByteString buffer;
@@ -92,7 +92,7 @@ START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
 
 
-    rv = UA_NetworkMessage_encodeJson(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     *bufPos = 0;
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
@@ -164,7 +164,7 @@ START_TEST(UA_PubSub_EnDecode) {
     UA_Variant_setScalarCopy(&m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].value, &iv64, &UA_TYPES[UA_TYPES_INT64]);
     m.payload.dataSetPayload.dataSetMessages[1].data.keyFrameData.dataSetFields[1].hasValue = true;
 
-    size_t size = UA_NetworkMessage_calcSizeJson(&m, NULL, 0, NULL, 0, true);
+    size_t size = UA_NetworkMessage_calcSizeJsonInternal(&m, NULL, 0, NULL, 0, true);
 
     UA_ByteString buffer;
     UA_StatusCode rv = UA_ByteString_allocBuffer(&buffer, size);
@@ -174,14 +174,14 @@ START_TEST(UA_PubSub_EnDecode) {
     memset(bufPos, 0, size);
     const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
 
-    rv = UA_NetworkMessage_encodeJson(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    rv = UA_NetworkMessage_encodeJsonInternal(&m, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
     //*bufPos = 0;
     // then
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    rv = UA_NetworkMessage_decodeJson(&m2, &buffer);
+    rv = UA_NetworkMessage_decodeJson(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.networkMessageType == m2.networkMessageType);
     ck_assert(m.timestampEnabled == m2.timestampEnabled);
@@ -217,7 +217,7 @@ START_TEST(UA_NetworkMessage_oneMessage_twoFields_json_decode) {
     UA_NetworkMessage out;
     UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"DataSetWriterId\":62541,\"MetaDataVersion\":{\"MajorVersion\":1478393530,\"MinorVersion\":12345},\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Server localtime\":{\"Type\":13,\"Body\":\"2018-06-05T05:58:36.000Z\"}}}]}");
     // when
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&out, &buf);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -278,7 +278,7 @@ START_TEST(UA_NetworkMessage_json_decode) {
     memset(&out,0,sizeof(UA_NetworkMessage));
     UA_ByteString buf = UA_STRING("{\"MessageId\":\"5ED82C10-50BB-CD07-0120-22521081E8EE\",\"MessageType\":\"ua-data\",\"Messages\":[{\"MetaDataVersion\":{\"MajorVersion\": 47, \"MinorVersion\": 47},\"DataSetWriterId\":62541,\"Status\":22,\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Server localtime\":{\"Type\":1,\"Body\":true}}}]}");
     // when
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&out, &buf);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -334,7 +334,7 @@ START_TEST(UA_Networkmessage_DataSetFieldsNull_json_decode) {
             "[    {      \"DataSetWriterId\": 1,      \"SequenceNumber\": 224,     \"MetaDataVersion\": "
             "{        \"MajorVersion\": 1,        \"MinorVersion\": 1      },\"Payload\":null}]}");
     // when
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&out, &buf);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     ck_assert_int_eq(out.dataSetClassId.data1, 5);
@@ -356,7 +356,7 @@ START_TEST(UA_NetworkMessage_fieldNames_json_decode) {
             "\"SequenceNumber\":4711,\"Payload\":{\"Test\":{\"Type\":5,\"Body\":42},\"Test2\":"
             "{\"Type\":13,\"Body\":\"2018-06-05T05:58:36.000Z\"}}}]}");
     // when
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&out, &buf);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&buf, &out, NULL);
     // then
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
