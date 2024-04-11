@@ -32,3 +32,16 @@ Description: open62541 (<http://open62541.org>) is an open source implementation
  communication into existing applications.
  .
  This package provides the open62541 header and development files
+
+Package: libopen62541-<soname>-tools
+Section: libdevel
+Architecture: all
+Depends: ${misc:Depends}, python3
+Recommends: libopen62541-<soname>-dev
+Description: open62541 (<http://open62541.org>) is an open source implementation
+ of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The
+ library is usable with all major compilers and provides the necessary tools to
+ implement dedicated OPC UA clients and servers, or to integrate OPC UA-based
+ communication into existing applications.
+ .
+ This package provides some open62541 tools, e.g. the nodeset compiler

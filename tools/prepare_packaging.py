@@ -88,6 +88,11 @@ install_file = os.path.join(target_debian_path,
                   "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
 shutil.copy(install_file_template, install_file)
 
+install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
+install_file = os.path.join(target_debian_path,
+                  "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
+shutil.copy(install_file_template, install_file)
+
 # Create rule file and replace template variables
 rule_file_template = os.path.join(debian_path, "rules-template")
 rule_file = os.path.join(target_debian_path, "rules")
