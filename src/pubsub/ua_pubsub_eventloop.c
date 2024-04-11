@@ -818,7 +818,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                    &nm, rg->linkedConnection);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
-        res = UA_NetworkMessage_decodeJson(&nm, &msg);
+        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
 #endif

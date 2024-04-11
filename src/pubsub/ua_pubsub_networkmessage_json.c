@@ -212,11 +212,11 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 }
 
 UA_StatusCode
-UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
-                             UA_Byte **bufPos, const UA_Byte **bufEnd,
-                             UA_String *namespaces, size_t namespaceSize,
-                             UA_String *serverUris, size_t serverUriSize,
-                             UA_Boolean useReversible) {
+UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
+                                     UA_Byte **bufPos, const UA_Byte **bufEnd,
+                                     UA_String *namespaces, size_t namespaceSize,
+                                     UA_String *serverUris, size_t serverUriSize,
+                                     UA_Boolean useReversible) {
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -237,11 +237,55 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
     return ret;
 }
 
+UA_StatusCode
+UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
+                             UA_ByteString *outBuf,
+                             const UA_EncodeJsonOptions *options) {
+    UA_Boolean alloced = (outBuf->length == 0);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(alloced) {
+        size_t length = UA_NetworkMessage_calcSizeJson(src, options);
+        if(length == 0)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        ret = UA_ByteString_allocBuffer(outBuf, length);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
+    }
+
+    /* Set up the context */
+    CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = outBuf->data;
+    ctx.end = ctx.pos + outBuf->length;
+    ctx.calcOnly = false;
+    if(options) {
+        ctx.useReversible = options->useReversible;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
+    }
+
+    ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
+
+    /* In case the buffer was supplied externally and is longer than the encoded
+     * string */
+    if(UA_LIKELY(ret == UA_STATUSCODE_GOOD))
+        outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
+
+    if(alloced && ret != UA_STATUSCODE_GOOD)
+        UA_String_clear(outBuf);
+    return ret;
+}
+
 size_t
-UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
-                               UA_String *namespaces, size_t namespaceSize,
-                               UA_String *serverUris, size_t serverUriSize,
-                               UA_Boolean useReversible){
+UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
+                                       UA_String *namespaces, size_t namespaceSize,
+                                       UA_String *serverUris, size_t serverUriSize,
+                                       UA_Boolean useReversible) {
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -258,6 +302,32 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     status ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
+    return (size_t)ctx.pos;
+}
+
+size_t
+UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
+                               const UA_EncodeJsonOptions *options) {
+    /* Set up the context */
+    CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
+    ctx.calcOnly = true;
+    if(options) {
+        ctx.useReversible = options->useReversible;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
+    }
+
+    status ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return 0;
+
     return (size_t)ctx.pos;
 }
 
@@ -508,13 +578,23 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     return ret;
 }
 
-status
-UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
+UA_StatusCode
+UA_NetworkMessage_decodeJson(const UA_ByteString *src,
+                             UA_NetworkMessage *dst,
+                             const UA_DecodeJsonOptions *options) {
     /* Set up the context */
     cj5_token tokens[UA_JSON_MAXTOKENCOUNT];
     ParseCtx ctx;
     memset(&ctx, 0, sizeof(ParseCtx));
     ctx.tokens = tokens;
+    if(options) {
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.customTypes = options->customTypes;
+    }
+
     status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT, NULL);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;

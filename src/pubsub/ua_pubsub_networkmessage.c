@@ -493,8 +493,39 @@ UA_NetworkMessage_encodeFooters(const UA_NetworkMessage* src, UA_Byte **bufPos,
 }
 
 UA_StatusCode
-UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src, UA_Byte **bufPos,
-                               const UA_Byte *bufEnd, UA_Byte **dataToEncryptStart) {
+UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
+                               UA_ByteString *outBuf) {
+    /* Allocate memory */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_Boolean alloced = (outBuf->length == 0);
+    if(alloced) {
+        size_t length = UA_NetworkMessage_calcSizeBinary(src);
+        if(length == 0)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        res = UA_ByteString_allocBuffer(outBuf, length);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    }
+
+    UA_Byte *pos = outBuf->data;
+    UA_Byte *end = pos + outBuf->length;
+    res = UA_NetworkMessage_encodeBinaryWithEncryptStart(src, &pos, end, NULL);
+
+    /* In case the buffer was supplied externally and is longer than the encoded
+     * string */
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        outBuf->length = (size_t)((uintptr_t)pos - (uintptr_t)outBuf->data);
+
+    if(alloced && res != UA_STATUSCODE_GOOD)
+        UA_ByteString_clear(outBuf);
+    return res;
+}
+
+UA_StatusCode
+UA_NetworkMessage_encodeBinaryWithEncryptStart(const UA_NetworkMessage* src,
+                                               UA_Byte **bufPos,
+                                               const UA_Byte *bufEnd,
+                                               UA_Byte **dataToEncryptStart) {
     UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(src, bufPos, bufEnd);
 
     if(dataToEncryptStart)
@@ -842,9 +873,17 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
 }
 
 UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst,
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
+                               UA_NetworkMessage *dst,
                                const UA_DataTypeArray *customTypes) {
+    size_t offset = 0;
+    return UA_NetworkMessage_decodeBinaryWithOffset(src, &offset, dst, customTypes);
+}
+
+UA_StatusCode
+UA_NetworkMessage_decodeBinaryWithOffset(const UA_ByteString *src, size_t *offset,
+                                         UA_NetworkMessage* dst,
+                                         const UA_DataTypeArray *customTypes) {
     /* headers only need to be decoded when not in encryption mode
      * because headers are already decoded when encryption mode is enabled
      * to check for security parameters and decrypt/verify

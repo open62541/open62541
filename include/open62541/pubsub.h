@@ -173,46 +173,48 @@ typedef struct {
 	UA_ByteString securityFooter;
 } UA_NetworkMessage;
 
+UA_EXPORT void
+UA_NetworkMessage_clear(UA_NetworkMessage* p);
+
 /**
  * NetworkMessage Encoding
  * ^^^^^^^^^^^^^^^^^^^^^^^ */
 
-/* If dataToEncryptStart not-NULL, then it will be set to the start-position of
- * the payload in the buffer. */
+/* The output buffer is allocated to the required size if initially empty.
+ * Otherwise, upon success, the length is adjusted. */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeBinary(const UA_NetworkMessage* src,
-                               UA_Byte **bufPos, const UA_Byte *bufEnd,
-                               UA_Byte **dataToEncryptStart);
-
-UA_EXPORT UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
-                               UA_NetworkMessage* dst,
-                               const UA_DataTypeArray *customTypes);
+                               UA_ByteString *outBuf);
 
 UA_EXPORT size_t
 UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p);
 
-UA_EXPORT void
-UA_NetworkMessage_clear(UA_NetworkMessage* p);
+/* The customTypes can be NULL */
+UA_EXPORT UA_StatusCode
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
+                               UA_NetworkMessage* dst,
+                               const UA_DataTypeArray *customTypes);
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
+/* The output buffer is allocated to the required size if initially empty.
+ * Otherwise, upon success, the length is adjusted.
+ * The encoding options can be NULL. */
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
-                             UA_Byte **bufPos, const UA_Byte **bufEnd,
-                             UA_String *namespaces, size_t namespaceSize,
-                             UA_String *serverUris, size_t serverUriSize,
-                             UA_Boolean useReversible);
+                             UA_ByteString *outBuf,
+                             const UA_EncodeJsonOptions *options);
 
+/* The encoding options can be NULL */
 UA_EXPORT size_t
 UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
-                               UA_String *namespaces, size_t namespaceSize,
-                               UA_String *serverUris, size_t serverUriSize,
-                               UA_Boolean useReversible);
+                               const UA_EncodeJsonOptions *options);
 
+/* The encoding options can be NULL */
 UA_EXPORT UA_StatusCode
-UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst,
-                             const UA_ByteString *src);
+UA_NetworkMessage_decodeJson(const UA_ByteString *src,
+                             UA_NetworkMessage *dst,
+                             const UA_DecodeJsonOptions *options);
 
 #endif
 

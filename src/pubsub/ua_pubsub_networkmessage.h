@@ -144,6 +144,29 @@ UA_StatusCode
 UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
                                      UA_NetworkMessage *dst);
 
+UA_StatusCode
+UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
+                                     UA_Byte **bufPos, const UA_Byte **bufEnd,
+                                     UA_String *namespaces, size_t namespaceSize,
+                                     UA_String *serverUris, size_t serverUriSize,
+                                     UA_Boolean useReversible);
+
+size_t
+UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
+                                       UA_String *namespaces, size_t namespaceSize,
+                                       UA_String *serverUris, size_t serverUriSize,
+                                       UA_Boolean useReversible);
+
+UA_StatusCode
+UA_NetworkMessage_encodeBinaryWithEncryptStart(const UA_NetworkMessage* src,
+                                               UA_Byte **bufPos, const UA_Byte *bufEnd,
+                                               UA_Byte **dataToEncryptStart);
+
+UA_StatusCode
+UA_NetworkMessage_decodeBinaryWithOffset(const UA_ByteString *src, size_t *offset,
+                                         UA_NetworkMessage* dst,
+                                         const UA_DataTypeArray *customTypes);
+
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 
 UA_StatusCode
