@@ -12,6 +12,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/pubsub.h>
 #include <open62541/server_pubsub.h>
 
 #ifdef UA_ENABLE_PUBSUB
@@ -22,6 +23,47 @@ _UA_BEGIN_DECLS
 /*          Network Message Offsets           */
 /**********************************************/
 
+/* Offsets for buffered messages in the PubSub fast path. */
+typedef enum {
+	UA_PUBSUB_OFFSETTYPE_DATASETMESSAGE_SEQUENCENUMBER,
+	UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_SEQUENCENUMBER,
+	UA_PUBSUB_OFFSETTYPE_NETWORKMESSAGE_FIELDENCDODING,
+	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_PICOSECONDS,
+	UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
+	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
+	UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
+	UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
+	UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW,
+	/* For subscriber RT */
+	UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
+	UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
+	UA_PUBSUB_OFFSETTYPE_DATASETWRITERID
+	/* Add more offset types as needed */
+} UA_NetworkMessageOffsetType;
+
+typedef struct {
+	UA_NetworkMessageOffsetType contentType;
+	union {
+		UA_UInt16 sequenceNumber;
+		UA_DataValue value;
+	} content;
+	size_t offset;
+} UA_NetworkMessageOffset;
+
+typedef struct {
+	UA_ByteString buffer; /* The precomputed message buffer */
+	UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
+	size_t offsetsSize;
+	UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
+	size_t rawMessageLength;
+#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+	UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
+								 * into the encrypt buffer for encryption and
+								 * signing*/
+	UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
+#endif
+} UA_NetworkMessageOffsetBuffer;
+
 void
 UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob);
 
@@ -31,6 +73,10 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer);
 UA_StatusCode
 UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
                                           const UA_ByteString *src, size_t *bufferPosition);
+
+size_t
+UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
+    const UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer);
 
 /**
  * DataSetMessage

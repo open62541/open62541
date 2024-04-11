@@ -885,8 +885,13 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
 }
 
 size_t
-UA_NetworkMessage_calcSizeBinary(UA_NetworkMessage *p,
-                                 UA_NetworkMessageOffsetBuffer *offsetBuffer) {
+UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p) {
+    return UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(p, NULL);
+}
+
+size_t
+UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
+    const UA_NetworkMessage *p, UA_NetworkMessageOffsetBuffer *offsetBuffer) {
     size_t size = 1; /* byte */
     if(UA_NetworkMessage_ExtendedFlags1Enabled(p)) {
         size += 1; /* byte */
