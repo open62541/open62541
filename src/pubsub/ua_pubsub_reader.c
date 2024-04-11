@@ -1166,7 +1166,7 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
     }
 
     /* Compute and store the offsets necessary to decode */
-    size_t nmSize = UA_NetworkMessage_calcSizeBinary(nm, &reader->bufferedMessage);
+    size_t nmSize = UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(nm, &reader->bufferedMessage);
     if(nmSize == 0) {
         UA_NetworkMessage_clear(nm);
         UA_free(nm);

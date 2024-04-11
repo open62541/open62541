@@ -311,7 +311,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -385,7 +385,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -468,7 +468,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -548,7 +548,7 @@ START_TEST(UA_PubSub_EnDecode_CustomScalarExtensionObjectKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -626,7 +626,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayDeltaFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -691,7 +691,7 @@ START_TEST(UA_PubSub_EnDecode_CustomArrayKeyFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -760,7 +760,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsDeltaFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -840,7 +840,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsKeyFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -918,7 +918,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionDeltaFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -991,7 +991,7 @@ START_TEST(UA_PubSub_EnDecode_CustomUnionKeyFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1066,7 +1066,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberDeltaFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1138,7 +1138,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionNormalMemberKeyFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1218,7 +1218,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberDeltaFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1299,7 +1299,7 @@ START_TEST(UA_PubSub_EnDecode_SelfContainingUnionSelfMemberKeyFrame){
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1384,7 +1384,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1474,7 +1474,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayNotConta
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1570,7 +1570,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
@@ -1668,7 +1668,7 @@ START_TEST(UA_PubSub_EnDecode_CustomStructureWithOptionalFieldsWithArrayContaine
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
    
