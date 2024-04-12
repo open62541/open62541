@@ -21,6 +21,11 @@ START_TEST(Case_1) {
     UA_String case1 = UA_STRING(inp);
     UA_StatusCode res = UA_EventFilter_parse(&filter, &case1);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_NodeId typeId = UA_NODEID_NUMERIC(1, 5001);
+    UA_ContentFilterElement *elm = &filter.whereClause.elements[0];
+    UA_LiteralOperand *op = (UA_LiteralOperand*)elm->filterOperands[0].content.decoded.data;
+    ck_assert(UA_NodeId_equal(&typeId, (UA_NodeId*)op->value.data));
     UA_EventFilter_clear(&filter);
 } END_TEST
 
