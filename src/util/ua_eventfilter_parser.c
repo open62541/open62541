@@ -113,8 +113,19 @@ parse_literal(OperandList *ol, char *yytext, const UA_DataType *type) {
     void *data = UA_new(type);
     if(!data)
         return on;
+
+    UA_StatusCode res;
     UA_String src = UA_STRING(yytext);
-    UA_StatusCode res = UA_decodeJson(&src, data, type, NULL);
+    if(type == &UA_TYPES[UA_TYPES_NODEID]) {
+        res = UA_NodeId_parse((UA_NodeId*)data, src);
+    } else if(type == &UA_TYPES[UA_TYPES_EXPANDEDNODEID]) {
+        res = UA_ExpandedNodeId_parse((UA_ExpandedNodeId*)data, src);
+    } else if(type == &UA_TYPES[UA_TYPES_GUID]) {
+        res = UA_Guid_parse((UA_Guid*)data, src);
+    } else {
+        res = UA_decodeJson(&src, data, type, NULL);
+    }
+
     if(res != UA_STATUSCODE_GOOD) {
         UA_free(data);
         return on;
