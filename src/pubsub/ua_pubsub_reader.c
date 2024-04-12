@@ -109,7 +109,10 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Search the reader group by the given readerGroupIdentifier */
+#if defined(UA_ENABLE_PUBSUB_INFORMATIONMODEL) || defined(UA_ENABLE_PUBSUB_MONITORING)
+	UA_StatusCode retVal;
+#endif
+	/* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(readerGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -136,7 +139,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     UA_DataSetReaderConfig_copy(dataSetReaderConfig, &newDataSetReader->config);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    UA_StatusCode retVal = addDataSetReaderRepresentation(server, newDataSetReader);
+    retVal = addDataSetReaderRepresentation(server, newDataSetReader);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_READERGROUP(server->config.logging, readerGroup,
                                  "Add DataSetReader failed, addDataSetReaderRepresentation failed");
