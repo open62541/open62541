@@ -227,7 +227,7 @@ int main(int argc, char **argv) {
     /* Read input until EOF */
     size_t pos = 0;
     size_t length = 128;
-    while(true) {
+    do {
         if(pos >= buf.length) {
             length = length * 8;
             UA_Byte *r = (UA_Byte*)realloc(buf.data, length);
@@ -239,16 +239,13 @@ int main(int argc, char **argv) {
             buf.data = r;
         }
 
-        ssize_t c = read(fileno(in), &buf.data[pos], length - pos);
-        if(c == 0)
-            break;
-        if(c < 0) {
-            fprintf(stderr, "Reading from input failed\n");
-            goto cleanup;
-        }
-
-        pos += (size_t)c;
-    }
+        size_t c = fread(&buf.data[pos], sizeof(UA_Byte), length - pos, in);
+		if(ferror(in)) {
+			fprintf(stderr, "Reading from input failed\n");
+			goto cleanup;
+		}
+        pos += c;
+	} while (!feof(in));
 
     if(pos == 0) {
         fprintf(stderr, "No input\n");
