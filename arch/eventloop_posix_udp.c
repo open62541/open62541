@@ -12,8 +12,8 @@
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
 #if UA_IPV6
-#   define IPV6_PREFIX_MASK 0xFF
-#   define IPV6_MULTICAST_PREFIX 0xFF
+# define IPV6_PREFIX_MASK 0xFF
+# define IPV6_MULTICAST_PREFIX 0xFF
 #endif
 
 /* Configuration parameters */
@@ -64,6 +64,17 @@ typedef enum {
     MULTICASTTYPE_IPV6
 } MultiCastType;
 
+typedef union {
+#ifdef _WIN32
+    struct ip_mreq ipv4;
+#else
+    struct ip_mreqn ipv4;
+#endif
+#if UA_IPV6
+    struct ipv6_mreq ipv6;
+#endif
+} MulticastRequest;
+
 static UA_Boolean
 isMulticastAddress(const UA_Byte *address, UA_Byte mask, UA_Byte prefix) {
     return (address[0] & mask) == prefix;
@@ -86,62 +97,181 @@ multiCastType(struct addrinfo *info) {
     return MULTICASTTYPE_NONE;
 }
 
-typedef union {
-    struct ip_mreq ipv4;
-#if UA_IPV6
-    struct ipv6_mreq ipv6;
-#endif
-} IpMulticastRequest;
+#ifdef _WIN32
+
+#define ADDR_BUFFER_SIZE 15000 /* recommended size in the MSVC docs */
 
 static UA_StatusCode
-setupMulticastRequest(UA_FD socket, IpMulticastRequest *req, const UA_KeyValueMap *params,
+setMulticastInterface(const char *netif, struct addrinfo *info,
+                      MulticastRequest *req, const UA_Logger *logger) {
+    ULONG outBufLen = ADDR_BUFFER_SIZE;
+    UA_STACKARRAY(char, addrBuf, ADDR_BUFFER_SIZE);
+
+    /* Get the network interface descriptions */
+    ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+        GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
+    DWORD ret = GetAdaptersAddresses(info->ai_family, flags, NULL, ifaddr, &outBufLen);
+    if(ret != NO_ERROR) {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "UDP\t| Interface configuration preparation failed");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Iterate through linked list of network interfaces */
+    char sourceAddr[64];
+    unsigned int idx = 0;
+    for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
+        idx = (info->ai_family == AF_INET) ? ifa->IfIndex : ifa->Ipv6IfIndex;
+
+        /* Check if network interface name matches */
+        if(strcmp(ifa->AdapterName, netif) == 0)
+            goto done;
+
+        /* Check if ip address matches */
+        for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
+            LPSOCKADDR addr = u->Address.lpSockaddr;
+            if(addr->sa_family == AF_INET) {
+                inet_ntop(AF_INET, &((struct sockaddr_in*)addr)->sin_addr,
+                          sourceAddr, sizeof(sourceAddr));
+            } else if(addr->sa_family == AF_INET6) {
+                inet_ntop(AF_INET6, &((struct sockaddr_in6*)addr)->sin6_addr,
+                          sourceAddr, sizeof(sourceAddr));
+            } else {
+                continue;
+            }
+            if(strcmp(sourceAddr, netif) == 0)
+                goto done;
+        }
+    }
+
+    /* Not matching interface found */
+    UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                 "UDP\t| Interface configuration preparation failed "
+                 "(interface %s not found)", netif);
+    return UA_STATUSCODE_BADINTERNALERROR;
+
+ done:
+    /* Write the interface index */
+    if(info->ai_family == AF_INET)
+        /* MSVC documentation of struct ip_mreq: To use an interface index of 1
+         * would be the same as an IP address of 0.0.0.1. */
+        req->ipv4.imr_interface.s_addr = htonl(idx);
+    else /* if(info->ai_family == AF_INET6) */
+        req->ipv6.ipv6mr_interface = idx;
+    return UA_STATUSCODE_GOOD;
+}
+
+#else
+
+static UA_StatusCode
+setMulticastInterface(const char *netif, struct addrinfo *info,
+                      MulticastRequest *req, const UA_Logger *logger) {
+    struct ifaddrs *ifaddr;
+    int ret = getifaddrs(&ifaddr);
+    if(ret == -1) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                        "UDP\t| Interface configuration preparation failed "
+                        "(getifaddrs error: %s)", errno_str));
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Iterate over the interfaces */
+    unsigned int idx = 0;
+    struct ifaddrs *ifa = NULL;
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_addr)
+            continue;
+
+        /* Does the protocol family match? */
+        if(ifa->ifa_addr->sa_family != info->ai_family)
+            continue;
+
+        idx = UA_if_nametoindex(ifa->ifa_name);
+        if(idx == 0)
+            continue;
+
+        /* Found network interface by name */
+        if(strcmp(ifa->ifa_name, netif) == 0)
+            break;
+
+        /* Check if the interface name is an IP address that matches */
+        char host[NI_MAXHOST];
+        ret = getnameinfo(ifa->ifa_addr,
+                          (info->ai_family == AF_INET) ?
+                          sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6),
+                          host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+        if(ret != 0) {
+            UA_LOG_SOCKET_ERRNO_WRAP(
+               UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                            "UDP\t| Interface configuration preparation "
+                            "ifailed (getnameinfo error: %s).", errno_str));
+            freeifaddrs(ifaddr);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        if(strcmp(host, netif) == 0)
+            break;
+    }
+
+    freeifaddrs(ifaddr);
+    if(!ifa)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Write the interface index */
+    if(info->ai_family == AF_INET)
+        req->ipv4.imr_ifindex = idx;
+#if UA_IPV6
+    else /* if(info->ai_family == AF_INET6) */
+        req->ipv6.ipv6mr_interface = idx;
+#endif
+    return UA_STATUSCODE_GOOD;
+}
+
+#endif /* _WIN32 */
+
+static UA_StatusCode
+setupMulticastRequest(UA_FD socket, MulticastRequest *req, const UA_KeyValueMap *params,
                       struct addrinfo *info, const UA_Logger *logger) {
-    /* Was an interface defined? */
+    /* Initialize the address information */
+    if(info->ai_family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)info->ai_addr;
+        req->ipv4.imr_multiaddr = sin->sin_addr;
+#ifdef _WIN32
+        req->ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
+#else
+        req->ipv4.imr_address.s_addr = htonl(INADDR_ANY); /* default ANY */
+        req->ipv4.imr_ifindex = 0;
+#endif
+#if UA_IPV6
+    } else if(info->ai_family == AF_INET6) {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)info->ai_addr;
+        req->ipv6.ipv6mr_multiaddr = sin6->sin6_addr;
+        req->ipv6.ipv6mr_interface = 0; /* default ANY interface */
+#endif
+    } else {
+        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
+                     "UDP\t| Multicast configuration failed: Unknown protocol family");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Was an interface (or local IP address) defined? */
     const UA_String *netif = (const UA_String*)
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_INTERFACE].name,
                                  &UA_TYPES[UA_TYPES_STRING]);
     if(!netif) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
                        "UDP %u\t| No network interface defined for multicast. "
-                       "That means the first suitable network interface is used.",
+                       "The first suitable network interface is used.",
                        (unsigned)socket);
+        return UA_STATUSCODE_GOOD;
     }
 
-    if(info->ai_family == AF_INET) {
-        struct sockaddr_in *sin = (struct sockaddr_in *)info->ai_addr;
-        req->ipv4.imr_multiaddr = sin->sin_addr;
-        req->ipv4.imr_interface.s_addr = htonl(INADDR_ANY); /* default ANY */
-        if(!netif)
-            return UA_STATUSCODE_GOOD;
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        if(UA_inet_pton(AF_INET, interfaceAsChar, &req->ipv4.imr_interface) <= 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "UDP\t| Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        return UA_STATUSCODE_GOOD;
-#if UA_IPV6
-    } else if(info->ai_family == AF_INET6) {
-        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)info->ai_addr;
-        req->ipv6.ipv6mr_multiaddr = sin6->sin6_addr;
-        req->ipv6.ipv6mr_interface = 0; /* default ANY interface */
-        if(!netif)
-            return UA_STATUSCODE_GOOD;
-        UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
-        memcpy(interfaceAsChar, netif->data, netif->length);
-        interfaceAsChar[netif->length] = 0;
-        req->ipv6.ipv6mr_interface = UA_if_nametoindex(interfaceAsChar);
-        if(req->ipv6.ipv6mr_interface == 0) {
-            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                         "UDP\t| Interface configuration preparation failed.");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        return UA_STATUSCODE_GOOD;
-#endif
-    }
-    return UA_STATUSCODE_BADINTERNALERROR;
+    /* Set the interface index */
+    UA_STACKARRAY(char, interfaceAsChar, sizeof(char) * netif->length + 1);
+    memcpy(interfaceAsChar, netif->data, netif->length);
+    interfaceAsChar[netif->length] = 0;
+    return setMulticastInterface(interfaceAsChar, info, req, logger);
 }
 
 /* Retrieves hostname and port from given key value parameters.
@@ -153,8 +283,8 @@ setupMulticastRequest(UA_FD socket, IpMulticastRequest *req, const UA_KeyValueMa
  * @return -1 upon error, 0 if there was no host or port parameter, 1 if
  *         host and port are present */
 static int
-getHostAndPortFromParams(const UA_KeyValueMap *params,
-                         char *hostname, char *portStr, const UA_Logger *logger) {
+getHostAndPortFromParams(const UA_KeyValueMap *params, char *hostname,
+                         char *portStr, const UA_Logger *logger) {
     /* Prepare the port parameter as a string */
     const UA_UInt16 *port = (const UA_UInt16*)
         UA_KeyValueMap_getScalar(params, UDPConfigParameters[UDP_PARAMINDEX_PORT].name,
@@ -360,7 +490,7 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
 static UA_StatusCode
 setupListenMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params,
                      MultiCastType multiCastType, const UA_Logger *logger) {
-    IpMulticastRequest req;
+    MulticastRequest req;
     UA_StatusCode res = setupMulticastRequest(fd, &req, params, info, logger);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -389,7 +519,7 @@ setupListenMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *para
 static UA_StatusCode
 setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params,
                    MultiCastType multiCastType, const UA_Logger *logger) {
-    IpMulticastRequest req;
+    MulticastRequest req;
     UA_StatusCode res = setupMulticastRequest(fd, &req, params, info, logger);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -399,10 +529,10 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
         result = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
                             (const char *)&req.ipv4.imr_interface,
-#else
-                            &req.ipv4.imr_interface,
-#endif
                             sizeof(struct in_addr));
+#else
+                            &req.ipv4, sizeof(req.ipv4));
+#endif
 #if UA_IPV6
     } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
         result = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
