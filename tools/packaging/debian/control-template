@@ -1,7 +1,7 @@
 Source: open62541
 Priority: optional
 Maintainer: open62541 Team <open62541-core@googlegroups.com>
-Build-Depends: debhelper (>= 9), cmake (>= 3.13), python3 (>= 3.11), libmbedtls-dev (>= 2.28.0)
+Build-Depends: debhelper (>= 9), cmake (>= 3.13), python3 (>= 3.7), libmbedtls-dev (>= 2.16.0)
 Standards-Version: 4.4.1
 Section: libs
 Homepage: https://open62541.org/
@@ -11,7 +11,7 @@ Vcs-Browser: https://github.com/open62541/open62541
 Package: libopen62541-<soname>
 Architecture: any
 Multi-Arch: same
-Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls14
+Depends: ${shlibs:Depends}, ${misc:Depends}, libmbedtls12 | libmbedtls14
 Description: open62541 (<http://open62541.org>) is an open source implementation
  of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The
  library is usable with all major compilers and provides the necessary tools to
