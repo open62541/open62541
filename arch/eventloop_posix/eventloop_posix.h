@@ -314,7 +314,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 #ifdef _WIN32
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
 #else
-# define UA_EventLoopPOSIX_pipe(fds) pipe(fds)
+# define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif
 
 _UA_END_DECLS
