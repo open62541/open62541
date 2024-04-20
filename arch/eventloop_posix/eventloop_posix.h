@@ -309,6 +309,14 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd);
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
+/* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
+ * https://stackoverflow.com/a/3333565 */
+#ifdef _WIN32
+int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
+#else
+# define UA_EventLoopPOSIX_pipe(fds) pipe(fds)
+#endif
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
