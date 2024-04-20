@@ -97,9 +97,10 @@ addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber,
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
     /* also set the same publisher Id for the subscriber connection as it does not matter */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
-    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig, outConnectionId), UA_STATUSCODE_GOOD);
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
+    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig,
+                                                   outConnectionId), UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -229,8 +230,8 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
     /* Setting up Meta data configuration in DataSetReader */

@@ -79,31 +79,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
-            switch (pubSubConnection->config.publisherIdType) {
-                case UA_PUBLISHERIDTYPE_BYTE:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.byte,
-                                         &UA_TYPES[UA_TYPES_BYTE]);
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT16:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint16,
-                                         &UA_TYPES[UA_TYPES_UINT16]);
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT32:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint32,
-                                         &UA_TYPES[UA_TYPES_UINT32]);
-                    break;
-                case UA_PUBLISHERIDTYPE_UINT64:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.uint64,
-                                         &UA_TYPES[UA_TYPES_UINT64]);
-                    break;
-                case UA_PUBLISHERIDTYPE_STRING:
-                    UA_Variant_setScalar(&value, &pubSubConnection->config.publisherId.string,
-                                         &UA_TYPES[UA_TYPES_STRING]);
-                    break;
-                default:
-                    UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Read error! Unknown PublisherId type.");
-                }
+            UA_PublisherId_toVariant(&pubSubConnection->config.publisherId, &value);
             break;
         default:
             UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -133,8 +109,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_DATASETREADERTYPE_PUBLISHERID:
-            UA_Variant_setScalar(&value, dataSetReader->config.publisherId.data,
-                                 dataSetReader->config.publisherId.type);
+            UA_PublisherId_toVariant(&dataSetReader->config.publisherId, &value);
             break;
         case UA_NS0ID_DATASETREADERTYPE_STATUS_STATE:
             UA_Variant_setScalar(&value, &dataSetReader->state,
@@ -362,28 +337,8 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_BYTE]) {
-        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_BYTE;
-        connectionConfig.publisherId.byte = *((UA_Byte*)pubsubConnection->publisherId.data);
-    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT16]) {
-        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-        connectionConfig.publisherId.uint16 = *((UA_UInt16*)pubsubConnection->publisherId.data);
-    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT32]) {
-        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        connectionConfig.publisherId.uint32 = *((UA_UInt32*)pubsubConnection->publisherId.data);
-    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_UINT64]) {
-        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-        connectionConfig.publisherId.uint64 = *((UA_UInt64*)pubsubConnection->publisherId.data);
-    } else if (pubsubConnection->publisherId.type == &UA_TYPES[UA_TYPES_STRING]) {
-        connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        UA_String_copy((UA_String *) pubsubConnection->publisherId.data,
-                       &connectionConfig.publisherId.string);
-    } else {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Unsupported PublisherId Type used.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
+    retVal |= UA_PublisherId_fromVariant(&connectionConfig.publisherId,
+                                         &pubsubConnection->publisherId);
     retVal |= UA_PubSubConnection_create(server, &connectionConfig, connectionId);
     UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
     return retVal;
@@ -582,11 +537,14 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                        UA_NodeId *dataSetReaderId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
     UA_DataSetReaderConfig readerConfig;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+
+    UA_StatusCode retVal =
+        UA_PublisherId_fromVariant(&readerConfig.publisherId,
+                                   &dataSetReader->publisherId);
     readerConfig.name = dataSetReader->name;
-    readerConfig.publisherId = dataSetReader->publisherId;
     readerConfig.writerGroupId = dataSetReader->writerGroupId;
     readerConfig.dataSetWriterId = dataSetReader->dataSetWriterId;
 
@@ -600,8 +558,8 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                         &UA_TYPES[UA_TYPES_FIELDMETADATA]);
     for(size_t i = 0; i < pMetaData->fieldsSize; i++){
         UA_FieldMetaData_init (&pMetaData->fields[i]);
-        UA_NodeId_copy (&dataSetReader->dataSetMetaData.fields[i].dataType,
-                        &pMetaData->fields[i].dataType);
+        UA_NodeId_copy(&dataSetReader->dataSetMetaData.fields[i].dataType,
+                       &pMetaData->fields[i].dataType);
         pMetaData->fields[i].builtInType = dataSetReader->dataSetMetaData.fields[i].builtInType;
         pMetaData->fields[i].name = dataSetReader->dataSetMetaData.fields[i].name;
         pMetaData->fields[i].valueRank = dataSetReader->dataSetMetaData.fields[i].valueRank;
@@ -609,6 +567,7 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
 
     retVal |= UA_DataSetReader_create(server, readerGroupId,
                                       &readerConfig, dataSetReaderId);
+    UA_PublisherId_clear(&readerConfig.publisherId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_free(pMetaData->fields);
         return retVal;

@@ -129,7 +129,6 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
 
 static UA_StatusCode
 UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx) {
-    const UA_DataType *publisherIdType;
     /* currently only ua-data is supported, no discovery message implemented */
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -150,26 +149,10 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
     /* PublisherId */
     if(src->publisherIdEnabled) {
+        UA_Variant v;
+        UA_PublisherId_toVariant(&src->publisherId, &v);
         rv |= writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
-        switch (src->publisherIdType) {
-        case UA_PUBLISHERIDTYPE_BYTE:
-            publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT16:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT16];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT32:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT32];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT64:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT64];
-            break;
-        case UA_PUBLISHERIDTYPE_STRING:
-            publisherIdType = &UA_TYPES[UA_TYPES_STRING];
-            break;
-        }
-        rv |= encodeJsonJumpTable[publisherIdType->typeKind]
-            (ctx, &src->publisherId, publisherIdType);
+        rv |= encodeJsonJumpTable[v.type->typeKind](ctx, v.data, v.type);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
@@ -480,6 +463,23 @@ DatasetMessage_Array_decodeJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
 }
 
 static status
+decodePublisherIdJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
+                              const UA_DataType *type) {
+    UA_PublisherId *p = (UA_PublisherId*)dst;
+    if(currentTokenType(ctx) == CJ5_TOKEN_NUMBER) {
+        /* Store in biggest possible integer. The problem is that with a UInt64
+         * is that a string is expected for it in JSON. Therefore, the maximum
+         * value is set to UInt32. */
+        p->idType = UA_PUBLISHERIDTYPE_UINT32;
+        return decodeJsonJumpTable[UA_DATATYPEKIND_UINT32](ctx, &p->id.uint32, NULL);
+    } else if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
+        p->idType = UA_PUBLISHERIDTYPE_STRING;
+        return decodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &p->id.string, NULL);
+    }
+    return UA_STATUSCODE_BADDECODINGERROR;
+}
+
+static status
 NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     memset(dst, 0, sizeof(UA_NetworkMessage));
     dst->chunkMessage = false;
@@ -488,28 +488,9 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     dst->picosecondsEnabled = false;
     dst->promotedFieldsEnabled = false;
 
-    /* Look forward for publisheId, if present check if type if primitve (Number) or String. */
-    const UA_DataType *pubIdType = &UA_TYPES[UA_TYPES_STRING];
-    size_t searchResultPublishIdType = 0;
-    status found = lookAheadForKey(ctx, UA_DECODEKEY_PUBLISHERID, &searchResultPublishIdType);
-    if(found == UA_STATUSCODE_GOOD) {
-        cj5_token *publishIdToken = &ctx->tokens[searchResultPublishIdType];
-        if(publishIdToken->type == CJ5_TOKEN_NUMBER) {
-            // store in biggest possible. The problem is that with a UInt64 a
-            // string is expected in the json. Therefore, the maximum value is
-            // set to UInt32.
-            pubIdType = &UA_TYPES[UA_TYPES_UINT32];
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        } else if(publishIdToken->type == CJ5_TOKEN_STRING) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        } else {
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
-
     /* Is Messages an Array? How big? */
     size_t searchResultMessages = 0;
-    found = lookAheadForKey(ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
+    status found = lookAheadForKey(ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     const cj5_token *bodyToken = &ctx->tokens[searchResultMessages];
@@ -551,9 +532,10 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, NULL, false, pubIdType},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, decodePublisherIdJsonInternal, false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
-        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages,
+         &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
     status ret = decodeFields(ctx, entries, 5);
@@ -562,13 +544,6 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
-    if(dst->publisherIdEnabled) {
-        if(pubIdType == &UA_TYPES[UA_TYPES_UINT32]) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        } else {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        }
-    }
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;

@@ -66,7 +66,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -75,10 +74,9 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    return retval;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
+    return UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
 }
 
 /* Add ReaderGroup to the created connection */
@@ -115,8 +113,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier      = 2234;
-    readerConfig.publisherId.type      = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data      = &publisherIdentifier;
+    readerConfig.publisherId.idType    = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId         = 100;
     readerConfig.dataSetWriterId       = 62541;
     readerConfig.messageReceiveTimeout = 200.0; /* Timeout must be greater than publishing interval of corresponding WriterGroup */

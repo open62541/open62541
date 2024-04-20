@@ -83,8 +83,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
 /* #ifdef EXAMPLE_USE_MQTT_LOGIN */
@@ -216,8 +216,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_mqtt_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
 #ifdef UA_ENABLE_PUBSUB_MONITORING

@@ -114,8 +114,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     retval |= UA_Server_addPubSubConnection(server, &connectionConfig, &connectionId);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
@@ -542,8 +542,8 @@ START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
         memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
         dataSetreaderConfig.name = UA_STRING("DataSet Reader 1");
         UA_UInt16 publisherIdentifier        = 2234;
-        dataSetreaderConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        dataSetreaderConfig.publisherId.data = &publisherIdentifier;
+        dataSetreaderConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        dataSetreaderConfig.publisherId.id.uint16 = publisherIdentifier;
         dataSetreaderConfig.writerGroupId    = 100;
         dataSetreaderConfig.dataSetWriterId  = 62541;
 
@@ -872,8 +872,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -1024,8 +1024,8 @@ START_TEST(SinglePublishSubscribeInt32StatusCode) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         readerConfig.dataSetFieldContentMask = UA_DATASETFIELDCONTENTMASK_STATUSCODE;
@@ -1190,8 +1190,8 @@ START_TEST(SinglePublishSubscribeInt64) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -1342,8 +1342,8 @@ START_TEST(SinglePublishSubscribeBool) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -1496,8 +1496,8 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -1607,8 +1607,8 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
     /* Setting up Meta data configuration in DataSetReader */
@@ -1741,8 +1741,8 @@ START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -1891,8 +1891,8 @@ START_TEST(MultiPublishSubscribeInt32) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
 
@@ -2120,8 +2120,8 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
     readerConfig.linkedStandaloneSubscribedDataSetName = cfg.name;
@@ -2224,8 +2224,8 @@ START_TEST(SinglePublishOnDemand) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -2387,8 +2387,8 @@ START_TEST(ValidConfiguredSizPublishSubscribe) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         
@@ -2535,8 +2535,8 @@ START_TEST(InvalidConfiguredSizPublishSubscribe) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         

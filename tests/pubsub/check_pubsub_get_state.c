@@ -58,8 +58,8 @@ static void AddConnection(
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = PublisherId;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
 }
@@ -189,7 +189,8 @@ static void AddDataSetReader(
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING(pName);
-    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt32*) &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    readerConfig.publisherId.id.uint32 = PublisherId;
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
     readerConfig.messageReceiveTimeout = MessageReceiveTimeout;

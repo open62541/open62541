@@ -149,7 +149,6 @@ typedef struct {
 	UA_Boolean chunkMessage;
 	UA_Boolean promotedFieldsEnabled;
 	UA_NetworkMessageType networkMessageType;
-	UA_PublisherIdType publisherIdType;
 	UA_PublisherId publisherId;
 	UA_Guid dataSetClassId;
 

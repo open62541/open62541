@@ -54,8 +54,8 @@ addMinimalPubSubConfiguration(void){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
@@ -187,8 +187,8 @@ START_TEST(SetupInvalidPubSubConfig) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -350,8 +350,8 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -608,8 +608,8 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;

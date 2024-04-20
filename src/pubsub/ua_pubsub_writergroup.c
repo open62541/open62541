@@ -989,7 +989,6 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     nm.payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
     nm.payload.dataSetPayload.dataSetMessages = dsm;
     nm.publisherIdEnabled = true;
-    nm.publisherIdType = connection->config.publisherIdType;
     nm.publisherId = connection->config.publisherId;
 
     /* Compute the message length */
@@ -1101,7 +1100,6 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
 
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
-    networkMessage->publisherIdType = connection->config.publisherIdType;
     /* shallow copy of the PublisherId from connection configuration
         -> the configuration needs to be stable during publishing process
         -> it must not be cleaned after network message has been sent */
