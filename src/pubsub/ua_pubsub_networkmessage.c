@@ -119,18 +119,18 @@ UA_NetworkMessage_updateBufferedNwMessage(UA_NetworkMessageOffsetBuffer *buffer,
             rv = UA_DataSetMessageHeader_decodeBinary(src, &pos, &header);
             break;
         case UA_PUBSUB_OFFSETTYPE_PUBLISHERID:
-            switch(nm->publisherIdType) {
+            switch(nm->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, &pos, &nm->publisherId.byte);
+                rv = UA_Byte_decodeBinary(src, &pos, &nm->publisherId.id.byte);
                 break;
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, &pos, &nm->publisherId.uint16);
+                rv = UA_UInt16_decodeBinary(src, &pos, &nm->publisherId.id.uint16);
                 break;
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, &pos, &nm->publisherId.uint32);
+                rv = UA_UInt32_decodeBinary(src, &pos, &nm->publisherId.id.uint32);
                 break;
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, &pos, &nm->publisherId.uint64);
+                rv = UA_UInt64_decodeBinary(src, &pos, &nm->publisherId.id.uint64);
                 break;
             default:
                 /* UA_PUBLISHERIDTYPE_STRING is not supported because of
@@ -213,7 +213,7 @@ UA_NetworkMessageHeader_encodeBinary(EncodeCtx *ctx,
     UA_CHECK_STATUS(rv, return rv);
     // ExtendedFlags1
     if(UA_NetworkMessage_ExtendedFlags1Enabled(src)) {
-        v = (UA_Byte)src->publisherIdType;
+        v = (UA_Byte)src->publisherId.idType;
 
         if(src->dataSetClassIdEnabled)
             v |= NM_DATASET_CLASSID_ENABLED_MASK;
@@ -252,25 +252,25 @@ UA_NetworkMessageHeader_encodeBinary(EncodeCtx *ctx,
 
     // PublisherId
     if(src->publisherIdEnabled) {
-        switch (src->publisherIdType) {
+        switch (src->publisherId.idType) {
         case UA_PUBLISHERIDTYPE_BYTE:
-            rv = UA_Byte_encodeBinary(&src->publisherId.byte, &ctx->pos, ctx->end);
+            rv = UA_Byte_encodeBinary(&src->publisherId.id.byte, &ctx->pos, ctx->end);
             break;
 
         case UA_PUBLISHERIDTYPE_UINT16:
-            rv = UA_UInt16_encodeBinary(&src->publisherId.uint16, &ctx->pos, ctx->end);
+            rv = UA_UInt16_encodeBinary(&src->publisherId.id.uint16, &ctx->pos, ctx->end);
             break;
 
         case UA_PUBLISHERIDTYPE_UINT32:
-            rv = UA_UInt32_encodeBinary(&src->publisherId.uint32, &ctx->pos, ctx->end);
+            rv = UA_UInt32_encodeBinary(&src->publisherId.id.uint32, &ctx->pos, ctx->end);
             break;
 
         case UA_PUBLISHERIDTYPE_UINT64:
-            rv = UA_UInt64_encodeBinary(&src->publisherId.uint64, &ctx->pos, ctx->end);
+            rv = UA_UInt64_encodeBinary(&src->publisherId.id.uint64, &ctx->pos, ctx->end);
             break;
 
         case UA_PUBLISHERIDTYPE_STRING:
-            rv = UA_String_encodeBinary(&src->publisherId.string, &ctx->pos, ctx->end);
+            rv = UA_String_encodeBinary(&src->publisherId.id.string, &ctx->pos, ctx->end);
             break;
 
         default:
@@ -559,7 +559,7 @@ UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
         rv = UA_Byte_decodeBinary(src, offset, &decoded);
         UA_CHECK_STATUS(rv, return rv);
 
-        dst->publisherIdType = (UA_PublisherIdType)(decoded & NM_PUBLISHER_ID_MASK);
+        dst->publisherId.idType = (UA_PublisherIdType)(decoded & NM_PUBLISHER_ID_MASK);
         if((decoded & NM_DATASET_CLASSID_ENABLED_MASK) != 0)
             dst->dataSetClassIdEnabled = true;
 
@@ -590,25 +590,25 @@ UA_NetworkMessageHeader_decodeBinary(const UA_ByteString *src, size_t *offset,
     }
 
     if(dst->publisherIdEnabled) {
-        switch (dst->publisherIdType) {
+        switch(dst->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
-                rv = UA_Byte_decodeBinary(src, offset, &dst->publisherId.byte);
+                rv = UA_Byte_decodeBinary(src, offset, &dst->publisherId.id.byte);
                 break;
 
             case UA_PUBLISHERIDTYPE_UINT16:
-                rv = UA_UInt16_decodeBinary(src, offset, &dst->publisherId.uint16);
+                rv = UA_UInt16_decodeBinary(src, offset, &dst->publisherId.id.uint16);
                 break;
 
             case UA_PUBLISHERIDTYPE_UINT32:
-                rv = UA_UInt32_decodeBinary(src, offset, &dst->publisherId.uint32);
+                rv = UA_UInt32_decodeBinary(src, offset, &dst->publisherId.id.uint32);
                 break;
 
             case UA_PUBLISHERIDTYPE_UINT64:
-                rv = UA_UInt64_decodeBinary(src, offset, &dst->publisherId.uint64);
+                rv = UA_UInt64_decodeBinary(src, offset, &dst->publisherId.id.uint64);
                 break;
 
             case UA_PUBLISHERIDTYPE_STRING:
-                rv = UA_String_decodeBinary(src, offset, &dst->publisherId.string);
+                rv = UA_String_decodeBinary(src, offset, &dst->publisherId.id.string);
                 break;
 
             default:
@@ -948,7 +948,7 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
             offsetBuffer->offsets[pos].contentType = UA_PUBSUB_OFFSETTYPE_PUBLISHERID;
         }
 
-        switch(p->publisherIdType) {
+        switch(p->publisherId.idType) {
             case UA_PUBLISHERIDTYPE_BYTE:
                 size += 1; /* byte */
                 break;
@@ -962,7 +962,7 @@ UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(
                 size += 8; /* uint64 */
                 break;
             case UA_PUBLISHERIDTYPE_STRING:
-                size += UA_String_calcSizeBinary(&p->publisherId.string);
+                size += UA_String_calcSizeBinary(&p->publisherId.id.string);
                 break;
         }
     }
@@ -1111,15 +1111,15 @@ UA_NetworkMessage_clear(UA_NetworkMessage* p) {
     UA_String_clear(&p->messageId);
 
     if(p->publisherIdEnabled &&
-       p->publisherIdType == UA_PUBLISHERIDTYPE_STRING)
-       UA_String_clear(&p->publisherId.string);
+       p->publisherId.idType == UA_PUBLISHERIDTYPE_STRING)
+       UA_String_clear(&p->publisherId.id.string);
 
     memset(p, 0, sizeof(UA_NetworkMessage));
 }
 
 UA_Boolean
 UA_NetworkMessage_ExtendedFlags1Enabled(const UA_NetworkMessage* src) {
-    if(src->publisherIdType != UA_PUBLISHERIDTYPE_BYTE ||
+    if(src->publisherId.idType != UA_PUBLISHERIDTYPE_BYTE ||
        src->dataSetClassIdEnabled || src->securityEnabled ||
        src->timestampEnabled || src->picosecondsEnabled ||
        UA_NetworkMessage_ExtendedFlags2Enabled(src))

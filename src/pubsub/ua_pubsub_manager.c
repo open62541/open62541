@@ -10,6 +10,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/types.h>
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
@@ -32,6 +33,69 @@ UA_PubSubState_name(UA_PubSubState state) {
     if(state < UA_PUBSUBSTATE_DISABLED || state > UA_PUBSUBSTATE_PREOPERATIONAL)
         return pubSubStateNames[5];
     return pubSubStateNames[state];
+}
+
+UA_StatusCode
+UA_PublisherId_copy(const UA_PublisherId *src,
+                    UA_PublisherId *dst) {
+    memcpy(dst, src, sizeof(UA_PublisherId));
+    if(src->idType == UA_PUBLISHERIDTYPE_STRING)
+        return UA_String_copy(&src->id.string, &dst->id.string);
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_PublisherId_clear(UA_PublisherId *p) {
+    if(p->idType == UA_PUBLISHERIDTYPE_STRING)
+        UA_String_clear(&p->id.string);
+    memset(p, 0, sizeof(UA_PublisherId));
+}
+
+UA_StatusCode
+UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src) {
+    if(!UA_Variant_isScalar(src))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    memset(p, 0, sizeof(UA_PublisherId));
+
+    const void *data = (const void*)src->data;
+    if(src->type == &UA_TYPES[UA_TYPES_BYTE]) {
+        p->idType = UA_PUBLISHERIDTYPE_BYTE;
+        p->id.byte = *(const UA_Byte*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT16]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT16;
+        p->id.uint16 = *(const UA_UInt16*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT32]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT32;
+        p->id.uint32 = *(const UA_UInt32*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT64]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT64;
+        p->id.uint64 = *(const UA_UInt64*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_STRING]) {
+        p->idType  = UA_PUBLISHERIDTYPE_STRING;
+        return UA_String_copy((const UA_String *)data, &p->id.string);
+    } else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst) {
+    UA_PublisherId *p2 = (UA_PublisherId*)(uintptr_t)p;
+    switch(p->idType) {
+    case UA_PUBLISHERIDTYPE_BYTE:
+        UA_Variant_setScalar(dst, &p2->id.byte, &UA_TYPES[UA_TYPES_BYTE]); break;
+    case UA_PUBLISHERIDTYPE_UINT16:
+        UA_Variant_setScalar(dst, &p2->id.uint16, &UA_TYPES[UA_TYPES_UINT16]); break;
+    case UA_PUBLISHERIDTYPE_UINT32:
+        UA_Variant_setScalar(dst, &p2->id.uint32, &UA_TYPES[UA_TYPES_UINT32]); break;
+    case UA_PUBLISHERIDTYPE_UINT64:
+        UA_Variant_setScalar(dst, &p2->id.uint64, &UA_TYPES[UA_TYPES_UINT64]); break;
+    case UA_PUBLISHERIDTYPE_STRING:
+        UA_Variant_setScalar(dst, &p2->id.string, &UA_TYPES[UA_TYPES_STRING]); break;
+    default: break; /* This is not possible if the PublisherId is well-defined */
+    }
 }
 
 static void

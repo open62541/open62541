@@ -94,7 +94,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     return UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 }
 
@@ -118,11 +119,9 @@ addReaderGroup(UA_Server *server) {
 /* Add DataSetReader to the ReaderGroup */
 static UA_StatusCode
 addDataSetReader(UA_Server *server) {
-    if(server == NULL) {
+    if(server == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -131,19 +130,15 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId = 100;
     readerConfig.dataSetWriterId = 62541;
     readerConfig.linkedStandaloneSubscribedDataSetName = UA_STRING("DemoStandaloneSDS");
 
     /* DataSetMetaData already contained in Standalone SDS no need to set up */
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
-
-    readerConfig.publisherId.data = NULL;
-
-    return retval;
+    return UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
+                                      &readerIdentifier);
 }
 
 UA_Boolean running = true;

@@ -9,6 +9,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/server_pubsub.h>
 #include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
@@ -545,7 +546,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Don't support string PublisherId for the fast-path (at this time) */
-    if(!dsr->config.publisherId.type->pointerFree) {
+    if(dsr->config.publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
         UA_LOG_WARNING_READER(server->config.logging, dsr,
                               "PubSub-RT configuration fail: String PublisherId");
         return UA_STATUSCODE_BADNOTSUPPORTED;

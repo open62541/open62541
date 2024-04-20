@@ -35,30 +35,21 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 #endif
 
 static UA_Boolean
-publisherIdIsMatching(UA_NetworkMessage *msg, UA_Variant publisherId) {
-    if(!msg->publisherIdEnabled) {
+publisherIdIsMatching(UA_NetworkMessage *msg, UA_PublisherId *idB) {
+    if(!msg->publisherIdEnabled)
         return true;
+    UA_PublisherId *idA = &msg->publisherId;
+    if(idA->idType != idB->idType)
+        return false;
+    switch(idA->idType) {
+        case UA_PUBLISHERIDTYPE_BYTE:   return idA->id.byte == idB->id.byte;
+        case UA_PUBLISHERIDTYPE_UINT16: return idA->id.uint16 == idB->id.uint16;
+        case UA_PUBLISHERIDTYPE_UINT32: return idA->id.uint32 == idB->id.uint32;
+        case UA_PUBLISHERIDTYPE_UINT64: return idA->id.uint64 == idB->id.uint64;
+        case UA_PUBLISHERIDTYPE_STRING: return UA_String_equal(&idA->id.string, &idB->id.string);
+        default: break;
     }
-    switch(msg->publisherIdType) {
-        case UA_PUBLISHERIDTYPE_BYTE:
-            return (publisherId.type == &UA_TYPES[UA_TYPES_BYTE] &&
-               msg->publisherId.byte == *(UA_Byte*)publisherId.data);
-        case UA_PUBLISHERIDTYPE_UINT16:
-            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT16] &&
-               msg->publisherId.uint16 == *(UA_UInt16*)publisherId.data);
-        case UA_PUBLISHERIDTYPE_UINT32:
-            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT32] &&
-               msg->publisherId.uint32 == *(UA_UInt32*)publisherId.data);
-        case UA_PUBLISHERIDTYPE_UINT64:
-            return (publisherId.type == &UA_TYPES[UA_TYPES_UINT64] &&
-               msg->publisherId.uint64 == *(UA_UInt64*)publisherId.data);
-        case UA_PUBLISHERIDTYPE_STRING:
-            return (publisherId.type == &UA_TYPES[UA_TYPES_STRING] &&
-               UA_String_equal(&msg->publisherId.string, (UA_String*)publisherId.data));
-        default:
-            return false;
-    }
-    return true;
+    return false;
 }
 
 UA_StatusCode
@@ -66,7 +57,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
                                  UA_DataSetReader *reader,
                                  UA_ReaderGroupConfig readerGroupConfig) {
     if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
-        if(!publisherIdIsMatching(msg, reader->config.publisherId)) {
+        if(!publisherIdIsMatching(msg, &reader->config.publisherId)) {
             return UA_STATUSCODE_BADNOTFOUND;
         }
         if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
@@ -91,7 +82,7 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
         }
         return UA_STATUSCODE_GOOD;
     } else {
-        if (!publisherIdIsMatching(msg, reader->config.publisherId))
+        if(!publisherIdIsMatching(msg, &reader->config.publisherId))
             return UA_STATUSCODE_BADNOTFOUND;
 
         if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
@@ -486,7 +477,7 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
-    retVal = UA_Variant_copy(&src->publisherId, &dst->publisherId);
+    retVal = UA_PublisherId_copy(&src->publisherId, &dst->publisherId);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
 
@@ -525,7 +516,7 @@ void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     UA_String_clear(&cfg->name);
     UA_String_clear(&cfg->linkedStandaloneSubscribedDataSetName);
-    UA_Variant_clear(&cfg->publisherId);
+    UA_PublisherId_clear(&cfg->publisherId);
     UA_DataSetMetaDataType_clear(&cfg->dataSetMetaData);
     UA_ExtensionObject_clear(&cfg->messageSettings);
     UA_ExtensionObject_clear(&cfg->transportSettings);

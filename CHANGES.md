@@ -3,6 +3,13 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Unify PubSub PublisherId
+
+Use the same definition for the PublisherId everywhere. `UA_PublisherId` is a
+tagged union. Before the Subscriber API used a variant -- which is still used in
+some standard-defined data types. `UA_PublisherId_fromVariant` and
+`UA_PublisherId_toVariant` are provided for the conversion.
+
 # Release 1.4
 
 ### Decoding variant with array of structure
