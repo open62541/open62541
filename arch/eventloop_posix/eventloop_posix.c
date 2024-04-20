@@ -679,6 +679,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 /* Select / epoll Logic */
 /************************/
 
+/* Re-arm the self-pipe socket for the next signal by reading from it */
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
