@@ -113,14 +113,19 @@ struct UA_EventLoop {
      * iterations of the main-loop to succeed. */
     void (*stop)(UA_EventLoop *el);
 
-    /* Process events for at most "timeout" ms or until an unrecoverable error
-     * occurs. If timeout==0, then only already received events are
-     * processed. */
-    UA_StatusCode (*run)(UA_EventLoop *el, UA_UInt32 timeout);
-
     /* Clean up the EventLoop and free allocated memory. Can fail if the
      * EventLoop is not stopped. */
     UA_StatusCode (*free)(UA_EventLoop *el);
+
+    /* Wait for events and processs them for at most "timeout" ms or until an
+     * unrecoverable error occurs. If timeout==0, then only already received
+     * events are processed. Returns immediately after processing the first
+     * (batch of) event(s). */
+    UA_StatusCode (*run)(UA_EventLoop *el, UA_UInt32 timeout);
+
+    /* The "run" method is blocking and waits for events during a timeout
+     * period. This cancels the "run" method to return immediately. */
+    void (*cancel)(UA_EventLoop *el);
 
     /* EventLoop Time Domain
      * ~~~~~~~~~~~~~~~~~~~~~

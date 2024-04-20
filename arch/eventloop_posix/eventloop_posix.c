@@ -166,6 +166,18 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     }
 #endif
 
+    /* Create the self-pipe */
+    int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
+    if(err != 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                          "Eventloop\t| Could not create the self-pipe (%s)",
+                          errno_str));
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Create the epoll socket */
 #ifdef UA_HAVE_EPOLL
     el->epollfd = epoll_create1(0);
     if(el->epollfd == -1) {
@@ -173,11 +185,32 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "Eventloop\t| Could not create the epoll socket (%s)",
                           errno_str));
+        UA_close(el->selfpipe[0]);
+        UA_close(el->selfpipe[1]);
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* epoll always listens on the self-pipe. This is the only epoll_event that
+     * has a NULL data pointer. */
+    struct epoll_event event;
+    memset(&event, 0, sizeof(struct epoll_event));
+    event.events = EPOLLIN;
+    err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, el->selfpipe[0], &event);
+    if(err != 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                          "Eventloop\t| Could not register the self-pipe for epoll (%s)",
+                          errno_str));
+        UA_close(el->selfpipe[0]);
+        UA_close(el->selfpipe[1]);
+        close(el->epollfd);
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 #endif
 
+    /* Start the EventSources */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
@@ -209,6 +242,10 @@ checkClosed(UA_EventLoopPOSIX *el) {
     /* Not closed until all delayed callbacks are processed */
     if(el->delayedCallbacks != NULL)
         return;
+
+    /* Close the self-pipe when everything else is done */
+    UA_close(el->selfpipe[0]);
+    UA_close(el->selfpipe[1]);
 
     /* Dirty-write the state that is const "from the outside" */
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
@@ -501,8 +538,9 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 
     el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
     el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
-    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
     el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
+    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
+    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_cancel;
 
     el->eventLoop.dateTime_now = UA_EventLoopPOSIX_DateTime_now;
     el->eventLoop.dateTime_nowMonotonic =
@@ -640,6 +678,19 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 /* Select / epoll Logic */
 /************************/
 
+static void
+flushSelfPipe(UA_SOCKET s) {
+    char buf[128];
+#ifdef _WIN32
+    recv(s, buf, 128, 0);
+#else
+    ssize_t i;
+    do {
+        i = read(s, buf, 128);
+    } while(i > 0);
+#endif
+}
+
 #if !defined(UA_HAVE_EPOLL)
 
 UA_StatusCode
@@ -711,7 +762,11 @@ setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errs
     FD_ZERO(readset);
     FD_ZERO(writeset);
     FD_ZERO(errset);
-    UA_FD highestfd = UA_INVALID_FD;
+
+    /* Always listen on the read-end of the pipe */
+    UA_FD highestfd = el->selfpipe[0];
+    FD_SET(el->selfpipe[0], readset);
+
     for(size_t i = 0; i < el->fdsSize; i++) {
         UA_FD currentFD = el->fds[i]->fd;
 
@@ -725,7 +780,7 @@ setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errs
         FD_SET(currentFD, errset);
 
         /* Highest fd? */
-        if(currentFD > highestfd || highestfd == UA_INVALID_FD)
+        if(currentFD > highestfd)
             highestfd = currentFD;
     }
     return highestfd;
@@ -766,6 +821,10 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
                            "Error during select: %s", errno_str));
         return UA_STATUSCODE_GOOD;
     }
+
+    /* The self-pipe has received. Clear the buffer by reading. */
+    if(UA_UNLIKELY(FD_ISSET(el->selfpipe[0], &readset)))
+        flushSelfPipe(el->selfpipe[0]);
 
     /* Loop over all registered FD to see if an event arrived. Yes, this is why
      * select is slow for many open sockets. */
@@ -900,6 +959,12 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     for(int i = 0; i < events; i++) {
         UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
 
+        /* The self-pipe has received */
+        if(!rfd) {
+            flushSelfPipe(el->selfpipe[0]);
+            continue;
+        }
+
         /* The rfd is already registered for removal. Don't process incoming
          * events any longer. */
         if(rfd->dc.callback)
@@ -954,3 +1019,22 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     return err;
 }
 #endif
+
+void
+UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
+    /* Nothing to do if the EventLoop is not executing */
+    if(!el->executing)
+        return;
+
+    /* Trigger the self-pipe */
+#ifdef _WIN32
+    int err = send(el->selfpipe[1], ".", 1, 0);
+#else
+    ssize_t err = write(el->selfpipe[1], ".", 1);
+#endif
+    if(err <= 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                           "Eventloop\t| Error signaling self-pipe (%s)", errno_str));
+    }
+}

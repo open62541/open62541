@@ -243,7 +243,7 @@ typedef struct {
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
-    UA_Boolean executing;
+    volatile UA_Boolean executing;
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
     /* Clocks for the eventloop's time domain */
@@ -257,6 +257,9 @@ typedef struct {
     UA_RegisteredFD **fds;
     size_t fdsSize;
 #endif
+
+    /* Self-pipe to cancel blocking wait */
+    UA_FD selfpipe[2]; /* 0: read, 1: write */
 
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
@@ -316,6 +319,10 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
 #else
 # define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif
+
+/* Cancel the current _run by sending to the self-pipe */
+void
+UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el);
 
 _UA_END_DECLS
 
