@@ -387,23 +387,6 @@ startPOSIXInterruptManager(UA_EventSource *es) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-#ifndef _WIN32
-    /* Mark pipes as non-blocking */
-    for(size_t i = 0; i < (sizeof(pipefd) / sizeof(*pipefd)); ++i) {
-        res = UA_EventLoopPOSIX_setNonBlocking(pipefd[i]);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_SOCKET_ERRNO_WRAP(
-                UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                               "Interrupt\t| Could mark pipe for "
-                               "self-signaling as non-blocking(%s)",
-                               errno_str));
-            UA_UNLOCK(&el->elMutex);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
-#endif
-
     UA_LOG_DEBUG(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Interrupt\t| Socket pair for the self-pipe: %u,%u",
                  (unsigned)pipefd[0], (unsigned)pipefd[1]);
@@ -413,7 +396,7 @@ startPOSIXInterruptManager(UA_EventSource *es) {
     pim->readFD.es = &pim->im.eventSource;
     pim->readFD.listenEvents = UA_FDEVENT_IN;
     pim->readFD.eventSourceCB = executeTriggeredPOSIXInterrupts;
-    res = UA_EventLoopPOSIX_registerFD(el, &pim->readFD);
+    UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &pim->readFD);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "Interrupt\t| Could not register the InterruptManager socket");
