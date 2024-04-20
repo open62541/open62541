@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2021, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
 #include "eventloop_posix.h"
@@ -17,10 +17,6 @@ typedef struct UA_RegisteredSignal {
     /* With epoll, register each signal with a socket.
      * This has to be the first element of the struct to allow casting. */
     UA_RegisteredFD rfd;
-#else
-    /* Without epoll, we add the rfd to a tailq and self-pipe to trigger the
-     * traversal of the tailq */
-    TAILQ_ENTRY(UA_RegisteredSignal) triggeredEntry;
 #endif
 
     LIST_ENTRY(UA_RegisteredSignal) listPointers;
@@ -36,13 +32,10 @@ typedef struct UA_RegisteredSignal {
 typedef struct {
     UA_InterruptManager im;
 
-    /* Registered signals */
-    size_t signalsSize;
-    LIST_HEAD(, UA_RegisteredSignal) signals;
+    LIST_HEAD(, UA_RegisteredSignal) signals; /* Registered signals */
 
 #ifndef UA_HAVE_EPOLL
     UA_DelayedCallback dc; /* Process all triggered signals */
-    TAILQ_HEAD(, UA_RegisteredSignal) triggered; /* Triggered signals */
 #endif
 } UA_POSIXInterruptManager;
 
@@ -106,7 +99,7 @@ activateSignal(UA_RegisteredSignal *rs) {
     if(newfd < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Interrupt\t|Could not create a signal file "
+                           "Interrupt\t| Could not create a signal file "
                            "description with error: %s",
                            errno_str));
         sigprocmask(SIG_UNBLOCK, &mask, NULL); /* restore signal */
@@ -121,7 +114,7 @@ activateSignal(UA_RegisteredSignal *rs) {
     UA_StatusCode res = UA_EventLoopPOSIX_registerFD(el, &rs->rfd);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Interrupt\t|Could not register the a signal file "
+                       "Interrupt\t| Could not register the a signal file "
                        "description in the EventLoop");
         UA_close(newfd);
         sigprocmask(SIG_UNBLOCK, &mask, NULL); /* restore signal */
@@ -166,8 +159,7 @@ executeTriggeredPOSIXInterrupts(UA_POSIXInterruptManager *im, void *_) {
     im->dc.callback = NULL; /* Allow to re-arm the delayed callback */
 
     UA_RegisteredSignal *rs, *rs_tmp;
-    TAILQ_FOREACH_SAFE(rs, &im->triggered, triggeredEntry, rs_tmp) {
-        TAILQ_REMOVE(&im->triggered, rs, triggeredEntry);
+    LIST_FOREACH_SAFE(rs, &im->signals, listPointers, rs_tmp) {
         rs->triggered = false;
         rs->signalCallback(&im->im, (uintptr_t)rs->signal,
                            rs->context, &UA_KEYVALUEMAP_NULL);
@@ -181,7 +173,7 @@ static void
 triggerPOSIXInterruptEvent(int sig) {
     UA_assert(singletonIM != NULL);
 
-    /* Mark as triggered */
+    /* Find the signal */
     UA_RegisteredSignal *rs;
     LIST_FOREACH(rs, &singletonIM->signals, listPointers) {
         if(rs->signal == sig)
@@ -190,8 +182,7 @@ triggerPOSIXInterruptEvent(int sig) {
     if(!rs || rs->triggered || !rs->active)
         return;
 
-    /* Add to the triggered list */
-    TAILQ_INSERT_TAIL(&singletonIM->triggered, rs, triggeredEntry);
+    /* Mark as triggered */
     rs->triggered = true;
 
 #ifdef _WIN32
@@ -249,12 +240,7 @@ deactivateSignal(UA_RegisteredSignal *rs) {
     /* Stop receiving the signal */
     signal(rs->signal, SIG_DFL);
 
-    /* Clean up locally */
-    if(rs->triggered) {
-        TAILQ_REMOVE(&singletonIM->triggered, rs, triggeredEntry);
-        rs->triggered = false;
-    }
-
+    rs->triggered = false;
     rs->active = false;
 }
 
@@ -306,7 +292,6 @@ registerPOSIXInterrupt(UA_InterruptManager *im, uintptr_t interruptHandle,
 
     /* Add to the InterruptManager */
     LIST_INSERT_HEAD(&pim->signals, rs, listPointers);
-    pim->signalsSize++;
 
     /* Activate if we are already running */
     if(pim->im.eventSource.state == UA_EVENTSOURCESTATE_STARTED)
@@ -443,7 +428,6 @@ UA_InterruptManager_new_POSIX(const UA_String eventSourceName) {
         return NULL;
 
 #ifndef UA_HAVE_EPOLL
-    TAILQ_INIT(&pim->triggered);
     singletonIM = pim; /* Register the singleton singleton pointer */
 #endif
 
