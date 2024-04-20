@@ -432,16 +432,20 @@ struct UA_InterruptManager {
  * POSIX EventLop Implementation
  * -----------------------------
  * The POSIX compatibility of Win32 is 'close enough'. So a joint implementation
- * is provided.
+ * is provided. The configuration paramaters must be set before starting the
+ * EventLoop.
  *
- * Configuration parameters (only Linux and BSDs, must be set before start to
- * take effect):
- * - 0:clock-source [int32]: Clock source (default: CLOCK_REALTIME).
- * - 0:clock-source-monotonic [int32]: Clock source used for time intervals. A
- *     non-monotonic source can be used as well. But expect accordingly longer
- *     sleep-times for timed events when the clock is set to the past. See the
- *     man-page of "clock_gettime" on how to get a clock source id for a
- *     character-device such as /dev/ptp0. (default: CLOCK_MONOTONIC_RAW)*/
+ * **Clock configuration (Linux and BSDs only)**
+ *
+ * 0:clock-source [int32]
+ *    Clock source (default: CLOCK_REALTIME).
+ *
+ * 0:clock-source-monotonic [int32]:
+ *   Clock source used for time intervals. A non-monotonic source can be used as
+ *   well. But expect accordingly longer sleep-times for timed events when the
+ *   clock is set to the past. See the man-page of "clock_gettime" on how to get
+ *   a clock source id for a character-device such as /dev/ptp0. (default:
+ *   CLOCK_MONOTONIC_RAW) */
 
 UA_EXPORT UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger);
