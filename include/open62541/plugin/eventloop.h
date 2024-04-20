@@ -52,8 +52,10 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  * regular interval with respect to the original basetime. */
 
 typedef enum {
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME = 0, /* deprecated */
+    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME = 1,    /* deprecated */
+    UA_TIMERPOLICY_CURRENTTIME = 0,
+    UA_TIMERPOLICY_BASETIME = 1,
 } UA_TimerPolicy;
 
 /**
