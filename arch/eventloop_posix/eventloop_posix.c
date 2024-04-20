@@ -68,14 +68,15 @@ UA_EventLoopPOSIX_removeCyclicCallback(UA_EventLoop *public_el,
     UA_Timer_removeCallback(&el->timer, callbackId);
 }
 
-static void
+void
 UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
                                      UA_DelayedCallback *dc) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    UA_LOCK(&el->elMutex);
-    dc->next = el->delayedCallbacks;
-    el->delayedCallbacks = dc;
-    UA_UNLOCK(&el->elMutex);
+    UA_DelayedCallback *old;
+    do {
+        old = el->delayedCallbacks;
+        dc->next = old;
+    } while(UA_atomic_cmpxchg((void * volatile *)&el->delayedCallbacks, old, dc) != old);
 }
 
 static void

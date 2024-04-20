@@ -324,6 +324,10 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
 void
 UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el);
 
+void
+UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
+                                     UA_DelayedCallback *dc);
+
 _UA_END_DECLS
 
 #endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
