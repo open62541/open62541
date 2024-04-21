@@ -3,6 +3,11 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### EventLoop Canceling
+
+The `cancel` method of the EventLoop makes the (blocking) EventLoop `run` return
+immediately.
+
 ### Unify PubSub PublisherId
 
 Use the same definition for the PublisherId everywhere. `UA_PublisherId` is a
