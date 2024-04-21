@@ -216,6 +216,42 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
     STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
+/**
+* Library Information
+* -------------------
+*
+* Fill in BuildInfo and ApplicationDescription with our library value */
+UA_EXPORT void UA_BuildInfo_default(UA_BuildInfo *buildInfo)
+{
+	UA_BuildInfo_clear(buildInfo);
+	buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
+	buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
+	buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
+	buildInfo->softwareVersion =
+		UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
+			UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
+#ifdef UA_PACK_DEBIAN
+	buildInfo->buildNumber = UA_STRING_ALLOC("deb");
+#else
+	buildInfo->buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
+#endif
+	buildInfo->buildDate = UA_DateTime_now();
+}
+
+UA_EXPORT void UA_ApplicationDescription_default(UA_ApplicationDescription *applicationDescription)
+{
+	UA_ApplicationDescription_clear(applicationDescription);
+	applicationDescription->applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
+	applicationDescription->productUri = UA_STRING_ALLOC(PRODUCT_URI);
+	applicationDescription->applicationName =
+		UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
+	applicationDescription->applicationType = UA_APPLICATIONTYPE_SERVER;
+	/* applicationDescription->gatewayServerUri = UA_STRING_NULL; */
+	/* applicationDescription->discoveryProfileUri = UA_STRING_NULL; */
+	/* applicationDescription->discoveryUrlsSize = 0; */
+	/* applicationDescription->discoveryUrls = NULL; */
+}
+
 static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
             const UA_SecurityPolicy *securityPolicy,
@@ -341,30 +377,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->shutdownDelay = 0.0;
 
     /* Server Description */
-    UA_BuildInfo_clear(&conf->buildInfo);
-    conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    conf->buildInfo.manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
-    conf->buildInfo.productName = UA_STRING_ALLOC(PRODUCT_NAME);
-    conf->buildInfo.softwareVersion =
-        UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
-                                UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-#ifdef UA_PACK_DEBIAN
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-#else
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-#endif
-    conf->buildInfo.buildDate = UA_DateTime_now();
-
-    UA_ApplicationDescription_clear(&conf->applicationDescription);
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
-    conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    conf->applicationDescription.applicationName =
-        UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
-    conf->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
-    /* conf->applicationDescription.gatewayServerUri = UA_STRING_NULL; */
-    /* conf->applicationDescription.discoveryProfileUri = UA_STRING_NULL; */
-    /* conf->applicationDescription.discoveryUrlsSize = 0; */
-    /* conf->applicationDescription.discoveryUrls = NULL; */
+	UA_BuildInfo_default(&conf->buildInfo);
+	UA_ApplicationDescription_default(&conf->applicationDescription);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);
