@@ -1474,13 +1474,13 @@ DECODE_JSON(Boolean) {
     GET_TOKEN;
 
     if(tokenSize == 4 &&
-       tokenData[0] == 't' && tokenData[1] == 'r' &&
-       tokenData[2] == 'u' && tokenData[3] == 'e') {
+       (tokenData[0] | 32) == 't' && (tokenData[1] | 32) == 'r' &&
+       (tokenData[2] | 32) == 'u' && (tokenData[3] | 32) == 'e') {
         *dst = true;
     } else if(tokenSize == 5 &&
-              tokenData[0] == 'f' && tokenData[1] == 'a' &&
-              tokenData[2] == 'l' && tokenData[3] == 's' &&
-              tokenData[4] == 'e') {
+              (tokenData[0] | 32) == 'f' && (tokenData[1] | 32) == 'a' &&
+              (tokenData[2] | 32) == 'l' && (tokenData[3] | 32) == 's' &&
+              (tokenData[4] | 32) == 'e') {
         *dst = false;
     } else {
         return UA_STATUSCODE_BADDECODINGERROR;
