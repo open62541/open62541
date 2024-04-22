@@ -1,7 +1,7 @@
 // MIT License
 //
 // Copyright (c) 2020 Sepehr Taghdisian
-// Copyright (c) 2022 Julius Pfrommer
+// Copyright (c) 2022, 2024 Julius Pfrommer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -43,6 +43,7 @@
 //  [x] The root object may omit the surrounding brackets
 //  [x] Hash ('#') comments out until the end of the line.
 //  [x] Strings may include unescaped utf8 bytes
+//  [x] Booleans and null are case-insensitive
 //  [x] Optionally: Stop early when the first encountered JSON element (object,
 //      array, value) has been successfully parsed. Do not return an error when
 //      the input string was not processed to its full length. This allows the

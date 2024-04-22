@@ -870,6 +870,8 @@ if(UA_ENABLE_PARSING)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.h)
         list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_parser.c
+                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.h
+                                ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_lex.c
                                 ${PROJECT_SOURCE_DIR}/src/util/ua_eventfilter_grammar.c)
     endif()
 endif()
