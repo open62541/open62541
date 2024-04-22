@@ -202,19 +202,9 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 /***************************/
 /* Default Server Settings */
 /***************************/
-
-#define MANUFACTURER_NAME "open62541"
-#define PRODUCT_NAME "open62541 OPC UA Server"
-#define PRODUCT_URI "http://open62541.org"
-#define APPLICATION_NAME "open62541-based OPC UA Application"
 #define APPLICATION_URI "urn:unconfigured:application"
-#define APPLICATION_URI_SERVER "urn:open62541.server.application"
 
 #define SECURITY_POLICY_SIZE 6
-
-#define STRINGIFY(arg) #arg
-#define VERSION(MAJOR, MINOR, PATCH, LABEL) \
-    STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
 
 static UA_StatusCode
 addEndpoint(UA_ServerConfig *conf,
@@ -340,31 +330,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     conf->shutdownDelay = 0.0;
 
-    /* Server Description */
-    UA_BuildInfo_clear(&conf->buildInfo);
-    conf->buildInfo.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    conf->buildInfo.manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
-    conf->buildInfo.productName = UA_STRING_ALLOC(PRODUCT_NAME);
-    conf->buildInfo.softwareVersion =
-        UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
-                                UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
-#ifdef UA_PACK_DEBIAN
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC("deb");
-#else
-    conf->buildInfo.buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
-#endif
-    conf->buildInfo.buildDate = UA_DateTime_now();
-
-    UA_ApplicationDescription_clear(&conf->applicationDescription);
-    conf->applicationDescription.applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
-    conf->applicationDescription.productUri = UA_STRING_ALLOC(PRODUCT_URI);
-    conf->applicationDescription.applicationName =
-        UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
-    conf->applicationDescription.applicationType = UA_APPLICATIONTYPE_SERVER;
-    /* conf->applicationDescription.gatewayServerUri = UA_STRING_NULL; */
-    /* conf->applicationDescription.discoveryProfileUri = UA_STRING_NULL; */
-    /* conf->applicationDescription.discoveryUrlsSize = 0; */
-    /* conf->applicationDescription.discoveryUrls = NULL; */
+    UA_BuildInfo_default(&conf->buildInfo);
+    UA_ApplicationDescription_default(&conf->applicationDescription);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_MdnsDiscoveryConfiguration_clear(&conf->mdnsConfig);

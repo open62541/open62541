@@ -58,6 +58,17 @@ UA_Guid UA_EXPORT
 UA_Guid_random(void);   /* no cryptographic entropy */
 
 /**
+ * Library Information
+ * -------------------
+ *
+ * Fill in BuildInfo and ApplicationDescription with our library values */
+void UA_EXPORT
+UA_BuildInfo_default(UA_BuildInfo *buildInfo);
+
+void UA_EXPORT
+UA_ApplicationDescription_default(UA_ApplicationDescription *applicationDescription);
+
+/**
  * Key Value Map
  * -------------
  * Helper functions to work with configuration parameters in an array of

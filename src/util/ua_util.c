@@ -21,6 +21,50 @@
 #include "base64.h"
 #include "itoa.h"
 
+#define MANUFACTURER_NAME "open62541"
+#define PRODUCT_NAME "open62541 OPC UA Server"
+#define PRODUCT_URI "http://open62541.org"
+#define APPLICATION_NAME "open62541-based OPC UA Application"
+#define APPLICATION_URI_SERVER "urn:open62541.server.application"
+
+#define STRINGIFY(arg) #arg
+#define VERSION(MAJOR, MINOR, PATCH, LABEL) \
+    STRINGIFY(MAJOR) "." STRINGIFY(MINOR) "." STRINGIFY(PATCH) LABEL
+/**
+ * Library Information
+ * -------------------
+ *
+ * Fill in BuildInfo and ApplicationDescription with our library values */
+void UA_BuildInfo_default(UA_BuildInfo *buildInfo)
+{
+    UA_BuildInfo_clear(buildInfo);
+    buildInfo->productUri = UA_STRING_ALLOC(PRODUCT_URI);
+    buildInfo->manufacturerName = UA_STRING_ALLOC(MANUFACTURER_NAME);
+    buildInfo->productName = UA_STRING_ALLOC(PRODUCT_NAME);
+    buildInfo->softwareVersion =
+       UA_STRING_ALLOC(VERSION(UA_OPEN62541_VER_MAJOR, UA_OPEN62541_VER_MINOR,
+           UA_OPEN62541_VER_PATCH, UA_OPEN62541_VER_LABEL));
+#ifdef UA_PACK_DEBIAN
+    buildInfo->buildNumber = UA_STRING_ALLOC("deb");
+#else
+    buildInfo->buildNumber = UA_STRING_ALLOC(__DATE__ " " __TIME__);
+#endif
+    buildInfo->buildDate = UA_DateTime_now();
+}
+
+void UA_ApplicationDescription_default(UA_ApplicationDescription *applicationDescription)
+{
+    UA_ApplicationDescription_clear(applicationDescription);
+    applicationDescription->applicationUri = UA_STRING_ALLOC(APPLICATION_URI_SERVER);
+    applicationDescription->productUri = UA_STRING_ALLOC(PRODUCT_URI);
+    applicationDescription->applicationName = UA_LOCALIZEDTEXT_ALLOC("en", APPLICATION_NAME);
+    applicationDescription->applicationType = UA_APPLICATIONTYPE_SERVER;
+    /* applicationDescription->gatewayServerUri = UA_STRING_NULL; */
+    /* applicationDescription->discoveryProfileUri = UA_STRING_NULL; */
+    /* applicationDescription->discoveryUrlsSize = 0; */
+    /* applicationDescription->discoveryUrls = NULL; */
+}
+
 const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
     "WriteMask", "UserWriteMask", "IsAbstract", "Symmetric", "InverseName",
