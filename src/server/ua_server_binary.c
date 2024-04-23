@@ -1138,7 +1138,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
 static void
 addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
     char urlstr[1024];
-    mp_snprintf(urlstr, 1024, "opc.tcp://%*s:%d",
+    mp_snprintf(urlstr, 1024, "opc.tcp://%.*s:%d",
                 (int)hostname.length, (char*)hostname.data, port);
     UA_String discoveryServerUrl = UA_STRING(urlstr);
 
@@ -1157,7 +1157,7 @@ addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
                             &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
     if(res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "New DiscoveryUrl added: %*s", (int)discoveryServerUrl.length,
+                    "New DiscoveryUrl added: %.*s", (int)discoveryServerUrl.length,
                     (char*)discoveryServerUrl.data);
     } else {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
