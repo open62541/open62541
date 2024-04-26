@@ -99,7 +99,8 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                const UA_CreateSubscriptionRequest request,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
-                               UA_Client_DeleteSubscriptionCallback deleteCallback) {
+                               UA_Client_DeleteSubscriptionCallback deleteCallback,
+                               UA_Client_DataChangeCallback dataChangeCallback) {
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
@@ -111,6 +112,7 @@ UA_Client_Subscriptions_create(UA_Client *client,
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
+    sub->dataChangeCallback = dataChangeCallback;
 
     /* Send the request as a synchronous service call */
     __UA_Client_Service(client,
@@ -134,6 +136,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
                                      void *subscriptionContext,
                                      UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                      UA_Client_DeleteSubscriptionCallback deleteCallback,
+                                     UA_Client_DataChangeCallback dataChangeCallback,
                                      UA_ClientAsyncServiceCallback createCallback,
                                      void *userdata,
                                      UA_UInt32 *requestId) {
@@ -150,6 +153,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
+    sub->dataChangeCallback = dataChangeCallback;
 
     cc->userCallback = createCallback;
     cc->userData = userdata;
@@ -585,8 +589,9 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
 
     /* Set the clientHandle */
     for(size_t i = 0; i < data->request.itemsToCreateSize; i++)
-        data->request.itemsToCreate[i].requestedParameters.clientHandle =
-            ++client->monitoredItemHandles;
+        if(!data->request.itemsToCreate[i].requestedParameters.clientHandle)
+            data->request.itemsToCreate[i].requestedParameters.clientHandle =
+                ++client->monitoredItemHandles;
 
     return UA_STATUSCODE_GOOD;
 
@@ -1059,6 +1064,11 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
                               UA_DataChangeNotification *dataChangeNotification) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    if(sub->dataChangeCallback) {
+        sub->dataChangeCallback(client, sub->subscriptionId, sub->context, dataChangeNotification);
+        return;
+    }
+
     for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
         UA_MonitoredItemNotification *min = &dataChangeNotification->monitoredItems[j];
 
@@ -1206,7 +1216,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
     if(response->responseHeader.serviceResult == UA_STATUSCODE_BADSHUTDOWN)
         return;
 
-    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION) 
+    if(response->responseHeader.serviceResult == UA_STATUSCODE_BADNOSUBSCRIPTION)
     {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Received BadNoSubscription, delete internal information about subscription");

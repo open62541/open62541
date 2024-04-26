@@ -148,6 +148,7 @@ add_example(client_connect_loop client_connect_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(client_subscription_loop client_subscription_loop.c)
+    add_example(client_subscription_loop_complete_subscription client_subscription_loop_complete_subscription.c)
 endif()
 
 ####################

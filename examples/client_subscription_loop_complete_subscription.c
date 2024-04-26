@@ -14,12 +14,11 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
-#include "common.h"
-
 #include <signal.h>
 #include <stdlib.h>
 
 UA_Boolean running = true;
+UA_UInt32 currentTimeClientHandle = 42;
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Received Ctrl-C");
@@ -27,15 +26,23 @@ static void stopHandler(int sign) {
 }
 
 static void
-handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext,
-                           UA_UInt32 monId, void *monContext, UA_DataValue *value) {
+handler_currentTimeChanged(UA_Client *client, UA_UInt32 subId, void *subContext, UA_DataChangeNotification *dataChangeNotification) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "currentTime has changed!");
-    if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
-        UA_DateTime raw_date = *(UA_DateTime *) value->value.data;
-        UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
-                    dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
+
+    for(size_t i = 0; i < dataChangeNotification->monitoredItemsSize; i++) {
+        UA_MonitoredItemNotification* monitored_notification = &dataChangeNotification->monitoredItems[i];
+
+        if(monitored_notification->clientHandle == currentTimeClientHandle) {
+            UA_DataValue* value = &monitored_notification->value;
+
+            if(UA_Variant_hasScalarType(&value->value, &UA_TYPES[UA_TYPES_DATETIME])) {
+                UA_DateTime raw_date = *(UA_DateTime *) value->value.data;
+                UA_DateTimeStruct dts = UA_DateTime_toStruct(raw_date);
+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                            "date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
+                            dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
+            }
+        }
     }
 }
 
@@ -54,6 +61,7 @@ static void
 stateCallback(UA_Client *client, UA_SecureChannelState channelState,
               UA_SessionState sessionState, UA_StatusCode recoveryStatus) {
     switch(channelState) {
+    case UA_SECURECHANNELSTATE_FRESH:
     case UA_SECURECHANNELSTATE_CLOSED:
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "The client is disconnected");
         break;
@@ -77,7 +85,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         UA_CreateSubscriptionResponse response =
-            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback, NULL);
+            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback, handler_currentTimeChanged);
             if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Create subscription succeeded, id %u",
@@ -91,10 +99,12 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
             UA_MonitoredItemCreateRequest monRequest =
                 UA_MonitoredItemCreateRequest_default(currentTimeNode);
 
+            monRequest.requestedParameters.clientHandle = currentTimeClientHandle;
+
             UA_MonitoredItemCreateResult monResponse =
                 UA_Client_MonitoredItems_createDataChange(client, response.subscriptionId,
                                                           UA_TIMESTAMPSTORETURN_BOTH, monRequest,
-                                                          NULL, handler_currentTimeChanged, NULL);
+                                                          NULL, NULL, NULL);
             if(monResponse.statusCode == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Monitoring UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME', id %u",
@@ -132,7 +142,7 @@ main(void) {
                          "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
-            sleep_ms(1000);
+            UA_sleep_ms(1000);
             continue;
         }
 
