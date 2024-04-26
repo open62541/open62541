@@ -5,13 +5,13 @@ else()
 endif()
 
 # Load CMake Packages
-find_package(Check REQUIRED)
-set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
+find_package(check CONFIG REQUIRED)
+set(LIBS ${open62541_LIBRARIES})
 if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD"))
   list(APPEND LIBS subunit)
 endif()
 
-include_directories(${CHECK_INCLUDE_DIR})
+link_libraries($<IF:$<TARGET_EXISTS:Check::check>,Check::check,Check::checkShared>)
 #find_package(Threads REQUIRED)
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
