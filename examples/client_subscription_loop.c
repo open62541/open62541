@@ -2,13 +2,10 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 /**
- * Client disconnect handling
+ * Client subscription loop
  * --------------------------
- * This example shows you how to handle a client disconnect, e.g., if the server
- * is shut down while the client is connected. You just need to call connect
- * again and the client will automatically reconnect.
- *
- * This example is very similar to the tutorial_client_firststeps.c. */
+ * This example shows how to asynchronously subscribe to a variables.
+ * */
 
 #include <open62541/client_config_default.h>
 #include <open62541/client_subscriptions.h>

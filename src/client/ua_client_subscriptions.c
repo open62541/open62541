@@ -621,6 +621,8 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
 
     /* Set the clientHandle */
     for(size_t i = 0; i < data->request.itemsToCreateSize; i++)
+        /* Don't overwrite the client handle if it is already set by the user.
+           This is nesesary when the UA_Client_DataChangeCallback ist used */
         if(!data->request.itemsToCreate[i].requestedParameters.clientHandle)
             data->request.itemsToCreate[i].requestedParameters.clientHandle =
                 ++client->monitoredItemHandles;
