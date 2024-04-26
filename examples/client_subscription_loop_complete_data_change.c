@@ -8,7 +8,7 @@
  * changed monitored items in one single callback.
  *
  * The important part here is to manually set requestedParameters.clientHandle of the UA_MonitoredItemCreateRequest
- * and to use UA_Client_Subscriptions_create_complete_data_change instead of UA_Client_Subscriptions_create
+ * and to use UA_Client_Subscriptions_createCompleteDataChange instead of UA_Client_Subscriptions_create
  */
 
 #include <open62541/client_config_default.h>
@@ -87,7 +87,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         UA_CreateSubscriptionResponse response =
-            UA_Client_Subscriptions_create_complete_data_change(client, request, NULL, NULL, deleteSubscriptionCallback, handler_currentTimeChanged);
+            UA_Client_Subscriptions_createCompleteDataChange(client, request, NULL, NULL, deleteSubscriptionCallback, handler_currentTimeChanged);
             if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Create subscription succeeded, id %u",

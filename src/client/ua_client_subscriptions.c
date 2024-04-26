@@ -100,14 +100,14 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
-    return UA_Client_Subscriptions_create_complete_data_change(client, request,
+    return UA_Client_Subscriptions_createCompleteDataChange(client, request,
                                                                subscriptionContext,
                                                                statusChangeCallback,
                                                                deleteCallback, NULL);
 }
 
 UA_CreateSubscriptionResponse
-UA_Client_Subscriptions_create_complete_data_change(UA_Client *client,
+UA_Client_Subscriptions_createCompleteDataChange(UA_Client *client,
                                                     const UA_CreateSubscriptionRequest request,
                                                     void *subscriptionContext,
                                                     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
@@ -151,7 +151,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
                                      UA_ClientAsyncServiceCallback createCallback,
                                      void *userdata,
                                      UA_UInt32 *requestId) {
-    return UA_Client_Subscriptions_create_complete_data_change_async(client,
+    return UA_Client_Subscriptions_createCompleteDataChange_async(client,
                                                                      request,
                                                                      subscriptionContext,
                                                                      statusChangeCallback,
@@ -163,7 +163,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
 }
 
 UA_StatusCode
-UA_Client_Subscriptions_create_complete_data_change_async(UA_Client *client,
+UA_Client_Subscriptions_createCompleteDataChange_async(UA_Client *client,
                                      const UA_CreateSubscriptionRequest request,
                                      void *subscriptionContext,
                                      UA_Client_StatusChangeNotificationCallback statusChangeCallback,

@@ -344,7 +344,7 @@ START_TEST(Client_subscription_complete_data_change) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
-    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create_complete_data_change(client, request,
+    UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_createCompleteDataChange(client, request,
                                                                             NULL, NULL, NULL, dataChangeCompleteSubscriptionHandler);
     ck_assert_uint_eq(response.responseHeader.serviceResult, UA_STATUSCODE_GOOD);
     UA_UInt32 subId = response.subscriptionId;
@@ -421,7 +421,7 @@ START_TEST(Client_subscription_complete_data_change_async) {
 
     UA_UInt32 requestId = 0;
     UA_CreateSubscriptionResponse response;
-    retval = UA_Client_Subscriptions_create_complete_data_change_async(client, request, NULL, NULL, NULL, dataChangeCompleteSubscriptionHandler,
+    retval = UA_Client_Subscriptions_createCompleteDataChange_async(client, request, NULL, NULL, NULL, dataChangeCompleteSubscriptionHandler,
                                                   createSubscriptionCallback, &response,
                                                   &requestId);
 
