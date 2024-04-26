@@ -4,7 +4,7 @@
 /**
  * Client subscription loop
  * --------------------------
- * This example shows how to asynchronously subscribe to a variables.
+ * This example shows how to asynchronously subscribe to variables.
  * */
 
 #include <open62541/client_config_default.h>
