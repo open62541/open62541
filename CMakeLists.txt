@@ -307,8 +307,8 @@ option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" OFF)
 option(UA_ENABLE_DEBUG_SANITIZER "Use sanitizer in debug mode" ON)
 mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
 
-#General PubSub setup
-option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
+# General PubSub setup
+option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" ON)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
@@ -322,7 +322,7 @@ if(UA_ENABLE_PUBSUB_SKS)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
