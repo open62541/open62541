@@ -71,11 +71,27 @@ UA_Client_Subscriptions_create(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_create_async(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
+UA_CreateSubscriptionResponse UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_create_complete_data_change(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
     UA_Client_DataChangeCallback dataChangeCallback);
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_create_async(UA_Client *client,
+UA_Client_Subscriptions_create_complete_data_change_async(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,

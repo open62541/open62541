@@ -77,7 +77,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
         /* Create a subscription */
         UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
         UA_CreateSubscriptionResponse response =
-            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback, NULL);
+            UA_Client_Subscriptions_create(client, request, NULL, NULL, deleteSubscriptionCallback);
             if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
                 UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                             "Create subscription succeeded, id %u",

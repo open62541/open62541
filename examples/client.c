@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     /* Create a subscription */
     UA_CreateSubscriptionRequest request = UA_CreateSubscriptionRequest_default();
     UA_CreateSubscriptionResponse response = UA_Client_Subscriptions_create(client, request,
-                                                                            NULL, NULL, NULL, NULL);
+                                                                            NULL, NULL, NULL);
 
     UA_UInt32 subId = response.subscriptionId;
     if(response.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
