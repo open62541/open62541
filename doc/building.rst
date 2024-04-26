@@ -15,14 +15,14 @@ Building with CMake on Ubuntu or Debian
 
 .. code-block:: bash
 
-   sudo apt-get install git build-essential gcc pkg-config cmake python
+   sudo apt-get install git build-essential gcc pkg-config cmake python3
 
    # enable additional features
-   sudo apt-get install cmake-curses-gui # for the ccmake graphical interface
-   sudo apt-get install libmbedtls-dev # for encryption support
+   sudo apt-get install cmake-curses-gui     # for the ccmake graphical interface
+   sudo apt-get install libmbedtls-dev       # for encryption support
    sudo apt-get install check libsubunit-dev # for unit tests
-   sudo apt-get install python-sphinx graphviz # for documentation generation
-   sudo apt-get install python-sphinx-rtd-theme # documentation style
+   sudo apt-get install python3-sphinx graphviz  # for documentation generation
+   sudo apt-get install python3-sphinx-rtd-theme # documentation style
 
    cd open62541
    mkdir build
@@ -59,9 +59,6 @@ In your own CMake project you can then include the open62541 library using:
    add_executable(main main.cpp)
    target_link_libraries(main open62541::open62541)
 
-A full list of enabled features during build time is stored in the CMake
-Variable ``open62541_COMPONENTS_ALL``
-
 Building with CMake on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -70,7 +67,7 @@ with MinGW, just replace the compiler selection in the call to CMake.
 
 - Download and install
 
-  - Python 2.7.x (Python 3.x works as well): https://python.org/downloads
+  - Python 3.x: https://python.org/downloads
   - CMake: http://www.cmake.org/cmake/resources/software.html
   - Microsoft Visual Studio: https://www.visualstudio.com/products/visual-studio-community-vs
 
@@ -233,6 +230,12 @@ Main Build Options
   - ``Debug`` -O0 optimization with debug symbols
   - ``MinSizeRel`` -Os optimization without debug symbols
 
+**BUILD_SHARED_LIBS**
+   Build a shared library (dll/so) or (an archive of) object files for linking
+   into a static binary. Shared libraries are recommended for a system-wide
+   install. Note that this option modifies the :file:`ua_config.h` file that is
+   also included in :file:`open62541.h` for the single-file distribution.
+
 **UA_LOGLEVEL**
    The SDK logs events of the level defined in ``UA_LOGLEVEL`` and above only.
    The logging event levels are as follows:
@@ -272,16 +275,13 @@ artifacts can be specified by the following options:
    An individual test can be executed with ``make test ARGS="-R <test_name> -V"``.
    The list of available tests can be displayed with ``make test ARGS="-N"``.
 
-**UA_BUILD_SELFSIGNED_CERTIFICATE**
-   Generate a self-signed certificate for the server (openSSL required)
-
 Detailed SDK Features
 ^^^^^^^^^^^^^^^^^^^^^
 
 **UA_ENABLE_SUBSCRIPTIONS**
    Enable subscriptions
 
-**UA_ENABLE_SUBSCRIPTIONS_EVENTS (EXPERIMENTAL)**
+**UA_ENABLE_SUBSCRIPTIONS_EVENTS**
     Enable the use of events for subscriptions. This is a new feature and currently marked as EXPERIMENTAL.
 
 **UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS (EXPERIMENTAL)**
@@ -308,12 +308,16 @@ Detailed SDK Features
 
 **UA_ENABLE_COVERAGE**
    Measure the coverage of unit tests
+
 **UA_ENABLE_DISCOVERY**
    Enable Discovery Service (LDS)
+
 **UA_ENABLE_DISCOVERY_MULTICAST**
    Enable Discovery Service with multicast support (LDS-ME)
+
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
+
 **UA_ENABLE_ENCRYPTION**
    Enable encryption support and specify the used encryption backend. The possible
    options are:
@@ -321,13 +325,13 @@ Detailed SDK Features
    - ``MBEDTLS`` Encryption support using mbed TLS
    - ``OPENSSL`` Encryption support using OpenSSL
    - ``LIBRESSL`` EXPERIMENTAL: Encryption support using LibreSSL
+
 **UA_ENABLE_ENCRYPTION_TPM2**
    Enable TPM hardware for encryption. The possible options are:
       - ``OFF`` No TPM encryption support. (default)
       - ``ON`` TPM encryption support
 
 **UA_NAMESPACE_ZERO**
-
    Namespace zero contains the standard-defined nodes. The full namespace zero
    may not be required for all applications. The selectable options are as follows:
 
@@ -348,6 +352,7 @@ be visible in the cmake GUIs.
 
 **UA_ENABLE_STATUSCODE_DESCRIPTIONS**
    Compile the human-readable name of the StatusCodes into the binary. Enabled by default.
+
 **UA_ENABLE_FULL_NS0**
    Use the full NS0 instead of a minimal Namespace 0 nodeset
    ``UA_FILE_NS0`` is used to specify the file for NS0 generation from namespace0 folder. Default value is ``Opc.Ua.NodeSet2.xml``
@@ -358,12 +363,6 @@ PubSub Build Options
 **UA_ENABLE_PUBSUB**
    Enable the experimental OPC UA PubSub support. The option will include the
    PubSub UDP multicast plugin. Disabled by default.
-
-**UA_ENABLE_PUBSUB_DELTAFRAMES**
-   The PubSub messages differentiate between keyframe (all published values
-   contained) and deltaframe (only changed values contained) messages.
-   Deltaframe messages creation consumes some additional resources and can be
-   disabled with this flag. Disabled by default.
 
 **UA_ENABLE_PUBSUB_FILE_CONFIG**
    Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
@@ -393,16 +392,6 @@ This group contains build options mainly useful for development of the library i
 
 **UA_DEBUG_DUMP_PKGS**
    Dump every package received by the server as hexdump format
-
-Building a shared library
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-open62541 is small enough that most users will want to statically link the
-library into their programs. If a shared library (.dll, .so) is required, this
-can be enabled in CMake with the ``BUILD_SHARED_LIBS`` option. Note that this
-option modifies the :file:`ua_config.h` file that is also included in
-:file:`open62541.h` for the single-file distribution.
-
 
 Minimizing the binary size
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
