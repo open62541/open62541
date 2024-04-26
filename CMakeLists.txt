@@ -463,9 +463,26 @@ endif()
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
-# Advanced Build Targets
+##########################
+# Advanced Build Targets #
+##########################
+
+# Build packages - invoke via `make package`
 option(UA_PACK_DEBIAN "Special build switch used in .deb packaging" OFF)
 mark_as_advanced(UA_PACK_DEBIAN)
+if(UA_PACK_DEBIAN)
+    set(CPACK_GENERATOR "TGZ;DEB")
+    set(CPACK_PACKAGE_VENDOR "open62541 team")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
+    set(CPACK_PACKAGE_DESCRIPTION "open62541 (<http://open62541.org>) is an open source implementation of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
+    set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README.md")
+    set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+    set(CPACK_PACKAGE_VERSION_MAJOR "${OPEN62541_VER_MAJOR}")
+    set(CPACK_PACKAGE_VERSION_MINOR "${OPEN62541_VER_MINOR}")
+    set(CPACK_PACKAGE_VERSION_PATCH "${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") # required
+    include(CPack)
+endif()
 
 # Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
@@ -1560,10 +1577,6 @@ if(NOT UA_ENABLE_AMALGAMATION)
             install(FILES ${full_path} DESTINATION include/open62541${dir})
         endif()
     endforeach()
-endif()
-
-if(UA_PACK_DEBIAN)
-    add_subdirectory(tools/packaging)
 endif()
 
 ##################################
