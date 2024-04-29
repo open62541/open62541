@@ -64,7 +64,7 @@ typedef struct UA_Client_Subscription {
 } UA_Client_Subscription;
 
 void
-__Client_Subscriptions_clean(UA_Client *client);
+__Client_Subscriptions_clear(UA_Client *client);
 
 /* Exposed for fuzzing */
 UA_StatusCode
