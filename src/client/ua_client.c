@@ -219,7 +219,7 @@ UA_Client_clear(UA_Client *client) {
 
     /* Delete the subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-    __Client_Subscriptions_clean(client);
+    __Client_Subscriptions_clear(client);
 #endif
 
     /* Remove the internal regular callback */

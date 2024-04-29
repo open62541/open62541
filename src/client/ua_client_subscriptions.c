@@ -1325,7 +1325,7 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
 }
 
 void
-__Client_Subscriptions_clean(UA_Client *client) {
+__Client_Subscriptions_clear(UA_Client *client) {
     UA_Client_NotificationsAckNumber *n;
     UA_Client_NotificationsAckNumber *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
