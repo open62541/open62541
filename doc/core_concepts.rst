@@ -99,7 +99,7 @@ Session
   in possession of the private key with which the certificate was created.
 
   There are two message exchanges required to establish a session:
-  *CreateSession* and *ActicateSession*. The ActivateSession service can be used
+  *CreateSession* and *ActivateSession*. The ActivateSession service can be used
   to switch an existing session to a different SecureChannel. This is important,
   for example when the connection broke down and the existing session is
   reused with a new SecureChannel.
