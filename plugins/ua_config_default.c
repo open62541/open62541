@@ -595,7 +595,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
 
     UA_StatusCode retval = setDefaultConfig(config, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
+        UA_ServerConfig_clear(config);
         return retval;
     }
 
@@ -605,14 +605,14 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     /* Allocate the SecurityPolicies */
     retval = UA_ServerConfig_addSecurityPolicyNone(config, certificate);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
+        UA_ServerConfig_clear(config);
         return retval;
     }
 
     /* Initialize the Access Control plugin */
     retval = UA_AccessControl_default(config, true, NULL, 0, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
+        UA_ServerConfig_clear(config);
         return retval;
     }
 
@@ -620,7 +620,7 @@ UA_ServerConfig_setMinimalCustomBuffer(UA_ServerConfig *config, UA_UInt16 portNu
     retval = UA_ServerConfig_addEndpoint(config, UA_SECURITY_POLICY_NONE_URI,
                                          UA_MESSAGESECURITYMODE_NONE);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(config);
+        UA_ServerConfig_clear(config);
         return retval;
     }
 
@@ -932,7 +932,7 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
                                                size_t revocationListSize) {
     UA_StatusCode retval = setDefaultConfig(conf, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
 
@@ -956,13 +956,13 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         retval = UA_AccessControl_default(conf, true, NULL, 0, NULL);
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
 
     retval = UA_ServerConfig_addAllEndpoints(conf);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
 
@@ -982,7 +982,7 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                size_t revocationListSize) {
     UA_StatusCode retval = setDefaultConfig(conf, portNumber);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
 
@@ -1006,13 +1006,13 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
         retval = UA_AccessControl_default(conf, false, NULL, 0, NULL);
     }
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
 
     retval = UA_ServerConfig_addAllSecureEndpoints(conf);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_ServerConfig_clean(conf);
+        UA_ServerConfig_clear(conf);
         return retval;
     }
     conf->securityPolicyNoneDiscoveryOnly = true;

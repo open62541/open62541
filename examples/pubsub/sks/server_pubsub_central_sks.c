@@ -515,7 +515,7 @@ cleanup:
     if(server)
         UA_Server_delete(server);
     else
-        UA_ServerConfig_clean(&config);
+        UA_ServerConfig_clear(&config);
 
     UA_ByteString_clear(&certificate);
 #if defined(UA_ENABLE_ENCRYPTION)

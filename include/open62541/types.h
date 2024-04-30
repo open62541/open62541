@@ -1154,10 +1154,9 @@ UA_INLINABLE(void
 UA_StatusCode UA_EXPORT
 UA_copy(const void *src, void *dst, const UA_DataType *type);
 
-/* Deletes the dynamically allocated content of a variable (e.g. resets all
- * arrays to undefined arrays). Afterwards, the variable can be safely deleted
- * without causing memory leaks. But the variable is not initialized and may
- * contain old data that is not memory-relevant.
+/* Deletes the dynamically allocated content of a variable (e.g. deallocates all
+ * arrays in the variable). Also initializes the variable to default values.
+ * Afterwards, the variable can be safely deleted without causing memory leaks.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */

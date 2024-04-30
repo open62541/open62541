@@ -2181,7 +2181,7 @@ cleanupSession(UA_Client *client) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     /* We need to clean up the subscriptions */
-    __Client_Subscriptions_clean(client);
+    __Client_Subscriptions_clear(client);
 #endif
 
     /* Delete outstanding async services */
