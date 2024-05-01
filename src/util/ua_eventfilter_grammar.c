@@ -28,7 +28,6 @@
 /************ Begin %include sections from the grammar ************************/
 #include <open62541/util.h>
 #include "ua_eventfilter_parser.h"
-#include "open62541/plugin/log_stdout.h"
 
 #define UA_EventFilterParse_ENGINEALWAYSONSTACK 1
 #define NDEBUG 1
@@ -1398,14 +1397,15 @@ pos2lines(UA_ByteString *content, size_t pos,
 
 /* Main method driving the generated parser from the lexer */
 UA_StatusCode
-UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
+                     UA_EventFilterParserOptions *options) {
     yyParser parser;
     UA_EventFilterParseInit(&parser);
 
     EFParseContext ctx;
     memset(&ctx, 0, sizeof(EFParseContext));
     TAILQ_INIT(&ctx.select_operands);
-    ctx.logger = UA_Log_Stdout;
+    ctx.logger = (options) ? options->logger : NULL;
 
     size_t begin = 0, pos = 0;
     unsigned line = 0, col = 0;
@@ -1414,18 +1414,18 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
     UA_StatusCode res;
     do {
         /* Get the next token */
-        tokenId = UA_EventFilter_lex(content, &begin, &pos, &ctx, &token);
+        tokenId = UA_EventFilter_lex(&content, &begin, &pos, &ctx, &token);
         UA_EventFilterParse(&parser, tokenId, token, &ctx);
 
         /* Print an error if the parser could not handle the token */
         if(ctx.error != UA_STATUSCODE_GOOD) {
-            pos2lines(content, begin, &line, &col);
+            pos2lines(&content, begin, &line, &col);
             int extractLen = 10;
             if(pos - begin < 10)
                 extractLen = (int)(pos - begin);
             UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
                          "Could not process token at line %u, column %u: "
-                         "%.*s...", line, col, extractLen, content->data + begin);
+                         "%.*s...", line, col, extractLen, content.data + begin);
             res = UA_STATUSCODE_BADINTERNALERROR;
             goto done;
         }
@@ -1433,14 +1433,14 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
 
     /* The lexer stopped before the end of the input.
      * The token could not be read. */
-    if(pos < content->length) {
+    if(pos < content.length) {
         int extractLen = 10;
-        if(content->length - begin < 10)
-            extractLen = (int)(content->length - begin);
-        pos2lines(content, begin, &line, &col);
+        if(content.length - begin < 10)
+            extractLen = (int)(content.length - begin);
+        pos2lines(&content, begin, &line, &col);
         UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
                      "Could not recognize token at line %u, column %u: "
-                     "%.*s...", line, col, extractLen, content->data + begin);
+                     "%.*s...", line, col, extractLen, content.data + begin);
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto done;
     }
