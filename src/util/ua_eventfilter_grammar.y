@@ -71,22 +71,6 @@ namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) .
 
 %code {
 
-static void
-pos2lines(UA_ByteString *content, size_t pos,
-          unsigned *outLine, unsigned *outCol) {
-    unsigned line = 1, col = 1;
-    for(size_t i = 0; i < pos; i++) {
-        if(content->data[i] == '\n') {
-            line++;
-            col = 1;
-        } else {
-            col++;
-        }
-    }
-    *outLine = line;
-    *outCol = col;
-}
-
 /* Main method driving the generated parser from the lexer */
 UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
@@ -99,19 +83,25 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
     TAILQ_INIT(&ctx.select_operands);
     ctx.logger = (options) ? options->logger : NULL;
 
-    size_t begin = 0, pos = 0;
+    size_t pos = 0;
     unsigned line = 0, col = 0;
     Operand *token = NULL;
     int tokenId = 0;
     UA_StatusCode res;
     do {
+        /* Skip whitespace */
+        res = UA_EventFilter_skip(content, &pos, &ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            goto done;
+
         /* Get the next token */
-        tokenId = UA_EventFilter_lex(&content, &begin, &pos, &ctx, &token);
+        size_t begin = pos;
+        tokenId = UA_EventFilter_lex(content, &pos, &ctx, &token);
         UA_EventFilterParse(&parser, tokenId, token, &ctx);
 
         /* Print an error if the parser could not handle the token */
         if(ctx.error != UA_STATUSCODE_GOOD) {
-            pos2lines(&content, begin, &line, &col);
+            pos2lines(content, begin, &line, &col);
             int extractLen = 10;
             if(pos - begin < 10)
                 extractLen = (int)(pos - begin);
@@ -123,16 +113,18 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
         }
     } while(tokenId);
 
+    /* Skip trailing whitespace */
+    res = UA_EventFilter_skip(content, &pos, &ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        goto done;
+
     /* The lexer stopped before the end of the input.
      * The token could not be read. */
     if(pos < content.length) {
-        int extractLen = 10;
-        if(content.length - begin < 10)
-            extractLen = (int)(content.length - begin);
-        pos2lines(&content, begin, &line, &col);
+        pos2lines(content, pos, &line, &col);
         UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
-                     "Could not recognize token at line %u, column %u: "
-                     "%.*s...", line, col, extractLen, content.data + begin);
+                     "Token after the end of the EventFilter expression "
+                     "at line %u, column %u", line, col);
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto done;
     }

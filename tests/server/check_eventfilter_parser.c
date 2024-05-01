@@ -171,12 +171,30 @@ START_TEST(Case_13) {
     UA_EventFilter_clear(&filter);
 } END_TEST
 
-/* Token does not match the grammar*/
+/* Token does not match the grammar */
 START_TEST(Case_14) {
     char *inp = "SELECT WHERE";
     UA_String case1 = UA_STRING(inp);
     UA_StatusCode res = UA_EventFilter_parse(&filter, case1, NULL);
     ck_assert_int_ne(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Comment at the beginning */
+START_TEST(Case_15) {
+    char *inp = "// Comment\nSELECT /Severity";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+/* Comment at the end */
+START_TEST(Case_16) {
+    char *inp = "SELECT /Severity // Comment";
+    UA_String case1 = UA_STRING(inp);
+    UA_StatusCode res = UA_EventFilter_parse(&filter, case1, NULL);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     UA_EventFilter_clear(&filter);
 } END_TEST
 
@@ -198,6 +216,8 @@ int main(void) {
     tcase_add_test(tc_call, Case_12);
     tcase_add_test(tc_call, Case_13);
     tcase_add_test(tc_call, Case_14);
+    tcase_add_test(tc_call, Case_15);
+    tcase_add_test(tc_call, Case_16);
     suite_add_tcase(s, tc_call);
 
     SRunner *sr = srunner_create(s);

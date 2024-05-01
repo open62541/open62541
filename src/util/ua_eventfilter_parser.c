@@ -8,6 +8,22 @@
 
 #include "ua_eventfilter_parser.h"
 
+void
+pos2lines(const UA_ByteString content, size_t pos,
+          unsigned *outLine, unsigned *outCol) {
+    unsigned line = 1, col = 1;
+    for(size_t i = 0; i < pos; i++) {
+        if(content.data[i] == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+    }
+    *outLine = line;
+    *outCol = col;
+}
+
 static Operand *
 newOperand(EFParseContext *ctx) {
     Operand *op = (Operand*)UA_calloc(1, sizeof(Operand));
