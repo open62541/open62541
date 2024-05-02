@@ -36,18 +36,17 @@
 static void UA_EventFilterParseInit(void *);
 static void UA_EventFilterParseFinalize(void *p);
 int UA_EventFilterParseFallback(int iToken);
-static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token,
-                                EFParseContext *ctx);
+static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token, EFParseContext *ctx);
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols.
 ***************** Begin token definitions *************************************/
 #ifndef EF_TOK_AND
 #define EF_TOK_AND                             1
 #define EF_TOK_OR                              2
-#define EF_TOK_UNARY_OP                        3
-#define EF_TOK_BINARY_OP                       4
-#define EF_TOK_BETWEEN                         5
-#define EF_TOK_INLIST                          6
+#define EF_TOK_BINARY_OP                       3
+#define EF_TOK_BETWEEN                         4
+#define EF_TOK_INLIST                          5
+#define EF_TOK_UNARY_OP                        6
 #define EF_TOK_SELECT                          7
 #define EF_TOK_COMMA                           8
 #define EF_TOK_WHERE                           9
@@ -139,11 +138,11 @@ typedef union {
 #define UA_EventFilterParseCTX_PARAM
 #define UA_EventFilterParseCTX_FETCH
 #define UA_EventFilterParseCTX_STORE
-#define YYNSTATE             38
+#define YYNSTATE             34
 #define YYNRULE              25
 #define YYNRULE_WITH_ACTION  17
 #define YYNTOKEN             19
-#define YY_MAX_SHIFT         37
+#define YY_MAX_SHIFT         33
 #define YY_MIN_SHIFTREDUCE   48
 #define YY_MAX_SHIFTREDUCE   72
 #define YY_ERROR_ACTION      73
@@ -217,52 +216,50 @@ typedef union {
 **  yy_default[]       Default action for each state.
 **
 *********** Begin parsing tables **********************************************/
-#define YY_ACTTAB_COUNT (82)
+#define YY_ACTTAB_COUNT (76)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */   100,   11,    9,   37,    8,   34,   33,   11,    9,    1,
- /*    10 */     8,   34,   33,    5,    6,   16,   60,   35,   11,    9,
- /*    20 */     4,    8,   34,   33,   61,   10,   74,   17,   51,   25,
- /*    30 */    32,   91,   12,    2,   53,   54,   55,   11,    9,    3,
- /*    40 */     8,   34,   33,   30,   21,   80,   14,   25,   32,   31,
- /*    50 */     8,   34,   33,   73,   73,   73,   22,   80,   13,   23,
- /*    60 */    80,   18,   80,   19,   80,   87,   80,   28,   80,   29,
- /*    70 */    80,    7,   26,   80,   20,   80,   24,   80,   36,   36,
- /*    80 */    15,   93,
+ /*     0 */   100,   11,    9,    8,   30,   29,   11,    9,    8,   30,
+ /*    10 */    29,   74,   17,    6,   22,   80,   60,    1,   11,    9,
+ /*    20 */     8,   30,   29,   23,   80,   10,   18,   80,   51,   12,
+ /*    30 */    31,   53,   54,   55,   11,    9,    8,   30,   29,   19,
+ /*    40 */    80,   32,   32,   26,   21,   80,   25,   28,   91,   33,
+ /*    50 */    25,   28,   27,   87,   80,    5,   86,   80,   84,   80,
+ /*    60 */    85,   80,   20,   80,   24,   80,   14,    4,   16,   61,
+ /*    70 */     2,    3,    7,   13,   15,   93,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */    28,    1,    2,   22,    4,    5,    6,    1,    2,    7,
- /*    10 */     4,    5,    6,    9,    8,   21,   16,   14,    1,    2,
- /*    20 */     8,    4,    5,    6,   16,    3,   19,   20,   11,   24,
- /*    30 */    25,   26,   10,    8,   12,   13,   14,    1,    2,   15,
- /*    40 */     4,    5,    6,   23,   24,   25,   17,   24,   25,   26,
- /*    50 */     4,    5,    6,    4,    5,    6,   24,   25,   18,   24,
- /*    60 */    25,   24,   25,   24,   25,   24,   25,   24,   25,   24,
- /*    70 */    25,   15,   24,   25,   24,   25,   24,   25,   27,   28,
- /*    80 */     8,    0,   29,   29,   29,   29,   29,   29,   29,   29,
- /*    90 */    29,   29,   29,   29,   29,   29,   29,   29,   29,   29,
- /*   100 */    29,
+ /*     0 */    28,    1,    2,    3,    4,    5,    1,    2,    3,    4,
+ /*    10 */     5,   19,   20,    8,   24,   25,   16,    7,    1,    2,
+ /*    20 */     3,    4,    5,   24,   25,    6,   24,   25,   11,   10,
+ /*    30 */    14,   12,   13,   14,    1,    2,    3,    4,    5,   24,
+ /*    40 */    25,   27,   28,   23,   24,   25,   24,   25,   26,   22,
+ /*    50 */    24,   25,   26,   24,   25,    9,   24,   25,   24,   25,
+ /*    60 */    24,   25,   24,   25,   24,   25,   17,    8,   21,   16,
+ /*    70 */     8,   15,   15,   18,    8,    0,   29,   29,   29,   29,
+ /*    80 */    29,   29,   29,   29,   29,   29,   29,   29,   29,   29,
+ /*    90 */    29,   29,   29,   29,   29,
 };
-#define YY_SHIFT_COUNT    (37)
+#define YY_SHIFT_COUNT    (33)
 #define YY_SHIFT_MIN      (0)
-#define YY_SHIFT_MAX      (81)
+#define YY_SHIFT_MAX      (75)
 static const unsigned char yy_shift_ofst[] = {
- /*     0 */     2,   22,   22,   22,   22,   22,   22,   22,   22,   22,
- /*    10 */    22,   22,   22,   22,    3,    3,   29,    4,    0,    6,
- /*    20 */    17,   36,   36,   36,   36,   36,   46,   49,   46,   46,
- /*    30 */    12,    8,   25,   24,   56,   40,   72,   81,
+ /*     0 */    10,   19,   19,   19,   19,   19,   19,   19,   19,   19,
+ /*    10 */    19,   19,   19,   19,   16,   16,   49,   46,    0,    5,
+ /*    20 */    17,   33,   33,   33,   33,   33,   59,   53,   62,   56,
+ /*    30 */    57,   55,   66,   75,
 };
 #define YY_REDUCE_COUNT (17)
 #define YY_REDUCE_MIN   (-28)
-#define YY_REDUCE_MAX   (52)
+#define YY_REDUCE_MAX   (47)
 static const signed char yy_reduce_ofst[] = {
- /*     0 */     7,   20,    5,   23,   32,   35,   37,   39,   41,   43,
- /*    10 */    45,   48,   50,   52,   51,  -28,  -19,   -6,
+ /*     0 */    -8,   20,   22,   26,  -10,   -1,    2,   15,   29,   32,
+ /*    10 */    34,   36,   38,   40,   14,  -28,   27,   47,
 };
 static const YYACTIONTYPE yy_default[] = {
  /*     0 */    94,   73,   73,   73,   73,   73,   73,   73,   73,   73,
  /*    10 */    73,   73,   73,   73,   73,   73,   97,   96,   73,   73,
- /*    20 */    73,   76,   77,   78,   92,   90,   85,   87,   86,   84,
- /*    30 */    95,   73,   80,   73,   73,   73,   98,   73,
+ /*    20 */    73,   76,   77,   78,   92,   90,   95,   73,   80,   73,
+ /*    30 */    73,   73,   98,   73,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -373,10 +370,10 @@ static const char *const yyTokenName[] = {
   /*    0 */ "$",
   /*    1 */ "AND",
   /*    2 */ "OR",
-  /*    3 */ "UNARY_OP",
-  /*    4 */ "BINARY_OP",
-  /*    5 */ "BETWEEN",
-  /*    6 */ "INLIST",
+  /*    3 */ "BINARY_OP",
+  /*    4 */ "BETWEEN",
+  /*    5 */ "INLIST",
+  /*    6 */ "UNARY_OP",
   /*    7 */ "SELECT",
   /*    8 */ "COMMA",
   /*    9 */ "WHERE",
@@ -559,10 +556,10 @@ static void yy_destructor(
       /* TERMINAL Destructor */
     case 1: /* AND */
     case 2: /* OR */
-    case 3: /* UNARY_OP */
-    case 4: /* BINARY_OP */
-    case 5: /* BETWEEN */
-    case 6: /* INLIST */
+    case 3: /* BINARY_OP */
+    case 4: /* BETWEEN */
+    case 5: /* INLIST */
+    case 6: /* UNARY_OP */
     case 7: /* SELECT */
     case 8: /* COMMA */
     case 9: /* WHERE */

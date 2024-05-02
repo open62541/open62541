@@ -250,7 +250,14 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
     if(!ctx->top)
         return UA_STATUSCODE_GOOD; /* No where clause */
 
-    size_t count = markPrinted(ctx, ctx->top, &res); /* Count relevant filter elements */
+    Operand *top = resolveOperandRef(ctx, ctx->top, 0);
+    if(!top || top->type != OT_OPERATOR) {
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                     "The where clause has no top-level operator");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    size_t count = markPrinted(ctx, top, &res); /* Count relevant filter elements */
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
