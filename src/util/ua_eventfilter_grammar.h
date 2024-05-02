@@ -1,9 +1,9 @@
 #define EF_TOK_AND                              1
 #define EF_TOK_OR                               2
-#define EF_TOK_UNARY_OP                         3
-#define EF_TOK_BINARY_OP                        4
-#define EF_TOK_BETWEEN                          5
-#define EF_TOK_INLIST                           6
+#define EF_TOK_BINARY_OP                        3
+#define EF_TOK_BETWEEN                          4
+#define EF_TOK_INLIST                           5
+#define EF_TOK_UNARY_OP                         6
 #define EF_TOK_SELECT                           7
 #define EF_TOK_COMMA                            8
 #define EF_TOK_WHERE                            9

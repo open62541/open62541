@@ -14,9 +14,8 @@
 %token_type	{ Operand * }
 %syntax_error { ctx->error = UA_STATUSCODE_BADINTERNALERROR; }
 %token_destructor { (void)ctx; }
-%left AND OR .
+%left AND OR BINARY_OP BETWEEN INLIST .
 %right UNARY_OP .
-%nonassoc BINARY_OP BETWEEN INLIST .
 
 %include {
 #include <open62541/util.h>
@@ -29,8 +28,7 @@
 static void UA_EventFilterParseInit(void *);
 static void UA_EventFilterParseFinalize(void *p);
 int UA_EventFilterParseFallback(int iToken);
-static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token,
-                                EFParseContext *ctx);
+static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token, EFParseContext *ctx);
 }
 
 /* Returns the top operator of the whereClause (or NULL) */
