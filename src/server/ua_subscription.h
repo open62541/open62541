@@ -80,9 +80,6 @@ UA_Notification * UA_Notification_new(void);
 void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
 
-/* Dequeue and delete the notification */
-void UA_Notification_delete(UA_Notification *n);
-
 /* A NotificationMessage contains an array of notifications.
  * Sent NotificationMessages are stored for the republish service. */
 typedef struct UA_NotificationMessageEntry {
