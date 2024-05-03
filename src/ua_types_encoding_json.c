@@ -2171,8 +2171,10 @@ getExtensionObjectType(ParseCtx *ctx) {
     UA_NodeId_init(&typeId);
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     ctx->index = oldIndex;
-    if(ret != UA_STATUSCODE_GOOD)
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&typeId); /* We don't have the global cleanup */
         return NULL;
+    }
 
     /* Lookup an return */
     const UA_DataType *type = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
