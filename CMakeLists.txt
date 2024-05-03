@@ -915,8 +915,8 @@ if(UA_ENABLE_SUBSCRIPTIONS)
             message(FATAL_ERROR "Events require at least the reduced Namespace Zero")
         endif()
         list(APPEND lib_sources
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events.c
-                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_events_filter.c)
+                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_event.c
+                    ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_eventfilter.c)
         if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
             list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_alarms_conditions.c)
         endif()
