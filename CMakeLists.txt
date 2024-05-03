@@ -908,7 +908,6 @@ endif()
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
-                            ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_monitoreditem.c
                             ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_datachange.c)
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
         if(UA_NAMESPACE_ZERO STREQUAL "MINIMAL")

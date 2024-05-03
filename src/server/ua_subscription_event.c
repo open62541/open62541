@@ -202,7 +202,8 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
                                        &notification->data.event, &res);
     UA_EventFilterResult_clear(&res);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(notification);
+        UA_EventFieldList_clear(&notification->data.event);
+        UA_free(notification);
         if(retval == UA_STATUSCODE_BADNOMATCH)
             return UA_STATUSCODE_GOOD;
         return retval;
