@@ -979,17 +979,11 @@ ENCODE_JSON(ExtensionObject) {
     return ret | writeJsonObjEnd(ctx);
 }
 
-/* Internally decides whether the value needs to be wrapped in an ExtensionObject */
+/* Non-builtin types get wrapped in an ExtensionObject */
 static status
-Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
-                                      CtxJson *ctx) {
-    if(isArray) {
-        if(src->arrayLength > UA_INT32_MAX)
-            return UA_STATUSCODE_BADENCODINGERROR;
-    }
-
+encodeScalarJsonWrapExtensionObject(CtxJson *ctx, const UA_Variant *src) {
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
-    uintptr_t ptr = (uintptr_t)src->data;
+    const void *ptr = src->data;
     const UA_DataType *type = src->type;
 
     /* Set up a temporary ExtensionObject to wrap the data */
@@ -998,39 +992,59 @@ Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
         UA_ExtensionObject_init(&eo);
         eo.encoding = UA_EXTENSIONOBJECT_DECODED;
         eo.content.decoded.type = src->type;
-        eo.content.decoded.data = (void*)ptr;
-        ptr = (uintptr_t)&eo;
+        eo.content.decoded.data = src->data;
+        ptr = &eo;
         type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
     }
 
-    if(isArray) {
-        u16 memSize = src->type->memSize;
-        status ret = writeJsonArrStart(ctx);
-        for(size_t i = 0; i < src->arrayLength && ret == UA_STATUSCODE_GOOD; ++i) {
+    return encodeJsonJumpTable[type->typeKind](ctx, ptr, type);
+}
+
+/* Non-builtin types get wrapped in an ExtensionObject */
+static status
+encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
+                                   size_t size, const UA_DataType *type) {
+    if(size > UA_INT32_MAX)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    status ret = writeJsonArrStart(ctx);
+
+    u16 memSize = type->memSize;
+    const UA_Boolean isBuiltin = (type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(isBuiltin) {
+        uintptr_t ptr = (uintptr_t)data;
+        for(size_t i = 0; i < size && ret == UA_STATUSCODE_GOOD; ++i) {
             ret |= writeJsonArrElm(ctx, (const void*)ptr, type);
-            if(isBuiltin)
-                ptr += memSize;
-            else
-                eo.content.decoded.data = (void*)
-                    ((uintptr_t)eo.content.decoded.data + memSize);
+            ptr += memSize;
         }
-        return ret | writeJsonArrEnd(ctx);
+    } else {
+        /* Set up a temporary ExtensionObject to wrap the data */
+        UA_ExtensionObject eo;
+        UA_ExtensionObject_init(&eo);
+        eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+        eo.content.decoded.type = type;
+        eo.content.decoded.data = (void*)(uintptr_t)data;
+        for(size_t i = 0; i < size && ret == UA_STATUSCODE_GOOD; ++i) {
+            ret |= writeJsonArrElm(ctx, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+            eo.content.decoded.data = (void*)
+                ((uintptr_t)eo.content.decoded.data + memSize);
+        }
     }
 
-    return encodeJsonJumpTable[type->typeKind](ctx, (const void*)ptr, type);
+    return ret | writeJsonArrEnd(ctx);
 }
 
 static status
 addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
                          size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex,
                          size_t dimensionSize) {
-    /* Stop recursion: The inner Arrays are written */
+    /* Stop recursion: The inner arrays are written */
     status ret;
     if(dimensionIndex == (dimensionSize - 1)) {
-        ret = encodeJsonArray(ctx, ((u8*)array) + (type->memSize * *index),
-                              arrayDimensions[dimensionIndex], type);
+        u8 *ptr = ((u8 *)array) + (type->memSize * *index);
+        u32 size = arrayDimensions[dimensionIndex];
         (*index) += arrayDimensions[dimensionIndex];
-        return ret;
+        return encodeArrayJsonWrapExtensionObject(ctx, ptr, size, type);
     }
 
     /* Recurse to the next dimension */
@@ -1066,8 +1080,8 @@ ENCODE_JSON(Variant) {
 
     status ret = writeJsonObjStart(ctx);
 
+    /* Write the type NodeId */
     if(ctx->useReversible) {
-        /* Write the NodeId for the reversible form */
         UA_UInt32 typeId = src->type->typeId.identifier.numeric;
         if(wrapEO)
             typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
@@ -1075,22 +1089,27 @@ ENCODE_JSON(Variant) {
         ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
     }
 
+    /* Write the Variant body */
     ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
 
-    /* Special case of non-reversible array with dimensions */
-    if(!ctx->useReversible && hasDimensions) {
-        size_t index = 0;
-        ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
-                                        src->arrayDimensions, 0,
-                                        src->arrayDimensionsSize);
-        return ret | writeJsonObjEnd(ctx);
-    }
-
-    ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
-    if(hasDimensions) {
-        ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
-        ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
-                               &UA_TYPES[UA_TYPES_INT32]);
+    if(!isArray) {
+        encodeScalarJsonWrapExtensionObject(ctx, src);
+    } else {
+        if(ctx->useReversible || !hasDimensions) {
+            ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
+                                                      src->arrayLength, src->type);
+            if(hasDimensions) {
+                ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
+                ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
+                                       &UA_TYPES[UA_TYPES_INT32]);
+            }
+        } else {
+            /* Special case of non-reversible array with dimensions */
+            size_t index = 0;
+            ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
+                                            src->arrayDimensions, 0,
+                                            src->arrayDimensionsSize);
+        }
     }
 
     return ret | writeJsonObjEnd(ctx);
