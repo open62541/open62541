@@ -87,11 +87,10 @@ static WRITE_JSON_ELEMENT(Quote) {
 
 UA_StatusCode
 writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
-    /* Comma if needed */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    /* Comma if needed */
     if(ctx->commaNeeded[ctx->depth])
         res |= writeChar(ctx, ',');
-
     if(ctx->prettyPrint) {
         if(distinct) {
             /* Newline and indent if needed */
@@ -103,7 +102,6 @@ writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
             res |= writeChar(ctx, ' ');
         }
     }
-
     return res;
 }
 
@@ -130,8 +128,7 @@ WRITE_JSON_ELEMENT(ObjEnd) {
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
     }
-    res |= writeChar(ctx, '}');
-    return res;
+    return res | writeChar(ctx, '}');
 }
 
 WRITE_JSON_ELEMENT(ArrStart) {
@@ -155,8 +152,7 @@ WRITE_JSON_ELEMENT(ArrEnd) {
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
     }
-    res |= writeChar(ctx, ']');
-    return res;
+    return res | writeChar(ctx, ']');
 }
 
 status
@@ -165,8 +161,7 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
     UA_Boolean distinct = (type->typeKind > UA_DATATYPEKIND_DOUBLE);
     status ret = writeJsonBeforeElement(ctx, distinct);
     ctx->commaNeeded[ctx->depth] = true;
-    ret |= encodeJsonJumpTable[type->typeKind](ctx, value, type);
-    return ret;
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 status
@@ -445,8 +440,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
-    ret |= writeJsonArrEnd(ctx);
-    return ret;
+    return ret | writeJsonArrEnd(ctx);
 }
 
 static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
@@ -604,8 +598,7 @@ ENCODE_JSON(String) {
         str = pos = end;
     }
 
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 ENCODE_JSON(ByteString) {
@@ -639,8 +632,7 @@ ENCODE_JSON(ByteString) {
     /* Base64 result no longer needed */
     UA_free(ba64);
 
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 /* Guid */
@@ -651,8 +643,7 @@ ENCODE_JSON(Guid) {
     if(!ctx->calcOnly)
         UA_Guid_to_hex(src, ctx->pos, false);
     ctx->pos += 36;
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 static u8
@@ -788,8 +779,7 @@ ENCODE_JSON(NodeId) {
         }
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* ExpandedNodeId */
@@ -871,8 +861,7 @@ ENCODE_JSON(ExpandedNodeId) {
         ret |= ENCODE_DIRECT_JSON(&serverUriEntry, String);
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* LocalizedText */
@@ -883,8 +872,7 @@ ENCODE_JSON(LocalizedText) {
         ret |= ENCODE_DIRECT_JSON(&src->locale, String);
         ret |= writeJsonKey(ctx, UA_JSONKEY_TEXT);
         ret |= ENCODE_DIRECT_JSON(&src->text, String);
-        ret |= writeJsonObjEnd(ctx);
-        return ret;
+        return ret | writeJsonObjEnd(ctx);
     }
 
     /* For the non-reversible form, LocalizedText value shall be encoded as a
@@ -1040,18 +1028,13 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
 
     /* Recurse to the next dimension */
     ret = writeJsonArrStart(ctx);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
     for(size_t i = 0; i < arrayDimensions[dimensionIndex]; i++) {
         ret |= writeJsonBeforeElement(ctx, true);
         ret |= addMultiArrayContentJSON(ctx, array, type, index, arrayDimensions,
                                         dimensionIndex + 1, dimensionSize);
         ctx->commaNeeded[ctx->depth] = true;
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
-    ret |= writeJsonArrEnd(ctx);
-    return ret;
+    return ret | writeJsonArrEnd(ctx);
 }
 
 ENCODE_JSON(Variant) {
@@ -1238,8 +1221,7 @@ encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
         }
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 static status
@@ -1322,11 +1304,10 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     res = encodeJsonJumpTable[type->typeKind](&ctx, src, type);
 
     /* Clean up */
-    if(res == UA_STATUSCODE_GOOD) {
+    if(res == UA_STATUSCODE_GOOD)
         outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
-    } else if(allocated) {
+    else if(allocated)
         UA_ByteString_clear(outBuf);
-    }
     return res;
 }
 
@@ -1341,7 +1322,6 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     options.prettyPrint = true;
     options.unquotedKeys = true;
     options.stringNodeIds = true;
-
     return UA_encodeJson(p, type, output, &options);
 }
 
@@ -1938,6 +1918,7 @@ decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type)
             break;
         }
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1967,6 +1948,7 @@ decodeExpandedNodeIdServerUri(ParseCtx *ctx, void *dst, const UA_DataType *type)
             break;
         }
     }
+
     UA_String_clear(&uri);
     return ret;
 }
@@ -2418,6 +2400,7 @@ DECODE_JSON(Variant) {
     dst->data = UA_new(dst->type);
     if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
     DecodeEntry entries[2] = {
         {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
         {UA_JSONKEY_BODY, dst->data, NULL, false, dst->type}
@@ -2503,7 +2486,6 @@ DECODE_JSON(ExtensionObject) {
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
-
         return decodeFields(ctx, entries, 3);
     }
 
