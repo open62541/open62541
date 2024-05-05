@@ -32,7 +32,8 @@ UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topic
 static UA_TopicAssign *
 UA_TopicAssign_new(UA_ReaderGroup *readerGroup,
                    UA_String topic, const UA_Logger *logger) {
-    UA_TopicAssign *topicAssign = (UA_TopicAssign *) calloc(1, sizeof(UA_TopicAssign));
+    UA_TopicAssign *topicAssign = (UA_TopicAssign *)
+        UA_calloc(1, sizeof(UA_TopicAssign));
     if(!topicAssign) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "PubSub TopicAssign creation failed. Out of Memory.");
@@ -68,7 +69,8 @@ ZIP_FUNCTIONS(UA_ReserveIdTree, UA_ReserveId, treeEntry, UA_ReserveId, id, cmpRe
 static UA_ReserveId *
 UA_ReserveId_new(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
                  UA_ReserveIdType reserveIdType, UA_NodeId sessionId) {
-    UA_ReserveId *reserveId = (UA_ReserveId *) calloc(1, sizeof(UA_ReserveId));
+    UA_ReserveId *reserveId = (UA_ReserveId *)
+        UA_calloc(1, sizeof(UA_ReserveId));
     if(!reserveId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. Out of Memory.");
