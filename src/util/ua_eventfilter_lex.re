@@ -48,11 +48,37 @@
     escaped = ('&' (.\[\x00]) | [^\x00/.<>:#!&,()\x5b\x5d \t\n\v\f\r]);
 */
 
+UA_StatusCode
+UA_EventFilter_skip(const UA_ByteString content, size_t *offset,
+                    EFParseContext *ctx) {
+    const char *pos = (const char*)&content.data[*offset];
+    const char *end = (const char*)&content.data[content.length];
+
+  begin:
+    *offset = (uintptr_t)(pos - (const char*)content.data);
+    size_t initial = *offset;
+
+    /*!re2c
+    space             { goto begin; }
+    '//' [^\n\r\x00]* { goto begin; }
+    '/*' { for(; pos < end - 1; pos++)
+           { if(pos[0] == '*' && pos[1] == '/') { pos += 2; goto begin; } }
+           unsigned c = 0, l = 0;
+           pos2lines(content, initial, &l, &c);
+           UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                        "The comment starting at line %u, column %u "
+                        "never terminates", l, c);
+           return UA_STATUSCODE_BADINTERNALERROR;
+         }
+    * { return UA_STATUSCODE_GOOD; }
+    */
+}
+
 int
-UA_EventFilter_lex(const UA_ByteString *content, size_t *begin,
-                   size_t *offset, EFParseContext *ctx, Operand **token) {
-    const char *pos = (const char*)&content->data[*offset];
-    const char *end = (const char*)&content->data[content->length];
+UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
+                   EFParseContext *ctx, Operand **token) {
+    const char *pos = (const char*)&content.data[*offset];
+    const char *end = (const char*)&content.data[content.length];
     const char *m, *b; /* marker, match begin */
     /*!stags:re2c format = 'const char *@@;'; */
     const UA_DataType *lt; /* literal type */
@@ -64,14 +90,8 @@ UA_EventFilter_lex(const UA_ByteString *content, size_t *begin,
     while(true) {
         /* Store the beginning */
         b = pos;
-        *begin = (uintptr_t)(pos - (const char*)content->data);
 
         /*!re2c
-        /* Whitespace and Comments */
-        space                { continue; }
-        '//' [^\n\r]* newline { continue; }
-        '/*' { for(; pos < end - 1; pos++) {if(pos[0] == '*' && pos[1] == '/') { pos += 2; break; } } continue; }
-
         /* Structural Token */
         '('      { tokenId = EF_TOK_LPAREN;     goto finish; }
         ')'      { tokenId = EF_TOK_RPAREN;     goto finish; }
@@ -209,7 +229,7 @@ finish:
 
     /* Update the offset */
     if(tokenId != 0)
-        *offset = (uintptr_t)(pos - (const char*)content->data);
+        *offset = (uintptr_t)(pos - (const char*)content.data);
 
     return tokenId;
 }

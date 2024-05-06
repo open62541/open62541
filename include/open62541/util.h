@@ -9,6 +9,7 @@
 #define UA_HELPER_H_
 
 #include <open62541/types.h>
+#include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
 #include <open62541/types_generated_handling.h>
 
@@ -28,15 +29,21 @@ typedef struct {
     UA_Duration max;
 } UA_DurationRange;
 
+typedef struct {
+    const UA_Logger *logger;
+} UA_EventFilterParserOptions;
+
 /**
  * Query Language Eventfilter
  * @param content eventfilter query
  * @param filter generated eventfilter
+ * @param options Can be NULL.
  */
 #ifdef UA_ENABLE_PARSING
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_EXPORT UA_StatusCode
-UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content);
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
+                     UA_EventFilterParserOptions *options);
 #endif
 #endif
 

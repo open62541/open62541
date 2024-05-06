@@ -8,6 +8,22 @@
 
 #include "ua_eventfilter_parser.h"
 
+void
+pos2lines(const UA_ByteString content, size_t pos,
+          unsigned *outLine, unsigned *outCol) {
+    unsigned line = 1, col = 1;
+    for(size_t i = 0; i < pos; i++) {
+        if(content.data[i] == '\n') {
+            line++;
+            col = 1;
+        } else {
+            col++;
+        }
+    }
+    *outLine = line;
+    *outCol = col;
+}
+
 static Operand *
 newOperand(EFParseContext *ctx) {
     Operand *op = (Operand*)UA_calloc(1, sizeof(Operand));
@@ -234,7 +250,14 @@ create_filter(EFParseContext *ctx, UA_EventFilter *filter) {
     if(!ctx->top)
         return UA_STATUSCODE_GOOD; /* No where clause */
 
-    size_t count = markPrinted(ctx, ctx->top, &res); /* Count relevant filter elements */
+    Operand *top = resolveOperandRef(ctx, ctx->top, 0);
+    if(!top || top->type != OT_OPERATOR) {
+        UA_LOG_ERROR(ctx->logger, UA_LOGCATEGORY_USERLAND,
+                     "The where clause has no top-level operator");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    size_t count = markPrinted(ctx, top, &res); /* Count relevant filter elements */
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
