@@ -67,10 +67,19 @@ void append_operand(Operand *op, Operand *on);
 void append_select(EFParseContext *ctx, Operand *on);
 UA_StatusCode create_filter(EFParseContext *ctx, UA_EventFilter *filter);
 
+/* Skip whitespace and comments */
+UA_StatusCode
+UA_EventFilter_skip(const UA_ByteString content, size_t *offset, EFParseContext *ctx);
+
 /* The begin offset is set to the beginning of the token (after comments and
  * whitespace). If we we attempt to parse a token. */
-int UA_EventFilter_lex(const UA_ByteString *content, size_t *begin, size_t *offset,
+int UA_EventFilter_lex(const UA_ByteString content, size_t *offset,
                        EFParseContext *ctx, Operand **token);
+
+/* Translate from the offset to lines/columns of the input */
+void
+pos2lines(const UA_ByteString content, size_t pos,
+          unsigned *outLine, unsigned *outCol);
 
 _UA_END_DECLS
 

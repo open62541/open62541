@@ -14,14 +14,12 @@
 %token_type	{ Operand * }
 %syntax_error { ctx->error = UA_STATUSCODE_BADINTERNALERROR; }
 %token_destructor { (void)ctx; }
-%left AND OR .
+%left AND OR BINARY_OP BETWEEN INLIST .
 %right UNARY_OP .
-%nonassoc BINARY_OP BETWEEN INLIST .
 
 %include {
 #include <open62541/util.h>
 #include "ua_eventfilter_parser.h"
-#include "open62541/plugin/log_stdout.h"
 
 #define UA_EventFilterParse_ENGINEALWAYSONSTACK 1
 #define NDEBUG 1
@@ -30,8 +28,7 @@
 static void UA_EventFilterParseInit(void *);
 static void UA_EventFilterParseFinalize(void *p);
 int UA_EventFilterParseFallback(int iToken);
-static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token,
-                                EFParseContext *ctx);
+static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token, EFParseContext *ctx);
 }
 
 /* Returns the top operator of the whereClause (or NULL) */
@@ -72,41 +69,32 @@ namedOperandAssignment ::= NAMEDOPERAND(NAME) COLONEQUAL operand(OP) .
 
 %code {
 
-static void
-pos2lines(UA_ByteString *content, size_t pos,
-          unsigned *outLine, unsigned *outCol) {
-    unsigned line = 1, col = 1;
-    for(size_t i = 0; i < pos; i++) {
-        if(content->data[i] == '\n') {
-            line++;
-            col = 1;
-        } else {
-            col++;
-        }
-    }
-    *outLine = line;
-    *outCol = col;
-}
-
 /* Main method driving the generated parser from the lexer */
 UA_StatusCode
-UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
+UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
+                     UA_EventFilterParserOptions *options) {
     yyParser parser;
     UA_EventFilterParseInit(&parser);
 
     EFParseContext ctx;
     memset(&ctx, 0, sizeof(EFParseContext));
     TAILQ_INIT(&ctx.select_operands);
-    ctx.logger = UA_Log_Stdout;
+    ctx.logger = (options) ? options->logger : NULL;
 
-    size_t begin = 0, pos = 0;
+    size_t pos = 0;
     unsigned line = 0, col = 0;
     Operand *token = NULL;
     int tokenId = 0;
     UA_StatusCode res;
     do {
+        /* Skip whitespace */
+        res = UA_EventFilter_skip(content, &pos, &ctx);
+        if(res != UA_STATUSCODE_GOOD)
+            goto done;
+
         /* Get the next token */
-        tokenId = UA_EventFilter_lex(content, &begin, &pos, &ctx, &token);
+        size_t begin = pos;
+        tokenId = UA_EventFilter_lex(content, &pos, &ctx, &token);
         UA_EventFilterParse(&parser, tokenId, token, &ctx);
 
         /* Print an error if the parser could not handle the token */
@@ -117,22 +105,24 @@ UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString *content) {
                 extractLen = (int)(pos - begin);
             UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
                          "Could not process token at line %u, column %u: "
-                         "%.*s...", line, col, extractLen, content->data + begin);
+                         "%.*s...", line, col, extractLen, content.data + begin);
             res = UA_STATUSCODE_BADINTERNALERROR;
             goto done;
         }
     } while(tokenId);
 
+    /* Skip trailing whitespace */
+    res = UA_EventFilter_skip(content, &pos, &ctx);
+    if(res != UA_STATUSCODE_GOOD)
+        goto done;
+
     /* The lexer stopped before the end of the input.
      * The token could not be read. */
-    if(pos < content->length) {
-        int extractLen = 10;
-        if(content->length - begin < 10)
-            extractLen = (int)(content->length - begin);
-        pos2lines(content, begin, &line, &col);
+    if(pos < content.length) {
+        pos2lines(content, pos, &line, &col);
         UA_LOG_ERROR(ctx.logger, UA_LOGCATEGORY_USERLAND,
-                     "Could not recognize token at line %u, column %u: "
-                     "%.*s...", line, col, extractLen, content->data + begin);
+                     "Token after the end of the EventFilter expression "
+                     "at line %u, column %u", line, col);
         res = UA_STATUSCODE_BADINTERNALERROR;
         goto done;
     }

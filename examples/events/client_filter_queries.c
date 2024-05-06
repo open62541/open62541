@@ -51,7 +51,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
                         "$ref1 := (OFTYPE i=3035)";
 
             UA_ByteString case_0 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, &case_0);
+            UA_EventFilter_parse(filter, case_0, NULL);
             check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_0);
             break;
@@ -59,7 +59,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
         case 1 : {
             /*query can be found in the file example_queries/case_1 */
             UA_ByteString case_1 = UA_String_fromChars(CASE_1);
-            UA_EventFilter_parse(filter, &case_1);
+            UA_EventFilter_parse(filter, case_1, NULL);
             check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_1);
             break;
@@ -67,7 +67,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
         case 2 : {
             /*query can be found in the file example_queries/case_2 */
             UA_ByteString case_2 = UA_String_fromChars(CASE_2);
-            UA_EventFilter_parse(filter, &case_2);
+            UA_EventFilter_parse(filter, case_2, NULL);
             check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_2);
             break;
@@ -81,7 +81,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
                          "$uvw := GREATER(i=5000/Severity, 99)";
 
             UA_ByteString case_3 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, &case_3);
+            UA_EventFilter_parse(filter, case_3, NULL);
             check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_3);
             break;
@@ -94,7 +94,7 @@ read_queries(UA_UInt16 filterSelection, UA_EventFilter *filter){
                         "$ref := 99 AND "
                         "$a := OFTYPE(ns=1;i=5000)";
             UA_ByteString case_4 = UA_String_fromChars(inp);
-            UA_EventFilter_parse(filter, &case_4);
+            UA_EventFilter_parse(filter, case_4, NULL);
             check_eventfilter(filter, UA_FALSE);
             UA_ByteString_clear(&case_4);
             break;
