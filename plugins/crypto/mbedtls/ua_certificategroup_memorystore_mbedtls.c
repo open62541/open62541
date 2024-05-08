@@ -1,6 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
+ *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2019 (c) Julius Pfrommer, Fraunhofer IOSB
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
@@ -9,6 +12,11 @@
 #include <open62541/plugin/log_stdout.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
+#include <mbedtls/x509.h>
+#include <mbedtls/x509_crt.h>
+#include <mbedtls/entropy.h>
+#include <mbedtls/version.h>
 
 #include "securitypolicy_mbedtls_common.h"
 
@@ -483,6 +491,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->context = context;
 
     UA_TrustListDataType_add(trustList, &context->trustList);
+    reloadCertificates(certGroup);
 
     return UA_STATUSCODE_GOOD;
 

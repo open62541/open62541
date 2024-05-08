@@ -969,6 +969,7 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
                 return retval;
             }
         }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES;
     }
     if(src->specifiedLists & UA_TRUSTLISTMASKS_TRUSTEDCRLS) {
         if(dst->trustedCrls == NULL)
@@ -984,6 +985,7 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
                 return retval;
             }
         }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_TRUSTEDCRLS;
     }
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCERTIFICATES) {
         if(dst->issuerCertificates == NULL)
@@ -999,6 +1001,7 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
                 return retval;
             }
         }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCERTIFICATES;
     }
     if(src->specifiedLists & UA_TRUSTLISTMASKS_ISSUERCRLS) {
         if(dst->issuerCrls == NULL)
@@ -1014,6 +1017,7 @@ UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *
                 return retval;
             }
         }
+        dst->specifiedLists |= UA_TRUSTLISTMASKS_ISSUERCRLS;
     }
 
     return retval;
