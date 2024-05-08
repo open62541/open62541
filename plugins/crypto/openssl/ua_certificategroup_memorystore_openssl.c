@@ -1,6 +1,8 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  *
+ *    Copyright 2020 (c) Wind River Systems, Inc.
+ *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
@@ -14,6 +16,7 @@
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
 
+#include "ua_openssl_version_abstraction.h"
 #include "securitypolicy_openssl_common.h"
 
 struct MemoryCertStore;
@@ -473,6 +476,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->context = context;
 
     UA_TrustListDataType_add(trustList, &context->trustList);
+    reloadCertificates(certGroup);
 
     return UA_STATUSCODE_GOOD;
 
