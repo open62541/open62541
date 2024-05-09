@@ -130,7 +130,9 @@ void
 UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_Subscription *sub = mon->subscription;
-    UA_assert(sub); /* This function is never called for local MonitoredItems */
+    UA_assert(sub); /* A MonitoredItem is always attached to a subscription. Can
+                     * be a local MonitoredItem that gets published immediately
+                     * with a callback. */
 
     /* If reporting or (sampled+triggered), enqueue into the Subscription first
      * and then into the MonitoredItem. UA_MonitoredItem_ensureQueueSpace
@@ -482,7 +484,7 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
         dcn->monitoredItems = (UA_MonitoredItemNotification*)
             UA_Array_new(dcnSize, &UA_TYPES[UA_TYPES_MONITOREDITEMNOTIFICATION]);
         if(!dcn->monitoredItems) {
-            UA_NotificationMessage_clear(message);
+            UA_NotificationMessage_clear(message); /* Also frees the dcn */
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         dcn->monitoredItemsSize = dcnSize;
@@ -521,26 +523,25 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
 
     /* How many notifications were moved to the response overall? */
     size_t totalNotifications = 0;
-    UA_Notification *notification, *notification_tmp;
-    TAILQ_FOREACH_SAFE(notification, &sub->notificationQueue,
-                       subEntry, notification_tmp) {
+    UA_Notification *n, *n_tmp;
+    TAILQ_FOREACH_SAFE(n, &sub->notificationQueue, subEntry, n_tmp) {
         if(totalNotifications >= maxNotifications)
             break;
 
         /* Move the content to the response */
-        switch(notification->mon->itemToMonitor.attributeId) {
+        switch(n->mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         case UA_ATTRIBUTEID_EVENTNOTIFIER:
             UA_assert(enl != NULL); /* Have at least one event notification */
-            enl->events[enlPos] = notification->data.event;
-            UA_EventFieldList_init(&notification->data.event);
+            enl->events[enlPos] = n->data.event;
+            UA_EventFieldList_init(&n->data.event);
             enlPos++;
             break;
 #endif
         default:
             UA_assert(dcn != NULL); /* Have at least one change notification */
-            dcn->monitoredItems[dcnPos] = notification->data.dataChange;
-            UA_DataValue_init(&notification->data.dataChange.value);
+            dcn->monitoredItems[dcnPos] = n->data.dataChange;
+            UA_DataValue_init(&n->data.dataChange.value);
             dcnPos++;
             break;
         }
@@ -550,12 +551,15 @@ prepareNotificationMessage(UA_Server *server, UA_Subscription *sub,
          * are non-reporting. And we don't want them to show up after the
          * current Notification has been sent out. */
         UA_Notification *prev;
-        while((prev = TAILQ_PREV(notification, NotificationQueue, monEntry))) {
+        while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
             UA_Notification_delete(prev);
+
+            /* Help the Clang scan-analyzer */
+            UA_assert(prev != TAILQ_PREV(n, NotificationQueue, monEntry));
         }
 
         /* Delete the notification, remove from the queues and decrease the counters */
-        UA_Notification_delete(notification);
+        UA_Notification_delete(n);
 
         totalNotifications++;
     }
@@ -1441,7 +1445,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     UA_assert(mon->queueSize >= mon->eventOverflows);
     UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
 
-    /* Always attached to a Subscription (no local MonitoredItem) */
+    /* MonitoredItems are always attached to a Subscription */
     UA_Subscription *sub = mon->subscription;
     UA_assert(sub);
 
@@ -1520,7 +1524,7 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
                                     NotificationQueue, monEntry));
     }
 
-        /* Leave an entry to indicate that notifications were removed */
+    /* Leave an entry to indicate that notifications were removed */
     if(reporting) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
         if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER)
