@@ -16,7 +16,7 @@ if(${CMAKE_VERSION} VERSION_LESS 3.12)
     set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
 endif()
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
+find_package(Python3 REQUIRED)
 
 find_package(Git)
 include(AssignSourceGroup)
@@ -41,7 +41,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
 set(OPEN62541_VER_PATCH 0)
-set(OPEN62541_VER_LABEL "-rc2") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
+set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
 # Overwrite the version information based on git if available
@@ -304,8 +304,8 @@ option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" OFF)
 option(UA_ENABLE_DEBUG_SANITIZER "Use sanitizer in debug mode" ON)
 mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
 
-#General PubSub setup
-option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" OFF)
+# General PubSub setup
+option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" ON)
 
 option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
@@ -322,7 +322,7 @@ if(UA_ENABLE_PUBSUB_SKS)
     endif()
 endif()
 
-option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" OFF)
+option(UA_ENABLE_PUBSUB_INFORMATIONMODEL "Enable PubSub information model twin" ON)
 if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub information model representation cannot be used with disabled PubSub function.")
@@ -463,9 +463,26 @@ endif()
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
-# Advanced Build Targets
+##########################
+# Advanced Build Targets #
+##########################
+
+# Build packages - invoke via `make package`
 option(UA_PACK_DEBIAN "Special build switch used in .deb packaging" OFF)
 mark_as_advanced(UA_PACK_DEBIAN)
+if(UA_PACK_DEBIAN)
+    set(CPACK_GENERATOR "TGZ;DEB")
+    set(CPACK_PACKAGE_VENDOR "open62541 team")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "OPC UA implementation")
+    set(CPACK_PACKAGE_DESCRIPTION "open62541 (<http://open62541.org>) is an open source implementation of OPC UA (OPC Unified Architecture / IEC 62541) written in the C language. The library is usable with all major compilers and provides the necessary tools to implement dedicated OPC UA clients and servers, or to integrate OPC UA-based communication into existing applications.")
+    set(CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/README.md")
+    set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
+    set(CPACK_PACKAGE_VERSION_MAJOR "${OPEN62541_VER_MAJOR}")
+    set(CPACK_PACKAGE_VERSION_MINOR "${OPEN62541_VER_MINOR}")
+    set(CPACK_PACKAGE_VERSION_PATCH "${OPEN62541_VER_PATCH}${OPEN62541_VER_LABEL}")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "open62541 team") # required
+    include(CPack)
+endif()
 
 # Building shared libs (dll, so). This option is written into ua_config.h.
 set(UA_DYNAMIC_LINKING OFF)
@@ -554,6 +571,12 @@ function(check_add_cc_flag CC_FLAG)
         unset(flag_supported CACHE)
     endif()
 endfunction()
+function(add_cc_flag CC_FLAG)
+    string(FIND "${CMAKE_C_FLAGS}" "${CC_FLAG}" flag_already_set)
+    if(flag_already_set EQUAL -1)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_FLAG}" CACHE INTERNAL "C Compiler Flags")
+    endif()
+endfunction()
 
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-std=c99")   # C99 mode
@@ -596,7 +619,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        check_add_cc_flag("-fPIC")
+        add_cc_flag("-fPIC")
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
@@ -1444,12 +1467,18 @@ install(TARGETS open62541
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
+set(open62541_install_tools_dir share/open62541/tools)
+set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
 set(cmake_configfile_install ${CMAKE_INSTALL_LIBDIR}/cmake/open62541)
 configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Config.cmake.in"
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
-                              INSTALL_DESTINATION "${cmake_configfile_install}")
+                              INSTALL_DESTINATION "${cmake_configfile_install}"
+                              PATH_VARS open62541_install_tools_dir
+                                        open62541_install_nodeset_dir
+                              )
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
         DESTINATION "${cmake_configfile_install}")
 
@@ -1469,11 +1498,36 @@ install(EXPORT open62541Targets
 export(TARGETS open62541 NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
+configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
+               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
+
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
+        DESTINATION "${cmake_configfile_install}")
+
 # Create open62541Targets.cmake
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
+
+set(UA_install_tools_dirs "tools/certs"
+    "tools/nodeset_compiler"
+    "tools/schema"
+    ${UA_NODESET_DIR})
+
+set(UA_install_tools_files "tools/generate_datatypes.py"
+    "tools/generate_nodeid_header.py"
+    "tools/generate_statuscode_descriptions.py")
+
+install(DIRECTORY ${UA_install_tools_dirs}
+        DESTINATION ${open62541_install_tools_dir}
+        USE_SOURCE_PERMISSIONS
+        FILES_MATCHING
+        PATTERN "*"
+        PATTERN "*.pyc" EXCLUDE
+        PATTERN ".git*" EXCLUDE)
+
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
 
 # Recreate the include folder structure from the source also in /usr/lib/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
@@ -1502,10 +1556,6 @@ if(NOT UA_ENABLE_AMALGAMATION)
             install(FILES ${full_path} DESTINATION include/open62541${dir})
         endif()
     endforeach()
-endif()
-
-if(UA_PACK_DEBIAN)
-    add_subdirectory(tools/packaging)
 endif()
 
 ##################################

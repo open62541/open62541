@@ -2,6 +2,9 @@ if(NOT open62541_TOOLS_DIR OR "${open62541_TOOLS_DIR}" STREQUAL "")
     set(open62541_TOOLS_DIR "${PROJECT_SOURCE_DIR}/tools")
 endif()
 
+# Required when installed
+find_package(Python3 REQUIRED)
+
 # --------------- Generate NodeIDs header ---------------------
 #
 # Generates header file from .csv which contains defines for every
