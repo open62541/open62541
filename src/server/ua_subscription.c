@@ -704,6 +704,9 @@ UA_Subscription_localPublish(UA_Server *server, UA_Subscription *sub) {
         UA_Notification *prev;
         while((prev = TAILQ_PREV(n, NotificationQueue, monEntry))) {
             UA_Notification_delete(prev);
+
+            /* Help the Clang scan-analyzer */
+            UA_assert(prev != TAILQ_PREV(n, NotificationQueue, monEntry));
         }
 
         /* Delete the notification, remove from the queues and decrease the counters */
@@ -1453,6 +1456,12 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     if(mon->queueSize - mon->eventOverflows <= mon->parameters.queueSize)
         return;
 
+    /* Help clang-analyzer */
+#if defined(UA_DEBUG) && defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+    UA_Notification *last_del = NULL;
+    (void)last_del;
+#endif
+
     /* Remove notifications until the required queue size is reached */
     UA_Boolean reporting = false;
     size_t remove = mon->queueSize - mon->eventOverflows - mon->parameters.queueSize;
@@ -1466,22 +1475,28 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         if(mon->parameters.discardOldest) {
             /* Remove the oldest */
             del = TAILQ_FIRST(&mon->queue);
-#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
-            while(del->isOverflowEvent)
-                del = TAILQ_NEXT(del, monEntry); /* skip overflow events */
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+            /* Skip overflow events */
+            while(del->isOverflowEvent) {
+                del = TAILQ_NEXT(del, monEntry);
+                UA_assert(del != last_del);
+            }
 #endif
         } else {
             /* Remove the second newest (to keep the up-to-date notification).
              * The last entry is not an OverflowEvent -- we just added it. */
             del = TAILQ_LAST(&mon->queue, NotificationQueue);
             del = TAILQ_PREV(del, NotificationQueue, monEntry);
-#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS) && !defined(__clang_analyzer__)
-            while(del->isOverflowEvent)
-                del = TAILQ_PREV(del, NotificationQueue, monEntry); /* skip overflow events */
+#if defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+            /* skip overflow events */
+            while(del->isOverflowEvent) {
+                del = TAILQ_PREV(del, NotificationQueue, monEntry);
+                UA_assert(del != last_del);
+            }
 #endif
         }
 
-        UA_assert(del); /* There must have been one entry that can be deleted */
+        UA_assert(del); /* There must be one entry that can be deleted */
 
         /* Only create OverflowEvents (and set InfoBits) if the notification
          * that is removed is reported */
@@ -1517,7 +1532,10 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
         sub->monitoringQueueOverflowCount++;
 #endif
 
-        /* Assertions to help Clang's scan-analyzer */
+        /* Help scan-analyzer */
+#if defined(UA_DEBUG) && defined(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
+        last_del = del;
+#endif
         UA_assert(del != TAILQ_FIRST(&mon->queue));
         UA_assert(del != TAILQ_LAST(&mon->queue, NotificationQueue));
         UA_assert(del != TAILQ_PREV(TAILQ_LAST(&mon->queue, NotificationQueue),
