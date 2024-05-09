@@ -184,34 +184,41 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
     UA_EventFilter *eventFilter = (UA_EventFilter*)
         mon->parameters.filter.content.decoded.data;
 
-    /* Allocate memory for the notification */
-    UA_Notification *notification = UA_Notification_new();
-    if(!notification)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* The MonitoredItem must be attached to a Subscription. This code path is
-     * not taken for local MonitoredItems (once they are enabled for Events). */
-    UA_assert(mon->subscription);
+    /* A MonitoredItem is always attached to a (local) Subscription.
+     * A Subscription may not be attached to a Session. */
     UA_Subscription *sub = mon->subscription;
-    UA_Session *session = sub->session;
+    UA_assert(sub);
 
-    UA_EventFilterResult res; /* FilterResult contains only statuscodes. Ignored
+    /* Values to be returned when the filter matches */
+    UA_EventFieldList values;
+    UA_EventFieldList_init(&values);
+
+    UA_EventFilterResult efr; /* FilterResult contains only statuscodes. Ignored
                                * outside the initial setup/validation. */
-    UA_EventFilterResult_init(&res);
-    UA_StatusCode retval = filterEvent(server, session, event, eventFilter,
-                                       &notification->data.event, &res);
-    UA_EventFilterResult_clear(&res);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_EventFieldList_clear(&notification->data.event);
-        UA_free(notification);
-        if(retval == UA_STATUSCODE_BADNOMATCH)
-            return UA_STATUSCODE_GOOD;
-        return retval;
+    UA_EventFilterResult_init(&efr);
+
+    /* Evaluate the filter. Return if it doesn't match. */
+    UA_StatusCode ret = filterEvent(server, sub->session, event,
+                                    eventFilter, &values, &efr);
+    UA_EventFilterResult_clear(&efr);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_EventFieldList_clear(&values);
+        if(ret == UA_STATUSCODE_BADNOMATCH)
+            ret = UA_STATUSCODE_GOOD;
+        return ret;
     }
 
+    /* Allocate memory for the notification */
+    UA_Notification *notification = UA_Notification_new();
+    if(!notification) {
+        UA_EventFieldList_clear(&values);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Prepare and enqueue the notification */
+    notification->data.event = values;
     notification->data.event.clientHandle = mon->parameters.clientHandle;
     notification->mon = mon;
-
     UA_Notification_enqueueAndTrigger(server, notification);
     return UA_STATUSCODE_GOOD;
 }
