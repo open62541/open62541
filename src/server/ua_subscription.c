@@ -39,9 +39,9 @@ UA_Notification *
 UA_Notification_new(void) {
     UA_Notification *n = (UA_Notification*)UA_calloc(1, sizeof(UA_Notification));
     if(n) {
-        /* Set the sentinel for a notification that is not enqueued */
+        /* Set the sentinel for a notification that is not enqueued a
+         * subscription */
         TAILQ_NEXT(n, subEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
-        TAILQ_NEXT(n, monEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
     }
     return n;
 }
@@ -50,19 +50,18 @@ UA_Notification_new(void) {
 static void
 UA_Notification_delete(UA_Notification *n) {
     UA_assert(n != UA_SUBSCRIPTION_QUEUE_SENTINEL);
-    if(n->mon) {
-        UA_Notification_dequeueMon(n);
-        UA_Notification_dequeueSub(n);
-        switch(n->mon->itemToMonitor.attributeId) {
+    UA_assert(n->mon);
+    UA_Notification_dequeueMon(n);
+    UA_Notification_dequeueSub(n);
+    switch(n->mon->itemToMonitor.attributeId) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
-        case UA_ATTRIBUTEID_EVENTNOTIFIER:
-            UA_EventFieldList_clear(&n->data.event);
-            break;
+    case UA_ATTRIBUTEID_EVENTNOTIFIER:
+        UA_EventFieldList_clear(&n->data.event);
+        break;
 #endif
-        default:
-            UA_MonitoredItemNotification_clear(&n->data.dataChange);
-            break;
-        }
+    default:
+        UA_MonitoredItemNotification_clear(&n->data.dataChange);
+        break;
     }
     UA_free(n);
 }
@@ -72,7 +71,6 @@ static void
 UA_Notification_enqueueMon(UA_Server *server, UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
-    UA_assert(TAILQ_NEXT(n, monEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL);
 
     /* Add to the MonitoredItem */
     TAILQ_INSERT_TAIL(&mon->queue, n, monEntry);
@@ -201,14 +199,12 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
     }
 }
 
-/* Remove from the MonitoredItem queue and adjust all counters */
+/* Remove from the MonitoredItem queue. This only happens if the Notification is
+ * deleted right after. */
 static void
 UA_Notification_dequeueMon(UA_Notification *n) {
     UA_MonitoredItem *mon = n->mon;
     UA_assert(mon);
-
-    if(TAILQ_NEXT(n, monEntry) == UA_SUBSCRIPTION_QUEUE_SENTINEL)
-        return;
 
     /* Remove from the MonitoredItem queue */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
@@ -222,9 +218,6 @@ UA_Notification_dequeueMon(UA_Notification *n) {
     /* Test for consistency */
     UA_assert(mon->queueSize >= mon->eventOverflows);
     UA_assert(mon->eventOverflows <= mon->queueSize - mon->eventOverflows + 1);
-
-    /* Reset the sentintel */
-    TAILQ_NEXT(n, monEntry) = UA_SUBSCRIPTION_QUEUE_SENTINEL;
 }
 
 void
@@ -1095,28 +1088,33 @@ createEventOverflowNotification(UA_Server *server, UA_Subscription *sub,
     /* A Notification is inserted into the queue which includes only the
      * NodeId of the OverflowEventType. */
 
+    /* Prepare the EventFields first. So we are sure to succeed when the
+     * Notification was allocated. */
+    UA_EventFieldList efl;
+    efl.clientHandle = mon->parameters.clientHandle;
+    efl.eventFields = UA_Variant_new();
+    if(!efl.eventFields)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode ret =
+        UA_Variant_setScalarCopy(efl.eventFields, &eventQueueOverflowEventType,
+                                 &UA_TYPES[UA_TYPES_NODEID]);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_Variant_delete(efl.eventFields);
+        return ret;
+    }
+    efl.eventFieldsSize = 1;
+
     /* Allocate the notification */
     UA_Notification *overflowNotification = UA_Notification_new();
-    if(!overflowNotification)
+    if(!overflowNotification) {
+        UA_Variant_delete(efl.eventFields);
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
 
     /* Set the notification fields */
     overflowNotification->isOverflowEvent = true;
     overflowNotification->mon = mon;
-    overflowNotification->data.event.clientHandle = mon->parameters.clientHandle;
-    overflowNotification->data.event.eventFields = UA_Variant_new();
-    if(!overflowNotification->data.event.eventFields) {
-        UA_free(overflowNotification);
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    overflowNotification->data.event.eventFieldsSize = 1;
-    UA_StatusCode retval =
-        UA_Variant_setScalarCopy(overflowNotification->data.event.eventFields,
-                                 &eventQueueOverflowEventType, &UA_TYPES[UA_TYPES_NODEID]);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(overflowNotification);
-        return retval;
-    }
+    overflowNotification->data.event = efl;
 
     /* Insert before the removed notification. This is either first in the
      * queue (if the oldest notification was removed) or before the new event
