@@ -127,22 +127,24 @@ detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *
 UA_StatusCode
 UA_MonitoredItem_createDataChangeNotification(UA_Server *server, UA_MonitoredItem *mon,
                                               const UA_DataValue *dv) {
-    /* Allocate a new notification */
-    UA_Notification *newNot = UA_Notification_new();
-    if(!newNot)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    /* Prepare the notification */
-    newNot->mon = mon;
-    newNot->data.dataChange.clientHandle = mon->parameters.clientHandle;
-    UA_StatusCode retval = UA_DataValue_copy(dv, &newNot->data.dataChange.value);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_free(newNot);
+    /* Copy the value */
+    UA_DataValue valueCopy;
+    UA_StatusCode retval = UA_DataValue_copy(dv, &valueCopy);
+    if(retval != UA_STATUSCODE_GOOD)
         return retval;
+
+    /* Allocate a new notification */
+    UA_Notification *n = UA_Notification_new();
+    if(!n) {
+        UA_DataValue_clear(&valueCopy);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    /* Enqueue the notification */
-    UA_Notification_enqueueAndTrigger(server, newNot);
+    /* Prepare and enqueue the notification */
+    n->mon = mon;
+    n->data.dataChange.value = valueCopy;
+    n->data.dataChange.clientHandle = mon->parameters.clientHandle;
+    UA_Notification_enqueueAndTrigger(server, n);
     return UA_STATUSCODE_GOOD;
 }
 
