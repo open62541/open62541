@@ -1,5 +1,5 @@
 @PACKAGE_INIT@
 include("${CMAKE_CURRENT_LIST_DIR}/open62541Targets.cmake")
 
-set (open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")
-set (UA_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "Path to the directory that contains the OPC UA schema repository")
+set_and_check(open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")
+set_and_check(UA_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "Path to the directory that contains the OPC UA schema repository")
