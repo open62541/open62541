@@ -11,6 +11,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

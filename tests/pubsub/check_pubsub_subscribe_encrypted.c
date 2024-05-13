@@ -15,6 +15,7 @@
 
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
 #define PUBLISH_INTERVAL         5       /* Publish interval*/

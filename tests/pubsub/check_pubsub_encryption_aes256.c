@@ -13,6 +13,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #define UA_AES256CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES256CTR_KEY_LENGTH 32

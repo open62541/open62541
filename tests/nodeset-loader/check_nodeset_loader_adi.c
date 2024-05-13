@@ -8,6 +8,7 @@
 
 #include "check.h"
 #include "testing_clock.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

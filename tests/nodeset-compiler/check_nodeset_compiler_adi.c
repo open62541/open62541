@@ -9,6 +9,7 @@
 #include "namespace_tests_adi_generated.h"
 #include "namespace_tests_di_generated.h"
 #include "testing_clock.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

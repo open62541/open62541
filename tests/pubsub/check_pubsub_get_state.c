@@ -13,6 +13,7 @@
 #include "ua_server_internal.h"
 #include <check.h>
 #include <assert.h>
+#include <stdlib.h>
 
 static UA_Server *server = NULL;
 

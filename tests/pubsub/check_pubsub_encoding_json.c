@@ -12,6 +12,7 @@
 #include "ua_pubsub_networkmessage.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 START_TEST(UA_PubSub_EncodeAllOptionalFields) {
     UA_NetworkMessage m;

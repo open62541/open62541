@@ -19,6 +19,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include "thread_wrapper.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32

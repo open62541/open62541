@@ -9,6 +9,7 @@
 #include <open62541/server_config_default.h>
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server_ac;
 

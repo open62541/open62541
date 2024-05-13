@@ -11,6 +11,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"

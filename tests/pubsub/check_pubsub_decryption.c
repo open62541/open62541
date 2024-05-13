@@ -14,6 +14,7 @@
 
 #include <check.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
