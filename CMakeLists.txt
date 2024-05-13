@@ -1482,8 +1482,8 @@ install(TARGETS open62541
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
-set(open62541_install_tools_dir share/open62541/tools)
-set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+set(open62541_install_tools_dir share/open62541)
+set(open62541_install_nodeset_dir share/open62541/ua-nodeset)
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
