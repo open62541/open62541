@@ -10,6 +10,7 @@
 
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"

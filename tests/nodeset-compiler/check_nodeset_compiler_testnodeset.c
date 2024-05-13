@@ -13,6 +13,7 @@
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
 #include "unistd.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET, UA_FALSE};

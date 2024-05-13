@@ -14,6 +14,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include "testing_clock.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32

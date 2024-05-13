@@ -7,6 +7,7 @@
 #include "ua_pubsub.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 #define CHK_UNLOCK(pMutex, cond) \
 if (!(cond)) {                     \

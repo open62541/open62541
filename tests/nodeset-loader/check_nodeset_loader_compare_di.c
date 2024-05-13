@@ -10,6 +10,7 @@
 #include "check.h"
 #include "tests/namespace_nodesetloader_di_generated.h"
 #include "testing_clock.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

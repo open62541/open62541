@@ -11,6 +11,7 @@
 #include <limits.h>
 #include "testing_clock.h"
 #include "unistd.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;

@@ -10,6 +10,7 @@
 #include <open62541/plugin/create_certificate.h>
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server;
 
