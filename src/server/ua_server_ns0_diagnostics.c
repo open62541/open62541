@@ -73,16 +73,22 @@ readSubscriptionDiagnostics(UA_Server *server,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
                             const UA_NumericRange *range, UA_DataValue *value) {
+    UA_LOCK(&server->serviceMutex);
+
     /* Check the Subscription pointer */
     UA_Subscription *sub = (UA_Subscription*)nodeContext;
-    if(!sub)
+    if(!sub) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
 
     /* Read the BrowseName */
     UA_QualifiedName bn;
     UA_StatusCode res = readWithReadValue(server, nodeId, UA_ATTRIBUTEID_BROWSENAME, &bn);
-    if(res != UA_STATUSCODE_GOOD)
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_UNLOCK(&server->serviceMutex);
         return res;
+    }
 
     /* Set the value */
     UA_SubscriptionDiagnosticsDataType sddt;
@@ -112,17 +118,21 @@ readSubscriptionDiagnostics(UA_Server *server,
 
     UA_SubscriptionDiagnosticsDataType_clear(&sddt);
     UA_QualifiedName_clear(&bn);
+
+    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 /* If the nodeContext == NULL, return all subscriptions in the server.
  * Otherwise only for the current session. */
-UA_StatusCode
-readSubscriptionDiagnosticsArray(UA_Server *server,
-                                 const UA_NodeId *sessionId, void *sessionContext,
-                                 const UA_NodeId *nodeId, void *nodeContext,
-                                 UA_Boolean sourceTimestamp,
-                                 const UA_NumericRange *range, UA_DataValue *value) {
+static UA_StatusCode
+readSubscriptionDiagnosticsArrayLocked(UA_Server *server,
+                                       const UA_NodeId *sessionId, void *sessionContext,
+                                       const UA_NodeId *nodeId, void *nodeContext,
+                                       UA_Boolean sourceTimestamp,
+                                       const UA_NumericRange *range, UA_DataValue *value) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
     /* Get the current session */
     size_t sdSize = 0;
     UA_Session *session = NULL;
@@ -166,6 +176,20 @@ readSubscriptionDiagnosticsArray(UA_Server *server,
     UA_Variant_setArray(&value->value, sd, sdSize,
                         &UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE]);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+readSubscriptionDiagnosticsArray(UA_Server *server,
+                                 const UA_NodeId *sessionId, void *sessionContext,
+                                 const UA_NodeId *nodeId, void *nodeContext,
+                                 UA_Boolean sourceTimestamp,
+                                 const UA_NumericRange *range, UA_DataValue *value) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = readSubscriptionDiagnosticsArrayLocked(
+        server, sessionId, sessionContext, nodeId, nodeContext,
+        sourceTimestamp, range, value);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 void
@@ -362,9 +386,9 @@ readSessionDiagnostics(UA_Server *server,
         /* Reuse the datasource callback. Forward a non-null nodeContext to
          * indicate that we want to see only the subscriptions for the current
          * session. */
-        res = readSubscriptionDiagnosticsArray(server, sessionId, sessionContext,
-                                               nodeId, (void*)0x01,
-                                               sourceTimestamp, range, value);
+        res = readSubscriptionDiagnosticsArrayLocked(server, sessionId, sessionContext,
+                                                     nodeId, (void*)0x01,
+                                                     sourceTimestamp, range, value);
         goto cleanup;
     } else if(equalBrowseName(&bn.name, "SessionDiagnostics")) {
         setSessionDiagnostics(session, &data.sddt);
