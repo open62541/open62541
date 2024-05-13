@@ -557,7 +557,8 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *
  * 0:interface [string]
  *    Network interface for listening or sending (e.g. when using multicast
- *    addresses)
+ *    addresses). Can be either the IP address of the network interface
+ *    or the interface name (e.g. 'eth0').
  *
  * 0:ttl [uint32]
  *    Multicast time to live, (optional, default: 1 - meaning multicast is
@@ -582,7 +583,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
  *    creating any connection but solely validating the provided parameters
  *    (default: false)
  *
- * **Connection Callback Paramters:**
+ * **Connection Callback Parameters:**
  *
  * 0:remote-address [string]
  *    Contains the remote IP address.

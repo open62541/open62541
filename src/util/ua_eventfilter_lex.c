@@ -8,7 +8,6 @@
 
 #include <open62541/util.h>
 #include "ua_eventfilter_parser.h"
-#include "ua_eventfilter_grammar.h"
 
 /* This compilation unit uses the re2c lexer generator. The final C source is
  * generated with the following script:

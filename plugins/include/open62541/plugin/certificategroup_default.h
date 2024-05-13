@@ -30,6 +30,11 @@ UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
                                      const UA_ByteString *certificateRevocationList,
                                      size_t certificateRevocationListSize);
 
+UA_EXPORT UA_StatusCode
+UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
+                                UA_NodeId *certificateGroupId,
+                                const UA_TrustListDataType *trustList);
+
 #ifdef __linux__ /* Linux only so far */
 
 #ifdef UA_ENABLE_CERT_REJECTED_DIR

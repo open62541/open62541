@@ -126,9 +126,14 @@
  * POSIX Feature Flags
  * -------------------
  * These feature flags have to be set before including the first POSIX
- * header. */
+ * header.
+ *
+ * Special note for FreeBSD: Defining _XOPEN_SOURCE will hide lots of socket
+ * definitions as they are not defined by POSIX. Defining _BSD_SOURCE will
+ * not help as the symbols undergo a consistency check and get adjusted in
+ * the headers. */
 #ifdef UA_ARCHITECTURE_POSIX
-# if !defined(_XOPEN_SOURCE)
+# if !defined(_XOPEN_SOURCE) && !defined(__FreeBSD__)
 #  define _XOPEN_SOURCE 600
 # endif
 # ifndef _DEFAULT_SOURCE

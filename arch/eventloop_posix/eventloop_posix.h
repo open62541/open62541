@@ -106,6 +106,7 @@ typedef SSIZE_T ssize_t;
 /*********************/
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <netinet/tcp.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
@@ -114,6 +115,7 @@ typedef SSIZE_T ssize_t;
 #include <poll.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <ifaddrs.h>
 
 #if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
 # include <sys/param.h>

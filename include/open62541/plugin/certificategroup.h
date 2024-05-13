@@ -10,7 +10,6 @@
 #define UA_PLUGIN_CERTIFICATEGROUP_H
 
 #include <open62541/types.h>
-#include <open62541/types_generated.h>
 #include <open62541/plugin/log.h>
 
 _UA_BEGIN_DECLS

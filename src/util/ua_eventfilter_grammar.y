@@ -6,7 +6,10 @@
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* The C code is generated as follows: lemon -l ua_eventfilter_grammar.y */
+/* The C code is generated as follows: lemon -l ua_eventfilter_grammar.y
+ *
+ * Attention! Don't forget to copy the generated token identifiers from
+ * ua_eventfilter_grammar.h into ua_eventfilter_parser.h. */
 
 %name UA_EventFilterParse
 %token_prefix EF_TOK_

@@ -391,6 +391,21 @@ UA_constantTimeEqual(const void *ptr1, const void *ptr2, size_t length);
 UA_EXPORT void
 UA_ByteString_memZero(UA_ByteString *bs);
 
+/**
+ * Trustlist Helpers
+ * -------------------- */
+
+UA_EXPORT UA_StatusCode
+UA_TrustListDataType_add(const UA_TrustListDataType *src, UA_TrustListDataType *dst);
+
+UA_EXPORT UA_StatusCode
+UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataType *dst);
+
+UA_EXPORT UA_Boolean
+UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
+                              const UA_ByteString *certificate,
+                              UA_TrustListMasks mask);
+
 _UA_END_DECLS
 
 #endif /* UA_HELPER_H_ */

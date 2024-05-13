@@ -1,0 +1,9 @@
+usr/share/open62541/tools/*.py
+usr/share/open62541/tools/certs
+usr/share/open62541/tools/nodeset_compiler
+usr/share/open62541/tools/schema
+usr/share/open62541/tools/ua-nodeset/Schema/Opc.Ua.NodeSet2.xml
+usr/share/open62541/tools/ua-nodeset/Schema/Opc.Ua.Types.bsd
+usr/share/open62541/tools/ua-nodeset/Schema/AttributeIds.csv
+usr/share/open62541/tools/ua-nodeset/Schema/NodeIds.csv
+usr/share/open62541/tools/ua-nodeset/Schema/StatusCode.csv

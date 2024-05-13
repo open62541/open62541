@@ -35,7 +35,7 @@
 #include <open62541/server.h>
 
 #include <signal.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include "common.h"
 
 #ifndef _WIN32

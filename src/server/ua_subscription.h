@@ -36,20 +36,25 @@ _UA_BEGIN_DECLS
  * MonitoredItem that generated the notification. Here we can remove it if the
  * space reserved for the MonitoredItem runs full. The second queue is the
  * "global" queue for all Notifications generated in a Subscription. For
- * publication, the notifications are taken out of the "global" queue in the
- * order of their creation. */
+ * publication, the notifications are taken out of the Subscription's queue in
+ * the order of their creation. */
 
 /*****************/
 /* Notifications */
 /*****************/
 
-/* Set to the TAILQ_NEXT pointer of a notification, the sentinel that the
- * notification was not added to the global queue */
+/* A notification was not (yet) added to the queue of a Subscription */
 #define UA_SUBSCRIPTION_QUEUE_SENTINEL ((UA_Notification*)0x01)
 
 typedef struct UA_Notification {
-    TAILQ_ENTRY(UA_Notification) localEntry;  /* Notification list for the MonitoredItem */
-    TAILQ_ENTRY(UA_Notification) globalEntry; /* Notification list for the Subscription */
+    /* The subEntry can be a sentinel value to indicate that the Notification is
+     * not enqueue in the Subscription. This is the case when the Subscription
+     * is non-reporting.
+     *
+     * The monEntry is always set - the Notification must always be enqueued to
+     * the MonitoredItem right after its creation with UA_Notification_new. */
+    TAILQ_ENTRY(UA_Notification) subEntry; /* Notification list of the Subscription */
+    TAILQ_ENTRY(UA_Notification) monEntry; /* Notification list of the MonitoredItem */
     UA_MonitoredItem *mon; /* Always set */
 
     /* The event field is used if mon->attributeId is the EventNotifier */
@@ -65,13 +70,13 @@ typedef struct UA_Notification {
 #endif
 } UA_Notification;
 
-/* Initializes and sets the sentinel pointers */
+/* Initializes and sets the sentinel pointers. Only create a notification if it
+ * is also going to be immediately enqueued to a MonitoredItem (see below). */
 UA_Notification * UA_Notification_new(void);
 
-/* Notifications are always added to the queue of the MonitoredItem. That queue
- * can overflow. If Notifications are reported, they are also added to the
- * global queue of the Subscription. There they are picked up by the publishing
- * callback.
+/* Notifications are always added to the queue of a MonitoredItem. That queue
+ * can overflow. If Notifications are reported, they are also added to the queue
+ * of the Subscription. There they are picked up by the publishing callback.
  *
  * There are two ways Notifications can be put into the global queue of the
  * Subscription: They are added because the MonitoringMode of the MonitoredItem
@@ -79,9 +84,6 @@ UA_Notification * UA_Notification_new(void);
  * that puts the last Notification into the global queue. */
 void UA_Notification_enqueueAndTrigger(UA_Server *server,
                                        UA_Notification *n);
-
-/* Dequeue and delete the notification */
-void UA_Notification_delete(UA_Notification *n);
 
 /* A NotificationMessage contains an array of notifications.
  * Sent NotificationMessages are stored for the republish service. */
