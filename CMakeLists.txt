@@ -21,7 +21,7 @@ find_package(Python3 REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-include(macros_public)
+include(open62541Macros)
 
 #############################
 # Compiled binaries folders #
@@ -1498,9 +1498,9 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir
-                              )
+                                        open62541_install_nodeset_dir)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
+              "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
 
 # Create open62541ConfigVersion.cmake
@@ -1516,16 +1516,11 @@ install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
-export(TARGETS open62541 NAMESPACE open62541::
+export(TARGETS open62541
+       NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
-               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
-
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
-        DESTINATION "${cmake_configfile_install}")
-
-# Create open62541Targets.cmake
+# Install open62541.pc
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
