@@ -755,12 +755,6 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 # Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
-# Generate a .pc file for pkg-config
-if(UA_ENABLE_AMALGAMATION)
-    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
-endif()
-configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
-
 if(UA_ENABLE_DISCOVERY_MULTICAST)
   include(GenerateExportHeader)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
@@ -1520,7 +1514,16 @@ export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
-# Install open62541.pc
+# Generate and install open62541.pc
+if(UA_ENABLE_AMALGAMATION)
+    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
+endif()
+set(pkgcfglibs "-lopen62541")
+foreach(lib ${open62541_LIBRARIES})
+    set(pkgcfglibs "${pkgcfglibs} -l${lib}")
+endforeach()
+configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
+
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
