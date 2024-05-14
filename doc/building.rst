@@ -49,15 +49,25 @@ described in :ref:`build_options`, these features will also be included in the
 installation. Thus we recommend to enable as many non-experimental features as
 possible for the installed binary.
 
-In your own CMake project you can then include the open62541 library using:
+In your own CMake project you can then include the open62541 library. A simple
+CMake project definition looks as follows:
 
 .. code-block:: cmake
 
-   # optionally you can also specify a specific version
-   # e.g. find_package(open62541 1.0.0)
-   find_package(open62541 REQUIRED COMPONENTS Events FullNamespace)
-   add_executable(main main.cpp)
-   target_link_libraries(main open62541::open62541)
+    cmake_minimum_required(VERSION 3.5)
+    project("open62541SampleApplication")
+    add_executable(main main.c)
+
+    # Linux/Unix configuration using pkg-config
+    find_package(PkgConfig)
+    pkg_check_modules(open62541 REQUIRED open62541)
+    target_link_libraries(main open62541)
+
+    # Alternative CMake-based library definition.
+    # This might not be included in some package distributions.
+    #
+    #   find_package(open62541 REQUIRED)
+    #   target_link_libraries(main open62541::open62541)
 
 Building with CMake on Windows
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

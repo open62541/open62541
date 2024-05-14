@@ -79,6 +79,11 @@ TCP_delayedClose(void *application, void *context) {
                  "TCP %u\t| Delayed closing of the connection",
                  (unsigned)conn->rfd.fd);
 
+    /* Ensure reuse is possible right away. Port-stealing is no longer an issue
+     * as the socket gets closed anyway. And we do not want to wait for the
+     * timeout to open a new socket for the same address and port. */
+    UA_EventLoopPOSIX_setReusable(conn->rfd.fd);
+
     /* Deregister from the EventLoop */
     UA_EventLoopPOSIX_deregisterFD(el, &conn->rfd);
 
@@ -451,6 +456,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 
     /* Only validate, don't actually start listening */
     if(validate) {
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_GOOD;
     }
@@ -461,6 +467,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s)",
                           (unsigned)listenSocket, errno_str));
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -471,6 +478,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)listenSocket);
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -490,6 +498,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                        "TCP %u\t| Error registering the socket",
                        (unsigned)listenSocket);
         UA_free(newConn);
+        UA_EventLoopPOSIX_setReusable(listenSocket); /* Ensure reuse is possible */
         UA_close(listenSocket);
         return res;
     }

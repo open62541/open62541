@@ -21,7 +21,7 @@ find_package(Python3 REQUIRED)
 find_package(Git)
 include(AssignSourceGroup)
 include(GNUInstallDirs)
-include(macros_public)
+include(open62541Macros)
 
 #############################
 # Compiled binaries folders #
@@ -750,12 +750,6 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 # Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
-# Generate a .pc file for pkg-config
-if(UA_ENABLE_AMALGAMATION)
-    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
-endif()
-configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
-
 if(UA_ENABLE_DISCOVERY_MULTICAST)
   include(GenerateExportHeader)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
@@ -1469,8 +1463,8 @@ install(TARGETS open62541
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         INCLUDES DESTINATION include)
 
-set(open62541_install_tools_dir share/open62541/tools)
-set(open62541_install_nodeset_dir share/open62541/tools/ua-nodeset)
+set(open62541_install_tools_dir share/open62541)
+set(open62541_install_nodeset_dir share/open62541/ua-nodeset)
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
@@ -1479,9 +1473,9 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir
-                              )
+                                        open62541_install_nodeset_dir)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
+              "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
 
 # Create open62541ConfigVersion.cmake
@@ -1497,16 +1491,20 @@ install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
-export(TARGETS open62541 NAMESPACE open62541::
+export(TARGETS open62541
+       NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
-configure_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/macros_public.cmake"
-               "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake" COPYONLY)
+# Generate and install open62541.pc
+if(UA_ENABLE_AMALGAMATION)
+    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
+endif()
+set(pkgcfglibs "-lopen62541")
+foreach(lib ${open62541_LIBRARIES})
+    set(pkgcfglibs "${pkgcfglibs} -l${lib}")
+endforeach()
+configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Macros.cmake"
-        DESTINATION "${cmake_configfile_install}")
-
-# Create open62541Targets.cmake
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     install(FILES "${PROJECT_BINARY_DIR}/src_generated/open62541.pc"
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)

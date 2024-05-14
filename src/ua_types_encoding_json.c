@@ -87,11 +87,10 @@ static WRITE_JSON_ELEMENT(Quote) {
 
 UA_StatusCode
 writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
-    /* Comma if needed */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
+    /* Comma if needed */
     if(ctx->commaNeeded[ctx->depth])
         res |= writeChar(ctx, ',');
-
     if(ctx->prettyPrint) {
         if(distinct) {
             /* Newline and indent if needed */
@@ -103,7 +102,6 @@ writeJsonBeforeElement(CtxJson *ctx, UA_Boolean distinct) {
             res |= writeChar(ctx, ' ');
         }
     }
-
     return res;
 }
 
@@ -130,8 +128,7 @@ WRITE_JSON_ELEMENT(ObjEnd) {
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
     }
-    res |= writeChar(ctx, '}');
-    return res;
+    return res | writeChar(ctx, '}');
 }
 
 WRITE_JSON_ELEMENT(ArrStart) {
@@ -155,8 +152,7 @@ WRITE_JSON_ELEMENT(ArrEnd) {
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
     }
-    res |= writeChar(ctx, ']');
-    return res;
+    return res | writeChar(ctx, ']');
 }
 
 status
@@ -165,8 +161,7 @@ writeJsonArrElm(CtxJson *ctx, const void *value,
     UA_Boolean distinct = (type->typeKind > UA_DATATYPEKIND_DOUBLE);
     status ret = writeJsonBeforeElement(ctx, distinct);
     ctx->commaNeeded[ctx->depth] = true;
-    ret |= encodeJsonJumpTable[type->typeKind](ctx, value, type);
-    return ret;
+    return ret | encodeJsonJumpTable[type->typeKind](ctx, value, type);
 }
 
 status
@@ -444,8 +439,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
-    ret |= writeJsonArrEnd(ctx);
-    return ret;
+    return ret | writeJsonArrEnd(ctx);
 }
 
 static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
@@ -603,8 +597,7 @@ ENCODE_JSON(String) {
         str = pos = end;
     }
 
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 ENCODE_JSON(ByteString) {
@@ -638,8 +631,7 @@ ENCODE_JSON(ByteString) {
     /* Base64 result no longer needed */
     UA_free(ba64);
 
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 /* Guid */
@@ -650,8 +642,7 @@ ENCODE_JSON(Guid) {
     if(!ctx->calcOnly)
         UA_Guid_to_hex(src, ctx->pos, false);
     ctx->pos += 36;
-    ret |= writeJsonQuote(ctx);
-    return ret;
+    return ret | writeJsonQuote(ctx);
 }
 
 static u8
@@ -787,8 +778,7 @@ ENCODE_JSON(NodeId) {
         }
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* ExpandedNodeId */
@@ -870,8 +860,7 @@ ENCODE_JSON(ExpandedNodeId) {
         ret |= ENCODE_DIRECT_JSON(&serverUriEntry, String);
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* LocalizedText */
@@ -882,8 +871,7 @@ ENCODE_JSON(LocalizedText) {
         ret |= ENCODE_DIRECT_JSON(&src->locale, String);
         ret |= writeJsonKey(ctx, UA_JSONKEY_TEXT);
         ret |= ENCODE_DIRECT_JSON(&src->text, String);
-        ret |= writeJsonObjEnd(ctx);
-        return ret;
+        return ret | writeJsonObjEnd(ctx);
     }
 
     /* For the non-reversible form, LocalizedText value shall be encoded as a
@@ -987,70 +975,86 @@ ENCODE_JSON(ExtensionObject) {
             (ctx, src->content.decoded.data, t);
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
+/* Non-builtin types get wrapped in an ExtensionObject */
 static status
-Variant_encodeJsonWrapExtensionObject(const UA_Variant *src, const bool isArray,
-                                      CtxJson *ctx) {
-    size_t length = 1;
-    if(isArray) {
-        if(src->arrayLength > UA_INT32_MAX)
-            return UA_STATUSCODE_BADENCODINGERROR;
-
-        length = src->arrayLength;
-    }
+encodeScalarJsonWrapExtensionObject(CtxJson *ctx, const UA_Variant *src) {
+    const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    const void *ptr = src->data;
+    const UA_DataType *type = src->type;
 
     /* Set up a temporary ExtensionObject to wrap the data */
     UA_ExtensionObject eo;
-    UA_ExtensionObject_init(&eo);
-    eo.encoding = UA_EXTENSIONOBJECT_DECODED;
-    eo.content.decoded.type = src->type;
-
-    if(isArray) {
-        u16 memSize = src->type->memSize;
-        uintptr_t ptr = (uintptr_t)src->data;
-        status ret = writeJsonArrStart(ctx);
-        for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; ++i) {
-            eo.content.decoded.data = (void*)ptr;
-            ret |= writeJsonArrElm(ctx, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
-            ptr += memSize;
-        }
-        return ret | writeJsonArrEnd(ctx);
+    if(!isBuiltin) {
+        UA_ExtensionObject_init(&eo);
+        eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+        eo.content.decoded.type = src->type;
+        eo.content.decoded.data = src->data;
+        ptr = &eo;
+        type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
     }
 
-    eo.content.decoded.data = src->data;
-    return ExtensionObject_encodeJson(ctx, &eo, NULL);
+    return encodeJsonJumpTable[type->typeKind](ctx, ptr, type);
+}
+
+/* Non-builtin types get wrapped in an ExtensionObject */
+static status
+encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
+                                   size_t size, const UA_DataType *type) {
+    if(size > UA_INT32_MAX)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    status ret = writeJsonArrStart(ctx);
+
+    u16 memSize = type->memSize;
+    const UA_Boolean isBuiltin = (type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+    if(isBuiltin) {
+        uintptr_t ptr = (uintptr_t)data;
+        for(size_t i = 0; i < size && ret == UA_STATUSCODE_GOOD; ++i) {
+            ret |= writeJsonArrElm(ctx, (const void*)ptr, type);
+            ptr += memSize;
+        }
+    } else {
+        /* Set up a temporary ExtensionObject to wrap the data */
+        UA_ExtensionObject eo;
+        UA_ExtensionObject_init(&eo);
+        eo.encoding = UA_EXTENSIONOBJECT_DECODED;
+        eo.content.decoded.type = type;
+        eo.content.decoded.data = (void*)(uintptr_t)data;
+        for(size_t i = 0; i < size && ret == UA_STATUSCODE_GOOD; ++i) {
+            ret |= writeJsonArrElm(ctx, &eo, &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]);
+            eo.content.decoded.data = (void*)
+                ((uintptr_t)eo.content.decoded.data + memSize);
+        }
+    }
+
+    return ret | writeJsonArrEnd(ctx);
 }
 
 static status
 addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
                          size_t *index, UA_UInt32 *arrayDimensions, size_t dimensionIndex,
                          size_t dimensionSize) {
-    /* Stop recursion: The inner Arrays are written */
+    /* Stop recursion: The inner arrays are written */
     status ret;
     if(dimensionIndex == (dimensionSize - 1)) {
-        ret = encodeJsonArray(ctx, ((u8*)array) + (type->memSize * *index),
-                              arrayDimensions[dimensionIndex], type);
+        u8 *ptr = ((u8 *)array) + (type->memSize * *index);
+        u32 size = arrayDimensions[dimensionIndex];
         (*index) += arrayDimensions[dimensionIndex];
-        return ret;
+        return encodeArrayJsonWrapExtensionObject(ctx, ptr, size, type);
     }
 
     /* Recurse to the next dimension */
     ret = writeJsonArrStart(ctx);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
     for(size_t i = 0; i < arrayDimensions[dimensionIndex]; i++) {
         ret |= writeJsonBeforeElement(ctx, true);
         ret |= addMultiArrayContentJSON(ctx, array, type, index, arrayDimensions,
                                         dimensionIndex + 1, dimensionSize);
         ctx->commaNeeded[ctx->depth] = true;
-        if(ret != UA_STATUSCODE_GOOD)
-            return ret;
     }
-    ret |= writeJsonArrEnd(ctx);
-    return ret;
+    return ret | writeJsonArrEnd(ctx);
 }
 
 ENCODE_JSON(Variant) {
@@ -1077,6 +1081,7 @@ ENCODE_JSON(Variant) {
 
     status ret = writeJsonObjStart(ctx);
 
+    /* Write the type NodeId */
     if(ctx->useReversible) {
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
         if(ctx->prettyPrint) {
@@ -1090,41 +1095,30 @@ ENCODE_JSON(Variant) {
         }
     }
 
-    if(wrapEO) {
-        /* Not builtin. Can it be encoded? Wrap in extension object. */
-        if(src->arrayDimensionsSize > 1)
-            return UA_STATUSCODE_BADNOTIMPLEMENTED;
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= Variant_encodeJsonWrapExtensionObject(src, isArray, ctx);
-    } else if(!isArray) {
-        /* Unwrapped scalar */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonJumpTable[src->type->typeKind](ctx, src->data, src->type);
-    } else if(ctx->useReversible) {
-        /* Reversible array */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
-        if(hasDimensions) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
-            ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
-                                   &UA_TYPES[UA_TYPES_INT32]);
-        }
+    /* Write the Variant body */
+    ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
+
+    if(!isArray) {
+        encodeScalarJsonWrapExtensionObject(ctx, src);
     } else {
-        /* Non-Reversible array */
-        ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
-        if(src->arrayDimensionsSize > 1) {
-            size_t index = 0;
-            size_t dimensionIndex = 0;
-            ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
-                                            src->arrayDimensions, dimensionIndex,
-                                            src->arrayDimensionsSize);
+        if(ctx->useReversible || !hasDimensions) {
+            ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
+                                                      src->arrayLength, src->type);
+            if(hasDimensions) {
+                ret |= writeJsonKey(ctx, UA_JSONKEY_DIMENSION);
+                ret |= encodeJsonArray(ctx, src->arrayDimensions, src->arrayDimensionsSize,
+                                       &UA_TYPES[UA_TYPES_INT32]);
+            }
         } else {
-            ret |= encodeJsonArray(ctx, src->data, src->arrayLength, src->type);
+            /* Special case of non-reversible array with dimensions */
+            size_t index = 0;
+            ret |= addMultiArrayContentJSON(ctx, src->data, src->type, &index,
+                                            src->arrayDimensions, 0,
+                                            src->arrayDimensionsSize);
         }
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 /* DataValue */
@@ -1243,8 +1237,7 @@ encodeJsonStructure(CtxJson *ctx, const void *src, const UA_DataType *type) {
         }
     }
 
-    ret |= writeJsonObjEnd(ctx);
-    return ret;
+    return ret | writeJsonObjEnd(ctx);
 }
 
 static status
@@ -1327,11 +1320,10 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     res = encodeJsonJumpTable[type->typeKind](&ctx, src, type);
 
     /* Clean up */
-    if(res == UA_STATUSCODE_GOOD) {
+    if(res == UA_STATUSCODE_GOOD)
         outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
-    } else if(allocated) {
+    else if(allocated)
         UA_ByteString_clear(outBuf);
-    }
     return res;
 }
 
@@ -1346,7 +1338,6 @@ UA_print(const void *p, const UA_DataType *type, UA_String *output) {
     options.prettyPrint = true;
     options.unquotedKeys = true;
     options.stringNodeIds = true;
-
     return UA_encodeJson(p, type, output, &options);
 }
 
@@ -1943,6 +1934,7 @@ decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type)
             break;
         }
     }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1972,6 +1964,7 @@ decodeExpandedNodeIdServerUri(ParseCtx *ctx, void *dst, const UA_DataType *type)
             break;
         }
     }
+
     UA_String_clear(&uri);
     return ret;
 }
@@ -2176,8 +2169,10 @@ getExtensionObjectType(ParseCtx *ctx) {
     UA_NodeId_init(&typeId);
     ret = NodeId_decodeJson(ctx, &typeId, &UA_TYPES[UA_TYPES_NODEID]);
     ctx->index = oldIndex;
-    if(ret != UA_STATUSCODE_GOOD)
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_NodeId_clear(&typeId); /* We don't have the global cleanup */
         return NULL;
+    }
 
     /* Lookup an return */
     const UA_DataType *type = UA_findDataTypeWithCustom(&typeId, ctx->customTypes);
@@ -2421,6 +2416,7 @@ DECODE_JSON(Variant) {
     dst->data = UA_new(dst->type);
     if(!dst->data)
         return UA_STATUSCODE_BADOUTOFMEMORY;
+
     DecodeEntry entries[2] = {
         {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
         {UA_JSONKEY_BODY, dst->data, NULL, false, dst->type}
@@ -2506,7 +2502,6 @@ DECODE_JSON(ExtensionObject) {
         } else {
             return UA_STATUSCODE_BADDECODINGERROR;
         }
-
         return decodeFields(ctx, entries, 3);
     }
 
