@@ -25,6 +25,8 @@ endif()
 #   FILE_CSV        Path to the .csv file containing the node ids, e.g. 'OpcUaDiModel.csv'
 #
 function(ua_generate_nodeid_header)
+    find_package(Python3 REQUIRED)
+
     set(options AUTOLOAD)
     set(oneValueArgs NAME ID_PREFIX OUTPUT_DIR FILE_CSV TARGET_SUFFIX TARGET_PREFIX)
     set(multiValueArgs )
@@ -121,6 +123,8 @@ endfunction()
 #
 #
 function(ua_generate_datatypes)
+    find_package(Python3 REQUIRED)
+
     set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
     set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
@@ -294,6 +298,7 @@ endfunction()
 #
 #
 function(ua_generate_nodeset)
+    find_package(Python3 REQUIRED)
 
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME TYPES_ARRAY OUTPUT_DIR IGNORE TARGET_PREFIX BLACKLIST FILES_BSD)
@@ -535,6 +540,7 @@ endfunction()
 #
 #
 function(ua_generate_nodeset_and_datatypes)
+    find_package(Python3 REQUIRED)
 
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
