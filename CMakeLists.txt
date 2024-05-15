@@ -1073,7 +1073,7 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_memorystore_openssl.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_ENCRYPTION)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c)
 endif()
 

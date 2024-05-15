@@ -23,6 +23,8 @@
 
 #include <limits.h>
 
+#define SHA1_DIGEST_LENGTH 20
+
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
 
@@ -837,6 +839,58 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
     X509_free(x509);
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
+                                  UA_String *thumbprint) {
+    if(certificate == NULL || thumbprint->length != (SHA1_DIGEST_LENGTH * 2))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
+    if(!certBio)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509 *cert = NULL;
+    /* Try to read the certificate as PEM first */
+    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+    if(!cert) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(certBio);
+        cert = d2i_X509_bio(certBio, NULL);
+    }
+    if(!cert) {
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    unsigned char digest[SHA1_DIGEST_LENGTH];
+    unsigned int digestLen;
+    if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_String thumb = UA_STRING_NULL;
+    thumb.length = (SHA1_DIGEST_LENGTH * 2) + 1;
+    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte) * thumb.length);
+
+    /* Create a string containing a hex representation */
+    char *p = (char*)thumb.data;
+    for(size_t i = 0; i < digestLen; i++) {
+        p += sprintf(p, "%.2X", digest[i]);
+    }
+
+    memcpy(thumbprint->data, thumb.data, thumbprint->length);
+
+    X509_free(cert);
+    BIO_free(certBio);
+    free(thumb.data);
+
+    return retval;
 }
 
 UA_StatusCode
