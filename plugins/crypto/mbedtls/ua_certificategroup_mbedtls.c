@@ -735,6 +735,36 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
+                                  UA_String *thumbprint){
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString thumbpr = UA_BYTESTRING_NULL;
+    UA_ByteString_allocBuffer(&thumbpr, UA_SHA1_LENGTH);
+
+    retval = mbedtls_thumbprint_sha1(certificate, &thumbpr);
+
+    UA_String thumb = UA_STRING_NULL;
+    thumb.length = (UA_SHA1_LENGTH * 2) + 1;
+    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumb.length);
+
+    /* Create a string containing a hex representation */
+    char *p = (char*)thumb.data;
+    for (size_t i = 0; i < thumbpr.length; i++) {
+        p += sprintf(p, "%.2X", thumbpr.data[i]);
+    }
+
+    memcpy(thumbprint->data, thumb.data, thumbprint->length);
+
+    UA_ByteString_clear(&thumbpr);
+    UA_ByteString_clear(&thumb);
+
+    return retval;
+}
+
+UA_StatusCode
 UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {
