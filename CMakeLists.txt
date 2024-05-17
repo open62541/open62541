@@ -1483,7 +1483,7 @@ install(TARGETS open62541
         INCLUDES DESTINATION include)
 
 set(open62541_install_tools_dir share/open62541)
-set(open62541_install_nodeset_dir share/open62541/ua-nodeset)
+set(open62541_install_nodeset_dir share/open62541/schema)
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
