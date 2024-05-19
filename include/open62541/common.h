@@ -75,7 +75,9 @@ UA_AttributeId_name(UA_AttributeId attrId);
  * with the overall access level. */
 
 #define UA_ACCESSLEVELMASK_READ           (0x01u << 0u)
+#define UA_ACCESSLEVELMASK_CURRENTREAD    (0x01u << 0u)
 #define UA_ACCESSLEVELMASK_WRITE          (0x01u << 1u)
+#define UA_ACCESSLEVELMASK_CURRENTWRITE   (0x01u << 1u)
 #define UA_ACCESSLEVELMASK_HISTORYREAD    (0x01u << 2u)
 #define UA_ACCESSLEVELMASK_HISTORYWRITE   (0x01u << 3u)
 #define UA_ACCESSLEVELMASK_SEMANTICCHANGE (0x01u << 4u)
