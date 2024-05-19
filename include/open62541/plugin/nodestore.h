@@ -388,11 +388,42 @@ typedef struct UA_LocalizedTextListEntry {
     UA_LocalizedText localizedText;
 } UA_LocalizedTextListEntry;
 
+/* Index of the different permission on the roles array. Every element of the
+ * array carrys the RoleSet with all roles that have the permission. */
+#define UA_ROLEPERMISSIONINDEX_BROWSE 0
+#define UA_ROLEPERMISSIONINDEX_READROLEPERMISSIONS 1
+#define UA_ROLEPERMISSIONINDEX_WRITEATTRIBUTE 2
+#define UA_ROLEPERMISSIONINDEX_WRITEROLEPERMISSIONS 3
+#define UA_ROLEPERMISSIONINDEX_WRITEHISTORIZING 4
+#define UA_ROLEPERMISSIONINDEX_READ 5
+#define UA_ROLEPERMISSIONINDEX_WRITE 6
+#define UA_ROLEPERMISSIONINDEX_READHISTORY 7
+#define UA_ROLEPERMISSIONINDEX_INSERTHISTORY 8
+#define UA_ROLEPERMISSIONINDEX_MODIFYHISTORY 9
+#define UA_ROLEPERMISSIONINDEX_DELETEHISTORY 10
+#define UA_ROLEPERMISSIONINDEX_RECEIVEEVENTS 11
+#define UA_ROLEPERMISSIONINDEX_CALL 12
+#define UA_ROLEPERMISSIONINDEX_ADDREFERENCE 13
+#define UA_ROLEPERMISSIONINDEX_REMOVEREFERENCE 14
+#define UA_ROLEPERMISSIONINDEX_DELETENODE 15
+#define UA_ROLEPERMISSIONINDEX_ADDNODE 16 /* AddNode is part of the
+                                           * DefaultRolePermissions but not
+                                           * included in every Node */
+
+#define UA_ROLEPERMISSIONS_COUNT 16 /* Excluding AddNode */
+
 /* Every Node starts with these attributes */
 struct UA_NodeHead {
     UA_NodeId nodeId;
     UA_NodeClass nodeClass;
     UA_QualifiedName browseName;
+
+    /* The PermissionType defines 17 different RolePermissions. The AddNode role
+     * is global and not defined for each node. For all other 16 PermissionTypes
+     * the node keeps a role-set of all the roles which have this permission.
+     * When a RolePermission is changed manually (added or removed) the changes
+     * propagate recursively to all child nodes (hierarchical reference). */
+    UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT];
 
     /* A node can have different localizations for displayName and description.
      * The server selects a suitable localization depending on the locale ids

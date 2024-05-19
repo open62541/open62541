@@ -1032,8 +1032,11 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 UA_StatusCode
 addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             const UA_AddNodesItem *item, UA_NodeId *outNewNodeId) {
-    /* Do not check access for server */
-    if(session != &server->adminSession && server->config.accessControl.allowAddNode) {
+    UA_NodeId tmpOutId = UA_NODEID_NULL;
+
+    /* Check the permissions */
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowAddNode) {
         UA_LOCK_ASSERT(&server->serviceMutex, 1);
         UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
@@ -1068,8 +1071,11 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_NodeId tmpOutId = UA_NODEID_NULL;
-    /* Fill the node attributes */
+    /* TODO: Take the NodePermissions from the parent
+     * TODO: Don't give all permissions. */
+    memset(node->head.rolePermissions, -1, sizeof(UA_RoleSet) * 16);
+
+    /* Fill the Node attributes */
     node->head.context = nodeContext;
     UA_StatusCode retval =
         UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->head.nodeId);

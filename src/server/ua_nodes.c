@@ -546,6 +546,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     UA_StatusCode retval = UA_NodeId_copy(&srchead->nodeId, &dsthead->nodeId);
     retval |= UA_QualifiedName_copy(&srchead->browseName, &dsthead->browseName);
 
+    /* Copy the RolePermissions */
+    memcpy(dsthead->rolePermissions, srchead->rolePermissions, sizeof(UA_RoleSet) * 16);
+
     /* Copy the display name in several languages */
     for(UA_LocalizedTextListEntry *lt = srchead->displayName; lt != NULL; lt = lt->next) {
         UA_LocalizedTextListEntry *newEntry = (UA_LocalizedTextListEntry *)
@@ -720,6 +723,7 @@ UA_Node_copy_alloc(const UA_Node *src) {
     }
     return dst;
 }
+
 /******************************/
 /* Copy Attributes into Nodes */
 /******************************/
