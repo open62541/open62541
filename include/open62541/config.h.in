@@ -91,6 +91,14 @@
 #cmakedefine UA_ENABLE_PUBSUB_BUFMALLOC
 #cmakedefine UA_ENABLE_PUBSUB_SKS
 
+/* Server capability limits.
+ * These have an impact on the size of each node. */
+#define UA_REFERENCETYPESET_MAX 128 /* The maximum number of ReferrenceTypes.
+                                     * Must be a multiple of 32. */
+#define UA_ROLESET_MAX 16 /* Maximum number of roles in the server. The standard
+                           * defines 8 roles. The additional roles are
+                           * user-defined. Must be a multiple of 16. */
+
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS

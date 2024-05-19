@@ -189,8 +189,6 @@ typedef struct {
 #define UA_REFERENCETYPEINDEX_HASORDEREDCOMPONENT 16
 #define UA_REFERENCETYPEINDEX_HASINTERFACE 17
 
-/* The maximum number of ReferrenceTypes. Must be a multiple of 32. */
-#define UA_REFERENCETYPESET_MAX 128
 typedef struct {
     UA_UInt32 bits[UA_REFERENCETYPESET_MAX / 32];
 } UA_ReferenceTypeSet;
@@ -333,7 +331,6 @@ typedef struct UA_ReferenceTargetTreeElem {
         struct UA_ReferenceTargetTreeElem *right;
     } nameTreeEntry;
 } UA_ReferenceTargetTreeElem;
-
 
 /* List of reference targets with the same reference type and direction. Uses
  * either an array or a tree structure. The SDK will not change the type of
