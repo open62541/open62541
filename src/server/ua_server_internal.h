@@ -291,6 +291,10 @@ UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
 /* Utility Functions */
 /*********************/
 
+UA_StatusCode
+getRoleIndex(UA_Server *server, const UA_QualifiedName roleName,
+             UA_Byte *roleIndex);
+
 void setServerLifecycleState(UA_Server *server, UA_LifecycleState state);
 
 void setupNs1Uri(UA_Server *server);
@@ -386,6 +390,16 @@ UA_Server_processServiceOperations(UA_Server *server, UA_Session *session,
 /******************************************/
 /* Internal function calls, without locks */
 /******************************************/
+
+#define UA_WELLKNOWNROLES_COUNT 8
+
+typedef struct {
+    UA_NodeId roleId;
+    UA_QualifiedName browseName;
+} RoleDescription;
+
+extern const RoleDescription wellKnownRoles[UA_WELLKNOWNROLES_COUNT];
+
 UA_StatusCode
 deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);

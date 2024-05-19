@@ -213,8 +213,27 @@ struct UA_ServerConfig {
     UA_CertificateGroup sessionPKI;
 
     /**
-     * See the section for :ref:`access-control
-     * handling<access-control>`. */
+     * Access Control
+     * ^^^^^^^^^^^^^^
+     * Custom roles defined for access control.
+     * See the Section :ref:`roles-access` for details.
+     *
+     * The QualifiedName needs to be unique. If the server supports this, a
+     * RoleType object is created in the information model for every custom
+     * role. The NodeId defined for the custom role is used for that. If the
+     * NodeId is empty (ns=0;i=0), then a new NodeId is assigned
+     * automatically. */
+    size_t customRolesSize;
+    struct {
+        UA_NodeId roleId;
+        UA_QualifiedName browseName;
+    } *customRoles;
+
+    /**
+     * Instance of the :ref:`access-control plugin<access-control>`. It performs
+     * the session authentication, assigns roles to sessions and implements
+     * additional access control checks on top of the role permissions defined
+     * for every node. */
     UA_AccessControl accessControl;
 
     /**
@@ -606,6 +625,80 @@ UA_Server_setSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
                                  const UA_QualifiedName key);
+
+/**
+ * .. _roles-access:
+ *
+ * Role Permissions and Access Control
+ * -----------------------------------
+ *
+ * OPC UA uses role-based access control (RBAC). Every session is assigned a set
+ * of roles it represents. Every node in the information contains
+ * RolePermissions that define the rights of each role.
+ *
+ * Every role has a unique QualifiedName. The following eight well-known roles
+ * from the standard (Part 3, Section 4.9) are always present in a server (with
+ * the index given in brackets). Custom roles are configured in addition to
+ * those.
+ *
+ * [0] BrowseName: ``0:Anonymous``, NodeId: ``i=15644``
+ *    The Role is allowed to browse and read non-security related Nodes only in
+ *    the Server Object and all type Nodes.
+ *
+ * [1] BrowseName: ``0:AuthenticatedUser``, NodeId: ``i=15656``
+ *    The Role is allowed to browse and read non-security related Nodes.
+ *
+ * [2] BrowseName: ``0:Observer``, NodeId: ``i=15668``
+ *    The Role is allowed to browse, read live data, read historical data/events
+ *    or subscribe to data/events.
+ *
+ * [3] BrowseName: ``0:Operator``, NodeId: ``i=15680``
+ *    The Role is allowed to browse, read live data, read historical data/events
+ *    or subscribe to data/events. In addition, the Session is allowed to write
+ *    some live data and call some Methods.
+ *
+ * [4] BrowseName: ``0:Engineer``, NodeId: ``i=16036``
+ *    The Role is allowed to browse, read/write configuration data, read
+ *    historical data/events, call Methods or subscribe to data/events.
+ *
+ * [5] BrowseName: ``0:Supervisor``, NodeId: ``i=15692``
+ *   The Role is allowed to browse, read live data, read historical data/events,
+ *    call Methods or subscribe to data/events.
+ *
+ * [6] BrowseName: ``0:ConfigureAdmin``, NodeId: ``i=15716``
+ *    The Role is allowed to change the non-security related configuration
+ *    settings.
+ *
+ * [7] BrowseName: ``0:SecurityAdmin``, NodeId: ``i=15704``
+ *    The Role is allowed to change security related settings.
+ *
+ * The open62541 API assigns an index to every role. A bitmap of indices is used
+ * to represent a collection of roles. The role index of the custom roles starts
+ * at 8 and is counted upwards from there.
+ *
+ * Newly created nodes inherit the role permissions from their parent.
+ */
+
+/* Translate the role index (from the bitmap) into the role name. This sets the
+ * roleName point to point to a const QualifiedName. This pointer is stable as
+ * long the server role array in the server configuration is not changed. */
+UA_StatusCode UA_THREADSAFE
+UA_Server_getRoleName(UA_Server *server, UA_Byte roleIndex,
+                      const UA_QualifiedName **roleName);
+
+/* Translate the role name to its index. Upon failure, the index is set to 255.
+ * To prevent the accidental use of the role with index 0 (Anonymous). */
+UA_StatusCode UA_THREADSAFE
+UA_Server_getRoleIndex(UA_Server *server, const UA_QualifiedName roleName,
+                       UA_Byte *roleIndex);
+
+UA_StatusCode UA_THREADSAFE
+UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          UA_RoleSet *roles);
+
+UA_StatusCode UA_THREADSAFE
+UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          UA_RoleSet roles);
 
 /**
  * Reading and Writing Node Attributes
