@@ -1988,6 +1988,19 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
+    /* Check the RolePermissions */
+    UA_RoleSet delNodeRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_DELETENODE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(delNodeRoles, session->roles)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+        UA_LOG_INFO_SESSION(server->config.logging, session, "DeleteNode (%.*s): "
+                            "Cannot delete the node because of missing RolePermisions",
+                            (int)nodeIdStr.length, nodeIdStr.data));
+        UA_NODESTORE_RELEASE(server, node);
+        *result = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
         UA_LOG_NODEID_INFO(&node->head.nodeId,
         UA_LOG_INFO_SESSION(server->config.logging, session, "DeleteNode (%.*s): "
@@ -2097,6 +2110,13 @@ struct AddNodeInfo {
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                    const struct AddNodeInfo *info) {
+    /* Check the RolePermissions for the individual node */
+    UA_RoleSet addRefRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_ADDREFERENCE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(addRefRoles, session->roles))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Add the reference in this direction */
     return UA_Node_addReference(node, info->refTypeIndex, info->isForward,
                                 info->targetNodeId, info->targetBrowseNameHash);
 }
@@ -2104,6 +2124,13 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
+    /* Check the RolePermissions for the individual node */
+    UA_RoleSet delRefRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_REMOVEREFERENCE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(delRefRoles, session->roles))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Get the reference type index */
     const UA_Node *refType = UA_NODESTORE_GET(server, &item->referenceTypeId);
     if(!refType)
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;

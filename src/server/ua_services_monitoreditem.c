@@ -431,6 +431,32 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
             UA_DataValue_clear(&v);
             return;
         }
+
+        /* Check the RolePermissions */
+        if(session != &server->adminSession) {
+            const UA_Node *n =
+                UA_NODESTORE_GET_SELECTIVE(server, &request->itemToMonitor.nodeId,
+                                           UA_NODEATTRIBUTESMASK_NONE,
+                                           UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID);
+            if(!n) {
+                result->statusCode = UA_STATUSCODE_BADNODEIDUNKNOWN;
+                UA_DataValue_clear(&v);
+                return;
+            }
+
+            UA_RoleSet eventRoles = n->head.rolePermissions[UA_ROLEPERMISSIONINDEX_RECEIVEEVENTS];
+            UA_Boolean allowed = UA_RoleSet_intersects(eventRoles, session->roles);
+            UA_NODESTORE_RELEASE(server, n);
+            if(!allowed) {
+                result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
+                UA_LOG_INFO_SUBSCRIPTION(server->config.logging, cmc->sub,
+                                         "Could not create a MonitoredItem as the "
+                                         "RolePermissions do not allow to listen for events");
+                UA_DataValue_clear(&v);
+                return;
+            }
+        }
     }
 #endif
 

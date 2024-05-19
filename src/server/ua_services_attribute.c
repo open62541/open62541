@@ -71,12 +71,41 @@ attributeId2AttributeMask(UA_AttributeId id) {
 /* Session for read operations can be NULL. For example for a MonitoredItem
  * where the underlying Subscription was detached during CloseSession. */
 
+static const UA_UInt32 writeAttributeMask =
+    UA_WRITEMASK_HISTORIZING | UA_WRITEMASK_ROLEPERMISSIONS;
+
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_NodeHead *head) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return 0xFFFFFFFF; /* the local admin user has all rights */
+        return 0xFFFFFFFF;
+
     UA_UInt32 mask = head->writeMask;
+
+    /* The PermissionType enum also defines WriteAttribute permissions. The
+     * standard describes WriteAttribute as follows: The Client is allowed to
+     * write to Attributes other than the Value, Historizing or RolePermissions
+     * Attribute if the WriteMask indicates that the Attribute is writeable.
+     *
+     * So if the WriteAttribute is not given we "cancel out" all attributes with
+     * the exception of Value, Historizing and RolePermissions. And Value is not
+     * handled by the WriteMask. */
+    UA_RoleSet waRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEATTRIBUTE];
+    if(!UA_RoleSet_intersects(waRoles, session->roles))
+        mask &= writeAttributeMask;
+
+    /* Can we the user change the role permissions? */
+    UA_RoleSet rpRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEROLEPERMISSIONS];
+    if(!UA_RoleSet_intersects(rpRoles, session->roles))
+        mask &= ~UA_WRITEMASK_ROLEPERMISSIONS;
+
+    /* Is historizing access allowed? */
+    UA_RoleSet whRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEHISTORIZING];
+    if(!UA_RoleSet_intersects(whRoles, session->roles))
+        mask &= ~UA_WRITEMASK_HISTORIZING;
+
+    /* BIT-AND the mask with the result from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     mask &= server->config.accessControl.
@@ -85,31 +114,69 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                           session ? session->context : NULL,
                           &head->nodeId, head->context);
     UA_LOCK(&server->serviceMutex);
+
     return mask;
 }
 
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
+        return 0xFF; 
+
+    UA_Byte accessLevel = node->accessLevel;
+
+    /* Add the RolePermissions to the AccessLevel */
+
+    UA_RoleSet readRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_READ];
+    if(!UA_RoleSet_intersects(readRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_CURRENTREAD;
+
+    UA_RoleSet writeRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_WRITE];
+    if(!UA_RoleSet_intersects(writeRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_CURRENTWRITE;
+
+    UA_RoleSet readHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_READHISTORY];
+    if(!UA_RoleSet_intersects(readHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYREAD;
+
+    UA_RoleSet insertHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_INSERTHISTORY];
+    if(!UA_RoleSet_intersects(insertHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+    UA_RoleSet modifyHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_MODIFYHISTORY];
+    if(!UA_RoleSet_intersects(modifyHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+    UA_RoleSet deleteHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_DELETEHISTORY];
+    if(!UA_RoleSet_intersects(deleteHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+
+    /* Get an additional UserAccessLevel mask from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
-    retval &= server->config.accessControl.
+    accessLevel &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
                            session ? &session->sessionId : NULL,
                            session ? session->context : NULL,
                            &node->head.nodeId, node->head.context);
     UA_LOCK(&server->serviceMutex);
-    return retval;
+
+    return accessLevel;
 }
 
 static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return true; /* the local admin user has all rights */
+        return true;
+
+    /* Check the RolePermissions */
+    UA_RoleSet callRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_CALL];
+    if(!UA_RoleSet_intersects(callRoles, session->roles))
+        return false;
+
+    /* Get an additional UserExecutable bit from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     UA_Boolean userExecutable = node->executable;
