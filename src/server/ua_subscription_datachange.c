@@ -182,14 +182,7 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
 }
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK(&server->serviceMutex);
-    monitoredItem_sampleCallback(server, mon);
-    UA_UNLOCK(&server->serviceMutex);
-}
-
-void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
