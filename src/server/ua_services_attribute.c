@@ -694,6 +694,15 @@ readWithSession(UA_Server *server, UA_Session *session,
 
     UA_DataValue dv;
     UA_DataValue_init(&dv);
+
+    /* No Session defined. This can happen for example when a Subscription is
+     * detached from its Session. */
+    if(!session) {
+        dv.hasStatus = true;
+        dv.status = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return dv;
+    }
+
     Operation_Read(server, session, &timestampsToReturn, item, &dv);
     return dv;
 }
