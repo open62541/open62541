@@ -114,6 +114,9 @@ UA_AttributeId_name(UA_AttributeId attrId);
 #define UA_WRITEMASK_VALUERANK               (0x01u << 19u)
 #define UA_WRITEMASK_WRITEMASK               (0x01u << 20u)
 #define UA_WRITEMASK_VALUEFORVARIABLETYPE    (0x01u << 21u)
+#define UA_WRITEMASK_DATATYPEDEFINITION      (0x01u << 22u)
+#define UA_WRITEMASK_ROLEPERMISSIONS         (0x01u << 23u)
+#define UA_WRITEMASK_ACCESSRESTRICTIONS      (0x01u << 24u)
 #define UA_WRITEMASK_ACCESSLEVELEX           (0x01u << 25u)
 
 /**
