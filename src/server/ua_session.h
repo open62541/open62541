@@ -45,6 +45,8 @@ struct UA_Session {
     UA_String sessionName;
     UA_Boolean activated;
 
+    UA_RoleSet roles;
+
     void *context; /* Pointer assigned by the user in the
                     * accessControl->activateSession context */
 

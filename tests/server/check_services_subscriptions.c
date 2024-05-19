@@ -40,6 +40,10 @@ createSession(void) {
     UA_StatusCode retval = UA_Server_createSession(server, NULL, &request, &session);
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, 0);
+
+    /* The session is assigned roles during activation.
+     * Do it here. */
+    session->roles = UA_ROLESET_ALL;
 }
 
 static void setup(void) {
