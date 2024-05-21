@@ -1545,24 +1545,28 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
-set(UA_install_tools_dirs "tools/certs"
-    "tools/nodeset_compiler"
-    "tools/schema"
-    ${UA_NODESET_DIR})
-
-set(UA_install_tools_files "tools/generate_datatypes.py"
-    "tools/generate_nodeid_header.py"
-    "tools/generate_statuscode_descriptions.py")
-
-install(DIRECTORY ${UA_install_tools_dirs}
+install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
         DESTINATION ${open62541_install_tools_dir}
-        USE_SOURCE_PERMISSIONS
         FILES_MATCHING
         PATTERN "*"
+        PATTERN "__pycache__" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
-        PATTERN ".git*" EXCLUDE)
+        PATTERN ".git*" EXCLUDE
+        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
-install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
+# Trailing slash to prevent "schema/schema" nesting
+install(DIRECTORY ${UA_SCHEMA_DIR}/
+        DESTINATION ${open62541_install_nodeset_dir}
+        FILES_MATCHING
+        PATTERN "*"
+        PATTERN "*.txt" EXCLUDE
+        PERMISSIONS OWNER_READ GROUP_READ)
+
+set(UA_install_tools_files "tools/generate_datatypes.py"
+                           "tools/generate_nodeid_header.py"
+                           "tools/generate_statuscode_descriptions.py")
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
+        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
 # Recreate the include folder structure from the source also in /usr/lib/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
