@@ -1568,7 +1568,7 @@ set(UA_install_tools_files "tools/generate_datatypes.py"
 install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
-# Recreate the include folder structure from the source also in /usr/lib/include/open62541
+# Recreate the include folder structure from the source also in /usr/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
     set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
     set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
