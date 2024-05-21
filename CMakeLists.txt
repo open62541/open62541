@@ -1141,9 +1141,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         endif()
     endif()
 
-    set(UA_FILE_NODEIDS ${UA_NODESET_DIR}/Schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${UA_NODESET_DIR}/Schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd)
 else()
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
@@ -1151,9 +1148,6 @@ else()
     set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
     set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
-    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
 
     # always enable  subscriptions, method, discovery and historizing datatypes (for the client)
     list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
@@ -1192,6 +1186,10 @@ else()
         list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
     endif()
 endif()
+
+set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
+set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
+set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
 
 # standard-defined data types
 ua_generate_datatypes(BUILTIN GEN_DOC NAME "types" TARGET_SUFFIX "types" NAMESPACE_IDX 0
