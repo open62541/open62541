@@ -1120,11 +1120,13 @@ endif()
 # Generate source files #
 #########################
 
-# List of nodeset files combined into NS0 generated file
-set(UA_FILE_NODESETS)
-set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the nodetset directory.")
+# Nodeset files combined into NS0 generated file
+set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
+set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
+set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema) # Directory with the schema files for installation
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
+    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema) # Use the "full" schema files also for datatypes and statuscodes
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
     endif()
