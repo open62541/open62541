@@ -1126,12 +1126,15 @@ set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path 
 set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema) # Directory with the schema files for installation
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema) # Use the "full" schema files also for datatypes and statuscodes
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
-    endif()
-    set(UA_FILE_NODESETS "${UA_FILE_NS0}")
+    # Use the "full" schema files also for datatypes and statuscodes
+    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema)
 
+    # Set the full Nodeset for NS0
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
+    endif()
+
+    # Check that the submodule was checked out or manually downloaded into the folder
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
@@ -1140,53 +1143,60 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
         endif()
     endif()
-
 else()
+    # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml)
     endif()
-    set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
-    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
+    # Set feature-specific datatypes definitions and nodesets
+    set(UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
+                          ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
-    # always enable  subscriptions, method, discovery and historizing datatypes (for the client)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_historizing.txt)
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+    endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_diagnostics.txt)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
+    endif()
+
+    if(UA_ENABLE_SUBSCRIPTIONS)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.EventsMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.EventsMinimal.xml)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.HistorizingMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.HistorizingMinimal.xml)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_historizing.txt)
     endif()
 
     if(UA_ENABLE_QUERY)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_query.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_query.txt)
     endif()
 
     if(UA_ENABLE_PUBSUB)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_pubsub.txt)
         if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+            list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
+
 	if(UA_ENABLE_DA)
-		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
-        set(UA_NODESET_FILE_DA ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml)
+		list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Part8_Subset.xml)
     endif()
+
     if(UA_ENABLE_TYPEDESCRIPTION)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
     endif()
 endif()
 
+list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0}")
 set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
 set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
 set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
@@ -1250,7 +1260,7 @@ if(UA_ENABLE_AMALGAMATION)
                      open62541-generator-transport open62541-generator-statuscode)
 endif()
 
-ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS} ${UA_NODESET_FILE_DA}
+ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
                     INTERNAL BLACKLIST ${UA_FILE_NS0_BLACKLIST}
                     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
                     DEPENDS_TARGET "open62541-generator-types")
