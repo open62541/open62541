@@ -1484,6 +1484,7 @@ install(TARGETS open62541
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_nodeset_dir share/open62541/schema)
+set(open62541_crypto_plugin ${UA_ENABLE_ENCRYPTION})
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
@@ -1492,7 +1493,8 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir)
+                                        open62541_install_nodeset_dir
+                                        open62541_crypto_plugin)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
