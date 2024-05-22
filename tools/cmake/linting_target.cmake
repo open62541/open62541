@@ -7,7 +7,7 @@ add_custom_target(clang-tidy ${CLANG_TIDY_PROGRAM}
                   ${lib_sources}
                   DEPENDS ${lib_sources}
                   COMMENT "Run clang-tidy on the library")
-add_dependencies(clang-tidy open62541)
+add_dependencies(clang-tidy ${OPEN62541-LIB})
 set_target_properties(clang-tidy PROPERTIES FOLDER "CodeAnalysis")
 
 add_custom_target(cpplint cpplint
