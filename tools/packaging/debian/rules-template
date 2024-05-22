@@ -11,4 +11,4 @@ override_dh_auto_test:
 	dh_auto_test -- ARGS+=--output-on-failure
 
 %:
-	dh $@ --buildsystem=cmake --parallel
+	dh $@ --buildsystem=cmake
