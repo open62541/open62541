@@ -1566,8 +1566,10 @@ install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
 install(DIRECTORY ${UA_SCHEMA_DIR}/
         DESTINATION ${open62541_install_nodeset_dir}
         FILES_MATCHING
-        PATTERN "*"
-        PATTERN "*.txt" EXCLUDE
+        PATTERN "*.xml"
+        PATTERN "*Types.bsd"
+        PATTERN "StatusCode.csv"
+        PATTERN "NodeIds.csv"
         PERMISSIONS OWNER_READ GROUP_READ)
 
 set(UA_install_tools_files "tools/generate_datatypes.py"
