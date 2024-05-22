@@ -3,8 +3,20 @@ include("${CMAKE_CURRENT_LIST_DIR}/open62541Targets.cmake")
 
 set_and_check(open62541_TOOLS_DIR @PACKAGE_open62541_install_tools_dir@ CACHE PATH "Path to the directory that contains the tooling of the stack")
 set_and_check(UA_NODESET_DIR @PACKAGE_open62541_install_nodeset_dir@ CACHE PATH "Path to the directory that contains the schema files")
+set(open62541_crypto_plugin @open62541_crypto_plugin@)
 
 # Macros for datatype generation, nodeset compiler, etc.
 include("${CMAKE_CURRENT_LIST_DIR}/open62541Macros.cmake")
 
 check_required_components(open62541)
+
+include(CMakeFindDependencyMacro)
+if(open62541_crypto_plugin STREQUAL "mbedtls")
+  list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR})
+  find_dependency(MbedTLS REQUIRED)
+  list(REMOVE_AT CMAKE_MODULE_PATH -1)
+elseif(open62541_crypto_plugin STREQUAL "openssl")
+  find_dependency(OpenSSL REQUIRED)
+elseif(open62541_crypto_plugin STREQUAL "libressl")
+  find_dependency(LibreSSL REQUIRED)
+endif()
