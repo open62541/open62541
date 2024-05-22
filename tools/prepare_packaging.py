@@ -110,6 +110,6 @@ with open(os.path.join(dirpath,"CMakeLists.txt"), 'r+') as f:
     f.seek(0)
     f.truncate()
     for idx, line in enumerate(lines):
-        if idx == 2:
+        if idx == 1:
             f.write('set(OPEN62541_VERSION "{}")\n'.format(git_describe_version))
         f.write(line)
