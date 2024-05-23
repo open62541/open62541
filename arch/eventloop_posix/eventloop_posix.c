@@ -122,6 +122,28 @@ processDelayed(UA_EventLoopPOSIX *el) {
     }
 }
 
+#ifdef __APPLE__
+static int markNonBlock(int fd)
+{
+    int flags = fcntl(fd, F_GETFL);
+    if (flags < 0)
+        return flags;
+
+    flags |= O_NONBLOCK;
+
+    return fcntl(fd, F_SETFL, flags);
+}
+
+int UA_EventLoopPOSIX_pipe(int fds[2])
+{
+    int err = markNonBlock(fds[0]);
+    if (err != 0)
+        return err;
+    return markNonBlock(fds[1]);
+
+}
+#endif
+
 /***********************/
 /* EventLoop Lifecycle */
 /***********************/

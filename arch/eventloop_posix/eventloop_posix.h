@@ -316,8 +316,10 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
-#ifdef _WIN32
+#if defined(_WIN32)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
+#elif defined(__APPLE__)
+int UA_EventLoopPOSIX_pipe(int fds[2]);
 #else
 # define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif
