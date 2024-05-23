@@ -71,8 +71,6 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
 static void
 ua_Subscriptions_create_handler(UA_Client *client, void *data,
                                 UA_UInt32 requestId, void *r) {
-    UA_LOCK_ASSERT(&client->clientMutex, 0);
-
     UA_CreateSubscriptionResponse *response = (UA_CreateSubscriptionResponse *)r;
     CustomCallback *cc = (CustomCallback *)data;
     UA_Client_Subscription *newSub = (UA_Client_Subscription *)cc->clientData;

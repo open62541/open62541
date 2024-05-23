@@ -807,7 +807,6 @@ addPubSubConnectionAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = addPubSubConnectionLocked(server, sessionId, sessionHandle,
                                                   methodId, methodContext,
@@ -824,7 +823,6 @@ removeConnectionAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     retVal |= UA_Server_removePubSubConnection(server, nodeToRemove);
@@ -967,8 +965,6 @@ addDataSetFolderAction(UA_Server *server,
                        const UA_NodeId *objectId, void *objectContext,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output){
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* defined in R 1.04 9.1.4.5.7 */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_String newFolderName = *((UA_String *) input[0].data);
@@ -1102,7 +1098,6 @@ addPublishedDataItemsAction(UA_Server *server,
                             const UA_NodeId *objectId, void *objectContext,
                             size_t inputSize, const UA_Variant *input,
                             size_t outputSize, UA_Variant *output){
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     size_t fieldNameAliasesSize = input[1].arrayLength;
     UA_String * fieldNameAliases = (UA_String *) input[1].data;
@@ -1278,8 +1273,6 @@ readContentMask(UA_Server *server, const UA_NodeId *sessionId,
                 void *sessionContext, const UA_NodeId *nodeId,
                 void *nodeContext, UA_Boolean includeSourceTimeStamp,
                 const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
     if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
         writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
@@ -1300,8 +1293,6 @@ writeContentMask(UA_Server *server, const UA_NodeId *sessionId,
                  void *sessionContext, const UA_NodeId *nodeId,
                  void *nodeContext, const UA_NumericRange *range,
                  const UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
     if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
         writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
@@ -1465,8 +1456,6 @@ removeGroupAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output){
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
     if(UA_WriterGroup_findWGbyId(server, nodeToRemove)) {
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
@@ -1858,7 +1847,6 @@ removeDataSetWriterAction(UA_Server *server,
                           const UA_NodeId *objectId, void *objectContext,
                           size_t inputSize, const UA_Variant *input,
                           size_t outputSize, UA_Variant *output){
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_NodeId nodeToRemove = *((UA_NodeId *) input[0].data);
     return UA_Server_removeDataSetWriter(server, nodeToRemove);
 }
