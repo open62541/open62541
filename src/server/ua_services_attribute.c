@@ -743,8 +743,8 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
 
 /* Exposes the Read service to local users */
 UA_DataValue
-UA_Server_readWithSession(UA_Server *server, const UA_ReadValueId *item,
-               UA_TimestampsToReturn timestamps, UA_NodeId *sessionId) {
+UA_Server_readWithSession(UA_Server *server, UA_NodeId *sessionId,
+                          const UA_ReadValueId *item, UA_TimestampsToReturn timestamps) {
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = NULL;
     if(sessionId)
@@ -1960,7 +1960,6 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId
     }
 
     //Create the Async Request to be taken by workers
-    //TODO make "UA_AsyncManager_createAsyncOp" generic for read/write
     *opResult =
         UA_AsyncManager_createAsyncOp(&server->asyncManager,
                                       server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_WRITE, opRequest);

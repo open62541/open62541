@@ -48,6 +48,13 @@ clientReceiveCallbackRead(UA_Client *client, void *userdata,
 }
 
 static void
+clientReceiveCallbackReadAsync(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                               UA_StatusCode status, UA_DataValue *attribute) {
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received async read response");
+    clientCounter++;
+}
+
+static void
 clientReceiveCallbackWrite(UA_Client *client, void *userdata,
                            UA_UInt32 requestId, UA_WriteResponse *wr) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Received write response");
@@ -167,7 +174,7 @@ START_TEST(Async_call) {
     void *context = NULL;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL, NULL);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -255,6 +262,25 @@ START_TEST(Async_cancel) {
     UA_Client_run_iterate(client, 0);
     ck_assert_uint_eq(clientCounter, 1);
 
+    reqId = 0;
+    UA_NodeId variableNode = UA_NODEID_STRING(1, "the.asyncVariable");
+    UA_ReadValueId item;
+    UA_ReadValueId_init(&item);
+    item.nodeId = variableNode;
+    item.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_Client_readAttribute_async(client, &item, UA_TIMESTAMPSTORETURN_BOTH,
+                                  clientReceiveCallbackReadAsync, NULL, &reqId);
+
+    /* Cancel the request */
+    cancelCount = 0;
+    UA_Client_cancelByRequestId(client, reqId, &cancelCount);
+    ck_assert_uint_eq(cancelCount, 1);
+
+    /* We expect to receive the cancelled response */
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 2);
+
+
     UA_Client_disconnect(client);
     UA_Client_delete(client);
 } END_TEST
@@ -318,7 +344,7 @@ START_TEST(Async_timeout_worker) {
     void *context = NULL;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL, NULL);
     ck_assert_uint_eq(haveAsync, true);
     UA_AsyncOperationResponse response;
     UA_CallMethodResult_init(&response.callMethodResult);
@@ -379,13 +405,14 @@ START_TEST(Async_read) {
     UA_AsyncOperationType aot;
     const UA_AsyncOperationRequest *request;
     void *context = NULL;
+    size_t opIndex;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL, &opIndex);
     ck_assert_uint_eq(haveAsync, true);
 
     UA_DataValue readResponse;
-    readResponse = UA_Server_readWithSession(server, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, NULL);
+    readResponse = UA_Server_readWithSession(server, NULL, &request->readRequest.nodesToRead[opIndex], request->readRequest.timestampsToReturn);
     UA_Server_setAsyncOperationResult(server, (UA_AsyncOperationResponse*) &readResponse, context);
     UA_DataValue_clear(&readResponse);
 
@@ -450,7 +477,7 @@ START_TEST(Async_write) {
     void *context = NULL;
     UA_DateTime timeout = 0;
     UA_Boolean haveAsync =
-        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL);
+        UA_Server_getAsyncOperationNonBlocking(server, &aot, &request, &context, &timeout, NULL, NULL);
     ck_assert_uint_eq(haveAsync, true);
 
     UA_StatusCode result;

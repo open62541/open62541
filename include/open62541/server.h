@@ -652,8 +652,8 @@ UA_Server_read(UA_Server *server, const UA_ReadValueId *item,
  * @return Returns a DataValue that contains either an error code, or a variant
  *         with the attribute value and the timestamps. */
 UA_DataValue UA_EXPORT UA_THREADSAFE
-UA_Server_readWithSession(UA_Server *server, const UA_ReadValueId *item,
-               UA_TimestampsToReturn timestamps, UA_NodeId *session);
+UA_Server_readWithSession(UA_Server *server, UA_NodeId *session,
+                          const UA_ReadValueId *item, UA_TimestampsToReturn timestamps);
 
 /* Don't use this function. There are typed versions for every supported
  * attribute. */
@@ -2044,7 +2044,7 @@ typedef enum {
 
 typedef union {
     UA_CallMethodRequest callMethodRequest;
-    UA_ReadValueId readValueId;
+    UA_ReadRequest readRequest;
     UA_WriteValue writeValue;
 } UA_AsyncOperationRequest;
 
@@ -2068,7 +2068,8 @@ UA_Boolean UA_EXPORT
 UA_Server_getAsyncOperationNonBlocking(UA_Server *server,
                                        UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
-                                       void **context, UA_DateTime *timeout, UA_NodeId *sessionId);
+                                       void **context, UA_DateTime *timeout,
+                                       UA_NodeId *sessionId, size_t *opIndex);
 
 /* UA_Boolean UA_EXPORT */
 /* UA_Server_getAsyncOperationBlocking(UA_Server *server, */

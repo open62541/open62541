@@ -381,7 +381,8 @@ UA_AsyncManager_createAsyncOp(UA_AsyncManager *am, UA_Server *server,
 UA_Boolean
 UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType *type,
                                        const UA_AsyncOperationRequest **request,
-                                       void **context, UA_DateTime *timeout, UA_NodeId *sessionId) {
+                                       void **context, UA_DateTime *timeout,
+                                       UA_NodeId *sessionId, size_t *opIndex) {
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_Boolean bRV = false;
@@ -395,7 +396,9 @@ UA_Server_getAsyncOperationNonBlocking(UA_Server *server, UA_AsyncOperationType 
         if(ao->operationType == UA_ASYNCOPERATIONTYPE_CALL){
            *request = (UA_AsyncOperationRequest*)&ao->request_call;
         } else if (ao->operationType == UA_ASYNCOPERATIONTYPE_READ){
-           *request = (UA_AsyncOperationRequest*)&ao->request_read.nodesToRead[ao->index];
+           if(opIndex)
+               *opIndex = ao->index;
+           *request = (UA_AsyncOperationRequest*)&ao->request_read;
         } else if (ao->operationType == UA_ASYNCOPERATIONTYPE_WRITE){
            *request = (UA_AsyncOperationRequest*)&ao->request_write.nodesToWrite[ao->index];
         }
@@ -539,7 +542,6 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
 
     /* Finish / dispatch the operations. This may allocate a new AsyncResponse internally */
     uintptr_t respOp = (uintptr_t)*respPos;
-    //uintptr_t reqOp = *(uintptr_t*)((uintptr_t)requestOperations + sizeof(size_t));
     uintptr_t reqOp = *(uintptr_t*)((uintptr_t) requests);
     for(size_t i = 0; i < ops; i++) {
         operationCallback(server, session, requestId, requestHandle,
@@ -575,9 +577,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             case UA_ASYNCOPERATIONTYPE_WRITE:
                 op->response_write = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
                 break;
-            case UA_ASYNCOPERATIONTYPE_INVALID:
-                op->response_write = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-                break;
+            default:
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                               "Async Service: Cancel reefers to unknown operation type.");
         }
         TAILQ_REMOVE(&am->dispatchedQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
@@ -604,9 +606,9 @@ UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 request
             case UA_ASYNCOPERATIONTYPE_WRITE:
                 op->response_write = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
                 break;
-            case UA_ASYNCOPERATIONTYPE_INVALID:
-                op->response_write = UA_STATUSCODE_BADREQUESTCANCELLEDBYCLIENT;
-                break;
+            default:
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+                               "Async Service: Cancel reefers to unknown operation type.");
         }
         TAILQ_REMOVE(&am->newQueue, op, pointers);
         TAILQ_INSERT_TAIL(&am->resultQueue, op, pointers);
