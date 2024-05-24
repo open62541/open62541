@@ -15,7 +15,7 @@
 #include <malloc.h>
 #include "common.h"
 
-#ifndef WIN32
+#ifndef _WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
@@ -188,7 +188,8 @@ THREAD_CALLBACK(ThreadWorker) {
         const UA_AsyncOperationRequest* request = NULL;
         void *context = NULL;
         UA_AsyncOperationType type; UA_NodeId sessionId;
-        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL, &sessionId) == true) {
+        size_t opIndex;
+        if(UA_Server_getAsyncOperationNonBlocking(globalServer, &type, &request, &context, NULL, &sessionId, &opIndex) == true) {
             switch(type) {
                 case UA_ASYNCOPERATIONTYPE_CALL:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncMethod_Testing: Got entry: OKAY");
@@ -201,8 +202,7 @@ THREAD_CALLBACK(ThreadWorker) {
                 case UA_ASYNCOPERATIONTYPE_READ:
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Got entry: OKAY");
                     UA_DataValue readResponse;
-                    //ToDo check timestamp to return logic
-                    readResponse = UA_Server_readWithSession(globalServer, &request->readValueId, UA_TIMESTAMPSTORETURN_BOTH, &sessionId);
+                    readResponse = UA_Server_readWithSession(globalServer, &sessionId, &request->readRequest.nodesToRead[opIndex], request->readRequest.timestampsToReturn);
                     UA_Server_setAsyncOperationResult(globalServer, (UA_AsyncOperationResponse*) &readResponse, context);
                     UA_DataValue_clear(&readResponse);
                     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "AsyncRead_Testing: Read done: OKAY");
