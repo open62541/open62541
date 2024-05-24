@@ -17,6 +17,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 /* Adjust your configuration globally for the ethernet tests here: */
 #include "ethernet_config.h"

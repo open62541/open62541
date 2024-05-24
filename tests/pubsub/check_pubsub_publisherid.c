@@ -12,6 +12,7 @@
 #endif /* UA_ENABLE_PUBSUB_FILE_CONFIG */
 
 #include <check.h>
+#include <stdlib.h>
 
 static UA_Server *server = NULL;
 
