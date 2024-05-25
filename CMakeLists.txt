@@ -371,6 +371,7 @@ if(UA_ENABLE_MQTT)
     if(NOT EXISTS "${UA_FILE_MQTT}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                         RESULT_VARIABLE GIT_SUBMOD_RESULT)
         if(NOT GIT_SUBMOD_RESULT EQUAL "0")
             message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
@@ -1120,6 +1121,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+                        WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
                         RESULT_VARIABLE GIT_SUBMOD_RESULT)
         if(NOT GIT_SUBMOD_RESULT EQUAL "0")
             message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
