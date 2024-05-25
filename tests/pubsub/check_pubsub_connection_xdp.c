@@ -23,6 +23,7 @@
 #include <sys/mman.h>
 
 #include <check.h>
+#include <stdlib.h>
 
 #define             MULTICAST_MAC_ADDRESS              "opc.eth://01-00-5E-00-00-01"
 #define             RECEIVE_QUEUE_0                    0
