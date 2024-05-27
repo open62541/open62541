@@ -18,6 +18,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include "testing_clock.h"
 #include "../encryption/certificates.h"
 #include "thread_wrapper.h"

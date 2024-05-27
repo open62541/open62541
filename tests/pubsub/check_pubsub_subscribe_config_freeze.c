@@ -14,6 +14,7 @@
 #include <check.h>
 #include <stdio.h>
 #include <time.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 

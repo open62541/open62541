@@ -17,6 +17,7 @@
 
 #include <string.h>
 #include <math.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_Boolean running;

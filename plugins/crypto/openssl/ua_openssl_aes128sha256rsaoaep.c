@@ -571,7 +571,7 @@ UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
     policy->logger = logger;
     policy->policyUri =
         UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep\0");
-    policy->securityLevel = 30;
+    policy->securityLevel = 10;
 
     /* set ChannelModule context  */
 

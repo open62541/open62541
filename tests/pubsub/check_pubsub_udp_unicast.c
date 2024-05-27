@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "../../deps/mp_printf.h"
 #include "testing_clock.h"

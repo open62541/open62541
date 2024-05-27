@@ -74,8 +74,6 @@ readSubscriptionDiagnostics(UA_Server *server,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
                             const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Check the Subscription pointer */
     UA_Subscription *sub = (UA_Subscription*)nodeContext;
     if(!sub)
@@ -310,8 +308,6 @@ readSessionDiagnosticsArray(UA_Server *server,
                             const UA_NodeId *nodeId, void *nodeContext,
                             UA_Boolean sourceTimestamp,
                             const UA_NumericRange *range, UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Allocate the output array */
     UA_SessionDiagnosticsDataType *sd = (UA_SessionDiagnosticsDataType*)
         UA_Array_new(server->sessionCount,

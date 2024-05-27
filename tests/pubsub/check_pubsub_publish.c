@@ -13,6 +13,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_NodeId connection1, connection2, writerGroup1, writerGroup2, writerGroup3,
