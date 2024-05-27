@@ -1,5 +1,5 @@
-open62541 (1.4.1) unstable; urgency=mediaum
+open62541 (1.4.0) UNRELEASED; urgency=low
 
-  * Initial release of the 1.4.1 version.
+  * Initial release of the 1.4.0 version.
 
--- open62541 Team <open62541-core@googlegroups.com>  Mon, 13 May 2024 10:51:28 +0100
+ -- open62541 Team <open62541-core@googlegroups.com>  Mon, 13 May 2024 10:51:28 +0100

@@ -244,7 +244,6 @@ UA_Server_setConditionTwoStateVariableCallback(UA_Server *server, const UA_NodeI
                                                const UA_NodeId conditionSource, UA_Boolean removeBranch,
                                                UA_TwoStateVariableChangeCallback callback,
                                                UA_TwoStateVariableCallbackType callbackType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
 
     /* Get Condition */
@@ -496,7 +495,6 @@ UA_Server_getNodeIdValueOfConditionField(UA_Server *server, const UA_NodeId *con
 static UA_StatusCode
 UA_Server_getConditionBranchNodeId(UA_Server *server, const UA_ByteString *eventId,
                          UA_NodeId *outConditionBranchNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
 
     *outConditionBranchNodeId = UA_NODEID_NULL;
@@ -537,7 +535,6 @@ static UA_StatusCode
 UA_Server_getConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                          const UA_NodeId *conditionId, UA_UInt16 *outLastSeverity,
                          UA_DateTime *outLastSeveritySourceTimeStamp) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
@@ -556,7 +553,6 @@ static UA_StatusCode
 UA_Server_updateConditionLastSeverity(UA_Server *server, const UA_NodeId *conditionSource,
                                       const UA_NodeId *conditionId, UA_UInt16 lastSeverity,
                                       UA_DateTime lastSeveritySourceTimeStamp) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
@@ -575,7 +571,6 @@ static UA_StatusCode
 UA_Server_getConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                                   const UA_NodeId *conditionId, UA_ActiveState *outLastActiveState,
                                   UA_ActiveState *outCurrentActiveState, UA_Boolean *outIsLimitAlarm) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
@@ -595,7 +590,6 @@ static UA_StatusCode
 UA_Server_updateConditionActiveState(UA_Server *server, const UA_NodeId *conditionSource,
                                      const UA_NodeId *conditionId, const UA_ActiveState lastActiveState,
                                      const UA_ActiveState currentActiveState, UA_Boolean isLimitAlarm) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_Condition *cond = getCondition(server, conditionSource, conditionId);
     if(!cond) {
@@ -901,8 +895,6 @@ afterWriteCallbackEnabledStateChange(UA_Server *server,
                                      const UA_NodeId *sessionId, void *sessionContext,
                                      const UA_NodeId *nodeId, void *nodeContext,
                                      const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Callback for change in EnabledState/Id property.
      * First we get the EnabledState NodeId then The Condition NodeId */
     UA_NodeId twoStateVariableNode;
@@ -951,8 +943,6 @@ afterWriteCallbackAckedStateChange(UA_Server *server,
                                    const UA_NodeId *sessionId, void *sessionContext,
                                    const UA_NodeId *nodeId, void *nodeContext,
                                    const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Get the AckedState NodeId then The Condition NodeId */
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1046,8 +1036,6 @@ afterWriteCallbackConfirmedStateChange(UA_Server *server,
                                        const UA_NodeId *sessionId, void *sessionContext,
                                        const UA_NodeId *nodeId, void *nodeContext,
                                        const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_Variant value;
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1141,8 +1129,6 @@ afterWriteCallbackActiveStateChange(UA_Server *server,
                                     const UA_NodeId *sessionId, void *sessionContext,
                                     const UA_NodeId *nodeId, void *nodeContext,
                                     const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_Variant value;
     UA_NodeId twoStateVariableNode;
     UA_StatusCode retval = UA_Server_getFieldParentNodeId(server, nodeId, &twoStateVariableNode);
@@ -1288,8 +1274,6 @@ afterWriteCallbackSeverityChange(UA_Server *server,
                                  const UA_NodeId *sessionId, void *sessionContext,
                                  const UA_NodeId *nodeId, void *nodeContext,
                                  const UA_NumericRange *range, const UA_DataValue *data) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldLastSeverity = UA_QUALIFIEDNAME(0, CONDITION_FIELD_LASTSEVERITY);
     UA_QualifiedName fieldSourceTimeStamp =
         UA_QUALIFIEDNAME(0, CONDITION_FIELD_CONDITIONVARIABLE_SOURCETIMESTAMP);
@@ -1379,8 +1363,6 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *methodContext, const UA_NodeId *objectId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -1412,8 +1394,6 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      void *objectContext, size_t inputSize,
                      const UA_Variant *input, size_t outputSize,
                      UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_NodeId conditionTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
     if(UA_NodeId_equal(objectId, &conditionTypeNodeId)) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -1445,7 +1425,6 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                          void *objectContext, size_t inputSize,
                          const UA_Variant *input, size_t outputSize,
                          UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_EventLoop *el = server->config.eventLoop;
 
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
@@ -1534,8 +1513,6 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                           void *objectContext, size_t inputSize,
                           const UA_Variant *input, size_t outputSize,
                           UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1616,8 +1593,6 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_QualifiedName fieldComment = UA_QUALIFIEDNAME(0, CONDITION_FIELD_COMMENT);
     UA_Variant value;
 
@@ -1858,7 +1833,6 @@ refresh2MethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     //TODO implement logic for subscription array
     /* Check if valid subscriptionId */
@@ -1902,7 +1876,6 @@ refreshMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       void *objectContext, size_t inputSize,
                       const UA_Variant *input, size_t outputSize,
                       UA_Variant *output) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
 
     //TODO implement logic for subscription array
@@ -2552,8 +2525,6 @@ UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionSource,
                           const UA_NodeId hierarchialReferenceType,
                           UA_NodeId *outNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2576,8 +2547,6 @@ UA_StatusCode
 UA_Server_addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
                              const UA_NodeId conditionType,
                              const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2613,7 +2582,6 @@ UA_StatusCode
 UA_Server_addCondition_finish(UA_Server *server, const UA_NodeId conditionId,
                               const UA_NodeId conditionSource,
                               const UA_NodeId hierarchialReferenceType) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
 
     const UA_Node *node = UA_NODESTORE_GET(server, &conditionId);
@@ -2803,7 +2771,6 @@ UA_StatusCode
 UA_Server_addConditionOptionalField(UA_Server *server, const UA_NodeId condition,
                                     const UA_NodeId conditionType, const UA_QualifiedName fieldName,
                                     UA_NodeId *outOptionalNode) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = addConditionOptionalField(server, condition, conditionType,
                                                   fieldName, outOptionalNode);
@@ -2837,7 +2804,6 @@ setConditionField(UA_Server *server, const UA_NodeId condition,
 UA_StatusCode
 UA_Server_setConditionField(UA_Server *server, const UA_NodeId condition,
                             const UA_Variant* value, const UA_QualifiedName fieldName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = setConditionField(server, condition, value, fieldName);
     UA_UNLOCK(&server->serviceMutex);
@@ -2885,7 +2851,6 @@ UA_Server_setConditionVariableFieldProperty(UA_Server *server, const UA_NodeId c
                                             const UA_Variant* value,
                                             const UA_QualifiedName variableFieldName,
                                             const UA_QualifiedName variablePropertyName) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = setConditionVariableFieldProperty(server, condition, value,
                                                           variableFieldName, variablePropertyName);
@@ -2934,7 +2899,6 @@ triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
 UA_StatusCode
 UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
                                 const UA_NodeId conditionSource, UA_ByteString *outEventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = triggerConditionEvent(server, condition, conditionSource, outEventId);
     UA_UNLOCK(&server->serviceMutex);
@@ -2944,8 +2908,6 @@ UA_Server_triggerConditionEvent(UA_Server *server, const UA_NodeId condition,
 UA_StatusCode
 UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition,
                           const UA_NodeId conditionSource) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     /* Get ConditionSource Entry */
     UA_Boolean found = false; /* Delete from internal list */
     UA_ConditionSource *source, *tmp_source;
@@ -3132,8 +3094,6 @@ UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
 UA_StatusCode
 UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
                             UA_ByteString  cert) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-
     UA_StatusCode retval;
     if(cert.data == NULL){
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,

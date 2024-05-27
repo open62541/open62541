@@ -13,6 +13,7 @@
 #include "test_helpers.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;

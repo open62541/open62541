@@ -17,6 +17,7 @@
 
 #include <check.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_NodeId connectionIdentifier, publishedDataSetIdent, writerGroupIdent, dataSetWriterIdent, dataSetFieldIdent, readerGroupIdentifier, readerIdentifier;

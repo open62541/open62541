@@ -5,6 +5,7 @@
 #ifndef TEST_HELPERS_H_
 #define TEST_HELPERS_H_
 
+#include <stdlib.h>
 #include <open62541/client.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>

@@ -18,6 +18,7 @@
 
 #include <check.h>
 #include <assert.h>
+#include <stdlib.h>
 
 static UA_Server *server = NULL;
 

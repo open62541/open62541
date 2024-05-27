@@ -10,6 +10,7 @@
 #include "test_helpers.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server_ac;
 

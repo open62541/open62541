@@ -10,6 +10,7 @@
 
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "test_helpers.h"
 #include "ua_pubsub.h"

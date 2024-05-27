@@ -17,6 +17,7 @@
 
 #include <check.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 UA_EventLoop *rtEventLoop = NULL;
 UA_Server *server = NULL;

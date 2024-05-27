@@ -35,7 +35,8 @@ Description: open62541 (<http://open62541.org>) is an open source implementation
 
 Package: libopen62541-<soname>-tools
 Section: libdevel
-Architecture: all
+Architecture: any
+Multi-Arch: same
 Depends: ${misc:Depends}, python3
 Recommends: libopen62541-<soname>-dev
 Description: open62541 (<http://open62541.org>) is an open source implementation

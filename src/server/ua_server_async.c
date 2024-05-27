@@ -100,7 +100,6 @@ static UA_UInt32
 processAsyncResults(UA_Server *server) {
     UA_AsyncManager *am = &server->asyncManager;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 0);
 
     UA_UInt32 count = 0;
     UA_AsyncOperation *ao;

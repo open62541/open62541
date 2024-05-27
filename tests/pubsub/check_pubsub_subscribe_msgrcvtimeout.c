@@ -8,6 +8,7 @@
 #include "ua_pubsub.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 static UA_Server *server = NULL;
 

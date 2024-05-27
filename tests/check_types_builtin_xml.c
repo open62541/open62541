@@ -11,6 +11,7 @@
 
 #include <check.h>
 #include <math.h>
+#include <stdlib.h>
 
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)

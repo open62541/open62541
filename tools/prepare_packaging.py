@@ -16,7 +16,7 @@ import shutil
 dirpath = os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)),".."))
 debian_path = os.path.join(dirpath, "tools/packaging/debian")
 target_debian_path = os.path.join(dirpath, "debian")
-shutil.copytree(debian_path, target_debian_path)
+shutil.copytree(debian_path, target_debian_path, ignore=shutil.ignore_patterns('*-template'))
 
 # Unpack the library version from the git information
 git_describe_version = subprocess.check_output(["git", "describe", "--tags", "--dirty", "--match", "v*"]).decode('utf-8').strip()
@@ -79,30 +79,16 @@ with open(control_file, 'r+') as f:
 
 # rename the install template to match the soname
 install_file_template = os.path.join(debian_path, "libopen62541.install-template")
-install_file = os.path.join(target_debian_path,
-                  "libopen62541-{}.{}.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, "libopen62541-{}.{}.install".format(version_major, version_minor))
 shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-dev.install-template")
-install_file = os.path.join(target_debian_path,
-                  "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
 shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
-install_file = os.path.join(target_debian_path,
-                  "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
 shutil.copy(install_file_template, install_file)
-
-# Create rule file and replace template variables
-rule_file_template = os.path.join(debian_path, "rules-template")
-rule_file = os.path.join(target_debian_path, "rules")
-shutil.copy(rule_file_template, rule_file)
-with open(rule_file, 'r+') as f:
-    content = f.read()
-    f.seek(0)
-    f.truncate()
-    content = content.replace('<srcdir>', "{}".format(dirpath))
-    f.write(content)
 
 # Update CMakeLists.txt to include full version string
 with open(os.path.join(dirpath,"CMakeLists.txt"), 'r+') as f:
@@ -110,6 +96,6 @@ with open(os.path.join(dirpath,"CMakeLists.txt"), 'r+') as f:
     f.seek(0)
     f.truncate()
     for idx, line in enumerate(lines):
-        if idx == 2:
+        if idx == 1:
             f.write('set(OPEN62541_VERSION "{}")\n'.format(git_describe_version))
         f.write(line)

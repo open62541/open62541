@@ -146,78 +146,18 @@ The procedure below works on OpenBSD 5.8 with gcc version 4.8.4, cmake version
 Building Debian Packages inside Docker Container with CMake on Ubuntu or Debian
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Here is an example howto build the library as Debian package inside a Docker container
-
-- Download and install
-
-  - Docker Engine: https://docs.docker.com/install/linux/docker-ce/debian/
-  - docker-deb-builder: https://github.com/tsaarni/docker-deb-builder.git
-  - open62541: https://github.com/open62541/open62541.git
-
-Install Docker as described at https://docs.docker.com/install/linux/docker-ce/debian/ .
-
-Get the docker-deb-builder utility from github and make Docker images for the needed
-Debian and/or Ubuntu relases
+This is how to build the Debian packages.
 
 .. code-block:: bash
 
-   # make and goto local development path (e.g. ~/development)
-   mkdir ~/development
-   cd ~/development
-
-   # clone docker-deb-builder utility from github and change into builder directory
-   git clone https://github.com/tsaarni/docker-deb-builder.git
-   cd docker-deb-builder
-
-   # make Docker builder images (e.g. Ubuntu 18.04 and 17.04)
-   docker build -t docker-deb-builder:18.04 -f Dockerfile-ubuntu-18.04 .
-   docker build -t docker-deb-builder:17.04 -f Dockerfile-ubuntu-17.04 .
-
-Make a local copy of the open62541 git repo and checkout a pack branch
-
-.. code-block:: bash
-
-   # make a local copy of the open62541 git repo (e.g. in the home directory)
-   # and checkout a pack branch (e.g. pack/1.0)
-   cd ~
-   git clone https://github.com/open62541/open62541.git
+   # Assume a fresh checkout of open62541 in the ~/open62541 directory
    cd ~/open62541
-   git checkout pack/1.0
 
-Now it's all set to build Debian/Ubuntu open62541 packages
+   # Create the debian packaging definitions
+   python3 ./tools/prepare_packaging.py
 
-.. code-block:: bash
-
-   # goto local developmet path
-   cd ~/development
-
-   # make a local output directory for the builder where the packages can be placed after build
-   mkdir output
-
-   # build Debian/Ubuntu packages inside Docker container (e.g. Ubuntu-18.04)
-   ./build -i docker-deb-builder:18.04 -o output ~/open62541
-
-After a successfull build the Debian/Ubuntu packages can be found at :file:`~/development/docker-deb-builder/output`
-
-CMake Build Options and Debian Packaging
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If the open62541 library will be build as a Debian package using a pack branch (e.g. pack/master or pack/1.0)
-then altering or adding CMake build options should be done inside the :file:`debian/rules` file respectively in
-the :file:`debian/rules-template` file if working with a development branch (e.g. master or 1.0).
-
-The section in :file:`debian/rules` where the CMake build options are defined is
-
-.. code-block:: bash
-
-   ...
-   override_dh_auto_configure:
-       dh_auto_configure -- -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DUA_NAMESPACE_ZERO=FULL -DUA_ENABLE_AMALGAMATION=OFF -DUA_PACK_DEBIAN=ON
-   ...
-
-This CMake build options will be passed as command line variables to CMake during Debian packaging.
-
-.. _build_options:
+   # Build the package (generated packages and source will be in the ~ folder)
+   debuild
 
 Build Options
 -------------

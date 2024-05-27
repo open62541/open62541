@@ -40,7 +40,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 0)
+set(OPEN62541_VER_PATCH 1)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -108,6 +108,7 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
+option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
     set(UA_ENABLE_NODESET_INJECTOR ON)
@@ -1101,16 +1102,21 @@ endif()
 # Generate source files #
 #########################
 
-# List of nodeset files combined into NS0 generated file
-set(UA_FILE_NODESETS)
-set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the nodetset directory.")
+# Nodeset files combined into NS0 generated file
+set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
+set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
+set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema) # Directory with the schema files for installation
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml)
-    endif()
-    set(UA_FILE_NODESETS "${UA_FILE_NS0}")
+    # Use the "full" schema files also for datatypes and statuscodes
+    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema)
 
+    # Set the full Nodeset for NS0
+    if(NOT UA_FILE_NS0)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
+    endif()
+
+    # Check that the submodule was checked out or manually downloaded into the folder
     if(NOT EXISTS "${UA_FILE_NS0}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
@@ -1119,57 +1125,67 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
             message(FATAL_ERROR "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}")
         endif()
     endif()
-
-    set(UA_FILE_NODEIDS ${UA_NODESET_DIR}/Schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${UA_NODESET_DIR}/Schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd)
 else()
+    # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Reduced.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml)
     endif()
-    set(UA_FILE_NODESETS "${UA_FILE_NS0}")
 
-    set(UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_minimal.txt)
-    set(UA_FILE_NODEIDS ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv)
-    set(UA_FILE_STATUSCODES ${PROJECT_SOURCE_DIR}/tools/schema/StatusCode.csv)
-    set(UA_FILE_TYPES_BSD ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd)
+    # Set feature-specific datatypes definitions and nodesets
+    set(UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_minimal.txt
+                          ${UA_SCHEMA_DIR}/datatypes_discovery.txt)
 
-    # always enable  subscriptions, method, discovery and historizing datatypes (for the client)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_subscriptions.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_method.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_discovery.txt)
-    list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_historizing.txt)
+    if(UA_ENABLE_METHODCALLS)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_method.txt)
+    endif()
 
     if(UA_ENABLE_DIAGNOSTICS)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_diagnostics.txt)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
+    endif()
+
+    if(UA_ENABLE_SUBSCRIPTIONS)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_subscriptions.txt)
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.EventsMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.EventsMinimal.xml)
     endif()
 
     if(UA_ENABLE_HISTORIZING)
-        list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.HistorizingMinimal.xml)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.HistorizingMinimal.xml)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_historizing.txt)
     endif()
 
     if(UA_ENABLE_QUERY)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_query.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_query.txt)
     endif()
 
     if(UA_ENABLE_PUBSUB)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_pubsub.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_pubsub.txt)
         if(UA_ENABLE_PUBSUB_INFORMATIONMODEL)
-            list(APPEND UA_FILE_NODESETS ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.PubSubMinimal.xml)
+            list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.PubSubMinimal.xml)
         endif()
     endif()
+
 	if(UA_ENABLE_DA)
-		list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_dataaccess.txt)
-        set(UA_NODESET_FILE_DA ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.NodeSet2.Part8_Subset.xml)
+		list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_dataaccess.txt)
+        list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Part8_Subset.xml)
     endif()
+
     if(UA_ENABLE_TYPEDESCRIPTION)
-        list(APPEND UA_FILE_DATATYPES ${PROJECT_SOURCE_DIR}/tools/schema/datatypes_typedescription.txt)
+        list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_typedescription.txt)
     endif()
+endif()
+
+list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0}")
+set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
+set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
+set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
+
+# Generate all datatypes -> reset the lists used for filtering
+if(UA_ENABLE_DATATYPES_ALL)
+    unset(UA_FILE_DATATYPES)
 endif()
 
 # standard-defined data types
@@ -1231,7 +1247,7 @@ if(UA_ENABLE_AMALGAMATION)
                      open62541-generator-transport open62541-generator-statuscode)
 endif()
 
-ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS} ${UA_NODESET_FILE_DA}
+ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
                     INTERNAL BLACKLIST ${UA_FILE_NS0_BLACKLIST}
                     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
                     DEPENDS_TARGET "open62541-generator-types")
@@ -1259,6 +1275,14 @@ endif()
 assign_source_group(${exported_headers})
 assign_source_group(${lib_headers} ${lib_sources})
 assign_source_group(${plugin_headers} ${plugin_sources})
+
+# When building packages, include the source in the library name to enable parallel
+# installation of multiple versions. We may break the ABI between minor releases!
+if(UA_PACK_DEBIAN)
+    set(OPEN62541-LIB "open62541-${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}")
+else()
+    set(OPEN62541-LIB "open62541")
+endif()
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -1288,10 +1312,10 @@ if(UA_ENABLE_AMALGAMATION)
                       open62541-generator-statuscode
                       open62541-amalgamation-source)
 
-    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
+    add_library(${OPEN62541-LIB} $<TARGET_OBJECTS:open62541-object>)
     # the only directory that needs to be included if open62541 (amalgameted) target from
     # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
-    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+    target_include_directories(${OPEN62541-LIB} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
     add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
     add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
@@ -1327,13 +1351,13 @@ else()
         add_coverage(open62541-plugins)
     endif()
 
-    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    add_library(${OPEN62541-LIB} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         # Prevent Wincrypt override warning.
         target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
         target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
-        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+        target_compile_definitions(${OPEN62541-LIB} PUBLIC NOCRYPT=1)
     endif()
 
     # Declare include directories
@@ -1347,7 +1371,7 @@ else()
     function(include_directories_public)
         include_directories_private(${ARGN})
         foreach(_include_dir IN ITEMS ${ARGN})
-            target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
+            target_include_directories(${OPEN62541-LIB} PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
         endforeach()
     endfunction()
 
@@ -1382,20 +1406,20 @@ endif()
 add_dependencies(open62541-object open62541-code-generation)
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
-add_library(open62541::open62541 ALIAS open62541)
+add_library(open62541::open62541 ALIAS ${OPEN62541-LIB})
 
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+target_compile_definitions(${OPEN62541-LIB} PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
-    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+    target_compile_definitions(${OPEN62541-LIB} PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 # Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(open62541 PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+SET_TARGET_PROPERTIES(${OPEN62541-LIB} PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 # DLL requires linking to dependencies
-target_link_libraries(open62541 ${open62541_LIBRARIES})
+target_link_libraries(${OPEN62541-LIB} ${open62541_LIBRARIES})
 
 ##########################
 # Build Selected Targets #
@@ -1456,7 +1480,7 @@ if(UA_ENABLE_AMALGAMATION)
 endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
-install(TARGETS open62541
+install(TARGETS ${OPEN62541-LIB}
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1464,7 +1488,8 @@ install(TARGETS open62541
         INCLUDES DESTINATION include)
 
 set(open62541_install_tools_dir share/open62541)
-set(open62541_install_nodeset_dir share/open62541/ua-nodeset)
+set(open62541_install_nodeset_dir share/open62541/schema)
+set(open62541_crypto_plugin ${UA_ENABLE_ENCRYPTION})
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
@@ -1473,14 +1498,15 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir)
+                                        open62541_install_nodeset_dir
+                                        open62541_crypto_plugin)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
 
 # Create open62541ConfigVersion.cmake
 set(open62541_VERSION)
-get_target_property(open62541_VERSION open62541 VERSION)
+get_target_property(open62541_VERSION ${OPEN62541-LIB} VERSION)
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
                                  VERSION ${open62541_VERSION} COMPATIBILITY AnyNewerVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
@@ -1491,7 +1517,7 @@ install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
-export(TARGETS open62541
+export(TARGETS ${OPEN62541-LIB}
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
@@ -1510,26 +1536,32 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
-set(UA_install_tools_dirs "tools/certs"
-    "tools/nodeset_compiler"
-    "tools/schema"
-    ${UA_NODESET_DIR})
-
-set(UA_install_tools_files "tools/generate_datatypes.py"
-    "tools/generate_nodeid_header.py"
-    "tools/generate_statuscode_descriptions.py")
-
-install(DIRECTORY ${UA_install_tools_dirs}
+install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
         DESTINATION ${open62541_install_tools_dir}
-        USE_SOURCE_PERMISSIONS
         FILES_MATCHING
         PATTERN "*"
+        PATTERN "__pycache__" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
-        PATTERN ".git*" EXCLUDE)
+        PATTERN ".git*" EXCLUDE
+        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
-install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir})
+# Trailing slash to prevent "schema/schema" nesting
+install(DIRECTORY ${UA_SCHEMA_DIR}/
+        DESTINATION ${open62541_install_nodeset_dir}
+        FILES_MATCHING
+        PATTERN "*.xml"
+        PATTERN "*Types.bsd"
+        PATTERN "StatusCode.csv"
+        PATTERN "NodeIds.csv"
+        PERMISSIONS OWNER_READ GROUP_READ)
 
-# Recreate the include folder structure from the source also in /usr/lib/include/open62541
+set(UA_install_tools_files "tools/generate_datatypes.py"
+                           "tools/generate_nodeid_header.py"
+                           "tools/generate_statuscode_descriptions.py")
+install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_dir}
+        PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
+
+# Recreate the include folder structure from the source also in /usr/include/open62541
 if(NOT UA_ENABLE_AMALGAMATION)
     set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
     set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
@@ -1565,7 +1597,7 @@ endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
 
-set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
+set_target_properties(${OPEN62541-LIB} PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 if(UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")

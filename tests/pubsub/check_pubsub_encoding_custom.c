@@ -12,6 +12,7 @@
 
 #include "math.h"
 #include "check.h"
+#include <stdlib.h>
 
 /* The custom datatype for describing a 3d position */
 

@@ -637,9 +637,8 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
-    /* Don't have a lock and don't take a lock. As the connectionId is the fd,
-     * no need to to a lookup and access internal data strucures. */
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)cm->eventSource.eventLoop)->elMutex, 0);
+    /* We may not have a lock. But we need not take it. As the connectionId is
+     * the fd, no need to do a lookup and access internal data strucures. */
 
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
