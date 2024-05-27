@@ -11,6 +11,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Julian Grothoff
  *    Copyright 2020 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Martin Lang)
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
 #include "ua_services.h"
@@ -265,6 +266,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
 
     /* Verify access rights */
     UA_Boolean executable = method->executable;
+    if(!session) {
+        result->statusCode = UA_STATUSCODE_BADSESSIONIDINVALID;
+        return;
+    }
     if(session != &server->adminSession) {
         UA_UNLOCK(&server->serviceMutex);
         executable = executable && server->config.accessControl.
@@ -396,7 +401,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
     }
 
     /* Synchronous execution */
-    if(!method->methodNode.async) {
+    if(!method->head.async) {
         callWithMethodAndObject(server, session, opRequest, opResult,
                                 &method->methodNode, &object->objectNode);
         goto cleanup;
@@ -417,7 +422,7 @@ Operation_CallMethodAsync(UA_Server *server, UA_Session *session, UA_UInt32 requ
     /* Create the Async Request to be taken by workers */
     opResult->statusCode =
         UA_AsyncManager_createAsyncOp(&server->asyncManager,
-                                      server, *ar, opIndex, opRequest);
+                                      server, *ar, opIndex, UA_ASYNCOPERATIONTYPE_CALL, opRequest);
 
  cleanup:
     /* Release the method and object node */
@@ -441,7 +446,7 @@ Service_CallAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         UA_Server_processServiceOperationsAsync(server, session, requestId,
                   request->requestHeader.requestHandle,
                   (UA_AsyncServiceOperation)Operation_CallMethodAsync,
-                  &request->methodsToCallSize, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
+                  &request->methodsToCallSize, &request->methodsToCall, &UA_TYPES[UA_TYPES_CALLMETHODREQUEST],
                   &response->resultsSize, &UA_TYPES[UA_TYPES_CALLMETHODRESULT], &ar);
 
     if(ar) {
@@ -525,6 +530,19 @@ UA_Server_call(UA_Server *server, const UA_CallMethodRequest *request) {
     UA_CallMethodResult_init(&result);
     UA_LOCK(&server->serviceMutex);
     Operation_CallMethod(server, &server->adminSession, NULL, request, &result);
+    UA_UNLOCK(&server->serviceMutex);
+    return result;
+}
+
+UA_CallMethodResult
+UA_Server_callWithSession(UA_Server *server, const UA_CallMethodRequest *request, UA_NodeId *sessionId) {
+    UA_CallMethodResult result;
+    UA_CallMethodResult_init(&result);
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = NULL;
+    if(sessionId)
+        session = getSessionById(server, sessionId);
+    Operation_CallMethod(server, session, NULL, request, &result);
     UA_UNLOCK(&server->serviceMutex);
     return result;
 }
