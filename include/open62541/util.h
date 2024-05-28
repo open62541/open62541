@@ -404,6 +404,9 @@ UA_TrustListDataType_contains(const UA_TrustListDataType *trustList,
                               const UA_ByteString *certificate,
                               UA_TrustListMasks mask);
 
+UA_EXPORT UA_UInt32
+UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList);
+
 _UA_END_DECLS
 
 #endif /* UA_HELPER_H_ */
