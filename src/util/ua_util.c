@@ -11,7 +11,7 @@
  * unit for the generated code from UA_INLINABLE definitions. */
 #define UA_INLINABLE_IMPL 1
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 #include <open62541/server.h>
 #include <open62541/util.h>
 #include <open62541/common.h>

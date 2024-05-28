@@ -1506,7 +1506,6 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 #endif
 
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
 _UA_END_DECLS
 
