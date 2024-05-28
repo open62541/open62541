@@ -1162,8 +1162,6 @@ UA_copy(const void *src, void *dst, const UA_DataType *type);
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
 
-#define UA_deleteMembers(p, type) UA_clear(p, type)
-
 /* Frees a variable and all of its content.
  *
  * @param p The memory location of the variable

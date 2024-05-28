@@ -214,7 +214,6 @@ class CGenerator(object):
         funcs += "UA_INLINABLE( UA_%s *\nUA_%s_new(void), {\n    return (UA_%s*)UA_new(%s);\n})\n\n" % (idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
         if datatype.pointerfree == "true":
             funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst), {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n})\n\n" % (idName, idName, idName)
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p), {\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (idName, idName, idName)
             funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p), {\n    memset(p, 0, sizeof(UA_%s));\n})\n" % (idName, idName, idName)
         else:
             for entry in whitelistFuncAttrWarnUnusedResult:
@@ -223,7 +222,6 @@ class CGenerator(object):
                     break
 
             funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst), {\n    return UA_copy(src, dst, %s);\n})\n\n" % (idName, idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p), {\n    UA_clear(p, %s);\n})\n\n" % (idName, idName, self.print_datatype_ptr(datatype))
             funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p), {\n    UA_clear(p, %s);\n})\n\n" % (idName, idName, self.print_datatype_ptr(datatype))
         funcs += "UA_INLINABLE( void\nUA_%s_delete(UA_%s *p), {\n    UA_delete(p, %s);\n})\n\n" % (idName, idName, self.print_datatype_ptr(datatype))
         funcs += "UA_INLINABLE( UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2), {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n})\n" % (
