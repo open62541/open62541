@@ -6,7 +6,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"

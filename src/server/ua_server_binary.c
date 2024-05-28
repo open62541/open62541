@@ -16,9 +16,8 @@
  *    Copyright 2023 (c) Hilscher Gesellschaft für Systemautomation mbH (Author: Phuong Nguyen)
  */
 
+#include <open62541/types.h>
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
-#include <open62541/types_generated_handling.h>
 
 #include "ua_server_internal.h"
 #include "ua_types_encoding_binary.h"

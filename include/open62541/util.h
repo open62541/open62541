@@ -10,8 +10,6 @@
 
 #include <open62541/types.h>
 #include <open62541/plugin/log.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
 _UA_BEGIN_DECLS
 
