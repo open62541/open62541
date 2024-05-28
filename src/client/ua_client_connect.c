@@ -1386,6 +1386,7 @@ connectActivity(UA_Client *client) {
     case UA_SECURECHANNELSTATE_CONNECTING:
     case UA_SECURECHANNELSTATE_CLOSING:
     case UA_SECURECHANNELSTATE_HEL_SENT:
+    case UA_SECURECHANNELSTATE_OPN_SENT:
         return;
 
         /* Send HEL */
