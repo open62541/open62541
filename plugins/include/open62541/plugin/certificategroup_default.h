@@ -10,6 +10,7 @@
 #define UA_CERTIFICATEGROUP_CERTIFICATE_H_
 
 #include <open62541/plugin/certificategroup.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -43,7 +44,9 @@ UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
 UA_EXPORT UA_StatusCode
 UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 UA_NodeId *certificateGroupId,
-                                const UA_TrustListDataType *trustList);
+                                const UA_TrustListDataType *trustList,
+                                const UA_Logger *logger,
+                                const UA_KeyValueMap *params);
 
 #ifdef __linux__ /* Linux only so far */
 
@@ -75,7 +78,9 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
 UA_EXPORT UA_StatusCode
 UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
                               UA_NodeId *certificateGroupId,
-                              const UA_String *storePath);
+                              const UA_String *storePath,
+                              const UA_Logger *logger,
+                              const UA_KeyValueMap *params);
 #endif
 
 #endif

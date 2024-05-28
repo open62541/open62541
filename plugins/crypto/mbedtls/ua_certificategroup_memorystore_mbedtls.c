@@ -25,6 +25,21 @@
 #define DUALPARENT               3
 #define PARENTFOUND              4
 
+/* Configuration parameters */
+
+#define MEMORYCERTSTORE_PARAMETERSSIZE 2
+#define MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE 0
+#define MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE 1
+
+static const struct {
+    UA_QualifiedName name;
+    const UA_DataType *type;
+    UA_Boolean required;
+} MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("max-trust-listsize")}, &UA_TYPES[UA_TYPES_UINT16], false},
+    {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_STRING], false}
+};
+
 struct MemoryCertStore;
 typedef struct MemoryCertStore MemoryCertStore;
 
@@ -32,6 +47,9 @@ struct MemoryCertStore {
     UA_TrustListDataType trustList;
     size_t rejectedCertificatesSize;
     UA_ByteString *rejectedCertificates;
+
+    UA_UInt32 maxTrustListSize;
+    UA_UInt32 maxRejectedListSize;
 
     UA_Boolean reloadRequired;
 
@@ -72,6 +90,9 @@ MemoryCertStore_setTrustList(UA_CertificateGroup *certGroup, const UA_TrustListD
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+    if(context->maxTrustListSize != 0 && UA_TrustListDataType_getSize(trustList) > context->maxTrustListSize) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     context->reloadRequired = true;
     UA_TrustListDataType_clear(&context->trustList);
     return UA_TrustListDataType_add(trustList, &context->trustList);
@@ -85,6 +106,9 @@ MemoryCertStore_addToTrustList(UA_CertificateGroup *certGroup, const UA_TrustLis
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+    if(context->maxTrustListSize != 0 && UA_TrustListDataType_getSize(&context->trustList) + UA_TrustListDataType_getSize(trustList) > context->maxTrustListSize) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     context->reloadRequired = true;
     return UA_TrustListDataType_add(trustList, &context->trustList);
 }
@@ -122,6 +146,13 @@ MemoryCertStore_addToRejectedList(UA_CertificateGroup *certGroup, const UA_ByteS
     }
 
     /* Store rejected certificate */
+    if(context->maxRejectedListSize == 0 || context->rejectedCertificatesSize < context->maxRejectedListSize) {
+        return UA_Array_appendCopy((void**)&context->rejectedCertificates, &context->rejectedCertificatesSize,
+                                   certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    }
+    UA_Array_delete(context->rejectedCertificates, context->rejectedCertificatesSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    context->rejectedCertificates = NULL;
+    context->rejectedCertificatesSize = 0;
     return UA_Array_appendCopy((void**)&context->rejectedCertificates, &context->rejectedCertificatesSize,
                                certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
 }
@@ -460,7 +491,9 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
 UA_StatusCode
 UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 UA_NodeId *certificateGroupId,
-                                const UA_TrustListDataType *trustList) {
+                                const UA_TrustListDataType *trustList,
+                                const UA_Logger *logger,
+                                const UA_KeyValueMap *params) {
 
     if(certGroup == NULL || certificateGroupId == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -473,6 +506,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         certGroup->clear(certGroup);
 
     UA_NodeId_copy(certificateGroupId, &certGroup->certificateGroupId);
+    certGroup->logging = logger;
 
     certGroup->getTrustList = MemoryCertStore_getTrustList;
     certGroup->setTrustList = MemoryCertStore_setTrustList;
@@ -489,6 +523,27 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         goto cleanup;
     }
     certGroup->context = context;
+    /* Default values */
+    context->maxTrustListSize = 65535;
+    context->maxRejectedListSize = 100;
+
+    if(params) {
+        const UA_UInt32 *maxTrustListSize = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXTRUSTLISTSIZE].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+
+        const UA_UInt32 *maxRejectedListSize = (const UA_UInt32*)
+        UA_KeyValueMap_getScalar(params, MemoryCertStoreParameters[MEMORYCERTSTORE_PARAMINDEX_MAXREJECTEDLISTSIZE].name,
+                                 &UA_TYPES[UA_TYPES_UINT32]);
+
+        if(maxTrustListSize) {
+            context->maxTrustListSize = *maxTrustListSize;
+        }
+
+        if(maxRejectedListSize) {
+            context->maxRejectedListSize = *maxRejectedListSize;
+        }
+    }
 
     UA_TrustListDataType_add(trustList, &context->trustList);
     reloadCertificates(certGroup);
