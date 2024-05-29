@@ -71,7 +71,6 @@ class CGenerator(object):
         self.filtered_types = None
         self.namespaceMap = namespaceMap
         self.fh = None
-        self.ff = None
         self.fc = None
         self.fd = None
         self.fe = None
@@ -211,42 +210,23 @@ class CGenerator(object):
 
     def print_functions(self, datatype):
         idName = makeCIdentifier(datatype.name)
-        funcs = "UA_INLINABLE( void\nUA_%s_init(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-            idName, idName, idName)
-        funcs += "UA_INLINABLE( UA_%s *\nUA_%s_new(void) ,{\n    return (UA_%s*)UA_new(%s);\n})\n\n" % (
-            idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
+        funcs = "UA_INLINABLE( void\nUA_%s_init(UA_%s *p), {\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (idName, idName, idName)
+        funcs += "UA_INLINABLE( UA_%s *\nUA_%s_new(void), {\n    return (UA_%s*)UA_new(%s);\n})\n\n" % (idName, idName, idName, CGenerator.print_datatype_ptr(datatype))
         if datatype.pointerfree == "true":
-            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n})\n\n" % (
-                idName, idName, idName)
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-                idName, idName, idName)
-            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    memset(p, 0, sizeof(UA_%s));\n})\n\n" % (
-                idName, idName, idName)
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst), {\n    *dst = *src;\n    return UA_STATUSCODE_GOOD;\n})\n\n" % (idName, idName, idName)
+            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p), {\n    memset(p, 0, sizeof(UA_%s));\n})\n" % (idName, idName, idName)
         else:
             for entry in whitelistFuncAttrWarnUnusedResult:
                 if idName == entry:
                     funcs += "UA_INTERNAL_FUNC_ATTR_WARN_UNUSED_RESULT "
                     break
 
-            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst) ,{\n    return UA_copy(src, dst, %s);\n})\n\n" % (
-                idName, idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_DEPRECATED UA_INLINABLE( void\nUA_%s_deleteMembers(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
-                idName, idName, self.print_datatype_ptr(datatype))
-            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p) ,{\n    UA_clear(p, %s);\n})\n\n" % (
-                idName, idName, self.print_datatype_ptr(datatype))
-        funcs += "UA_INLINABLE( void\nUA_%s_delete(UA_%s *p) ,{\n    UA_delete(p, %s);\n})" % (
-            idName, idName, self.print_datatype_ptr(datatype))
-        funcs += "static UA_INLINE UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2) {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n}\n\n" % (
+            funcs += "UA_INLINABLE( UA_StatusCode\nUA_%s_copy(const UA_%s *src, UA_%s *dst), {\n    return UA_copy(src, dst, %s);\n})\n\n" % (idName, idName, idName, self.print_datatype_ptr(datatype))
+            funcs += "UA_INLINABLE( void\nUA_%s_clear(UA_%s *p), {\n    UA_clear(p, %s);\n})\n\n" % (idName, idName, self.print_datatype_ptr(datatype))
+        funcs += "UA_INLINABLE( void\nUA_%s_delete(UA_%s *p), {\n    UA_delete(p, %s);\n})\n\n" % (idName, idName, self.print_datatype_ptr(datatype))
+        funcs += "UA_INLINABLE( UA_Boolean\nUA_%s_equal(const UA_%s *p1, const UA_%s *p2), {\n    return (UA_order(p1, p2, %s) == UA_ORDER_EQ);\n})\n" % (
             idName, idName, idName, self.print_datatype_ptr(datatype))
         return funcs
-
-    def print_datatype_encoding(self, datatype):
-        idName = makeCIdentifier(datatype.name)
-        enc = "UA_INLINABLE( size_t\nUA_%s_calcSizeBinary(const UA_%s *src) ,{\n    return UA_calcSizeBinary(src, %s);\n})\n"
-        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_encodeBinary(const UA_%s *src, UA_Byte **bufPos, const UA_Byte *bufEnd) ,{\n    return UA_encodeBinary(src, %s, bufPos, &bufEnd, NULL, NULL);\n})\n"
-        enc += "UA_INLINABLE( UA_StatusCode\nUA_%s_decodeBinary(const UA_ByteString *src, size_t *offset, UA_%s *dst) ,{\n    return UA_decodeBinary(src, offset, dst, %s, NULL);\n})"
-        return enc % tuple(
-            list(itertools.chain(*itertools.repeat([idName, idName, self.print_datatype_ptr(datatype)], 3))))
 
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
@@ -341,17 +321,14 @@ class CGenerator(object):
 
     def write_definitions(self):
         self.fh = open(self.outfile + "_generated.h", 'w')
-        self.ff = open(self.outfile + "_generated_handling.h", 'w')
         self.fc = open(self.outfile + "_generated.c", 'w')
 
         self.filtered_types = self.iter_types(self.parser.types)
 
         self.print_header()
-        self.print_handling()
         self.print_description_array()
 
         self.fh.close()
-        self.ff.close()
         self.fc.close()
 
         if self.gen_doc:
@@ -361,9 +338,6 @@ class CGenerator(object):
 
     def printh(self, string):
         print(string, end='\n', file=self.fh)
-
-    def printf(self, string):
-        print(string, end='\n', file=self.ff)
 
     def printc(self, string):
         print(string, end='\n', file=self.fc)
@@ -457,13 +431,13 @@ _UA_BEGIN_DECLS
                         self.printh("\n/* " + t.name + ": " + t.description + " */")
                     if not isinstance(t, BuiltinType):
                         self.printh(self.print_datatype_typedef(t) + "\n")
-                    self.printh(
-                        "#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    self.printh("#define UA_" + makeCIdentifier(self.parser.outname.upper() + "_" + t.name.upper()) + " " + str(i))
+                    self.printh("")
+                    self.printh(self.print_functions(t))
         else:
             self.printh("#define UA_" + self.parser.outname.upper() + " NULL")
 
         self.printh('''
-
 _UA_END_DECLS
 
 #endif /* %s_GENERATED_H_ */''' % self.parser.outname.upper())
@@ -482,40 +456,6 @@ _UA_END_DECLS
                 for l in lines.splitlines():
                     self.printd("    " + l)
                 self.printd("")
-
-    def print_handling(self):
-        self.printf(u'''/**********************************
- * Autogenerated -- do not modify *
- **********************************/
-
-#ifndef ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
-#define ''' + self.parser.outname.upper() + '''_GENERATED_HANDLING_H_
-
-#include "''' + self.parser.outname + '''_generated.h"
-
-_UA_BEGIN_DECLS
-
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
-# pragma GCC diagnostic push
-# pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-# pragma GCC diagnostic ignored "-Wmissing-braces"
-#endif
-''')
-
-        for ns in self.filtered_types:
-            for i, t_name in enumerate(self.filtered_types[ns]):
-                t = self.filtered_types[ns][t_name]
-                self.printf("\n/* " + t.name + " */")
-                self.printf(self.print_functions(t))
-
-        self.printf('''
-#if defined(__GNUC__) && __GNUC__ >= 4 && __GNUC_MINOR__ >= 6
-# pragma GCC diagnostic pop
-#endif
-
-_UA_END_DECLS
-
-#endif /* %s_GENERATED_HANDLING_H_ */''' % self.parser.outname.upper())
 
     def print_description_array(self):
         self.printc(u'''/**********************************

@@ -173,7 +173,6 @@ struct UA_MonitoredItem {
 void UA_MonitoredItem_init(UA_MonitoredItem *mon);
 void UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon);
 void UA_MonitoredItem_removeOverflowInfoBits(UA_MonitoredItem *mon);
-void UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon);
 void UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Register sampling. Either by adding a repeated callback or by adding the
@@ -188,6 +187,8 @@ UA_StatusCode
 UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
                                    UA_MonitoringMode monitoringMode);
 
+void
+UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon);
 
 /* Do not use the value after calling this. It will be moved to mon or freed. */
 void

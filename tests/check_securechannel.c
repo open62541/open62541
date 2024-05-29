@@ -3,7 +3,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/transport_generated.h>
-#include <open62541/transport_generated_handling.h>
 #include <open62541/types_generated.h>
 #include <open62541/server_config_default.h>
 

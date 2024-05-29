@@ -6,7 +6,7 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 
 #include "util/ua_util_internal.h"
 #include "ua_types_encoding_binary.h"

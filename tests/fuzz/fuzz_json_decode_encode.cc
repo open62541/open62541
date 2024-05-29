@@ -6,7 +6,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 
 /* Decode a message, then encode, decode, encode.
  * The two encodings must be bit-equal. */

@@ -14,7 +14,6 @@
 
 #include "test_helpers.h"
 #include "testing_clock.h"
-#include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 

@@ -4,7 +4,6 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "util/ua_util_internal.h"

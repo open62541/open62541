@@ -12,8 +12,8 @@
  *    Copyright 2018-2019 (c) HMS Industrial Networks AB (Author: Jonas Green)
  */
 
-#include <open62541/types_generated_handling.h>
-#include <open62541/transport_generated_handling.h>
+#include <open62541/types.h>
+#include <open62541/transport_generated.h>
 
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"

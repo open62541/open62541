@@ -7,7 +7,6 @@
 #include <open62541/client_config_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#include "open62541/types_generated_handling.h"
 
 #include "client/ua_client_internal.h"
 #include "server/ua_server_internal.h"

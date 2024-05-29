@@ -928,8 +928,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 #endif
 
     /* Repeat sending notifications if there are more notifications to send. But
-     * only call monitoredItem_sampleCallback in the regular publish
-     * callback. */
+     * only call UA_MonitoredItem_sample in the regular publish callback. */
     UA_Boolean done = (sub->notificationQueueSize == 0);
     if(!done && !sub->delayedCallbackRegistered) {
         sub->delayedCallbackRegistered = true;
@@ -1012,7 +1011,7 @@ sampleAndPublishCallback(UA_Server *server, UA_Subscription *sub) {
      * sampling in the same interval as the subscription) */
     UA_MonitoredItem *mon;
     LIST_FOREACH(mon, &sub->samplingMonitoredItems, sampling.subscriptionSampling) {
-        monitoredItem_sampleCallback(server, mon);
+        UA_MonitoredItem_sample(server, mon);
     }
 
     /* Publish the queued notifications */
@@ -1380,7 +1379,7 @@ UA_MonitoredItem_setMonitoringMode(UA_Server *server, UA_MonitoredItem *mon,
     if(oldMode == UA_MONITORINGMODE_DISABLED &&
        mon->monitoringMode > UA_MONITORINGMODE_DISABLED &&
        mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
-        monitoredItem_sampleCallback(server, mon);
+        UA_MonitoredItem_sample(server, mon);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -1551,6 +1550,13 @@ UA_MonitoredItem_ensureQueueSpace(UA_Server *server, UA_MonitoredItem *mon) {
     }
 }
 
+static void
+UA_MonitoredItem_lockAndSample(UA_Server *server, UA_MonitoredItem *mon) {
+    UA_LOCK(&server->serviceMutex);
+    UA_MonitoredItem_sample(server, mon);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 UA_StatusCode
 UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -1582,7 +1588,7 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
          * repeated callback. Other MonitoredItems are attached to the Node in a
          * linked list of backpointers. */
         res = addRepeatedCallback(server,
-                                  (UA_ServerCallback)UA_MonitoredItem_sampleCallback,
+                                  (UA_ServerCallback)UA_MonitoredItem_lockAndSample,
                                   mon, mon->parameters.samplingInterval,
                                   &mon->sampling.callbackId);
         if(res == UA_STATUSCODE_GOOD)

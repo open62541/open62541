@@ -67,9 +67,11 @@ START_TEST(monitorIntegerNoChanges) {
     clock_t begin, finish;
     begin = clock();
 
+    UA_LOCK(&server->serviceMutex);
     for(int i = 0; i < 1000; i++) {
-        UA_MonitoredItem_sampleCallback(server, mon);
+        UA_MonitoredItem_sample(server, mon);
     }
+    UA_UNLOCK(&server->serviceMutex);
 
     finish = clock();
 

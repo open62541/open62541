@@ -182,14 +182,7 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
 }
 
 void
-UA_MonitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK(&server->serviceMutex);
-    monitoredItem_sampleCallback(server, mon);
-    UA_UNLOCK(&server->serviceMutex);
-}
-
-void
-monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
+UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
@@ -197,7 +190,9 @@ monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *mon) {
     UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub, "MonitoredItem %" PRIi32
                               " | Sample callback called", mon->monitoredItemId);
 
-    /* Sample the current value */
+    /* Sample the current value.
+     * sub->session can be NULL when the subscription is detached. Then
+     * readWithSession returns the error-code BADUSERACCESSDENIED. */
     UA_Session *session = (sub) ? sub->session : &server->adminSession;
     UA_DataValue dv = readWithSession(server, session, &mon->itemToMonitor,
                                       mon->timestampsToReturn);

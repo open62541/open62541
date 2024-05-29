@@ -6,7 +6,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  */
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 #include <open62541/plugin/nodestore_default.h>
 #include "ziptree.h"
 

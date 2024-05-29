@@ -449,4 +449,5 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
+
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
