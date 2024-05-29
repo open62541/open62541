@@ -1136,7 +1136,6 @@ initNS0(UA_Server *server) {
     deleteNode(server, UA_NS0ID(SERVER_REQUESTSERVERSTATECHANGE), true);
     deleteNode(server, UA_NS0ID(SERVER_SETSUBSCRIPTIONDURABLE), true);
     deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTHTTPSGROUP), true);
-    deleteNode(server, UA_NS0ID(SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP), true);
 
 #ifdef UA_ENABLE_DIAGNOSTICS
     /* ServerDiagnostics - ServerDiagnosticsSummary */
