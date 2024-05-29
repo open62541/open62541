@@ -7,8 +7,7 @@
  */
 
 #include <open62541/config.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 
 #ifdef UA_ENABLE_JSON_ENCODING
 

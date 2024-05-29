@@ -5,7 +5,6 @@
 #define _XOPEN_SOURCE 500
 #include <open62541/server.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "ua_types_encoding_binary.h"
