@@ -566,6 +566,11 @@ UA_Server_init(UA_Server *server) {
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    res = initNS0PushManagement(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
 #ifdef UA_ENABLE_NODESET_INJECTOR
     UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
