@@ -1124,7 +1124,6 @@ endif()
 # Nodeset files combined into NS0 generated file
 set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
 set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
-set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema) # Directory with the schema files for installation
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
@@ -1145,6 +1144,9 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         endif()
     endif()
 else()
+    # Directory with the schema files for installation
+    set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema)
+
     # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
         set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml)
@@ -1507,7 +1509,7 @@ install(TARGETS ${OPEN62541-LIB}
         INCLUDES DESTINATION include)
 
 set(open62541_install_tools_dir share/open62541)
-set(open62541_install_nodeset_dir share/open62541/schema)
+set(open62541_install_schema_dir share/open62541/schema)
 set(open62541_crypto_plugin ${UA_ENABLE_ENCRYPTION})
 
 # Create open62541Config.cmake
@@ -1517,7 +1519,7 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_nodeset_dir
+                                        open62541_install_schema_dir
                                         open62541_crypto_plugin)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
@@ -1566,7 +1568,7 @@ install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
 
 # Trailing slash to prevent "schema/schema" nesting
 install(DIRECTORY ${UA_SCHEMA_DIR}/
-        DESTINATION ${open62541_install_nodeset_dir}
+        DESTINATION ${open62541_install_schema_dir}
         FILES_MATCHING
         PATTERN "*.xml"
         PATTERN "*Types.bsd"
