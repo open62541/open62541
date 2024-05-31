@@ -112,7 +112,7 @@ endfunction()
 #                   passed which will all combined to one resulting code.
 #   IMPORT_BSD      Combination of types array and path to the .bsd file containing additional type definitions referenced by
 #                   the FILES_BSD files. The value is separated with a hash sign, i.e.
-#                   'UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd'
+#                   'UA_TYPES#${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd'
 #                   Multiple files can be passed which will all be imported.
 #   [FILES_SELECTED] Optional path to a simple text file which contains a list of types which should be included in the generation.
 #                   The file should contain one type per line. Multiple files can be passed to this argument.
@@ -551,8 +551,8 @@ function(ua_generate_nodeset_and_datatypes)
         message(FATAL_ERROR "open62541_TOOLS_DIR must point to the open62541 tools directory")
     endif()
 
-    if(NOT DEFINED UA_NODESET_DIR)
-        message(FATAL_ERROR "UA_NODESET_DIR must point to the open62541/deps/ua-nodeset directory")
+    if(NOT DEFINED UA_SCHEMA_DIR)
+        message(FATAL_ERROR "UA_SCHEMA_DIR must point to the directory that contains the schema files")
     endif()
 
     # ------ Argument checking -----
@@ -669,7 +669,7 @@ function(ua_generate_nodeset_and_datatypes)
     # Create a list of nodesets on which this nodeset depends on
     if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
         if(NOT UA_FILE_NS0)
-            set(NODESET_DEPENDS "${UA_NODESET_DIR}/Schema/Opc.Ua.NodeSet2.xml")
+            set(NODESET_DEPENDS "${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml")
         else()
             set(NODESET_DEPENDS "${UA_FILE_NS0}")
         endif()
