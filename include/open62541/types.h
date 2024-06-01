@@ -634,6 +634,9 @@ UA_INLINABLE(UA_QualifiedName
     return qn;
 })
 
+/* Define Qualifedname at compile time (in ROM) */
+#define UA_QUALIFIEDNAME_STATIC(NS, NAME) {NS, UA_STRING_STATIC(NAME)}
+
 /**
  * LocalizedText
  * ^^^^^^^^^^^^^
