@@ -864,7 +864,6 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         goto cleanup;
     }
 
-
     /* Check parent reference. Objects may have no parent. */
     retval = checkParentReference(server, session, head, parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1006,6 +1005,18 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                        "Adding reference to parent failed");
             goto cleanup;
         }
+
+        /* Inherit the role permissions from the parent */
+        const UA_Node *parent =
+            UA_NODESTORE_GET_SELECTIVE(server, parentNodeId, 0, UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
+        if(!parent) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+        memcpy(node->head.rolePermissions, parent->head.rolePermissions,
+               sizeof(UA_RoleSet) * 16);
+        UA_NODESTORE_RELEASE(server, parent);
     }
 
     /* Add a hasTypeDefinition reference */
@@ -1070,10 +1081,6 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
                             "in the nodestore");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-    /* TODO: Take the NodePermissions from the parent
-     * TODO: Don't give all permissions. */
-    memset(node->head.rolePermissions, -1, sizeof(UA_RoleSet) * 16);
 
     /* Fill the Node attributes */
     node->head.context = nodeContext;
@@ -1210,7 +1217,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Typecheck and add references to parent and type definition */
+    /* Typecheck and add references to parent and type definition.
+     * This also makes the new node inherit the role permissions. */
     retval = addNode_addRefs(server, session, outNewNodeId, parentNodeId,
                              referenceTypeId, &item->typeDefinition.nodeId);
     if(retval != UA_STATUSCODE_GOOD)
