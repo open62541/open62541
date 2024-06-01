@@ -657,29 +657,24 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break; }
     case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
         CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
-
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         const UA_DataType *type =
             UA_findDataTypeWithCustom(&node->head.nodeId, server->config.customDataTypes);
-        if(!type) {
-            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+        if(!type)
             break;
-        }
-
-        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
-           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
-           UA_DATATYPEKIND_UNION == type->typeKind) {
-            UA_StructureDefinition def;
-            retval = getStructureDefinition(type, &def);
-            if(UA_STATUSCODE_GOOD!=retval)
-                break;
-            retval = UA_Variant_setScalarCopy(&v->value, &def,
-                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-            UA_free(def.fields);
+        if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+           type->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+           type->typeKind != UA_DATATYPEKIND_UNION)
             break;
-        }
+        UA_StructureDefinition def;
+        retval = getStructureDefinition(type, &def);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        retval = UA_Variant_setScalarCopy(&v->value, &def,
+                                          &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+        UA_StructureDefinition_clear(&def);
 #endif
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
         retval = readRolePermissions(server, node->head.rolePermissions, v);
