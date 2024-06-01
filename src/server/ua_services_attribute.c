@@ -218,6 +218,63 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
 }
 
 static UA_StatusCode
+readRolePermissions(UA_Server *server,
+                    const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                    UA_DataValue *v) {
+    /* Allocate the output array */
+    size_t rolesCount = UA_WELLKNOWNROLES_COUNT + server->config.customRolesSize;
+    UA_RolePermissionType *rpts = (UA_RolePermissionType *)
+        UA_Array_new(rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!rpts)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Set the description for every role */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rolesCount; i++) {
+        UA_RolePermissionType *rpt = &rpts[i];
+        if(i < UA_WELLKNOWNROLES_COUNT) {
+            res |= UA_NodeId_copy(&wellKnownRoles[i].roleId, &rpt->roleId);
+        } else {
+            res |= UA_NodeId_copy(
+                &server->config.customRoles[i - UA_WELLKNOWNROLES_COUNT].roleId,
+                &rpt->roleId);
+        }
+
+        UA_PermissionType permission = 1;
+        for(size_t j = 0; j < UA_ROLEPERMISSIONS_COUNT; j++) {
+            if(UA_RoleSet_contains(rolePermissions[j], i))
+                rpt->permissions |= permission;
+            permission = permission << 1;
+        }
+
+        /* TODO: Set the AddNode permission */
+    }
+
+    /* Set the output DataValue and return */
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_Variant_setArray(&v->value, rpts, rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        v->hasValue = true;
+    } else {
+        UA_Array_delete(rpts, rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    }
+    return res;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                        UA_DataValue *v) {
+    /* Prepare the user-specific permissions */
+    UA_RoleSet userPermissions[UA_ROLEPERMISSIONS_COUNT];
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        userPermissions[i] = UA_RoleSet_intersect(session->roles, rolePermissions[i]);
+    }
+
+    /* Use the normal readRolePermissions on the user-specific permissions*/
+    return readRolePermissions(server, userPermissions, v);
+}
+
+static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
@@ -624,16 +681,17 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
 #endif
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
-
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+        retval = readRolePermissions(server, node->head.rolePermissions, v);
+        break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+        retval = readUserRolePermissions(server, session, node->head.rolePermissions, v);
+        break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
+    default:
         /* TODO: Add support for the attributes from the 1.04 spec */
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
-
-    default:
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
     /* Reading has failed? */
