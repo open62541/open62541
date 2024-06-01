@@ -334,7 +334,10 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
         }
     }
 
-    conf->tcpReuseAddr = false;
+    /* If a second server is started later it can "steal" the port.
+     * Having port reuse enabled is important for development.
+     * Otherwise a long TCP TIME_WAIT is required before the port can be used again. */
+    conf->tcpReuseAddr = true;
 
     /* --> Start setting the default static config <-- */
 
