@@ -1014,9 +1014,12 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
-        memcpy(node->head.rolePermissions, parent->head.rolePermissions,
-               sizeof(UA_RoleSet) * 16);
+        retval = setRolePermissions(server, head->nodeId, parent->head.rolePermissions, false);
         UA_NODESTORE_RELEASE(server, parent);
+        if(retval != UA_STATUSCODE_GOOD) {
+            logAddNode(server->config.logging, session, nodeId,
+                       "Adding the RolePermissions from the parent failed");
+        }
     }
 
     /* Add a hasTypeDefinition reference */

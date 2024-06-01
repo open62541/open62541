@@ -401,6 +401,23 @@ typedef struct {
 extern const RoleDescription wellKnownRoles[UA_WELLKNOWNROLES_COUNT];
 
 UA_StatusCode
+setRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                   UA_Boolean recursive);
+
+UA_StatusCode
+removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                      const UA_QualifiedName roleName,
+                      UA_PermissionType permissions,
+                      UA_Boolean recursive);
+
+UA_StatusCode
+addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_QualifiedName roleName,
+                   UA_PermissionType permissions,
+                   UA_Boolean recursive);
+
+UA_StatusCode
 deleteNode(UA_Server *server, const UA_NodeId nodeId,
            UA_Boolean deleteReferences);
 

@@ -2236,3 +2236,151 @@ UA_Session_getNodeDescription(const UA_Session *session,
                               const UA_NodeHead *head) {
     return getLocalizedForSession(session, head->description);
 }
+
+/* RolePermissions handling */
+
+static UA_StatusCode
+setNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                   UA_RoleSet *permissions) {
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        node->head.rolePermissions[i] =
+            UA_RoleSet_union(node->head.rolePermissions[i], permissions[i]);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+addNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                   UA_RoleSet *permissions) {
+    memcpy(node->head.rolePermissions, permissions,
+           sizeof(UA_RoleSet) * UA_ROLEPERMISSIONS_COUNT);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+removeNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                      UA_RoleSet *permissions) {
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        node->head.rolePermissions[i] =
+            UA_RoleSet_remove(node->head.rolePermissions[i], permissions[i]);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+editRolePermissions2(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                     UA_Boolean recursive, UA_EditNodeCallback editCallback) {
+    /* Get the set of target nodes */
+    UA_ExpandedNodeId *targets = NULL;
+    size_t targetsSize = 0;
+    UA_ExpandedNodeId singleTarget;
+
+    if(recursive) {
+        UA_ReferenceTypeSet refset = UA_REFERENCETYPESET_NONE;
+        const UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_StatusCode res = referenceTypeIndices(server, &hierarchRefs, &refset, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        res = browseRecursive(server, 1, &nodeId, UA_BROWSEDIRECTION_FORWARD, &refset,
+                              UA_NODECLASS_UNSPECIFIED, true, &targetsSize, &targets);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        singleTarget = UA_EXPANDEDNODEID_NULL;
+        singleTarget.nodeId = nodeId;
+        targets = &singleTarget;
+        targetsSize = 1;
+    }
+
+    /* Update every target node */
+    for(size_t i = 0; i < targetsSize; i++) {
+        UA_ExpandedNodeId *target = &targets[i];
+        if(!UA_ExpandedNodeId_isLocal(target))
+            continue;
+        UA_Server_editNode(server, &server->adminSession, &target->nodeId,
+                           editCallback, (void*)(uintptr_t)rolePermissions);
+    }
+
+    /* Clean up */
+    if(recursive)
+        UA_Array_delete(targets, targetsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+editRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                    const UA_QualifiedName roleName, UA_PermissionType permissions,
+                    UA_Boolean recursive, UA_EditNodeCallback editCallback) {
+    /* Get the role index */
+    UA_Byte roleIndex = 0;
+    UA_StatusCode res = UA_Server_getRoleIndex(server, roleName, &roleIndex);
+    UA_RoleSet thisRole = UA_ROLESET(roleIndex);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Prepare the set of roles for every permission type */
+    UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT];
+    memset(rolePermissions, 0, sizeof(UA_RoleSet) * UA_ROLEPERMISSIONS_COUNT);
+    UA_PermissionType pt = UA_PERMISSIONTYPE_BROWSE; /* 0x01 */
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        if((permissions & pt) != 0)
+            rolePermissions[i] = thisRole;
+        pt = pt << 1;
+    }
+
+    /* Apply (recursively) */
+    return editRolePermissions2(server, nodeId, rolePermissions,
+                                recursive, editCallback);
+}
+
+UA_StatusCode
+addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_QualifiedName roleName,
+                   UA_PermissionType permissions,
+                   UA_Boolean recursive) {
+    return editRolePermissions(server, nodeId, roleName, permissions, recursive,
+                               (UA_EditNodeCallback)addNodePermissions);
+}
+
+UA_StatusCode
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_QualifiedName roleName,
+                             UA_PermissionType permissions,
+                             UA_Boolean recursive) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addRolePermissions(server, nodeId, roleName,
+                                           permissions, recursive);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                      const UA_QualifiedName roleName,
+                      UA_PermissionType permissions,
+                      UA_Boolean recursive) {
+    return editRolePermissions(server, nodeId, roleName, permissions, recursive,
+                               (UA_EditNodeCallback)removeNodePermissions);
+}
+
+UA_StatusCode
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_QualifiedName roleName,
+                                UA_PermissionType permissions,
+                                UA_Boolean recursive) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeRolePermissions(server, nodeId, roleName,
+                                              permissions, recursive);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+setRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                   UA_Boolean recursive) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return editRolePermissions2(server, nodeId, rolePermissions, recursive,
+                                (UA_EditNodeCallback)setNodePermissions);
+}

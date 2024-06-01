@@ -679,6 +679,31 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
  * Newly created nodes inherit the role permissions from their parent.
  */
 
+/* Add permissions (bitfield, can carry multiple permission types) for the
+ * defined role to a Node. Recursive addition means that all child nodes (via a
+ * hierarchical reference) also have the permissions for the defined role. */
+UA_StatusCode
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_QualifiedName roleName,
+                             UA_PermissionType permissions,
+                             UA_Boolean recursive);
+
+/* Remove permissions (bitfield, can carry multiple permissions) for the defined
+ * role from a Node. Recursive removal means that all child nodes (via a
+ * hierarchical reference) no longer have the permissions for the defined
+ * role. */
+UA_StatusCode
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_QualifiedName roleName,
+                                UA_PermissionType permissions,
+                                UA_Boolean recursive);
+
+/**
+ * open62541 internally assigns an index to every Role. That way a ``RoleSet``
+ * bitfield is used to compactly represent the roles of each Session. Use
+ * ``UA_Server_getRoleIndex`` to get the index of a Role.
+ */
+
 /* Translate the role index (from the bitmap) into the role name. This sets the
  * roleName point to point to a const QualifiedName. This pointer is stable as
  * long the server role array in the server configuration is not changed. */
