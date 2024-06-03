@@ -84,6 +84,17 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
                                                      const UA_ByteString *revocationList,
                                                      size_t revocationListSize);
 
+#ifdef __linux__ /* Linux only so far */
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
+                                        UA_UInt16 portNumber,
+                                        const UA_ByteString *certificate,
+                                        const UA_ByteString *privateKey,
+                                        const UA_String *storePath);
+
+#endif
+
 #endif
 
 /* Creates a server config on the default port 4840 with no server
