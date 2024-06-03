@@ -16,6 +16,8 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
 #include <openssl/pem.h>
 
 #include "ua_openssl_version_abstraction.h"
@@ -891,6 +893,56 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     free(thumb.data);
 
     return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
+                               size_t *keySize){
+    if(certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
+    if(!certBio)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509 *cert = NULL;
+    /* Try to read the certificate as PEM first */
+    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+    if(!cert) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(certBio);
+        cert = d2i_X509_bio(certBio, NULL);
+    }
+    if(!cert) {
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    EVP_PKEY *pkey = X509_get_pubkey(cert);
+    if(!pkey) {
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(EVP_PKEY_base_id(pkey) == EVP_PKEY_RSA) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+        *keySize = EVP_PKEY_get_size(pkey);
+#else
+        *keySize =  RSA_size(get_pkey_rsa(pkey));
+#endif
+    } else {
+        EVP_PKEY_free(pkey);
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR; /* Unsupported key type */
+    }
+
+    EVP_PKEY_free(pkey);
+    X509_free(cert);
+    BIO_free(certBio);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
