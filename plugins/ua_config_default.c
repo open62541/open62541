@@ -949,7 +949,6 @@ UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
                                              const UA_ByteString *certificate,
                                              const UA_ByteString *privateKey) {
     return addAllSecurityPolicies(config, certificate, privateKey, true);
-
 }
 
 UA_EXPORT UA_StatusCode
@@ -1118,6 +1117,69 @@ UA_ServerConfig_setDefaultWithSecureSecurityPolicies(UA_ServerConfig *conf,
 
     return UA_STATUSCODE_GOOD;
 }
+
+#ifdef __linux__ /* Linux only so far */
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
+                                        UA_UInt16 portNumber,
+                                        const UA_ByteString *certificate,
+                                        const UA_ByteString *privateKey,
+                                        const UA_String *storePath) {
+    UA_StatusCode retval = setDefaultConfig(conf, portNumber);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    /* Set up the parameters */
+    UA_KeyValuePair params[2];
+    size_t paramsSize = 2;
+
+    params[0].key = UA_QUALIFIEDNAME(0, "maxTrustListSize");
+    UA_Variant_setScalar(&params[0].value, &conf->maxTrustListSize, &UA_TYPES[UA_TYPES_UINT32]);
+    params[1].key = UA_QUALIFIEDNAME(0, "maxRejectedListSize");
+    UA_Variant_setScalar(&params[1].value, &conf->maxRejectedListSize, &UA_TYPES[UA_TYPES_UINT32]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    UA_NodeId defaultApplicationGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    retval = UA_CertificateGroup_Filestore(&conf->secureChannelPKI, &defaultApplicationGroup, storePath, conf->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_NodeId defaultUserTokenGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    retval = UA_CertificateGroup_Filestore(&conf->sessionPKI, &defaultUserTokenGroup, storePath, conf->logging, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    size_t certificateKeyLength = 0;
+    retval = UA_CertificateUtils_getKeySize((UA_ByteString*)(uintptr_t)certificate, &certificateKeyLength);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    if(certificateKeyLength > 2048) {
+        retval = UA_ServerConfig_addAllSecureSecurityPolicies(conf, certificate, privateKey);
+        conf->securityPolicyNoneDiscoveryOnly = true;
+    } else {
+        retval = UA_ServerConfig_addAllSecurityPolicies(conf, certificate, privateKey);
+    }
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        retval = UA_AccessControl_default(conf, true, NULL, 0, NULL);
+    }
+
+    if(retval == UA_STATUSCODE_GOOD) {
+        retval = UA_ServerConfig_addAllEndpoints(conf);
+    }
+
+    return retval;
+}
+
+#endif
 
 #endif
 
