@@ -50,7 +50,13 @@ variableNodes = nodeset.getElementsByTagName("UAVariable")
 for nd in variableNodes:
     if (nd.hasAttribute("SymbolicName") and (re.match(r".*_BinarySchema", nd.attributes["SymbolicName"].nodeValue) or nd.attributes["SymbolicName"].nodeValue == "TypeDictionary_BinarySchema")) or (nd.hasAttribute("ParentNodeId") and not nd.hasAttribute("SymbolicName") and re.fullmatch(r"i=93", nd.attributes["ParentNodeId"].nodeValue)):
         type_content = nd.getElementsByTagName("Value")[0].getElementsByTagName("ByteString")[0]
-        f = open(args.outputFile, 'w')
-        f.write(base64.b64decode(type_content.firstChild.nodeValue).decode("utf-8"))
-        f.flush()
-        f.close()
+        with open(args.outputFile, 'w') as f:
+            f.write(base64.b64decode(type_content.firstChild.nodeValue).decode("utf-8"))
+    elif nd.hasAttribute("BrowseName") and nd.getAttribute("BrowseName").endswith("TypeDictionary"):
+        references = nd.getElementsByTagName("Reference")
+        for ref in references:
+            if ref.getAttribute("ReferenceType") == "HasComponent" and ref.firstChild.nodeValue == "i=93":
+                type_content = nd.getElementsByTagName("Value")[0].getElementsByTagName("ByteString")[0]
+                with open(args.outputFile, 'w') as f:
+                    f.write(base64.b64decode(type_content.firstChild.nodeValue).decode("utf-8"))
+                break
