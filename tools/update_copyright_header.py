@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -7,7 +6,6 @@
 
 import os
 import re
-import io
 import sys
 
 from git import *
@@ -57,7 +55,7 @@ def compactYears(yearList):
         current = y
         last = y
 
-    if not last is None:
+    if last is not None:
         if last == current:
             result.append("%i" % last)
         else:
@@ -76,8 +74,8 @@ def insertCopyrightAuthors(file, authorsList):
     commentPattern = re.compile(r"(.*)\*/$")
 
     tmpName = file + ".new"
-    tempFile = io.open(tmpName, mode="w", encoding="utf-8")
-    with io.open(file, mode="r", encoding="utf-8") as f:
+    tempFile = open(tmpName, mode="w", encoding="utf-8")
+    with open(file, encoding="utf-8") as f:
         for line in f:
             if copyrightAdded or not commentPattern.match(line):
                 tempFile.write(line)
@@ -92,13 +90,13 @@ def insertCopyrightAuthors(file, authorsList):
     move(tmpName, file)
 
 def updateCopyright(repo, file):
-    print("Checking file {}".format(file))
+    print(f"Checking file {file}")
 
     # Build the info on how many lines every author commited every year
     relativeFilePath = file[len(repo.working_dir)+1:].replace("\\","/")
 
-    if not relativeFilePath in fileAuthorStats:
-        print("File not found in list: {}".format(relativeFilePath))
+    if relativeFilePath not in fileAuthorStats:
+        print(f"File not found in list: {relativeFilePath}")
         return
 
     stats = fileAuthorStats[relativeFilePath]
@@ -140,17 +138,17 @@ def updateCopyright(repo, file):
 
 # This is required since some commits use different author names for the same person
 assumeSameAuthor = {
-    'Mark': u'Mark Giraud',
-    'Infinity95': u'Mark Giraud',
-    'janitza-thbe': u'Thomas Bender',
-    'Stasik0': u'Sten Grüner',
-    'Sten': u'Sten Grüner',
-    'Frank Meerkoetter': u'Frank Meerkötter',
-    'ichrispa': u'Chris Iatrou',
-    'Chris Paul Iatrou': u'Chris Iatrou',
-    'Torben-D': u'TorbenD',
-    'FlorianPalm': u'Florian Palm',
-    'ChristianFimmers': u'Christian Fimmers'
+    'Mark': 'Mark Giraud',
+    'Infinity95': 'Mark Giraud',
+    'janitza-thbe': 'Thomas Bender',
+    'Stasik0': 'Sten Grüner',
+    'Sten': 'Sten Grüner',
+    'Frank Meerkoetter': 'Frank Meerkötter',
+    'ichrispa': 'Chris Iatrou',
+    'Chris Paul Iatrou': 'Chris Iatrou',
+    'Torben-D': 'TorbenD',
+    'FlorianPalm': 'Florian Palm',
+    'ChristianFimmers': 'Christian Fimmers'
 }
 
 def buildFileStats(repo):
@@ -165,7 +163,7 @@ def buildFileStats(repo):
     curr = 0
     for commit in repo.iter_commits():
         curr += 1
-        print("Checking commit {}/{}  ->   {}".format(curr, cnt, commit.hexsha))
+        print(f"Checking commit {curr}/{cnt}  ->   {commit.hexsha}")
 
         for objpath, stats in commit.stats.files.items():
 
@@ -185,14 +183,14 @@ def buildFileStats(repo):
                 newFile = fileRenameMap[objpath] if objpath in fileRenameMap else objpath
 
             if stats['insertions'] > 0:
-                if not newFile in fileAuthorStats:
+                if newFile not in fileAuthorStats:
                     fileAuthorStats[newFile] = dict()
 
                 authorName = unicode(commit.author.name)
                 if authorName in assumeSameAuthor:
                     authorName = assumeSameAuthor[authorName]
 
-                if not authorName in fileAuthorStats[newFile]:
+                if authorName not in fileAuthorStats[newFile]:
                     fileAuthorStats[newFile][authorName] = {
                         'years': dict(),
                         'first_commit': commit.committed_datetime
@@ -200,7 +198,7 @@ def buildFileStats(repo):
                 elif commit.committed_datetime < fileAuthorStats[newFile][authorName]['first_commit']:
                     fileAuthorStats[newFile][authorName]['first_commit'] = commit.committed_datetime
 
-                if not commit.committed_datetime.year in fileAuthorStats[newFile][authorName]['years']:
+                if commit.committed_datetime.year not in fileAuthorStats[newFile][authorName]['years']:
                     fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] = 0
 
                 fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] += stats['insertions']

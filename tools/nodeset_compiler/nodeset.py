@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,7 +8,6 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-from __future__ import print_function
 import sys
 import xml.dom.minidom as dom
 import logging
@@ -103,7 +101,7 @@ def buildAliasList(xmlelement):
                 aliases[aliasst] = aliasnd
     return aliases
 
-class NodeSet(object):
+class NodeSet:
     """ This class handles parsing XML description of namespaces, instantiating
         nodes, linking references, graphing the namespace and compiling a binary
         representation.
@@ -130,14 +128,14 @@ class NodeSet(object):
             for ref in n.references:
                 if not ref.source == n.id:
                     raise Exception("Reference " + str(ref) + " has an invalid source")
-                if not ref.referenceType in self.nodes:
+                if ref.referenceType not in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
-                if not ref.target in self.nodes:
+                if ref.target not in self.nodes:
                     print(self.namespaces)
                     raise Exception("Reference " + str(ref) + " has an unknown target")
 
     def addNamespace(self, nsURL):
-        if not nsURL in self.namespaces:
+        if nsURL not in self.namespaces:
             self.namespaces.append(nsURL)
 
     def createNamespaceMapping(self, orig_namespaces):
@@ -184,7 +182,7 @@ class NodeSet(object):
         return node
 
     def hide_node(self, nodeId, hidden=True):
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return False
         node = self.nodes[nodeId]
         node.hidden = hidden
@@ -210,9 +208,9 @@ class NodeSet(object):
                 if ns not in self.namespaces:
                     return None
                 ns = self.namespaces.index(ns)
-                idStr = "ns={};{}".format(ns, m.group(2))
+                idStr = f"ns={ns};{m.group(2)}"
         nodeId = NodeId(idStr)
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return None
         return self.nodes[nodeId]
 
@@ -248,8 +246,7 @@ class NodeSet(object):
         # Remove BOM since the dom parser cannot handle it on Python 3 Windows
         if fileContent.startswith( codecs.BOM_UTF8 ):
             fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-        if (sys.version_info >= (3, 0)):
-            fileContent = fileContent.decode("utf-8")
+        fileContent = fileContent.decode("utf-8")
 
         # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
         fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
@@ -397,7 +394,7 @@ class NodeSet(object):
             if parentref is not None:
                 node.parent = self.nodes[parentref.target]
                 if not node.parent:
-                    raise RuntimeError("Node {}: Did not find parent node: ".format(str(node.id)))
+                    raise RuntimeError(f"Node {str(node.id)}: Did not find parent node: ")
                 node.parentReference = self.nodes[parentref.referenceType]
             # Some nodes in the full nodeset do not have a parent. So accept this and do not show an error.
             #else:
@@ -416,8 +413,7 @@ class NodeSet(object):
             # Remove BOM since the dom parser cannot handle it on python 3 windows
             if fileContent.startswith( codecs.BOM_UTF8 ):
                 fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-            if (sys.version_info >= (3, 0)):
-                fileContent = fileContent.decode("utf-8")
+            fileContent = fileContent.decode("utf-8")
 
             # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
             fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
@@ -444,8 +440,7 @@ class NodeSet(object):
             # Remove BOM since the dom parser cannot handle it on python 3 windows
             if fileContent.startswith( codecs.BOM_UTF8 ):
                 fileContent = fileContent.lstrip( codecs.BOM_UTF8 )
-            if (sys.version_info >= (3, 0)):
-                fileContent = fileContent.decode("utf-8")
+            fileContent = fileContent.decode("utf-8")
 
             # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
             fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
