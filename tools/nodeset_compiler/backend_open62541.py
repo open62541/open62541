@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,7 +10,6 @@
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
 
-from __future__ import print_function
 from os.path import basename
 import logging
 import codecs
@@ -149,9 +147,9 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     writeh("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 
-#ifndef %s_H_
-#define %s_H_
-""" % (outfilebase.upper(), outfilebase.upper()))
+#ifndef {}_H_
+#define {}_H_
+""".format(outfilebase.upper(), outfilebase.upper()))
     if internal_headers:
         writeh("""
 #ifdef UA_ENABLE_AMALGAMATION

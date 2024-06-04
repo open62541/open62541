@@ -41,7 +41,7 @@ if not os.path.isfile(logfile):
     exit(1)
 
 log_content = ""
-with open(logfile, 'r') as content_file:
+with open(logfile) as content_file:
     log_content = content_file.read()
 
 if len(log_content) == 0:

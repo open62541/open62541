@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -89,7 +88,7 @@ def generateObjectNodeCode(node):
 def setNodeDatatypeRecursive(node, nodeset):
 
     if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError("Node {}: DataType can only be set for VariableNode and VariableTypeNode".format(str(node.id)))
+        raise RuntimeError(f"Node {str(node.id)}: DataType can only be set for VariableNode and VariableTypeNode")
 
     if node.dataType is not None:
         return
@@ -121,7 +120,7 @@ def setNodeDatatypeRecursive(node, nodeset):
 def setNodeValueRankRecursive(node, nodeset):
 
     if not isinstance(node, VariableNode) and not isinstance(node, VariableTypeNode):
-        raise RuntimeError("Node {}: ValueRank can only be set for VariableNode and VariableTypeNode".format(str(node.id)))
+        raise RuntimeError(f"Node {str(node.id)}: ValueRank can only be set for VariableNode and VariableTypeNode")
 
     if node.valueRank is not None:
         return
@@ -148,10 +147,10 @@ def setNodeValueRankRecursive(node, nodeset):
         if typeDefNode.valueRank is not None:
             node.valueRank = typeDefNode.valueRank
         else:
-            raise RuntimeError("Node {}: the ValueRank of the parent node is None.".format(str(node.id)))
+            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
     else:
         if node.parent is None:
-            raise RuntimeError("Node {}: does not have a parent. Probably the parent node was blacklisted?".format(str(node.id)))
+            raise RuntimeError(f"Node {str(node.id)}: does not have a parent. Probably the parent node was blacklisted?")
 
         # Check if parent node limits the value rank
         setNodeValueRankRecursive(node.parent, nodeset)
@@ -160,7 +159,7 @@ def setNodeValueRankRecursive(node, nodeset):
         if node.parent.valueRank is not None:
             node.valueRank = node.parent.valueRank
         else:
-            raise RuntimeError("Node {}: the ValueRank of the parent node is None.".format(str(node.id)))
+            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
 
 
 def generateCommonVariableCode(node, nodeset):
@@ -176,13 +175,13 @@ def generateCommonVariableCode(node, nodeset):
     code.append("attr.valueRank = %d;" % node.valueRank)
     if node.valueRank > 0:
         code.append("attr.arrayDimensionsSize = %d;" % node.valueRank)
-        code.append("UA_UInt32 arrayDimensions[{}];".format(node.valueRank))
+        code.append(f"UA_UInt32 arrayDimensions[{node.valueRank}];")
         if len(node.arrayDimensions) == node.valueRank:
             for idx, v in enumerate(node.arrayDimensions):
-                code.append("arrayDimensions[{}] = {};".format(idx, int(str(v))))
+                code.append(f"arrayDimensions[{idx}] = {int(str(v))};")
         else:
             for dim in range(0, node.valueRank):
-                code.append("arrayDimensions[{}] = 0;".format(dim))
+                code.append(f"arrayDimensions[{dim}] = 0;")
         code.append("attr.arrayDimensions = &arrayDimensions[0];")
 
     if node.dataType is None:
@@ -315,7 +314,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             memberName = makeCIdentifier(lowerFirstChar(encField))
             encTypeString = "UA_" + subv[0].__class__.__name__
             instanceNameSafe = makeCIdentifier(instanceName)
-            code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+", {0});".format(len(subv)))
+            code.append("UA_STACKARRAY(" + encTypeString + ", " + instanceNameSafe + "_" + memberName+f", {len(subv)});")
             encTypeArr = nodeset.getDataTypeNode(subv[0].__class__.__name__).typesArray
             encTypeArrayString = encTypeArr + "[" + encTypeArr + "_" + subv[0].__class__.__name__.upper() + "]"
             code.append("UA_init({instanceName}, &{typeArrayString});".format(instanceName=instanceNameSafe + "_" + memberName,
@@ -324,7 +323,7 @@ def generateExtensionObjectSubtypeCode(node, parent, nodeset, global_var_code, i
             for subArrayIdx,val in enumerate(subv):
                 code.append(generateNodeValueCode(instanceNameSafe + "_" + memberName + "[" + str(subArrayIdx) + "]",
                                                   val, instanceName,instanceName + "_gehtNed_member", global_var_code, asIndirect=False))
-            code.append(instanceName + accessor + memberName + "Size = {0};".format(len(subv)))
+            code.append(instanceName + accessor + memberName + f"Size = {len(subv)};")
             code.append(instanceName + accessor + memberName + " = " + instanceNameSafe+"_"+ memberName+";")
             continue
 
@@ -440,9 +439,9 @@ def generateValueCode(node, parentNode, nodeset, bootstrapping=True):
                         getTypesArrayForValue(nodeset, node.value[0]) + ");")
                 if node.value[0].__class__.__name__ == "ByteString":
                     # The data is on the stack, not heap, so we can not delete the ByteString
-                    codeCleanup.append("{}->data = NULL;".format(valueName))
-                    codeCleanup.append("{}->length = 0;".format(valueName))
-                codeCleanup.append("UA_{0}_delete({1});".format(
+                    codeCleanup.append(f"{valueName}->data = NULL;")
+                    codeCleanup.append(f"{valueName}->length = 0;")
+                codeCleanup.append("UA_{}_delete({});".format(
                     node.value[0].__class__.__name__, valueName))
     return [code, codeCleanup, codeGlobal]
 

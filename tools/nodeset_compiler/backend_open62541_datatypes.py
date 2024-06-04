@@ -47,11 +47,11 @@ def splitStringLiterals(value, splitLength=500):
 
 def generateStringCode(value, alloc=False):
     value = makeCLiteral(value)
-    return u"UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
+    return "UA_STRING{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
 def generateXmlElementCode(value, alloc=False):
     value = makeCLiteral(value)
-    return u"UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
+    return "UA_XMLELEMENT{}({})".format("_ALLOC" if alloc else "", splitStringLiterals(value))
 
 def generateByteStringCode(value, valueName, global_var_code, isPointer):
     if isinstance(value, str):
@@ -77,17 +77,17 @@ def generateLocalizedTextCode(value, alloc=False):
     if value.text is None:
         value.text = ""
     vt = makeCLiteral(value.text)
-    return u"UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
+    return "UA_LOCALIZEDTEXT{}(\"{}\", {})".format("_ALLOC" if alloc else "", '' if value.locale is None else value.locale,
                                                    splitStringLiterals(vt))
 
 def generateQualifiedNameCode(value, alloc=False,):
     vn = makeCLiteral(value.name)
-    return u"UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
+    return "UA_QUALIFIEDNAME{}(ns[{}], {})".format("_ALLOC" if alloc else "",
                                                      str(value.ns), splitStringLiterals(vn))
 
 def generateGuidCode(value):
     if isinstance(value, str):
-        return "UA_GUID(\"{}\")".format(value)
+        return f"UA_GUID(\"{value}\")"
     if not value or len(value) != 5:
         return "UA_GUID_NULL"
     else:
@@ -97,20 +97,20 @@ def generateNodeIdCode(value):
     if not value:
         return "UA_NODEID_NUMERIC(0, 0)"
     if value.i != None:
-        return "UA_NODEID_NUMERIC(ns[%s], %sLU)" % (value.ns, value.i)
+        return "UA_NODEID_NUMERIC(ns[{}], {}LU)".format(value.ns, value.i)
     elif value.s != None:
         v = makeCLiteral(value.s)
-        return u"UA_NODEID_STRING(ns[%s], \"%s\")" % (value.ns, v)
+        return "UA_NODEID_STRING(ns[{}], \"{}\")".format(value.ns, v)
     elif value.g != None:
-        return u"UA_NODEID_GUID(ns[%s], %s)" % (value.ns, generateGuidCode(value.gAsString()))
+        return "UA_NODEID_GUID(ns[{}], {})".format(value.ns, generateGuidCode(value.gAsString()))
     raise Exception(str(value) + " NodeID generation for bytestring NodeIDs not supported")
 
 def generateExpandedNodeIdCode(value):
     if value.i != None:
-        return "UA_EXPANDEDNODEID_NUMERIC(ns[%s], %sLU)" % (str(value.ns), str(value.i))
+        return "UA_EXPANDEDNODEID_NUMERIC(ns[{}], {}LU)".format(str(value.ns), str(value.i))
     elif value.s != None:
         vs = makeCLiteral(value.s)
-        return u"UA_EXPANDEDNODEID_STRING(ns[%s], \"%s\")" % (str(value.ns), vs)
+        return "UA_EXPANDEDNODEID_STRING(ns[{}], \"{}\")".format(str(value.ns), vs)
     raise Exception(str(value) + " no NodeID generation for bytestring and guid..")
 
 def generateDateTimeCode(value):
@@ -185,14 +185,14 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             # Initialize the stack array
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
-            code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node)))
+            code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+f", {len(node)});")
             # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
             # would require searching whole nodeset to match the type name
             code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
                                                                                                    arrayLength=len(node)))
             for idx,subv in enumerate(node):
                 code.append(generateNodeValueCode(arrayName + "[" + str(idx) + "]", subv, instanceName, valueName, global_var_code, asIndirect, encRule=encRule, idxList=idx))
-            code.append(prepend + "Size = {0};".format(len(node)))
+            code.append(prepend + f"Size = {len(node)};")
             code.append(prepend + " = " + arrayName +";")
         # Code generation for structure arrays with fields of different types.
         # Example:
@@ -216,7 +216,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
             # Initialize the stack array
             typeOfArray = encRule.member_type.name
             arrayName = encRule.name
-            code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+", {0});".format(len(node.value)))
+            code.append("UA_STACKARRAY(UA_" + typeOfArray + ", " + arrayName+f", {len(node.value)});")
             # memset is used here instead of UA_Init. Finding the dataType nodeID (to get the type array)
             # would require searching whole nodeset to match the type name
             code.append("memset({arrayName}, 0, sizeof(UA_{typeOfArray}) * {arrayLength});".format(arrayName=arrayName, typeOfArray=typeOfArray, 
@@ -227,7 +227,7 @@ def generateNodeValueCode(prepend , node, instanceName, valueName, global_var_co
                 encField = encRule.name
                 subEncRule = encRule
                 code.append(generateNodeValueCode(prepend + "." + lowerFirstChar(encField), subv, instanceName, valueName, global_var_code, asIndirect, encRule=subEncRule, idxList=idx))
-            code.append(prepend + "Size = {0};".format(len(node.value)))
+            code.append(prepend + f"Size = {len(node.value)};")
             code.append(prepend + " = " + arrayName +";")
 
         else:

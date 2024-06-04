@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -25,7 +24,7 @@ if sys.version_info[0] >= 3:
     def unicode(s):
         return s
 
-class Reference(object):
+class Reference:
     # all either nodeids or strings with an alias
     def __init__(self, source, referenceType, target, isForward):
         self.source = source
@@ -60,7 +59,7 @@ def RefOrAlias(s):
     except Exception:
         return s
 
-class Node(object):
+class Node:
     def __init__(self):
         self.id = None
         self.browseName = None
@@ -581,7 +580,7 @@ class DataTypeNode(Node):
                     if namespaceMapping != None:
                         fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
                     if not fdTypeNodeId in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
+                        raise Exception(f"Node {fdTypeNodeId} not found in nodeset")
                     dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable

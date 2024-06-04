@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -54,7 +53,7 @@ def valueIsInternalType(valueTypeString):
                    'diagnosticinfo', 'nodeid', 'guid', 'datetime',
                    'qualifiedname', 'expandednodeid', 'xmlelement', 'integer', 'uinteger']
 
-class Value(object):
+class Value:
     def __init__(self):
         self.value = None
         self.alias = None
@@ -324,7 +323,7 @@ class Value(object):
                     ebodypart = getNextElementNode(ebodypart)
 
             except Exception as ex:
-                logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject. {}".format(ex))
+                logger.error(str(parent.id) + f": Could not parse <Body> for ExtensionObject. {ex}")
 
         elif valueIsInternalType(xmlvalue.localName):
             t = self.getTypeByString(xmlvalue.localName, None)
