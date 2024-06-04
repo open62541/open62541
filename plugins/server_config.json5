@@ -190,14 +190,5 @@
 //    }
 //  ],
 
-//  secureChannelPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
-//  sessionPKI: {
-//    trustListFolder: "/path/to/folder",
-//    issuerListFolder: "/path/to/folder",
-//    revocationListFolder: "/path/to/folder"
-//  },
+//  pkiFolder: "/store",
 }

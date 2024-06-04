@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
             /* If no trust list is passed, all certificates are accepted. */
             UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                                  NULL, 0, NULL, 0);
-            UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+            UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
         }
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);

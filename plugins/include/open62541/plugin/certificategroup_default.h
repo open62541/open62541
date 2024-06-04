@@ -16,22 +16,13 @@ _UA_BEGIN_DECLS
 
 /* Default implementation that accepts all certificates */
 UA_EXPORT void
-UA_CertificateVerification_AcceptAll(UA_CertificateGroup *certGroup);
+UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup);
 
 #ifdef UA_ENABLE_ENCRYPTION
-
-/* Accept certificates based on a trust-list and a revocation-list. Based on
- * mbedTLS. */
-UA_EXPORT UA_StatusCode
-UA_CertificateVerification_Trustlist(UA_CertificateGroup *certGroup,
-                                     const UA_ByteString *certificateTrustList,
-                                     size_t certificateTrustListSize,
-                                     const UA_ByteString *certificateIssuerList,
-                                     size_t certificateIssuerListSize,
-                                     const UA_ByteString *certificateRevocationList,
-                                     size_t certificateRevocationListSize);
-
 /*
+ * Initialises and configures a certificate group with an in-memory backend.
+ * The trustList parameter allows for the pre-configuration of the group with certificate files.
+ *
  * **Configuration parameters for the Certificate Memorystore backend**
  *
  * 0:max-trust-listsize [uint32]
@@ -49,23 +40,14 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
                                 const UA_KeyValueMap *params);
 
 #ifdef __linux__ /* Linux only so far */
-
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
-                                       const char *trustListFolder,
-                                       const char *issuerListFolder,
-                                       const char *revocationListFolder,
-                                       const char *rejectedListFolder);
-#else
-UA_EXPORT UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
-                                       const char *trustListFolder,
-                                       const char *issuerListFolder,
-                                       const char *revocationListFolder);
-#endif
-
 /*
+ * Initialises and configures a certificate group with a filestore backend.
+ *
+ * The path to the PKI (Public Key Infrastructure) folder can be specified.
+ * If the folder (pki) does not exist at the specified location, it will be created automatically.
+ * The folder structure follows the guidelines outlined in the OPC UA Part 12 F.1 specification.
+ * If no path is provided, the default location used will be the current execution path.
+ *
  * **Configuration parameters for the Certificate Filestore backend**
  *
  * 0:max-trust-listsize [uint32]
@@ -74,6 +56,35 @@ UA_CertificateVerification_CertFolders(UA_CertificateGroup *certGroup,
  * 0:max-rejected-listsize [uint32]
  *    The maximum number of certificate files that can be stored in the rejected list.
  *    (default: 100).
+ *
+ * **PKI folder structure**
+ *
+ * pki
+ * ├── ApplCerts
+ * │   ├── issuer
+ * │   │   ├── certs
+ * │   │   └── crl
+ * │   ├── own
+ * │   │   ├── certs
+ * │   │   └── private
+ * │   ├── rejected
+ * │   │   └── certs
+ * │   └── trusted
+ * │       ├── certs
+ * │       └── crl
+ * ├── UserTokenCerts
+ * │   ├── issuer
+ * │   │   ├── certs
+ * │   │   └── crl
+ * │   ├── own
+ * │   │   ├── certs
+ * │   │   └── private
+ * │   ├── rejected
+ * │   │   └── certs
+ * │   └── trusted
+ * │       ├── certs
+ * │       └── crl
+ *
  */
 UA_EXPORT UA_StatusCode
 UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
