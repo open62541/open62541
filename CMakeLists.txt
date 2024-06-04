@@ -1300,11 +1300,6 @@ assign_source_group(${plugin_headers} ${plugin_sources})
 
 # When building packages, include the source in the library name to enable parallel
 # installation of multiple versions. We may break the ABI between minor releases!
-if(UA_PACK_DEBIAN)
-    set(OPEN62541-LIB "open62541-${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}")
-else()
-    set(OPEN62541-LIB "open62541")
-endif()
 
 if(UA_ENABLE_AMALGAMATION)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
@@ -1334,10 +1329,10 @@ if(UA_ENABLE_AMALGAMATION)
                       open62541-generator-statuscode
                       open62541-amalgamation-source)
 
-    add_library(${OPEN62541-LIB} $<TARGET_OBJECTS:open62541-object>)
+    add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
     # the only directory that needs to be included if open62541 (amalgameted) target from
     # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
-    target_include_directories(${OPEN62541-LIB} PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
 
     add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
     add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
@@ -1372,13 +1367,13 @@ else()
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-    add_library(${OPEN62541-LIB} $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
     if(UA_ENABLE_ENCRYPTION_LIBRESSL)
         # Prevent Wincrypt override warning.
         target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
         target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
-        target_compile_definitions(${OPEN62541-LIB} PUBLIC NOCRYPT=1)
+        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
     endif()
 
     # Declare include directories
@@ -1392,7 +1387,7 @@ else()
     function(include_directories_public)
         include_directories_private(${ARGN})
         foreach(_include_dir IN ITEMS ${ARGN})
-            target_include_directories(${OPEN62541-LIB} PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
+            target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
         endforeach()
     endfunction()
 
@@ -1427,20 +1422,23 @@ endif()
 add_dependencies(open62541-object open62541-code-generation)
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
-add_library(open62541::open62541 ALIAS ${OPEN62541-LIB})
+add_library(open62541::open62541 ALIAS open62541)
 
 # Export Symbols
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-target_compile_definitions(${OPEN62541-LIB} PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
-    target_compile_definitions(${OPEN62541-LIB} PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
+    target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
+
 # Generate properly versioned shared library links on Linux
-SET_TARGET_PROPERTIES(${OPEN62541-LIB} PROPERTIES SOVERSION "${OPEN62541_VER_MAJOR}" VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
+SET_TARGET_PROPERTIES(open62541 PROPERTIES
+                      SOVERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}"
+                      VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 # DLL requires linking to dependencies
-target_link_libraries(${OPEN62541-LIB} ${open62541_LIBRARIES})
+target_link_libraries(open62541 ${open62541_LIBRARIES})
 
 ##########################
 # Build Selected Targets #
@@ -1501,7 +1499,7 @@ if(UA_ENABLE_AMALGAMATION)
 endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
-install(TARGETS ${OPEN62541-LIB}
+install(TARGETS open62541
         EXPORT open62541Targets
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -1527,7 +1525,7 @@ install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
 
 # Create open62541ConfigVersion.cmake
 set(open62541_VERSION)
-get_target_property(open62541_VERSION ${OPEN62541-LIB} VERSION)
+get_target_property(open62541_VERSION open62541 VERSION)
 write_basic_package_version_file("${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
                                  VERSION ${open62541_VERSION} COMPATIBILITY AnyNewerVersion)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541ConfigVersion.cmake"
@@ -1538,7 +1536,7 @@ install(EXPORT open62541Targets
         FILE open62541Targets.cmake
         DESTINATION "${cmake_configfile_install}"
         NAMESPACE open62541::)
-export(TARGETS ${OPEN62541-LIB}
+export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
@@ -1618,7 +1616,7 @@ endif()
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets")
 
-set_target_properties(${OPEN62541-LIB} PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
 if(UA_ENABLE_AMALGAMATION)
     set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
