@@ -2,7 +2,7 @@ from datatypes import  Boolean, Byte, SByte, \
                         Int16, UInt16, Int32, UInt32, Int64, UInt64, Float, Double, \
                         String, XmlElement, ByteString, Structure, ExtensionObject, LocalizedText, \
                         NodeId, ExpandedNodeId, DateTime, QualifiedName, StatusCode, \
-                        DiagnosticInfo, Guid, BuiltinType, EnumerationType
+                        DiagnosticInfo, Guid, BuiltinType
 import datetime
 import re
 

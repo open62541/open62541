@@ -135,7 +135,7 @@ class Node:
                 if at == "ReferenceType":
                     reftype = RefOrAlias(av)
                 elif at == "IsForward":
-                    forward = not "false" in av.lower()
+                    forward = "false" not in av.lower()
             self.references[Reference(source, reftype, target, forward)] = None
 
     def getParentReference(self, parentreftypes):
@@ -267,7 +267,7 @@ class VariableNode(Node):
             elif x.localName == "ValueRank":
                 self.valueRank = int(unicode(x.firstChild.data))
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
-                elements = x.getElementsByTagName("ListOfUInt32");
+                elements = x.getElementsByTagName("ListOfUInt32")
                 if len(elements):
                     for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
                         self.arrayDimensions.append(v.firstChild.data)
@@ -579,7 +579,7 @@ class DataTypeNode(Node):
                     fdTypeNodeId = NodeId(fdtype)
                     if namespaceMapping != None:
                         fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
-                    if not fdTypeNodeId in nodeset.nodes:
+                    if fdTypeNodeId not in nodeset.nodes:
                         raise Exception(f"Node {fdTypeNodeId} not found in nodeset")
                     dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,

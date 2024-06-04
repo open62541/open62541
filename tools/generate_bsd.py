@@ -6,7 +6,6 @@
 
 ###    Copyright 2023 (c) Fraunhofer IOSB (Author: Noel Graf)
 
-import sys
 import xml.dom.minidom as dom
 import codecs
 import re

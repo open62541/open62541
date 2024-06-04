@@ -6,7 +6,6 @@
 
 import os
 import re
-import io
 import sys
 
 from git import *
@@ -56,7 +55,7 @@ def compactYears(yearList):
         current = y
         last = y
 
-    if not last is None:
+    if last is not None:
         if last == current:
             result.append("%i" % last)
         else:
@@ -96,7 +95,7 @@ def updateCopyright(repo, file):
     # Build the info on how many lines every author commited every year
     relativeFilePath = file[len(repo.working_dir)+1:].replace("\\","/")
 
-    if not relativeFilePath in fileAuthorStats:
+    if relativeFilePath not in fileAuthorStats:
         print(f"File not found in list: {relativeFilePath}")
         return
 
@@ -184,14 +183,14 @@ def buildFileStats(repo):
                 newFile = fileRenameMap[objpath] if objpath in fileRenameMap else objpath
 
             if stats['insertions'] > 0:
-                if not newFile in fileAuthorStats:
+                if newFile not in fileAuthorStats:
                     fileAuthorStats[newFile] = dict()
 
                 authorName = unicode(commit.author.name)
                 if authorName in assumeSameAuthor:
                     authorName = assumeSameAuthor[authorName]
 
-                if not authorName in fileAuthorStats[newFile]:
+                if authorName not in fileAuthorStats[newFile]:
                     fileAuthorStats[newFile][authorName] = {
                         'years': dict(),
                         'first_commit': commit.committed_datetime
@@ -199,7 +198,7 @@ def buildFileStats(repo):
                 elif commit.committed_datetime < fileAuthorStats[newFile][authorName]['first_commit']:
                     fileAuthorStats[newFile][authorName]['first_commit'] = commit.committed_datetime
 
-                if not commit.committed_datetime.year in fileAuthorStats[newFile][authorName]['years']:
+                if commit.committed_datetime.year not in fileAuthorStats[newFile][authorName]['years']:
                     fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] = 0
 
                 fileAuthorStats[newFile][authorName]['years'][commit.committed_datetime.year] += stats['insertions']

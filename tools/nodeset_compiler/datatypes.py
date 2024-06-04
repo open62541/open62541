@@ -42,7 +42,7 @@ def getNextElementNode(xmlvalue):
     if xmlvalue is None:
         return None
     xmlvalue = xmlvalue.nextSibling
-    while not xmlvalue is None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
+    while xmlvalue is not None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
         xmlvalue = xmlvalue.nextSibling
     return xmlvalue
 
@@ -138,7 +138,7 @@ class Value:
     def parseXMLEncoding(self, xmlvalue, parentDataTypeNode, parent, parser):
         global namespaceMapping
         self.checkXML(xmlvalue)
-        if not "value" in xmlvalue.localName.lower():
+        if "value" not in xmlvalue.localName.lower():
             logger.error("Expected <Value> , but found " + xmlvalue.localName + \
                          " instead. Value will not be parsed.")
             return
@@ -171,9 +171,9 @@ class Value:
     def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, parser, alias=None, encodingPart=None, valueRank=None):
         enc = None
         if encodingPart is None:
-            if not parentDataTypeNode.symbolicName is None:
+            if parentDataTypeNode.symbolicName is not None:
                 for _, e in parser.types.items():
-                    if not enc is None:
+                    if enc is not None:
                         break
                     for key, value in e.items():
                         # Inside the parser are the symbolic names of the data types. If the display name and symbolic name are different, both must be checked.
@@ -183,7 +183,7 @@ class Value:
                             break
             else:
                 for _, e in parser.types.items():
-                    if not enc is None:
+                    if enc is not None:
                         break
                     for key, value in e.items():
                         if key == parentDataTypeNode.displayName.text:
@@ -699,7 +699,7 @@ class NodeId(Value):
                 raise Exception("no valid nodeid: " + idstring)
 
     def gAsString(self):
-        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g);
+        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g)
 
     # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
@@ -788,7 +788,7 @@ class DateTime(Value):
             if "." in timestr:
                 timestr = timestr[:timestr.index(".")]
             # If the last character is not numeric, remove it
-            while len(timestr) > 0 and not timestr[-1] in "0123456789":
+            while len(timestr) > 0 and timestr[-1] not in "0123456789":
                 timestr = timestr[:-1]
             try:
                 self.value = datetime.strptime(timestr, "%Y-%m-%dT%H:%M:%S")

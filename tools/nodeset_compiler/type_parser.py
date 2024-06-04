@@ -108,7 +108,7 @@ class EnumerationType(Type):
         except ValueError as ex:
             raise Exception("Error at EnumerationType '" + self.name + "': 'LengthInBits' XML attribute '" +
                 xml.get("LengthInBits") + "' is not convertible to integer. " +
-                f"Exception: {ex}");
+                f"Exception: {ex}")
 
         # default values for enumerations (encoded as int32):
         self.strDataType = "UA_Int32"
@@ -135,7 +135,7 @@ class EnumerationType(Type):
                 self.strTypeIndex = "UA_TYPES_UINT64"
             else:
                 raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
-                    self.lengthInBits + "' is not supported");
+                    self.lengthInBits + "' is not supported")
 
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":

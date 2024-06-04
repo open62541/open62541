@@ -8,7 +8,6 @@
 import argparse
 import os.path
 import re
-import io
 
 parser = argparse.ArgumentParser()
 parser.add_argument('version', help='file version')

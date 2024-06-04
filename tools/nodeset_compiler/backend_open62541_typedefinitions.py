@@ -1,5 +1,4 @@
 import re
-import itertools
 import sys
 import copy
 from collections import OrderedDict

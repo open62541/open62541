@@ -50,7 +50,7 @@ def sortNodes(nodeset):
     in_degree = {id: 0 for id in R.keys()}
     for u in R.values(): # for each node
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -71,7 +71,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -89,7 +89,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -261,7 +261,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
 
@@ -272,7 +272,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
         # of other nodes might depend on the subtyping information of the

@@ -128,14 +128,14 @@ class NodeSet:
             for ref in n.references:
                 if not ref.source == n.id:
                     raise Exception("Reference " + str(ref) + " has an invalid source")
-                if not ref.referenceType in self.nodes:
+                if ref.referenceType not in self.nodes:
                     raise Exception("Reference " + str(ref) + " has an unknown reference type")
-                if not ref.target in self.nodes:
+                if ref.target not in self.nodes:
                     print(self.namespaces)
                     raise Exception("Reference " + str(ref) + " has an unknown target")
 
     def addNamespace(self, nsURL):
-        if not nsURL in self.namespaces:
+        if nsURL not in self.namespaces:
             self.namespaces.append(nsURL)
 
     def createNamespaceMapping(self, orig_namespaces):
@@ -182,7 +182,7 @@ class NodeSet:
         return node
 
     def hide_node(self, nodeId, hidden=True):
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return False
         node = self.nodes[nodeId]
         node.hidden = hidden
@@ -210,7 +210,7 @@ class NodeSet:
                 ns = self.namespaces.index(ns)
                 idStr = f"ns={ns};{m.group(2)}"
         nodeId = NodeId(idStr)
-        if not nodeId in self.nodes:
+        if nodeId not in self.nodes:
             return None
         return self.nodes[nodeId]
 
