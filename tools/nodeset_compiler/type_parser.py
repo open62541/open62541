@@ -9,13 +9,10 @@ from collections import OrderedDict
 import sys
 import xml.dom.minidom as dom
 
-if sys.version_info[0] >= 3:
-    try:
-        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    except ImportError:
-        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-else:
+try:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+except ImportError:
+    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                  "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",

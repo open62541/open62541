@@ -8,7 +8,6 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-import sys
 import xml.dom.minidom as dom
 import logging
 import codecs
@@ -25,14 +24,6 @@ import base64
 __all__ = ['NodeSet', 'getSubTypesOf']
 
 logger = logging.getLogger(__name__)
-
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-    string_types = str
-else:
-    string_types = basestring
 
 ####################
 # Helper Functions #
@@ -97,7 +88,7 @@ def buildAliasList(xmlelement):
         if al.nodeType == al.ELEMENT_NODE:
             if al.hasAttribute("Alias"):
                 aliasst = al.getAttribute("Alias")
-                aliasnd = unicode(al.firstChild.data)
+                aliasnd = al.firstChild.data
                 aliases[aliasst] = aliasnd
     return aliases
 
@@ -352,7 +343,7 @@ class NodeSet:
         return None
 
     def getDataTypeNode(self, dataType):
-        if isinstance(dataType, string_types):
+        if isinstance(dataType, str):
             if not valueIsInternalType(dataType):
                 logger.error("Not a valid dataType string: " + dataType)
                 return None
