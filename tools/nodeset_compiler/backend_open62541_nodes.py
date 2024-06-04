@@ -18,13 +18,6 @@ from backend_open62541_datatypes import makeCIdentifier, generateLocalizedTextCo
 import re
 import logging
 
-import sys
-
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-
 logger = logging.getLogger(__name__)
 
 #################
@@ -214,7 +207,7 @@ def generateCommonVariableCode(node, nodeset):
                 numElements = 1
                 hasZero = False
                 for v in node.arrayDimensions:
-                    dim = int(unicode(v))
+                    dim = int(v)
                     if dim > 0:
                         numElements = numElements * dim
                     else:

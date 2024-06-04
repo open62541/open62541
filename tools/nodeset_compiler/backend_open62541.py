@@ -19,12 +19,6 @@ try:
 except ImportError:
     from io import StringIO
 
-import sys
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-
 logger = logging.getLogger(__name__)
 
 from datatypes import NodeId
@@ -128,10 +122,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     outfilec = StringIO()
 
     def writeh(line):
-        print(unicode(line), end='\n', file=outfileh)
+        print(line, end='\n', file=outfileh)
 
     def writec(line):
-        print(unicode(line), end='\n', file=outfilec)
+        print(line, end='\n', file=outfilec)
 
     additionalHeaders = ""
     if len(typesArray) > 0:

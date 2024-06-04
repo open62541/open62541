@@ -8,8 +8,6 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-
-import sys
 import logging
 import re
 from datetime import datetime
@@ -28,15 +26,6 @@ from type_parser import BuiltinType, EnumerationType, StructMember, StructType
 logger = logging.getLogger(__name__)
 
 namespaceMapping = {}
-
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-
-    string_types = str
-else:
-    string_types = basestring 
 
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
@@ -419,7 +408,7 @@ def getXmlTextTrimmed(xmlNode):
     # Check for empty string (including newlines)
     if not re.sub(r"[\s\n\r]", "", content).strip():
         return None
-    return unicode(content.strip())
+    return content.strip()
 
 
 class Boolean(Value):
@@ -436,7 +425,7 @@ class Boolean(Value):
         if val is None:
             self.value = "false"  # Catch XML <Boolean /> by setting the value to a default
         else:
-            if "false" in unicode(xmlvalue.firstChild.data).lower():
+            if "false" in xmlvalue.firstChild.data.lower():
                 self.value = "false"
             else:
                 self.value = "true"
@@ -501,7 +490,7 @@ class Int32(Integer):
         # Values of enumerations can be encoded as strings: <symbol>_<value> (see OPC specification part 6)
         # UaModeler does this for enums that are fields of structs
         # Extract <value> from string if possible
-        if isinstance(self.value, string_types) and not self.__strIsInt(self.value):
+        if isinstance(self.value, str) and not self.__strIsInt(self.value):
             split = self.value.split('_')
             if self.__strIsInt(split[len(split)-1]):
                 self.value = split[len(split)-1]
@@ -562,7 +551,7 @@ class String(Value):
             self.parseXML(xmlelement)
 
     def pack(self):
-        bin = structpack("I", len(unicode(self.value)))
+        bin = structpack("I", len(self.value))
         bin = bin + str(self.value)
         return bin
 
@@ -721,7 +710,7 @@ class NodeId(Value):
             # Check if there is an <Identifier> tag
             if len(xmlvalue.getElementsByTagName("Identifier")) != 0:
                 xmlvalue = xmlvalue.getElementsByTagName("Identifier")[0]
-            self.setFromIdString(unicode(xmlvalue.firstChild.data))
+            self.setFromIdString(xmlvalue.firstChild.data)
 
     def __str__(self):
         s = "ns=" + str(self.ns) + ";"
@@ -882,9 +871,9 @@ class Guid(Value):
                     tmp.append(int("0x" + g, 16))
                 except Exception:
                     logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
-                                 unicode(xmlvalue.firstChild.data))
+                                 xmlvalue.firstChild.data)
                     self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
                 logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
-                             unicode(xmlvalue.firstChild.data))
+                             xmlvalue.firstChild.data)
                 self.value = ['00000000', '0000', '0000', '0000', '000000000000']

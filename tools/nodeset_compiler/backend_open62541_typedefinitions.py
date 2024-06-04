@@ -3,10 +3,7 @@ import sys
 import copy
 from collections import OrderedDict
 
-if sys.version_info[0] >= 3:
-    from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
-else:
-    from type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
+from nodeset_compiler.type_parser import BuiltinType, EnumerationType, OpaqueType, StructType
 
 # Some types can be memcpy'd off the binary stream. That's especially important
 # for arrays. But we need to check if they contain padding and whether the
@@ -228,11 +225,7 @@ class CGenerator:
 
     @staticmethod
     def print_enum_typedef(enum, gen_doc=False):
-        if sys.version_info[0] < 3:
-            values = enum.elements.iteritems()
-        else:
-            values = enum.elements.items()
-
+        values = enum.elements.items()
         if enum.isOptionSet == True:
             elements = map(lambda kv: "#define " + makeCIdentifier("UA_" + enum.name.upper() + "_" + kv[0].upper()) + " " + kv[1], values)
             return "typedef " + enum.strDataType + " " + makeCIdentifier("UA_" + enum.name) + ";\n\n" + "\n".join(elements)
