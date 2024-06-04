@@ -527,9 +527,9 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # use the OpenSSL encryption library
-    # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
+    # https://cmake.org/cmake/help/v3.13/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
-    list(APPEND open62541_LIBRARIES OpenSSL::Crypto OpenSSL::SSL)
+    list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
 endif()
 
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
