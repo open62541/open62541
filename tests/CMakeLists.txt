@@ -373,10 +373,6 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     ua_add_test(encryption/check_certificategroup.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS AND UA_ENABLE_CERT_REJECTED_DIR)
-    ua_add_test(encryption/check_save_rejected_cert.c)
-endif()
-
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_encryption_basic128rsa15.c)
     ua_add_test(encryption/check_encryption_basic256.c)

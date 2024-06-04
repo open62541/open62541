@@ -142,9 +142,6 @@ mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
 option(UA_ENABLE_ENCRYPTION_MBEDTLS "Deprecated: Enable encryption support (uses mbedTLS)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
-option(UA_ENABLE_CERT_REJECTED_DIR  "Enable specifying directory for rejected certificates (with mbedTLS)" OFF)
-mark_as_advanced(UA_ENABLE_CERT_REJECTED_DIR)
-
 list (FIND UA_ENCRYPTION_PLUGINS ${UA_ENABLE_ENCRYPTION} _tmp)
 if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
     set(UA_ENABLE_ENCRYPTION_OPENSSL OFF)
@@ -154,10 +151,8 @@ if(UA_ENABLE_ENCRYPTION STREQUAL "OFF" OR ${_tmp} GREATER -1)
         set(UA_ENABLE_ENCRYPTION_MBEDTLS ON)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_OPENSSL ON)
-        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     elseif(UA_ENABLE_ENCRYPTION STREQUAL "LIBRESSL")
         set(UA_ENABLE_ENCRYPTION_LIBRESSL ON)
-        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 # Only for backward compatability
 elseif(UA_ENABLE_ENCRYPTION)
@@ -174,7 +169,6 @@ else()
     if(UA_ENABLE_ENCRYPTION_OPENSSL)
         set(UA_ENABLE_ENCRYPTION "OPENSSL")
         set(UA_ENABLE_ENCRYPTION_MBEDTLS OFF)
-        set(UA_ENABLE_CERT_REJECTED_DIR OFF)
     endif()
 endif()
 
@@ -1044,8 +1038,7 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_mbedtls_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_mbedtls.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_memorystore_mbedtls.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_mbedtls.c)
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
@@ -1065,8 +1058,7 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes256sha256rsapss.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_openssl.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_memorystore_openssl.c)
+     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_openssl.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION)
