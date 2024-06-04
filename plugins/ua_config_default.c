@@ -425,10 +425,16 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     if(!conf->sessionPKI.logging)
         conf->sessionPKI.logging = conf->logging;
 
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    conf->maxTrustListSize = 0;
+    conf->maxRejectedListSize = 0;
+#endif
+
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
-    UA_CertificateVerification_AcceptAll(&conf->secureChannelPKI);
-    UA_CertificateVerification_AcceptAll(&conf->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&conf->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&conf->sessionPKI);
 
     /* * Global Node Lifecycle * */
     /* conf->nodeLifecycle.constructor = NULL; */
@@ -1272,10 +1278,16 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
         config->certificateVerification.logging = config->logging;
     }
 
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    config->maxTrustListSize = 0;
+    config->maxRejectedListSize = 0;
+#endif
+
     if(!config->certificateVerification.verifyCertificate) {
         /* Certificate Verification that accepts every certificate. Can be
          * overwritten when the policy is specialized. */
-        UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+        UA_CertificateGroup_AcceptAll(&config->certificateVerification);
     }
 
     /* With encryption enabled, the applicationUri needs to match the URI from
