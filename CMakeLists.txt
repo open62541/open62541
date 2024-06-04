@@ -1,24 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
+
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
+
 # set(CMAKE_VERBOSE_MAKEFILE ON)
-if(${CMAKE_VERSION} VERSION_LESS 3.12)
-    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
-endif()
 
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-if(${CMAKE_VERSION} VERSION_LESS 3.12)
-    set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
-endif()
 
 find_package(Python3 REQUIRED)
-
 find_package(Git)
+
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 include(open62541Macros)
