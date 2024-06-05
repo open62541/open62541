@@ -24,9 +24,11 @@ modification history
 #include <openssl/err.h>
 #include <openssl/sha.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/hmac.h>
 #include <openssl/aes.h>
 #include <openssl/pem.h>
+#include <openssl/rand.h>
 
 #include "securitypolicy_openssl_common.h"
 #include "ua_openssl_version_abstraction.h"
@@ -1007,6 +1009,301 @@ UA_OpenSSL_AES_128_CBC_Encrypt (const UA_ByteString * iv,
                                 UA_ByteString *       data  /* [in/out]*/
                                 ) {
     return UA_OpenSSL_Encrypt (iv, key, EVP_aes_128_cbc (), data);
+}
+
+static UA_StatusCode
+UA_OpenSSL_X509_AddSubjectAttributes(const UA_String* subject, X509_NAME* name) {
+    char *subj = (char *)UA_malloc(subject->length + 1);
+    if(!subj)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    memset(subj, 0x00, subject->length + 1);
+    strncpy(subj, (char *)subject->data, subject->length);
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* split string into tokens */
+    char *token = strtok(subj, "/,");
+    while(token != NULL) {
+        /* find delimiter in attribute */
+        size_t delim = 0;
+        for(size_t idx = 0; idx < strlen(token); idx++) {
+            if(token[idx] == '=') {
+                delim = idx;
+                break;
+            }
+        }
+        if(delim == 0 || delim == strlen(token)-1) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+
+        token[delim] = '\0';
+        const unsigned char *para = (const unsigned char*)&token[delim+1];
+
+        /* add attribute to X509_NAME */
+        int result = X509_NAME_add_entry_by_txt(name, token, MBSTRING_UTF8, para, -1, -1, 0);
+        if(!result) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+
+        /* get next token */
+        token = strtok(NULL, "/,");
+    }
+
+cleanup:
+    UA_free(subj);
+    return retval;
+}
+
+static UA_StatusCode
+UA_OpenSSL_writePrivateKeyDer(EVP_PKEY *key, UA_ByteString *outPrivateKey) {
+    unsigned char *p = NULL;
+    const int len = i2d_PrivateKey(key, NULL);
+    if(len <= 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(UA_ByteString_allocBuffer(outPrivateKey, len) != UA_STATUSCODE_GOOD) {
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    outPrivateKey->length = len;
+    memset(outPrivateKey->data, 0, outPrivateKey->length);
+    p = outPrivateKey->data;
+    if(i2d_PrivateKey(key, &p) <= 0)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
+                                EVP_PKEY **csrLocalPrivateKey,
+                                UA_SecurityPolicy *securityPolicy,
+                                const UA_String *subjectName,
+                                const UA_ByteString *nonce,
+                                UA_ByteString *csr,
+                                UA_ByteString *newPrivateKey) {
+    /* Check parameter */
+    if(!securityPolicy || !csr || !localPrivateKey) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    EVP_PKEY_free(*csrLocalPrivateKey);
+    /* CSR has already been generated and private key only needs to be set
+     * if a new one has been generated. */
+    if(newPrivateKey && newPrivateKey->length > 0) {
+        /* Set the private key */
+        *csrLocalPrivateKey = UA_OpenSSL_LoadPrivateKey(newPrivateKey);
+        if(!(*csrLocalPrivateKey))
+            return UA_STATUSCODE_BADINTERNALERROR;
+
+        return UA_STATUSCODE_GOOD;
+    }
+
+    if(csr && csr->length > 0)
+        return UA_STATUSCODE_GOOD;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Get X509 certificate */
+    X509 *x509Certificate = UA_OpenSSL_LoadCertificate(&securityPolicy->localCertificate);
+    if(!x509Certificate)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+
+    /* Create X509 certificate request */
+    X509_REQ *request = X509_REQ_new();
+    if(request == NULL) {
+        X509_free(x509Certificate);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    /* Set version in X509 certificate request */
+    if(X509_REQ_set_version(request, 0) != 1) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* For request extensions they are all packed in a single attribute.
+     * We save them in a STACK and add them all at once later. */
+    STACK_OF(X509_EXTENSION)*exts = sk_X509_EXTENSION_new_null();
+    if(!exts) {
+        retval = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto cleanup;
+    }
+
+    /* Set key usage in CSR context */
+    X509_EXTENSION *key_usage_ext = NULL;
+    key_usage_ext = X509V3_EXT_conf_nid(NULL, NULL, NID_key_usage, "digitalSignature,nonRepudiation,keyEncipherment,dataEncipherment");
+    if(!key_usage_ext) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        sk_X509_EXTENSION_free(exts);
+        goto cleanup;
+    }
+    sk_X509_EXTENSION_push(exts, key_usage_ext);
+
+    /* Add entropy */
+    if(nonce && nonce->length > 0) {
+        RAND_seed(nonce->data, nonce->length);
+    }
+
+    /* Get subject alternate name field from certificate */
+    X509_EXTENSION *subject_alt_name_ext = NULL;
+    int pos = X509_get_ext_by_NID(x509Certificate, NID_subject_alt_name, -1);
+    if(pos >= 0) {
+        subject_alt_name_ext = X509_get_ext(x509Certificate, pos);
+        if(subject_alt_name_ext) {
+            /* Set subject alternate name in CSR context */
+            sk_X509_EXTENSION_push(exts, subject_alt_name_ext);
+        }
+    }
+
+    /* Now we've created the extensions we add them to the request */
+    X509_REQ_add_extensions(request, exts);
+    sk_X509_EXTENSION_free(exts);
+    X509_EXTENSION_free(key_usage_ext);
+
+    /* Get subject from argument or read it from certificate */
+    X509_NAME *name = NULL;
+    if(subjectName && subjectName->length > 0) {
+        name = X509_NAME_new();
+        if(!name) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        /* add subject attributes to name */
+        if(UA_OpenSSL_X509_AddSubjectAttributes(subjectName, name) != UA_STATUSCODE_GOOD) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            X509_NAME_free(name);
+            goto cleanup;
+        }
+    } else {
+        /* Get subject name from certificate */
+        X509_NAME *tmpName = X509_get_subject_name(x509Certificate);
+        if(!tmpName) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+        name = X509_NAME_dup(tmpName);
+    }
+
+    /* Set the subject in CSR context */
+    if(!X509_REQ_set_subject_name(request, name)) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        X509_NAME_free(name);
+        goto cleanup;
+    }
+    X509_NAME_free(name);
+
+    if(newPrivateKey) {
+        size_t keySize = 0;
+        UA_CertificateUtils_getKeySize(&securityPolicy->localCertificate, &keySize);
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+        *csrLocalPrivateKey = EVP_RSA_gen(keySize);
+        if(!*csrLocalPrivateKey) {
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+#else
+        BIGNUM *exponent = BN_new();
+        *csrLocalPrivateKey = EVP_PKEY_new();
+        RSA *rsa = RSA_new();
+        if(!*csrLocalPrivateKey || !exponent || !rsa) {
+            if(*csrLocalPrivateKey)
+                EVP_PKEY_free(*csrLocalPrivateKey);
+            if(exponent)
+                BN_free(exponent);
+            if(rsa)
+                RSA_free(rsa);
+            retval = UA_STATUSCODE_BADOUTOFMEMORY;
+            goto cleanup;
+        }
+
+        if(BN_set_word(exponent, RSA_F4) != 1) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            BN_free(exponent);
+            RSA_free(rsa);
+            goto cleanup;
+        }
+
+        if(RSA_generate_key_ex(rsa, (int) keySize, exponent, NULL) != 1) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            BN_free(exponent);
+            RSA_free(rsa);
+            goto cleanup;
+        }
+
+        if(EVP_PKEY_assign_RSA(*csrLocalPrivateKey, rsa) != 1) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            BN_free(exponent);
+            RSA_free(rsa);
+            goto cleanup;
+        }
+        BN_free(exponent);
+        /* rsa will be freed by pkey */
+        rsa = NULL;
+
+#endif  /* end of OPENSSL_VERSION_NUMBER >= 0x30000000L */
+        if(UA_OpenSSL_writePrivateKeyDer(*csrLocalPrivateKey, newPrivateKey) != UA_STATUSCODE_GOOD) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            goto cleanup;
+        }
+
+        if(!X509_REQ_set_pubkey(request, *csrLocalPrivateKey)) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            goto cleanup;
+        }
+
+        if(!X509_REQ_sign(request, *csrLocalPrivateKey, EVP_sha256())) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(*csrLocalPrivateKey);
+            goto cleanup;
+        }
+    } else {
+        /* Set public key in CSR context */
+        EVP_PKEY *pubkey = X509_get_pubkey(x509Certificate);
+        if(!pubkey) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+        if(!X509_REQ_set_pubkey(request, pubkey)) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(pubkey);
+            goto cleanup;
+        }
+        if(!X509_REQ_sign(request, localPrivateKey, EVP_sha256())) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            EVP_PKEY_free(pubkey);
+            goto cleanup;
+        }
+        EVP_PKEY_free(pubkey);
+    }
+
+    /* Determine necessary length for CSR buffer */
+    const int csrBufferLength = i2d_X509_REQ(request, 0);
+    if(csrBufferLength < 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    /* create CSR buffer */
+    UA_ByteString_init(csr);
+    UA_ByteString_allocBuffer(csr, csrBufferLength);
+
+    /* Create CSR buffer (DER format) */
+    char *ptr = (char*)csr->data;
+    i2d_X509_REQ(request, (unsigned char**)&ptr);
+
+cleanup:
+    X509_free(x509Certificate);
+    X509_REQ_free(request);
+
+    return retval;
 }
 
 EVP_PKEY *

@@ -599,6 +599,68 @@ UA_Server_updateCertificate(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode UA_EXPORT
+UA_Server_createSigningRequest(UA_Server *server,
+                               const UA_NodeId certificateGroupId,
+                               const UA_NodeId certificateTypeId,
+                               const UA_String *subjectName,
+                               const UA_Boolean *regenerateKey,
+                               const UA_ByteString *nonce,
+                               UA_ByteString *csr) {
+    UA_CHECK(server && csr, return UA_STATUSCODE_BADINTERNALERROR);
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* The server currently only supports the DefaultApplicationGroup */
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* The server currently only supports RSA CertificateType */
+    UA_NodeId rsaShaCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
+       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+
+    if(!UA_NodeId_equal(&certGroup.certificateGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_String *newPrivateKey = NULL;
+    if(regenerateKey && *regenerateKey == true) {
+        newPrivateKey = UA_String_new();
+    }
+
+    const UA_String securityPolicyNoneUri =
+           UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    for(size_t i = 0; i < server->config.endpointsSize; i++) {
+        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server, &server->config.endpoints[i].securityPolicyUri);
+        if(!sp) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+
+        if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri))
+            continue;
+
+        if(UA_NodeId_equal(&certificateTypeId, &sp->certificateTypeId) &&
+           UA_NodeId_equal(&certificateGroupId, &sp->certificateGroupId)) {
+            retval = sp->createSigningRequest(sp, subjectName, nonce,
+                                              &UA_KEYVALUEMAP_NULL, csr, newPrivateKey);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+    }
+
+cleanup:
+    if(newPrivateKey)
+        UA_ByteString_delete(newPrivateKey);
+
+    return retval;
+}
+
 /***************************/
 /* Server lookup functions */
 /***************************/
