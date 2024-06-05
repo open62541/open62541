@@ -9,13 +9,10 @@ from collections import OrderedDict
 import sys
 import xml.dom.minidom as dom
 
-if sys.version_info[0] >= 3:
-    try:
-        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    except ImportError:
-        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-else:
+try:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+except ImportError:
+    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                  "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
@@ -70,7 +67,7 @@ def get_type_for_name(xml_type_name, types, xmlNamespaces):
     return types[resultNs][member_type_name]
 
 
-class Type(object):
+class Type:
     def __init__(self, outname, xml, namespaceUri):
         self.name = None
         if xml is not None:
@@ -108,7 +105,7 @@ class EnumerationType(Type):
         except ValueError as ex:
             raise Exception("Error at EnumerationType '" + self.name + "': 'LengthInBits' XML attribute '" +
                 xml.get("LengthInBits") + "' is not convertible to integer. " +
-                "Exception: {0}".format(ex));
+                f"Exception: {ex}")
 
         # default values for enumerations (encoded as int32):
         self.strDataType = "UA_Int32"
@@ -135,7 +132,7 @@ class EnumerationType(Type):
                 self.strTypeIndex = "UA_TYPES_UINT64"
             else:
                 raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
-                    self.lengthInBits + "' is not supported");
+                    self.lengthInBits + "' is not supported")
 
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
@@ -148,7 +145,7 @@ class OpaqueType(Type):
         self.base_type = base_type
 
 
-class StructMember(object):
+class StructMember:
     def __init__(self, name, member_type, is_array, is_optional):
         self.name = name
         self.member_type = member_type
@@ -437,8 +434,7 @@ class CSVBSDTypeParser(TypeParser):
         # Remove BOM since the dom parser cannot handle it on python 3 windows
         if fileContent.startswith(codecs.BOM_UTF8):
             fileContent = fileContent.lstrip(codecs.BOM_UTF8)
-        if sys.version_info >= (3, 0):
-            fileContent = fileContent.decode("utf-8")
+        fileContent = fileContent.decode("utf-8")
 
         # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
         fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)

@@ -735,6 +735,59 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 }
 
 UA_StatusCode
+UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
+                                  UA_String *thumbprint){
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_ByteString thumbpr = UA_BYTESTRING_NULL;
+    UA_ByteString_allocBuffer(&thumbpr, UA_SHA1_LENGTH);
+
+    retval = mbedtls_thumbprint_sha1(certificate, &thumbpr);
+
+    UA_String thumb = UA_STRING_NULL;
+    thumb.length = (UA_SHA1_LENGTH * 2) + 1;
+    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumb.length);
+
+    /* Create a string containing a hex representation */
+    char *p = (char*)thumb.data;
+    for (size_t i = 0; i < thumbpr.length; i++) {
+        p += sprintf(p, "%.2X", thumbpr.data[i]);
+    }
+
+    memcpy(thumbprint->data, thumb.data, thumbprint->length);
+
+    UA_ByteString_clear(&thumbpr);
+    UA_ByteString_clear(&thumb);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
+                               size_t *keySize){
+    mbedtls_x509_crt publicKey;
+    mbedtls_x509_crt_init(&publicKey);
+    int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
+    if(mbedErr) {
+        mbedtls_x509_crt_free(&publicKey);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
+
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    *keySize = rsa->len * 8;
+#else
+    *keySize = mbedtls_rsa_get_len(rsa) * 8;
+#endif
+    mbedtls_x509_crt_free(&publicKey);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
 UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {

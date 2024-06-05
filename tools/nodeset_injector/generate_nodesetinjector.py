@@ -7,25 +7,24 @@
 ###    Copyright 2023 (c) Fraunhofer IOSB (Author: Noel Graf)
 
 import argparse
-from io import open
 
 parser = argparse.ArgumentParser()
 parser.add_argument('outfile', help='outfile w/o extension')
 args = parser.parse_args()
 
-fh = open(args.outfile + ".h", "wt", encoding='utf8')
-fc = open(args.outfile + ".c", "wt", encoding='utf8')
+fh = open(args.outfile + ".h", "w", encoding='utf8')
+fc = open(args.outfile + ".c", "w", encoding='utf8')
 
 def printh(string):
-    print(string, end=u'\n', file=fh)
+    print(string, end='\n', file=fh)
 def printc(string):
-    print(string, end=u'\n', file=fc)
+    print(string, end='\n', file=fc)
 
 #########################
 # Print the header file #
 #########################
 
-printh(u'''
+printh('''
 /* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
  
@@ -48,7 +47,7 @@ _UA_END_DECLS
 # Print the source file #
 #########################
 
-printc(u'''
+printc('''
 /* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 

@@ -83,7 +83,7 @@ def generate_code():
     # Print the header file #
     #########################
 
-    print_include(u'''
+    print_include('''
 #include <open62541/{namespace}.h>
 //<
 '''.format(namespace=args.namespace))
@@ -92,7 +92,7 @@ def generate_code():
     # Print the source file #
     #########################
 
-    print_function_call(u'''
+    print_function_call('''
 /* {namespace} */
 retval |= {namespace}(server);
 if(retval != UA_STATUSCODE_GOOD) {{
@@ -117,7 +117,7 @@ def write_code_generation(file):
     # List which contains the existing namespaces
     existing_namespaces = []
     for line in lines:
-        namespaces = re.findall("namespace_.*_generated\(.*\)", line)
+        namespaces = re.findall(r"namespace_.*_generated\(.*\)", line)
         if namespaces:
             namespaces = namespaces[0].split("(")[0]
             existing_namespaces.append(namespaces)

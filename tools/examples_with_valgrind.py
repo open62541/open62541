@@ -1,7 +1,6 @@
 import os
 import subprocess
 import time
-from collections import defaultdict
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der",

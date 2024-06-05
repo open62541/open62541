@@ -16,12 +16,16 @@
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>
 #include <openssl/x509v3.h>
+#include <openssl/evp.h>
+#include <openssl/rsa.h>
 #include <openssl/pem.h>
 
 #include "ua_openssl_version_abstraction.h"
 #include "libc_time.h"
 
 #include <limits.h>
+
+#define SHA1_DIGEST_LENGTH 20
 
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
@@ -836,6 +840,108 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     char buf[1024];
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
     X509_free(x509);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
+                                  UA_String *thumbprint) {
+    if(certificate == NULL || thumbprint->length != (SHA1_DIGEST_LENGTH * 2))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
+    if(!certBio)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509 *cert = NULL;
+    /* Try to read the certificate as PEM first */
+    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+    if(!cert) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(certBio);
+        cert = d2i_X509_bio(certBio, NULL);
+    }
+    if(!cert) {
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    unsigned char digest[SHA1_DIGEST_LENGTH];
+    unsigned int digestLen;
+    if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_String thumb = UA_STRING_NULL;
+    thumb.length = (SHA1_DIGEST_LENGTH * 2) + 1;
+    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte) * thumb.length);
+
+    /* Create a string containing a hex representation */
+    char *p = (char*)thumb.data;
+    for(size_t i = 0; i < digestLen; i++) {
+        p += sprintf(p, "%.2X", digest[i]);
+    }
+
+    memcpy(thumbprint->data, thumb.data, thumbprint->length);
+
+    X509_free(cert);
+    BIO_free(certBio);
+    free(thumb.data);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
+                               size_t *keySize){
+    if(certificate == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
+    if(!certBio)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509 *cert = NULL;
+    /* Try to read the certificate as PEM first */
+    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+    if(!cert) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(certBio);
+        cert = d2i_X509_bio(certBio, NULL);
+    }
+    if(!cert) {
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    EVP_PKEY *pkey = X509_get_pubkey(cert);
+    if(!pkey) {
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(EVP_PKEY_base_id(pkey) == EVP_PKEY_RSA) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+        *keySize = EVP_PKEY_get_size(pkey);
+#else
+        *keySize =  RSA_size(get_pkey_rsa(pkey));
+#endif
+    } else {
+        EVP_PKEY_free(pkey);
+        X509_free(cert);
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR; /* Unsupported key type */
+    }
+
+    EVP_PKEY_free(pkey);
+    X509_free(cert);
+    BIO_free(certBio);
+
     return UA_STATUSCODE_GOOD;
 }
 

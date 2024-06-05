@@ -178,6 +178,12 @@ struct UA_ClientConfig {
     /* Certificate Verification Plugin */
     UA_CertificateGroup certificateVerification;
 
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
+#endif
+
     /* Available SecurityPolicies for Authentication. The policy defined by the
      * AccessControl is selected. If no policy is defined, the policy of the
      * secure channel is selected.*/

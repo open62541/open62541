@@ -59,6 +59,10 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint);
 
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
+                               size_t *keySize);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is
