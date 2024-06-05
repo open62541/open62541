@@ -45,6 +45,7 @@ typedef struct {
     mbedtls_entropy_context entropyContext;
     mbedtls_md_context_t sha256MdContext;
     mbedtls_pk_context localPrivateKey;
+    mbedtls_pk_context csrLocalPrivateKey;
 } Aes256Sha256RsaPss_PolicyContext;
 
 typedef struct {
@@ -670,6 +671,7 @@ clear_sp_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy) {
     mbedtls_ctr_drbg_free(&pc->drbgContext);
     mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_pk_free(&pc->localPrivateKey);
+    mbedtls_pk_free(&pc->csrLocalPrivateKey);
     mbedtls_md_free(&pc->sha256MdContext);
     UA_ByteString_clear(&pc->localCertThumbprint);
 
@@ -732,6 +734,30 @@ error:
     if(securityPolicy->policyContext != NULL)
         clear_sp_aes256sha256rsapss(securityPolicy);
     return retval;
+}
+
+static UA_StatusCode
+createSigningRequest_sp_aes256sha256rsapss(UA_SecurityPolicy *securityPolicy,
+                                       const UA_String *subjectName,
+                                       const UA_ByteString *nonce,
+                                       const UA_KeyValueMap *params,
+                                       UA_ByteString *csr,
+                                       UA_ByteString *newPrivateKey) {
+    /* Check parameter */
+    if (securityPolicy == NULL || csr == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Aes256Sha256RsaPss_PolicyContext *pc =
+            (Aes256Sha256RsaPss_PolicyContext *) securityPolicy->policyContext;
+
+    return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
+                                        &pc->entropyContext, &pc->drbgContext,
+                                        securityPolicy, subjectName, nonce,
+                                        csr, newPrivateKey);
 }
 
 static UA_StatusCode
@@ -821,6 +847,8 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy, const UA_ByteStr
     policy->logger = logger;
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
+    policy->certificateGroupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    policy->certificateTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
     policy->securityLevel = 30;
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
@@ -938,6 +966,7 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy, const UA_ByteStr
         channelContext_compareCertificate_sp_aes256sha256rsapss;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_aes256sha256rsapss;
+    policy->createSigningRequest = createSigningRequest_sp_aes256sha256rsapss;
     policy->clear = clear_sp_aes256sha256rsapss;
 
     UA_StatusCode res = policyContext_newContext_sp_aes256sha256rsapss(policy, localPrivateKey);
