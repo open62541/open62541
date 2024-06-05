@@ -1,24 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
+
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
+
 # set(CMAKE_VERBOSE_MAKEFILE ON)
-if(${CMAKE_VERSION} VERSION_LESS 3.12)
-    cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
-endif()
 
 string(TOLOWER "${CMAKE_BUILD_TYPE}" BUILD_TYPE_LOWER_CASE)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-if(${CMAKE_VERSION} VERSION_LESS 3.12)
-    set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH};${PROJECT_SOURCE_DIR}/tools/cmake3.12")
-endif()
 
 find_package(Python3 REQUIRED)
-
 find_package(Git)
+
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 include(open62541Macros)
@@ -966,7 +962,7 @@ endif()
 
 # Plugins
 set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
-    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
+                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/log_stdout.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
@@ -978,7 +974,7 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
+                   ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 # Always add the POSIX eventloop. The files internally check for the configured architecture
@@ -1071,6 +1067,10 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_openssl.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_memorystore_openssl.c)
+endif()
+
+if(UA_ENABLE_ENCRYPTION)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)

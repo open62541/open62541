@@ -54,7 +54,7 @@ changelog_version = changelog_version.replace('-', '~')
 changelog_version = datetime.datetime.utcnow().replace(microsecond=0).isoformat().replace('-', '').replace(':', '') + '~' + changelog_version
 
 # Create an updated changelog file with the version information
-with open(changelog_file, 'r') as original:
+with open(changelog_file) as original:
     data = original.read()
 with open(os.path.join(target_debian_path, "changelog"), 'w') as modified:
     new_entry = """open62541 ({version}) {distribution}; urgency=medium
@@ -75,19 +75,19 @@ with open(control_file, 'r+') as f:
     content = f.read()
     f.seek(0)
     f.truncate()
-    f.write(content.replace('<soname>', "{}.{}".format(version_major, version_minor)))
+    f.write(content.replace('<soname>', f"{version_major}.{version_minor}"))
 
 # rename the install template to match the soname
 install_file_template = os.path.join(debian_path, "libopen62541.install-template")
-install_file = os.path.join(target_debian_path, "libopen62541-{}.{}.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, f"libopen62541-{version_major}.{version_minor}.install")
 shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-dev.install-template")
-install_file = os.path.join(target_debian_path, "libopen62541-{}.{}-dev.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, f"libopen62541-{version_major}.{version_minor}-dev.install")
 shutil.copy(install_file_template, install_file)
 
 install_file_template = os.path.join(debian_path, "libopen62541-tools.install-template")
-install_file = os.path.join(target_debian_path, "libopen62541-{}.{}-tools.install".format(version_major, version_minor))
+install_file = os.path.join(target_debian_path, f"libopen62541-{version_major}.{version_minor}-tools.install")
 shutil.copy(install_file_template, install_file)
 
 # Update CMakeLists.txt to include full version string
@@ -97,5 +97,5 @@ with open(os.path.join(dirpath,"CMakeLists.txt"), 'r+') as f:
     f.truncate()
     for idx, line in enumerate(lines):
         if idx == 1:
-            f.write('set(OPEN62541_VERSION "{}")\n'.format(git_describe_version))
+            f.write(f'set(OPEN62541_VERSION "{git_describe_version}")\n')
         f.write(line)

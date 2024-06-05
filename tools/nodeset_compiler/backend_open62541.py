@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,7 +10,6 @@
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
 
-from __future__ import print_function
 from os.path import basename
 import logging
 import codecs
@@ -20,12 +18,6 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
-
-import sys
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +44,7 @@ def sortNodes(nodeset):
     in_degree = {id: 0 for id in R.keys()}
     for u in R.values(): # for each node
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -73,7 +65,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -91,7 +83,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -130,10 +122,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     outfilec = StringIO()
 
     def writeh(line):
-        print(unicode(line), end='\n', file=outfileh)
+        print(line, end='\n', file=outfileh)
 
     def writec(line):
-        print(unicode(line), end='\n', file=outfilec)
+        print(line, end='\n', file=outfilec)
 
     additionalHeaders = ""
     if len(typesArray) > 0:
@@ -149,9 +141,9 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     writeh("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 
-#ifndef %s_H_
-#define %s_H_
-""" % (outfilebase.upper(), outfilebase.upper()))
+#ifndef {}_H_
+#define {}_H_
+""".format(outfilebase.upper(), outfilebase.upper()))
     if internal_headers:
         writeh("""
 #ifdef UA_ENABLE_AMALGAMATION
@@ -263,7 +255,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
 
@@ -274,7 +266,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
         # of other nodes might depend on the subtyping information of the
