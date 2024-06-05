@@ -17,6 +17,7 @@
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Andreas Ebner)
+ *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
  */
 
 #include "ua_server_internal.h"
@@ -31,6 +32,10 @@
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
 #include "open62541/nodesetinjector.h"
+#endif
+
+#ifdef UA_ENABLE_ENCRYPTION
+#include "open62541/plugin/certificategroup_default.h"
 #endif
 
 /**********************/
@@ -170,6 +175,83 @@ cleanup:
     return res;
 }
 
+/********************/
+/* GDS Transaction  */
+/********************/
+
+UA_GDSTransaction*
+UA_GDSTransaction_new(const UA_NodeId sessionId) {
+    UA_GDSTransaction *transaction = (UA_GDSTransaction *) UA_calloc(1, sizeof(UA_GDSTransaction));
+    if(!transaction)
+        return NULL;
+
+    UA_NodeId_copy(&sessionId, &transaction->sessionId);
+
+    return transaction;
+}
+
+UA_CertificateGroup*
+UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
+                                      const UA_CertificateGroup *certGroup) {
+#ifdef UA_ENABLE_ENCRYPTION
+    if(!transaction || !certGroup)
+        return NULL;
+
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup *group = &transaction->certGroups[i];
+        if(UA_NodeId_equal(&group->certificateGroupId, &certGroup->certificateGroupId))
+            return group;
+    }
+
+    /* If the certGroup does not exist, create a new one */
+    transaction->certGroups = (UA_CertificateGroup*)UA_realloc(transaction->certGroups, (transaction->certGroupSize + 1) * sizeof(UA_CertificateGroup));
+    if(!transaction->certGroups)
+        return NULL;
+
+    transaction->certGroupSize++;
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+    certGroup->getTrustList((UA_CertificateGroup*)(uintptr_t)certGroup, &trustList);
+
+    UA_CertificateGroup_Memorystore(&transaction->certGroups[transaction->certGroupSize-1],
+        (UA_NodeId*)(uintptr_t)&certGroup->certificateGroupId, &trustList, certGroup->logging, NULL);
+
+    UA_TrustListDataType_clear(&trustList);
+
+    return &transaction->certGroups[transaction->certGroupSize-1];
+#else
+    return NULL;
+#endif
+}
+
+void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
+    if(!transaction)
+        return;
+
+    if(transaction->certGroups) {
+        for(size_t i = 0; i < transaction->certGroupSize; i++) {
+            transaction->certGroups[i].clear(&transaction->certGroups[i]);
+        }
+        UA_free(transaction->certGroups);
+        transaction->certGroupSize = 0;
+        transaction->certGroups = NULL;
+    }
+
+    if(transaction->certificateInfos) {
+        for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
+            UA_ByteString_clear(&transaction->certificateInfos[i].certificate);
+            UA_ByteString_clear(&transaction->certificateInfos[i].privateKey);
+            UA_NodeId_clear(&transaction->certificateInfos[i].certificateGroup);
+            UA_NodeId_clear(&transaction->certificateInfos[i].certificateType);
+        }
+        UA_free(transaction->certificateInfos);
+        transaction->certificateInfosSize = 0;
+        transaction->certificateInfos = NULL;
+    }
+}
+
 /*********************/
 /* Server Components */
 /*********************/
@@ -302,6 +384,8 @@ UA_Server_delete(UA_Server *server) {
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
+
+    UA_GDSTransaction_clear(server->transaction);
 
     /* Delete the server itself and return */
     UA_free(server);
@@ -542,6 +626,88 @@ notifySecureChannelsStopped(UA_Server *server, struct UA_ServerComponent *sc,
         sc->notifyState = NULL; /* remove the callback */
         sc->start(server, sc);
     }
+}
+
+UA_StatusCode
+UA_Server_applyChanges(UA_Server *server) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!server->transaction)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
+    UA_GDSTransaction *transaction = server->transaction;
+
+    /* Apply Trust list changes */
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup transactionCertGroup = transaction->certGroups[i];
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+
+        UA_NodeId defaultApplicationGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+        UA_NodeId defaultUserTokenGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST);
+        if(UA_NodeId_equal(&transactionCertGroup.certificateGroupId, &defaultApplicationGroup)) {
+            retval =
+                server->config.secureChannelPKI.setTrustList(&server->config.secureChannelPKI, &trustList);
+        }
+        if(UA_NodeId_equal(&transactionCertGroup.certificateGroupId, &defaultUserTokenGroup)) {
+            retval =
+                server->config.sessionPKI.setTrustList(&server->config.sessionPKI, &trustList);
+        }
+        UA_TrustListDataType_clear(&trustList);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Apply Server certificate changes */
+    for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
+        UA_GDSCertificateInfo certInfo = transaction->certificateInfos[i];
+        UA_NodeId certGroupId = certInfo.certificateGroup;
+        UA_NodeId certTypeId = certInfo.certificateType;
+
+        for(size_t j = 0; j < server->config.securityPoliciesSize; j++) {
+            UA_SecurityPolicy *sp = &server->config.securityPolicies[j];
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            if(!UA_NodeId_equal(&certGroupId, &sp->certificateGroupId) ||
+               !UA_NodeId_equal(&certTypeId, &sp->certificateTypeId))
+                continue;
+
+            retval = sp->updateCertificateAndPrivateKey(sp, certInfo.certificate,
+                                                        certInfo.privateKey);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+        for(size_t j = 0; j < server->config.endpointsSize; j++) {
+            UA_EndpointDescription *ed = &server->config.endpoints[j];
+            UA_SecurityPolicy *sp =
+                getSecurityPolicyByUri(server, &server->config.endpoints[j].securityPolicyUri);
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            if(!UA_NodeId_equal(&certGroupId, &sp->certificateGroupId) ||
+               !UA_NodeId_equal(&certTypeId, &sp->certificateTypeId))
+                continue;
+
+            UA_String_clear(&ed->serverCertificate);
+            retval = UA_String_copy(&sp->localCertificate, &ed->serverCertificate);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+    }
+
+cleanup:
+    UA_GDSTransaction_clear(transaction);
+    transaction = NULL;
+
+    return retval;
 }
 
 UA_StatusCode

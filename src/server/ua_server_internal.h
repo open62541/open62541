@@ -60,6 +60,38 @@ typedef struct {
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
 /********************/
+/* GDS Transaction  */
+/********************/
+
+typedef struct {
+    UA_ByteString certificate;
+    UA_ByteString privateKey;
+    UA_NodeId certificateGroup;
+    UA_NodeId certificateType;
+} UA_GDSCertificateInfo;
+
+typedef struct {
+    UA_NodeId sessionId;
+
+    size_t certGroupSize;
+    UA_CertificateGroup *certGroups;
+
+    size_t certificateInfosSize;
+    UA_GDSCertificateInfo *certificateInfos;
+} UA_GDSTransaction;
+
+UA_GDSTransaction*
+UA_GDSTransaction_new(const UA_NodeId sessionId);
+
+/* Returns the appropriate CertificateGroup from the transaction.
+ * If the CertificateGroup does not exist in the transaction, it will be created. */
+UA_CertificateGroup*
+UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction, const UA_CertificateGroup *certGroup);
+
+void
+UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
+
+/********************/
 /* Server Component */
 /********************/
 
@@ -191,6 +223,9 @@ struct UA_Server {
     /* Statistics */
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
+
+    /* Transaction for certificate management */
+    UA_GDSTransaction *transaction;
 };
 
 /***********************/
