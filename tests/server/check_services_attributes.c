@@ -74,6 +74,66 @@ static void setup(void) {
                                        vattr, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* Custom enum VariableNode */
+    UA_DataTypeAttributes dattr = UA_DataTypeAttributes_default;
+    dattr.description = UA_LOCALIZEDTEXT("locale", "custom enum type description");
+    dattr.displayName = UA_LOCALIZEDTEXT("locale", "custom enum type display name");
+
+    size_t customEnumSize = 3;
+    UA_NodeId customEnumTypeNodeId;
+    retval = UA_Server_addDataTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_ENUMERATION),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       UA_QUALIFIEDNAME (1, "custom enum type"),
+                                       dattr, NULL, &customEnumTypeNodeId
+    );
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    vattr = UA_VariableAttributes_default;
+    vattr.description = UA_LOCALIZEDTEXT("locale", "EnumValues");
+    vattr.displayName = UA_LOCALIZEDTEXT("locale", "EnumValues");
+    vattr.dataType = UA_TYPES[UA_TYPES_ENUMVALUETYPE].typeId;
+    vattr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    vattr.arrayDimensionsSize = 1;
+    UA_UInt32 customEnumValuesDimensions[1] = {customEnumSize};
+    vattr.arrayDimensions = customEnumValuesDimensions;
+
+    UA_EnumValueType* customEnumValues = (UA_EnumValueType*) UA_Array_new(customEnumSize, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+    char* customEnumDisplayNames[] = {"enum value one", "enum value two", "enum value three"};
+    for (size_t i = 0; i < customEnumSize; i++){
+        customEnumValues[i].description = UA_LOCALIZEDTEXT_ALLOC("locale", customEnumDisplayNames[i]);
+        customEnumValues[i].displayName = UA_LOCALIZEDTEXT_ALLOC("locale", customEnumDisplayNames[i]);
+        customEnumValues[i].value = i;
+    }
+
+    UA_Variant_setArray(&vattr.value, customEnumValues, customEnumSize, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+
+    UA_NodeId customEnumValuesNodeId;
+    retval = UA_Server_addVariableNode(
+        server, UA_NODEID_NULL, customEnumTypeNodeId,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
+        UA_QUALIFIEDNAME (0, "EnumValues"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_PROPERTYTYPE),
+        vattr, NULL, &customEnumValuesNodeId);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Array_delete(customEnumValues, customEnumSize, &UA_TYPES[UA_TYPES_ENUMVALUETYPE]);
+
+    vattr = UA_VariableAttributes_default;
+    vattr.description = UA_LOCALIZEDTEXT("locale", "custom enum instance description");
+    vattr.displayName = UA_LOCALIZEDTEXT("locale", "custom enum instance display name");
+    vattr.accessLevel = UA_ACCESSLEVELMASK_READ;
+    vattr.dataType = customEnumTypeNodeId;
+    UA_Int32 customEnumInstanceValue = 42;
+    UA_Variant_setScalar(&vattr.value, &customEnumInstanceValue, &UA_TYPES[UA_TYPES_INT32]);
+
+    retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "the.custom.enum.answer"), 
+                                       parentNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                       UA_QUALIFIEDNAME(1, "custom enum instance"),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                       vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
     /* DataSource VariableNode */
     vattr = UA_VariableAttributes_default;
     UA_DataSource temperatureDataSource;
@@ -894,6 +954,29 @@ START_TEST(WriteSingleAttributeValueEnum) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+START_TEST(WriteSingleAttributeValueCustomEnum) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+    UA_Int32 myInteger = 4;
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_INT32]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.custom.enum.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.custom.enum.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert_int_eq(4, *(UA_Int32*)resp.value.data);
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 START_TEST(WriteSingleAttributeValueRangeFromScalar) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -1179,6 +1262,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueCustomEnum);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);
