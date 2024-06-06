@@ -358,18 +358,9 @@ UA_DataSetWriter_unfreezeConfiguration(UA_Server *server,
 UA_StatusCode
 UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm) {
-    /* Find the dataset */
+    /* No PublishedDataSet defined -> Heartbeat messages only */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-    if(!pds) {
-        if(!UA_NodeId_isNull(&dsw->connectedDataSet)) {
-            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "PublishedDataSet not found");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
+    if(UA_NodeId_isNull(&dsw->connectedDataSet)) {
         res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_WRITER(server->config.logging, dsw,
@@ -377,6 +368,16 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                   "Heartbeat DataSetMessage creation failed");
         }
         return res;
+    }
+
+    /* Get the PublishedDataSet */
+    UA_PublishedDataSet *pds =
+        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    if(!pds) {
+        UA_LOG_WARNING_WRITER(server->config.logging, dsw,
+                              "PubSub-RT configuration fail: "
+                              "PublishedDataSet not found");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     if(pds->promotedFieldsCount > 0) {
