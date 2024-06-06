@@ -458,28 +458,32 @@ typedef enum {
  * The message publishing can be configured for realtime requirements. The RT-levels
  * go along with different requirements. The below listed levels can be configured:
  *
- * UA_PUBSUB_RT_NONE -
- * ---> Description: Default "none-RT" Mode
- * ---> Requirements: -
- * ---> Restrictions: -
- * UA_PUBSUB_RT_DIRECT_VALUE_ACCESS (Preview - not implemented)
- * ---> Description: Normally, the latest value for each DataSetField is read out of the information model. Within this RT-mode, the
- * value source of each field configured as static pointer to an DataValue. The publish cycle won't use call the server read function.
- * ---> Requirements: All fields must be configured with a 'staticValueSource'.
- * ---> Restrictions: -
- * UA_PUBSUB_RT_FIXED_LENGTH (Preview - not implemented)
- * ---> Description: All DataSetFields have a known, non-changing length. The server will pre-generate some
- * buffers and use only memcopy operations to generate requested PubSub packages.
- * ---> Requirements: DataSetFields with variable size cannot be used within this mode.
- * ---> Restrictions: The configuration must be frozen and changes are not allowed while the WriterGroup is 'Operational'.
- * UA_PUBSUB_RT_DETERMINISTIC (Preview - not implemented)
- * ---> Description: -
- * ---> Requirements: -
- * ---> Restrictions: -
+ * UA_PUBSUB_RT_NONE
+ *    No realtime-specific configuration.
  *
- * WARNING! For hard real time requirements the underlying system must be rt-capable.
+ * UA_PUBSUB_RT_DIRECT_VALUE_ACCESS
+ *    All PublishedDataSets need to point to a variable with a
+ *    ``UA_VALUEBACKENDTYPE_EXTERNAL`` value backend. The value backend gets
+ *    cached when the configuration is frozen. No lookup of the variable from
+ *    the information is performed afterwards. This enables also big data
+ *    structures to be updated atomically with a compare-and-switch operation on
+ *    the ``UA_DataValue`` double-pointer in the backend.
  *
- */
+ * UA_PUBSUB_RT_FIXED_SIZE
+ *    Validate that the message constains only fields with a known size.
+ *    Then the message fields have fixed offsets that are known ahead of time.
+ *
+ * UA_PUBSUB_RT_DETERMINISTIC
+ *    Both direct-access and fixed-size is being used. The server pre-allocates
+ *    buffers when the configuration is frozen and uses only memcpy operations
+ *    to update the PubSub network messages for sending.
+ *
+ * WARNING! For hard real time requirements the underlying system must be
+ * RT-capable. Also note that each PubSubConnection can have a dedicated
+ * EventLoop. That way normal client/server operations can run independently
+ * from PubSub. The double-pointer in the ``UA_VALUEBACKENDTYPE_EXTERNAL`` value
+ * backend allows avoid race-condition with non-blocking atomic operations. */
+
 typedef enum {
     UA_PUBSUB_RT_NONE = 0,
     UA_PUBSUB_RT_DIRECT_VALUE_ACCESS = 1,
