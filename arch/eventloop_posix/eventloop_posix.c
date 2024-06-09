@@ -122,28 +122,6 @@ processDelayed(UA_EventLoopPOSIX *el) {
     }
 }
 
-#ifdef __APPLE__
-static int markNonBlock(int fd)
-{
-    int flags = fcntl(fd, F_GETFL);
-    if (flags < 0)
-        return flags;
-
-    flags |= O_NONBLOCK;
-
-    return fcntl(fd, F_SETFL, flags);
-}
-
-int UA_EventLoopPOSIX_pipe(int fds[2])
-{
-    int err = markNonBlock(fds[0]);
-    if (err != 0)
-        return err;
-    return markNonBlock(fds[1]);
-
-}
-#endif
-
 /***********************/
 /* EventLoop Lifecycle */
 /***********************/
@@ -1012,7 +990,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
@@ -1032,7 +1010,12 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
     int err = connect(fds[0], (struct sockaddr*)&addr, len);
     fds[1] = accept(lst, 0, 0);
+#ifdef __WIN32
     closesocket(lst);
+#endif
+#ifdef __APPLE__
+    close(lst);
+#endif
 
     UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
     UA_EventLoopPOSIX_setReusable(fds[0]);
