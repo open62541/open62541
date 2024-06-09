@@ -8,7 +8,6 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/types_generated_handling.h>
 
 #include "test_helpers.h"
 #include "ua_pubsub.h"
@@ -17,6 +16,7 @@
 
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #define UA_SUBSCRIBER_PORT       4801    /* Port for Subscriber*/
 #define PUBLISH_INTERVAL         5       /* Publish interval*/

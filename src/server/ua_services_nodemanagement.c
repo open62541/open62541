@@ -1045,7 +1045,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         UA_LOCK(&server->serviceMutex);
     }
 
-    /* Check the namespaceindex */
+    /* Check the NamespaceIndex */
     if(item->requestedNewNodeId.nodeId.namespaceIndex >= server->namespacesSize) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "AddNode: Namespace invalid");
@@ -1059,7 +1059,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Create a node */
+    /* Create a Node */
     UA_Node *node = UA_NODESTORE_NEW(server, item->nodeClass);
     if(!node) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
@@ -2067,7 +2067,7 @@ UA_Server_deleteNode(UA_Server *server, const UA_NodeId nodeId,
 
 UA_StatusCode
 deleteNode(UA_Server *server, const UA_NodeId nodeId,
-                     UA_Boolean deleteReferences) {
+           UA_Boolean deleteReferences) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_DeleteNodesItem item;
     item.deleteTargetReferences = deleteReferences;
@@ -2107,6 +2107,8 @@ deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
     }
     UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
     UA_NODESTORE_RELEASE(server, refType);
+
+    /* Delete the reference in this direction */
     return UA_Node_deleteReference(node, refTypeIndex, item->isForward, &item->targetNodeId);
 }
 

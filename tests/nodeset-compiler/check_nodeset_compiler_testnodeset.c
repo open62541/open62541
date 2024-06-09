@@ -10,10 +10,10 @@
 #include "testing_clock.h"
 #include "test_helpers.h"
 #include "tests/namespace_tests_testnodeset_generated.h"
-#include "tests/types_tests_testnodeset_generated_handling.h"
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
 #include "unistd.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_DataTypeArray customTypesArray = { NULL, UA_TYPES_TESTS_TESTNODESET_COUNT, UA_TYPES_TESTS_TESTNODESET, UA_FALSE};

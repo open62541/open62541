@@ -11,7 +11,7 @@
  * unit for the generated code from UA_INLINABLE definitions. */
 #define UA_INLINABLE_IMPL 1
 
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 #include <open62541/server.h>
 #include <open62541/util.h>
 #include <open62541/common.h>
@@ -1174,4 +1174,22 @@ UA_TrustListDataType_remove(const UA_TrustListDataType *src, UA_TrustListDataTyp
     }
 
     return retval;
+}
+
+UA_UInt32
+UA_TrustListDataType_getSize(const UA_TrustListDataType *trustList) {
+    UA_UInt32 size = 0;
+    for(size_t i = 0; i < trustList->trustedCertificatesSize; i++) {
+        size += (UA_UInt32)trustList->trustedCertificates[i].length;
+    }
+    for(size_t i = 0; i < trustList->trustedCrlsSize; i++) {
+        size += (UA_UInt32)trustList->trustedCrls[i].length;
+    }
+    for(size_t i = 0; i < trustList->issuerCertificatesSize; i++) {
+        size += (UA_UInt32)trustList->issuerCertificates[i].length;
+    }
+    for(size_t i = 0; i < trustList->issuerCrlsSize; i++) {
+        size += (UA_UInt32)trustList->issuerCrls[i].length;
+    }
+    return size;
 }

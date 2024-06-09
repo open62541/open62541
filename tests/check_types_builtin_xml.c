@@ -4,13 +4,13 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "ua_types_encoding_xml.h"
 
 #include <check.h>
 #include <math.h>
+#include <stdlib.h>
 
 #if defined(_MSC_VER)
 # pragma warning(disable: 4146)

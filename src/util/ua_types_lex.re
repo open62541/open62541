@@ -7,7 +7,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 #include <open62541/nodeids.h>
 #include "base64.h"

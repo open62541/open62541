@@ -9,10 +9,10 @@
 #include <open62541/server_pubsub.h>
 #include <check.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "../../deps/mp_printf.h"
 #include "testing_clock.h"
-#include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
