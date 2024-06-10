@@ -17,7 +17,6 @@
 *.gcno
 *.gcda
 *.swp
-*.cmake
 .dirstamp
 /bin
 m4
