@@ -396,8 +396,6 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
 
 void
 processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
-    client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
-
     size_t offset = 0;
     UA_TcpErrorMessage errMessage;
     client->connectStatus =
