@@ -519,6 +519,12 @@ endif()
 if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # use the OpenSSL encryption library
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
+
+    # Added following line for linking OPENSSL Library statically. 
+    # User can uncomment/comment the following line as per their use
+
+    # set(OPENSSL_USE_STATIC_LIBS TRUE)
+
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES OpenSSL::Crypto OpenSSL::SSL)
 endif()
@@ -852,6 +858,8 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_securitygroup.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_config.c
+                # Added the newly created file for JNI implementation of PubSub
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_jni_pubsub.c
                 # client
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_connect.c
@@ -1337,6 +1345,11 @@ else()
     target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
     target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
     set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+    # Added required JNI libraries path for linux(User has to put this path according to Java path on their machine)
+    # If user has Windows machine, they have to add path of Windows over here or 
+    # they can add the path from Project->properties in visual studio application 
+    include_directories(/usr/lib/jvm/java-8-openjdk-amd64/include)
+    include_directories(/usr/lib/jvm/java-8-openjdk-amd64/include/linux)
 
     if(UA_ENABLE_COVERAGE)
         add_coverage(open62541-object)

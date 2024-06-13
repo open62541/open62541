@@ -948,11 +948,33 @@ DataSetReader_processFixedSize(UA_Server *server, UA_DataSetReader *dsr,
     }
 }
 
+//Changes made for JNI implementation
+static int transferFlag =
+    1;  // Flag to stop message processing till messages are transfered to Java
+static int processFlag =
+    1;  // Flag to stop message transfer process till current message is processed
+static int messagesFlag =
+    0;  // Flag to see if messages are received(Checked only for 1st connection)
+static int messagesCaptured = 0;  // Variable to store number of captured messages
+struct Node {
+    char *publisherId;
+    int datasetWriterId;
+    int writerGroupId;
+    int fields;
+    void *data[100];
+};
+static struct Node Messages[300];  // Variable to store captured messages
+
 void
 UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
                          UA_DataSetMessage *msg) {
     if(!dsr || !msg || !server)
         return;
+
+    //Make the processing wait till transfer of messages from JNI is completed
+    while(transferFlag == 0)
+        printf("");
+    processFlag = 0;
 
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
@@ -1015,6 +1037,747 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
 #endif
         return;
     }
+
+    //Parse the incoming messages based on the metadata(type of received data)
+    //Convert it to string(Char*) and then store in "data" variable of "Node" structure
+    //Then once the JNI call is recieved from Java, send all the stored messages to Java through JNI
+    size_t i = 0;
+    char buf[20];
+    void *data_temp[100];
+    for(i = 0; i < msg->data.keyFrameData.fieldCount; i++) {
+        if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
+            continue;
+        UA_Byte type = dsr->config.dataSetMetaData.fields[i].builtInType;
+
+        switch(type) {
+            case UA_NS0ID_DATETIME:;
+                // Convert Datetime to it's original form and remove Double quotes
+                UA_DateTime *varcontentt = UA_DateTime_new();
+                *varcontentt =
+                    *((UA_DateTime *)msg->data.keyFrameData.dataSetFields[i].value.data);
+                const UA_DataType *typee = &UA_TYPES[UA_TYPES_DATETIME];
+
+                size_t sizee = UA_calcSizeJson((void *)varcontentt, typee, NULL);
+                UA_ByteString receivedTime;
+
+                UA_ByteString_allocBuffer(&receivedTime, sizee + 1);
+
+                status ss =
+                    UA_encodeJson((void *)varcontentt, typee, &receivedTime, NULL);
+                char buff[40];
+                int sizeInd;
+                for(sizeInd = 1; sizeInd < sizee - 1; sizeInd++) {
+                    buff[sizeInd - 1] = receivedTime.data[sizeInd];
+                }
+                buff[sizeInd - 1] = '\0';
+
+                data_temp[i] = malloc(sizeInd);
+                strncpy(data_temp[i], buff, sizeInd);
+
+                // printf("\n\n\n\n\t\t\tMessage Received by
+                // subscriber:'%s'\n\n\n\n",buff);
+                break;
+            case UA_NS0ID_BOOLEAN:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufBool[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        if(((UA_Boolean *)msg->data.keyFrameData.dataSetFields[i]
+                                .value.data)[arrayElem] == 0)
+                            strncpy(buf, "false", 6);
+                        else
+                            strncpy(buf, "true", 5);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufBool, buf, strlen(buf));
+                    }
+                    bufBool[strlen(bufBool)] = '\0';
+                    data_temp[i] = malloc(strlen(bufBool) + 1);
+                    strncpy(data_temp[i], bufBool, strlen(bufBool) + 1);
+                } else {
+                    if(*((UA_Int32 *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data) == 0)
+                        data_temp[i] = "false";
+                    else
+                        data_temp[i] = "true";
+                }
+                // printf("\n\n\n\n\t\t\tMessage Received by
+                // subscriber:'%s'\n\n\n\n",data_temp[i]);
+                break;
+            case UA_NS0ID_INT32:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufInt32[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_Int32 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufInt32, buf, strlen(buf));
+                    }
+                    bufInt32[strlen(bufInt32)] = '\0';
+                    data_temp[i] = malloc(strlen(bufInt32) + 1);
+                    strncpy(data_temp[i], bufInt32, strlen(bufInt32) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_Int32 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber: '%s' at time:
+                   '%02d:%02d:%02d'\n\n\n\n", buf,current_time->tm_hour,
+                   current_time->tm_min,current_time->tm_sec);*/
+                break;
+            case UA_NS0ID_FLOAT:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufFloat[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%.3f",
+                                ((UA_Float *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufFloat, buf, strlen(buf));
+                    }
+                    bufFloat[strlen(bufFloat)] = '\0';
+                    data_temp[i] = malloc(strlen(bufFloat) + 1);
+                    strncpy(data_temp[i], bufFloat, strlen(bufFloat) + 1);
+                } else {
+                    sprintf(buf, "%.3f",
+                            *((UA_Float *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber: '%s' at time:
+                   '%02d:%02d:%02d'\n\n\n\n", buf,current_time->tm_hour,
+                   current_time->tm_min,current_time->tm_sec);*/
+                break;
+            case UA_NS0ID_STRING:;
+                data_temp[i] = malloc(
+                    ((UA_String *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length +
+                    1);
+                strncpy(data_temp[i],
+                        ((UA_String *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->data,
+                        ((UA_String *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->length);
+                char *ptr = data_temp[i];
+                for(int x = 0;
+                    x < ((UA_String *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->length;
+                    x++)
+                    ptr++;
+                *ptr = '\0';
+                // printf("\n\n\n\n\t\t\tMessage Received by
+                // subscriber:'%s'\n\n\n\n",data_temp[i]);
+                break;
+            case UA_NS0ID_INT16:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufInt16[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_Int16 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufInt16, buf, strlen(buf));
+                    }
+                    bufInt16[strlen(bufInt16)] = '\0';
+                    data_temp[i] = malloc(strlen(bufInt16) + 1);
+                    strncpy(data_temp[i], bufInt16, strlen(bufInt16) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_Int16 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_INT64:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufInt64[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_Int64 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufInt64, buf, strlen(buf));
+                    }
+                    bufInt64[strlen(bufInt64)] = '\0';
+                    data_temp[i] = malloc(strlen(bufInt64) + 1);
+                    strncpy(data_temp[i], bufInt64, strlen(bufInt64) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_Int64 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber: '%s'\n\n\n\n",
+                 * data_temp[i]);*/
+                break;
+            case UA_NS0ID_UINT16:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufUInt16[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_UInt16 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufUInt16, buf, strlen(buf));
+                    }
+                    bufUInt16[strlen(bufUInt16)] = '\0';
+                    data_temp[i] = malloc(strlen(bufUInt16) + 1);
+                    strncpy(data_temp[i], bufUInt16, strlen(bufUInt16) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_UInt16 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_UINT32:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufUInt32[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_UInt32 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufUInt32, buf, strlen(buf));
+                    }
+                    bufUInt32[strlen(bufUInt32)] = '\0';
+                    data_temp[i] = malloc(strlen(bufUInt32) + 1);
+                    strncpy(data_temp[i], bufUInt32, strlen(bufUInt32) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_UInt32 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_UINT64:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufUInt64[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_UInt64 *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufUInt64, buf, strlen(buf));
+                    }
+                    bufUInt64[strlen(bufUInt64)] = '\0';
+                    data_temp[i] = malloc(strlen(bufUInt64) + 1);
+                    strncpy(data_temp[i], bufUInt64, strlen(bufUInt64) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_UInt64 *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_BYTE:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufByte[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%d",
+                                ((UA_Byte *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufByte, buf, strlen(buf));
+                    }
+                    bufByte[strlen(bufByte)] = '\0';
+                    data_temp[i] = malloc(strlen(bufByte) + 1);
+                    strncpy(data_temp[i], bufByte, strlen(bufByte) + 1);
+                } else {
+                    sprintf(
+                        buf, "%d",
+                        *((UA_Byte *)msg->data.keyFrameData.dataSetFields[i].value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_SBYTE:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufSByte[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        if(arrayElem > 0)
+                            strncat(buf, ", ", 2);
+                        sprintf(buf, "%d",
+                                ((UA_SByte *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufSByte, buf, strlen(buf));
+                    }
+                    bufSByte[strlen(bufSByte)] = '\0';
+                    data_temp[i] = malloc(strlen(bufSByte) + 1);
+                    strncpy(data_temp[i], bufSByte, strlen(bufSByte) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            *((UA_SByte *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_DOUBLE:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufDouble[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%.6lf",
+                                ((UA_Double *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufDouble, buf, strlen(buf));
+                    }
+                    bufDouble[strlen(bufDouble)] = '\0';
+                    data_temp[i] = malloc(strlen(bufDouble) + 1);
+                    strncpy(data_temp[i], bufDouble, strlen(bufDouble) + 1);
+                } else {
+                    sprintf(buf, "%.6lf",
+                            *((UA_Double *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_BYTESTRING:;
+                // Convert Datetime to it's original form and remove Double quotes
+                char bufByte[40] = "";
+                UA_ByteString *srcb =
+                    ((UA_ByteString *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->data;
+
+                for(int h = 0;
+                    h <
+                    ((UA_ByteString *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length;
+                    h++) {
+                    sprintf(buf, "%d",
+                            ((UA_ByteString *)msg->data.keyFrameData.dataSetFields[i]
+                                 .value.data)
+                                ->data[h]);
+                    /*printf("\n\t\t\tMessage Received bysubscriber: '%d'\n",
+                     * ((UA_ByteString*)msg->data.keyFrameData.dataSetFields[i].value.data)->data[h]);*/
+                    strncat(bufByte, buf, strlen(buf));
+                }
+                bufByte[strlen(bufByte)] = '\0';
+
+                data_temp[i] = malloc(strlen(bufByte) + 1);
+                strncpy(data_temp[i], bufByte, strlen(bufByte) + 1);
+
+                break;
+            case UA_NS0ID_GUID:;
+                // Convert Datetime to it's original form and remove Double quotes
+                UA_Guid varcontentg =
+                    *((UA_Guid *)msg->data.keyFrameData.dataSetFields[i].value.data);
+                const UA_DataType *typeg = &UA_TYPES[UA_TYPES_GUID];
+
+                size_t sizeg = UA_calcSizeJson((void *)&varcontentg, typeg, NULL);
+                UA_ByteString receivedGuid;
+
+                UA_ByteString_allocBuffer(&receivedGuid, sizeg + 1);
+
+                status sg =
+                    UA_encodeJson((void *)&varcontentg, typeg, &receivedGuid, NULL);
+
+                char bufg[40];
+                int sizegInd;
+                for(sizegInd = 1; sizegInd < sizeg - 1; sizegInd++) {
+                    bufg[sizegInd - 1] = receivedGuid.data[sizegInd];
+                }
+                bufg[sizegInd - 1] = '\0';
+
+                data_temp[i] = malloc(sizegInd);
+                strncpy(data_temp[i], bufg, sizegInd);
+
+                break;
+            case UA_NS0ID_LOCALIZEDTEXT:;
+                data_temp[i] =
+                    malloc(((UA_LocalizedText *)msg->data.keyFrameData.dataSetFields[i]
+                                .value.data)
+                               ->text.length +
+                           1);
+                strncpy(data_temp[i],
+                        ((UA_LocalizedText *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->text.data,
+                        ((UA_LocalizedText *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->text.length);
+                char *ptr1 = data_temp[i];
+                for(int x = 0;
+                    x < ((UA_LocalizedText *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->text.length;
+                    x++)
+                    ptr1++;
+                *ptr1 = '\0';
+                break;
+            case(UA_Byte)UA_NS0ID_DURATION:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufDouble[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(buf, "%.6lf",
+                                ((UA_Duration *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)[arrayElem]);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufDouble, buf, strlen(buf));
+                    }
+                    bufDouble[strlen(bufDouble)] = '\0';
+                    data_temp[i] = malloc(strlen(bufDouble) + 1);
+                    strncpy(data_temp[i], bufDouble, strlen(bufDouble) + 1);
+                } else {
+                    sprintf(buf, "%.6lf",
+                            *((UA_Duration *)msg->data.keyFrameData.dataSetFields[i]
+                                  .value.data));
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case(UA_Byte)UA_NS0ID_ENUMVALUETYPE:;
+                if(msg->data.keyFrameData.dataSetFields[i].value.arrayLength > 0) {
+                    char bufDouble[100] = "";
+                    for(int arrayElem = 0;
+                        arrayElem <
+                        msg->data.keyFrameData.dataSetFields[i].value.arrayLength;
+                        arrayElem++) {
+                        sprintf(
+                            buf, "%d",
+                            ((UA_EnumValueType *)msg->data.keyFrameData.dataSetFields[i]
+                                 .value.data)[arrayElem]
+                                .value);
+                        if(arrayElem <
+                           msg->data.keyFrameData.dataSetFields[i].value.arrayLength - 1)
+                            strncat(buf, ", ", 2);
+                        strncat(bufDouble, buf, strlen(buf));
+                    }
+                    bufDouble[strlen(bufDouble)] = '\0';
+                    data_temp[i] = malloc(strlen(bufDouble) + 1);
+                    strncpy(data_temp[i], bufDouble, strlen(bufDouble) + 1);
+                } else {
+                    sprintf(buf, "%d",
+                            ((UA_EnumValueType *)msg->data.keyFrameData.dataSetFields[i]
+                                 .value.data)
+                                ->value);
+                    data_temp[i] = malloc(strlen(buf) + 1);
+                    strncpy(data_temp[i], buf, strlen(buf) + 1);
+                }
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case(UA_Byte)UA_NS0ID_LOCALEID:;
+                data_temp[i] = malloc(
+                    ((UA_LocaleId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length +
+                    1);
+                strncpy(
+                    data_temp[i],
+                    ((UA_LocaleId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->data,
+                    ((UA_LocaleId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length);
+                char *ptrLocale = data_temp[i];
+                for(int x = 0;
+                    x <
+                    ((UA_LocaleId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length;
+                    x++)
+                    ptrLocale++;
+                *ptrLocale = '\0';
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case(UA_Byte)UA_NS0ID_NODEID:;
+                char bufNodeID[100] = "ns=";
+                sprintf(buf, "%d",
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->namespaceIndex);
+                strncat(bufNodeID, buf, strlen(buf));
+
+                if(((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                           ->identifierType == 0 ||
+                   ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                           ->identifierType == 1 ||
+                   ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                           ->identifierType == 2) {
+                    strncat(bufNodeID, ";i=", 3);
+                    sprintf(
+                        buf, "%d",
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.numeric);
+                    strncat(bufNodeID, buf, strlen(buf));
+                } else if(((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i]
+                               .value.data)
+                              ->identifierType == 3) {
+                    strncat(bufNodeID, ";s=", 3);
+                    strncpy(
+                        buf,
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.string.data,
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.string.length);
+
+                    strncat(bufNodeID, buf, strlen(buf));
+                } else if(((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i]
+                               .value.data)
+                              ->identifierType == 4) {
+                    strncat(bufNodeID, ";guid=", 6);
+                    UA_Guid varcontentg =
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.guid;
+                    const UA_DataType *typeg = &UA_TYPES[UA_TYPES_GUID];
+
+                    size_t sizeg = UA_calcSizeJson((void *)&varcontentg, typeg, NULL);
+                    UA_ByteString receivedGuid;
+
+                    UA_ByteString_allocBuffer(&receivedGuid, sizeg + 1);
+
+                    status sg =
+                        UA_encodeJson((void *)&varcontentg, typeg, &receivedGuid, NULL);
+
+                    char bufg[40];
+                    int sizegInd;
+                    for(sizegInd = 1; sizegInd < sizeg - 1; sizegInd++) {
+                        bufg[sizegInd - 1] = receivedGuid.data[sizegInd];
+                    }
+                    bufg[sizegInd - 1] = '\0';
+
+                    strncat(bufNodeID, bufg, strlen(bufg));
+                } else {
+                    strncat(bufNodeID, ";bs=", 4);
+                    char bufByteString[40] = "";
+                    UA_ByteString *srcb =
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.byteString.data;
+
+                    for(int h = 0;
+                        h <
+                        ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                            ->identifier.byteString.length;
+                        h++) {
+                        sprintf(buf, "%d",
+                                ((UA_NodeId *)msg->data.keyFrameData.dataSetFields[i]
+                                     .value.data)
+                                    ->identifier.byteString.data[h]);
+                        /*printf("\n\t\t\tMessage Received by subscriber: '%d'\n",
+                                ((UA_ByteString*
+                           *)msg->data.keyFrameData.dataSetFields[i].value.data)->data[h]);*/
+                        strncat(bufByteString, buf, strlen(buf));
+                    }
+                    bufByteString[strlen(bufByteString)] = '\0';
+                    strncat(bufNodeID, bufByteString, strlen(bufByteString));
+                }
+                bufNodeID[strlen(bufNodeID)] = '\0';
+                data_temp[i] = malloc(strlen(bufNodeID) + 1);
+                strncpy(data_temp[i], bufNodeID, strlen(bufNodeID) + 1);
+
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case(UA_Byte)UA_NS0ID_QUALIFIEDNAME:;
+                data_temp[i] =
+                    malloc(((UA_QualifiedName *)msg->data.keyFrameData.dataSetFields[i]
+                                .value.data)
+                               ->name.length +
+                           1);
+                strncpy(data_temp[i],
+                        ((UA_QualifiedName *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->name.data,
+                        ((UA_QualifiedName *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->name.length);
+                char *ptrQualified = data_temp[i];
+                for(int x = 0;
+                    x < ((UA_QualifiedName *)msg->data.keyFrameData.dataSetFields[i]
+                             .value.data)
+                            ->name.length;
+                    x++)
+                    ptrQualified++;
+                *ptrQualified = '\0';
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case(UA_Byte)UA_NS0ID_UTCTIME:;
+                // Convert Datetime to it's original form and remove Double quotes
+                UA_UtcTime *varcontentutc = UA_DateTime_new();
+                *varcontentutc =
+                    *((UA_UtcTime *)msg->data.keyFrameData.dataSetFields[i].value.data);
+                const UA_DataType *typeutc = &UA_TYPES[UA_TYPES_DATETIME];
+
+                size_t sizeutc = UA_calcSizeJson((void *)varcontentutc, typeutc, NULL);
+                UA_ByteString receivedTimeUtc;
+
+                UA_ByteString_allocBuffer(&receivedTimeUtc, sizeutc + 1);
+
+                status sutc =
+                    UA_encodeJson((void *)varcontentutc, typeutc, &receivedTimeUtc, NULL);
+                char buffUtc[40];
+                int sizeIndUtc;
+                for(sizeIndUtc = 1; sizeIndUtc < sizeutc - 1; sizeIndUtc++) {
+                    buffUtc[sizeIndUtc - 1] = receivedTimeUtc.data[sizeIndUtc];
+                }
+                buffUtc[sizeIndUtc - 1] = '\0';
+
+                data_temp[i] = malloc(sizeIndUtc);
+                strncpy(data_temp[i], buffUtc, sizeIndUtc);
+
+                /*printf("\n\n\n\n\t\t\tMessage Received by
+                 * subscriber:'%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            case UA_NS0ID_XMLELEMENT:;
+                data_temp[i] = malloc(
+                    ((UA_XmlElement *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length +
+                    1);
+                strncpy(
+                    data_temp[i],
+                    ((UA_XmlElement *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->data,
+                    ((UA_XmlElement *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length);
+                char *ptrXml = data_temp[i];
+                for(int x = 0;
+                    x <
+                    ((UA_XmlElement *)msg->data.keyFrameData.dataSetFields[i].value.data)
+                        ->length;
+                    x++)
+                    ptrXml++;
+                *ptrXml = '\0';
+                /*printf("\n\n\n\n\t\t\tMessage Received by subscriber:
+                 * '%s'\n\n\n\n",data_temp[i]);*/
+                break;
+            default:
+                UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                               "%d This field does not exist!!", type);
+                // printf("\n\n%d This field does not exist!!\n\n",type);
+        }
+    }
+    if(dsr->config.publisherId.type == &UA_TYPES[UA_TYPES_STRING]) {
+        Messages[messagesCaptured].publisherId =
+            ((UA_String *)dsr->config.publisherId.data)->data;
+        char *ptr = Messages[messagesCaptured].publisherId;
+        for(int i = 0; i < ((UA_String *)dsr->config.publisherId.data)->length; i++)
+            ptr++;
+        *ptr = '\0';
+    } else {
+        char tempBuf[20];
+        sprintf(tempBuf, "%d", *((UA_UInt16 *)dsr->config.publisherId.data));
+        Messages[messagesCaptured].publisherId = malloc(strlen(tempBuf) + 1);
+        strncpy(Messages[messagesCaptured].publisherId, tempBuf, strlen(tempBuf) + 1);
+    }
+    // Received messages are stored in an array along with its parameters
+    // i.e., datasetWriterId, WriterGroupId and number of fields
+    Messages[messagesCaptured].datasetWriterId = dsr->config.dataSetWriterId;
+    Messages[messagesCaptured].writerGroupId = dsr->config.writerGroupId;
+    Messages[messagesCaptured].fields = i;
+    for(int j = 0; j < i; j++) {
+        Messages[messagesCaptured].data[j] = data_temp[j];
+    }
+    messagesCaptured++;
+    // Notify user once the messages are received
+    if(messagesFlag == 0) {
+        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_NETWORK,
+                       "Messages Received!!");
+        messagesFlag = 1;
+    }
+    // Size of array(Messages[]) in which messages are stored is 300 for now
+    // Once the JNI call is received to transfer messages received to Java, this array
+    // will be cleared and "messagesCaptured" will be set to 0. Still, if there is any
+    // delay in JNI call and messages stored in "Messages" array exceeds 300, reassign
+    // "messagesCaptured" to 150, so that dataloss is reduced to 150 instead of 300. Also,
+    // notify user to adjust(reduce) publishing interval to avoid data loss
+    if(messagesCaptured >= 300) {
+        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+                     "MESSAGES EXCEEDED LIMIT.Please adjust Publishing Interval to avoid "
+                     "data loss!!!");
+        messagesCaptured = 150;
+    }
+    processFlag = 1;
 
     /* Check and adjust the field count
      * TODO Throw an error if non-matching? */
@@ -1196,5 +1959,132 @@ UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
     UA_DataSetReader_process(server, dsr,
                              dsr->bufferedMessage.nm->payload.dataSetPayload.dataSetMessages);
 }
+
+#include <open62541/plugin/log_stdout.h>
+
+#include <jni.h>
+#include "jni_pubsub_PubSubMain.h"
+
+static int noMessageCount = 0;
+
+// JNI CODE TO PASS ON MESSAGES FROM C TO JAVA
+// User can put their package name in place of "jni_pubsub"
+JNIEXPORT jobject JNICALL
+Java_jni_pubsub_PubSubMain_getMessage(
+    JNIEnv *env, jobject javaobj) {
+    // Wait till message processing completes
+    while(processFlag == 0)
+        printf("");
+    // Stop message processing till messages copied to temporary variable
+    transferFlag = 0;
+
+    // Copy the contents of messages array to a temporary array to reduce delay
+    struct Node tempMessages[100];
+    int tempCount = messagesCaptured;
+
+    // Wait for 50 continuous iterations without any message received.
+    // Once 50 iteration are complete, enable message not recieved flag.
+    if(messagesCaptured == 0 && noMessageCount > 50) {
+        messagesFlag = 0;
+        noMessageCount = 0;
+    } else if(messagesCaptured == 0 && noMessageCount < 51)
+        noMessageCount++;
+    else {
+        if(messagesFlag == 0)
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK, "Messages Received!!");
+        messagesFlag = 1;
+        noMessageCount = 0;
+    }
+
+    for(int copyi = 0; copyi < tempCount; copyi++)
+        tempMessages[copyi] = Messages[copyi];
+    // Start message processing after creation of temporary variable
+    messagesCaptured = 0;
+    transferFlag = 1;
+
+    // User has to create a "Messages.java" class in java project
+    // This class should contain all the fields mentioned in Node structure, defined above 
+    // and a constructor to set the received fields to appropriate variables
+    // User has to provide path of that "Messages" class in <Provide class path>
+    jclass messagesClass = (*env)->FindClass(
+        env, "<Provide class path>/Messages");
+    jclass arrayListcls = (*env)->FindClass(env, "Ljava/util/ArrayList;");
+    jmethodID arrayListInit = (*env)->GetMethodID(env, arrayListcls, "<init>", "(I)V");
+    jmethodID add =
+        (*env)->GetMethodID(env, arrayListcls, "add", "(Ljava/lang/Object;)Z");
+
+    jobject messagesArray =
+        (*env)->NewObject(env, arrayListcls, arrayListInit, tempCount);
+
+    if(tempCount > 0) {
+        // printf("\n\n\t\tCreating Messages List for %d messages\n\n", tempCount);
+        for(int messageIndex = 0; messageIndex < tempCount; messageIndex++) {
+            jobject newMessages = (*env)->AllocObject(env, messagesClass);
+
+            // Get the UserData fields to be set
+            jobject arrayList = (*env)->NewObject(env, arrayListcls, arrayListInit,
+                                                  tempMessages[messageIndex].fields);
+            for(int dataIndex = 0; dataIndex < tempMessages[messageIndex].fields;
+                dataIndex++) {
+                (*env)->CallBooleanMethod(
+                    env, arrayList, add,
+                    (*env)->NewStringUTF(env,
+                                         tempMessages[messageIndex].data[dataIndex]));
+            }
+
+            // Get FieldIDs to set respective fields
+            jfieldID publisherId = (*env)->GetFieldID(env, messagesClass, "publisherId",
+                                                      "Ljava/lang/String;");
+            jfieldID datasetWriterId =
+                (*env)->GetFieldID(env, messagesClass, "datasetWriterId", "I");
+            jfieldID writerGroupId =
+                (*env)->GetFieldID(env, messagesClass, "writerGroupId", "I");
+            jfieldID fields = (*env)->GetFieldID(env, messagesClass, "fields", "I");
+            jfieldID data =
+                (*env)->GetFieldID(env, messagesClass, "data", "Ljava/util/ArrayList;");
+
+            // Set Fields with FieldIDs
+            (*env)->SetObjectField(
+                env, newMessages, publisherId,
+                (*env)->NewStringUTF(env, tempMessages[messageIndex].publisherId));
+            (*env)->SetIntField(env, newMessages, datasetWriterId,
+                                tempMessages[messageIndex].datasetWriterId);
+            (*env)->SetIntField(env, newMessages, writerGroupId,
+                                tempMessages[messageIndex].writerGroupId);
+            (*env)->SetIntField(env, newMessages, fields,
+                                tempMessages[messageIndex].fields);
+            (*env)->SetObjectField(env, newMessages, data, arrayList);
+
+            /*
+            printf("\n\n\t\tMessage is
+            DW:............%d\n\n",tempMessages[messageIndex].datasetWriterId);
+            printf("\n\n\t\tMessage is
+            DWG:............%d\n\n",tempMessages[messageIndex].writerGroupId);
+            printf("\n\n\t\tMessage is F:............%d\n\n",
+
+            tempMessages[messageIndex].fields);
+
+            jmethodID string = (*env)->GetMethodID(env, messagesClass, "toString",
+            "()Ljava/lang/String;"); jstring str = (*env)->CallObjectMethod(env,
+            newMessages, string); char* strr = (char*)(*env)->GetStringUTFChars(env, str,
+            NULL); printf("\n\n\nOBJECT CREATED: %s\n\n\n", strr);
+            */
+
+            (*env)->CallBooleanMethod(env, messagesArray, add, newMessages);
+
+            (*env)->DeleteLocalRef(env, arrayList);
+            (*env)->DeleteLocalRef(env, newMessages);
+        }
+    } else {
+
+        if(messagesFlag == 0)
+            UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_NETWORK,
+                           "Messages not yet received.Please check your publisher or "
+                           "publishing interval");
+        messagesArray = NULL;
+    }
+    return messagesArray;
+}
+
 
 #endif /* UA_ENABLE_PUBSUB */
