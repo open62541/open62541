@@ -559,7 +559,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
             UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
         if(!rtNode ||
-           rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
+           rtNode->valueSource != UA_VALUESOURCE_EXTERNAL) {
             UA_LOG_WARNING_READER(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: PDS contains field "
                                   "without external data source.");
@@ -568,7 +568,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         }
 
         /* Set the external data source in the tv */
-        tv->externalDataValue = rtNode->valueBackend.backend.external.value;
+        tv->externalDataValue = rtNode->value.external.value;
 
         UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
 
