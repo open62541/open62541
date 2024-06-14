@@ -157,8 +157,10 @@ setMulticastInterface(const char *netif, struct addrinfo *info,
         /* MSVC documentation of struct ip_mreq: To use an interface index of 1
          * would be the same as an IP address of 0.0.0.1. */
         req->ipv4.imr_interface.s_addr = htonl(idx);
+#if UA_IPV6
     else /* if(info->ai_family == AF_INET6) */
         req->ipv6.ipv6mr_interface = idx;
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
