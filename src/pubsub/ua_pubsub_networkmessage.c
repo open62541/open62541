@@ -874,7 +874,7 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
     UA_NetworkMessageOffset *tmpOffsets = (UA_NetworkMessageOffset *)
         UA_realloc(offsetBuffer->offsets, sizeof(UA_NetworkMessageOffset) * (offsetBuffer->offsetsSize + (size_t)1));
     UA_CHECK_MEM(tmpOffsets, return false);
-
+    memset(&tmpOffsets[offsetBuffer->offsetsSize], 0, sizeof(UA_NetworkMessageOffset));
     offsetBuffer->offsets = tmpOffsets;
     offsetBuffer->offsetsSize++;
     return true;
