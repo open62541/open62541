@@ -667,7 +667,8 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
 }
 
 UA_StatusCode
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId, UA_DateTime *timestamp){
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
+                                    UA_DateTime *timestamp){
     UA_LOCK(&server->serviceMutex);
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
