@@ -1614,12 +1614,6 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     return 0;
                 nmo = &offsetBuffer->offsets[pos];
                 nmo->offset = size;
-                if(p->data.keyFrameData.dataSetFields != NULL) {
-                    nmo->content.value = *v;
-                    nmo->content.value.value.storageType = UA_VARIANT_DATA_NODELETE;
-                } else {
-                   UA_DataValue_init(&nmo->content.value);
-                }
             }
 
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
