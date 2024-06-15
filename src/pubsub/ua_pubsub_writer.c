@@ -380,7 +380,12 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(pds->promotedFieldsCount > 0) {
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, dsw->linkedWriterGroup);
+    UA_assert(wg);
+
+    /* Promoted Fields not allowed if RT is enabled */
+    if(wg->config.rtLevel > UA_PUBSUB_RT_NONE &&
+       pds->promotedFieldsCount > 0) {
         UA_LOG_WARNING_WRITER(server->config.logging, dsw,
                               "PubSub-RT configuration fail: "
                               "PDS contains promoted fields");
@@ -392,35 +397,50 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
     TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
         UA_NodeId *publishedVariable =
             &dsf->config.field.variable.publishParameters.publishedVariable;
+
+        /* Check that the target is a VariableNode */
         const UA_VariableNode *rtNode = (const UA_VariableNode*)
             UA_NODESTORE_GET(server, publishedVariable);
-        if(rtNode != NULL &&
-           rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "PDS contains field without external data source");
+        if(rtNode && rtNode->head.nodeClass != UA_NODECLASS_VARIABLE) {
+            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
+                                "PubSub-RT configuration fail: "
+                                "PDS points to a node that is not a variable");
             UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
-
         UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
 
-        if((UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                            &UA_TYPES[UA_TYPES_STRING].typeId) ||
-            UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                            &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
-           dsf->fieldMetaData.maxStringLength == 0) {
-            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "PDS contains String/ByteString with dynamic length");
+        /* TODO: Get the External Value Source from the node instead of from the config */
+
+        /* If direct-value-access is enabled, the pointers need to be set */
+        if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
+           !dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled) {
+            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
+                                "PubSub-RT configuration fail: PDS published-variable "
+                                "does not have an external data source");
             return UA_STATUSCODE_BADNOTSUPPORTED;
-        } else if(!UA_DataType_isNumeric(UA_findDataType(&dsf->fieldMetaData.dataType)) &&
-                  !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
-                                   &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_WRITER(server->config.logging, dsw,
-                                  "PubSub-RT configuration fail: "
-                                  "PDS contains variable with dynamic size");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+
+        /* Check that the values have a fixed size if fixed offsets are needed */
+        if(wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+            if((UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                                &UA_TYPES[UA_TYPES_STRING].typeId) ||
+                UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                                &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
+               dsf->fieldMetaData.maxStringLength == 0) {
+                UA_LOG_WARNING_WRITER(server->config.logging, dsw,
+                                      "PubSub-RT configuration fail: "
+                                      "PDS contains String/ByteString with dynamic length");
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+            } else if(!UA_DataType_isNumeric(
+                          UA_findDataType(&dsf->fieldMetaData.dataType)) &&
+                      !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
+                                       &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
+                UA_LOG_WARNING_WRITER(server->config.logging, dsw,
+                                      "PubSub-RT configuration fail: "
+                                      "PDS contains variable with dynamic size");
+                return UA_STATUSCODE_BADNOTSUPPORTED;
+            }
         }
     }
 
