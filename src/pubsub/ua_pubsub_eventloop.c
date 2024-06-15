@@ -213,7 +213,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
-        if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
             processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
             continue;
         } 
@@ -245,7 +245,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
                rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
                 continue;
-            if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+            if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
                 continue;
             processed |= UA_ReaderGroup_process(server, rg, &nm);
         }
@@ -888,7 +888,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* ReaderGroup with realtime processing */
-    if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
+    if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
         UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
         UA_UNLOCK(&server->serviceMutex);
         return;

@@ -599,7 +599,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Not rt, we don't have to adjust anything */
-    if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
+    if((rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
         return UA_STATUSCODE_GOOD;
 
     if(dsrCount > 1) {
