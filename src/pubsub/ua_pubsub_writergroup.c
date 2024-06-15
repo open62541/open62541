@@ -1209,8 +1209,58 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
 }
 
 static void
-publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *connection) {
+sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK(&server->serviceMutex);
+
+    size_t fieldPos = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_PublishedDataSet *pds =
+            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        if(!pds)
+            continue;
+
+        /* Loop over the fields */
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            /* Get the matching offset table entry */
+            UA_NetworkMessageOffsetType contentType;
+            do {
+                fieldPos++;
+                contentType = wg->bufferedMessage.offsets[fieldPos].contentType;
+            } while(contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL);
+
+            /* External data source is never sampled, but accessed directly in
+             * the encoding */
+            if(contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL ||
+               contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL ||
+               contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL)
+                continue;
+
+            /* Sample the value into the offset table */
+            UA_DataValue *dfv = &wg->bufferedMessage.offsets[fieldPos].content.value;
+            UA_DataValue_clear(dfv);
+            UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
+        }
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static void
+publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
+                   UA_PubSubConnection *connection) {
     UA_assert(writerGroup->configurationFrozen);
+
+    /* Fixed size but no direct value access. Sample to get recent values into
+     * the offset buffer structure. */
+    if((writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) == 0)
+        sampleOffsetPublishingValues(server, writerGroup);
 
     UA_StatusCode res =
         UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage);
@@ -1325,8 +1375,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     }
 
     /* Realtime path - update the buffer message and send directly */
-    if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        publishRT(server, writerGroup, connection);
+    if(writerGroup->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+        publishWithOffsets(server, writerGroup, connection);
         return;
     }
 
