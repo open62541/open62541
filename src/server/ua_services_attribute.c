@@ -1533,11 +1533,18 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         break;
 
     case UA_VALUEBACKENDTYPE_EXTERNAL:
+        retval = UA_STATUSCODE_GOOD;
         if(node->valueBackend.backend.external.callback.userWrite) {
             retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->sessionHandle,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
+        } else {
+            if(node->valueBackend.backend.external.value) {
+                UA_DataValue_clear(*node->valueBackend.backend.external.value);
+                retval = UA_DataValue_copy(&adjustedValue,
+                                           *node->valueBackend.backend.external.value);
+            }
         }
         break;
 
