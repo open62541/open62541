@@ -69,12 +69,23 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
                 rv = UA_DataValue_encodeBinary(&nmo->content.value, &bufPos, bufEnd);
                 break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL:
+                rv = UA_DataValue_encodeBinary(*nmo->content.externalValue, &bufPos, bufEnd);
+                break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
                 rv = UA_Variant_encodeBinary(&nmo->content.value.value, &bufPos, bufEnd);
+                break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL:
+                rv = UA_Variant_encodeBinary(&(*nmo->content.externalValue)->value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
                 rv = UA_encodeBinaryInternal(nmo->content.value.value.data,
                                              nmo->content.value.value.type,
+                                             &bufPos, &bufEnd, NULL, NULL);
+                break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL:
+                rv = UA_encodeBinaryInternal((*nmo->content.externalValue)->value.data,
+                                             (*nmo->content.externalValue)->value.type,
                                              &bufPos, &bufEnd, NULL, NULL);
                 break;
             default:
