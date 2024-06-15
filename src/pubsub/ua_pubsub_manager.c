@@ -528,6 +528,12 @@ UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
             UA_DataSetReader *reader = (UA_DataSetReader*) data;
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
+                    if(reader->config.messageReceiveTimeout == 0) {
+                        UA_LOG_WARNING_READER(server->config.logging, reader,
+                                              "Cannot monitor timeout for messageReceiveTimeout == 0");
+                        return UA_STATUSCODE_GOOD;
+                    }
+
                     /* use a timed callback, because one notification is enough,
                      * we assume that MessageReceiveTimeout configuration is in
                      * [ms], we do not handle or check fractions */
