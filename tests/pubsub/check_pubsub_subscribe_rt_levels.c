@@ -122,7 +122,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
     wgm->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
@@ -147,7 +147,7 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -289,7 +289,7 @@ START_TEST(SetupInvalidPubSubConfigReader) {
         writerGroupConfig.publishingInterval = 10;
         writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
-        writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+        writerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
         wgm->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
@@ -317,7 +317,7 @@ START_TEST(SetupInvalidPubSubConfigReader) {
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
-        readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+        readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
         retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                            &readerGroupIdentifier);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -433,7 +433,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     writerGroupConfig.publishingInterval = 10;
     writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
-    writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    writerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_UadpWriterGroupMessageDataType *wgm = UA_UadpWriterGroupMessageDataType_new();
     wgm->networkMessageContentMask = (UA_UadpNetworkMessageContentMask)(UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID |
@@ -482,30 +482,8 @@ START_TEST(SetupInvalidPubSubConfig) {
 #define NUMVARS 2
 static UA_UInt32 sSubscriberWriteValue[NUMVARS] = {0};
 static UA_NodeId sSubscribeWriteCb_TargetVar_Id[NUMVARS];
-static void SubscriberBeforeWriteCallback(UA_Server *srv,
-                       const UA_NodeId *readerId,
-                       const UA_NodeId *readerGroupId,
-                       const UA_NodeId *targetVariableId,
-                       void *targetVariableContext,
-                       UA_DataValue **externalDataValue) {
-
-    int i = 0;
-    ck_assert(srv != 0);
-    ck_assert(UA_NodeId_equal(readerId, &readerIdentifier) == UA_TRUE);
-    ck_assert(UA_NodeId_equal(readerGroupId, &readerGroupIdentifier) == UA_TRUE);
-    for (i = 0; i < NUMVARS; i++) {
-        if (UA_NodeId_equal(targetVariableId, &sSubscribeWriteCb_TargetVar_Id[i]) == UA_TRUE) {
-            ck_assert(targetVariableContext != 0);
-            ck_assert_uint_eq(10+i, *((UA_UInt32*) targetVariableContext));
-            ck_assert(externalDataValue != 0);
-            ck_assert_uint_eq((**externalDataValue).value.type->memSize, sizeof(sSubscriberWriteValue[i]));
-            memcpy(&sSubscriberWriteValue[i], (**externalDataValue).value.data, (**externalDataValue).value.type->memSize);
-            break;
-        }
-    }
-    /* check if variable has been found */
-    ck_assert(i < NUMVARS);
-}
+static UA_DataValue subscriberDataValues[NUMVARS];
+static UA_DataValue *subscriberIndirectDataValues[NUMVARS];
 
 static void PublishSubscribeWithWriteCallback_Helper(
     UA_NodeId *publisherNode,
@@ -576,7 +554,7 @@ static void PublishSubscribeWithWriteCallback_Helper(
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
-    readerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
+    readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     retVal |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig, &readerGroupIdentifier);
 
     /* Data Set Reader */
@@ -629,20 +607,21 @@ static void PublishSubscribeWithWriteCallback_Helper(
     dsReaderMessage = 0;
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
+    /* Create TargetVariables */
     UA_FieldTargetVariable targetVar[NUMVARS];
-    UA_UInt32 DummyTargetVariableContext[NUMVARS];
     memset(&targetVar, 0, sizeof(targetVar));
     for (i = 0; i < NUMVARS; i++) {
-        /* For creating Targetvariable */
+        UA_Variant_setScalar(&subscriberDataValues[i].value, &sSubscriberWriteValue[i],
+                             &UA_TYPES[UA_TYPES_UINT32]);
+        subscriberIndirectDataValues[i] = &subscriberDataValues[i];
+        subscriberDataValues[i].hasValue = true;
         UA_FieldTargetDataType_init(&targetVar[i].targetVariable);
         targetVar[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         targetVar[i].targetVariable.targetNodeId = sSubscribeWriteCb_TargetVar_Id[i];
-        targetVar[i].beforeWrite                 = SubscriberBeforeWriteCallback;  /* set subscriber write callback */
-        DummyTargetVariableContext[i]            = 10+i;
-        targetVar[i].targetVariableContext       = &DummyTargetVariableContext[i];
+        targetVar[i].externalDataValue           = &subscriberIndirectDataValues[i];
     }
     retVal |= UA_Server_DataSetReader_createTargetVariables(server, readerIdentifier,
-                                                            NUMVARS, &targetVar[0]);
+                                                            NUMVARS, targetVar);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     for (i = 0; i < NUMVARS; i++) {
         UA_FieldTargetDataType_clear(&targetVar[i].targetVariable);
