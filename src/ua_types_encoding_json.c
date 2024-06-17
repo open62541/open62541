@@ -2233,7 +2233,7 @@ getArrayUnwrapType(ParseCtx *ctx, size_t arrayIndex) {
 
         /* Check for non-JSON encoding */
         size_t encIndex = 0;
-        UA_StatusCode ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
+        ret = lookAheadForKey(ctx, UA_JSONKEY_ENCODING, &encIndex);
         if(ret == UA_STATUSCODE_GOOD) {
             ctx->index = oldIndex; /* Restore the index */
             return NULL;
