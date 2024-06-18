@@ -442,8 +442,8 @@ setConnectionConfig(UA_FD socket, const UA_KeyValueMap *params,
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
-    int optval = 1;
 #if UA_IPV6
+    int optval = 1;
     if(ai_family == AF_INET6 &&
        UA_setsockopt(socket, IPPROTO_IPV6, IPV6_V6ONLY,
                      (const char*)&optval, sizeof(optval)) == -1) {
