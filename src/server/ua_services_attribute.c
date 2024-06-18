@@ -1352,12 +1352,46 @@ writeDataTypeAttribute(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value) {
-    UA_DataValue new_value;
-    UA_StatusCode retval = UA_DataValue_copy(value, &new_value);
+    UA_DataValue *oldValue = &node->value.data.value;
+    UA_DataValue tmpValue = *value;
+
+    /* If possible memcpy the new value over the old value without
+     * a malloc. For this the value needs to be "pointerfree". */
+    if(oldValue->hasValue && oldValue->value.type && oldValue->value.type->pointerFree &&
+       value->hasValue && value->value.type && value->value.type->pointerFree &&
+       oldValue->value.type->memSize == value->value.type->memSize) {
+        size_t oSize = 1;
+        size_t vSize = 1;
+        if(!UA_Variant_isScalar(&oldValue->value))
+            oSize = oldValue->value.arrayLength;
+        if(!UA_Variant_isScalar(&value->value))
+            vSize = value->value.arrayLength;
+
+        if(oSize == vSize &&
+           oldValue->value.arrayDimensionsSize == value->value.arrayDimensionsSize) {
+            /* Keep the old pointers, but adjust type and array length */
+            tmpValue.value = oldValue->value;
+            tmpValue.value.type = value->value.type;
+            tmpValue.value.arrayLength = value->value.arrayLength;
+
+            /* Copy the data over the old memory */
+            memcpy(tmpValue.value.data, value->value.data,
+                   oSize * oldValue->value.type->memSize);
+            memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                   sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+
+            /* Set the value */
+            node->value.data.value = tmpValue;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    /* Make a deep copy of the value and replace when this succeeds */
+    UA_StatusCode retval = UA_Variant_copy(&value->value, &tmpValue.value);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     UA_DataValue_clear(&node->value.data.value);
-    node->value.data.value = new_value;
+    node->value.data.value = tmpValue;
     return UA_STATUSCODE_GOOD;
 }
 
@@ -1498,11 +1532,18 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         break;
 
     case UA_VALUEBACKENDTYPE_EXTERNAL:
+        retval = UA_STATUSCODE_GOOD;
         if(node->valueBackend.backend.external.callback.userWrite) {
             retval = node->valueBackend.backend.external.callback.
                 userWrite(server, &session->sessionId, session->context,
                           &node->head.nodeId, node->head.context,
                           rangeptr, &adjustedValue);
+        } else {
+            if(node->valueBackend.backend.external.value) {
+                UA_DataValue_clear(*node->valueBackend.backend.external.value);
+                retval = UA_DataValue_copy(&adjustedValue,
+                                           *node->valueBackend.backend.external.value);
+            }
         }
         break;
 

@@ -800,26 +800,17 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
     msg->data.keyFrameData.fieldCount = (UA_UInt16)
         dsr->config.dataSetMetaData.fieldsSize;
 
+    /* Start iteration from beginning of rawFields buffer */
     size_t offset = 0;
-    /* start iteration from beginning of rawFields buffer */
-    msg->data.keyFrameData.rawFields.length = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
         const UA_DataType *type =
             UA_findDataTypeWithCustom(&dsr->config.dataSetMetaData.fields[i].dataType,
                                       server->config.customDataTypes);
-        size_t fieldLength = 0;
-        if(type->typeKind == UA_DATATYPEKIND_STRING || type->typeKind == UA_DATATYPEKIND_BYTESTRING)
-        {
-            UA_assert(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0);
-            // Length of binary encoded string = 4 (string length encoded as uint32) + N (actual string data) bytes.
-            // For fixed message layout N equals maxStringlength.
-            fieldLength = sizeof(UA_UInt32) + dsr->config.dataSetMetaData.fields[i].maxStringLength;
-        }
-else
-        {
-            fieldLength = type->memSize;
+        if(!type) {
+            UA_LOG_ERROR_READER(server->config.logging, dsr, "Type not found");
+            return;
         }
 
         // For arrays the length of the array is encoded before the actual data
@@ -829,11 +820,10 @@ else
             UA_UInt32 dimSize =
                 *(UA_UInt32 *)&msg->data.keyFrameData.rawFields.data[offset];
             if(dimSize != dsr->config.dataSetMetaData.fields[i].arrayDimensions[cnt]) {
-                UA_LOG_INFO_READER(
-                    server->config.logging, dsr,
-                    "Error during Raw-decode KeyFrame field %u: "
-                    "Dimension size in received data doesn't match the dataSetMetaData",
-                    (unsigned)i);
+                UA_LOG_INFO_READER(server->config.logging, dsr,
+                                   "Error during Raw-decode KeyFrame field %u: "
+                                   "Dimension size in received data doesn't match the dataSetMetaData",
+                                   (unsigned)i);
                 return;
             }
             offset += sizeof(UA_UInt32);
@@ -841,8 +831,6 @@ else
             dimCnt++;
         }
 
-        msg->data.keyFrameData.rawFields.length +=
-            fieldLength * elementCount + dimCnt * sizeof(UA_UInt32);
         UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
         UA_Byte *valPtr = value;
         UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -870,23 +858,16 @@ else
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
 
-        if(dsr->linkedReaderGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-            if (tv->beforeWrite) {
-                void *pData = (**tv->externalDataValue).value.data;
-                (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
+        if(tv->beforeWrite || tv->externalDataValue) {
+            if(tv->beforeWrite)
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
                                 &tv->targetVariable.targetNodeId,
-                                tv->targetVariableContext,
-                                tv->externalDataValue);
-                (**tv->externalDataValue).value.data = pData;  // restore previous data pointer
-            }
-            memcpy((**tv->externalDataValue).value.data, value, type->memSize);
+                                tv->targetVariableContext, tv->externalDataValue);
+            memcpy((*tv->externalDataValue)->value.data, value, type->memSize);
             if(tv->afterWrite)
-                tv->afterWrite(server, &dsr->identifier,
-                                &dsr->linkedReaderGroup->identifier,
-                                &tv->targetVariable.targetNodeId,
-                                tv->targetVariableContext,
-                                tv->externalDataValue);
+                tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                               &tv->targetVariable.targetNodeId,
+                               tv->targetVariableContext, tv->externalDataValue);
             continue; /* No dynamic allocation for fixed-size msg, no need to _clear */
         }
 
@@ -911,95 +892,46 @@ else
     }
 }
 
-static void
-DataSetReader_processFixedSize(UA_Server *server, UA_DataSetReader *dsr,
-                               UA_DataSetMessage *msg, size_t fieldCount) {
-    for(size_t i = 0; i < fieldCount; i++) {
-        if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
-            continue;
-
-        UA_FieldTargetVariable *tv =
-            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        if(tv->targetVariable.attributeId != UA_ATTRIBUTEID_VALUE)
-            continue;
-
-        if(msg->data.keyFrameData.dataSetFields[i].value.type !=
-           (*tv->externalDataValue)->value.type) {
-            UA_LOG_WARNING_READER(server->config.logging, dsr,
-                                  "Mismatching type");
-            continue;
-        }
-
-        if (tv->beforeWrite) {
-            UA_DataValue *tmp = &msg->data.keyFrameData.dataSetFields[i];
-            tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
-                            &tv->targetVariable.targetNodeId,
-                            tv->targetVariableContext, &tmp);
-        }
-        if(UA_LIKELY(tv->externalDataValue != NULL)) {
-            memcpy((**tv->externalDataValue).value.data,
-                   msg->data.keyFrameData.dataSetFields[i].value.data,
-                   msg->data.keyFrameData.dataSetFields[i].value.type->memSize);
-        }
-        if(tv->afterWrite)
-            tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
-                           &tv->targetVariable.targetNodeId,
-                           tv->targetVariableContext, tv->externalDataValue);
-    }
-}
-
 void
 UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
                          UA_DataSetMessage *msg) {
     if(!dsr || !msg || !server)
         return;
 
+    UA_LOG_DEBUG_READER(server->config.logging, dsr, "Received a network message");
+
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
     if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
 
-    /* Check the metadata, to see if this reader is configured for a heartbeat */
-    if(dsr->config.dataSetMetaData.fieldsSize == 0 &&
-       dsr->config.dataSetMetaData.configurationVersion.majorVersion == 0 &&
-       dsr->config.dataSetMetaData.configurationVersion.minorVersion == 0) {
-        /* Expecting a heartbeat, check the message */
-        if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME ||
-            msg->header.configVersionMajorVersion != 0 ||
-            msg->header.configVersionMinorVersion != 0 ||
-            msg->data.keyFrameData.fieldCount != 0) {
-            UA_LOG_INFO_READER(server->config.logging, dsr,
-                               "This DSR expects heartbeat, but the received "
-                               "message doesn't seem to be so.");
-        }
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-        UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
+    UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
-        UA_EventLoop *el = UA_PubSubConnection_getEL(server,
-                                                     dsr->linkedReaderGroup->linkedConnection);
-        dsr->lastHeartbeatReceived = el->dateTime_nowMonotonic(el);
+
+    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL) {
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
+                            "Received a network message but not operational");
         return;
     }
-
-    UA_LOG_DEBUG_READER(server->config.logging, dsr,
-                        "DataSetReader '%.*s': received a network message",
-                        (int)dsr->config.name.length, dsr->config.name.data);
 
     if(!msg->header.dataSetMessageValid) {
         UA_LOG_INFO_READER(server->config.logging, dsr,
                            "DataSetMessage is discarded: message is not valid");
-        /* To Do check ConfigurationVersion */
-        /* if(msg->header.configVersionMajorVersionEnabled) {
-         *     if(msg->header.configVersionMajorVersion !=
-         *            dsr->config.dataSetMetaData.configurationVersion.majorVersion) {
-         *         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-         *                        "DataSetMessage is discarded: ConfigurationVersion "
-         *                        "MajorVersion does not match");
-         *         return;
-         *     }
-         * } */
         return;
     }
+
+    /* TODO: Check ConfigurationVersion */
+    /* if(msg->header.configVersionMajorVersionEnabled) {
+     *     if(msg->header.configVersionMajorVersion !=
+     *            dsr->config.dataSetMetaData.configurationVersion.majorVersion) {
+     *         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+     *                        "DataSetMessage is discarded: ConfigurationVersion "
+     *                        "MajorVersion does not match");
+     *         return;
+     *     }
+     * } */
 
     if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
         UA_LOG_WARNING_READER(server->config.logging, dsr,
@@ -1007,58 +939,78 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
         return;
     }
 
-    /* Process message with raw encoding (realtime and non-realtime) */
+    /* Process message with raw encoding. We have no field-count information for
+     * the message. */
     if(msg->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
         DataSetReader_processRaw(server, dsr, msg);
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-        UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
-#endif
         return;
     }
 
-    /* Check and adjust the field count
-     * TODO Throw an error if non-matching? */
+    /* Received a heartbeat with no fields */
+    if(msg->data.keyFrameData.fieldCount == 0) {
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server,
+                                                     dsr->linkedReaderGroup->linkedConnection);
+        dsr->lastHeartbeatReceived = el->dateTime_nowMonotonic(el);
+        return;
+    }
+
+    /* Check whether the field count matches the configuration */
     size_t fieldCount = msg->data.keyFrameData.fieldCount;
-    if(dsr->config.dataSetMetaData.fieldsSize < fieldCount)
-        fieldCount = dsr->config.dataSetMetaData.fieldsSize;
-
-    if(dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize < fieldCount)
-        fieldCount = dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize;
-
-    /* Process message with fixed size fields (realtime capable) */
-    if(dsr->linkedReaderGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        DataSetReader_processFixedSize(server, dsr, msg, fieldCount);
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-        UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
-#endif
+    if(dsr->config.dataSetMetaData.fieldsSize != fieldCount) {
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
+                       "Number of fields does not match the DataSetMetaData configuration");
         return;
     }
 
-    /* Write the message fields via the write service (non realtime) */
+    if(dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize != fieldCount) {
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
+                       "Number of fields does not match the TargetVariables configuration");
+        return;
+    }
+
+    /* Write the message fields. RT has the external data value configured. */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < fieldCount; i++) {
-        if(!msg->data.keyFrameData.dataSetFields[i].hasValue)
+        UA_DataValue *field = &msg->data.keyFrameData.dataSetFields[i];
+        if(!field->hasValue)
             continue;
 
         UA_FieldTargetVariable *tv =
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
 
+        /* RT-path: write directly into the target memory */
+        if(tv->externalDataValue) {
+            if(field->value.type != (*tv->externalDataValue)->value.type) {
+                UA_LOG_WARNING_READER(server->config.logging, dsr, "Mismatching type");
+                continue;
+            }
+
+            if(tv->beforeWrite)
+                tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                                &tv->targetVariable.targetNodeId,
+                                tv->targetVariableContext, tv->externalDataValue);
+            memcpy((*tv->externalDataValue)->value.data,
+                   field->value.data, field->value.type->memSize);
+            if(tv->afterWrite)
+                tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                               &tv->targetVariable.targetNodeId,
+                               tv->targetVariableContext, tv->externalDataValue);
+            continue;
+        }
+
+        /* Write via the Write-Service */
         UA_WriteValue writeVal;
         UA_WriteValue_init(&writeVal);
         writeVal.attributeId = tv->targetVariable.attributeId;
         writeVal.indexRange = tv->targetVariable.receiverIndexRange;
         writeVal.nodeId = tv->targetVariable.targetNodeId;
-        writeVal.value = msg->data.keyFrameData.dataSetFields[i];
+        writeVal.value = *field;
         Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_INFO_READER(server->config.logging, dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)i, UA_StatusCode_name(res));
     }
-
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
-#endif
 }
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING

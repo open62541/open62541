@@ -74,12 +74,23 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE:
                 rv = UA_DataValue_encodeBinary(&nmo->content.value, &bufPos, bufEnd);
                 break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL:
+                rv = UA_DataValue_encodeBinary(*nmo->content.externalValue, &bufPos, bufEnd);
+                break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
                 rv = UA_Variant_encodeBinary(&nmo->content.value.value, &bufPos, bufEnd);
+                break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL:
+                rv = UA_Variant_encodeBinary(&(*nmo->content.externalValue)->value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
                 rv = UA_encodeBinaryInternal(nmo->content.value.value.data,
                                              nmo->content.value.value.type,
+                                             &bufPos, &bufEnd, NULL, NULL);
+                break;
+            case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL:
+                rv = UA_encodeBinaryInternal((*nmo->content.externalValue)->value.data,
+                                             (*nmo->content.externalValue)->value.type,
                                              &bufPos, &bufEnd, NULL, NULL);
                 break;
             default:
@@ -917,7 +928,7 @@ increaseOffsetArray(UA_NetworkMessageOffsetBuffer *offsetBuffer) {
                    sizeof(UA_NetworkMessageOffset) *
                    (offsetBuffer->offsetsSize + (size_t)1));
     UA_CHECK_MEM(tmpOffsets, return false);
-
+    memset(&tmpOffsets[offsetBuffer->offsetsSize], 0, sizeof(UA_NetworkMessageOffset));
     offsetBuffer->offsets = tmpOffsets;
     offsetBuffer->offsetsSize++;
     return true;
@@ -1725,12 +1736,6 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     return 0;
                 nmo = &offsetBuffer->offsets[pos];
                 nmo->offset = size;
-                if(p->data.keyFrameData.dataSetFields != NULL) {
-                    nmo->content.value = *v;
-                    nmo->content.value.value.storageType = UA_VARIANT_DATA_NODELETE;
-                } else {
-                   UA_DataValue_init(&nmo->content.value);
-                }
             }
 
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {

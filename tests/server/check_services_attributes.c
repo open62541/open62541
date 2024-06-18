@@ -65,7 +65,8 @@ static void setup(void) {
     UA_Variant_setScalar(&vattr.value, &m, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
     vattr.description = UA_LOCALIZEDTEXT("locale","the enum answer");
     vattr.displayName = UA_LOCALIZEDTEXT("locale","the enum answer");
-    vattr.valueRank = UA_VALUERANK_ANY;
+    vattr.valueRank = UA_VALUERANK_SCALAR;
+    vattr.dataType = UA_TYPES[UA_TYPES_MESSAGESECURITYMODE].typeId;
     retval = UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "the.enum.answer"),
                                        parentNodeId, parentReferenceNodeId,
                                        UA_QUALIFIEDNAME(1, "the enum answer"),
@@ -875,6 +876,10 @@ START_TEST(WriteSingleAttributeValueEnum) {
     wValue.nodeId = UA_NODEID_STRING(1, "the.enum.answer");
     wValue.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_Variant_setScalar(&wValue.value.value, &myInteger, &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE]);
+    retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ReadValueId rvi;

@@ -389,8 +389,6 @@ checkCreateSessionSignature(UA_Client *client, const UA_SecureChannel *channel,
 
 void
 processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
-    client->channel.state = UA_SECURECHANNELSTATE_CLOSING;
-
     size_t offset = 0;
     UA_TcpErrorMessage errMessage;
     client->connectStatus =
@@ -1380,6 +1378,7 @@ connectActivity(UA_Client *client) {
     case UA_SECURECHANNELSTATE_CONNECTING:
     case UA_SECURECHANNELSTATE_CLOSING:
     case UA_SECURECHANNELSTATE_HEL_SENT:
+    case UA_SECURECHANNELSTATE_OPN_SENT:
         return;
 
         /* Send HEL */
