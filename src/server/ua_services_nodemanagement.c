@@ -534,10 +534,6 @@ isMandatoryChild(UA_Server *server, UA_Session *session,
     return found;
 }
 
-static UA_StatusCode
-copyAllChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeId *source, const UA_NodeId *destination);
-
 static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval);
@@ -767,7 +763,7 @@ copyChild(UA_Server *server, UA_Session *session,
 }
 
 /* Copy any children of Node sourceNodeId to another node destinationNodeId. */
-static UA_StatusCode
+UA_StatusCode
 copyAllChildren(UA_Server *server, UA_Session *session,
                 const UA_NodeId *source, const UA_NodeId *destination) {
     /* Browse to get all children of the source */

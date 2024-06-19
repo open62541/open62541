@@ -58,9 +58,9 @@ UA_EventLoopPOSIX_modifyCyclicCallback(UA_EventLoop *public_el,
 
 static void
 UA_EventLoopPOSIX_removeCyclicCallback(UA_EventLoop *public_el,
-                                       UA_UInt64 callbackId) {
+                                       UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    UA_Timer_removeCallback(&el->timer, callbackId);
+    UA_Timer_removeCallback(&el->timer, callbackId, freeFn);
 }
 
 static void

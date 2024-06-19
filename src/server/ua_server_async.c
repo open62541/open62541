@@ -183,7 +183,7 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
 
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
-    removeCallback(server, am->checkTimeoutCallbackId);
+    removeCallback(server, am->checkTimeoutCallbackId, NULL);
 
     UA_AsyncOperation *ar, *ar_tmp;
 

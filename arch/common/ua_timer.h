@@ -9,8 +9,10 @@
 #ifndef UA_TIMER_H_
 #define UA_TIMER_H_
 
-#include <open62541/types.h>
 #include <open62541/plugin/eventloop.h>
+#include <open62541/types.h>
+
+#include "../../src/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -84,7 +86,7 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
                                 UA_TimerPolicy timerPolicy);
 
 void
-UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId);
+UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId, UA_DataFreeCallback freeFn);
 
 UA_DateTime
 UA_Timer_process(UA_Timer *t, UA_DateTime nowMonotonic);

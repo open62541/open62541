@@ -158,7 +158,7 @@ struct UA_EventLoop {
                             UA_Double interval_ms, UA_DateTime *baseTime,
                             UA_TimerPolicy timerPolicy);
 
-    void (*removeCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId);
+    void (*removeCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId, UA_DataFreeCallback freeFn);
 
     /* Like a cyclic callback, but executed only once */
     UA_StatusCode

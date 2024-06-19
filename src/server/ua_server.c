@@ -409,6 +409,10 @@ UA_Server_init(UA_Server *server) {
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    initNs0ConditionAndAlarms(server);
+#endif
+
     UA_UNLOCK(&server->serviceMutex);
     return server;
 
@@ -509,18 +513,18 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 }
 
 void
-removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+removeCallback(UA_Server *server, UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_EventLoop *el = server->config.eventLoop;
     if(el) {
-        el->removeCyclicCallback(el, callbackId);
+        el->removeCyclicCallback(el, callbackId, freeFn);
     }
 }
 
 void
-UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
+UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
     UA_LOCK(&server->serviceMutex);
-    removeCallback(server, callbackId);
+    removeCallback(server, callbackId, freeFn);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -711,8 +715,9 @@ UA_Server_run_startup(UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Start the EventLoop if not already started */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+
+    /* Start the EventLoop if not already started */
     UA_EventLoop *el = config->eventLoop;
     UA_CHECK_MEM_ERROR(el, return UA_STATUSCODE_BADINTERNALERROR,
                        config->logging, UA_LOGCATEGORY_SERVER,
@@ -859,7 +864,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
-        removeCallback(server, server->houseKeepingCallbackId);
+        removeCallback(server, server->houseKeepingCallbackId, NULL);
         server->houseKeepingCallbackId = 0;
     }
 

@@ -21,10 +21,16 @@
 
 _UA_BEGIN_DECLS
 
-/* Forward declaration */
+/* Forward declarations */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 struct UA_MonitoredItem;
 typedef struct UA_MonitoredItem UA_MonitoredItem;
+
+# ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+typedef UA_StatusCode
+(*UA_ConditionTypeSetupNodesFn)(UA_Server *server, const UA_NodeId *condition, const void *properties);
+#endif
+
 #endif
 
 /**
@@ -679,6 +685,11 @@ typedef struct {
 
     /* Members specific to open62541 */
     UA_NodeTypeLifecycle lifecycle;
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    /* For internal use only */
+    // TODO See if this can be moved to global node lifecycle
+    UA_ConditionTypeSetupNodesFn _conditionNodeSetupFn;
+#endif
 } UA_ObjectTypeNode;
 
 /**

@@ -53,6 +53,11 @@ typedef struct {
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+/* Forward Declarations */
+typedef ZIP_HEAD(UA_ConditionTree, UA_Condition) UA_ConditionTree;
+typedef ZIP_HEAD(UA_ConditionBranchTree, UA_ConditionBranch) UA_ConditionBranchTree;
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 /********************/
 /* Server Component */
 /********************/
@@ -166,7 +171,8 @@ struct UA_Server {
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) conditionSources;
+    UA_ConditionTree conditions;
+    UA_ConditionBranchTree conditionBranches;
     UA_NodeId refreshEvents[2];
 # endif
 #endif
@@ -382,6 +388,10 @@ addRef(UA_Server *server, const UA_NodeId sourceId,
        UA_Boolean forward);
 
 UA_StatusCode
+copyAllChildren(UA_Server *server, UA_Session *session,
+                const UA_NodeId *source, const UA_NodeId *destination);
+
+UA_StatusCode
 deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
                 const UA_NodeId referenceTypeId, UA_Boolean isForward,
                 const UA_ExpandedNodeId targetNodeId,
@@ -524,7 +534,7 @@ UA_StatusCode
 setNodeContext(UA_Server *server, UA_NodeId nodeId, void *nodeContext);
 
 void
-removeCallback(UA_Server *server, UA_UInt64 callbackId);
+removeCallback(UA_Server *server, UA_UInt64 callbackId, UA_DataFreeCallback freeFn);
 
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,

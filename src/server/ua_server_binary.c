@@ -1482,7 +1482,7 @@ setReverseConnectRetryCallback(UA_BinaryProtocolManager *bpm, UA_Boolean enabled
         return addRepeatedCallback(server, retryReverseConnectCallback, bpm,
                                    reconnectInterval, &bpm->reverseConnectsCheckHandle);
     } else if(!enabled && bpm->reverseConnectsCheckHandle) {
-        removeCallback(server, bpm->reverseConnectsCheckHandle);
+        removeCallback(server, bpm->reverseConnectsCheckHandle, NULL);
         bpm->reverseConnectsCheckHandle = 0;
     }
     return UA_STATUSCODE_GOOD;
@@ -1851,7 +1851,7 @@ UA_BinaryProtocolManager_stop(UA_Server *server,
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)comp;
 
     /* Stop the Housekeeping Task */
-    removeCallback(server, bpm->houseKeepingCallbackId);
+    removeCallback(server, bpm->houseKeepingCallbackId, NULL);
     bpm->houseKeepingCallbackId = 0;
 
     /* Stop the regular retry callback */

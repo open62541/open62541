@@ -171,7 +171,8 @@ UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
 }
 
 void
-UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
+UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
+
     UA_LOCK(&t->timerMutex);
     UA_TimerEntry *te = ZIP_FIND(UA_TimerIdTree, &t->idTree, &callbackId);
     if(UA_LIKELY(te != NULL)) {
@@ -179,6 +180,7 @@ UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId) {
             /* Remove/free the entry */
             ZIP_REMOVE(UA_TimerTree, &t->tree, te);
             ZIP_REMOVE(UA_TimerIdTree, &t->idTree, te);
+            if (freeFn) freeFn(te->data);
             UA_free(te);
         } else {
             /* We are currently processing. Only mark the entry to be deleted.

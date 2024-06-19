@@ -730,7 +730,7 @@ Subscription_setState(UA_Server *server, UA_Subscription *sub,
                       UA_SubscriptionState state) {
     if(state <= UA_SUBSCRIPTIONSTATE_REMOVING) {
         if(sub->publishCallbackId != 0) {
-            removeCallback(server, sub->publishCallbackId);
+            removeCallback(server, sub->publishCallbackId, NULL);
             sub->publishCallbackId = 0;
 #ifdef UA_ENABLE_DIAGNOSTICS
             sub->disableCount++;
