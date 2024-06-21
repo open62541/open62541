@@ -1990,6 +1990,14 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         return;
     }
 
+    /* Check if the configured History-Backend supports the requested history type */
+    if(!readHistory){
+        UA_LOG_INFO_SESSION(server->config.logging, session,
+                            "The configured HistoryBackend does not support the selected history-type.");
+        response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
+        return;
+    }
+
     /* Something to do? */
     if(request->nodesToReadSize == 0) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
