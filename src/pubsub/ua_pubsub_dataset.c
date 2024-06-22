@@ -844,7 +844,6 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet) {
     UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
     UA_NodeId_clear(&subscribedDataSet->identifier);
-    UA_NodeId_clear(&subscribedDataSet->connectedReader);
 }
 
 static UA_StatusCode
@@ -880,7 +879,7 @@ addStandaloneSubscribedDataSet(UA_Server *server,
     }
 
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
-    newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
+    newSubscribedDataSet->connectedReader = NULL;
 
     TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets,
                       newSubscribedDataSet, listEntry);
@@ -910,11 +909,11 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
 }
 
 UA_StatusCode
-UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds) {
+UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StandaloneSubscribedDataSet *sds =
-        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
+        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sdsIdentifier);
     if(!sds)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -925,14 +924,11 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds) {
         LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
             UA_DataSetReader *dsr, *tmpReader;
             LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmpReader) {
-                if(UA_NodeId_equal(&dsr->identifier, &sds->connectedReader)) {
+                if(dsr == sds->connectedReader)
                     UA_DataSetReader_remove(server, dsr);
-                }
             }
         }
     }
-
- done:
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, sds->identifier, true);

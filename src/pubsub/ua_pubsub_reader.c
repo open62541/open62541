@@ -217,7 +217,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                     DataSetReader_createTargetVariables(server, newDataSetReader,
                                                         subscribedDataSet->config.subscribedDataSet.
                                                         target.targetVariablesSize, targetVars);
-                    subscribedDataSet->connectedReader = newDataSetReader->identifier;
+                    subscribedDataSet->connectedReader = newDataSetReader;
 
                     for(size_t index = 0;
                         index < subscribedDataSet->config.subscribedDataSet.target
@@ -301,11 +301,12 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
     /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
     if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
-        UA_StandaloneSubscribedDataSet *subscribedDataSet =
+        UA_StandaloneSubscribedDataSet *sds =
             UA_StandaloneSubscribedDataSet_findSDSbyName(
                 server, dsr->config.linkedStandaloneSubscribedDataSetName);
-        if(subscribedDataSet != NULL) {
-            subscribedDataSet->config.isConnected = false;
+        if(sds != NULL) {
+            sds->config.isConnected = false;
+            sds->connectedReader = NULL;
         }
     }
 

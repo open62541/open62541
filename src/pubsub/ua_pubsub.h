@@ -105,6 +105,9 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 struct UA_SecurityGroup;
 typedef struct UA_SecurityGroup UA_SecurityGroup;
 
+struct UA_DataSetReader;
+typedef struct UA_DataSetReader UA_DataSetReader;
+
 const char *
 UA_PubSubState_name(UA_PubSubState state);
 
@@ -150,11 +153,11 @@ UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
-typedef struct UA_StandaloneSubscribedDataSet{
+typedef struct UA_StandaloneSubscribedDataSet {
     UA_StandaloneSubscribedDataSetConfig config;
     UA_NodeId identifier;
     TAILQ_ENTRY(UA_StandaloneSubscribedDataSet) listEntry;
-    UA_NodeId connectedReader;
+    UA_DataSetReader *connectedReader;
 } UA_StandaloneSubscribedDataSet;
 
 UA_StatusCode
@@ -534,7 +537,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
 /**********************************************/
 
 /* DataSetReader Type definition */
-typedef struct UA_DataSetReader {
+struct UA_DataSetReader {
     UA_PubSubComponentEnumType componentType;
     UA_DataSetReaderConfig config;
     UA_NodeId identifier;
@@ -552,7 +555,7 @@ typedef struct UA_DataSetReader {
     UA_UInt64 msgRcvTimeoutTimerId;
 #endif
     UA_DateTime lastHeartbeatReceived;
-} UA_DataSetReader;
+};
 
 /* Process Network Message using DataSetReader */
 void
