@@ -671,14 +671,15 @@ UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_EventLoop *el = server->config.eventLoop;
-    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
-
     UA_LOG_DEBUG_READER(server->config.logging, reader,
                         "UA_PubSubComponent_stopMonitoring(): "
                         "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
                         "Timer Id = '%u'", reader->config.messageReceiveTimeout,
                         (UA_UInt32)reader->msgRcvTimeoutTimerId);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
+    reader->msgRcvTimeoutTimerId = 0;
 
     return UA_STATUSCODE_GOOD;
 }
@@ -752,6 +753,13 @@ UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
                      "DataSetReader does not support timeout type '%i'",
                      eMonitoringType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* This implementation only stops monitoring and does no other cleanup.
+     * Other implementations might do it differently. */
+    if(reader->msgRcvTimeoutTimerId != 0) {
+        UA_PubSubComponent_stopMonitoring(server, Id, eComponentType,
+                                          eMonitoringType, data);
     }
 
     UA_LOG_DEBUG_READER(server->config.logging, reader,

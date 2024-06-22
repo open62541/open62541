@@ -547,7 +547,6 @@ typedef struct UA_DataSetReader {
     /* MessageReceiveTimeout handling */
     UA_ServerCallback msgRcvTimeoutTimerCallback;
     UA_UInt64 msgRcvTimeoutTimerId;
-    UA_Boolean msgRcvTimeoutTimerRunning;
 #endif
     UA_DateTime lastHeartbeatReceived;
 } UA_DataSetReader;
