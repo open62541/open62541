@@ -312,7 +312,7 @@ typedef struct UA_DataSetWriter {
     UA_NodeId identifier;
     UA_String logIdString;
     UA_WriterGroup *linkedWriterGroup;
-    UA_NodeId connectedDataSet;
+    UA_PublishedDataSet *connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
     UA_PubSubState state;
 

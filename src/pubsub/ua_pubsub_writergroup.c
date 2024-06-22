@@ -443,8 +443,7 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) {
         size_t fieldPos = 0;
         LIST_FOREACH(dsw, &wg->writers, listEntry) {
-            UA_PublishedDataSet *pds =
-                UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+            UA_PublishedDataSet *pds = dsw->connectedDataSet;
             if(!pds)
                 continue;
 
@@ -1223,8 +1222,7 @@ sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
     size_t fieldPos = 0;
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_PublishedDataSet *pds =
-            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
         if(!pds)
             continue;
 
@@ -1416,16 +1414,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
 
-        /* Heartbeats are send when no dataset is attached */
-        UA_Boolean heartbeat = UA_NodeId_isNull(&dsw->connectedDataSet);
-        UA_PublishedDataSet *pds = (heartbeat) ? NULL :
-            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-        if(!heartbeat && !pds) {
-            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
-                                "PubSub Publish: PublishedDataSet not found");
-            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
-            continue;
-        }
+        /* PDS can be NULL -> Heartbeat */
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
 
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;

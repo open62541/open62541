@@ -761,9 +761,8 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
         LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
             UA_DataSetWriter *dsw, *tmpWriter;
             LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, tmpWriter) {
-                if(UA_NodeId_equal(&dsw->connectedDataSet, &publishedDataSet->identifier)) {
+                if(dsw->connectedDataSet == publishedDataSet)
                     UA_DataSetWriter_remove(server, dsw);
-                }
             }
         }
     }

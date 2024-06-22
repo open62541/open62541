@@ -38,12 +38,12 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
 }
 
 UA_StatusCode
-UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dsw,
+UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
                                  UA_DataSetWriterConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dsw);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(dsw)
         res = UA_DataSetWriterConfig_copy(&dsw->config, config);
@@ -265,12 +265,12 @@ UA_DataSetWriter_create(UA_Server *server,
             }
         }
         /* Connect PublishedDataSet with DataSetWriter */
-        newDataSetWriter->connectedDataSet = pds->identifier;
+        newDataSetWriter->connectedDataSet = pds;
     } else {
         /* If the dataSet is NULL, we are adding a heartbeat writer */
         newDataSetWriter->connectedDataSetVersion.majorVersion = 0;
         newDataSetWriter->connectedDataSetVersion.minorVersion = 0;
-        newDataSetWriter->connectedDataSet = UA_NODEID_NULL;
+        newDataSetWriter->connectedDataSet = NULL;
     }
 
     /* Add the new writer to the group */
@@ -324,8 +324,7 @@ UA_Server_addDataSetWriter(UA_Server *server,
 void
 UA_DataSetWriter_freezeConfiguration(UA_Server *server,
                                      UA_DataSetWriter *dsw) {
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(pds) { /* Skip for heartbeat writers */
         pds->configurationFreezeCounter++;
         UA_DataSetField *dsf;
@@ -339,8 +338,7 @@ UA_DataSetWriter_freezeConfiguration(UA_Server *server,
 void
 UA_DataSetWriter_unfreezeConfiguration(UA_Server *server,
                                        UA_DataSetWriter *dsw) {
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(pds) { /* Skip for heartbeat writers */
         pds->configurationFreezeCounter--;
         if(pds->configurationFreezeCounter == 0) {
@@ -358,7 +356,8 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm) {
     /* No PublishedDataSet defined -> Heartbeat messages only */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(UA_NodeId_isNull(&dsw->connectedDataSet)) {
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
+    if(!pds) {
         res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_WRITER(server->config.logging, dsw,
@@ -366,16 +365,6 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                   "Heartbeat DataSetMessage creation failed");
         }
         return res;
-    }
-
-    /* Get the PublishedDataSet */
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-    if(!pds) {
-        UA_LOG_WARNING_WRITER(server->config.logging, dsw,
-                              "PubSub-RT configuration fail: "
-                              "PublishedDataSet not found");
-        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
@@ -478,7 +467,6 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 
     UA_DataSetWriterConfig_clear(&dataSetWriter->config);
     UA_NodeId_clear(&dataSetWriter->identifier);
-    UA_NodeId_clear(&dataSetWriter->connectedDataSet);
 
     if(server->config.pubSubConfig.enableDeltaFrames) {
         /* Delete lastSamples store */
@@ -569,8 +557,7 @@ static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -580,7 +567,6 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
     dataSetMessage->data.keyFrameData.fieldCount = pds->fieldSize;
     dataSetMessage->data.keyFrameData.dataSetFields = (UA_DataValue *)
             UA_Array_new(pds->fieldSize, &UA_TYPES[UA_TYPES_DATAVALUE]);
-    UA_PublishedDataSet *pds = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
     dataSetMessage->data.keyFrameData.dataSetMetaDataType = &pds->dataSetMetaData;
     if(!dataSetMessage->data.keyFrameData.dataSetFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -643,8 +629,7 @@ static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
                                                  UA_DataSetMessage *dataSetMessage,
                                                  UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -731,16 +716,8 @@ UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetMessage *dataSetMessage,
                                         UA_DataSetWriter *dataSetWriter) {
-    UA_Boolean heartbeat = false;
-    UA_PublishedDataSet *pds = NULL;
-
-    if(UA_NodeId_isNull(&dataSetWriter->connectedDataSet)){
-        heartbeat = true;
-    } else {
-        pds = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
-        if(!pds)
-            return UA_STATUSCODE_BADNOTFOUND;
-    }
+    /* Heartbeat message if no pds is connected */
+    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
 
     UA_WriterGroup *wg = dataSetWriter->linkedWriterGroup;
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
@@ -754,13 +731,9 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     UA_UadpDataSetWriterMessageDataType *dsm = NULL;
     UA_JsonDataSetWriterMessageDataType *jsonDsm = NULL;
     const UA_ExtensionObject *ms = &dataSetWriter->config.messageSettings;
-    if((ms->encoding == UA_EXTENSIONOBJECT_DECODED ||
-        ms->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-       ms->content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]) {
+    if(ms->content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]) {
         dsm = (UA_UadpDataSetWriterMessageDataType*)ms->content.decoded.data; /* type is UADP */
-    } else if((ms->encoding == UA_EXTENSIONOBJECT_DECODED ||
-               ms->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
-              ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]) {
+    } else if(ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]) {
         jsonDsm = (UA_JsonDataSetWriterMessageDataType*)ms->content.decoded.data; /* type is JSON */
     } else {
         /* Create default flag configuration if no
@@ -789,14 +762,13 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
 
     if(dsm) {
         /* Sanity-test the configuration */
-        if(dsm->networkMessageNumber != 0 ||
-           dsm->dataSetOffset != 0 ||
+        if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
            dsm->configuredSize != 0) {
             UA_LOG_WARNING_WRITER(server->config.logging, dataSetWriter,
                                   "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;
-          //  dsm->configuredSize = 0;
+            // dsm->configuredSize = 0;
         }
 
         /* setting configured size in the dataSetMessage to add padding later on */
@@ -807,7 +779,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_MAJORVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
-            if(heartbeat){
+            if(!pds) {
+                /* Heartbeat */
                 dataSetMessage->header.configVersionMajorVersion = 0;
             } else {
                 dataSetMessage->header.configVersionMajorVersion =
@@ -817,7 +790,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)dsm->dataSetMessageContentMask &
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_MINORVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
-            if(heartbeat){
+            if(!pds) {
+                /* Heartbeat */
                 dataSetMessage->header.configVersionMinorVersion = 0;
             } else {
                 dataSetMessage->header.configVersionMinorVersion =
@@ -853,7 +827,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
-            if(heartbeat){
+            if(!pds) {
+                /* Heartbeat */
                 dataSetMessage->header.configVersionMajorVersion = 0;
             } else {
                 dataSetMessage->header.configVersionMajorVersion =
@@ -863,7 +838,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
-            if(heartbeat){
+            if(!pds) {
+                /* Heartbeat */
                 dataSetMessage->header.configVersionMinorVersion = 0;
             } else {
                 dataSetMessage->header.configVersionMinorVersion =
@@ -894,8 +870,8 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     /* Set the sequence count. Automatically rolls over to zero */
     dataSetWriter->actualDataSetMessageSequenceCount++;
 
-    if(heartbeat) {
-        /* Prepare DataSetMessageContent */
+    if(!pds) {
+        /* Prepare DataSetMessageContent for the heartbeat message */
         dataSetMessage->header.dataSetMessageValid = true;
         dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATAKEYFRAME;
         dataSetMessage->data.keyFrameData.fieldCount = 0;
