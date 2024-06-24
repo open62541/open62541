@@ -50,7 +50,7 @@ static void setup(void) {
     ck_assert(server != NULL);
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_CertificateVerification_AcceptAll(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
     UA_AccessControl_default(config, false, NULL, usernamePasswordsSize, usernamePasswords);
 
     UA_String_clear(&config->applicationDescription.applicationUri);
