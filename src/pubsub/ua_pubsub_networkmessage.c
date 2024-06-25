@@ -1547,50 +1547,14 @@ UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset
         break;
 
     case UA_FIELDENCODING_RAWDATA:
+        /* If no size is known from the payload header, then the payload fills
+         * the entire message. In the future we should subtract security footer
+         * and signature as well (or do that before). */
+        if(dsmSize == 0)
+            dsmSize = src->length - initialOffset;
         kfd->rawFields.data = &src->data[*offset];
         kfd->rawFields.length = dsmSize;
-        if(dsmSize != 0) {
-            *offset += (dsmSize - (*offset - initialOffset));
-            break;
-        }
-
-        if(dsm == NULL) {
-            //TODO calculate the length of the DSM-Payload for a single DSM
-            //Problem: Size is not set and MetaData information are needed.
-            //Increase offset to avoid endless chunk loop. Needs to be fixed when
-            //pubsub security footer and signatur is enabled.
-            *offset += 1500;
-            break;
-        }
-
-        // calculate the length of the DSM-Payload for a single DSM
-        size_t tmpOffset = 0;
-        dst->data.keyFrameData.fieldCount = (UA_UInt16)dsm->fieldsSize;
-        for(size_t i = 0; i < dsm->fieldsSize; i++) {
-            /* TODO The datatype reference should be part of the internal
-             * pubsub configuration to avoid the time-expensive lookup */
-            const UA_DataType *type =
-                UA_findDataTypeWithCustom(&dsm->fields[i].dataType, customTypes);
-            if(!type)
-                return UA_STATUSCODE_BADINTERNALERROR;
-            dst->data.keyFrameData.rawFields.length += type->memSize;
-            UA_STACKARRAY(UA_Byte, value, type->memSize);
-            rv = UA_decodeBinaryInternal(&dst->data.keyFrameData.rawFields,
-                                         &tmpOffset, value, type, NULL);
-            UA_CHECK_STATUS(rv, return rv); 
-            if(dsm->fields[i].maxStringLength != 0) {
-                if(type->typeKind == UA_DATATYPEKIND_STRING ||
-                   type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                    UA_ByteString *bs = (UA_ByteString *) value;
-                    // Check if length < maxStringLength, The types ByteString
-                    // and String are equal in their base definition
-                    size_t lengthDifference = dsm->fields[i].maxStringLength - bs->length;
-                    tmpOffset += lengthDifference;
-                    dst->data.keyFrameData.rawFields.length += lengthDifference;
-                }
-            }
-            UA_clear(value, type);
-        }
+        *offset += (dsmSize - (*offset - initialOffset));
         break;
 
     default:
