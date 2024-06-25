@@ -32,8 +32,11 @@ typedef enum {
 	UA_PUBSUB_OFFSETTYPE_TIMESTAMP,     /* source pointer */
 	UA_PUBSUB_OFFSETTYPE_TIMESTAMP_NOW, /* no source */
 	UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL,
 	UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL,
 	UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW,
+    UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL,
 	/* For subscriber RT */
 	UA_PUBSUB_OFFSETTYPE_PUBLISHERID,
 	UA_PUBSUB_OFFSETTYPE_WRITERGROUPID,
@@ -45,6 +48,7 @@ typedef struct {
 	UA_NetworkMessageOffsetType contentType;
 	union {
 		UA_UInt16 sequenceNumber;
+        UA_DataValue **externalValue;
 		UA_DataValue value;
 	} content;
 	size_t offset;
@@ -97,8 +101,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst, UA_UInt16 dsmSize,
-                               const UA_DataTypeArray *customTypes,
-                               UA_DataSetMetaDataType *dsm);
+                               const UA_DataTypeArray *customTypes);
 
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
@@ -133,8 +136,8 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
 
 UA_StatusCode
 UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset,
-                                UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes,
-                                UA_DataSetMetaDataType *dsm);
+                                UA_NetworkMessage *dst,
+                                const UA_DataTypeArray *customTypes);
 
 UA_StatusCode
 UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,

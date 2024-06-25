@@ -343,24 +343,24 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
-    /* PubSubConnection freezeCounter++ */
+    /* Increase PubSubConnection freezeCounter */
     UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
     pubSubConnection->configurationFreezeCounter++;
 
-    /* WriterGroup freeze */
+    /* Freeze the WriterGroup */
     wg->configurationFrozen = true;
 
-    /* DataSetWriter freeze */
+    /* Freeze the DataSetWriter */
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         UA_DataSetWriter_freezeConfiguration(server, dsw);
     }
 
-    /* Enabling RT? */
-    if(wg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
+    /* Offset table enabled? */
+    if((wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
         return UA_STATUSCODE_GOOD;
 
-    /* Check if RT is possible */
+    /* Offset table only possible for binary encoding */
     if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
         UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
                                    "PubSub-RT configuration fail: Non-RT capable encoding.");
@@ -370,33 +370,27 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
     //TODO Clarify: Behaviour if the finale size is more than MTU
 
-    /* Prepare the DataSetMessages */
+    /* Define variables here for goto */
+    size_t msgSize;
+    UA_ByteString buf;
+    const UA_Byte *bufEnd;
+    UA_Byte *bufPos;
+    UA_NetworkMessage networkMessage;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Validate the DataSetWriters and generate their DataSetMessage */
     size_t dsmCount = 0;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_prepareDataSet(server, dsw, &dsmStore[dsmCount]);
-        if(res != UA_STATUSCODE_GOOD) {
-            for(size_t i = 0; i < dsmCount; i++) {
-                UA_DataSetMessage_clear(&dsmStore[i]);
-            }
-            return res;
-        }
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup_dsm;
         dsmCount++;
     }
 
-    /* Define variables here for goto */
-    size_t msgSize;
-    UA_ByteString buf;
-    UA_NetworkMessage networkMessage;
-    const UA_Byte *bufEnd;
-    UA_Byte *bufPos;
-
-    if(res != UA_STATUSCODE_GOOD)
-        goto cleanup_dsm;
-
+    /* Generate the NetworkMessage */
     memset(&networkMessage, 0, sizeof(networkMessage));
     res = generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
@@ -404,7 +398,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup_dsm;
 
-    /* Generate the offset-buffer (done inside calcSizeBinary) */
+    /* Compute the message length and generate the offset-table (done inside
+     * calcSizeBinary) */
     memset(&wg->bufferedMessage, 0, sizeof(UA_NetworkMessageOffsetBuffer));
     msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(&networkMessage,
                                                                &wg->bufferedMessage);
@@ -416,6 +411,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
                    signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
     }
 #endif
+
+    /* Generate the buffer for the pre-encoded message */
     res = UA_ByteString_allocBuffer(&buf, msgSize);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -425,13 +422,13 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     bufEnd = &wg->bufferedMessage.buffer.data[wg->bufferedMessage.buffer.length];
     bufPos = wg->bufferedMessage.buffer.data;
 
+    /* Preallocate the encryption buffer */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinaryWithEncryptStart(&networkMessage, &bufPos, bufEnd,
                                                        &payloadPosition);
         wg->bufferedMessage.payloadPosition = payloadPosition;
-
         wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
         wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
@@ -441,20 +438,51 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinaryWithEncryptStart(&networkMessage, &bufPos, bufEnd, NULL);
 
+    /* Post-processing of the OffsetBuffer to set the external data source from
+     * the DataSetField configuration */
+    if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) {
+        size_t fieldPos = 0;
+        LIST_FOREACH(dsw, &wg->writers, listEntry) {
+            UA_PublishedDataSet *pds = dsw->connectedDataSet;
+            if(!pds)
+                continue;
+
+            /* Loop over all DataSetFields */
+            UA_DataSetField *dsf;
+            TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+                UA_NetworkMessageOffsetType contentType;
+                /* Move forward to the next payload-type offset field */
+                do {
+                    fieldPos++;
+                    contentType = wg->bufferedMessage.offsets[fieldPos].contentType;
+                } while(contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE &&
+                        contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT &&
+                        contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW);
+                UA_assert(fieldPos < wg->bufferedMessage.offsetsSize);
+
+                if(!dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled)
+                    continue;
+
+                /* Set the external value soure in the offset buffer */
+                UA_DataValue_clear(&wg->bufferedMessage.offsets[fieldPos].content.value);
+                wg->bufferedMessage.offsets[fieldPos].content.externalValue =
+                    dsf->config.field.variable.rtValueSource.staticValueSource;
+
+                /* Update the content type to _EXTERNAL */
+                wg->bufferedMessage.offsets[fieldPos].contentType =
+                    (UA_NetworkMessageOffsetType)(contentType + 1);
+            }
+        }
+    }
+
  cleanup:
     UA_free(networkMessage.payload.dataSetPayload.sizes);
 
-    /* Clean up DSM */
  cleanup_dsm:
-    for(size_t i = 0; i < dsmCount; i++){
-        UA_free(dsmStore[i].data.keyFrameData.dataSetFields);
-#ifdef UA_ENABLE_JSON_ENCODING
-        UA_Array_delete(dsmStore[i].data.keyFrameData.fieldNames,
-                        dsmStore[i].data.keyFrameData.fieldCount,
-                        &UA_TYPES[UA_TYPES_STRING]);
-#endif
+    /* Clean up DataSetMessages */
+    for(size_t i = 0; i < dsmCount; i++) {
+        UA_DataSetMessage_clear(&dsmStore[i]);
     }
-
     return res;
 }
 
@@ -692,7 +720,8 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
 }
 
 UA_StatusCode
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId, UA_DateTime *timestamp){
+UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
+                                    UA_DateTime *timestamp){
     UA_LOCK(&server->serviceMutex);
     //search WriterGroup ToDo create lookup table for more efficiency
     UA_WriterGroup *writerGroup;
@@ -1187,8 +1216,57 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
 }
 
 static void
-publishRT(UA_Server *server, UA_WriterGroup *writerGroup, UA_PubSubConnection *connection) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
+    UA_LOCK(&server->serviceMutex);
+
+    size_t fieldPos = 0;
+    UA_DataSetWriter *dsw;
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
+        if(!pds)
+            continue;
+
+        /* Loop over the fields */
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            /* Get the matching offset table entry */
+            UA_NetworkMessageOffsetType contentType;
+            do {
+                fieldPos++;
+                contentType = wg->bufferedMessage.offsets[fieldPos].contentType;
+            } while(contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW &&
+                    contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL);
+
+            /* External data source is never sampled, but accessed directly in
+             * the encoding */
+            if(contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL ||
+               contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL ||
+               contentType == UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL)
+                continue;
+
+            /* Sample the value into the offset table */
+            UA_DataValue *dfv = &wg->bufferedMessage.offsets[fieldPos].content.value;
+            UA_DataValue_clear(dfv);
+            UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
+        }
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static void
+publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
+                   UA_PubSubConnection *connection) {
+    UA_assert(writerGroup->configurationFrozen);
+
+    /* Fixed size but no direct value access. Sample to get recent values into
+     * the offset buffer structure. */
+    if((writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) == 0)
+        sampleOffsetPublishingValues(server, writerGroup);
 
     UA_StatusCode res =
         UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage);
@@ -1288,29 +1366,29 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_assert(writerGroup != NULL);
     UA_assert(server != NULL);
 
-    UA_LOCK(&server->serviceMutex);
-
     UA_LOG_DEBUG_WRITERGROUP(server->config.logging, writerGroup, "Publish Callback");
-
-    /* Nothing to do? */
-    if(writerGroup->writersCount == 0) {
-        UA_UNLOCK(&server->serviceMutex);
-        return;
-    }
 
     /* Find the connection associated with the writer */
     UA_PubSubConnection *connection = writerGroup->linkedConnection;
     if(!connection) {
         UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
                                  "Publish failed. PubSubConnection invalid");
+        UA_LOCK(&server->serviceMutex);
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
 
     /* Realtime path - update the buffer message and send directly */
-    if(writerGroup->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE) {
-        publishRT(server, writerGroup, connection);
+    if(writerGroup->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+        publishWithOffsets(server, writerGroup, connection);
+        return;
+    }
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* Nothing to do? */
+    if(writerGroup->writersCount == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -1336,16 +1414,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
 
-        /* Heartbeats are send when no dataset is attached */
-        UA_Boolean heartbeat = UA_NodeId_isNull(&dsw->connectedDataSet);
-        UA_PublishedDataSet *pds = (heartbeat) ? NULL :
-            UA_PublishedDataSet_findPDSbyId(server, dsw->connectedDataSet);
-        if(!heartbeat && !pds) {
-            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
-                                "PubSub Publish: PublishedDataSet not found");
-            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
-            continue;
-        }
+        /* PDS can be NULL -> Heartbeat */
+        UA_PublishedDataSet *pds = dsw->connectedDataSet;
 
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
@@ -1365,7 +1435,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
                                &dsWriterIds[dsmCount], 1);
 
             /* Clean up the current store entry */
-            if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
+            if(writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
                dsmStore[dsmCount].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
                 for(size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
                     dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
@@ -1392,7 +1462,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     /* Clean up DSM */
     for(size_t i = 0; i < dsmCount; i++) {
-        if(writerGroup->config.rtLevel == UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
+        if(writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
            dsmStore[i].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
             for(size_t j = 0; j < dsmStore[i].data.keyFrameData.fieldCount; ++j) {
                 dsmStore[i].data.keyFrameData.dataSetFields[j].value.data = NULL;

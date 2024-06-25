@@ -525,7 +525,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Not rt, we don't have to adjust anything */
-    if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE)
+    if((rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
         return UA_STATUSCODE_GOOD;
 
     if(dsrCount > 1) {
@@ -554,23 +554,24 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
 
     size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
     for(size_t i = 0; i < fieldsSize; i++) {
-        UA_FieldTargetVariable *tv =
-            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-        const UA_VariableNode *rtNode = (const UA_VariableNode *)
-            UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId);
-        if(!rtNode ||
-           rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) {
-            UA_LOG_WARNING_READER(server->config.logging, dsr,
-                                  "PubSub-RT configuration fail: PDS contains field "
-                                  "without external data source.");
-            UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
+        /* TODO: Use the datasource from the node */
+        /* UA_FieldTargetVariable *tv = */
+        /*     &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i]; */
+        /* const UA_VariableNode *rtNode = (const UA_VariableNode *) */
+        /*     UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId); */
+        /* if(!rtNode || */
+        /*    rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) { */
+        /*     UA_LOG_WARNING_READER(server->config.logging, dsr, */
+        /*                           "PubSub-RT configuration fail: PDS contains field " */
+        /*                           "without external data source."); */
+        /*     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
+        /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
+        /* } */
 
-        /* Set the external data source in the tv */
-        tv->externalDataValue = rtNode->valueBackend.backend.external.value;
+        /* /\* Set the external data source in the tv *\/ */
+        /* tv->externalDataValue = rtNode->valueBackend.backend.external.value; */
 
-        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+        /* UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
 
         UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
         if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
@@ -657,9 +658,9 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
        readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
+    /* Set to operational if required */
     readerGroup->hasReceived = true;
-    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
 
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
