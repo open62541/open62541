@@ -821,15 +821,19 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
 
     UA_StatusCode rv;
 
+    /* This field shall be omitted if the payload-header is disabled or the count is 1 */
     UA_Byte count = 1;
     if(dst->payloadHeaderEnabled) {
         count = dst->payloadHeader.dataSetPayloadHeader.count;
+        if(count == 0)
+            return UA_STATUSCODE_BADDECODINGERROR;
         if(count > 1) {
             dst->payload.dataSetPayload.sizes = (UA_UInt16 *)
                 UA_Array_new(count, &UA_TYPES[UA_TYPES_UINT16]);
             for(UA_Byte i = 0; i < count; i++) {
-                rv = UA_UInt16_decodeBinary(src, offset,
-                                            &dst->payload.dataSetPayload.sizes[i]);
+                rv = UA_UInt16_decodeBinary(src, offset, &dst->payload.dataSetPayload.sizes[i]);
+                if(dst->payload.dataSetPayload.sizes[i] == 0)
+                    return UA_STATUSCODE_BADDECODINGERROR;
                 UA_CHECK_STATUS(rv, return rv);
             }
         }
