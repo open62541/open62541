@@ -1498,7 +1498,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 static UA_StatusCode
 UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset,
                                         size_t initialOffset, UA_DataSetMessage* dst,
-                                        UA_UInt16 dsmSize, const UA_DataTypeArray *customTypes) {
+                                        size_t dsmSize, const UA_DataTypeArray *customTypes) {
     if(*offset == src->length)
         return UA_STATUSCODE_GOOD; /* Messages ends after the header --> Heartbeat */
 
@@ -1564,7 +1564,7 @@ UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset
 
 static UA_StatusCode
 UA_DataSetMessage_deltaFrame_decodeBinary(const UA_ByteString *src, size_t *offset,
-                                          UA_DataSetMessage* dst, UA_UInt16 dsmSize,
+                                          UA_DataSetMessage* dst,
                                           const UA_DataTypeArray *customTypes) {
     if(dst->header.fieldEncoding == UA_FIELDENCODING_RAWDATA)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -1620,8 +1620,7 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                                      dsmSize, customTypes);
         break;
     case UA_DATASETMESSAGE_DATADELTAFRAME:
-        rv = UA_DataSetMessage_deltaFrame_decodeBinary(src, offset, dst,
-                                                       dsmSize, customTypes);
+        rv = UA_DataSetMessage_deltaFrame_decodeBinary(src, offset, dst, customTypes);
         break;
     case UA_DATASETMESSAGE_KEEPALIVE:
         break; /* Keep-Alive Message contains no Payload Data */
