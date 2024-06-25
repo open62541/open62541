@@ -789,9 +789,8 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
             return;
         }
 
-        // For arrays the length of the array is encoded before the actual data
+        /* For arrays the length of the array is encoded before the actual data */
         size_t elementCount = 1;
-        size_t dimCnt = 0;
         for(int cnt = 0; cnt < dsr->config.dataSetMetaData.fields[i].valueRank; cnt++) {
             UA_UInt32 dimSize =
                 *(UA_UInt32 *)&msg->data.keyFrameData.rawFields.data[offset];
@@ -804,7 +803,6 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
             }
             offset += sizeof(UA_UInt32);
             elementCount *= dimSize;
-            dimCnt++;
         }
 
         UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
