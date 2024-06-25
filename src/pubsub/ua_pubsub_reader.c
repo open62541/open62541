@@ -1064,7 +1064,7 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
         UA_free(nm);
         return rv;
     }
-    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes, &reader->config.dataSetMetaData);
+    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes);
     rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);

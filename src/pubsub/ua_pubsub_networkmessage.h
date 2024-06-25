@@ -101,8 +101,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst, UA_UInt16 dsmSize,
-                               const UA_DataTypeArray *customTypes,
-                               UA_DataSetMetaDataType *dsm);
+                               const UA_DataTypeArray *customTypes);
 
 size_t
 UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage *p,
@@ -137,8 +136,8 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
 
 UA_StatusCode
 UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset,
-                                UA_NetworkMessage *dst, const UA_DataTypeArray *customTypes,
-                                UA_DataSetMetaDataType *dsm);
+                                UA_NetworkMessage *dst,
+                                const UA_DataTypeArray *customTypes);
 
 UA_StatusCode
 UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
