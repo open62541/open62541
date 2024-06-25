@@ -805,7 +805,11 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
             elementCount *= dimSize;
         }
 
+        UA_FieldTargetVariable *tv =
+            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
+
         UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
+        memset(value, 0, elementCount * type->memSize);
         UA_Byte *valPtr = value;
         UA_StatusCode res = UA_STATUSCODE_GOOD;
         for(size_t cnt = 0; cnt < elementCount; cnt++) {
@@ -829,9 +833,6 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
             valPtr += type->memSize;
         }
 
-        UA_FieldTargetVariable *tv =
-            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-
         if(tv->beforeWrite || tv->externalDataValue) {
             if(tv->beforeWrite)
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
@@ -842,26 +843,33 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
                 tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
-            continue; /* No dynamic allocation for fixed-size msg, no need to _clear */
+        } else {
+            UA_WriteValue writeVal;
+            UA_WriteValue_init(&writeVal);
+            writeVal.attributeId = tv->targetVariable.attributeId;
+            writeVal.indexRange = tv->targetVariable.receiverIndexRange;
+            writeVal.nodeId = tv->targetVariable.targetNodeId;
+            if(dsr->config.dataSetMetaData.fields[i].valueRank > 0) {
+                UA_Variant_setArray(&writeVal.value.value, value, elementCount, type);
+            } else {
+                UA_Variant_setScalar(&writeVal.value.value, value, type);
+            }
+            writeVal.value.hasValue = true;
+            Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                      "Error writing KeyFrame field %u: %s",
+                                      (unsigned)i, UA_StatusCode_name(res));
+            }
         }
 
-        UA_WriteValue writeVal;
-        UA_WriteValue_init(&writeVal);
-        writeVal.attributeId = tv->targetVariable.attributeId;
-        writeVal.indexRange = tv->targetVariable.receiverIndexRange;
-        writeVal.nodeId = tv->targetVariable.targetNodeId;
-        if(dsr->config.dataSetMetaData.fields[i].valueRank > 0) {
-            UA_Variant_setArray(&writeVal.value.value, value, elementCount, type);
-        } else {
-            UA_Variant_setScalar(&writeVal.value.value, value, type);
-        }
-        writeVal.value.hasValue = true;
-        Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
-        UA_clear(value, type);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(server->config.logging, dsr,
-                               "Error writing KeyFrame field %u: %s",
-                               (unsigned)i, UA_StatusCode_name(res));
+        /* Clean up if string-type (with mallocs) was used */
+        if(!type->pointerFree) {
+            valPtr = value;
+            for(size_t cnt = 0; cnt < elementCount; cnt++) {
+                UA_clear(value, type);
+                valPtr += type->memSize;
+            }
         }
     }
 }
