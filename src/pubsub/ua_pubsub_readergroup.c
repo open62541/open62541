@@ -658,9 +658,9 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
        readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
+    /* Set to operational if required */
     readerGroup->hasReceived = true;
-    if(readerGroup->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
 
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
