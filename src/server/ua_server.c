@@ -33,6 +33,9 @@
 #include "open62541/nodesetinjector.h"
 #endif
 
+#define STARTCHANNELID 1
+#define STARTTOKENID 1
+
 /**********************/
 /* Namespace Handling */
 /**********************/
@@ -373,6 +376,12 @@ UA_Server_init(UA_Server *server) {
     /* Initialize Session Management */
     LIST_INIT(&server->sessions);
     server->sessionCount = 0;
+
+    /* Initialize SecureChannel */
+    TAILQ_INIT(&server->channels);
+    /* TODO: use an ID that is likely to be unique after a restart */
+    server->lastChannelId = STARTCHANNELID;
+    server->lastTokenId = STARTTOKENID;
 
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_init(&server->asyncManager, server);
