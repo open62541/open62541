@@ -78,6 +78,10 @@ typedef struct {
 
     size_t certificateInfosSize;
     UA_GDSCertificateInfo *certificateInfos;
+
+    /* Callback to close all SecureChannels after calling applyChanges
+     * and freeing the transaction. */
+    UA_DelayedCallback dc;
 } UA_GDSTransaction;
 
 UA_GDSTransaction*

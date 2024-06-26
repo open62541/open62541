@@ -666,6 +666,13 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+static void
+sercureChannel_delayedClose(void *application, void *context) {
+    /* TODO: Iterate over all secure channels and close them. */
+    UA_GDSTransaction *transaction = (UA_GDSTransaction*)context;
+    UA_GDSTransaction_clear(transaction);
+}
+
 UA_StatusCode
 UA_Server_applyChanges(UA_Server *server) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -740,6 +747,17 @@ UA_Server_applyChanges(UA_Server *server) {
                 goto cleanup;
         }
     }
+
+    /* Add to the delayed callback list. Will be cleaned up in the next iteration. */
+    UA_DelayedCallback *dc = &transaction->dc;
+    dc->callback = sercureChannel_delayedClose;
+    dc->application = NULL;
+    dc->context = transaction;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+
+    return UA_STATUSCODE_GOOD;
 
 cleanup:
     UA_GDSTransaction_clear(transaction);
