@@ -226,6 +226,54 @@ UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
 #endif
 }
 
+UA_StatusCode
+UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString *certificate,
+                                     const UA_ByteString *privateKey) {
+    if(!transaction || !certificate)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Check if an entry with certificateGroupId and certificateTypeId already exists */
+    for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
+        UA_GDSCertificateInfo *certInfo = &transaction->certificateInfos[i];
+
+        if(!UA_NodeId_equal(&certInfo->certificateGroup, &certificateGroupId) ||
+           !UA_NodeId_equal(&certInfo->certificateType, &certificateTypeId))
+            continue;
+
+        UA_ByteString_clear(&certInfo->certificate);
+        UA_ByteString_clear(&certInfo->privateKey);
+
+        UA_ByteString_copy(certificate, &certInfo->certificate);
+        certInfo->privateKey = UA_BYTESTRING_NULL;
+        if(privateKey)
+            UA_ByteString_copy(privateKey, &certInfo->privateKey);
+
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_GDSCertificateInfo *newCertInfos = (UA_GDSCertificateInfo *)UA_realloc(transaction->certificateInfos,
+        (transaction->certificateInfosSize + 1) * sizeof(UA_GDSCertificateInfo));
+    if(!newCertInfos)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    transaction->certificateInfos = newCertInfos;
+
+    UA_GDSCertificateInfo *newCertInfo = &transaction->certificateInfos[transaction->certificateInfosSize];
+    UA_ByteString_copy(certificate, &newCertInfo->certificate);
+    UA_NodeId_copy(&certificateGroupId, &newCertInfo->certificateGroup);
+    UA_NodeId_copy(&certificateTypeId, &newCertInfo->certificateType);
+    newCertInfo->privateKey = UA_BYTESTRING_NULL;
+    if(privateKey)
+        UA_ByteString_copy(privateKey, &newCertInfo->privateKey);
+
+    transaction->certificateInfosSize++;
+
+    return UA_STATUSCODE_GOOD;
+}
+
 void UA_GDSTransaction_clear(UA_GDSTransaction *transaction) {
     if(!transaction)
         return;
@@ -618,16 +666,6 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
-static void
-notifySecureChannelsStopped(UA_Server *server, struct UA_ServerComponent *sc,
-                            UA_LifecycleState state) {
-    if(sc->state == UA_LIFECYCLESTATE_STOPPED &&
-       server->state == UA_LIFECYCLESTATE_STARTED) {
-        sc->notifyState = NULL; /* remove the callback */
-        sc->start(server, sc);
-    }
-}
-
 UA_StatusCode
 UA_Server_applyChanges(UA_Server *server) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
@@ -712,54 +750,37 @@ cleanup:
 
 UA_StatusCode
 UA_Server_updateCertificate(UA_Server *server,
-                            const UA_ByteString *oldCertificate,
-                            const UA_ByteString *newCertificate,
-                            const UA_ByteString *newPrivateKey,
-                            UA_Boolean closeSessions,
-                            UA_Boolean closeSecureChannels) {
-    UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
-             return UA_STATUSCODE_BADINTERNALERROR);
+                            const UA_NodeId certificateGroupId,
+                            const UA_NodeId certificateTypeId,
+                            const UA_ByteString *certificate,
+                            const UA_ByteString *issuerCertificates,
+                            const size_t issuerCertificatesSize,
+                            const UA_ByteString *privateKey,
+                            const UA_String *privateKeyFormat) {
+    UA_CHECK(server && certificate, return UA_STATUSCODE_BADINTERNALERROR);
 
-    if(closeSessions) {
-        session_list_entry *current;
-        LIST_FOREACH(current, &server->sessions, pointers) {
-            UA_Session *session = &current->session;
-            if(!session->channel)
-                continue;
-            if(!UA_ByteString_equal(oldCertificate,
-                                    &session->channel->securityPolicy->localCertificate))
-                continue;
+    /* The server currently only supports the DefaultApplicationGroup */
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-            UA_LOCK(&server->serviceMutex);
-            UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                           UA_SHUTDOWNREASON_CLOSE);
-            UA_UNLOCK(&server->serviceMutex);
-        }
+    /* The server currently only supports the following certificate types */
+    UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaMin) &&
+       !UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    if(!server->transaction) {
+        server->transaction = UA_GDSTransaction_new(server->adminSession.sessionId);
     }
 
-    /* Gracefully close all SecureChannels. And restart the
-     * BinaryProtocolManager once it has fully stopped. */
-    if(closeSecureChannels) {
-        UA_ServerComponent *binaryProtocolManager =
-            getServerComponentByName(server, UA_STRING("binary"));
-        if(binaryProtocolManager) {
-            binaryProtocolManager->notifyState = notifySecureChannelsStopped;
-            binaryProtocolManager->stop(server, binaryProtocolManager);
-        }
-    }
-
-    size_t i = 0;
-    while(i < server->config.endpointsSize) {
-        UA_EndpointDescription *ed = &server->config.endpoints[i];
-        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
-            UA_String_clear(&ed->serverCertificate);
-            UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
-                            &server->config.endpoints[i].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
-        }
-        i++;
+    UA_StatusCode retval = UA_GDSTransaction_addCertificateInfo(server->transaction, certificateGroupId,
+                                                                certificateTypeId, certificate,
+                                                                privateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_GDSTransaction_clear(server->transaction);
+        return retval;
     }
 
     return UA_STATUSCODE_GOOD;

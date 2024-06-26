@@ -86,7 +86,15 @@ UA_GDSTransaction_new(const UA_NodeId sessionId);
 /* Returns the appropriate CertificateGroup from the transaction.
  * If the CertificateGroup does not exist in the transaction, it will be created. */
 UA_CertificateGroup*
-UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction, const UA_CertificateGroup *certGroup);
+UA_GDSTransaction_getCertificateGroup(UA_GDSTransaction *transaction,
+                                      const UA_CertificateGroup *certGroup);
+
+UA_StatusCode
+UA_GDSTransaction_addCertificateInfo(UA_GDSTransaction *transaction,
+                                     const UA_NodeId certificateGroupId,
+                                     const UA_NodeId certificateTypeId,
+                                     const UA_ByteString *certificate,
+                                     const UA_ByteString *privateKey);
 
 void
 UA_GDSTransaction_clear(UA_GDSTransaction *transaction);
