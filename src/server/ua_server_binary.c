@@ -24,9 +24,6 @@
 #include "ua_services.h"
 #include "mp_printf.h"
 
-#define STARTCHANNELID 1
-#define STARTTOKENID 1
-
 #ifdef UA_DEBUG_DUMP_PKGS_FILE
 void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const connection,
                                 UA_ByteString *messageBuffer);
@@ -38,12 +35,6 @@ void UA_debug_dumpCompleteChunk(UA_Server *const server, UA_Connection *const co
 
 /* Maximum numbers of sockets to listen on */
 #define UA_MAXSERVERCONNECTIONS 16
-
-/* SecureChannel Linked List */
-typedef struct channel_entry {
-    UA_SecureChannel channel;
-    TAILQ_ENTRY(channel_entry) pointers;
-} channel_entry;
 
 typedef struct {
     UA_ConnectionState state;
@@ -87,8 +78,6 @@ typedef struct {
 
     /* SecureChannels */
     TAILQ_HEAD(, channel_entry) channels;
-    UA_UInt32 lastChannelId;
-    UA_UInt32 lastTokenId;
 
     /* Reverse Connections */
     LIST_HEAD(, reverse_connect_context) reverseConnects;
@@ -106,20 +95,6 @@ UA_StatusCode setReverseConnectRetryCallback(UA_BinaryProtocolManager *bpm,
 /********************/
 /* Helper Functions */
 /********************/
-
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server) {
-    UA_ServerComponent *sc =
-        getServerComponentByName(server, UA_STRING("binary"));
-    if(!sc) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Cannot generate a SecureChannel Token Id. "
-                     "No BinaryProtocolManager configured.");
-        return 0;
-    }
-    UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
-    return bpm->lastTokenId++;
-}
 
 static void
 setBinaryProtocolManagerState(UA_Server *server,
@@ -146,7 +121,8 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
     UA_SecureChannel_clear(channel);
 
     /* Detach the channel from the server list */
-    TAILQ_REMOVE(&bpm->channels, (channel_entry*)channel, pointers);
+    TAILQ_REMOVE(&bpm->server->channels, (channel_entry*)channel, serverEntry);
+    TAILQ_REMOVE(&bpm->channels, (channel_entry*)channel, componentEntry);
 
     /* Update the statistics */
     UA_SecureChannelStatistics *scs = &bpm->server->secureChannelStatistics;
@@ -578,7 +554,7 @@ processSecureChannelMessage(void *application, UA_SecureChannel *channel,
 static UA_Boolean
 purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
     channel_entry *entry;
-    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+    TAILQ_FOREACH(entry, &bpm->channels, componentEntry) {
         if(entry->channel.sessions)
             continue;
         UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel,
@@ -673,7 +649,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
      * in UA_SecureChannelManager_open. Set the ChannelId also in the
      * alternative security token, we don't touch this value during the token
      * rollover. */
-    entry->channel.securityToken.channelId = bpm->lastChannelId++;
+    entry->channel.securityToken.channelId = server->lastChannelId++;
 
     /* Set an initial timeout before the negotiation handshake. So the channel
      * is caught if the client is unresponsive.
@@ -684,7 +660,8 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     entry->channel.securityToken.revisedLifetime = 10000; /* 10s should be enough */
 
     /* Add to the server's list */
-    TAILQ_INSERT_TAIL(&bpm->channels, entry, pointers);
+    TAILQ_INSERT_TAIL(&server->channels, entry, serverEntry);
+    TAILQ_INSERT_TAIL(&bpm->channels, entry, componentEntry);
 
     /* Update the statistics */
     server->secureChannelStatistics.currentChannelCount++;
@@ -926,7 +903,7 @@ secureChannelHouseKeeping(UA_Server *server, void *context) {
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
 
     channel_entry *entry;
-    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+    TAILQ_FOREACH(entry, &bpm->channels, componentEntry) {
         UA_Boolean timeout = UA_SecureChannel_checkTimeout(&entry->channel, nowMonotonic);
         if(timeout) {
             UA_LOG_INFO_CHANNEL(bpm->logging, &entry->channel, "SecureChannel has timed out");
@@ -1416,7 +1393,7 @@ UA_BinaryProtocolManager_stop(UA_Server *server,
 
     /* Stop all SecureChannels */
     channel_entry *entry;
-    TAILQ_FOREACH(entry, &bpm->channels, pointers) {
+    TAILQ_FOREACH(entry, &bpm->channels, componentEntry) {
         UA_SecureChannel_shutdown(&entry->channel, UA_SHUTDOWNREASON_CLOSE);
     }
 
@@ -1460,16 +1437,12 @@ UA_BinaryProtocolManager_new(UA_Server *server) {
     bpm->server = server;
     bpm->logging = server->config.logging;
 
-    /* Initialize SecureChannel */
     TAILQ_INIT(&bpm->channels);
-
-    /* TODO: use an ID that is likely to be unique after a restart */
-    bpm->lastChannelId = STARTCHANNELID;
-    bpm->lastTokenId = STARTTOKENID;
 
     bpm->sc.name = UA_STRING("binary");
     bpm->sc.start = UA_BinaryProtocolManager_start;
     bpm->sc.stop = UA_BinaryProtocolManager_stop;
     bpm->sc.free = UA_BinaryProtocolManager_free;
+
     return &bpm->sc;
 }

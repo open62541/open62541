@@ -59,6 +59,12 @@ typedef struct {
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
+typedef struct channel_entry {
+    UA_SecureChannel channel;
+    TAILQ_ENTRY(channel_entry) serverEntry;
+    TAILQ_ENTRY(channel_entry) componentEntry;
+} channel_entry;
+
 /********************/
 /* Server Component */
 /********************/
@@ -151,6 +157,11 @@ struct UA_Server {
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
 
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
@@ -232,9 +243,6 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 request
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_ByteString *securityPolicyUri);
-
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server);
 
 /********************/
 /* Session Handling */
