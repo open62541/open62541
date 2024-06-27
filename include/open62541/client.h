@@ -432,7 +432,7 @@ UA_Client_connectSecureChannelAsync(UA_Client *client, const char *endpointUrl) 
     cc->endpointUrl = UA_STRING_ALLOC(endpointUrl);
 
     /* Connect */
-    return __UA_Client_connect(client, false);
+    return __UA_Client_connect(client, true);
 }
 
 /* Connect to the server and create+activate a Session with the given username
