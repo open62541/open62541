@@ -91,7 +91,7 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
                                         UA_UInt16 portNumber,
                                         const UA_ByteString *certificate,
                                         const UA_ByteString *privateKey,
-                                        const UA_String *storePath);
+                                        const UA_String storePath);
 
 #endif
 
@@ -228,10 +228,6 @@ UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
  * @param config The configuration to manipulate
  * @param certificate The server certificate.
  * @param privateKey The private key that corresponds to the certificate.
- * @param trustList The trustList for client certificate validation.
- * @param trustListSize The trustList size.
- * @param revocationList The revocationList for client certificate validation.
- * @param revocationListSize The revocationList size.
  */
 UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllSecurityPolicies(UA_ServerConfig *config,
@@ -242,6 +238,111 @@ UA_EXPORT UA_StatusCode
 UA_ServerConfig_addAllSecureSecurityPolicies(UA_ServerConfig *config,
                                        const UA_ByteString *certificate,
                                        const UA_ByteString *privateKey);
+
+#ifdef __linux__ /* Linux only so far */
+
+/* Adds the security policy ``SecurityPolicy#Basic128Rsa15`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic128Rsa15_Filestore(UA_ServerConfig *config,
+                                                         const UA_ByteString *certificate,
+                                                         const UA_ByteString *privateKey,
+                                                         const UA_String storePath);
+
+/* Adds the security policy ``SecurityPolicy#Basic256`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic256_Filestore(UA_ServerConfig *config,
+                                                    const UA_ByteString *certificate,
+                                                    const UA_ByteString *privateKey,
+                                                    const UA_String storePath);
+
+/* Adds the security policy ``SecurityPolicy#Basic256Sha256`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyBasic256Sha256_Filestore(UA_ServerConfig *config,
+                                                          const UA_ByteString *certificate,
+                                                          const UA_ByteString *privateKey,
+                                                          const UA_String storePath);
+
+/* Adds the security policy ``SecurityPolicy#Aes128Sha256RsaOaep`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyAes128Sha256RsaOaep_Filestore(UA_ServerConfig *config,
+                                                               const UA_ByteString *certificate,
+                                                               const UA_ByteString *privateKey,
+                                                               const UA_String storePath);
+
+/* Adds the security policy ``SecurityPolicy#Aes256Sha256RsaPss`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss_Filestore(UA_ServerConfig *config,
+                                                              const UA_ByteString *certificate,
+                                                              const UA_ByteString *privateKey,
+                                                              const UA_String storePath);
+
+/* Adds all supported security policies and sets up certificate
+ * validation procedures.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ * @param storePath The path to the pki folder.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
+                                              const UA_ByteString *certificate,
+                                              const UA_ByteString *privateKey,
+                                              const UA_String storePath);
+#endif
 
 #endif
 

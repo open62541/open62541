@@ -27,10 +27,24 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy,
                                 const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Basic128Rsa15_Filestore(UA_SecurityPolicy *policy,
+                                          const UA_ByteString localCertificate,
+                                          const UA_ByteString localPrivateKey,
+                                          const UA_String storePath,
+                                          const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Basic256(UA_SecurityPolicy *policy,
                            const UA_ByteString localCertificate,
                            const UA_ByteString localPrivateKey,
                            const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Basic256_Filestore(UA_SecurityPolicy *policy,
+                                     const UA_ByteString localCertificate,
+                                     const UA_ByteString localPrivateKey,
+                                     const UA_String storePath,
+                                     const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
@@ -39,16 +53,37 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
                                  const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Basic256Sha256_Filestore(UA_SecurityPolicy *policy,
+                                           const UA_ByteString localCertificate,
+                                           const UA_ByteString localPrivateKey,
+                                           const UA_String storePath,
+                                           const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
-                                 const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey,
-                                 const UA_Logger *logger);
+                                      const UA_ByteString localCertificate,
+                                      const UA_ByteString localPrivateKey,
+                                      const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Aes128Sha256RsaOaep_Filestore(UA_SecurityPolicy *policy,
+                                                const UA_ByteString localCertificate,
+                                                const UA_ByteString localPrivateKey,
+                                                const UA_String storePath,
+                                                const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
                                      const UA_ByteString localCertificate,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
+
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Aes256Sha256RsaPss_Filestore(UA_SecurityPolicy *policy,
+                                               const UA_ByteString localCertificate,
+                                               const UA_ByteString localPrivateKey,
+                                               const UA_String storePath,
+                                               const UA_Logger *logger);
 
 #endif
 
