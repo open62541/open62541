@@ -81,7 +81,13 @@ static void setup2(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    UA_ServerConfig_setDefaultWithFilestore(config, 4840, &certificate, &privateKey, NULL);
+    char storePathDir[4096];
+    if(getcwd(storePathDir, 4096) == NULL)
+        ck_abort();
+
+    const UA_String storePath = UA_STRING(storePathDir);
+
+    UA_ServerConfig_setDefaultWithFilestore(config, 4840, &certificate, &privateKey, storePath);
     config->eventLoop->dateTime_now= UA_DateTime_now_fake;
     config->eventLoop->dateTime_nowMonotonic = UA_DateTime_now_fake;
     config->tcpReuseAddr = true;

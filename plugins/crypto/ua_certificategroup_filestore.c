@@ -428,7 +428,7 @@ FileCertStore_setupStorePath(char *directory, char *rootDirectory,
 }
 
 static UA_StatusCode
-FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String *directory) {
+FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String directory) {
     if(certGroup == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -439,18 +439,10 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
     char rootDirectory[PATH_MAX] = {0};
     size_t rootDirectorySize = 0;
 
-    /* Set base directory */
-    if(directory != NULL) {
-        if(directory->length >= PATH_MAX) {
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        memcpy(rootDirectory, directory->data, directory->length);
-    }
-    else {
-        if(getcwd(rootDirectory, PATH_MAX) == NULL) {
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
+    if(directory.length <= 0 || directory.length >= PATH_MAX)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    memcpy(rootDirectory, directory.data, directory.length);
     rootDirectorySize = strnlen(rootDirectory, PATH_MAX);
 
     /* Add pki directory */
@@ -669,7 +661,7 @@ FileCertStore_clear(UA_CertificateGroup *certGroup) {
 UA_StatusCode
 UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
                               UA_NodeId *certificateGroupId,
-                              const UA_String *storePath,
+                              const UA_String storePath,
                               const UA_Logger *logger,
                               const UA_KeyValueMap *params) {
     if(certGroup == NULL || certificateGroupId == NULL) {

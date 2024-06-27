@@ -387,15 +387,15 @@ main(int argc, char **argv) {
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #else /* On Linux we can monitor the pki folder and reload when changes are made */
-    UA_String *pkiStoreFolder = NULL;
-    if(pkiFolder) {
-        pkiStoreFolder = UA_String_new();
-        *pkiStoreFolder = UA_STRING_ALLOC(pkiFolder);
+    if(!pkiFolder) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Path to the Pki folder must be specified.");
+        goto cleanup;
     }
+    UA_String pkiStoreFolder = UA_STRING(pkiFolder);
     UA_StatusCode res = UA_ServerConfig_setDefaultWithFilestore(
         &config, port, &certificate, &privateKey, pkiStoreFolder);
-    if(pkiStoreFolder)
-        UA_String_clear(pkiStoreFolder);
+    UA_String_clear(&pkiStoreFolder);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* __linux__ */

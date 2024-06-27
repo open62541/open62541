@@ -1029,6 +1029,7 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_filestore.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)
