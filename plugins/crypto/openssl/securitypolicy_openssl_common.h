@@ -146,6 +146,15 @@ UA_OpenSSL_AES_128_CBC_Encrypt(const UA_ByteString *iv,
                                const UA_ByteString *key,
                                UA_ByteString *data  /* [in/out]*/);
 
+UA_StatusCode
+UA_OpenSSL_CreateSigningRequest(EVP_PKEY *localPrivateKey,
+                                EVP_PKEY **csrLocalPrivateKey,
+                                UA_SecurityPolicy *securityPolicy,
+                                const UA_String *subjectName,
+                                const UA_ByteString *nonce,
+                                UA_ByteString *csr,
+                                UA_ByteString *newPrivateKey);
+
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey);
 

@@ -103,7 +103,7 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
-    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+    UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     UA_DataSetField *dsf;
     TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
@@ -172,7 +172,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
         ck_assert(dataSetField->configurationFrozen == UA_TRUE);
         ck_assert(pubSubConnection->configurationFreezeCounter > 0);
-        UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, dataSetWriter->connectedDataSet);
+        UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
         ck_assert(publishedDataSet->configurationFreezeCounter > 0);
         UA_DataSetField *dsf;
         TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){

@@ -124,6 +124,10 @@ typedef SSIZE_T ssize_t;
 # endif
 #endif
 
+#if defined (__APPLE__)
+typedef int SOCKET;
+#endif
+
 #define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
@@ -316,7 +320,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
 #else
 # define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)

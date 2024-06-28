@@ -47,6 +47,7 @@ typedef struct {
     mbedtls_entropy_context entropyContext;
     mbedtls_md_context_t sha1MdContext;
     mbedtls_pk_context localPrivateKey;
+    mbedtls_pk_context csrLocalPrivateKey;
 } Basic128Rsa15_PolicyContext;
 
 typedef struct {
@@ -598,6 +599,7 @@ clear_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy) {
     mbedtls_ctr_drbg_free(&pc->drbgContext);
     mbedtls_entropy_free(&pc->entropyContext);
     mbedtls_pk_free(&pc->localPrivateKey);
+    mbedtls_pk_free(&pc->csrLocalPrivateKey);
     mbedtls_md_free(&pc->sha1MdContext);
     UA_ByteString_clear(&pc->localCertThumbprint);
 
@@ -650,6 +652,30 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
     if(securityPolicy->policyContext != NULL)
         clear_sp_basic128rsa15(securityPolicy);
     return retval;
+}
+
+static UA_StatusCode
+createSigningRequest_sp_basic128rsa15(UA_SecurityPolicy *securityPolicy,
+                                       const UA_String *subjectName,
+                                       const UA_ByteString *nonce,
+                                       const UA_KeyValueMap *params,
+                                       UA_ByteString *csr,
+                                       UA_ByteString *newPrivateKey) {
+    /* Check parameter */
+    if (securityPolicy == NULL || csr == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Basic128Rsa15_PolicyContext *pc =
+            (Basic128Rsa15_PolicyContext *) securityPolicy->policyContext;
+
+    return mbedtls_createSigningRequest(&pc->localPrivateKey, &pc->csrLocalPrivateKey,
+                                        &pc->entropyContext, &pc->drbgContext,
+                                        securityPolicy, subjectName, nonce,
+                                        csr, newPrivateKey);
 }
 
 static UA_StatusCode
@@ -740,6 +766,8 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
     policy->logger = logger;
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15\0");
+    policy->certificateGroupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    policy->certificateTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
     policy->securityLevel = 0;
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
@@ -848,6 +876,7 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
         channelContext_compareCertificate_sp_basic128rsa15;
 
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic128rsa15;
+    policy->createSigningRequest = createSigningRequest_sp_basic128rsa15;
     policy->clear = clear_sp_basic128rsa15;
 
     UA_StatusCode res = policyContext_newContext_sp_basic128rsa15(policy, localPrivateKey);

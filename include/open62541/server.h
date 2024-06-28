@@ -1901,6 +1901,18 @@ UA_Server_updateCertificate(UA_Server *server,
                             UA_Boolean closeSecureChannels);
 
 /**
+ * Creates a PKCS #10 DER encoded certificate request signed with the server's private key
+ * ---------------------------------------------------------------------------------------- */
+UA_StatusCode UA_EXPORT
+UA_Server_createSigningRequest(UA_Server *server,
+                               const UA_NodeId certificateGroupId,
+                               const UA_NodeId certificateTypeId,
+                               const UA_String *subjectName,
+                               const UA_Boolean *regenerateKey,
+                               const UA_ByteString *nonce,
+                               UA_ByteString *csr);
+
+/**
  * Utility Functions
  * ----------------- */
 

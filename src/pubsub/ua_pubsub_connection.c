@@ -79,7 +79,7 @@ loops_exit:
     }
 #endif
 
-    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, server->config.customDataTypes, NULL);
+    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, server->config.customDataTypes);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         return rv;

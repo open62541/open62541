@@ -1795,8 +1795,8 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                      &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                      NULL, &dataSetWriter->identifier);
     //if connected dataset is null this means it's configured for heartbeats
-    if(!UA_NodeId_isNull(&dataSetWriter->connectedDataSet)) {
-        retVal |= addRef(server, dataSetWriter->connectedDataSet,
+    if(dataSetWriter->connectedDataSet) {
+        retVal |= addRef(server, dataSetWriter->connectedDataSet->identifier,
                          UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETTOWRITER),
                          dataSetWriter->identifier, true);
     }

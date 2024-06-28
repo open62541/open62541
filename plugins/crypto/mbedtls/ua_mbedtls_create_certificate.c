@@ -25,28 +25,6 @@
 #define SET_OID(x, oid) \
     do { x.len = MBEDTLS_OID_SIZE(oid); x.p = (unsigned char *) oid; } while (0)
 
-#define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
-    do                                     \
-    {                                      \
-        if ((ret = (f)) < 0)               \
-        goto cleanup;                      \
-        else                               \
-        (g) += ret;                        \
-    } while (0)
-
-#if MBEDTLS_VERSION_NUMBER < 0x02170000
-#define MBEDTLS_X509_SAN_OTHER_NAME                      0
-#define MBEDTLS_X509_SAN_RFC822_NAME                     1
-#define MBEDTLS_X509_SAN_DNS_NAME                        2
-#define MBEDTLS_X509_SAN_X400_ADDRESS_NAME               3
-#define MBEDTLS_X509_SAN_DIRECTORY_NAME                  4
-#define MBEDTLS_X509_SAN_EDI_PARTY_NAME                  5
-#define MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER     6
-#define MBEDTLS_X509_SAN_IP_ADDRESS                      7
-#define MBEDTLS_X509_SAN_REGISTERED_ID                   8
-#endif
-
-#define MBEDTLS_SAN_MAX_LEN    64
 typedef struct mbedtls_write_san_node{
     int type;
     char* host;

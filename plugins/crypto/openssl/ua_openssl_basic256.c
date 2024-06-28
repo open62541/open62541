@@ -24,6 +24,7 @@
 
 typedef struct {
     EVP_PKEY *                localPrivateKey;
+    EVP_PKEY *                csrLocalPrivateKey;
     UA_ByteString             localCertThumbprint;
     const UA_Logger *         logger;
 } Policy_Context_Basic256;
@@ -52,11 +53,12 @@ UA_Policy_Basic256_New_Context (UA_SecurityPolicy * securityPolicy,
     }
 
     context->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&localPrivateKey);
-
     if (!context->localPrivateKey) {
         UA_free (context);
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
+
+    context->csrLocalPrivateKey = NULL;
 
     UA_StatusCode retval = UA_Openssl_X509_GetCertificateThumbprint (
                          &securityPolicy->localCertificate,
@@ -89,6 +91,7 @@ UA_Policy_Basic256_Clear_Context (UA_SecurityPolicy *policy) {
     /* delete all allocated members in the context */
 
     EVP_PKEY_free(ctx->localPrivateKey);
+    EVP_PKEY_free(ctx->csrLocalPrivateKey);
     UA_ByteString_clear(&ctx->localCertThumbprint);
     UA_free (ctx);
 
@@ -142,6 +145,29 @@ error:
     if(securityPolicy->policyContext != NULL)
         UA_Policy_Basic256_Clear_Context(securityPolicy);
     return retval;
+}
+
+static UA_StatusCode
+createSigningRequest_sp_basic256(UA_SecurityPolicy *securityPolicy,
+                                 const UA_String *subjectName,
+                                 const UA_ByteString *nonce,
+                                 const UA_KeyValueMap *params,
+                                 UA_ByteString *csr,
+                                 UA_ByteString *newPrivateKey) {
+    /* Check parameter */
+    if (securityPolicy == NULL || csr == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    if(securityPolicy->policyContext == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_Basic256 *pc =
+            (Policy_Context_Basic256 *) securityPolicy->policyContext;
+
+    return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
+                                           securityPolicy, subjectName, nonce,
+                                           csr, newPrivateKey);
 }
 
 /* create the channel context */
@@ -562,6 +588,8 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256\0");
+    policy->certificateGroupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    policy->certificateTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
     policy->securityLevel = 0;
 
     /* set ChannelModule context  */
@@ -649,6 +677,7 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
         return retval;
     }
     policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_basic256;
+    policy->createSigningRequest = createSigningRequest_sp_basic256;
     policy->clear = UA_Policy_Basic256_Clear_Context;
 
     /* Use the same signature algorithm as the asymmetric component for

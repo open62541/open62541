@@ -79,7 +79,7 @@ add_custom_target(doc_latex ${SPHINX_EXECUTABLE}
                   -b latex "${DOC_SRC_DIR}" "${DOC_LATEX_DIR}"
                   DEPENDS ${GENERATED_RST} ${DOC_TARGET}
                   COMMENT "Building LaTeX sources for documentation with Sphinx")
-add_dependencies(doc_latex ${OPEN62541-LIB})
+add_dependencies(doc_latex open62541)
 
 add_custom_target(doc_pdf ${PDFLATEX_COMPILER} -interaction=batchmode "open62541.tex"
                   WORKING_DIRECTORY ${DOC_LATEX_DIR}
@@ -93,7 +93,7 @@ add_custom_target(doc ${SPHINX_EXECUTABLE}
                   -b html "${DOC_SRC_DIR}" "${DOC_HTML_DIR}"
                   DEPENDS ${GENERATED_RST} ${DOC_TARGET}
                   COMMENT "Building HTML documentation with Sphinx")
-add_dependencies(doc ${OPEN62541-LIB})
+add_dependencies(doc open62541)
 
 set_target_properties(doc doc_latex doc_pdf PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD TRUE)
 set_target_properties(doc doc_latex doc_pdf PROPERTIES FOLDER "open62541/doc")

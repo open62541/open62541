@@ -570,7 +570,7 @@ __Client_Service(UA_Client *client, const void *request,
      * want a Session). Otherwise reopen. */
     if(!isFullyConnected(client)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Re-establish the connction for the synchronous service call");
+                    "Re-establish the connection for the synchronous service call");
         connectSync(client);
         if(client->connectStatus != UA_STATUSCODE_GOOD) {
             respHeader->serviceResult = client->connectStatus;

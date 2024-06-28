@@ -305,6 +305,9 @@ struct UA_SecurityPolicy {
      * depends on the used key length. */
     UA_ByteString localCertificate;
 
+    UA_NodeId certificateGroupId;
+    UA_NodeId certificateTypeId;
+
     /* Function pointers grouped into modules */
     UA_SecurityPolicyAsymmetricModule asymmetricModule;
     UA_SecurityPolicySymmetricModule symmetricModule;
@@ -318,6 +321,15 @@ struct UA_SecurityPolicy {
     UA_StatusCode (*updateCertificateAndPrivateKey)(UA_SecurityPolicy *policy,
                                                     const UA_ByteString newCertificate,
                                                     const UA_ByteString newPrivateKey);
+
+    /* Creates a PKCS #10 DER encoded certificate request signed with the server's
+     * private key. */
+    UA_StatusCode (*createSigningRequest)(UA_SecurityPolicy *securityPolicy,
+                                          const UA_String *subjectName,
+                                          const UA_ByteString *nonce,
+                                          const UA_KeyValueMap *params,
+                                          UA_ByteString *csr,
+                                          UA_ByteString *newPrivateKey);
 
     /* Deletes the dynamic content of the policy */
     void (*clear)(UA_SecurityPolicy *policy);

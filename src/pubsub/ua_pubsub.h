@@ -105,6 +105,9 @@ typedef struct UA_ReaderGroup UA_ReaderGroup;
 struct UA_SecurityGroup;
 typedef struct UA_SecurityGroup UA_SecurityGroup;
 
+struct UA_DataSetReader;
+typedef struct UA_DataSetReader UA_DataSetReader;
+
 const char *
 UA_PubSubState_name(UA_PubSubState state);
 
@@ -150,11 +153,11 @@ UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
-typedef struct UA_StandaloneSubscribedDataSet{
+typedef struct UA_StandaloneSubscribedDataSet {
     UA_StandaloneSubscribedDataSetConfig config;
     UA_NodeId identifier;
     TAILQ_ENTRY(UA_StandaloneSubscribedDataSet) listEntry;
-    UA_NodeId connectedReader;
+    UA_DataSetReader *connectedReader;
 } UA_StandaloneSubscribedDataSet;
 
 UA_StatusCode
@@ -167,6 +170,9 @@ UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identi
 void
 UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet);
+
+UA_StatusCode
+UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds);
 
 #define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
@@ -306,7 +312,7 @@ typedef struct UA_DataSetWriter {
     UA_NodeId identifier;
     UA_String logIdString;
     UA_WriterGroup *linkedWriterGroup;
-    UA_NodeId connectedDataSet;
+    UA_PublishedDataSet *connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
     UA_PubSubState state;
 
@@ -531,7 +537,7 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
 /**********************************************/
 
 /* DataSetReader Type definition */
-typedef struct UA_DataSetReader {
+struct UA_DataSetReader {
     UA_PubSubComponentEnumType componentType;
     UA_DataSetReaderConfig config;
     UA_NodeId identifier;
@@ -547,10 +553,9 @@ typedef struct UA_DataSetReader {
     /* MessageReceiveTimeout handling */
     UA_ServerCallback msgRcvTimeoutTimerCallback;
     UA_UInt64 msgRcvTimeoutTimerId;
-    UA_Boolean msgRcvTimeoutTimerRunning;
 #endif
     UA_DateTime lastHeartbeatReceived;
-} UA_DataSetReader;
+};
 
 /* Process Network Message using DataSetReader */
 void
