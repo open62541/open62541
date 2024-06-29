@@ -274,6 +274,7 @@ option(UA_FORCE_32BIT "Force compilation as 32-bit executable" OFF)
 mark_as_advanced(UA_FORCE_32BIT)
 
 option(UA_FORCE_WERROR "Force compilation with -Werror (or /WX on MSVC)" OFF)
+mark_as_advanced(UA_FORCE_WERROR)
 
 option(UA_ENABLE_DEBUG_SANITIZER "Use sanitizer in debug mode" ON)
 mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
