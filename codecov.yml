@@ -2,9 +2,11 @@ coverage:
   round: down
   precision: 1
 
-# ignore generated files
+# Ignore examples, tests and generated files
 ignore:
-  - "/src/util/ua_eventfilter_grammar.c"
-  - "/src/util/ua_eventfilter_lex.c"
-  - "/src/util/ua_types_lex.c"
+  - "**/tests/**"
+  - "**/examples/**"
+  - "**/ua_eventfilter_grammar.c"
+  - "**/ua_eventfilter_lex.c"
+  - "**/ua_types_lex.c"
   - "**/src_generated/**"
