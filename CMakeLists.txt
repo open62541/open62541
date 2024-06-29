@@ -598,8 +598,13 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
-    if(BUILD_SHARED_LIBS OR UNIX)
+    if(BUILD_SHARED_LIBS)
         add_cc_flag("-fPIC")
+    else()
+        # Workaround until shared lib is better contained:
+        if(UA_ENABLE_AMALGAMATION AND UNIX)
+            add_cc_flag("-fPIC")
+        endif()
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
