@@ -250,25 +250,6 @@ if((UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS) AND (NOT (UA_ENABLE_SUBSCRIPTIONS
     message(FATAL_ERROR "Unable to enable A&C without UA_ENABLE_SUBSCRIPTIONS_EVENTS and full namespace 0")
 endif()
 
-if(UA_ENABLE_COVERAGE)
-  # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
-  set(ENABLE_COVERAGE ON)
-  find_package(codecov REQUIRED)
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
-  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-arcs -ftest-coverage")
-endif()
-
-if(UA_ENABLE_CLANG_COV)
-    if(NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
-        message(FATAL_ERROR "Compiler must be clang when compiling for llvm-cov")
-    endif()
-    if(UA_ENABLE_COVERAGE)
-        message(FATAL_ERROR "Only either clang cov or normal coverage is allowed.")
-    endif()
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
-endif()
-
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
     SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
@@ -277,9 +258,11 @@ endif()
 # Advanced options
 option(UA_ENABLE_COVERAGE "Enable gcov coverage" OFF)
 mark_as_advanced(UA_ENABLE_COVERAGE)
-
-option(UA_ENABLE_CLANG_COV "Enable clang coverage" OFF)
-mark_as_advanced(UA_ENABLE_CLANG_COV)
+if(UA_ENABLE_COVERAGE)
+    # We are using the scripts provided at for coverage testing: https://github.com/RWTH-HPC/CMake-codecov
+    set(ENABLE_COVERAGE ON)
+    find_package(codecov REQUIRED)
+endif()
 
 option(UA_ENABLE_QUERY "Enable query support in the client (most servers don't support it)" OFF)
 mark_as_advanced(UA_ENABLE_QUERY)
@@ -607,6 +590,15 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
             message(FATAL_ERROR "Select the 32bit (cross-) compiler instead of forcing compiler options")
         endif()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32") # GCC and Clang, possibly more
+    endif()
+
+    # Coverage
+    if(UA_ENABLE_COVERAGE)
+        check_add_cc_flag("--coverage")
+        if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+            check_add_cc_flag("-fprofile-instr-generate")
+            check_add_cc_flag("-fcoverage-mapping")
+        endif()
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
