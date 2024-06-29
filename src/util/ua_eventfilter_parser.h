@@ -16,24 +16,25 @@ _UA_BEGIN_DECLS
 
 /* The following token identifiers are generated from ua_eventfilter_grammar.y.
  * They need to be udpated here whenever the grammar is changed. */
-#define EF_TOK_AND                              1
-#define EF_TOK_OR                               2
-#define EF_TOK_BINARY_OP                        3
-#define EF_TOK_BETWEEN                          4
-#define EF_TOK_INLIST                           5
-#define EF_TOK_UNARY_OP                         6
-#define EF_TOK_SELECT                           7
-#define EF_TOK_COMMA                            8
-#define EF_TOK_WHERE                            9
-#define EF_TOK_LPAREN                          10
-#define EF_TOK_RPAREN                          11
+#define EF_TOK_OR                               1
+#define EF_TOK_AND                              2
+#define EF_TOK_NOT                              3
+#define EF_TOK_BINARY_OP                        4
+#define EF_TOK_BETWEEN                          5
+#define EF_TOK_INLIST                           6
+#define EF_TOK_UNARY_OP                         7
+#define EF_TOK_SELECT                           8
+#define EF_TOK_COMMA                            9
+#define EF_TOK_WHERE                           10
+#define EF_TOK_SAO                             11
 #define EF_TOK_LITERAL                         12
-#define EF_TOK_SAO                             13
-#define EF_TOK_NAMEDOPERAND                    14
-#define EF_TOK_LBRACKET                        15
-#define EF_TOK_RBRACKET                        16
-#define EF_TOK_FOR                             17
-#define EF_TOK_COLONEQUAL                      18
+#define EF_TOK_NAMEDOPERAND                    13
+#define EF_TOK_LPAREN                          14
+#define EF_TOK_RPAREN                          15
+#define EF_TOK_LBRACKET                        16
+#define EF_TOK_RBRACKET                        17
+#define EF_TOK_FOR                             18
+#define EF_TOK_COLONEQUAL                      19
 
 typedef union {
     UA_FilterOperator filter;

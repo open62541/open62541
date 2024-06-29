@@ -40,25 +40,26 @@ static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token, EFParseC
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols.
 ***************** Begin token definitions *************************************/
-#ifndef EF_TOK_AND
-#define EF_TOK_AND                             1
-#define EF_TOK_OR                              2
-#define EF_TOK_BINARY_OP                       3
-#define EF_TOK_BETWEEN                         4
-#define EF_TOK_INLIST                          5
-#define EF_TOK_UNARY_OP                        6
-#define EF_TOK_SELECT                          7
-#define EF_TOK_COMMA                           8
-#define EF_TOK_WHERE                           9
-#define EF_TOK_LPAREN                         10
-#define EF_TOK_RPAREN                         11
+#ifndef EF_TOK_OR
+#define EF_TOK_OR                              1
+#define EF_TOK_AND                             2
+#define EF_TOK_NOT                             3
+#define EF_TOK_BINARY_OP                       4
+#define EF_TOK_BETWEEN                         5
+#define EF_TOK_INLIST                          6
+#define EF_TOK_UNARY_OP                        7
+#define EF_TOK_SELECT                          8
+#define EF_TOK_COMMA                           9
+#define EF_TOK_WHERE                          10
+#define EF_TOK_SAO                            11
 #define EF_TOK_LITERAL                        12
-#define EF_TOK_SAO                            13
-#define EF_TOK_NAMEDOPERAND                   14
-#define EF_TOK_LBRACKET                       15
-#define EF_TOK_RBRACKET                       16
-#define EF_TOK_FOR                            17
-#define EF_TOK_COLONEQUAL                     18
+#define EF_TOK_NAMEDOPERAND                   13
+#define EF_TOK_LPAREN                         14
+#define EF_TOK_RPAREN                         15
+#define EF_TOK_LBRACKET                       16
+#define EF_TOK_RBRACKET                       17
+#define EF_TOK_FOR                            18
+#define EF_TOK_COLONEQUAL                     19
 #endif
 /**************** End token definitions ***************************************/
 
@@ -118,7 +119,7 @@ static void UA_EventFilterParse(void *yyp, int yymajor, Operand *token, EFParseC
 #endif
 /************* Begin control #defines *****************************************/
 #define YYCODETYPE unsigned char
-#define YYNOCODE 29
+#define YYNOCODE 30
 #define YYACTIONTYPE unsigned char
 #define UA_EventFilterParseTOKENTYPE  Operand * 
 typedef union {
@@ -138,18 +139,18 @@ typedef union {
 #define UA_EventFilterParseCTX_PARAM
 #define UA_EventFilterParseCTX_FETCH
 #define UA_EventFilterParseCTX_STORE
-#define YYNSTATE             34
-#define YYNRULE              25
-#define YYNRULE_WITH_ACTION  17
-#define YYNTOKEN             19
-#define YY_MAX_SHIFT         33
-#define YY_MIN_SHIFTREDUCE   48
-#define YY_MAX_SHIFTREDUCE   72
-#define YY_ERROR_ACTION      73
-#define YY_ACCEPT_ACTION     74
-#define YY_NO_ACTION         75
-#define YY_MIN_REDUCE        76
-#define YY_MAX_REDUCE        100
+#define YYNSTATE             37
+#define YYNRULE              26
+#define YYNRULE_WITH_ACTION  18
+#define YYNTOKEN             20
+#define YY_MAX_SHIFT         36
+#define YY_MIN_SHIFTREDUCE   49
+#define YY_MAX_SHIFTREDUCE   74
+#define YY_ERROR_ACTION      75
+#define YY_ACCEPT_ACTION     76
+#define YY_NO_ACTION         77
+#define YY_MIN_REDUCE        78
+#define YY_MAX_REDUCE        103
 /************* End control #defines *******************************************/
 #define YY_NLOOKAHEAD ((int)(sizeof(yy_lookahead)/sizeof(yy_lookahead[0])))
 
@@ -216,50 +217,54 @@ typedef union {
 **  yy_default[]       Default action for each state.
 **
 *********** Begin parsing tables **********************************************/
-#define YY_ACTTAB_COUNT (76)
+#define YY_ACTTAB_COUNT (92)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */   100,   11,    9,    8,   30,   29,   11,    9,    8,   30,
- /*    10 */    29,   74,   17,    6,   22,   80,   60,    1,   11,    9,
- /*    20 */     8,   30,   29,   23,   80,   10,   18,   80,   51,   12,
- /*    30 */    31,   53,   54,   55,   11,    9,    8,   30,   29,   19,
- /*    40 */    80,   32,   32,   26,   21,   80,   25,   28,   91,   33,
- /*    50 */    25,   28,   27,   87,   80,    5,   86,   80,   84,   80,
- /*    60 */    85,   80,   20,   80,   24,   80,   14,    4,   16,   61,
- /*    70 */     2,    3,    7,   13,   15,   93,
+ /*     0 */    30,   23,   82,   11,  103,   12,   10,    9,    8,   32,
+ /*    10 */    33,   52,   54,   55,   13,   12,   10,    1,    8,   32,
+ /*    20 */    33,   63,   36,    6,   34,   12,   10,    5,    8,   32,
+ /*    30 */    33,   12,   10,    2,    8,   32,   33,   12,   10,   62,
+ /*    40 */     8,   32,   33,   15,   10,   56,    8,   32,   33,   35,
+ /*    50 */    35,   21,   82,   94,   21,   82,   31,    8,   32,   33,
+ /*    60 */     4,   76,   18,   24,   82,   14,   17,   77,   25,   82,
+ /*    70 */    19,   82,   20,   82,   90,   82,   16,   87,   82,   28,
+ /*    80 */    82,   29,   82,   27,   82,   22,   82,   26,   82,    7,
+ /*    90 */     3,   96,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */    28,    1,    2,    3,    4,    5,    1,    2,    3,    4,
- /*    10 */     5,   19,   20,    8,   24,   25,   16,    7,    1,    2,
- /*    20 */     3,    4,    5,   24,   25,    6,   24,   25,   11,   10,
- /*    30 */    14,   12,   13,   14,    1,    2,    3,    4,    5,   24,
- /*    40 */    25,   27,   28,   23,   24,   25,   24,   25,   26,   22,
- /*    50 */    24,   25,   26,   24,   25,    9,   24,   25,   24,   25,
- /*    60 */    24,   25,   24,   25,   24,   25,   17,    8,   21,   16,
- /*    70 */     8,   15,   15,   18,    8,    0,   29,   29,   29,   29,
- /*    80 */    29,   29,   29,   29,   29,   29,   29,   29,   29,   29,
- /*    90 */    29,   29,   29,   29,   29,
+ /*     0 */    24,   25,   26,    3,   29,    1,    2,    7,    4,    5,
+ /*    10 */     6,   11,   12,   13,   14,    1,    2,    8,    4,    5,
+ /*    20 */     6,   17,   23,    9,   13,    1,    2,   10,    4,    5,
+ /*    30 */     6,    1,    2,    9,    4,    5,    6,    1,    2,   17,
+ /*    40 */     4,    5,    6,   18,    2,   15,    4,    5,    6,   28,
+ /*    50 */    29,   25,   26,   27,   25,   26,   27,    4,    5,    6,
+ /*    60 */     9,   20,   21,   25,   26,   19,   22,   30,   25,   26,
+ /*    70 */    25,   26,   25,   26,   25,   26,    9,   25,   26,   25,
+ /*    80 */    26,   25,   26,   25,   26,   25,   26,   25,   26,   16,
+ /*    90 */    16,    0,   30,   30,   30,   30,   30,   30,   30,   30,
+ /*   100 */    30,   30,   30,   30,   30,   30,   30,   30,   30,   30,
+ /*   110 */    30,   30,
 };
-#define YY_SHIFT_COUNT    (33)
+#define YY_SHIFT_COUNT    (36)
 #define YY_SHIFT_MIN      (0)
-#define YY_SHIFT_MAX      (75)
+#define YY_SHIFT_MAX      (91)
 static const unsigned char yy_shift_ofst[] = {
- /*     0 */    10,   19,   19,   19,   19,   19,   19,   19,   19,   19,
- /*    10 */    19,   19,   19,   19,   16,   16,   49,   46,    0,    5,
- /*    20 */    17,   33,   33,   33,   33,   33,   59,   53,   62,   56,
- /*    30 */    57,   55,   66,   75,
+ /*     0 */     9,    0,    0,    0,    0,    0,    0,    0,    0,    0,
+ /*    10 */     0,    0,    0,    0,    0,   11,   11,   25,   17,    4,
+ /*    20 */    14,   24,   30,   36,   36,   36,   36,   42,   53,   53,
+ /*    30 */    51,   22,   73,   74,   46,   67,   91,
 };
-#define YY_REDUCE_COUNT (17)
-#define YY_REDUCE_MIN   (-28)
-#define YY_REDUCE_MAX   (47)
+#define YY_REDUCE_COUNT (18)
+#define YY_REDUCE_MIN   (-25)
+#define YY_REDUCE_MAX   (62)
 static const signed char yy_reduce_ofst[] = {
- /*     0 */    -8,   20,   22,   26,  -10,   -1,    2,   15,   29,   32,
- /*    10 */    34,   36,   38,   40,   14,  -28,   27,   47,
+ /*     0 */    41,  -24,   26,   29,   38,   43,   45,   47,   49,   52,
+ /*    10 */    54,   56,   58,   60,   62,   21,  -25,   -1,   44,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */    94,   73,   73,   73,   73,   73,   73,   73,   73,   73,
- /*    10 */    73,   73,   73,   73,   73,   73,   97,   96,   73,   73,
- /*    20 */    73,   76,   77,   78,   92,   90,   95,   73,   80,   73,
- /*    30 */    73,   73,   98,   73,
+ /*     0 */    97,   75,   75,   75,   75,   75,   75,   75,   75,   75,
+ /*    10 */    75,   75,   75,   75,   75,   75,   75,  100,   99,   75,
+ /*    20 */    75,   93,   75,   78,   79,   80,   95,   88,   89,   86,
+ /*    30 */    98,   75,   75,   75,   75,  101,   75,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -368,34 +373,35 @@ void UA_EventFilterParseTrace(FILE *TraceFILE, char *zTracePrompt){
 ** are required.  The following table supplies these names */
 static const char *const yyTokenName[] = { 
   /*    0 */ "$",
-  /*    1 */ "AND",
-  /*    2 */ "OR",
-  /*    3 */ "BINARY_OP",
-  /*    4 */ "BETWEEN",
-  /*    5 */ "INLIST",
-  /*    6 */ "UNARY_OP",
-  /*    7 */ "SELECT",
-  /*    8 */ "COMMA",
-  /*    9 */ "WHERE",
-  /*   10 */ "LPAREN",
-  /*   11 */ "RPAREN",
+  /*    1 */ "OR",
+  /*    2 */ "AND",
+  /*    3 */ "NOT",
+  /*    4 */ "BINARY_OP",
+  /*    5 */ "BETWEEN",
+  /*    6 */ "INLIST",
+  /*    7 */ "UNARY_OP",
+  /*    8 */ "SELECT",
+  /*    9 */ "COMMA",
+  /*   10 */ "WHERE",
+  /*   11 */ "SAO",
   /*   12 */ "LITERAL",
-  /*   13 */ "SAO",
-  /*   14 */ "NAMEDOPERAND",
-  /*   15 */ "LBRACKET",
-  /*   16 */ "RBRACKET",
-  /*   17 */ "FOR",
-  /*   18 */ "COLONEQUAL",
-  /*   19 */ "eventFilter",
-  /*   20 */ "selectClause",
-  /*   21 */ "whereClause",
-  /*   22 */ "forClause",
-  /*   23 */ "selectClauseList",
-  /*   24 */ "operand",
-  /*   25 */ "operator",
-  /*   26 */ "operandList",
-  /*   27 */ "namedOperandAssignmentList",
-  /*   28 */ "namedOperandAssignment",
+  /*   13 */ "NAMEDOPERAND",
+  /*   14 */ "LPAREN",
+  /*   15 */ "RPAREN",
+  /*   16 */ "LBRACKET",
+  /*   17 */ "RBRACKET",
+  /*   18 */ "FOR",
+  /*   19 */ "COLONEQUAL",
+  /*   20 */ "eventFilter",
+  /*   21 */ "selectClause",
+  /*   22 */ "whereClause",
+  /*   23 */ "forClause",
+  /*   24 */ "selectClauseList",
+  /*   25 */ "operand",
+  /*   26 */ "operator",
+  /*   27 */ "operandList",
+  /*   28 */ "namedOperandAssignmentList",
+  /*   29 */ "namedOperandAssignment",
 };
 #endif /* defined(YYCOVERAGE) || !defined(NDEBUG) */
 
@@ -406,28 +412,29 @@ static const char *const yyRuleName[] = {
  /*   0 */ "selectClauseList ::= operand",
  /*   1 */ "selectClauseList ::= selectClauseList COMMA operand",
  /*   2 */ "whereClause ::= WHERE operand",
- /*   3 */ "operand ::= LPAREN operand RPAREN",
+ /*   3 */ "operand ::= SAO",
  /*   4 */ "operand ::= operator",
  /*   5 */ "operand ::= LITERAL",
- /*   6 */ "operand ::= SAO",
- /*   7 */ "operand ::= NAMEDOPERAND",
- /*   8 */ "operator ::= UNARY_OP operand",
- /*   9 */ "operator ::= operand AND operand",
+ /*   6 */ "operand ::= NAMEDOPERAND",
+ /*   7 */ "operand ::= LPAREN operand RPAREN",
+ /*   8 */ "operator ::= NOT operand",
+ /*   9 */ "operator ::= UNARY_OP operand",
  /*  10 */ "operator ::= operand OR operand",
- /*  11 */ "operator ::= operand BINARY_OP operand",
- /*  12 */ "operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET",
+ /*  11 */ "operator ::= operand AND operand",
+ /*  12 */ "operator ::= operand BINARY_OP operand",
  /*  13 */ "operator ::= operand INLIST LBRACKET operandList RBRACKET",
- /*  14 */ "operandList ::= operand",
- /*  15 */ "operandList ::= operator COMMA operandList",
- /*  16 */ "namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand",
- /*  17 */ "eventFilter ::= selectClause whereClause forClause",
- /*  18 */ "selectClause ::=",
- /*  19 */ "selectClause ::= SELECT selectClauseList",
- /*  20 */ "whereClause ::=",
- /*  21 */ "forClause ::=",
- /*  22 */ "forClause ::= FOR namedOperandAssignmentList",
- /*  23 */ "namedOperandAssignmentList ::= namedOperandAssignment",
- /*  24 */ "namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment",
+ /*  14 */ "operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET",
+ /*  15 */ "operandList ::= operand",
+ /*  16 */ "operandList ::= operand COMMA operandList",
+ /*  17 */ "namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand",
+ /*  18 */ "eventFilter ::= selectClause whereClause forClause",
+ /*  19 */ "selectClause ::=",
+ /*  20 */ "selectClause ::= SELECT selectClauseList",
+ /*  21 */ "whereClause ::=",
+ /*  22 */ "forClause ::=",
+ /*  23 */ "forClause ::= FOR namedOperandAssignmentList",
+ /*  24 */ "namedOperandAssignmentList ::= namedOperandAssignment",
+ /*  25 */ "namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment",
 };
 #endif /* NDEBUG */
 
@@ -554,24 +561,25 @@ static void yy_destructor(
     */
 /********* Begin destructor definitions ***************************************/
       /* TERMINAL Destructor */
-    case 1: /* AND */
-    case 2: /* OR */
-    case 3: /* BINARY_OP */
-    case 4: /* BETWEEN */
-    case 5: /* INLIST */
-    case 6: /* UNARY_OP */
-    case 7: /* SELECT */
-    case 8: /* COMMA */
-    case 9: /* WHERE */
-    case 10: /* LPAREN */
-    case 11: /* RPAREN */
+    case 1: /* OR */
+    case 2: /* AND */
+    case 3: /* NOT */
+    case 4: /* BINARY_OP */
+    case 5: /* BETWEEN */
+    case 6: /* INLIST */
+    case 7: /* UNARY_OP */
+    case 8: /* SELECT */
+    case 9: /* COMMA */
+    case 10: /* WHERE */
+    case 11: /* SAO */
     case 12: /* LITERAL */
-    case 13: /* SAO */
-    case 14: /* NAMEDOPERAND */
-    case 15: /* LBRACKET */
-    case 16: /* RBRACKET */
-    case 17: /* FOR */
-    case 18: /* COLONEQUAL */
+    case 13: /* NAMEDOPERAND */
+    case 14: /* LPAREN */
+    case 15: /* RPAREN */
+    case 16: /* LBRACKET */
+    case 17: /* RBRACKET */
+    case 18: /* FOR */
+    case 19: /* COLONEQUAL */
 {
  (void)ctx; 
 }
@@ -862,31 +870,32 @@ static void yy_shift(
 /* For rule J, yyRuleInfoLhs[J] contains the symbol on the left-hand side
 ** of that rule */
 static const YYCODETYPE yyRuleInfoLhs[] = {
-    23,  /* (0) selectClauseList ::= operand */
-    23,  /* (1) selectClauseList ::= selectClauseList COMMA operand */
-    21,  /* (2) whereClause ::= WHERE operand */
-    24,  /* (3) operand ::= LPAREN operand RPAREN */
-    24,  /* (4) operand ::= operator */
-    24,  /* (5) operand ::= LITERAL */
-    24,  /* (6) operand ::= SAO */
-    24,  /* (7) operand ::= NAMEDOPERAND */
-    25,  /* (8) operator ::= UNARY_OP operand */
-    25,  /* (9) operator ::= operand AND operand */
-    25,  /* (10) operator ::= operand OR operand */
-    25,  /* (11) operator ::= operand BINARY_OP operand */
-    25,  /* (12) operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
-    25,  /* (13) operator ::= operand INLIST LBRACKET operandList RBRACKET */
-    26,  /* (14) operandList ::= operand */
-    26,  /* (15) operandList ::= operator COMMA operandList */
-    28,  /* (16) namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
-    19,  /* (17) eventFilter ::= selectClause whereClause forClause */
-    20,  /* (18) selectClause ::= */
-    20,  /* (19) selectClause ::= SELECT selectClauseList */
-    21,  /* (20) whereClause ::= */
-    22,  /* (21) forClause ::= */
-    22,  /* (22) forClause ::= FOR namedOperandAssignmentList */
-    27,  /* (23) namedOperandAssignmentList ::= namedOperandAssignment */
-    27,  /* (24) namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
+    24,  /* (0) selectClauseList ::= operand */
+    24,  /* (1) selectClauseList ::= selectClauseList COMMA operand */
+    22,  /* (2) whereClause ::= WHERE operand */
+    25,  /* (3) operand ::= SAO */
+    25,  /* (4) operand ::= operator */
+    25,  /* (5) operand ::= LITERAL */
+    25,  /* (6) operand ::= NAMEDOPERAND */
+    25,  /* (7) operand ::= LPAREN operand RPAREN */
+    26,  /* (8) operator ::= NOT operand */
+    26,  /* (9) operator ::= UNARY_OP operand */
+    26,  /* (10) operator ::= operand OR operand */
+    26,  /* (11) operator ::= operand AND operand */
+    26,  /* (12) operator ::= operand BINARY_OP operand */
+    26,  /* (13) operator ::= operand INLIST LBRACKET operandList RBRACKET */
+    26,  /* (14) operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
+    27,  /* (15) operandList ::= operand */
+    27,  /* (16) operandList ::= operand COMMA operandList */
+    29,  /* (17) namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
+    20,  /* (18) eventFilter ::= selectClause whereClause forClause */
+    21,  /* (19) selectClause ::= */
+    21,  /* (20) selectClause ::= SELECT selectClauseList */
+    22,  /* (21) whereClause ::= */
+    23,  /* (22) forClause ::= */
+    23,  /* (23) forClause ::= FOR namedOperandAssignmentList */
+    28,  /* (24) namedOperandAssignmentList ::= namedOperandAssignment */
+    28,  /* (25) namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
 };
 
 /* For rule J, yyRuleInfoNRhs[J] contains the negative of the number
@@ -895,28 +904,29 @@ static const signed char yyRuleInfoNRhs[] = {
    -1,  /* (0) selectClauseList ::= operand */
    -3,  /* (1) selectClauseList ::= selectClauseList COMMA operand */
    -2,  /* (2) whereClause ::= WHERE operand */
-   -3,  /* (3) operand ::= LPAREN operand RPAREN */
+   -1,  /* (3) operand ::= SAO */
    -1,  /* (4) operand ::= operator */
    -1,  /* (5) operand ::= LITERAL */
-   -1,  /* (6) operand ::= SAO */
-   -1,  /* (7) operand ::= NAMEDOPERAND */
-   -2,  /* (8) operator ::= UNARY_OP operand */
-   -3,  /* (9) operator ::= operand AND operand */
+   -1,  /* (6) operand ::= NAMEDOPERAND */
+   -3,  /* (7) operand ::= LPAREN operand RPAREN */
+   -2,  /* (8) operator ::= NOT operand */
+   -2,  /* (9) operator ::= UNARY_OP operand */
    -3,  /* (10) operator ::= operand OR operand */
-   -3,  /* (11) operator ::= operand BINARY_OP operand */
-   -7,  /* (12) operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
+   -3,  /* (11) operator ::= operand AND operand */
+   -3,  /* (12) operator ::= operand BINARY_OP operand */
    -5,  /* (13) operator ::= operand INLIST LBRACKET operandList RBRACKET */
-   -1,  /* (14) operandList ::= operand */
-   -3,  /* (15) operandList ::= operator COMMA operandList */
-   -3,  /* (16) namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
-   -3,  /* (17) eventFilter ::= selectClause whereClause forClause */
-    0,  /* (18) selectClause ::= */
-   -2,  /* (19) selectClause ::= SELECT selectClauseList */
-    0,  /* (20) whereClause ::= */
-    0,  /* (21) forClause ::= */
-   -2,  /* (22) forClause ::= FOR namedOperandAssignmentList */
-   -1,  /* (23) namedOperandAssignmentList ::= namedOperandAssignment */
-   -3,  /* (24) namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
+   -7,  /* (14) operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
+   -1,  /* (15) operandList ::= operand */
+   -3,  /* (16) operandList ::= operand COMMA operandList */
+   -3,  /* (17) namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
+   -3,  /* (18) eventFilter ::= selectClause whereClause forClause */
+    0,  /* (19) selectClause ::= */
+   -2,  /* (20) selectClause ::= SELECT selectClauseList */
+    0,  /* (21) whereClause ::= */
+    0,  /* (22) forClause ::= */
+   -2,  /* (23) forClause ::= FOR namedOperandAssignmentList */
+   -1,  /* (24) namedOperandAssignmentList ::= namedOperandAssignment */
+   -3,  /* (25) namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -963,82 +973,83 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 1: /* selectClauseList ::= selectClauseList COMMA operand */
 { append_select(ctx, yymsp[0].minor.yy0); }
-  yy_destructor(yypParser,8,&yymsp[-1].minor);
+  yy_destructor(yypParser,9,&yymsp[-1].minor);
         break;
       case 2: /* whereClause ::= WHERE operand */
-{  yy_destructor(yypParser,9,&yymsp[-1].minor);
+{  yy_destructor(yypParser,10,&yymsp[-1].minor);
 { ctx->top = yymsp[0].minor.yy0; }
 }
         break;
-      case 3: /* operand ::= LPAREN operand RPAREN */
-{  yy_destructor(yypParser,10,&yymsp[-2].minor);
-{ yymsp[-2].minor.yy0 = yymsp[-1].minor.yy0; }
-  yy_destructor(yypParser,11,&yymsp[0].minor);
-}
-        break;
-      case 4: /* operand ::= operator */
+      case 3: /* operand ::= SAO */
+      case 4: /* operand ::= operator */ yytestcase(yyruleno==4);
       case 5: /* operand ::= LITERAL */ yytestcase(yyruleno==5);
-      case 6: /* operand ::= SAO */ yytestcase(yyruleno==6);
-      case 7: /* operand ::= NAMEDOPERAND */ yytestcase(yyruleno==7);
-      case 14: /* operandList ::= operand */ yytestcase(yyruleno==14);
+      case 6: /* operand ::= NAMEDOPERAND */ yytestcase(yyruleno==6);
+      case 15: /* operandList ::= operand */ yytestcase(yyruleno==15);
 { yylhsminor.yy0 = yymsp[0].minor.yy0; }
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
-      case 8: /* operator ::= UNARY_OP operand */
+      case 7: /* operand ::= LPAREN operand RPAREN */
+{  yy_destructor(yypParser,14,&yymsp[-2].minor);
+{ yymsp[-2].minor.yy0 = yymsp[-1].minor.yy0; }
+  yy_destructor(yypParser,15,&yymsp[0].minor);
+}
+        break;
+      case 8: /* operator ::= NOT operand */
+      case 9: /* operator ::= UNARY_OP operand */ yytestcase(yyruleno==9);
 { yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(yylhsminor.yy0, yymsp[0].minor.yy0); }
   yymsp[-1].minor.yy0 = yylhsminor.yy0;
         break;
-      case 9: /* operator ::= operand AND operand */
-      case 10: /* operator ::= operand OR operand */ yytestcase(yyruleno==10);
-      case 11: /* operator ::= operand BINARY_OP operand */ yytestcase(yyruleno==11);
+      case 10: /* operator ::= operand OR operand */
+      case 11: /* operator ::= operand AND operand */ yytestcase(yyruleno==11);
+      case 12: /* operator ::= operand BINARY_OP operand */ yytestcase(yyruleno==12);
 { yylhsminor.yy0 = yymsp[-1].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-2].minor.yy0), append_operand(yylhsminor.yy0, yymsp[0].minor.yy0); }
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
-      case 12: /* operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
-{ yylhsminor.yy0 = yymsp[-5].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-6].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-3].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-1].minor.yy0); }
-  yy_destructor(yypParser,15,&yymsp[-4].minor);
-  yy_destructor(yypParser,8,&yymsp[-2].minor);
-  yy_destructor(yypParser,16,&yymsp[0].minor);
-  yymsp[-6].minor.yy0 = yylhsminor.yy0;
-        break;
       case 13: /* operator ::= operand INLIST LBRACKET operandList RBRACKET */
 { yylhsminor.yy0 = yymsp[-3].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-4].minor.yy0); while(yymsp[-1].minor.yy0) { append_operand(yylhsminor.yy0, yymsp[-1].minor.yy0); yymsp[-1].minor.yy0 = yymsp[-1].minor.yy0->next; } }
-  yy_destructor(yypParser,15,&yymsp[-2].minor);
-  yy_destructor(yypParser,16,&yymsp[0].minor);
+  yy_destructor(yypParser,16,&yymsp[-2].minor);
+  yy_destructor(yypParser,17,&yymsp[0].minor);
   yymsp[-4].minor.yy0 = yylhsminor.yy0;
         break;
-      case 15: /* operandList ::= operator COMMA operandList */
+      case 14: /* operator ::= operand BETWEEN LBRACKET operand COMMA operand RBRACKET */
+{ yylhsminor.yy0 = yymsp[-5].minor.yy0; append_operand(yylhsminor.yy0, yymsp[-6].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-3].minor.yy0); append_operand(yylhsminor.yy0, yymsp[-1].minor.yy0); }
+  yy_destructor(yypParser,16,&yymsp[-4].minor);
+  yy_destructor(yypParser,9,&yymsp[-2].minor);
+  yy_destructor(yypParser,17,&yymsp[0].minor);
+  yymsp[-6].minor.yy0 = yylhsminor.yy0;
+        break;
+      case 16: /* operandList ::= operand COMMA operandList */
 { yylhsminor.yy0 = yymsp[-2].minor.yy0; yymsp[-2].minor.yy0->next = yymsp[0].minor.yy0; }
-  yy_destructor(yypParser,8,&yymsp[-1].minor);
+  yy_destructor(yypParser,9,&yymsp[-1].minor);
   yymsp[-2].minor.yy0 = yylhsminor.yy0;
         break;
-      case 16: /* namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
+      case 17: /* namedOperandAssignment ::= NAMEDOPERAND COLONEQUAL operand */
 { yymsp[0].minor.yy0->ref = save_string(yymsp[-2].minor.yy0->operand.ref); }
-  yy_destructor(yypParser,18,&yymsp[-1].minor);
+  yy_destructor(yypParser,19,&yymsp[-1].minor);
         break;
-      case 19: /* selectClause ::= SELECT selectClauseList */
-{  yy_destructor(yypParser,7,&yymsp[-1].minor);
+      case 20: /* selectClause ::= SELECT selectClauseList */
+{  yy_destructor(yypParser,8,&yymsp[-1].minor);
 {
 }
 }
         break;
-      case 22: /* forClause ::= FOR namedOperandAssignmentList */
-{  yy_destructor(yypParser,17,&yymsp[-1].minor);
+      case 23: /* forClause ::= FOR namedOperandAssignmentList */
+{  yy_destructor(yypParser,18,&yymsp[-1].minor);
 {
 }
 }
         break;
-      case 24: /* namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
+      case 25: /* namedOperandAssignmentList ::= namedOperandAssignmentList COMMA namedOperandAssignment */
 {
 }
-  yy_destructor(yypParser,8,&yymsp[-1].minor);
+  yy_destructor(yypParser,9,&yymsp[-1].minor);
         break;
       default:
-      /* (17) eventFilter ::= selectClause whereClause forClause */ yytestcase(yyruleno==17);
-      /* (18) selectClause ::= */ yytestcase(yyruleno==18);
-      /* (20) whereClause ::= */ yytestcase(yyruleno==20);
-      /* (21) forClause ::= */ yytestcase(yyruleno==21);
-      /* (23) namedOperandAssignmentList ::= namedOperandAssignment (OPTIMIZED OUT) */ assert(yyruleno!=23);
+      /* (18) eventFilter ::= selectClause whereClause forClause */ yytestcase(yyruleno==18);
+      /* (19) selectClause ::= */ yytestcase(yyruleno==19);
+      /* (21) whereClause ::= */ yytestcase(yyruleno==21);
+      /* (22) forClause ::= */ yytestcase(yyruleno==22);
+      /* (24) namedOperandAssignmentList ::= namedOperandAssignment (OPTIMIZED OUT) */ assert(yyruleno!=24);
         break;
 /********** End reduce actions ************************************************/
   };
