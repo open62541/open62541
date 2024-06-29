@@ -556,6 +556,11 @@ endfunction()
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
+    if(UA_DEBUG)
+        check_add_cc_flag("-g -Og")
+    else()
+        check_add_cc_flag("-g -O2")
+    endif()
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
@@ -593,7 +598,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
-    if(BUILD_SHARED_LIBS)
+    if(BUILD_SHARED_LIBS OR UNIX)
         add_cc_flag("-fPIC")
     endif()
 
@@ -628,7 +633,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
                 cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
                 include(CheckIPOSupported)
                 check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
-                if(CC_HAS_IPO)
+                if(CC_HAS_IPO AND NOT UA_DEBUG)
                     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
                 endif()
             endif()
