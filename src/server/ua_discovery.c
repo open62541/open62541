@@ -374,8 +374,10 @@ discoveryClientStateCallback(UA_Client *client,
     UA_Client_getConnectionAttribute_scalar(client, UA_QUALIFIEDNAME(0, "securityMode"),
                                             &UA_TYPES[UA_TYPES_MESSAGESECURITYMODE],
                                             &msm);
+#ifdef UA_ENABLE_ENCRYPTION 
     if(msm != UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
         return;
+#endif
 
     const UA_DataType *reqType;
     const UA_DataType *respType;
