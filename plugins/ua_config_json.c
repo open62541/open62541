@@ -790,7 +790,7 @@ PARSE_JSON(SecurityPkiField) {
     UA_NodeId defaultApplicationGroup =
            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     retval = UA_CertificateGroup_Filestore(&config->secureChannelPKI, &defaultApplicationGroup,
-                                           &pkiFolder, config->logging, &paramsMap);
+                                           pkiFolder, config->logging, &paramsMap);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_String_clear(&pkiFolder);
         return retval;
@@ -799,7 +799,7 @@ PARSE_JSON(SecurityPkiField) {
     UA_NodeId defaultUserTokenGroup =
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
     retval = UA_CertificateGroup_Filestore(&config->sessionPKI, &defaultUserTokenGroup,
-                                            &pkiFolder, config->logging, &paramsMap);
+                                            pkiFolder, config->logging, &paramsMap);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_String_clear(&pkiFolder);
         return retval;
