@@ -864,7 +864,6 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
         goto cleanup;
     }
 
-
     /* Check parent reference. Objects may have no parent. */
     retval = checkParentReference(server, session, head, parentNodeId, referenceTypeId);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -1006,6 +1005,21 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
                        "Adding reference to parent failed");
             goto cleanup;
         }
+
+        /* Inherit the role permissions from the parent */
+        const UA_Node *parent =
+            UA_NODESTORE_GET_SELECTIVE(server, parentNodeId, 0, UA_REFERENCETYPESET_NONE,
+                                       UA_BROWSEDIRECTION_INVALID);
+        if(!parent) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+        retval = setRolePermissions(server, head->nodeId, parent->head.rolePermissions, false);
+        UA_NODESTORE_RELEASE(server, parent);
+        if(retval != UA_STATUSCODE_GOOD) {
+            logAddNode(server->config.logging, session, nodeId,
+                       "Adding the RolePermissions from the parent failed");
+        }
     }
 
     /* Add a hasTypeDefinition reference */
@@ -1032,8 +1046,11 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
 UA_StatusCode
 addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
             const UA_AddNodesItem *item, UA_NodeId *outNewNodeId) {
-    /* Do not check access for server */
-    if(session != &server->adminSession && server->config.accessControl.allowAddNode) {
+    UA_NodeId tmpOutId = UA_NODEID_NULL;
+
+    /* Check the permissions */
+    if(session != &server->adminSession &&
+       server->config.accessControl.allowAddNode) {
         UA_LOCK_ASSERT(&server->serviceMutex, 1);
         UA_UNLOCK(&server->serviceMutex);
         if(!server->config.accessControl.
@@ -1068,8 +1085,7 @@ addNode_raw(UA_Server *server, UA_Session *session, void *nodeContext,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_NodeId tmpOutId = UA_NODEID_NULL;
-    /* Fill the node attributes */
+    /* Fill the Node attributes */
     node->head.context = nodeContext;
     UA_StatusCode retval =
         UA_NodeId_copy(&item->requestedNewNodeId.nodeId, &node->head.nodeId);
@@ -1204,7 +1220,8 @@ Operation_addNode_begin(UA_Server *server, UA_Session *session, void *nodeContex
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
-    /* Typecheck and add references to parent and type definition */
+    /* Typecheck and add references to parent and type definition.
+     * This also makes the new node inherit the role permissions. */
     retval = addNode_addRefs(server, session, outNewNodeId, parentNodeId,
                              referenceTypeId, &item->typeDefinition.nodeId);
     if(retval != UA_STATUSCODE_GOOD)
@@ -1982,6 +1999,19 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
         return;
     }
 
+    /* Check the RolePermissions */
+    UA_RoleSet delNodeRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_DELETENODE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(delNodeRoles, session->roles)) {
+        UA_LOG_NODEID_INFO(&node->head.nodeId,
+        UA_LOG_INFO_SESSION(server->config.logging, session, "DeleteNode (%.*s): "
+                            "Cannot delete the node because of missing RolePermisions",
+                            (int)nodeIdStr.length, nodeIdStr.data));
+        UA_NODESTORE_RELEASE(server, node);
+        *result = UA_STATUSCODE_BADUSERACCESSDENIED;
+        return;
+    }
+
     if(UA_Node_hasSubTypeOrInstances(&node->head)) {
         UA_LOG_NODEID_INFO(&node->head.nodeId,
         UA_LOG_INFO_SESSION(server->config.logging, session, "DeleteNode (%.*s): "
@@ -2091,6 +2121,13 @@ struct AddNodeInfo {
 static UA_StatusCode
 addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                    const struct AddNodeInfo *info) {
+    /* Check the RolePermissions for the individual node */
+    UA_RoleSet addRefRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_ADDREFERENCE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(addRefRoles, session->roles))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Add the reference in this direction */
     return UA_Node_addReference(node, info->refTypeIndex, info->isForward,
                                 info->targetNodeId, info->targetBrowseNameHash);
 }
@@ -2098,6 +2135,13 @@ addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
 static UA_StatusCode
 deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
                       const UA_DeleteReferencesItem *item) {
+    /* Check the RolePermissions for the individual node */
+    UA_RoleSet delRefRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_REMOVEREFERENCE];
+    if(session != &server->adminSession &&
+       !UA_RoleSet_intersects(delRefRoles, session->roles))
+        return UA_STATUSCODE_BADUSERACCESSDENIED;
+
+    /* Get the reference type index */
     const UA_Node *refType = UA_NODESTORE_GET(server, &item->referenceTypeId);
     if(!refType)
         return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;

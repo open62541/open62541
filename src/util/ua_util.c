@@ -21,6 +21,32 @@
 #include "base64.h"
 #include "itoa.h"
 
+#define UA_ROLESET_ALL_MASK (~(UA_UInt16)0)
+#define UA_ROLESET_ALL_MASK2 UA_ROLESET_ALL_MASK, UA_ROLESET_ALL_MASK
+#define UA_ROLESET_ALL_MASK4 UA_ROLESET_ALL_MASK2, UA_ROLESET_ALL_MASK2
+#if UA_ROLESET_MAX / 16 > 8
+# error Adjust macros to support than 128 roles
+#elif UA_ROLESET_MAX / 16 == 8
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK4, UA_ROLESET_ALL_MASK4
+#elif UA_ROLESET_MAX / 16 == 7
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK4, UA_ROLESET_ALL_MASK2, UA_ROLESET_ALL_MASK
+#elif UA_ROLESET_MAX / 16 == 6
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK4, UA_ROLESET_ALL_MASK2
+#elif UA_ROLESET_MAX / 16 == 5
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK4, UA_ROLESET_ALL_MASK
+#elif UA_ROLESET_MAX / 16 == 4
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK4
+#elif UA_ROLESET_MAX / 16 == 3
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK2, UA_ROLESET_ALL_MASK
+#elif UA_ROLESET_MAX / 16 == 2
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK2
+#else
+# define UA_ROLESET_ALL_ARRAY UA_ROLESET_ALL_MASK
+#endif
+
+const UA_RoleSet UA_ROLESET_NONE = {{0}};
+const UA_RoleSet UA_ROLESET_ALL = {{UA_ROLESET_ALL_ARRAY}};
+
 const char * attributeIdNames[28] = {
     "Invalid", "NodeId", "NodeClass", "BrowseName", "DisplayName", "Description",
     "WriteMask", "UserWriteMask", "IsAbstract", "Symmetric", "InverseName",

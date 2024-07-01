@@ -795,7 +795,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
     resp->responseHeader.serviceResult = server->config.accessControl.
         activateSession(server, &server->config.accessControl, ed,
                         &channel->remoteCertificate, &session->sessionId,
-                        &req->userIdentityToken, &session->context);
+                        &req->userIdentityToken, &session->roles, &session->context);
     UA_LOCK(&server->serviceMutex);
     if(resp->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,

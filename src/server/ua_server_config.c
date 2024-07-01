@@ -76,6 +76,15 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
     if(config->sessionPKI.clear)
         config->sessionPKI.clear(&config->sessionPKI);
 
+    /* Custom Roles */
+    for(size_t i = 0; i < config->customRolesSize; i++) {
+        UA_NodeId_clear(&config->customRoles[i].roleId);
+        UA_QualifiedName_clear(&config->customRoles[i].browseName);
+    }
+    UA_free(config->customRoles);
+    config->customRoles = NULL;
+    config->customRolesSize = 0;
+
     /* Access Control */
     if(config->accessControl.clear)
         config->accessControl.clear(&config->accessControl);

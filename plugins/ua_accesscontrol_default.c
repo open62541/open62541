@@ -43,7 +43,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
                         const UA_ByteString *secureChannelRemoteCertificate,
                         const UA_NodeId *sessionId,
                         const UA_ExtensionObject *userIdentityToken,
-                        void **sessionContext) {
+                        UA_RoleSet *roles, void **sessionContext) {
     AccessControlContext *context = (AccessControlContext*)ac->context;
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
@@ -146,6 +146,12 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         /* Unsupported token type */
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
     }
+
+    /* The session was successfully authenticated */
+
+    /* Give the session all roles. The AccessControl plugin is still triggered
+     * for every access on top of the validated role permissions. */
+    *roles = UA_ROLESET_ALL;
 
     return UA_STATUSCODE_GOOD;
 }

@@ -49,7 +49,7 @@ struct UA_AccessControl {
                                      const UA_ByteString *secureChannelRemoteCertificate,
                                      const UA_NodeId *sessionId,
                                      const UA_ExtensionObject *userIdentityToken,
-                                     void **sessionContext);
+                                     UA_RoleSet *roles, void **sessionContext);
 
     /* Deauthenticate a session and cleanup */
     void (*closeSession)(UA_Server *server, UA_AccessControl *ac,
