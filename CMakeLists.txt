@@ -70,14 +70,11 @@ if("${UA_ARCHITECTURE}" STREQUAL "")
     endif(UNIX)
 endif()
 
-if (NOT UA_ENABLE_AMALGAMATION OR (UA_ENABLE_AMALGAMATION AND NOT UA_AMALGAMATION_MULTIARCH))
-    message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
-
-    if("${UA_ARCHITECTURE}" STREQUAL "posix")
-        set(UA_ARCHITECTURE_POSIX 1)
-    elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
-        set(UA_ARCHITECTURE_WIN32 1)
-    endif()
+message(STATUS "The selected architecture is: ${UA_ARCHITECTURE}")
+if("${UA_ARCHITECTURE}" STREQUAL "posix")
+    set(UA_ARCHITECTURE_POSIX 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
+    set(UA_ARCHITECTURE_WIN32 1)
 endif()
 
 #################
@@ -91,7 +88,6 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(UA_ENABLE_AMALGAMATION "Concatenate the library to a single file open62541.h/.c" OFF)
-option(UA_AMALGAMATION_MULTIARCH "Create an architecture-independent amalgamation if UA_ENABLE_AMALGAMATION is ON" OFF)
 option(BUILD_SHARED_LIBS "Enable building of shared libraries (dll/so)" OFF)
 set(UA_LOGLEVEL 100 CACHE STRING "Minimal level for logs (in addition to the log plugin settings) (100=TRACE, 200=DEBUG, 300=INFO, 400=WARNING, 500=ERROR, 600=FATAL)")
 option(UA_ENABLE_DIAGNOSTICS "Enable diagnostics information exposed by the server" ON)
@@ -628,10 +624,6 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
         endif()
     endif()
 
-    if(UA_ENABLE_AMALGAMATION)
-        add_definitions(-Wno-unused-function)
-    endif()
-
     # Linker
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 
@@ -1058,11 +1050,6 @@ if(UA_ENABLE_NODESETLOADER)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodesetloader.h)
     list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_nodesetloader.c)
     list(APPEND open62541_LIBRARIES ${NODESETLOADER_DEPS_LIBS})
-
-    if(UA_ENABLE_AMALGAMATION)
-        list(APPEND exported_headers ${NODESETLOADER_PUBLIC_HEADERS})
-        list(APPEND lib_headers ${NODESETLOADER_PRIVATE_HEADERS})
-    endif()
 endif()
 
 #########################
@@ -1197,7 +1184,7 @@ if(UA_ENABLE_AMALGAMATION)
                        PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
-                               ${exported_headers} ${plugin_headers}
+                               ${exported_headers} ${NODESETLOADER_PUBLIC_HEADERS} ${plugin_headers}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${exported_headers} ${plugin_headers})
 
@@ -1205,16 +1192,12 @@ if(UA_ENABLE_AMALGAMATION)
                        PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
-                               ${lib_headers} ${lib_sources} ${plugin_sources}
+                               ${lib_headers} ${NODESETLOADER_PRIVATE_HEADERS} ${lib_sources} ${plugin_sources}
                        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${lib_headers}
                                ${lib_sources} ${plugin_sources})
 
-    add_custom_target(open62541-amalgamation-source DEPENDS ${PROJECT_BINARY_DIR}/open62541.c)
-    add_custom_target(open62541-amalgamation-header DEPENDS ${PROJECT_BINARY_DIR}/open62541.h)
-
-    add_dependencies(open62541-amalgamation-header open62541-generator-types)
-    add_dependencies(open62541-amalgamation-source open62541-generator-types
-                     open62541-generator-transport open62541-generator-statuscode)
+    add_custom_target(open62541-amalgamation DEPENDS ${PROJECT_BINARY_DIR}/open62541.c
+                                                     ${PROJECT_BINARY_DIR}/open62541.h)
 endif()
 
 ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
@@ -1249,123 +1232,85 @@ assign_source_group(${plugin_headers} ${plugin_sources})
 # When building packages, include the source in the library name to enable parallel
 # installation of multiple versions. We may break the ABI between minor releases!
 
-if(UA_ENABLE_AMALGAMATION)
-    add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
-    target_include_directories(open62541-object PRIVATE ${PROJECT_BINARY_DIR})
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-        target_include_directories(open62541-object PRIVATE ${MBEDTLS_INCLUDE_DIRS})
-    endif()
-    if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        target_include_directories(open62541-object PRIVATE ${OPENSSL_INCLUDE_DIR})
-    endif()
-    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-        target_include_directories(open62541-object PRIVATE ${LIBRESSL_INCLUDE_DIR})
-    endif()
-    if(UA_ENABLE_NODESETLOADER)
-        target_include_directories(open62541-object PRIVATE
-                                   ${NODESETLOADER_PUBLIC_INCLUDES}
-                                   ${NODESETLOADER_PRIVATE_INCLUDES})
-    endif()
+add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
 
-    # make sure the open62541_amalgamation target builds before so that amalgamation is finished and it is not executed again for open62541-object
-    # and thus may overwrite the amalgamation result during multiprocessor compilation
-    # the header is already a dependency of open62541 target itself
-    add_custom_target(open62541-code-generation DEPENDS
-                      open62541-amalgamation-header
-                      open62541-generator-types
-                      open62541-generator-transport
-                      open62541-generator-statuscode
-                      open62541-amalgamation-source)
+add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
+                                                    open62541-generator-transport
+                                                    open62541-generator-statuscode
+                                                    open62541-generator-namespace)
 
-    add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
-    # the only directory that needs to be included if open62541 (amalgameted) target from
-    # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
-    target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
+if(UA_ENABLE_NODESET_INJECTOR)
+    add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
+endif()
 
-    add_dependencies(open62541-amalgamation-source open62541-generator-namespace)
-    add_dependencies(open62541-amalgamation-header open62541-generator-namespace)
-else()
-    add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
-    target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
+# stack protector and optimization are disabled for the huge ns0 file
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
+                                PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+endif()
 
-    add_custom_target(open62541-code-generation DEPENDS
-                      open62541-generator-types
-                      open62541-generator-transport
-                      open62541-generator-statuscode
-                      open62541-generator-namespace)
+add_library(open62541-plugins OBJECT ${plugin_sources} ${exported_headers})
+add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
+target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
+target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
+target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
-    if(UA_ENABLE_NODESET_INJECTOR)
-        add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
-    endif()
+if(UA_ENABLE_COVERAGE)
+    add_coverage(open62541-object)
+    add_coverage(open62541-plugins)
+endif()
 
-    # stack protector and optimization are disabled for the huge ns0 file
-    if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
-        set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
-                                    PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
-    endif()
+add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
-    add_library(open62541-plugins OBJECT ${plugin_sources} ${exported_headers})
-    add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
-    target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
-    target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
-    target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-    set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    # Prevent Wincrypt override warning.
+    target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
+    target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
+    target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+endif()
 
-    if(UA_ENABLE_COVERAGE)
-        add_coverage(open62541-object)
-        add_coverage(open62541-plugins)
-    endif()
+# Declare include directories
+function(include_directories_private)
+    foreach(_include_dir IN ITEMS ${ARGN})
+        target_include_directories(open62541-object PRIVATE ${_include_dir})
+        target_include_directories(open62541-plugins PRIVATE ${_include_dir})
+    endforeach()
+endfunction()
 
-    add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+function(include_directories_public)
+    include_directories_private(${ARGN})
+    foreach(_include_dir IN ITEMS ${ARGN})
+        target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
+    endforeach()
+endfunction()
 
-    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-        # Prevent Wincrypt override warning.
-        target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
-        target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
-        target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
-    endif()
+# Public includes
+include_directories_public("${PROJECT_SOURCE_DIR}/include"
+                           "${PROJECT_SOURCE_DIR}/plugins/include"
+                           "${PROJECT_SOURCE_DIR}/deps"
+                           "${PROJECT_SOURCE_DIR}/src/pubsub"
+                           "${PROJECT_BINARY_DIR}/src_generated")
 
-    # Declare include directories
-    function(include_directories_private)
-        foreach(_include_dir IN ITEMS ${ARGN})
-            target_include_directories(open62541-object PRIVATE ${_include_dir})
-            target_include_directories(open62541-plugins PRIVATE ${_include_dir})
-        endforeach()
-    endfunction()
+if(UA_ENABLE_NODESETLOADER)
+    include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
+endif()
 
-    function(include_directories_public)
-        include_directories_private(${ARGN})
-        foreach(_include_dir IN ITEMS ${ARGN})
-            target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
-        endforeach()
-    endfunction()
+# Private includes
+include_directories_private("${PROJECT_BINARY_DIR}")
 
-    # Public includes
-    include_directories_public("${PROJECT_SOURCE_DIR}/include"
-                               "${PROJECT_SOURCE_DIR}/plugins/include"
-                               "${PROJECT_SOURCE_DIR}/deps"
-                               "${PROJECT_SOURCE_DIR}/src/pubsub"
-                               "${PROJECT_BINARY_DIR}/src_generated")
-
-    if(UA_ENABLE_NODESETLOADER)
-        include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
-    endif()
-
-    # Private includes
-    include_directories_private("${PROJECT_BINARY_DIR}")
-
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
-        include_directories_private(${MBEDTLS_INCLUDE_DIRS})
-    endif()
-    if(UA_ENABLE_ENCRYPTION_OPENSSL)
-        include_directories_private(${OPENSSL_INCLUDE_DIR})
-    endif()
-    if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-        include_directories_private(${LIBRESSL_INCLUDE_DIR})
-    endif()
-    if(UA_ENABLE_NODESETLOADER)
-        include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
-    endif()
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    include_directories_private(${MBEDTLS_INCLUDE_DIRS})
+endif()
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    include_directories_private(${OPENSSL_INCLUDE_DIR})
+endif()
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    include_directories_private(${LIBRESSL_INCLUDE_DIR})
+endif()
+if(UA_ENABLE_NODESETLOADER)
+    include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
 endif()
 
 add_dependencies(open62541-object open62541-code-generation)
@@ -1397,18 +1342,10 @@ target_link_libraries(open62541 ${open62541_LIBRARIES})
 add_subdirectory(doc)
 
 if(UA_BUILD_EXAMPLES)
-    if(UA_ENABLE_AMALGAMATION)
-        # Cannot compile tests with amalgamation. Not prepared for single header include
-        message(FATAL_ERROR "Examples cannot be built with source amalgamation enabled")
-    endif()
     add_subdirectory(examples)
 endif()
 
 if(UA_BUILD_UNIT_TESTS)
-    if(UA_ENABLE_AMALGAMATION)
-        # Cannot compile tests with amalgamation. Amalgamation uses the default plugins, not the testing plugins
-        message(FATAL_ERROR "Unit tests cannot be generated with source amalgamation enabled")
-    endif()
     enable_testing()
     add_subdirectory(tests)
 endif()
@@ -1442,10 +1379,6 @@ include(linting_target)
 # invoke via `make install`
 # specify install location with `-DCMAKE_INSTALL_PREFIX=xyz`
 # Enable shared library with `-DBUILD_SHARED_LIBS=ON`
-
-if(UA_ENABLE_AMALGAMATION)
-    install(CODE "MESSAGE(FATAL_ERROR \"Installation with UA_ENABLE_AMALGAMATION=ON is not possible.\")")
-endif()
 
 # export library (either static or shared depending on BUILD_SHARED_LIBS)
 install(TARGETS open62541
@@ -1490,9 +1423,6 @@ export(TARGETS open62541
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
 # Generate and install open62541.pc
-if(UA_ENABLE_AMALGAMATION)
-    set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
-endif()
 set(pkgcfglibs "-lopen62541")
 foreach(lib ${open62541_LIBRARIES})
     set(pkgcfglibs "${pkgcfglibs} -l${lib}")
@@ -1530,33 +1460,31 @@ install(FILES ${UA_install_tools_files} DESTINATION ${open62541_install_tools_di
         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
 # Recreate the include folder structure from the source also in /usr/include/open62541
-if(NOT UA_ENABLE_AMALGAMATION)
-    set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
-    set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
-    set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
-    set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
-    set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
-    set(BASE_PATH_DEPS "${PROJECT_SOURCE_DIR}/deps")
+set(FILES_TO_INSTALL ${exported_headers} ${plugin_headers})
+set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
+set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
+set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
+set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
+set(BASE_PATH_DEPS "${PROJECT_SOURCE_DIR}/deps")
 
-    foreach ( file ${FILES_TO_INSTALL} )
-        # Construct a relative path by replacing any occurence of the absolute path
-        set(full_path ${file})
-        string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
-        string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
-        string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
-        string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
-        string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
+foreach ( file ${FILES_TO_INSTALL} )
+    # Construct a relative path by replacing any occurence of the absolute path
+    set(full_path ${file})
+    string(REPLACE ${BASE_PATH_MAIN} "" file ${file})
+    string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
+    string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
+    string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
+    string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
 
-        get_filename_component(dir ${file} DIRECTORY)
+    get_filename_component(dir ${file} DIRECTORY)
 
-        string(FIND "${full_path}" "${BASE_PATH_DEPS}" has_base_path)
-        if("${has_base_path}" EQUAL 0)
-            install(FILES ${full_path} DESTINATION include${dir})
-        else()
-            install(FILES ${full_path} DESTINATION include/open62541${dir})
-        endif()
-    endforeach()
-endif()
+    string(FIND "${full_path}" "${BASE_PATH_DEPS}" has_base_path)
+    if("${has_base_path}" EQUAL 0)
+        install(FILES ${full_path} DESTINATION include${dir})
+    else()
+        install(FILES ${full_path} DESTINATION include/open62541${dir})
+    endif()
+endforeach()
 
 ##################################
 # Visual Studio Solution Folders #
@@ -1567,10 +1495,6 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
-if(UA_ENABLE_AMALGAMATION)
-    set_target_properties(open62541-amalgamation-header PROPERTIES FOLDER "open62541/lib")
-    set_target_properties(open62541-amalgamation-source PROPERTIES FOLDER "open62541/lib")
-endif()
 
 set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")

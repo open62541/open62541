@@ -144,50 +144,8 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
 #ifndef {}_H_
 #define {}_H_
 """.format(outfilebase.upper(), outfilebase.upper()))
-    if internal_headers:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-
-/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
-
-# ifndef UA_INTERNAL //this definition is needed to hide this code in the amalgamated .c file
-
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
-                                                 const UA_Byte **bufEnd);
-
-UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_Byte **bufPos, const UA_Byte **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback,
-                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type);
-
-const UA_DataType *
-UA_findDataTypeByBinary(const UA_NodeId *typeId);
-
-# endif // UA_INTERNAL
-
-#else // UA_ENABLE_AMALGAMATION
-# include <open62541/server.h>
-#endif
-
-%s
-""" % (additionalHeaders))
-    else:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-#else
-# include <open62541/server.h>
-#endif
+    writeh("""
+#include <open62541/server.h>
 %s
 """ % (additionalHeaders))
     writeh("""

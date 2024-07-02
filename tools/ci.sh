@@ -103,9 +103,9 @@ function build_amalgamation {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_FORCE_WERROR=ON \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 function build_amalgamation_mt {
@@ -119,10 +119,10 @@ function build_amalgamation_mt {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=100 \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 ############################
