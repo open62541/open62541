@@ -19,6 +19,24 @@ _UA_BEGIN_DECLS
 typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
                                                  const UA_Byte **bufEnd);
 
+typedef struct {
+    /* Pointers to the current and last buffer position */
+    UA_Byte *pos;
+    const UA_Byte *end;
+
+    /* How often did we en-/decoding recurse? */
+    UA_Byte depth;
+
+    UA_DecodeBinaryOptions opts;
+
+    UA_exchangeEncodeBuffer exchangeBufferCallback;
+    void *exchangeBufferCallbackHandle;
+} Ctx;
+
+void * ctxCalloc(Ctx *ctx, size_t nelem, size_t elsize);
+void ctxFree(Ctx *ctx, void *p);
+void ctxClear(Ctx *ctx, void *p, const UA_DataType *type);
+
 /* Encodes the scalar value described by type in the binary encoding. Encoding
  * is thread-safe if thread-local variables are enabled. Encoding is also
  * reentrant and can be safely called from signal handlers or interrupts.
@@ -64,6 +82,13 @@ UA_StatusCode
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         void *dst, const UA_DataType *type,
                         const UA_DecodeBinaryOptions *options)
+    UA_FUNC_ATTR_WARN_UNUSED_RESULT;
+
+/* Call into decoding with an existing context.
+ * Beware! This assumes the dst is already memset-zero and will not clear up if
+ * decoding fails. */
+UA_StatusCode
+UA_decodeBinaryInternalCtx(Ctx *ctx, void *dst, const UA_DataType *type)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 const UA_DataType *
