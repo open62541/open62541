@@ -59,6 +59,12 @@ typedef struct {
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
+typedef struct channel_entry {
+    UA_SecureChannel channel;
+    TAILQ_ENTRY(channel_entry) serverEntry;
+    TAILQ_ENTRY(channel_entry) componentEntry;
+} channel_entry;
+
 /********************/
 /* Server Component */
 /********************/
@@ -76,6 +82,8 @@ typedef struct UA_ServerComponent {
     UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
 
     /* Starting fails if the server is not also already started */
     UA_StatusCode (*start)(UA_Server *server,
@@ -150,6 +158,11 @@ struct UA_Server {
     /* Session for local access to the services for upkeep and the C API. Comes
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
+
+    /* SecureChannels */
+    TAILQ_HEAD(, channel_entry) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
 
     /* Namespaces */
     size_t namespacesSize;
