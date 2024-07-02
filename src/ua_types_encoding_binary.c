@@ -37,35 +37,21 @@
 /* Part 6 §5.1.5: Decoders shall support at least 100 nesting levels */
 #define UA_ENCODING_MAX_RECURSION 100
 
-typedef struct {
-    /* Pointers to the current and last buffer position */
-    u8 *pos;
-    const u8 *end;
-
-    /* How often did we en-/decoding recurse? */
-    u16 depth;
-
-    UA_DecodeBinaryOptions opts;
-
-    UA_exchangeEncodeBuffer exchangeBufferCallback;
-    void *exchangeBufferCallbackHandle;
-} Ctx;
-
-static void *
+void *
 ctxCalloc(Ctx *ctx, size_t nelem, size_t elsize) {
     if(ctx->opts.calloc)
         return ctx->opts.calloc(ctx->opts.callocContext, nelem, elsize);
     return UA_calloc(nelem, elsize);
 }
 
-static void
+void
 ctxFree(Ctx *ctx, void *p) {
     if(ctx->opts.calloc)
         return;
     UA_free(p);
 }
 
-static void
+void
 ctxClear(Ctx *ctx, void *p, const UA_DataType *type) {
     if(!ctx->opts.calloc)
         UA_clear(p, type);
@@ -1861,6 +1847,11 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (decodeBinarySignature)decodeBinaryUnion, /* Union */
     (decodeBinarySignature)decodeBinaryNotImplemented /* BitfieldCluster */
 };
+
+status
+UA_decodeBinaryInternalCtx(Ctx *ctx, void *dst, const UA_DataType *type) {
+    return decodeBinaryJumpTable[type->typeKind](ctx, dst, type);
+}
 
 status
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
