@@ -45,7 +45,8 @@ typedef struct {
     /* How often did we en-/decoding recurse? */
     u16 depth;
 
-    const UA_DataTypeArray *customTypes;
+    UA_DecodeBinaryOptions opts;
+
     UA_exchangeEncodeBuffer exchangeBufferCallback;
     void *exchangeBufferCallbackHandle;
 } Ctx;
@@ -793,7 +794,7 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
         }
     }
 
-    const UA_DataTypeArray *customTypes = ctx->customTypes;
+    const UA_DataTypeArray *customTypes = ctx->opts.customTypes;
     while(customTypes) {
         for(size_t i = 0; i < customTypes->typesSize; ++i) {
             if(UA_NodeId_equal(typeId, &customTypes->types[i].binaryEncodingId))
@@ -808,7 +809,7 @@ UA_findDataTypeByBinaryInternal(const UA_NodeId *typeId, Ctx *ctx) {
 const UA_DataType *
 UA_findDataTypeByBinary(const UA_NodeId *typeId) {
     Ctx ctx;
-    ctx.customTypes = NULL;
+    ctx.opts.customTypes = NULL;
     return UA_findDataTypeByBinaryInternal(typeId, &ctx);
 }
 
@@ -1830,7 +1831,9 @@ UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
     ctx.end = &src->data[src->length];
     ctx.depth = 0;
     if(options)
-        ctx.customTypes = options->customTypes;
+        ctx.opts = *options;
+    else
+        memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
 
     /* Decode */
     memset(dst, 0, type->memSize); /* Initialize the value */
