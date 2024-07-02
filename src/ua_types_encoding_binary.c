@@ -51,6 +51,37 @@ typedef struct {
     void *exchangeBufferCallbackHandle;
 } Ctx;
 
+static void *
+ctxCalloc(Ctx *ctx, size_t nelem, size_t elsize) {
+    if(ctx->opts.calloc)
+        return ctx->opts.calloc(ctx->opts.callocContext, nelem, elsize);
+    return UA_calloc(nelem, elsize);
+}
+
+static void
+ctxFree(Ctx *ctx, void *p) {
+    if(ctx->opts.calloc)
+        return;
+    UA_free(p);
+}
+
+static void
+ctxClear(Ctx *ctx, void *p, const UA_DataType *type) {
+    if(!ctx->opts.calloc)
+        UA_clear(p, type);
+    else
+        memset(p, 0, type->memSize);
+}
+
+static void
+ctxClearNodeId(Ctx *ctx, UA_NodeId *p) {
+    if((p->identifierType == UA_NODEIDTYPE_STRING ||
+        p->identifierType == UA_NODEIDTYPE_BYTESTRING) &&
+       !ctx->opts.calloc && p->identifier.string.data > (u8*)UA_EMPTY_ARRAY_SENTINEL)
+        UA_free(p->identifier.string.data);
+    memset(p, 0, sizeof(UA_NodeId));
+}
+
 typedef status
 (*encodeBinarySignature)(Ctx *UA_RESTRICT ctx, const void *UA_RESTRICT src,
                          const UA_DataType *type);
@@ -497,13 +528,16 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
              return UA_STATUSCODE_BADDECODINGERROR);
 
     /* Allocate memory */
-    *dst = UA_calloc(length, type->memSize);
+    *dst = ctxCalloc(ctx, length, type->memSize);
     UA_CHECK_MEM(*dst, return UA_STATUSCODE_BADOUTOFMEMORY);
 
     if(type->overlayable) {
         /* memcpy overlayable array */
-        UA_CHECK(ctx->pos + (type->memSize * length) <= ctx->end,
-                 UA_free(*dst); *dst = NULL; return UA_STATUSCODE_BADDECODINGERROR);
+        if(ctx->pos + (type->memSize * length) > ctx->end){
+            ctxFree(ctx, *dst);
+            *dst = NULL;
+            return UA_STATUSCODE_BADDECODINGERROR;
+        }
         memcpy(*dst, ctx->pos, type->memSize * length);
         ctx->pos += type->memSize * length;
     } else {
@@ -511,8 +545,14 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
         uintptr_t ptr = (uintptr_t)*dst;
         for(size_t i = 0; i < length; ++i) {
             ret = decodeBinaryJumpTable[type->typeKind](ctx, (void*)ptr, type);
-            UA_CHECK_STATUS(ret, /* +1 because last element is also already initialized */
-                            UA_Array_delete(*dst, i+1, type); *dst = NULL; return ret);
+            if(ret != UA_STATUSCODE_GOOD) {
+                if(!ctx->opts.calloc) {
+                    /* +1 because last element is also already initialized */
+                    UA_Array_delete(*dst, i + 1, type);
+                }
+                *dst = NULL;
+                return ret;
+            }
             ptr += type->memSize;
         }
     }
@@ -891,7 +931,7 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
     }
 
     /* Allocate memory */
-    dst->content.decoded.data = UA_new(type);
+    dst->content.decoded.data = ctxCalloc(ctx, 1, type->memSize);
     UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
     /* Jump over the length field (TODO: check if the decoded length matches) */
@@ -911,12 +951,12 @@ DECODE_BINARY(ExtensionObject) {
     status ret = UA_STATUSCODE_GOOD;
     ret |= DECODE_DIRECT(&binTypeId, NodeId);
     ret |= DECODE_DIRECT(&encoding, Byte);
-    UA_CHECK_STATUS(ret, UA_NodeId_clear(&binTypeId); return ret);
+    UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &binTypeId); return ret);
 
     switch(encoding) {
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
         ret = ExtensionObject_decodeBinaryContent(ctx, dst, &binTypeId);
-        UA_NodeId_clear(&binTypeId);
+        ctxClearNodeId(ctx, &binTypeId);
         break;
     case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;
@@ -927,10 +967,10 @@ DECODE_BINARY(ExtensionObject) {
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;
         dst->content.encoded.typeId = binTypeId; /* move to dst */
         ret = DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
-        UA_CHECK_STATUS(ret, UA_NodeId_clear(&dst->content.encoded.typeId));
+        UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &dst->content.encoded.typeId));
         break;
     default:
-        UA_NodeId_clear(&binTypeId);
+        ctxClearNodeId(ctx, &binTypeId);
         ret = UA_STATUSCODE_BADDECODINGERROR;
         break;
     }
@@ -1052,7 +1092,7 @@ Variant_decodeBinaryUnwrapExtensionObject(Ctx *ctx, UA_Variant *dst) {
     /* Decode the EncodingByte */
     u8 encoding;
     ret = DECODE_DIRECT(&encoding, Byte);
-    UA_CHECK_STATUS(ret, UA_NodeId_clear(&typeId); return ret);
+    UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &typeId); return ret);
 
     /* Search for the datatype. Default to ExtensionObject. */
     if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
@@ -1064,10 +1104,10 @@ Variant_decodeBinaryUnwrapExtensionObject(Ctx *ctx, UA_Variant *dst) {
         dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
         ctx->pos = old_pos;
     }
-    UA_NodeId_clear(&typeId);
+    ctxClearNodeId(ctx, &typeId);
 
     /* Allocate memory */
-    dst->data = UA_new(dst->type);
+    dst->data = ctxCalloc(ctx, 1, dst->type->memSize);
     UA_CHECK_MEM(dst->data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
     /* Decode the content */
@@ -1113,7 +1153,7 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
 
     /* Lookup the data type */
     const UA_DataType *contentType = UA_findDataTypeByBinaryInternal(ctx, &binTypeId);
-    UA_NodeId_clear(&binTypeId);
+    ctxClearNodeId(ctx, &binTypeId);
     if(!contentType) {
         /* DataType unknown, decode as ExtensionObject array */
         ctx->pos = orig_pos;
@@ -1155,7 +1195,7 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
     }
 
     /* Allocate memory for the unwrapped members */
-    *dst = UA_calloc(length, contentType->memSize);
+    *dst = ctxCalloc(ctx, length, contentType->memSize);
     UA_CHECK_MEM(*dst, return UA_STATUSCODE_BADOUTOFMEMORY);
     *out_length = length;
     *type = contentType;
@@ -1207,7 +1247,7 @@ DECODE_BINARY(Variant) {
     if(!isArray) {
         /* Decode scalar */
         if(typeKind != UA_DATATYPEKIND_EXTENSIONOBJECT) {
-            dst->data = UA_new(dst->type);
+            dst->data = ctxCalloc(ctx, 2, dst->type->memSize);
             UA_CHECK_MEM(dst->data, ctx->depth--; return UA_STATUSCODE_BADOUTOFMEMORY);
             ret = decodeBinaryJumpTable[typeKind](ctx, dst->data, dst->type);
         } else {
@@ -1395,7 +1435,7 @@ DECODE_BINARY(DiagnosticInfo) {
     if(encodingMask & 0x40u) {
         /* innerDiagnosticInfo is allocated on the heap */
         dst->innerDiagnosticInfo = (UA_DiagnosticInfo*)
-            UA_calloc(1, sizeof(UA_DiagnosticInfo));
+            ctxCalloc(ctx, 1, sizeof(UA_DiagnosticInfo));
         UA_CHECK_MEM(dst->innerDiagnosticInfo, return UA_STATUSCODE_BADOUTOFMEMORY);
         dst->hasInnerDiagnosticInfo = true;
 
@@ -1726,9 +1766,9 @@ decodeBinaryStructureWithOptFields(Ctx *ctx, void *dst, const UA_DataType *type)
                 ret = Array_decodeBinary(ctx, (void *UA_RESTRICT *UA_RESTRICT)ptr, length, mt);
             } else {
                 /* Optional Scalar */
-                *(void *UA_RESTRICT *UA_RESTRICT) ptr = UA_calloc(1, mt->memSize);
+                *(void *UA_RESTRICT *UA_RESTRICT) ptr = ctxCalloc(ctx, 1, mt->memSize);
                 UA_CHECK_MEM(*(void *UA_RESTRICT *UA_RESTRICT) ptr, return UA_STATUSCODE_BADOUTOFMEMORY);
-                ret = decodeBinaryJumpTable[mt->typeKind](ctx, *(void *UA_RESTRICT *UA_RESTRICT) ptr, mt);
+                ret = decodeBinaryJumpTable[mt->typeKind](ctx, *(void *UA_RESTRICT *UA_RESTRICT)ptr, mt);
             }
             ptr += sizeof(void *);
             continue;
@@ -1845,8 +1885,7 @@ UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
         *offset = (size_t)(ctx.pos - src->data) / sizeof(u8);
     } else {
         /* Clean up */
-        UA_clear(dst, type);
-        memset(dst, 0, type->memSize);
+        ctxClear(&ctx, dst, type);
     }
     return ret;
 }
