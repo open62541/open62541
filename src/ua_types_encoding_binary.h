@@ -44,8 +44,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         void *exchangeHandle)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
-/* Decodes a scalar value described by type from binary encoding. Decoding
- * is thread-safe if thread-local variables are enabled. Decoding is also
+/* Decodes a scalar value described by type from binary encoding. Decoding is
  * reentrant and can be safely called from signal handlers or interrupts.
  *
  * @param src The buffer with the binary encoded value. Must not be NULL.
@@ -64,7 +63,7 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
 UA_StatusCode
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
                         void *dst, const UA_DataType *type,
-                        const UA_DataTypeArray *customTypes)
+                        const UA_DecodeBinaryOptions *options)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 const UA_DataType *

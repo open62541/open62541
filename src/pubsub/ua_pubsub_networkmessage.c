@@ -814,7 +814,7 @@ UA_NetworkMessage_decodeHeaders(const UA_ByteString *src, size_t *offset,
 
 UA_StatusCode
 UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_NetworkMessage *dst,
-                                const UA_DataTypeArray *customTypes) {
+                                const UA_DecodeBinaryOptions *options) {
     // Payload
     if(dst->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
@@ -847,12 +847,12 @@ UA_NetworkMessage_decodePayload(const UA_ByteString *src, size_t *offset, UA_Net
     if(count == 1) {
         rv = UA_DataSetMessage_decodeBinary(src, offset,
                                             &dst->payload.dataSetPayload.dataSetMessages[0],
-                                            0, customTypes);
+                                            0, options);
     } else {
         for(UA_Byte i = 0; i < count; i++) {
             rv = UA_DataSetMessage_decodeBinary(src, offset,
                                                 &dst->payload.dataSetPayload.dataSetMessages[i],
-                                                dst->payload.dataSetPayload.sizes[i], customTypes);
+                                                dst->payload.dataSetPayload.sizes[i], options);
         }
     }
     UA_CHECK_STATUS(rv, return rv);
@@ -887,17 +887,16 @@ UA_NetworkMessage_decodeFooters(const UA_ByteString *src, size_t *offset,
 }
 
 UA_StatusCode
-UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
-                               UA_NetworkMessage *dst,
-                               const UA_DataTypeArray *customTypes) {
+UA_NetworkMessage_decodeBinary(const UA_ByteString *src, UA_NetworkMessage *dst,
+                               const UA_DecodeBinaryOptions *options) {
     size_t offset = 0;
-    return UA_NetworkMessage_decodeBinaryWithOffset(src, &offset, dst, customTypes);
+    return UA_NetworkMessage_decodeBinaryWithOffset(src, &offset, dst, options);
 }
 
 UA_StatusCode
 UA_NetworkMessage_decodeBinaryWithOffset(const UA_ByteString *src, size_t *offset,
                                          UA_NetworkMessage* dst,
-                                         const UA_DataTypeArray *customTypes) {
+                                         const UA_DecodeBinaryOptions *options) {
     /* headers only need to be decoded when not in encryption mode
      * because headers are already decoded when encryption mode is enabled
      * to check for security parameters and decrypt/verify
@@ -915,7 +914,7 @@ UA_NetworkMessage_decodeBinaryWithOffset(const UA_ByteString *src, size_t *offse
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(src, offset, dst);
     UA_CHECK_STATUS(rv, return rv);
 
-    rv = UA_NetworkMessage_decodePayload(src, offset, dst, customTypes);
+    rv = UA_NetworkMessage_decodePayload(src, offset, dst, options);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_decodeFooters(src, offset, dst);
@@ -1498,7 +1497,7 @@ UA_DataSetMessage_encodeBinary(const UA_DataSetMessage* src, UA_Byte **bufPos,
 static UA_StatusCode
 UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset,
                                         size_t initialOffset, UA_DataSetMessage* dst,
-                                        size_t dsmSize, const UA_DataTypeArray *customTypes) {
+                                        size_t dsmSize, const UA_DecodeBinaryOptions *options) {
     if(*offset == src->length)
         return UA_STATUSCODE_GOOD; /* Messages ends after the header --> Heartbeat */
 
@@ -1520,7 +1519,7 @@ UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset
         for(UA_UInt16 i = 0; i < kfd->fieldCount; i++) {
             UA_DataValue_init(&kfd->dataSetFields[i]);
             rv = UA_decodeBinaryInternal(src, offset, &kfd->dataSetFields[i].value,
-                                         &UA_TYPES[UA_TYPES_VARIANT], customTypes);
+                                         &UA_TYPES[UA_TYPES_VARIANT], options);
             UA_CHECK_STATUS(rv, return rv);
             kfd->dataSetFields[i].hasValue = true;
         }
@@ -1539,7 +1538,7 @@ UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset
 
         for(UA_UInt16 i = 0; i < kfd->fieldCount; i++) {
             rv = UA_decodeBinaryInternal(src, offset, &kfd->dataSetFields[i],
-                                         &UA_TYPES[UA_TYPES_DATAVALUE], customTypes);
+                                         &UA_TYPES[UA_TYPES_DATAVALUE], options);
             UA_CHECK_STATUS(rv, return rv);
         }
         break;
@@ -1565,7 +1564,7 @@ UA_DataSetMessage_keyFrame_decodeBinary(const UA_ByteString *src, size_t *offset
 static UA_StatusCode
 UA_DataSetMessage_deltaFrame_decodeBinary(const UA_ByteString *src, size_t *offset,
                                           UA_DataSetMessage* dst,
-                                          const UA_DataTypeArray *customTypes) {
+                                          const UA_DecodeBinaryOptions *options) {
     if(dst->header.fieldEncoding == UA_FIELDENCODING_RAWDATA)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
@@ -1591,13 +1590,13 @@ UA_DataSetMessage_deltaFrame_decodeBinary(const UA_ByteString *src, size_t *offs
         if(dst->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
             rv = UA_decodeBinaryInternal(src, offset,
                                          &dfd->deltaFrameFields[i].fieldValue.value,
-                                         &UA_TYPES[UA_TYPES_VARIANT], customTypes);
+                                         &UA_TYPES[UA_TYPES_VARIANT], options);
             UA_CHECK_STATUS(rv, return rv);
             dfd->deltaFrameFields[i].fieldValue.hasValue = true;
         } else {
             rv = UA_decodeBinaryInternal(src, offset,
                                          &dfd->deltaFrameFields[i].fieldValue,
-                                         &UA_TYPES[UA_TYPES_DATAVALUE], customTypes);
+                                         &UA_TYPES[UA_TYPES_DATAVALUE], options);
             UA_CHECK_STATUS(rv, return rv);
         }
     }
@@ -1608,7 +1607,7 @@ UA_DataSetMessage_deltaFrame_decodeBinary(const UA_ByteString *src, size_t *offs
 UA_StatusCode
 UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
                                UA_DataSetMessage* dst, UA_UInt16 dsmSize,
-                               const UA_DataTypeArray *customTypes) {
+                               const UA_DecodeBinaryOptions *options) {
     size_t initialOffset = *offset;
     memset(dst, 0, sizeof(UA_DataSetMessage));
     UA_StatusCode rv = UA_DataSetMessageHeader_decodeBinary(src, offset, &dst->header);
@@ -1617,10 +1616,10 @@ UA_DataSetMessage_decodeBinary(const UA_ByteString *src, size_t *offset,
     switch(dst->header.dataSetMessageType) {
     case UA_DATASETMESSAGE_DATAKEYFRAME:
         rv = UA_DataSetMessage_keyFrame_decodeBinary(src, offset, initialOffset, dst,
-                                                     dsmSize, customTypes);
+                                                     dsmSize, options);
         break;
     case UA_DATASETMESSAGE_DATADELTAFRAME:
-        rv = UA_DataSetMessage_deltaFrame_decodeBinary(src, offset, dst, customTypes);
+        rv = UA_DataSetMessage_deltaFrame_decodeBinary(src, offset, dst, options);
         break;
     case UA_DATASETMESSAGE_KEEPALIVE:
         break; /* Keep-Alive Message contains no Payload Data */

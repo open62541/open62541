@@ -449,8 +449,11 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
                  "Decode a message of type %" PRIu32,
                  responseTypeId.identifier.numeric);
 #endif
-    retval = UA_decodeBinaryInternal(msg, &offset, response, responseType,
-                                     client->config.customDataTypes);
+
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = client->config.customDataTypes;
+    retval = UA_decodeBinaryInternal(msg, &offset, response, responseType, &opt);
 
  process:
     /* Process the received MSG response */

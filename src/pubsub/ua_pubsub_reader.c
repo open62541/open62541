@@ -973,6 +973,10 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
     if(!nm)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = server->config.customDataTypes;
+
     /* Decode using the non-rt decoding */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
@@ -980,7 +984,7 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
         UA_free(nm);
         return rv;
     }
-    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes);
+    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, &opt);
     rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
