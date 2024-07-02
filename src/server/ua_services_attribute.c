@@ -838,6 +838,8 @@ compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
     return false;
 }
 
+static const UA_NodeId enumNodeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ENUMERATION}};
+
 UA_Boolean
 compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
                     const UA_NodeId *constraintDataType) {
@@ -856,6 +858,12 @@ compatibleDataTypes(UA_Server *server, const UA_NodeId *dataType,
 
     /* Is the DataType a subtype of the constraint type? */
     if(isNodeInTree_singleRef(server, dataType, constraintDataType,
+                              UA_REFERENCETYPEINDEX_HASSUBTYPE))
+        return true;
+
+    /* The constraint is an enum -> allow writing Int32 */
+    if(UA_NodeId_equal(dataType, &UA_TYPES[UA_TYPES_INT32].typeId) &&
+       isNodeInTree_singleRef(server, constraintDataType, &enumNodeId,
                               UA_REFERENCETYPEINDEX_HASSUBTYPE))
         return true;
 
