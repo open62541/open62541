@@ -1523,6 +1523,11 @@ export(TARGETS open62541
        NAMESPACE open62541::
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
+if(UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS")
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/FindMbedTLS.cmake"
+            DESTINATION "${cmake_configfile_install}")
+endif()
+
 # Generate and install open62541.pc
 if(UA_ENABLE_AMALGAMATION)
     set(PC_EXTRA_CFLAGS "-DUA_ENABLE_AMALGAMATION")
