@@ -68,12 +68,6 @@ ctxClearNodeId(Ctx *ctx, UA_NodeId *p) {
     memset(p, 0, sizeof(UA_NodeId));
 }
 
-typedef status
-(*encodeBinarySignature)(Ctx *UA_RESTRICT ctx, const void *UA_RESTRICT src,
-                         const UA_DataType *type);
-typedef status
-(*decodeBinarySignature)(Ctx *UA_RESTRICT ctx, void *UA_RESTRICT dst,
-                         const UA_DataType *type);
 #define ENCODE_BINARY(TYPE) static status                               \
     TYPE##_encodeBinary(Ctx *UA_RESTRICT ctx,                           \
                         const UA_##TYPE *UA_RESTRICT src,               \
@@ -90,13 +84,6 @@ typedef status
         if(ctx->end != NULL)                                \
             return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED; \
     } else                                                  \
-
-/* Jumptables for de-/encoding and computing the buffer length. The methods in
- * the decoding jumptable do not all clean up their allocated memory when an
- * error occurs. So a final _clear needs to be called before returning to the
- * user. */
-extern const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS];
-extern const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS];
 
 /* Send the current chunk and replace the buffer */
 static status exchangeBuffer(Ctx *ctx) {
@@ -1847,11 +1834,6 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (decodeBinarySignature)decodeBinaryUnion, /* Union */
     (decodeBinarySignature)decodeBinaryNotImplemented /* BitfieldCluster */
 };
-
-status
-UA_decodeBinaryInternalCtx(Ctx *ctx, void *dst, const UA_DataType *type) {
-    return decodeBinaryJumpTable[type->typeKind](ctx, dst, type);
-}
 
 status
 UA_decodeBinaryInternal(const UA_ByteString *src, size_t *offset,
