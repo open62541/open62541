@@ -716,6 +716,14 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
     if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
+    /* Set up the decoding context */
+    Ctx ctx;
+    ctx.pos = buf->data;
+    ctx.end = buf->data + buf->length;
+    ctx.depth = 0;
+    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
+    ctx.opts.customTypes = server->config.customDataTypes;
+
     UA_Boolean processed = false;
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
@@ -729,8 +737,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useMembufAlloc();
 #endif
-    size_t pos = 0;
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, &pos, &currentNetworkMessage);
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, &currentNetworkMessage);
 #ifdef UA_ENABLE_PUBSUB_BUFMALLOC
     useNormalAlloc();
 #endif
@@ -742,8 +749,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Decrypt the message. Keep pos right after the header. */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &pos,
-                                        &currentNetworkMessage, rg);
+    rv = verifyAndDecryptNetworkMessage(server->config.logging, &ctx, &currentNetworkMessage, rg);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Subscribe failed. verify and decrypt network "

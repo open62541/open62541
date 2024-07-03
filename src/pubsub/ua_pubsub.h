@@ -574,8 +574,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier);
 
 UA_StatusCode
-UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
-                                     UA_ByteString *buf, size_t *pos);
+UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
+                                     UA_ByteString *buf);
 
 void
 UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
@@ -739,14 +739,13 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 UA_StatusCode
-verifyAndDecrypt(const UA_Logger *logger, UA_ByteString *buffer,
-                 const size_t *currentPosition, const UA_NetworkMessage *nm,
+verifyAndDecrypt(const UA_Logger *logger, Ctx *ctx, const UA_NetworkMessage *nm,
                  UA_Boolean doValidate, UA_Boolean doDecrypt,
                  void *channelContext, UA_PubSubSecurityPolicy *securityPolicy);
 
 UA_StatusCode
-verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString *buffer,
-                               size_t *currentPosition, UA_NetworkMessage *nm,
+verifyAndDecryptNetworkMessage(const UA_Logger *logger, Ctx *ctx,
+                               UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup);
 #endif
 
