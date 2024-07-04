@@ -44,7 +44,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -106,7 +105,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -174,7 +172,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -245,7 +242,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -313,7 +309,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -377,7 +372,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -544,7 +538,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -635,7 +628,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -725,7 +717,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -819,7 +810,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -909,7 +899,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -993,7 +982,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1093,7 +1081,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
@@ -1210,7 +1197,6 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
     rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
