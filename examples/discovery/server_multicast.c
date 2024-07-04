@@ -250,10 +250,9 @@ int main(int argc, char **argv) {
     // NOTE: UaExpert does not show LDS-only servers in the list.
     // See also: https://forum.unified-automation.com/topic1987.html
 
-    config->mdnsConfig.serverCapabilitiesSize = 2;
-    UA_String *caps = (UA_String *) UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    config->mdnsConfig.serverCapabilitiesSize = 1;
+    UA_String *caps = (UA_String *) UA_Array_new(1, &UA_TYPES[UA_TYPES_STRING]);
     caps[0] = UA_String_fromChars("LDS");
-    caps[1] = UA_String_fromChars("NA");
     config->mdnsConfig.serverCapabilities = caps;
 
     // Start the server and call iterate to wait for the multicast discovery of the LDS
