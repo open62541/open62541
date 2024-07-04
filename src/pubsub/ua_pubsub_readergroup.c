@@ -20,6 +20,29 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#define MALLOCMEMBUFSIZE 256
+
+typedef struct {
+    size_t pos;
+    char buf[MALLOCMEMBUFSIZE];
+} MembufCalloc;
+
+static void *
+membufCalloc(void *context,
+             size_t nelem, size_t elsize) {
+    if(nelem > MALLOCMEMBUFSIZE || elsize > MALLOCMEMBUFSIZE)
+        return NULL;
+    size_t total = nelem * elsize;
+
+    MembufCalloc *mc = (MembufCalloc*)context;
+    if(mc->pos + total > MALLOCMEMBUFSIZE)
+        return NULL;
+    void *mem = mc->buf + mc->pos;
+    mc->pos += total;
+    memset(mem, 0, total);
+    return mem;
+}
+
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
     UA_ReaderGroup *rg;
@@ -728,23 +751,23 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
 
-    /* Decode headers necessary for matching identifiers. This can use malloc.
-     * So enable membufAlloc if you need RT timings. Reset back to the normal
-     * malloc before processing the message. The userland (callbacks) below
-     * might rely on that. It needs to be ensured that the membuf-memory is not
-     * reset (zeroed out) in "useNormalAlloc". So the decoded memory can be used
-     * until the end of this method. */
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-    useMembufAlloc();
-#endif
+    /* Set the arena-based calloc for realtime processing. This is because the
+     * header can (in theory) contain PromotedFields that require
+     * heap-allocation.
+     *
+     * The arena is stack-allocated and rather small. So this method is
+     * reentrant. Typically the arena-based calloc is not used at all for the
+     * "static" network message headers encountered in an RT context. */
+    MembufCalloc mc;
+    mc.pos = 0;
+    ctx.opts.callocContext = &mc;
+    ctx.opts.calloc = membufCalloc;
+
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, &currentNetworkMessage);
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-    useNormalAlloc();
-#endif
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                               "PubSub receive. decoding headers failed");
-        goto cleanup;
+        return false;
     }
 
     /* Decrypt the message. Keep pos right after the header. */
@@ -754,7 +777,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Subscribe failed. verify and decrypt network "
                                    "message failed.");
-        goto cleanup;
+        return false;
     }
 #endif
 
@@ -780,10 +803,6 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
         processed = true;
     }
 
- cleanup:
-#ifndef UA_ENABLE_PUBSUB_BUFMALLOC
-    UA_NetworkMessage_clear(&currentNetworkMessage);
-#endif
     return processed;
 }
 
