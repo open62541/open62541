@@ -22,10 +22,6 @@
 
 #include "ua_types_encoding_binary.h"
 
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-#include "ua_pubsub_bufmalloc.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 static void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
