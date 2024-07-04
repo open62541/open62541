@@ -37,12 +37,8 @@
  * ---------------
  * Changing the feature options has no effect on a pre-compiled library. */
 
-#ifndef UA_LOGLEVEL
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
-#endif
-#ifndef UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_AMALGAMATION
-#endif
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS

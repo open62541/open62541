@@ -248,7 +248,8 @@ Detailed SDK Features
    Enable dynamic addition and removal of nodes at runtime
 
 **UA_ENABLE_AMALGAMATION**
-   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`. Not recommended for installation.
+   Compile a single-file release into the files :file:`open62541.c` and :file:`open62541.h`.
+   Invoke the CMake target to generate the amalgamation as ``make open62541-amalgamation``.
 
 **UA_ENABLE_IMMUTABLE_NODES**
    Nodes in the information model are not edited but copied and replaced. The

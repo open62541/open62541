@@ -1,13 +1,9 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifdef UA_ENABLE_AMALGAMATION
-#include "open62541.h"
-#else
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#endif
 
 #include "open62541/namespace_di_generated.h"
 #include "open62541/namespace_powerlink_generated.h"
