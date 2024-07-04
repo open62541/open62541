@@ -617,7 +617,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
                 cmake_policy(SET CMP0069 NEW) # needed as long as required cmake < 3.9
                 include(CheckIPOSupported)
                 check_ipo_supported(RESULT CC_HAS_IPO) # Inter Procedural Optimization / Link Time Optimization (should be same as -flto)
-                if(CC_HAS_IPO)
+                if(CC_HAS_IPO AND NOT UA_DEBUG)
                     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
                 endif()
             endif()
