@@ -82,7 +82,6 @@
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
 #cmakedefine UA_ENABLE_PUBSUB_MONITORING
-#cmakedefine UA_ENABLE_PUBSUB_BUFMALLOC
 #cmakedefine UA_ENABLE_PUBSUB_SKS
 
 /* Options for Debugging */
