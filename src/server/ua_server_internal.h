@@ -59,12 +59,6 @@ typedef struct {
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
-typedef struct channel_entry {
-    UA_SecureChannel channel;
-    TAILQ_ENTRY(channel_entry) serverEntry;
-    TAILQ_ENTRY(channel_entry) componentEntry;
-} channel_entry;
-
 /********************/
 /* Server Component */
 /********************/
@@ -158,7 +152,7 @@ struct UA_Server {
     UA_Session adminSession;
 
     /* SecureChannels */
-    TAILQ_HEAD(, channel_entry) channels;
+    TAILQ_HEAD(, UA_SecureChannel) channels;
     UA_UInt32 lastChannelId;
     UA_UInt32 lastTokenId;
 
