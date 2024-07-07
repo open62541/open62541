@@ -152,9 +152,7 @@ typedef int SOCKET;
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
 #define UA_inet_pton inet_pton
-#if UA_IPV6
-# define UA_if_nametoindex if_nametoindex
-#endif
+#define UA_if_nametoindex if_nametoindex
 
 #define UA_clean_errno(STR_FUN) \
     (errno == 0 ? (char*) "None" : (STR_FUN)(errno))

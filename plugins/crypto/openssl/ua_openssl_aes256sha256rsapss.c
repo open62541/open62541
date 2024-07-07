@@ -110,25 +110,70 @@ UA_Policy_Aes256Sha256RsaPss_Clear_Context(UA_SecurityPolicy *policy) {
 
 static UA_StatusCode
 createSigningRequest_sp_aes128sha256rsapss(UA_SecurityPolicy *securityPolicy,
-                                            const UA_String *subjectName,
-                                            const UA_ByteString *nonce,
-                                            const UA_KeyValueMap *params,
-                                            UA_ByteString *csr,
-                                            UA_ByteString *newPrivateKey) {
+                                           const UA_String *subjectName,
+                                           const UA_ByteString *nonce,
+                                           const UA_KeyValueMap *params,
+                                           UA_ByteString *csr,
+                                           UA_ByteString *newPrivateKey) {
     /* Check parameter */
-    if (securityPolicy == NULL || csr == NULL) {
+    if(!securityPolicy || !csr)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
 
-    if(securityPolicy->policyContext == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
+     if(!securityPolicy->policyContext)
+         return UA_STATUSCODE_BADINTERNALERROR;
 
     Policy_Context_Aes256Sha256RsaPss *pc =
-            (Policy_Context_Aes256Sha256RsaPss *) securityPolicy->policyContext;
+        (Policy_Context_Aes256Sha256RsaPss*)securityPolicy->policyContext;
 
     return UA_OpenSSL_CreateSigningRequest(pc->localPrivateKey, &pc->csrLocalPrivateKey,
                                            securityPolicy, subjectName,
                                            nonce, csr, newPrivateKey);
+}
+
+static UA_StatusCode
+updateCertificateAndPrivateKey_sp_aes128sha256rsapss(UA_SecurityPolicy *securityPolicy,
+                                                     const UA_ByteString newCertificate,
+                                                     const UA_ByteString newPrivateKey) {
+    if(!securityPolicy)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!securityPolicy->policyContext)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    Policy_Context_Aes256Sha256RsaPss *pc =
+        (Policy_Context_Aes256Sha256RsaPss *)securityPolicy->policyContext;
+
+    UA_ByteString_clear(&securityPolicy->localCertificate);
+    UA_ByteString_clear(&pc->localCertThumbprint);
+
+    UA_StatusCode retval =
+        UA_OpenSSL_LoadLocalCertificate(&newCertificate,
+                                        &securityPolicy->localCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    /* Set the new private key */
+    EVP_PKEY_free(pc->localPrivateKey);
+
+    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    if(!pc->localPrivateKey) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto error;
+    }
+
+    retval = UA_Openssl_X509_GetCertificateThumbprint(&securityPolicy->localCertificate,
+                                                      &pc->localCertThumbprint, true);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto error;
+
+    return UA_STATUSCODE_GOOD;
+
+error:
+    UA_LOG_ERROR(securityPolicy->logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                 "Could not update certificate and private key");
+    if(securityPolicy->policyContext)
+        UA_Policy_Aes256Sha256RsaPss_Clear_Context(securityPolicy);
+    return retval;
 }
 
 /* create the channel context */
@@ -700,7 +745,9 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
         UA_ByteString_clear(&policy->localCertificate);
         return retval;
     }
+
     policy->createSigningRequest = createSigningRequest_sp_aes128sha256rsapss;
+    policy->updateCertificateAndPrivateKey = updateCertificateAndPrivateKey_sp_aes128sha256rsapss;
     policy->clear = UA_Policy_Aes256Sha256RsaPss_Clear_Context;
 
     /* Certificate Signing Algorithm */
