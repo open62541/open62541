@@ -1685,8 +1685,8 @@ typedef struct UA_AlarmConditionProperties
     const UA_Duration *maxTimeShelved;
     const UA_Duration *onDelay;
     const UA_Duration *offDelay;
-    //const UA_Duration *reAlarmTime;
-    //const UA_Int16 *reAlarmRepeatCount;
+    const UA_Duration *reAlarmTime;
+    const UA_Int16 *reAlarmRepeatCount;
 } UA_AlarmConditionProperties;
 
 typedef struct UA_DiscrepancyAlarmProperties
