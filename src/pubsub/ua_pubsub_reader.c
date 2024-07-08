@@ -685,6 +685,9 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
     /* Start iteration from beginning of rawFields buffer */
     size_t offset = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
+        UA_FieldTargetVariable *tv =
+            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
+
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
         const UA_DataType *type =
@@ -711,34 +714,35 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
             elementCount *= dimSize;
         }
 
-        UA_FieldTargetVariable *tv =
-            &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
-
+        /* Decode the value */
         UA_STACKARRAY(UA_Byte, value, elementCount * type->memSize);
         memset(value, 0, elementCount * type->memSize);
         UA_Byte *valPtr = value;
         UA_StatusCode res = UA_STATUSCODE_GOOD;
         for(size_t cnt = 0; cnt < elementCount; cnt++) {
-            res = UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields, &offset,
-                                          valPtr, type, NULL);
+            res = UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
+                                          &offset, valPtr, type, NULL);
             if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
                 if(type->typeKind == UA_DATATYPEKIND_STRING ||
-                    type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                    UA_ByteString *bs = (UA_ByteString *) valPtr;
-                    //check if length < maxStringLength, The types ByteString and String are equal in their base definition
-                    size_t lengthDifference = dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
+                   type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+                    UA_ByteString *bs = (UA_ByteString *)valPtr;
+                    /* Check if length < maxStringLength, The types ByteString and
+                     * String are equal in their base definition */
+                    size_t lengthDifference =
+                        dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
                     offset += lengthDifference;
                 }
             }
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_INFO_READER(server->config.logging, dsr,
-                                "Error during Raw-decode KeyFrame field %u: %s",
-                                (unsigned)i, UA_StatusCode_name(res));
+                                   "Error during Raw-decode KeyFrame field %u: %s",
+                                   (unsigned)i, UA_StatusCode_name(res));
                 return;
             }
             valPtr += type->memSize;
         }
 
+        /* Write the value */
         if(tv->beforeWrite || tv->externalDataValue) {
             if(tv->beforeWrite)
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
@@ -791,7 +795,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
     if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_DataSetReader_setPubSubState(server, dsr, dsr->state);
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);

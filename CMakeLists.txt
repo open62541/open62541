@@ -36,7 +36,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 1)
+set(OPEN62541_VER_PATCH 2)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -466,10 +466,11 @@ endif()
 ######################
 
 set(open62541_LIBRARIES "")
+set(open62541_PUBLIC_LIBRARIES "")
 if("${UA_ARCHITECTURE}" STREQUAL "posix")
     list(APPEND open62541_LIBRARIES "m")
-    if(UA_MULTITHREADING OR UA_BUILD_UNIT_TESTS)
-        list(APPEND open62541_LIBRARIES "pthread")
+    if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS)
+        list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
     endif()
     if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
         list(APPEND open62541_LIBRARIES "rt")
@@ -1332,7 +1333,8 @@ SET_TARGET_PROPERTIES(open62541 PROPERTIES
                       VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
 
 # DLL requires linking to dependencies
-target_link_libraries(open62541 ${open62541_LIBRARIES})
+target_link_libraries(open62541 PUBLIC ${open62541_PUBLIC_LIBRARIES})
+target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
 
 ##########################
 # Build Selected Targets #
@@ -1390,7 +1392,6 @@ install(TARGETS open62541
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_schema_dir share/open62541/schema)
-set(open62541_crypto_plugin ${UA_ENABLE_ENCRYPTION})
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
@@ -1399,8 +1400,7 @@ configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541
                               "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
                               INSTALL_DESTINATION "${cmake_configfile_install}"
                               PATH_VARS open62541_install_tools_dir
-                                        open62541_install_schema_dir
-                                        open62541_crypto_plugin)
+                                        open62541_install_schema_dir)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/open62541Config.cmake"
               "${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/open62541Macros.cmake"
         DESTINATION "${cmake_configfile_install}")
@@ -1423,10 +1423,12 @@ export(TARGETS open62541
        FILE ${CMAKE_CURRENT_BINARY_DIR}/open62541Targets.cmake)
 
 # Generate and install open62541.pc
-set(pkgcfglibs "-lopen62541")
-foreach(lib ${open62541_LIBRARIES})
-    set(pkgcfglibs "${pkgcfglibs} -l${lib}")
+set(pkgcfgpubliclibs "")
+foreach(lib ${open62541_PUBLIC_LIBRARIES})
+    set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
 endforeach()
+
+string(REPLACE ";" ", " pkgcfglibs "${open62541_LIBRARIES}")
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
