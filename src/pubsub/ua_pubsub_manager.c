@@ -511,7 +511,7 @@ monitoringReceiveTimeoutOnce(UA_Server *server, void *data) {
     UA_DataSetReader *reader = (UA_DataSetReader*)data;
     reader->msgRcvTimeoutTimerCallback(server, reader);
     UA_EventLoop *el = server->config.eventLoop;
-    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
+    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId, NULL);
     reader->msgRcvTimeoutTimerId = 0;
 }
 
@@ -592,7 +592,7 @@ UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
             switch (eMonitoringType) {
                 case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
                     UA_EventLoop *el = server->config.eventLoop;
-                    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
+                    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId, NULL);
                     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                                  "UA_PubSubComponent_stopMonitoring(): DataSetReader '%.*s' - "
                                  "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "

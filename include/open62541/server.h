@@ -540,8 +540,8 @@ void UA_EXPORT UA_THREADSAFE
 UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId,
                          UA_DataFreeCallback freeFn);
 
-#define UA_Server_removeRepeatedCallback(server, callbackId) \
-    UA_Server_removeCallback(server, callbackId);
+#define UA_Server_removeRepeatedCallback(server, callbackId, freeFn) \
+    UA_Server_removeCallback(server, callbackId, freeFn);
 
 /**
  * Session Handling
