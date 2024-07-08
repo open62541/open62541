@@ -50,6 +50,12 @@ typedef UA_StatusCode
 extern const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS];
 extern const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS];
 
+#define DECODE_BINARY(VAR, TYPE)                                    \
+    decodeBinaryJumpTable[UA_DATATYPEKIND_##TYPE](ctx, VAR, NULL);
+
+#define ENCODE_BINARY(VAR, TYPE)                                    \
+    encodeBinaryJumpTable[UA_DATATYPEKIND_##TYPE](ctx, VAR, NULL);
+
 /* Encodes the scalar value described by type in the binary encoding. Encoding
  * is thread-safe if thread-local variables are enabled. Encoding is also
  * reentrant and can be safely called from signal handlers or interrupts.

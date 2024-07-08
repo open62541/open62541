@@ -14,9 +14,6 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#define DECODE_BINARY(VAR, TYPE)                                        \
-    decodeBinaryJumpTable[UA_DATATYPEKIND_##TYPE](ctx, VAR, NULL);
-
 const UA_Byte NM_VERSION_MASK = 15;
 const UA_Byte NM_PUBLISHER_ID_ENABLED_MASK = 16;
 const UA_Byte NM_GROUP_HEADER_ENABLED_MASK = 32;

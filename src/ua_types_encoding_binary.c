@@ -68,11 +68,11 @@ ctxClearNodeId(Ctx *ctx, UA_NodeId *p) {
     memset(p, 0, sizeof(UA_NodeId));
 }
 
-#define ENCODE_BINARY(TYPE) static status                               \
+#define FUNC_ENCODE_BINARY(TYPE) static status                          \
     TYPE##_encodeBinary(Ctx *UA_RESTRICT ctx,                           \
                         const UA_##TYPE *UA_RESTRICT src,               \
                         const UA_DataType *type)
-#define DECODE_BINARY(TYPE) static status                               \
+#define FUNC_DECODE_BINARY(TYPE) static status                          \
     TYPE##_decodeBinary(Ctx *UA_RESTRICT ctx,                           \
                         UA_##TYPE *UA_RESTRICT dst,                     \
                         const UA_DataType *type)
@@ -179,7 +179,7 @@ UA_decode64(const u8 buf[8], u64 *v) {
 /* Boolean */
 /* Note that sizeof(bool) != 1 on some platforms. Overlayable integer encoding
  * is disabled in those cases. */
-ENCODE_BINARY(Boolean) {
+FUNC_ENCODE_BINARY(Boolean) {
     IF_CHECK_BUFSIZE(ctx->pos + 1 <= ctx->end) {
         *ctx->pos = *(const u8*)src;
     }
@@ -187,7 +187,7 @@ ENCODE_BINARY(Boolean) {
     return UA_STATUSCODE_GOOD;
 }
 
-DECODE_BINARY(Boolean) {
+FUNC_DECODE_BINARY(Boolean) {
     UA_CHECK(ctx->pos + 1 <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
     *dst = (*ctx->pos > 0) ? true : false;
     ++ctx->pos;
@@ -195,7 +195,7 @@ DECODE_BINARY(Boolean) {
 }
 
 /* Byte */
-ENCODE_BINARY(Byte) {
+FUNC_ENCODE_BINARY(Byte) {
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u8) <= ctx->end) {
         *ctx->pos = *(const u8*)src;
     }
@@ -203,7 +203,7 @@ ENCODE_BINARY(Byte) {
     return UA_STATUSCODE_GOOD;
 }
 
-DECODE_BINARY(Byte) {
+FUNC_DECODE_BINARY(Byte) {
     UA_CHECK(ctx->pos + sizeof(u8) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
     *dst = *ctx->pos;
@@ -212,7 +212,7 @@ DECODE_BINARY(Byte) {
 }
 
 /* UInt16 */
-ENCODE_BINARY(UInt16) {
+FUNC_ENCODE_BINARY(UInt16) {
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u16) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u16));
@@ -224,7 +224,7 @@ ENCODE_BINARY(UInt16) {
     return UA_STATUSCODE_GOOD;
 }
 
-DECODE_BINARY(UInt16) {
+FUNC_DECODE_BINARY(UInt16) {
     UA_CHECK(ctx->pos + sizeof(u16) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -237,7 +237,7 @@ DECODE_BINARY(UInt16) {
 }
 
 /* UInt32 */
-ENCODE_BINARY(UInt32) {
+FUNC_ENCODE_BINARY(UInt32) {
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u32) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u32));
@@ -249,7 +249,7 @@ ENCODE_BINARY(UInt32) {
     return UA_STATUSCODE_GOOD;
 }
 
-DECODE_BINARY(UInt32) {
+FUNC_DECODE_BINARY(UInt32) {
     UA_CHECK(ctx->pos + sizeof(u32) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -262,7 +262,7 @@ DECODE_BINARY(UInt32) {
 }
 
 /* UInt64 */
-ENCODE_BINARY(UInt64) {
+FUNC_ENCODE_BINARY(UInt64) {
     IF_CHECK_BUFSIZE(ctx->pos + sizeof(u64) <= ctx->end) {
 #if UA_BINARY_OVERLAYABLE_INTEGER
         memcpy(ctx->pos, src, sizeof(u64));
@@ -274,7 +274,7 @@ ENCODE_BINARY(UInt64) {
     return UA_STATUSCODE_GOOD;
 }
 
-DECODE_BINARY(UInt64) {
+FUNC_DECODE_BINARY(UInt64) {
     UA_CHECK(ctx->pos + sizeof(u64) <= ctx->end,
              return UA_STATUSCODE_BADDECODINGERROR);
 #if UA_BINARY_OVERLAYABLE_INTEGER
@@ -342,7 +342,7 @@ unpack754(uint64_t i, unsigned bits, unsigned expbits) {
 #define FLOAT_NEG_INF 0xff800000
 #define FLOAT_NEG_ZERO 0x80000000
 
-ENCODE_BINARY(Float) {
+FUNC_ENCODE_BINARY(Float) {
     UA_Float f = *src;
     u32 encoded;
     /* cppcheck-suppress duplicateExpression */
@@ -353,7 +353,7 @@ ENCODE_BINARY(Float) {
     return ENCODE_DIRECT(&encoded, UInt32);
 }
 
-DECODE_BINARY(Float) {
+FUNC_DECODE_BINARY(Float) {
     u32 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt32);
     if(ret != UA_STATUSCODE_GOOD)
@@ -374,7 +374,7 @@ DECODE_BINARY(Float) {
 #define DOUBLE_NEG_INF 0xfff0000000000000L
 #define DOUBLE_NEG_ZERO 0x8000000000000000L
 
-ENCODE_BINARY(Double) {
+FUNC_ENCODE_BINARY(Double) {
     UA_Double d = *src;
     u64 encoded;
     /* cppcheck-suppress duplicateExpression */
@@ -385,7 +385,7 @@ ENCODE_BINARY(Double) {
     return ENCODE_DIRECT(&encoded, UInt64);
 }
 
-DECODE_BINARY(Double) {
+FUNC_DECODE_BINARY(Double) {
     u64 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt64);
     UA_CHECK_STATUS(ret, return ret);
@@ -537,16 +537,16 @@ Array_decodeBinary(Ctx *ctx, void *UA_RESTRICT *UA_RESTRICT dst,
 /* Builtin Types */
 /*****************/
 
-ENCODE_BINARY(String) {
+FUNC_ENCODE_BINARY(String) {
     return Array_encodeBinary(ctx, src->data, src->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
-DECODE_BINARY(String) {
+FUNC_DECODE_BINARY(String) {
     return Array_decodeBinary(ctx, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
 /* Guid */
-ENCODE_BINARY(Guid) {
+FUNC_ENCODE_BINARY(Guid) {
     status ret = UA_STATUSCODE_GOOD;
     ret |= ENCODE_DIRECT(&src->data1, UInt32);
     ret |= ENCODE_DIRECT(&src->data2, UInt16);
@@ -558,7 +558,7 @@ ENCODE_BINARY(Guid) {
     return ret;
 }
 
-DECODE_BINARY(Guid) {
+FUNC_DECODE_BINARY(Guid) {
     status ret = UA_STATUSCODE_GOOD;
     ret |= DECODE_DIRECT(&dst->data1, UInt32);
     ret |= DECODE_DIRECT(&dst->data2, UInt16);
@@ -633,11 +633,11 @@ NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding)
     return ret;
 }
 
-ENCODE_BINARY(NodeId) {
+FUNC_ENCODE_BINARY(NodeId) {
     return NodeId_encodeBinaryWithEncodingMask(ctx, src, 0);
 }
 
-DECODE_BINARY(NodeId) {
+FUNC_DECODE_BINARY(NodeId) {
     u8 dstByte = 0, encodingByte = 0;
     u16 dstUInt16 = 0;
 
@@ -692,7 +692,7 @@ DECODE_BINARY(NodeId) {
 }
 
 /* ExpandedNodeId */
-ENCODE_BINARY(ExpandedNodeId) {
+FUNC_ENCODE_BINARY(ExpandedNodeId) {
     /* Set up the encoding mask */
     u8 encoding = 0;
     if((void*)src->namespaceUri.data > UA_EMPTY_ARRAY_SENTINEL)
@@ -720,7 +720,7 @@ ENCODE_BINARY(ExpandedNodeId) {
     return ret;
 }
 
-DECODE_BINARY(ExpandedNodeId) {
+FUNC_DECODE_BINARY(ExpandedNodeId) {
     /* Decode the encoding mask */
     UA_CHECK(ctx->pos + 1 <= ctx->end, return UA_STATUSCODE_BADDECODINGERROR);
     u8 encoding = *ctx->pos;
@@ -741,7 +741,7 @@ DECODE_BINARY(ExpandedNodeId) {
 }
 
 /* QualifiedName */
-ENCODE_BINARY(QualifiedName) {
+FUNC_ENCODE_BINARY(QualifiedName) {
     status ret = ENCODE_DIRECT(&src->namespaceIndex, UInt16);
     /* Must check here so we can exchange the buffer in the string encoding */
     UA_CHECK_STATUS(ret, return ret);
@@ -749,7 +749,7 @@ ENCODE_BINARY(QualifiedName) {
     return ret;
 }
 
-DECODE_BINARY(QualifiedName) {
+FUNC_DECODE_BINARY(QualifiedName) {
     status ret = DECODE_DIRECT(&dst->namespaceIndex, UInt16);
     ret |= DECODE_DIRECT(&dst->name, String);
     return ret;
@@ -759,7 +759,7 @@ DECODE_BINARY(QualifiedName) {
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_LOCALE 0x01u
 #define UA_LOCALIZEDTEXT_ENCODINGMASKTYPE_TEXT 0x02u
 
-ENCODE_BINARY(LocalizedText) {
+FUNC_ENCODE_BINARY(LocalizedText) {
     /* Set up the encoding mask */
     u8 encoding = 0;
     if(src->locale.data)
@@ -781,7 +781,7 @@ ENCODE_BINARY(LocalizedText) {
     return ret;
 }
 
-DECODE_BINARY(LocalizedText) {
+FUNC_DECODE_BINARY(LocalizedText) {
     /* Decode the encoding mask */
     u8 encoding = 0;
     status ret = DECODE_DIRECT(&encoding, Byte);
@@ -829,7 +829,7 @@ UA_findDataTypeByBinary(const UA_NodeId *typeId) {
 }
 
 /* ExtensionObject */
-ENCODE_BINARY(ExtensionObject) {
+FUNC_ENCODE_BINARY(ExtensionObject) {
     u8 encoding = (u8)src->encoding;
 
     /* No content or already encoded content. */
@@ -916,7 +916,7 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
     return decodeBinaryJumpTable[type->typeKind](ctx, dst->content.decoded.data, type);
 }
 
-DECODE_BINARY(ExtensionObject) {
+FUNC_DECODE_BINARY(ExtensionObject) {
     u8 encoding = 0;
     UA_NodeId binTypeId;
     UA_NodeId_init(&binTypeId);
@@ -994,7 +994,7 @@ enum UA_VARIANT_ENCODINGMASKTYPE {
     UA_VARIANT_ENCODINGMASKTYPE_ARRAY = (u8)(0x01u << 7u)  /* bit 7 */
 };
 
-ENCODE_BINARY(Variant) {
+FUNC_ENCODE_BINARY(Variant) {
     /* Quit early for the empty variant */
     u8 encoding = 0;
     if(!src->type)
@@ -1186,7 +1186,7 @@ Variant_decodeBinaryUnwrapExtensionObjectArray(Ctx *ctx, void *UA_RESTRICT *UA_R
 }
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. */
-DECODE_BINARY(Variant) {
+FUNC_DECODE_BINARY(Variant) {
     /* Decode the encoding byte */
     u8 encodingByte;
     status ret = DECODE_DIRECT(&encodingByte, Byte);
@@ -1246,7 +1246,7 @@ DECODE_BINARY(Variant) {
 }
 
 /* DataValue */
-ENCODE_BINARY(DataValue) {
+FUNC_ENCODE_BINARY(DataValue) {
     /* Set up the encoding mask */
     u8 encodingMask = src->hasValue;
     encodingMask |= (u8)(src->hasStatus << 1u);
@@ -1282,7 +1282,7 @@ ENCODE_BINARY(DataValue) {
 
 #define MAX_PICO_SECONDS 9999
 
-DECODE_BINARY(DataValue) {
+FUNC_DECODE_BINARY(DataValue) {
     /* Decode the encoding mask */
     u8 encodingMask;
     status ret = DECODE_DIRECT(&encodingMask, Byte);
@@ -1327,7 +1327,7 @@ DECODE_BINARY(DataValue) {
 }
 
 /* DiagnosticInfo */
-ENCODE_BINARY(DiagnosticInfo) {
+FUNC_ENCODE_BINARY(DiagnosticInfo) {
     /* Set up the encoding mask */
     u8 encodingMask = src->hasSymbolicId;
     encodingMask |= (u8)(src->hasNamespaceUri << 1u);
@@ -1374,7 +1374,7 @@ ENCODE_BINARY(DiagnosticInfo) {
     return ret;
 }
 
-DECODE_BINARY(DiagnosticInfo) {
+FUNC_DECODE_BINARY(DiagnosticInfo) {
     /* Decode the encoding mask */
     u8 encodingMask;
     status ret = DECODE_DIRECT(&encodingMask, Byte);
