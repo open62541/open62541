@@ -42,6 +42,8 @@ struct UA_Condition {
     const UA_ConditionTypeFunctionsTable *fns;
     UA_UInt64 onDelayCallbackId;
     UA_UInt64 offDelayCallbackId;
+    UA_UInt64 reAlarmCallbackId;
+    UA_Int16 reAlarmCount;
 };
 
 static UA_Condition *UA_Condition_new (void)
@@ -213,6 +215,7 @@ struct UA_ConditionSource {
 #define DISABLED_MESSAGE                                       "The alarm was disabled"
 #define COMMENT_MESSAGE                                        "A comment was added"
 #define RESET_MESSAGE                                          "The alarm was reset"
+#define REALARM_MESSAGE                                        "ReAlarm time expired"
 #define SEVERITY_INCREASED_MESSAGE                             "The alarm severity has increased"
 #define SEVERITY_DECREASED_MESSAGE                             "The alarm severity has decreased"
 #define ACKED_TEXT                                             "Acknowledged"
@@ -612,7 +615,6 @@ getBooleanValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
     *outValue = *(UA_Boolean*)value.data;
-    UA_Boolean_init((UA_Boolean*)value.data);
     UA_Variant_clear(&value);
     return UA_STATUSCODE_GOOD;
 }
@@ -629,10 +631,26 @@ getDurationValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
     *outValue = *(UA_Duration *)value.data;
-    UA_Duration_init((UA_Duration*)value.data);
     UA_Variant_clear(&value);
     return UA_STATUSCODE_GOOD;
 }
+
+static UA_StatusCode
+getInt16ValueOfConditionField(UA_Server *server, const UA_NodeId *condition,
+                                 UA_QualifiedName fieldName, UA_Int16 *outValue) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_Variant value;
+    UA_StatusCode retval = getValueOfConditionField(server, condition, fieldName, &value);
+    if(retval != UA_STATUSCODE_GOOD) return retval;
+    if(!UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_INT16])) {
+        UA_Variant_clear(&value);
+        return UA_STATUSCODE_BADTYPEMISMATCH;
+    }
+    *outValue = *(UA_Int16 *)value.data;
+    UA_Variant_clear(&value);
+    return UA_STATUSCODE_GOOD;
+}
+
 
 static UA_StatusCode
 setRefreshMethodEventFields(UA_Server *server, const UA_NodeId *refreshEventNodId) {
@@ -852,6 +870,28 @@ UA_Condition_State_getOffDelay (const UA_Condition *condition, UA_Server *server
     );
 }
 
+static inline UA_StatusCode
+UA_Condition_State_getReAlarmTime(UA_Condition *condition, UA_Server *server, UA_Duration *outValue)
+{
+    return getDurationValueOfConditionField (
+        server,
+        &condition->mainBranch->id,
+        fieldReAlarmTimeQN,
+        outValue
+    );
+}
+
+static inline UA_StatusCode
+UA_Condition_State_getReAlarmRepeatCount(UA_Condition *condition, UA_Server *server, UA_Int16 *reAlarmRepeatCount)
+{
+    return getInt16ValueOfConditionField(
+        server,
+        &condition->mainBranch->id,
+        fieldReAlarmRepeatCountQN,
+        reAlarmRepeatCount
+    );
+}
+
 static inline UA_Boolean
 UA_Condition_State_hasOffDelay(UA_Condition *condition, UA_Server *server)
 {
@@ -1016,6 +1056,7 @@ static void removeCondition (UA_Server *server, UA_Condition *condition)
     ZIP_REMOVE(UA_ConditionTree, &server->conditions ,condition);
     if (condition->onDelayCallbackId) removeCallback (server, condition->onDelayCallbackId, UA_free);
     if (condition->offDelayCallbackId) removeCallback (server, condition->offDelayCallbackId, UA_free);
+    if (condition->reAlarmCallbackId) removeCallback (server, condition->reAlarmCallbackId, NULL);
     UA_Condition_delete (condition);
 }
 
@@ -1782,24 +1823,24 @@ UA_Server_setupAlarmConditionNodes (UA_Server *server, const UA_NodeId *conditio
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set OffDelay Field failed",);
     }
 
-//    if (properties->reAlarmTime)
-//    {
-//        retval = addConditionOptionalField (server, *condition, alarmConditionTypeId,
-//                                            fieldReAlarmTimeQN, NULL);
-//        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ReAlarmTime optional Field failed",);
-//        UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->reAlarmTime, &UA_TYPES[UA_TYPES_DURATION]);
-//        retval = setConditionField (server, *condition, &value, fieldReAlarmTimeQN);
-//        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ReAlarmTime Field failed",);
-//    }
-//    if (properties->reAlarmRepeatCount)
-//    {
-//        retval = addConditionOptionalField (server, *condition, alarmConditionTypeId,
-//                                            fieldReAlarmRepeatCountQN, NULL);
-//        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ReAlarmRepeatCount optional Field failed",);
-//        UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->reAlarmRepeatCount, &UA_TYPES[UA_TYPES_INT16]);
-//        retval = setConditionField (server, *condition, &value, fieldReAlarmRepeatCountQN);
-//        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ReAlarmTimeRepeatCount Field failed",);
-//    }
+    if (properties->reAlarmTime)
+    {
+        retval = addConditionOptionalField (server, *condition, alarmConditionTypeId,
+                                            fieldReAlarmTimeQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ReAlarmTime optional Field failed",);
+        UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->reAlarmTime, &UA_TYPES[UA_TYPES_DURATION]);
+        retval = setConditionField (server, *condition, &value, fieldReAlarmTimeQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ReAlarmTime Field failed",);
+    }
+    if (properties->reAlarmRepeatCount)
+    {
+        retval = addConditionOptionalField (server, *condition, alarmConditionTypeId,
+                                            fieldReAlarmRepeatCountQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ReAlarmRepeatCount optional Field failed",);
+        UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->reAlarmRepeatCount, &UA_TYPES[UA_TYPES_INT16]);
+        retval = setConditionField (server, *condition, &value, fieldReAlarmRepeatCountQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ReAlarmTimeRepeatCount Field failed",);
+    }
 
     //TODO add support for alarm audio
     //TODO alarm suppression groups
@@ -2004,6 +2045,35 @@ addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                          server, data, date, callbackId);
 }
 
+static void reAlarmCallback (UA_Server *server, void *data);
+
+static void UA_Condition_createReAlarmCallback (UA_Condition *condition, UA_Server *server)
+{
+    UA_Duration reAlarmTime;
+    UA_StatusCode retval = UA_Condition_State_getReAlarmTime (condition, server, &reAlarmTime);
+    if (retval != UA_STATUSCODE_GOOD) return;
+
+    UA_Int16 repeatCount = 0;
+    retval = UA_Condition_State_getReAlarmRepeatCount(condition, server, &repeatCount);
+    if (retval != UA_STATUSCODE_GOOD || condition->reAlarmCount >= repeatCount)
+    {
+        return;
+    }
+
+    retval = addTimedCallback(
+        server,
+        reAlarmCallback,
+        condition,
+        UA_DateTime_nowMonotonic() + ((UA_DateTime) reAlarmTime * UA_DATETIME_MSEC),
+        &condition->reAlarmCallbackId
+    );
+    if (retval != UA_STATUSCODE_GOOD)
+    {
+        CONDITION_LOG_ERROR (retval, "Could not add timedCallback for ReAlarm");
+        return;
+    }
+}
+
 static void alarmActivate (UA_Server *server, UA_Condition *condition, const UA_ConditionEventInfo *info)
 {
     UA_ConditionBranch_State_setRetain(condition->mainBranch, server, true);
@@ -2011,6 +2081,19 @@ static void alarmActivate (UA_Server *server, UA_Condition *condition, const UA_
     UA_Condition_State_setActiveState(condition, server, true);
     UA_Condition_State_setLatchedState(condition, server, true);
     UA_ConditionBranch_triggerEvent(condition->mainBranch, server, info);
+    UA_Condition_createReAlarmCallback(condition, server);
+}
+
+static void reAlarmCallback (UA_Server *server, void *data)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_Condition *condition = (UA_Condition*) data;
+    condition->reAlarmCount++;
+    UA_ConditionEventInfo info = {
+        .message = UA_LOCALIZEDTEXT(LOCALE, REALARM_MESSAGE)
+    };
+    alarmActivate(server, condition, &info);
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static void onDelayExpiredCallback (UA_Server *server, void *data)
@@ -2064,7 +2147,7 @@ triggerAlarmEventActive (UA_Server *server, UA_Condition *condition, const UA_Co
             server,
             onDelayExpiredCallback,
             ctx,
-            UA_DateTime_nowMonotonic() + (UA_DateTime) onDelay,
+            UA_DateTime_nowMonotonic() + ((UA_DateTime) onDelay * UA_DATETIME_MSEC),
             &condition->onDelayCallbackId
         );
         if (retval != UA_STATUSCODE_GOOD)
@@ -2083,6 +2166,8 @@ triggerAlarmEventActive (UA_Server *server, UA_Condition *condition, const UA_Co
 static void alarmSetInactive(UA_Server *server, UA_Condition *condition,
                             const UA_ConditionEventInfo *info)
 {
+    removeCallback(server, condition->reAlarmCallbackId, NULL);
+    condition->reAlarmCount = 0;
     //condition is in a state where we need to branch -> previous state needed acknowledgement/confirmed
     UA_Boolean conditionRequiresAction = UA_ConditionBranch_State_Acked(condition->mainBranch, server) ||
         (UA_ConditionBranch_State_isConfirmable(condition->mainBranch, server) &&
@@ -2141,7 +2226,7 @@ triggerAlarmEventInactive (UA_Server *server, UA_Condition *condition, const UA_
             server,
             offDelayExpiredCallback,
             condition,
-            UA_DateTime_nowMonotonic() + (UA_DateTime) offDelay,
+            UA_DateTime_nowMonotonic() + ((UA_DateTime) offDelay * UA_DATETIME_MSEC),
             &condition->onDelayCallbackId
         );
         if (retval != UA_STATUSCODE_GOOD)
