@@ -24,6 +24,8 @@
 #include "../deps/base64.h"
 #include "libc_time.h"
 
+#include <stdarg.h>
+
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
 /* Datatype Handling
@@ -114,6 +116,26 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /*****************/
 /* Builtin Types */
 /*****************/
+
+UA_String
+UA_String_fromFormat (char *format, ...)
+{
+    UA_String s;
+    s.data = NULL;
+    va_list args;
+    va_list args_copy;
+
+    va_start (args, format);
+    va_copy (args_copy, args);
+
+    s.length = vsnprintf (NULL, 0, format, args);
+    va_end (args);
+
+    s.data = (UA_Byte *) UA_malloc (s.length+1);
+    (void) vsnprintf ((char *)s.data, s.length+1, format, args_copy);
+    va_end (args_copy);
+    return s;
+}
 
 UA_String
 UA_String_fromChars(const char *src) {
