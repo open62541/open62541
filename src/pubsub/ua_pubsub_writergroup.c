@@ -87,7 +87,7 @@ UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
             removeCustomCallback(server, wg->identifier, wg->publishCallbackId);
     } else {
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
-        el->removeCyclicCallback(el, wg->publishCallbackId, NULL);
+        el->removeCyclicCallback(el, wg->publishCallbackId);
     }
     wg->publishCallbackId = 0;
 }

@@ -901,7 +901,7 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId) {
         return;
     UA_LOCK(&client->clientMutex);
     client->config.eventLoop->
-        removeCyclicCallback(client->config.eventLoop, callbackId, NULL);
+        removeCyclicCallback(client->config.eventLoop, callbackId);
     UA_UNLOCK(&client->clientMutex);
 }
 

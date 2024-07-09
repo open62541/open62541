@@ -537,11 +537,10 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
  * @param server The server object.
  * @param callbackId The id of the callback */
 void UA_EXPORT UA_THREADSAFE
-UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId,
-                         UA_DataFreeCallback freeFn);
+UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId);
 
-#define UA_Server_removeRepeatedCallback(server, callbackId, freeFn) \
-    UA_Server_removeCallback(server, callbackId, freeFn);
+#define UA_Server_removeRepeatedCallback(server, callbackId) \
+    UA_Server_removeCallback(server, callbackId);
 
 /**
  * Session Handling
@@ -1680,8 +1679,8 @@ typedef struct UA_AlarmConditionProperties
     UA_AcknowledgeableConditionProperties acknowledgeableConditionProperties;
     UA_NodeId inputNode;
     UA_Boolean isLatching;
-    //TODO UA_Boolean isSuppressible;
-    //TODO UA_Boolean isServiceable;
+    UA_Boolean isSuppressible;
+    UA_Boolean isServiceable;
     const UA_Duration *maxTimeShelved;
     const UA_Duration *onDelay;
     const UA_Duration *offDelay;

@@ -192,7 +192,7 @@ UA_DiscoveryManager_stop(UA_Server *server,
         return;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    removeCallback(server, dm->discoveryCallbackId, NULL);
+    removeCallback(server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
     for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {

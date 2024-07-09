@@ -513,18 +513,18 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 }
 
 void
-removeCallback(UA_Server *server, UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
+removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_EventLoop *el = server->config.eventLoop;
     if(el) {
-        el->removeCyclicCallback(el, callbackId, freeFn);
+        el->removeCyclicCallback(el, callbackId);
     }
 }
 
 void
-UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId, UA_DataFreeCallback freeFn) {
+UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_LOCK(&server->serviceMutex);
-    removeCallback(server, callbackId, freeFn);
+    removeCallback(server, callbackId);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -864,7 +864,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Stop the regular housekeeping tasks */
     if(server->houseKeepingCallbackId != 0) {
-        removeCallback(server, server->houseKeepingCallbackId, NULL);
+        removeCallback(server, server->houseKeepingCallbackId);
         server->houseKeepingCallbackId = 0;
     }
 

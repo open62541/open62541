@@ -110,7 +110,6 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
     UA_AlarmConditionProperties baseP = {
         .inputNode = inputNode,
         .isLatching = true,
-        //.latchable = true,
         //.suppressible = true,
         //.serviceable = true,
         //.maxTimeShelved = &test,

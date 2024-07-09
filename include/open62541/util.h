@@ -28,8 +28,6 @@ typedef struct {
     UA_Duration max;
 } UA_DurationRange;
 
-typedef void (*UA_DataFreeCallback)(void *data);
-
 /**
  * Random Number Generator
  * -----------------------

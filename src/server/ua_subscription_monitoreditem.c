@@ -753,7 +753,7 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
     switch(mon->samplingType) {
     case UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC:
         /* Remove repeated callback */
-        removeCallback(server, mon->sampling.callbackId, NULL);
+        removeCallback(server, mon->sampling.callbackId);
         break;
 
     case UA_MONITOREDITEMSAMPLINGTYPE_EVENT: {

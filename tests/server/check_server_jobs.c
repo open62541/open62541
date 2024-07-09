@@ -46,7 +46,7 @@ START_TEST(Server_addRemoveRepeatedCallback) {
     UA_realSleep(100);
     ck_assert_uint_eq(*executed, true);
 
-    UA_Server_removeRepeatedCallback(server, id, NULL);
+    UA_Server_removeRepeatedCallback(server, id);
     UA_Boolean_delete(executed);
 }
 END_TEST
@@ -55,7 +55,7 @@ UA_UInt64 *cbId;
 
 static void
 removeItselfCallback(UA_Server *serverPtr, void *data) {
-    UA_Server_removeRepeatedCallback(serverPtr, *cbId, NULL);
+    UA_Server_removeRepeatedCallback(serverPtr, *cbId);
 }
 
 START_TEST(Server_repeatedCallbackRemoveItself) {
