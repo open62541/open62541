@@ -215,6 +215,7 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Reading connection address failed");
+        UA_PublisherId_clear(&config.publisherId);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -241,6 +242,7 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
                      "Connection creation failed");
     }
 
+    UA_PublisherId_clear(&config.publisherId);
     return res;
 }
 
@@ -574,6 +576,7 @@ createDataSetReader(UA_Server *server, const UA_DataSetReaderDataType *dsrParams
                      "create subscribedDataSet failed");
     }
 
+    UA_PublisherId_clear(&config.publisherId);
     return res;
 }
 
