@@ -434,6 +434,9 @@ UA_INLINABLE(UA_NodeId
     return id;
 })
 
+/* Define numeric NodeId at compile time (in ROM) */
+#define UA_NODEID_NUMERIC_STATIC(NS, ID) {NS, UA_NODEIDTYPE_NUMERIC, {ID}}
+
 UA_INLINABLE(UA_NodeId
              UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
     UA_NodeId id;
@@ -630,6 +633,9 @@ UA_INLINABLE(UA_QualifiedName
     qn.name = UA_STRING_ALLOC(chars);
     return qn;
 })
+
+/* Define Qualifedname at compile time (in ROM) */
+#define UA_QUALIFIEDNAME_STATIC(NS, NAME) {NS, UA_STRING_STATIC(NAME)}
 
 /**
  * LocalizedText

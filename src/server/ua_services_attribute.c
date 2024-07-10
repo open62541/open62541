@@ -71,12 +71,41 @@ attributeId2AttributeMask(UA_AttributeId id) {
 /* Session for read operations can be NULL. For example for a MonitoredItem
  * where the underlying Subscription was detached during CloseSession. */
 
+static const UA_UInt32 writeAttributeMask =
+    UA_WRITEMASK_HISTORIZING | UA_WRITEMASK_ROLEPERMISSIONS;
+
 static UA_UInt32
 getUserWriteMask(UA_Server *server, const UA_Session *session,
                  const UA_NodeHead *head) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return 0xFFFFFFFF; /* the local admin user has all rights */
+        return 0xFFFFFFFF;
+
     UA_UInt32 mask = head->writeMask;
+
+    /* The PermissionType enum also defines WriteAttribute permissions. The
+     * standard describes WriteAttribute as follows: The Client is allowed to
+     * write to Attributes other than the Value, Historizing or RolePermissions
+     * Attribute if the WriteMask indicates that the Attribute is writeable.
+     *
+     * So if the WriteAttribute is not given we "cancel out" all attributes with
+     * the exception of Value, Historizing and RolePermissions. And Value is not
+     * handled by the WriteMask. */
+    UA_RoleSet waRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEATTRIBUTE];
+    if(!UA_RoleSet_intersects(waRoles, session->roles))
+        mask &= writeAttributeMask;
+
+    /* Can we the user change the role permissions? */
+    UA_RoleSet rpRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEROLEPERMISSIONS];
+    if(!UA_RoleSet_intersects(rpRoles, session->roles))
+        mask &= ~UA_WRITEMASK_ROLEPERMISSIONS;
+
+    /* Is historizing access allowed? */
+    UA_RoleSet whRoles = head->rolePermissions[UA_ROLEPERMISSIONINDEX_WRITEHISTORIZING];
+    if(!UA_RoleSet_intersects(whRoles, session->roles))
+        mask &= ~UA_WRITEMASK_HISTORIZING;
+
+    /* BIT-AND the mask with the result from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     mask &= server->config.accessControl.
@@ -85,31 +114,69 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
                           session ? session->context : NULL,
                           &head->nodeId, head->context);
     UA_LOCK(&server->serviceMutex);
+
     return mask;
 }
 
 static UA_Byte
 getUserAccessLevel(UA_Server *server, const UA_Session *session,
                    const UA_VariableNode *node) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return 0xFF; /* the local admin user has all rights */
-    UA_Byte retval = node->accessLevel;
+        return 0xFF; 
+
+    UA_Byte accessLevel = node->accessLevel;
+
+    /* Add the RolePermissions to the AccessLevel */
+
+    UA_RoleSet readRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_READ];
+    if(!UA_RoleSet_intersects(readRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_CURRENTREAD;
+
+    UA_RoleSet writeRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_WRITE];
+    if(!UA_RoleSet_intersects(writeRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_CURRENTWRITE;
+
+    UA_RoleSet readHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_READHISTORY];
+    if(!UA_RoleSet_intersects(readHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYREAD;
+
+    UA_RoleSet insertHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_INSERTHISTORY];
+    if(!UA_RoleSet_intersects(insertHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+    UA_RoleSet modifyHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_MODIFYHISTORY];
+    if(!UA_RoleSet_intersects(modifyHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+    UA_RoleSet deleteHistRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_DELETEHISTORY];
+    if(!UA_RoleSet_intersects(deleteHistRoles, session->roles))
+        accessLevel &= ~UA_ACCESSLEVELMASK_HISTORYWRITE;
+
+    /* Get an additional UserAccessLevel mask from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
-    retval &= server->config.accessControl.
+    accessLevel &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
                            session ? &session->sessionId : NULL,
                            session ? session->context : NULL,
                            &node->head.nodeId, node->head.context);
     UA_LOCK(&server->serviceMutex);
-    return retval;
+
+    return accessLevel;
 }
 
 static UA_Boolean
 getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
+    /* The local admin user has all rights */
     if(session == &server->adminSession)
-        return true; /* the local admin user has all rights */
+        return true;
+
+    /* Check the RolePermissions */
+    UA_RoleSet callRoles = node->head.rolePermissions[UA_ROLEPERMISSIONINDEX_CALL];
+    if(!UA_RoleSet_intersects(callRoles, session->roles))
+        return false;
+
+    /* Get an additional UserExecutable bit from the AccessControl plugin */
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_UNLOCK(&server->serviceMutex);
     UA_Boolean userExecutable = node->executable;
@@ -148,6 +215,63 @@ readIsAbstractAttribute(const UA_Node *node, UA_Variant *v) {
     }
 
     return UA_Variant_setScalarCopy(v, isAbstract, &UA_TYPES[UA_TYPES_BOOLEAN]);
+}
+
+static UA_StatusCode
+readRolePermissions(UA_Server *server,
+                    const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                    UA_DataValue *v) {
+    /* Allocate the output array */
+    size_t rolesCount = UA_WELLKNOWNROLES_COUNT + server->config.customRolesSize;
+    UA_RolePermissionType *rpts = (UA_RolePermissionType *)
+        UA_Array_new(rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    if(!rpts)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    /* Set the description for every role */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < rolesCount; i++) {
+        UA_RolePermissionType *rpt = &rpts[i];
+        if(i < UA_WELLKNOWNROLES_COUNT) {
+            res |= UA_NodeId_copy(&wellKnownRoles[i].roleId, &rpt->roleId);
+        } else {
+            res |= UA_NodeId_copy(
+                &server->config.customRoles[i - UA_WELLKNOWNROLES_COUNT].roleId,
+                &rpt->roleId);
+        }
+
+        UA_PermissionType permission = 1;
+        for(size_t j = 0; j < UA_ROLEPERMISSIONS_COUNT; j++) {
+            if(UA_RoleSet_contains(rolePermissions[j], i))
+                rpt->permissions |= permission;
+            permission = permission << 1;
+        }
+
+        /* TODO: Set the AddNode permission */
+    }
+
+    /* Set the output DataValue and return */
+    if(res == UA_STATUSCODE_GOOD) {
+        UA_Variant_setArray(&v->value, rpts, rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+        v->hasValue = true;
+    } else {
+        UA_Array_delete(rpts, rolesCount, &UA_TYPES[UA_TYPES_ROLEPERMISSIONTYPE]);
+    }
+    return res;
+}
+
+static UA_StatusCode
+readUserRolePermissions(UA_Server *server, UA_Session *session,
+                        const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                        UA_DataValue *v) {
+    /* Prepare the user-specific permissions */
+    UA_RoleSet userPermissions[UA_ROLEPERMISSIONS_COUNT];
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        userPermissions[i] = UA_RoleSet_intersect(session->roles, rolePermissions[i]);
+    }
+
+    /* Use the normal readRolePermissions on the user-specific permissions*/
+    return readRolePermissions(server, userPermissions, v);
 }
 
 static UA_StatusCode
@@ -307,25 +431,6 @@ static const UA_String jsonEncoding = {sizeof("Default JSON")-1, (UA_Byte*)"Defa
     }
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-static const UA_DataType *
-findDataType(const UA_Node *node, const UA_DataTypeArray *customTypes) {
-    for(size_t i = 0; i < UA_TYPES_COUNT; ++i) {
-        if(UA_NodeId_equal(&UA_TYPES[i].typeId, &node->head.nodeId)) {
-            return &UA_TYPES[i];
-        }
-    }
-
-    // lookup custom type
-    while(customTypes) {
-        for(size_t i = 0; i < customTypes->typesSize; ++i) {
-            if(UA_NodeId_equal(&customTypes->types[i].typeId, &node->head.nodeId))
-                return &customTypes->types[i];
-        }
-        customTypes = customTypes->next;
-    }
-    return NULL;
-}
-
 static UA_StatusCode
 getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
     UA_StatusCode retval =
@@ -552,40 +657,36 @@ ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
         break; }
     case UA_ATTRIBUTEID_DATATYPEDEFINITION: {
         CHECK_NODECLASS(UA_NODECLASS_DATATYPE);
-
+        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
 #ifdef UA_ENABLE_TYPEDESCRIPTION
         const UA_DataType *type =
-            findDataType(node, server->config.customDataTypes);
-        if(!type) {
-            retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
+            UA_findDataTypeWithCustom(&node->head.nodeId, server->config.customDataTypes);
+        if(!type)
             break;
-        }
-
-        if(UA_DATATYPEKIND_STRUCTURE == type->typeKind ||
-           UA_DATATYPEKIND_OPTSTRUCT == type->typeKind ||
-           UA_DATATYPEKIND_UNION == type->typeKind) {
-            UA_StructureDefinition def;
-            retval = getStructureDefinition(type, &def);
-            if(UA_STATUSCODE_GOOD!=retval)
-                break;
-            retval = UA_Variant_setScalarCopy(&v->value, &def,
-                                              &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
-            UA_free(def.fields);
+        if(type->typeKind != UA_DATATYPEKIND_STRUCTURE &&
+           type->typeKind != UA_DATATYPEKIND_OPTSTRUCT &&
+           type->typeKind != UA_DATATYPEKIND_UNION)
             break;
-        }
+        UA_StructureDefinition def;
+        retval = getStructureDefinition(type, &def);
+        if(retval != UA_STATUSCODE_GOOD)
+            break;
+        retval = UA_Variant_setScalarCopy(&v->value, &def,
+                                          &UA_TYPES[UA_TYPES_STRUCTUREDEFINITION]);
+        UA_StructureDefinition_clear(&def);
 #endif
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break; }
-
     case UA_ATTRIBUTEID_ROLEPERMISSIONS:
+        retval = readRolePermissions(server, node->head.rolePermissions, v);
+        break;
     case UA_ATTRIBUTEID_USERROLEPERMISSIONS:
+        retval = readUserRolePermissions(server, session, node->head.rolePermissions, v);
+        break;
     case UA_ATTRIBUTEID_ACCESSRESTRICTIONS:
+    default:
         /* TODO: Add support for the attributes from the 1.04 spec */
         retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
         break;
-
-    default:
-        retval = UA_STATUSCODE_BADATTRIBUTEIDINVALID;
     }
 
     /* Reading has failed? */
@@ -2236,4 +2337,152 @@ UA_LocalizedText
 UA_Session_getNodeDescription(const UA_Session *session,
                               const UA_NodeHead *head) {
     return getLocalizedForSession(session, head->description);
+}
+
+/* RolePermissions handling */
+
+static UA_StatusCode
+setNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                   UA_RoleSet *permissions) {
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        node->head.rolePermissions[i] =
+            UA_RoleSet_union(node->head.rolePermissions[i], permissions[i]);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+addNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                   UA_RoleSet *permissions) {
+    memcpy(node->head.rolePermissions, permissions,
+           sizeof(UA_RoleSet) * UA_ROLEPERMISSIONS_COUNT);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+removeNodePermissions(UA_Server *server, UA_Session *session, UA_Node *node,
+                      UA_RoleSet *permissions) {
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        node->head.rolePermissions[i] =
+            UA_RoleSet_remove(node->head.rolePermissions[i], permissions[i]);
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+editRolePermissions2(UA_Server *server, const UA_NodeId nodeId,
+                     const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                     UA_Boolean recursive, UA_EditNodeCallback editCallback) {
+    /* Get the set of target nodes */
+    UA_ExpandedNodeId *targets = NULL;
+    size_t targetsSize = 0;
+    UA_ExpandedNodeId singleTarget;
+
+    if(recursive) {
+        UA_ReferenceTypeSet refset = UA_REFERENCETYPESET_NONE;
+        const UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_StatusCode res = referenceTypeIndices(server, &hierarchRefs, &refset, true);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+        res = browseRecursive(server, 1, &nodeId, UA_BROWSEDIRECTION_FORWARD, &refset,
+                              UA_NODECLASS_UNSPECIFIED, true, &targetsSize, &targets);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
+    } else {
+        singleTarget = UA_EXPANDEDNODEID_NULL;
+        singleTarget.nodeId = nodeId;
+        targets = &singleTarget;
+        targetsSize = 1;
+    }
+
+    /* Update every target node */
+    for(size_t i = 0; i < targetsSize; i++) {
+        UA_ExpandedNodeId *target = &targets[i];
+        if(!UA_ExpandedNodeId_isLocal(target))
+            continue;
+        UA_Server_editNode(server, &server->adminSession, &target->nodeId,
+                           editCallback, (void*)(uintptr_t)rolePermissions);
+    }
+
+    /* Clean up */
+    if(recursive)
+        UA_Array_delete(targets, targetsSize, &UA_TYPES[UA_TYPES_EXPANDEDNODEID]);
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+editRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                    const UA_QualifiedName roleName, UA_PermissionType permissions,
+                    UA_Boolean recursive, UA_EditNodeCallback editCallback) {
+    /* Get the role index */
+    UA_Byte roleIndex = 0;
+    UA_StatusCode res = UA_Server_getRoleIndex(server, roleName, &roleIndex);
+    UA_RoleSet thisRole = UA_ROLESET(roleIndex);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    /* Prepare the set of roles for every permission type */
+    UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT];
+    memset(rolePermissions, 0, sizeof(UA_RoleSet) * UA_ROLEPERMISSIONS_COUNT);
+    UA_PermissionType pt = UA_PERMISSIONTYPE_BROWSE; /* 0x01 */
+    for(size_t i = 0; i < UA_ROLEPERMISSIONS_COUNT; i++) {
+        if((permissions & pt) != 0)
+            rolePermissions[i] = thisRole;
+        pt = pt << 1;
+    }
+
+    /* Apply (recursively) */
+    return editRolePermissions2(server, nodeId, rolePermissions,
+                                recursive, editCallback);
+}
+
+UA_StatusCode
+addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_QualifiedName roleName,
+                   UA_PermissionType permissions,
+                   UA_Boolean recursive) {
+    return editRolePermissions(server, nodeId, roleName, permissions, recursive,
+                               (UA_EditNodeCallback)addNodePermissions);
+}
+
+UA_StatusCode
+UA_Server_addRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                             const UA_QualifiedName roleName,
+                             UA_PermissionType permissions,
+                             UA_Boolean recursive) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addRolePermissions(server, nodeId, roleName,
+                                           permissions, recursive);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                      const UA_QualifiedName roleName,
+                      UA_PermissionType permissions,
+                      UA_Boolean recursive) {
+    return editRolePermissions(server, nodeId, roleName, permissions, recursive,
+                               (UA_EditNodeCallback)removeNodePermissions);
+}
+
+UA_StatusCode
+UA_Server_removeRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                                const UA_QualifiedName roleName,
+                                UA_PermissionType permissions,
+                                UA_Boolean recursive) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = removeRolePermissions(server, nodeId, roleName,
+                                              permissions, recursive);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+setRolePermissions(UA_Server *server, const UA_NodeId nodeId,
+                   const UA_RoleSet rolePermissions[UA_ROLEPERMISSIONS_COUNT],
+                   UA_Boolean recursive) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    return editRolePermissions2(server, nodeId, rolePermissions, recursive,
+                                (UA_EditNodeCallback)setNodePermissions);
 }

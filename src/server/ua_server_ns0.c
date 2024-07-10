@@ -281,6 +281,24 @@ createNS0_base(UA_Server *server) {
     if(ret != UA_STATUSCODE_GOOD)
         ret = UA_STATUSCODE_BADINTERNALERROR;
 
+    /* Set the initial role permissions for the anonymous user.
+     * Anonymous can only browse Root, View, Server (recursively) and Types (recursively). */
+    UA_PermissionType browsePermissions =
+        UA_PERMISSIONTYPE_BROWSE |
+        UA_PERMISSIONTYPE_READROLEPERMISSIONS |
+        UA_PERMISSIONTYPE_READ;
+
+    ret |= addRolePermissions(server, UA_NODEID_NUMERIC(0, UA_NS0ID_ROOTFOLDER),
+                              UA_QUALIFIEDNAME(0, "Anonymous"), browsePermissions, false);
+    ret |= addRolePermissions(server, UA_NODEID_NUMERIC(0, UA_NS0ID_VIEWSFOLDER),
+                              UA_QUALIFIEDNAME(0, "Anonymous"), browsePermissions, false);
+    ret |= addRolePermissions(server, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                              UA_QUALIFIEDNAME(0, "Anonymous"), browsePermissions, false);
+    ret |= addRolePermissions(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+                              UA_QUALIFIEDNAME(0, "Anonymous"), browsePermissions, true);
+    ret |= addRolePermissions(server, UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER),
+                              UA_QUALIFIEDNAME(0, "Anonymous"), browsePermissions, true);
+
     return ret;
 }
 

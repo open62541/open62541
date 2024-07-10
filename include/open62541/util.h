@@ -176,6 +176,83 @@ UA_EXPORT extern const UA_DataTypeAttributes UA_DataTypeAttributes_default;
 UA_EXPORT extern const UA_ViewAttributes UA_ViewAttributes_default;
 
 /**
+ * Role Bitfield Representation
+ * ----------------------------
+ *
+ * The build macro ``UA_ROLESET_MAX`` defines how many roles a server can handle
+ * at most. The size of the role-set bitmaps depends on this. */
+
+#define UA_ROLEINDEX_ANONYMOUS 0
+#define UA_ROLEINDEX_AUTHENTICATEDUSER 1
+#define UA_ROLEINDEX_OBSERVER 2
+#define UA_ROLEINDEX_OPERATOR 3
+#define UA_ROLEINDEX_ENGINEER 4
+#define UA_ROLEINDEX_SUPERVISOR 5
+#define UA_ROLEINDEX_CONFIGUREADMIN 6
+#define UA_ROLEINDEX_SECURITYADMIN 7
+
+typedef struct {
+    UA_UInt16 bits[UA_ROLESET_MAX / 16];
+} UA_RoleSet;
+
+UA_EXPORT extern const UA_RoleSet UA_ROLESET_NONE;
+UA_EXPORT extern const UA_RoleSet UA_ROLESET_ALL;
+
+static UA_INLINE void
+UA_RoleSet_init(UA_RoleSet *roles) {
+    memset(roles, 0, sizeof(UA_RoleSet));
+}
+
+static UA_INLINE UA_RoleSet
+UA_ROLESET(UA_Byte roleIndex) {
+    UA_Byte i = roleIndex / 16, j = roleIndex % 16;
+    UA_RoleSet roles;
+    UA_RoleSet_init(&roles);
+    roles.bits[i] |= ((UA_UInt32)1) << j;
+    return roles;
+}
+
+static UA_INLINE UA_RoleSet
+UA_RoleSet_union(const UA_RoleSet rolesA, const UA_RoleSet rolesB) {
+    UA_RoleSet u;
+    for(size_t i = 0; i < UA_ROLESET_MAX / 16; i++)
+        u.bits[i] = rolesA.bits[i] | rolesB.bits[i];
+    return u;
+}
+
+static UA_INLINE UA_RoleSet
+UA_RoleSet_intersect(const UA_RoleSet rolesA, const UA_RoleSet rolesB) {
+    UA_RoleSet u;
+    for(size_t i = 0; i < UA_ROLESET_MAX / 16; i++)
+        u.bits[i] = rolesA.bits[i] & rolesB.bits[i];
+    return u;
+}
+
+/* Return B \ A (set-minus) */
+static UA_INLINE UA_RoleSet
+UA_RoleSet_remove(const UA_RoleSet rolesA, const UA_RoleSet rolesB) {
+    UA_RoleSet u;
+    for(size_t i = 0; i < UA_ROLESET_MAX / 16; i++)
+        u.bits[i] = rolesA.bits[i] & ~rolesB.bits[i];
+    return u;
+}
+
+static UA_INLINE UA_Boolean
+UA_RoleSet_contains(const UA_RoleSet roles, UA_Byte roleIndex) {
+    UA_Byte i = roleIndex / 16, j = roleIndex % 16;
+    return !!(roles.bits[i] & (((UA_UInt32)1) << j));
+}
+
+/* Returns true if at least one role is contained in both A and B */
+static UA_INLINE UA_Boolean
+UA_RoleSet_intersects(const UA_RoleSet rolesA, UA_RoleSet rolesB) {
+    UA_UInt16 inters = 0;
+    for(size_t i = 0; i < UA_ROLESET_MAX / 16; i++)
+        inters |= rolesA.bits[i] & rolesB.bits[i];
+    return inters != 0;
+}
+
+/**
  * Endpoint URL Parser
  * -------------------
  * The endpoint URL parser is generally useful for the implementation of network

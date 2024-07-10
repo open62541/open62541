@@ -404,3 +404,31 @@ UA_Server_getSessionAttribute_scalar(UA_Server *server,
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
+
+UA_StatusCode
+UA_Server_getSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          UA_RoleSet *roles) {
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+    *roles = session->roles;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setSessionRoles(UA_Server *server, const UA_NodeId *sessionId,
+                          UA_RoleSet roles) {
+    UA_LOCK(&server->serviceMutex);
+    UA_Session *session = getSessionById(server, sessionId);
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
+    session->roles = roles;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}

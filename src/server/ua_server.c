@@ -674,6 +674,77 @@ cleanup:
 /* Server lookup functions */
 /***************************/
 
+const RoleDescription wellKnownRoles[UA_WELLKNOWNROLES_COUNT] = {
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_ANONYMOUS),
+     UA_QUALIFIEDNAME_STATIC(0, "Anonymous")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_AUTHENTICATEDUSER),
+     UA_QUALIFIEDNAME_STATIC(0, "AuthenticatedUser")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_OBSERVER),
+     UA_QUALIFIEDNAME_STATIC(0, "Observer")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_OPERATOR),
+     UA_QUALIFIEDNAME_STATIC(0, "Operator")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_ENGINEER),
+     UA_QUALIFIEDNAME_STATIC(0, "Engineer")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_SUPERVISOR),
+     UA_QUALIFIEDNAME_STATIC(0, "Supervisor")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_CONFIGUREADMIN),
+     UA_QUALIFIEDNAME_STATIC(0, "ConfigureAdmin")},
+    {UA_NODEID_NUMERIC_STATIC(0, UA_NS0ID_WELLKNOWNROLE_SECURITYADMIN),
+     UA_QUALIFIEDNAME_STATIC(0, "SecurityAdmin")}
+};
+
+UA_StatusCode
+UA_Server_getRoleName(UA_Server *server, UA_Byte roleIndex,
+                      const UA_QualifiedName **roleName) {
+    if(!roleName)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(roleIndex < UA_WELLKNOWNROLES_COUNT) {
+        *roleName = &wellKnownRoles[roleIndex].browseName;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    UA_LOCK(&server->serviceMutex);
+    roleIndex -= UA_WELLKNOWNROLES_COUNT;
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(roleIndex < server->config.customRolesSize) {
+        *roleName = &server->config.customRoles[roleIndex].browseName;
+        res = UA_STATUSCODE_GOOD;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+getRoleIndex(UA_Server *server, const UA_QualifiedName roleName,
+             UA_Byte *roleIndex) {
+    for(size_t i = 0; i < UA_WELLKNOWNROLES_COUNT; i++) {
+        if(UA_QualifiedName_equal(&roleName, &wellKnownRoles[i].browseName)) {
+            *roleIndex = i;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    for(size_t i = 0; i < server->config.customRolesSize; i++) {
+        if(UA_QualifiedName_equal(&roleName, &server->config.customRoles[i].browseName)) {
+            *roleIndex = i + UA_WELLKNOWNROLES_COUNT;
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    *roleIndex = 255;
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Server_getRoleIndex(UA_Server *server, const UA_QualifiedName roleName,
+                       UA_Byte *roleIndex) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = getRoleIndex(server, roleName, roleIndex);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
