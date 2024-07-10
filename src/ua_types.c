@@ -22,9 +22,8 @@
 #include "ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
+#include "../deps/mp_printf.h"
 #include "libc_time.h"
-
-#include <stdarg.h>
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
@@ -116,24 +115,41 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /*****************/
 /* Builtin Types */
 /*****************/
+#define FORMAT_STACK_SIZE 256
+
+static UA_String
+vfromFormatWithBuffer (char *buffer, size_t size, char *format, va_list args)
+{
+    if(!buffer || size < 1) return UA_STRING_NULL;
+    UA_String s;
+    s.length = mp_vsnprintf (buffer, size, format, args);
+    s.length = UA_MIN(s.length, size);
+    s.data = (UA_Byte*) buffer;
+    return s;
+}
+
+UA_String
+UA_String_fromFormatWithBuffer (char *buffer, size_t size, char *format, ...)
+{
+    if(!buffer || size < 1) return UA_STRING_NULL;
+    va_list args;
+    va_start (args, format);
+    UA_String s = vfromFormatWithBuffer (buffer, size, format, args);
+    va_end(args);
+    return s;
+}
 
 UA_String
 UA_String_fromFormat (char *format, ...)
 {
-    UA_String s;
-    s.data = NULL;
+    char tmp[FORMAT_STACK_SIZE];
     va_list args;
-    va_list args_copy;
-
     va_start (args, format);
-    va_copy (args_copy, args);
-
-    s.length = vsnprintf (NULL, 0, format, args);
-    va_end (args);
-
-    s.data = (UA_Byte *) UA_malloc (s.length+1);
-    (void) vsnprintf ((char *)s.data, s.length+1, format, args_copy);
-    va_end (args_copy);
+    UA_String s = vfromFormatWithBuffer (tmp, FORMAT_STACK_SIZE, format,args);
+    va_end(args);
+    UA_Byte *data = (UA_Byte*) UA_malloc(s.length);
+    memcpy(data, s.data, s.length);
+    s.data = data;
     return s;
 }
 
