@@ -762,10 +762,6 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                "UDP %u\t| New listen socket for \"%s\" on port %u",
-                (unsigned)listenSocket, hoststr, port);
-
     /* Set the socket configuration per the parameters */
     UA_StatusCode res =
         setConnectionConfig(listenSocket, params,
@@ -807,6 +803,20 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
 #else
     int ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
 #endif
+
+    /* Get the port being used if dynamic porting was used */
+    if(port == 0) {
+        struct sockaddr_in sin;
+        memset(&sin, 0, sizeof(sin));
+        socklen_t len = sizeof(sin);
+        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        port = ntohs(sin.sin_port);
+    }
+
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "UDP %u\t| New listen socket for \"%s\" on port %u",
+            (unsigned)listenSocket, hoststr, port);
+
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,

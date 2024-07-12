@@ -28,8 +28,9 @@ UA_ConnectionConfig UA_ConnectionConfig_default;
 /* Creates a new server config with one endpoint and custom buffer size.
  *
  * The config will set the tcp network layer to the given port and adds a single
- * endpoint with the security policy ``SecurityPolicy#None`` to the server. A
- * server certificate may be supplied but is optional.
+ * endpoint with the security policy ``SecurityPolicy#None`` to the server.
+ * If the port is set to 0, it will be dynamically assigned.
+ * A server certificate may be supplied but is optional.
  * Additionally you can define a custom buffer size for send and receive buffer.
  *
  * @param portNumber The port number for the tcp network layer
@@ -113,6 +114,7 @@ UA_ServerConfig_setBasics(UA_ServerConfig *conf);
  * Use the various UA_ServerConfig_addXxx functions to add them.
  * The config will set the tcp network layer to the given port if the
  * eventloop is not already set.
+ * If the port is set to 0, it will be dynamically assigned.
  *
  * @param conf The configuration to manipulate
  * @param portNumber The port number for the tcp network layer
