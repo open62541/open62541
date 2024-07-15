@@ -388,22 +388,24 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 /* Server Methods */
 /******************/
 
-static UA_StatusCode
-setMethodNodeAsync(UA_Server *server, UA_Session *session,
-                   UA_Node *node, UA_Boolean *isAsync) {
-    if(node->head.nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->methodNode.async = *isAsync;
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        UA_Server_editNode(server, &server->adminSession, &id,
-                           (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &id, UA_NODEATTRIBUTESMASK_NONE,
+                                        UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(node) {
+        if(node->head.nodeClass == UA_NODECLASS_METHOD)
+            node->methodNode.async = isAsync;
+        else
+            res = UA_STATUSCODE_BADNODECLASSINVALID;
+        UA_NODESTORE_RELEASE(server, node);
+    } else {
+        res = UA_STATUSCODE_BADNODEIDINVALID;
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
