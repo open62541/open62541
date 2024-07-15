@@ -151,6 +151,11 @@ struct UA_Server {
      * equipped with all possible access rights (Session Id: 1). */
     UA_Session adminSession;
 
+    /* SecureChannels */
+    TAILQ_HEAD(, UA_SecureChannel) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
+
     /* Namespaces */
     size_t namespacesSize;
     UA_String *namespaces;
@@ -232,9 +237,6 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 request
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_ByteString *securityPolicyUri);
-
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server);
 
 /********************/
 /* Session Handling */

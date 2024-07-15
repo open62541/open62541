@@ -36,10 +36,6 @@ endif()
 # Required for common.h header file used in examples
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
-if(UA_ENABLE_AMALGAMATION)
-    add_definitions(-DUA_ENABLE_AMALGAMATION)
-endif()
-
 #############################
 # Compiled binaries folders #
 #############################

@@ -451,8 +451,11 @@ PARSE_JSON(MdnsConfigurationField) {
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRINGARRAY](ctx, &config->mdnsConfig.serverCapabilities, &config->mdnsConfig.serverCapabilitiesSize);
             else if(strcmp(field_str, "mdnsInterfaceIP") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_STRING](ctx, &config->mdnsInterfaceIP, NULL);
+            /* mdnsIpAddressList and mdnsIpAddressListSize are only available if UA_HAS_GETIFADDR is not defined: */
+# if !defined(UA_HAS_GETIFADDR)
             else if(strcmp(field_str, "mdnsIpAddressList") == 0)
                 parseJsonJumpTable[UA_SERVERCONFIGFIELD_UINT32ARRAY](ctx, &config->mdnsIpAddressList, &config->mdnsIpAddressListSize);
+# endif
             else {
                 UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Unknown field name.");
             }

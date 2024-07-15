@@ -36,8 +36,3 @@ install:
 
 build_script:
 - ps: '& "./tools/appveyor/build.ps1"'
-
-after_build:
-  # Only push artifact if make install is defined
-  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-static.zip
-  - appveyor PushArtifact %APPVEYOR_BUILD_FOLDER%\open62541-%CC_SHORTNAME%-dynamic.zip

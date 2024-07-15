@@ -74,7 +74,7 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
      * message is received. The ChannelId is left unchanged. */
     UA_EventLoop *el = server->config.eventLoop;
     channel->altSecurityToken.channelId = channel->securityToken.channelId;
-    channel->altSecurityToken.tokenId = generateSecureChannelTokenId(server);
+    channel->altSecurityToken.tokenId = server->lastTokenId++;
     channel->altSecurityToken.createdAt = el->dateTime_nowMonotonic(el);
     channel->altSecurityToken.revisedLifetime =
         (request->requestedLifetime > server->config.maxSecurityTokenLifetime) ?

@@ -12,7 +12,6 @@ export PATH=$PATH:$IDF_PATH/xtensa-esp32-elf/bin
 mkdir -p build_freertos && cd build_freertos
 
 CMAKE_ARGS="-DCMAKE_BUILD_TYPE=Debug \
-    -DUA_ENABLE_AMALGAMATION=OFF \
     -DCMAKE_TOOLCHAIN_FILE=${IDF_PATH}/tools/cmake/toolchain-esp32.cmake \
     -DUA_ARCHITECTURE=freertosLWIP \
     -DUA_ARCH_EXTRA_INCLUDES=${IDF_PATH}/components/freertos/include/freertos \

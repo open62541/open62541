@@ -826,6 +826,7 @@ static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String *appName,
                              const UA_String *discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
+    char hoststr[256]; /* check with UA_MAXHOSTNAME_LENGTH */
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
     UA_StatusCode retval =
@@ -837,6 +838,12 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String *appName,
         return retval;
     }
 
+    if (hostname.length == 0) {
+	gethostname(hoststr, sizeof(hoststr)-1);
+	hoststr[sizeof(hoststr)-1] = '\0';
+	hostname.data = (unsigned char *) hoststr;
+	hostname.length = strlen(hoststr);
+    }
     retval = UA_Discovery_addRecord(dm, appName, &hostname, port,
                                     &path, UA_DISCOVERY_TCP, true,
                                     dm->server->config.mdnsConfig.serverCapabilities,

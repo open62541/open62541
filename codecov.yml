@@ -1,0 +1,12 @@
+coverage:
+  round: down
+  precision: 1
+
+# Ignore examples, tests and generated files
+ignore:
+  - "**/tests/**"
+  - "**/examples/**"
+  - "**/ua_eventfilter_grammar.c"
+  - "**/ua_eventfilter_lex.c"
+  - "**/ua_types_lex.c"
+  - "**/src_generated/**"

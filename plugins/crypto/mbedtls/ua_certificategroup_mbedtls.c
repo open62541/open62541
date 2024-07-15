@@ -763,7 +763,7 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
     }
 
     /* Write the DER-encoded key into a local buffer */
-    unsigned char buf[2 << 13];
+    unsigned char buf[1 << 14];
     size_t pos = (size_t)mbedtls_pk_write_key_der(&ctx, buf, sizeof(buf));
 
     /* Allocate memory */
