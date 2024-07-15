@@ -783,6 +783,15 @@ UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
                 UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
+/* Get the editable node with all attributes and references */
+static UA_INLINE UA_Node *
+UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
+    return server->config.nodestore.
+        getEditNode(server->config.nodestore.context, nodeId,
+                    UA_NODEATTRIBUTESMASK_ALL, UA_REFERENCETYPESET_ALL,
+                    UA_BROWSEDIRECTION_BOTH);
+}
+
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
@@ -794,6 +803,10 @@ UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
 #define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
     server->config.nodestore.getNode(server->config.nodestore.context,      \
                                      nodeid, attrMask, refs, refDirs)
+
+#define UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
+    server->config.nodestore.getEditNode(server->config.nodestore.context,       \
+                                         nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
     server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \
