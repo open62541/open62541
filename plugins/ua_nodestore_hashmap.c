@@ -531,5 +531,19 @@ UA_Nodestore_HashMap(UA_Nodestore *ns) {
     ns->removeNode = UA_NodeMap_removeNode;
     ns->getReferenceTypeId = UA_NodeMap_getReferenceTypeId;
     ns->iterate = UA_NodeMap_iterate;
+
+    /* All nodes are stored in RAM. Changes are made in-situ. GetEditNode is
+     * identical to GetNode -- but the Node pointer is non-const. */
+    ns->getEditNode =
+        (UA_Node * (*)(void *nsCtx, const UA_NodeId *nodeId,
+                       UA_UInt32 attributeMask,
+                       UA_ReferenceTypeSet references,
+                       UA_BrowseDirection referenceDirections))UA_NodeMap_getNode;
+    ns->getEditNodeFromPtr =
+        (UA_Node * (*)(void *nsCtx, UA_NodePointer ptr,
+                       UA_UInt32 attributeMask,
+                       UA_ReferenceTypeSet references,
+                       UA_BrowseDirection referenceDirections))UA_NodeMap_getNodeFromPtr;
+
     return UA_STATUSCODE_GOOD;
 }
