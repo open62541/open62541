@@ -66,7 +66,6 @@
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /* Multithreading */
-#cmakedefine UA_ENABLE_IMMUTABLE_NODES
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
 
 /* Advanced Options */

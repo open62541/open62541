@@ -1520,8 +1520,9 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             goto cleanup;
         }
 
-        /* Get a new pointer to the node. It might have been switched out */
-#ifdef UA_ENABLE_IMMUTABLE_NODES
+        /* Get a new pointer to the node. It might have been updated in the
+         * background due to a 'Write' operation inside
+         * useVariableTypeAttributes. */
         UA_NODESTORE_RELEASE(server, node);
         node = UA_NODESTORE_GET(server, nodeId);
         if(!node || (node->head.nodeClass != UA_NODECLASS_VARIABLE &&
@@ -1529,7 +1530,6 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
-#endif
 
         /* Check if all attributes hold the constraints of the type now. The initial
          * attributes must type-check. The constructor might change the attributes
