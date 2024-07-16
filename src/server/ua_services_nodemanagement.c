@@ -2282,27 +2282,59 @@ Operation_deleteReference(UA_Server *server, UA_Session *session, void *context,
         UA_LOCK(&server->serviceMutex);
     }
 
+    /* Check the ReferenceType and get the RefTypeIndex */
+    const UA_Node *refType =
+        UA_NODESTORE_GET_SELECTIVE(server, &item->referenceTypeId,
+                                   0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID);
+    if(!refType) {
+        *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        return;
+    }
+
+    if(refType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
+        UA_NODESTORE_RELEASE(server, refType);
+        *retval = UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
+        return;
+    }
+
+    UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
+    UA_NODESTORE_RELEASE(server, refType);
+
     // TODO: Check consistency constraints, remove the references.
-    *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)deleteOneWayReference,
-                                 /* cast away const qualifier because callback
-                                  * uses it anyway */
-                                 (UA_DeleteReferencesItem *)(uintptr_t)item);
+
+    /* Delete the reference in this direction */
+    UA_Node *firstNode =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->sourceNodeId, 0,
+                                        UA_REFTYPESET(refTypeIndex),
+                                        item->isForward ?
+                                        UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
+    if(firstNode) {
+        *retval = UA_Node_deleteReference(firstNode, refTypeIndex, item->isForward, &item->targetNodeId);
+    } else {
+        *retval = UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_NODESTORE_RELEASE(server, firstNode);
     if(*retval != UA_STATUSCODE_GOOD)
         return;
 
     if(!item->deleteBidirectional || item->targetNodeId.serverIndex != 0)
         return;
 
-    UA_DeleteReferencesItem secondItem;
-    UA_DeleteReferencesItem_init(&secondItem);
-    secondItem.isForward = !item->isForward;
-    secondItem.sourceNodeId = item->targetNodeId.nodeId;
-    secondItem.targetNodeId.nodeId = item->sourceNodeId;
-    secondItem.referenceTypeId = item->referenceTypeId;
-    *retval = UA_Server_editNode(server, session, &secondItem.sourceNodeId,
-                                 (UA_EditNodeCallback)deleteOneWayReference,
-                                 &secondItem);
+    /* Remove the reference in the second direction */
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        UA_ExpandedNodeId target2;
+        UA_ExpandedNodeId_init(&target2);
+        target2.nodeId = item->sourceNodeId;
+        UA_Node *secondNode =
+            UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->targetNodeId.nodeId, 0,
+                                            UA_REFTYPESET(refTypeIndex),
+                                            (!item->isForward) ?
+                                            UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
+        if(secondNode) {
+            *retval = UA_Node_deleteReference(secondNode, refTypeIndex, !item->isForward, &target2);
+            UA_NODESTORE_RELEASE(server, secondNode);
+        }
+    }
 }
 
 void
