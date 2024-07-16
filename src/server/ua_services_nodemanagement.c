@@ -1315,6 +1315,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
 
     /* Set the context *and* mark the node as constructed */
     retval = UA_Server_editNode(server, &server->adminSession, nodeId,
+                                0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                                 (UA_EditNodeCallback)setConstructedNodeContext, context);
     if(retval != UA_STATUSCODE_GOOD)
         goto local_destructor;
@@ -1368,6 +1369,7 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
     const UA_ReferenceTypeSet *newRefSet = &node->subTypes;
     for(size_t i = 0; i < parentsSize; i++) {
         UA_Server_editNode(server, &server->adminSession, &parents[i].nodeId,
+                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                            addReferenceTypeSubtype, (void*)(uintptr_t)newRefSet);
     }
 
@@ -1858,6 +1860,7 @@ deconstructNodeSet(UA_Server *server, UA_Session *session,
 
         /* Set the constructed flag to false */
         UA_Server_editNode(server, &server->adminSession, &refTree->targets[i].nodeId,
+                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                            (UA_EditNodeCallback)setDeconstructedNode, NULL);
     }
 }
@@ -2396,6 +2399,8 @@ UA_StatusCode
 setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
                               const UA_ValueCallback callback) {
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                              UA_BROWSEDIRECTION_INVALID,
                               (UA_EditNodeCallback)setValueCallback,
                               /* cast away const because
                                * callback uses const anyway */
@@ -2408,6 +2413,8 @@ UA_Server_setVariableNode_valueCallback(UA_Server *server,
                                         const UA_ValueCallback callback) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                              UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                                              UA_BROWSEDIRECTION_INVALID,
                                               (UA_EditNodeCallback)setValueCallback,
                                               /* cast away const because
                                                * callback uses const anyway */
@@ -2492,6 +2499,8 @@ setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
                            const UA_DataSource dataSource) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                              UA_BROWSEDIRECTION_INVALID,
                               (UA_EditNodeCallback)setDataSource,
                               /* casting away const because callback casts it back anyway */
                               (UA_DataSource *) (uintptr_t)&dataSource);
@@ -2553,6 +2562,8 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         case UA_VALUEBACKENDTYPE_DATA_SOURCE_CALLBACK:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                        UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID,
                                         (UA_EditNodeCallback) setDataSourceCallback,
                                         (UA_DataSource *)(uintptr_t) &valueBackend.backend.dataSource);
             break;
@@ -2560,6 +2571,8 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server, const UA_NodeId nodeId
             break;
         case UA_VALUEBACKENDTYPE_EXTERNAL:
             retval = UA_Server_editNode(server, &server->adminSession, &nodeId,
+                                        UA_NODEATTRIBUTESMASK_VALUE, UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID,
                                         (UA_EditNodeCallback) setExternalValueSource,
                 /* cast away const because callback uses const anyway */
                                         (UA_ValueCallback *)(uintptr_t) &valueBackend);
@@ -2805,6 +2818,7 @@ setMethodNode_callback(UA_Server *server,
                        UA_MethodCallback methodCallback) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return UA_Server_editNode(server, &server->adminSession, &methodNodeId,
+                              0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                               (UA_EditNodeCallback)editMethodCallback,
                               (void*)(uintptr_t)methodCallback);
 }
@@ -2871,6 +2885,7 @@ UA_StatusCode
 setNodeTypeLifecycle(UA_Server *server, UA_NodeId nodeId,
                      UA_NodeTypeLifecycle lifecycle) {
     return UA_Server_editNode(server, &server->adminSession, &nodeId,
+                              0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                               (UA_EditNodeCallback)setNodeTypeLifecycleCallback,
                               &lifecycle);
 }

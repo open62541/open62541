@@ -1845,7 +1845,8 @@ void
 Operation_Write(UA_Server *server, UA_Session *session, void *context,
                 const UA_WriteValue *wv, UA_StatusCode *result) {
     UA_assert(session != NULL);
-    *result = UA_Server_editNode(server, session, &wv->nodeId,
+    *result = UA_Server_editNode(server, session, &wv->nodeId, wv->attributeId,
+                                 UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                                  (UA_EditNodeCallback)copyAttributeIntoNode,
                                  (void*)(uintptr_t)wv);
 }

@@ -1575,6 +1575,7 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
        mon->parameters.samplingInterval == 0.0) {
         /* Add to the linked list in the node */
         res = UA_Server_editNode(server, sub->session, &mon->itemToMonitor.nodeId,
+                                 0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                                  addMonitoredItemBackpointer, mon);
         if(res == UA_STATUSCODE_GOOD)
             mon->samplingType = UA_MONITOREDITEMSAMPLINGTYPE_EVENT;
@@ -1612,6 +1613,7 @@ UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
         /* Removing is always done with the AdminSession. So it also works when
          * the Subscription has been detached from its Session. */
         UA_Server_editNode(server, &server->adminSession, &mon->itemToMonitor.nodeId,
+                           0, UA_REFERENCETYPESET_NONE, UA_BROWSEDIRECTION_INVALID,
                            removeMonitoredItemBackPointer, mon);
         break;
     }
