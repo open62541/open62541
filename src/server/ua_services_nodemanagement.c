@@ -60,18 +60,17 @@ setConstructedNodeContext(UA_Server *server, UA_Session *session,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-editNodeContext(UA_Server *server, UA_Session* session,
-                UA_NodeHead *head, void *context) {
-    head->context = context;
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
-setNodeContext(UA_Server *server, UA_NodeId nodeId,
-               void *nodeContext) {
-    return UA_Server_editNode(server, &server->adminSession, &nodeId,
-                              (UA_EditNodeCallback)editNodeContext, nodeContext);
+setNodeContext(UA_Server *server, UA_NodeId nodeId, void *nodeContext) {
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &nodeId, UA_NODEATTRIBUTESMASK_NONE,
+                                        UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    node->head.context = nodeContext;
+    UA_NODESTORE_RELEASE(server, node);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
