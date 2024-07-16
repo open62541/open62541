@@ -268,10 +268,13 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
 
 /* Get the node, make the changes and release */
 UA_StatusCode
-UA_Server_editNode(UA_Server *server, UA_Session *session,
-                   const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   void *data) {
-    UA_Node *node = UA_NODESTORE_GET_EDIT(server, nodeId);
+UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                   UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+                   UA_BrowseDirection referenceDirections,
+                   UA_EditNodeCallback callback, void *data) {
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, attributeMask,
+                                        references, referenceDirections);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
     UA_StatusCode retval = callback(server, session, node, data);
