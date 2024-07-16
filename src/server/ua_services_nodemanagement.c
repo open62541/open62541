@@ -2085,37 +2085,6 @@ deleteNode(UA_Server *server, const UA_NodeId nodeId,
 /* Add References */
 /******************/
 
-struct AddNodeInfo {
-    UA_Byte refTypeIndex;
-    UA_Boolean isForward;
-    const UA_ExpandedNodeId *targetNodeId;
-    UA_UInt32 targetBrowseNameHash;
-};
-
-static UA_StatusCode
-addOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
-                   const struct AddNodeInfo *info) {
-    return UA_Node_addReference(node, info->refTypeIndex, info->isForward,
-                                info->targetNodeId, info->targetBrowseNameHash);
-}
-
-static UA_StatusCode
-deleteOneWayReference(UA_Server *server, UA_Session *session, UA_Node *node,
-                      const UA_DeleteReferencesItem *item) {
-    const UA_Node *refType = UA_NODESTORE_GET(server, &item->referenceTypeId);
-    if(!refType)
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-    if(refType->head.nodeClass != UA_NODECLASS_REFERENCETYPE) {
-        UA_NODESTORE_RELEASE(server, refType);
-        return UA_STATUSCODE_BADREFERENCETYPEIDINVALID;
-    }
-    UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
-    UA_NODESTORE_RELEASE(server, refType);
-
-    /* Delete the reference in this direction */
-    return UA_Node_deleteReference(node, refTypeIndex, item->isForward, &item->targetNodeId);
-}
-
 static void
 Operation_addReference(UA_Server *server, UA_Session *session, void *context,
                        const UA_AddReferencesItem *item, UA_StatusCode *retval) {
@@ -2164,82 +2133,88 @@ Operation_addReference(UA_Server *server, UA_Session *session, void *context,
     UA_Byte refTypeIndex = refType->referenceTypeNode.referenceTypeIndex;
     UA_NODESTORE_RELEASE(server, refType);
 
-    /* Get the source and target node BrowseName hash */
-    const UA_Node *targetNode = UA_NODESTORE_GET(server, &item->targetNodeId.nodeId);
-    if(!targetNode) {
-        UA_LOG_NODEID_DEBUG(&item->targetNodeId.nodeId,
-            UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                                 "Cannot add reference - target %.*s does not exist",
-                                 (int)nodeIdStr.length, nodeIdStr.data));
-        *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
-        return;
+    /* Get the source and target node (editable). Include only the BrowseName
+     * and the relevant ReferenceType and direction. Don't modify the target
+     * node if it lives on a different server. */
+    UA_Node *targetNode = NULL;
+    if(UA_ExpandedNodeId_isLocal(&item->targetNodeId)) {
+        if(UA_NodeId_equal(&item->targetNodeId.nodeId, &item->sourceNodeId)) {
+            *retval = UA_STATUSCODE_GOOD;
+            UA_LOG_NODEID_DEBUG(
+                &item->targetNodeId.nodeId,
+                UA_LOG_INFO_SESSION(server->config.logging, session,
+                                    "Cannot add reference - source and target %.*s are identical",
+                                    (int)nodeIdStr.length, nodeIdStr.data));
+            return;
+        }
+        targetNode =
+            UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->targetNodeId.nodeId,
+                                            UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                            UA_REFTYPESET(refTypeIndex),
+                                            (!item->isForward) ?
+                                            UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
+        if(!targetNode) {
+            UA_LOG_NODEID_DEBUG(&item->targetNodeId.nodeId,
+               UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                                    "Cannot add reference - target %.*s does not exist",
+                                    (int)nodeIdStr.length, nodeIdStr.data));
+            *retval = UA_STATUSCODE_BADTARGETNODEIDINVALID;
+            return;
+        }
     }
-    UA_UInt32 targetNameHash = UA_QualifiedName_hash(&targetNode->head.browseName);
-    UA_NODESTORE_RELEASE(server, targetNode);
 
-    const UA_Node *sourceNode = UA_NODESTORE_GET(server, &item->sourceNodeId);
+    UA_Node *sourceNode =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &item->sourceNodeId,
+                                        UA_NODEATTRIBUTESMASK_BROWSENAME,
+                                        UA_REFTYPESET(refTypeIndex),
+                                        item->isForward ?
+                                        UA_BROWSEDIRECTION_FORWARD : UA_BROWSEDIRECTION_INVERSE);
     if(!sourceNode) {
+        if(targetNode)
+            UA_NODESTORE_RELEASE(server, targetNode);
         *retval = UA_STATUSCODE_BADSOURCENODEIDINVALID;
         return;
     }
-    UA_UInt32 sourceNameHash = UA_QualifiedName_hash(&sourceNode->head.browseName);
-    UA_NODESTORE_RELEASE(server, sourceNode);
-
-    /* Compute the BrowseName hash and release the target */
-    struct AddNodeInfo info;
-    info.refTypeIndex = refTypeIndex;
-    info.targetNodeId = &item->targetNodeId;
-    info.isForward = item->isForward;
-    info.targetBrowseNameHash = targetNameHash;
 
     /* Add the first direction */
-    *retval = UA_Server_editNode(server, session, &item->sourceNodeId,
-                                 (UA_EditNodeCallback)addOneWayReference, &info);
+    UA_UInt32 targetNameHash = UA_QualifiedName_hash(&targetNode->head.browseName);
+    *retval = UA_Node_addReference(sourceNode, refTypeIndex, item->isForward,
+                                   &item->targetNodeId, targetNameHash);
     UA_Boolean firstExisted = false;
     if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
         *retval = UA_STATUSCODE_GOOD;
         firstExisted = true;
     }
     if(*retval != UA_STATUSCODE_GOOD)
-        return;
+        goto cleanup;
 
     /* Add the second direction */
-    UA_ExpandedNodeId target2;
-    UA_ExpandedNodeId_init(&target2);
-    target2.nodeId = item->sourceNodeId;
-    info.targetNodeId = &target2;
-    info.isForward = !info.isForward;
-    info.targetBrowseNameHash = sourceNameHash;
-    *retval = UA_Server_editNode(server, session, &item->targetNodeId.nodeId,
-                                 (UA_EditNodeCallback)addOneWayReference, &info);
+    if(targetNode) {
+        UA_ExpandedNodeId expSourceId;
+        UA_ExpandedNodeId_init(&expSourceId);
+        expSourceId.nodeId = item->sourceNodeId;
+        UA_UInt32 sourceNameHash = UA_QualifiedName_hash(&sourceNode->head.browseName);
+        *retval = UA_Node_addReference(targetNode, refTypeIndex, !item->isForward,
+                                       &expSourceId, sourceNameHash);
 
-    /* Second direction existed already */
-    if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
-        /* Calculate common duplicate reference not allowed result and set bad
-         * result if BOTH directions already existed */
-        if(UA_NodeId_equal(&item->sourceNodeId, &item->targetNodeId.nodeId)) {
-            *retval = UA_STATUSCODE_GOOD;
-            UA_LOG_INFO_SESSION(server->config.logging, session, "The source node and the target node are identical. The check for duplicate references is skipped.");
+        /* Second direction existed already */
+        if(*retval == UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED) {
+            /* Set bad result if BOTH directions already existed.
+             * But don't delete the reference from source to target. */
+            if(!firstExisted)
+                *retval = UA_STATUSCODE_GOOD;
+            goto cleanup;
         }
-        else if(firstExisted) {
-            *retval = UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED;
-            return;
-        }
-        *retval = UA_STATUSCODE_GOOD;
+
+        /* Remove first direction if the second direction failed */
+        if(*retval != UA_STATUSCODE_GOOD)
+            UA_Node_deleteReference(sourceNode, refTypeIndex, item->isForward, &item->targetNodeId);
     }
 
-    /* Remove first direction if the second direction failed */
-    if(*retval != UA_STATUSCODE_GOOD && !firstExisted) {
-        UA_DeleteReferencesItem deleteItem;
-        deleteItem.sourceNodeId = item->sourceNodeId;
-        deleteItem.referenceTypeId = item->referenceTypeId;
-        deleteItem.isForward = item->isForward;
-        deleteItem.targetNodeId = item->targetNodeId;
-        deleteItem.deleteBidirectional = false;
-        /* Ignore status code */
-        UA_Server_editNode(server, session, &item->sourceNodeId,
-                           (UA_EditNodeCallback)deleteOneWayReference, &deleteItem);
-    }
+ cleanup:
+    if(targetNode)
+        UA_NODESTORE_RELEASE(server, targetNode);
+    UA_NODESTORE_RELEASE(server, sourceNode);
 }
 
 void
