@@ -1263,8 +1263,10 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
 
         listEntry->txtSet = true;
 
-        UA_STACKARRAY(char, newUrl, 10 + hostnameLen + 8 + path->length + 1);
-        mp_snprintf(newUrl, 10 + hostnameLen + 8 + path->length + 1,
+        const size_t newUrlSize = 10 + hostnameLen + 8 + path->length + 1;
+        UA_STACKARRAY(char, newUrl, newUrlSize);
+        memset(newUrl, 0, newUrlSize);
+        mp_snprintf(newUrl, newUrlSize,
                     "opc.tcp://%.*s:%d%s%.*s", (int) hostnameLen,
                     hostname->data, port, path->length > 0 ? "/" : "",
                     (int) path->length, path->data);
