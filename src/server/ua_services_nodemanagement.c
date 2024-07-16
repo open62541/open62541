@@ -1376,12 +1376,20 @@ setReferenceTypeSubtypes(UA_Server *server, const UA_ReferenceTypeNode *node) {
 }
 
 static UA_StatusCode
-setVariableNodeDynamic(UA_Server *server, UA_Session *session,
-                       UA_Node *node, const void *ctx) {
-    if(node->head.nodeClass != UA_NODECLASS_VARIABLE)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    ((UA_VariableNode*)node)->isDynamic = *(const UA_Boolean*)ctx;
-    return UA_STATUSCODE_GOOD;
+setVariableNodeDynamic(UA_Server *server, const UA_NodeId *nodeId,
+                       UA_Boolean isDynamic) {
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, 0, UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(!node)
+        return UA_STATUSCODE_BADNODEIDINVALID;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(node->head.nodeClass == UA_NODECLASS_VARIABLE)
+        ((UA_VariableNode*)node)->isDynamic = isDynamic;
+    else
+        res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_NODESTORE_RELEASE(server, node);
+    return res;
 }
 
 static UA_StatusCode
@@ -1425,20 +1433,14 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
         return UA_STATUSCODE_GOOD;
 
     /* Set the variable to "dynamic" */
-    UA_Boolean isDynamic = true;
-    UA_Server_editNode(server, session, nodeId,
-                       (UA_EditNodeCallback)setVariableNodeDynamic, &isDynamic);
-
-    return UA_STATUSCODE_GOOD;
+    return setVariableNodeDynamic(server, nodeId, true);
 }
 
 UA_StatusCode
 UA_Server_setVariableNodeDynamic(UA_Server *server, const UA_NodeId nodeId,
                                  UA_Boolean isDynamic) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        UA_Server_editNode(server, &server->adminSession, &nodeId,
-                           (UA_EditNodeCallback)setVariableNodeDynamic, &isDynamic);
+    UA_StatusCode res = setVariableNodeDynamic(server, &nodeId, isDynamic);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
