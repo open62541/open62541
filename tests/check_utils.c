@@ -576,7 +576,7 @@ START_TEST(formatString){
 
     /* Greater output length than internal buffer */
     size_t size = 300;
-    char format[size];
+    char format[300];
     memset (format, 'A', size-1);
     format[size-1] = '\0';
     s = UA_String_fromFormat(format);
@@ -589,7 +589,7 @@ START_TEST(formatString){
 START_TEST(formatStringBuffer){
 
     size_t bufSize = 256;
-    UA_Byte buf[bufSize];
+    UA_Byte buf[256];
     ck_assert(UA_String_fromFormatWithBuffer(NULL, "%s", "test") == UA_STATUSCODE_BADINTERNALERROR);
     /* No buffer provided */
     UA_String s;
@@ -612,7 +612,7 @@ START_TEST(formatStringBuffer){
 
     /*Buffer too small for whole output string*/
     size_t smallBufSize = 4;
-    UA_Byte smallBuf[smallBufSize];
+    UA_Byte smallBuf[4];
     s.data = smallBuf;
     s.length = smallBufSize;
     ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_GOOD);

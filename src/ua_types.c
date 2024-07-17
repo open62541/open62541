@@ -119,7 +119,7 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 
 
 UA_StatusCode
-UA_String_fromFormatWithBuffer (UA_String *string, char *format, ...)
+UA_String_fromFormatWithBuffer (UA_String *string, const char *format, ...)
 {
     if(!string || !string->data || string->length < 1) return UA_STATUSCODE_BADINTERNALERROR;
     va_list args;
@@ -131,7 +131,7 @@ UA_String_fromFormatWithBuffer (UA_String *string, char *format, ...)
 }
 
 UA_String
-UA_String_fromFormat (char *format, ...)
+UA_String_fromFormat (const char *format, ...)
 {
     char tmp[FORMAT_STACK_SIZE];
     va_list args;
