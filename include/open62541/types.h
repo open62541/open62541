@@ -204,9 +204,9 @@ UA_String_isEmpty(const UA_String *s);
 UA_String UA_EXPORT
 UA_String_fromFormat (char *format, ...);
 
-/* Creates a formatted string using memory from the provided buffer */
-UA_String UA_EXPORT
-UA_String_fromFormatWithBuffer (char *buffer, size_t size, char *format, ...);
+/* Creates a formatted string using memory from the provided UA_String buffer */
+UA_StatusCode UA_EXPORT
+UA_String_fromFormatWithBuffer (UA_String *buffer, char *format, ...);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 

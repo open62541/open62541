@@ -117,26 +117,17 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /*****************/
 #define FORMAT_STACK_SIZE 256
 
-static UA_String
-vfromFormatWithBuffer (char *buffer, size_t size, char *format, va_list args)
-{
-    if(!buffer || size < 1) return UA_STRING_NULL;
-    UA_String s;
-    s.length = mp_vsnprintf (buffer, size, format, args);
-    s.length = UA_MIN(s.length, size);
-    s.data = (UA_Byte*) buffer;
-    return s;
-}
 
-UA_String
-UA_String_fromFormatWithBuffer (char *buffer, size_t size, char *format, ...)
+UA_StatusCode
+UA_String_fromFormatWithBuffer (UA_String *string, char *format, ...)
 {
-    if(!buffer || size < 1) return UA_STRING_NULL;
+    if(!string || !string->data || string->length < 1) return UA_STATUSCODE_BADINTERNALERROR;
     va_list args;
     va_start (args, format);
-    UA_String s = vfromFormatWithBuffer (buffer, size, format, args);
-    va_end(args);
-    return s;
+    int ret = mp_vsnprintf((char *)string->data, string->length, format, args);
+    /* Len -1 to not include the null term in the string */
+    string->length = UA_MIN (string->length-1, (size_t) ret);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_String
@@ -145,11 +136,26 @@ UA_String_fromFormat (char *format, ...)
     char tmp[FORMAT_STACK_SIZE];
     va_list args;
     va_start (args, format);
-    UA_String s = vfromFormatWithBuffer (tmp, FORMAT_STACK_SIZE, format,args);
+    int ret = mp_vsnprintf(tmp, FORMAT_STACK_SIZE, format, args);
     va_end(args);
-    UA_Byte *data = (UA_Byte*) UA_malloc(s.length);
-    memcpy(data, s.data, s.length);
-    s.data = data;
+    if (ret < 0) return UA_STRING_NULL;
+
+    UA_String s;
+    s.length = ret;
+    if (ret < FORMAT_STACK_SIZE)
+    {
+        s.data = (UA_Byte*) UA_malloc(s.length);
+        memcpy(s.data, tmp, s.length);
+    }
+    else
+    {
+        /* +1 for NULL terminator */
+        s.data = (UA_Byte*) UA_malloc(s.length+1);
+        va_start (args, format);
+        mp_vsnprintf((char *)s.data, s.length+1, format, args);
+        va_end(args);
+    }
+
     return s;
 }
 
