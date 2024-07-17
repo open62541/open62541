@@ -1266,10 +1266,16 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String *servername,
         const size_t newUrlSize = 10 + hostnameLen + 8 + path->length + 1;
         UA_STACKARRAY(char, newUrl, newUrlSize);
         memset(newUrl, 0, newUrlSize);
-        mp_snprintf(newUrl, newUrlSize,
-                    "opc.tcp://%.*s:%d%s%.*s", (int) hostnameLen,
-                    hostname->data, port, path->length > 0 ? "/" : "",
-                    (int) path->length, path->data);
+        if (path->length > 0)
+        {
+            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%.*s:%d%s%.*s", (int)hostnameLen,
+                        hostname->data, port, "/", (int)path->length, path->data);
+        } 
+        else {
+            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%.*s:%d", (int)hostnameLen,
+                        hostname->data, port);
+        }
+        
         listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
         listEntry->srvSet = true;
     }
