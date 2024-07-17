@@ -571,7 +571,7 @@ START_TEST(formatString){
     UA_String s = UA_String_fromFormat("%s", "test");
     ck_assert (s.length == 4);
     ck_assert (s.data);
-    ck_assert_mem_eq(s.data, "test", s.length);
+    ck_assert (memcmp(s.data, "test", s.length) == 0);
     UA_String_clear(&s);
 
     /* Greater output length than internal buffer */
@@ -582,7 +582,7 @@ START_TEST(formatString){
     s = UA_String_fromFormat(format);
     ck_assert(s.length == size-1);
     ck_assert(s.data);
-    ck_assert_mem_eq(s.data, format, s.length);
+    ck_assert (memcmp(s.data, format, s.length) == 0);
     UA_String_clear(&s);
 } END_TEST
 
@@ -608,7 +608,7 @@ START_TEST(formatStringBuffer){
     ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_GOOD);
     ck_assert (s.length == 4);
     ck_assert (s.data);
-    ck_assert_mem_eq(s.data, "test", s.length);
+    ck_assert (memcmp(s.data, "test", s.length) == 0);
 
     /*Buffer too small for whole output string*/
     size_t smallBufSize = 4;
@@ -618,7 +618,7 @@ START_TEST(formatStringBuffer){
     ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_GOOD);
     ck_assert (s.length == 3);
     ck_assert (s.data);
-    ck_assert_mem_eq(s.data, "tes", s.length);
+    ck_assert (memcmp(s.data, "tes", s.length) == 0);
 } END_TEST
 
 
