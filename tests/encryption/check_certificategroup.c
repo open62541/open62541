@@ -82,8 +82,7 @@ static void setup2(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     char storePathDir[4096];
-    if(getcwd(storePathDir, 4096) == NULL)
-        ck_abort();
+    getcwd(storePathDir, 4096);
 
     const UA_String storePath = UA_STRING(storePathDir);
 
