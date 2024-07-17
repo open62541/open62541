@@ -568,7 +568,6 @@ START_TEST(idOrderString) {
 } END_TEST
 
 START_TEST(formatString){
-
     UA_String s = UA_String_fromFormat("%s", "test");
     ck_assert (s.length == 4);
     ck_assert (s.data);

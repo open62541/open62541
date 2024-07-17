@@ -138,8 +138,7 @@ UA_String_fromFormat (char *format, ...)
     va_start (args, format);
     int ret = mp_vsnprintf(tmp, FORMAT_STACK_SIZE, format, args);
     va_end(args);
-    if (ret < 0) return UA_STRING_NULL;
-
+    if (ret <= 0) return UA_STRING_NULL;
     UA_String s;
     s.length = ret;
     if (ret < FORMAT_STACK_SIZE)
