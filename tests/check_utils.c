@@ -576,13 +576,13 @@ START_TEST(formatString){
 
     /* Greater output length than internal buffer */
     size_t size = 300;
-    char format[300];
-    memset (format, 'A', size-1);
-    format[size-1] = '\0';
-    s = UA_String_fromFormat(format);
+    char test_str[300];
+    memset (test_str, 'A', size-1);
+    test_str[size-1] = '\0';
+    s = UA_String_fromFormat("%s",test_str);
     ck_assert(s.length == size-1);
     ck_assert(s.data);
-    ck_assert (memcmp(s.data, format, s.length) == 0);
+    ck_assert (memcmp(s.data, test_str, s.length) == 0);
     UA_String_clear(&s);
 } END_TEST
 
