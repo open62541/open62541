@@ -202,11 +202,11 @@ UA_String_isEmpty(const UA_String *s);
 
 /* Allocates a formatted string on the heap */
 UA_String UA_EXPORT
-UA_String_fromFormat (const char *format, ...);
+UA_String_fromFormat (const char *format, ...) UA_FORMAT(1,2);
 
 /* Creates a formatted string using memory from the provided UA_String buffer */
 UA_StatusCode UA_EXPORT
-UA_String_fromFormatWithBuffer (UA_String *buffer, const char *format, ...);
+UA_String_fromFormatWithBuffer (UA_String *buffer, const char *format, ...) UA_FORMAT(2,3);
 
 UA_EXPORT extern const UA_String UA_STRING_NULL;
 
