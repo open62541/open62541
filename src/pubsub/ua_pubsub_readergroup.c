@@ -674,24 +674,24 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
 }
 
 UA_Boolean
-UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
+UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm) {
     /* Check if the ReaderGroup is enabled */
-    if(readerGroup->state != UA_PUBSUBSTATE_OPERATIONAL &&
-       readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+    if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
     /* Set to operational if required */
-    readerGroup->hasReceived = true;
-    UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+    rg->hasReceived = true;
+    UA_ReaderGroup_setPubSubState(server, rg, rg->state);
 
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
     UA_Boolean processed = false;
     UA_DataSetReader *reader, *reader_tmp;
-    LIST_FOREACH_SAFE(reader, &readerGroup->readers, listEntry, reader_tmp) {
+    LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
         UA_StatusCode res = UA_DataSetReader_checkIdentifier(server, nm, reader,
-                                                             readerGroup->config);
+                                                             rg->config);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
@@ -701,9 +701,9 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
             continue;
 
         /* Update the ReaderGroup state if this is the first received message */
-        if(!readerGroup->hasReceived) {
-            readerGroup->hasReceived = true;
-            UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+        if(!rg->hasReceived) {
+            rg->hasReceived = true;
+            UA_ReaderGroup_setPubSubState(server, rg, rg->state);
         }
 
         /* The message was processed by at least one reader */
