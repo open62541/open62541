@@ -1001,11 +1001,11 @@ UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
 
 void
 UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
-                                    UA_ByteString *buf) {
+                                    UA_ByteString buf) {
     /* Set up the decoding context */
     Ctx ctx;
-    ctx.pos = buf->data;
-    ctx.end = buf->data + buf->length;
+    ctx.pos = buf.data;
+    ctx.end = buf.data + buf.length;
     ctx.depth = 0;
     memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
     ctx.opts.customTypes = server->config.customDataTypes;
@@ -1014,7 +1014,7 @@ UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
     if(!dsr->bufferedMessage.nm) {
         /* This is the first message being received for the RT fastpath.
          * Prepare the offset buffer. */
-        rv = UA_DataSetReader_prepareOffsetBuffer(&ctx, dsr, buf);
+        rv = UA_DataSetReader_prepareOffsetBuffer(&ctx, dsr, &buf);
     } else {
         /* Decode with offset information and update the networkMessage */
         rv = UA_NetworkMessage_updateBufferedNwMessage(&ctx, &dsr->bufferedMessage);

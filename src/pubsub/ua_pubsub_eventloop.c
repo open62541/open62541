@@ -804,7 +804,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* ReaderGroup with realtime processing */
     if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
+        UA_ReaderGroup_decodeAndProcessRT(server, rg, msg);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -813,9 +813,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        size_t currentPosition = 0;
-        res = decodeNetworkMessage(server, &msg, &currentPosition,
-                                   &nm, rg->linkedConnection);
+        res = UA_PubSubConnection_decodeNetworkMessage(rg->linkedConnection, server, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
