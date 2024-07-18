@@ -347,15 +347,14 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
-    const char * msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
+    const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
     UA_Byte *expectedData = hexstr_to_char(msg_dec_exp);
 
-    ck_assert(memcmp(buffer.data, expectedData, buffer.length) == 0);
+    ck_assert(memcmp(buffer.data, expectedData, strlen((const char*)expectedData)) == 0);
 
     UA_NetworkMessage_clear(&msg);
 
@@ -385,10 +384,8 @@ START_TEST(InvalidSignature) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -418,10 +415,8 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
         UA_NetworkMessage msg;
         memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-        size_t currentPosition = 0;
-
-        UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                                &msg, connection);
+        UA_StatusCode rv =
+            UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
         UA_NetworkMessage_clear(&msg);
@@ -450,10 +445,8 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);

@@ -579,7 +579,7 @@ UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
 
 void
 UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
-                                    UA_ByteString *buf);
+                                    UA_ByteString buf);
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
@@ -705,8 +705,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
                               UA_PubSubState targetState);
 
 UA_Boolean
-UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *readerGroup,
-                                    UA_ByteString *buf);
+UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
+                                  UA_ByteString buf);
 
 UA_Boolean
 UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
@@ -738,22 +738,20 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 /*********************************************************/
 
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+/* The buffer is the entire message. The ctx->pos points after the decoded
+ * header. The ctx->end is modified to remove padding, etc. */
 UA_StatusCode
-verifyAndDecrypt(const UA_Logger *logger, Ctx *ctx, const UA_NetworkMessage *nm,
-                 UA_Boolean doValidate, UA_Boolean doDecrypt,
-                 void *channelContext, UA_PubSubSecurityPolicy *securityPolicy);
-
-UA_StatusCode
-verifyAndDecryptNetworkMessage(const UA_Logger *logger, Ctx *ctx,
-                               UA_NetworkMessage *nm,
+verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
+                               Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup);
 #endif
 
 /* Takes a value (and not a pointer) to the buffer. The original buffer is
    const. Internally we may adjust the length during decryption. */
 UA_StatusCode
-decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection);
+UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
+                                         UA_Server *server, UA_ByteString buffer,
+                                         UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 /*********************************************************/

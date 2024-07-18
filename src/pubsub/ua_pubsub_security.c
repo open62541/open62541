@@ -68,47 +68,8 @@ needsValidation(const UA_Logger *logger,
 }
 
 UA_StatusCode
-verifyAndDecrypt(const UA_Logger *logger, Ctx *ctx, const UA_NetworkMessage *nm,
-                 UA_Boolean doValidate, UA_Boolean doDecrypt, void *channelContext,
-                 UA_PubSubSecurityPolicy *securityPolicy) {
-    if(doValidate) {
-        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(channelContext);
-        UA_ByteString toBeVerified = {(uintptr_t)(ctx->end - ctx->pos) - sigSize, ctx->pos};
-        UA_ByteString signature = {sigSize, (UA_Byte*)(uintptr_t)(ctx->end - sigSize)};
-
-        UA_StatusCode rv =
-            securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
-            verify(channelContext, &toBeVerified, &signature);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "PubSub receive. Signature invalid");
-
-        UA_LOG_DEBUG(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                     "PubSub receive. Signature valid");
-        ctx->end -= sigSize;
-    }
-
-    if(doDecrypt) {
-        const UA_ByteString nonce = {
-            (size_t)nm->securityHeader.messageNonceSize,
-            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
-        };
-        UA_StatusCode rv = securityPolicy->setMessageNonce(channelContext, &nonce);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "PubSub receive. Faulty Nonce set");
-
-        UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
-        rv = securityPolicy->symmetricModule.cryptoModule
-            .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
-        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "PubSub receive. Faulty Decryption");
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-verifyAndDecryptNetworkMessage(const UA_Logger *logger, Ctx *ctx,
-                               UA_NetworkMessage *nm,
+verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
+                               Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup) {
     UA_MessageSecurityMode securityMode = readerGroup->config.securityMode;
     UA_Boolean doValidate = false;
@@ -122,24 +83,52 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, Ctx *ctx,
     UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
                          "PubSub receive. Decryption security mode error");
 
-    if(doValidate || doDecrypt) {
-        void *channelContext = readerGroup->securityPolicyContext;
-        UA_PubSubSecurityPolicy *securityPolicy = readerGroup->config.securityPolicy;
-        UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
-                           logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub receive. securityPolicyContext must be initialized "
-                           "when security mode is enabled to sign and/or encrypt");
-        UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
-                           logger, UA_LOGCATEGORY_SERVER,
-                           "PubSub receive. securityPolicy must be set when security mode"
-                           "is enabled to sign and/or encrypt");
+    if(!doValidate && !doDecrypt)
+        return UA_STATUSCODE_GOOD;
 
-        rv = verifyAndDecrypt(logger, ctx, nm, doValidate, doDecrypt,
-                              channelContext, securityPolicy);
+    void *channelContext = readerGroup->securityPolicyContext;
+    UA_PubSubSecurityPolicy *securityPolicy = readerGroup->config.securityPolicy;
+    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
+                       logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub receive. securityPolicyContext must be initialized "
+                       "when security mode is enabled to sign and/or encrypt");
+    UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
+                       logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub receive. securityPolicy must be set when security mode"
+                       "is enabled to sign and/or encrypt");
 
-        UA_CHECK_STATUS_ERROR(rv, return rv, logger, UA_LOGCATEGORY_SERVER,
-                              "PubSub receive. verify and decrypt failed");
+    /* Validate the signature */
+    if(doValidate) {
+        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(channelContext);
+        UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
+        UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
+
+        rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
+            verify(channelContext, &toBeVerified, &signature);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Signature nvalid");
+
+        /* Remove the signature from the ctx->end. We do not want to decode that. */
+        ctx->end -= sigSize;
     }
 
-    return rv;
+    /* Decrypt the content */
+    if(doDecrypt) {
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Faulty Nonce set");
+
+        UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
+        rv = securityPolicy->symmetricModule.cryptoModule
+            .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Faulty Decryption");
+    }
+
+    return UA_STATUSCODE_GOOD;
 }

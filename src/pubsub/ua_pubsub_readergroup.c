@@ -732,7 +732,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
-                                  UA_ByteString *buf) {
+                                  UA_ByteString buf) {
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
     rg->hasReceived = true;
@@ -741,8 +741,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Set up the decoding context */
     Ctx ctx;
-    ctx.pos = buf->data;
-    ctx.end = buf->data + buf->length;
+    ctx.pos = buf.data;
+    ctx.end = buf.data + buf.length;
     ctx.depth = 0;
     memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
     ctx.opts.customTypes = server->config.customDataTypes;
@@ -772,11 +772,10 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Decrypt the message. Keep pos right after the header. */
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    rv = verifyAndDecryptNetworkMessage(server->config.logging, &ctx, &currentNetworkMessage, rg);
+    rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &ctx, &currentNetworkMessage, rg);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Subscribe failed. verify and decrypt network "
-                                   "message failed.");
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg, "Subscribe failed. "
+                                   "Verify and decrypt network message failed.");
         return false;
     }
 #endif
