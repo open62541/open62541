@@ -67,7 +67,33 @@ afterInputNodeWrite (UA_Server *server,
                      const UA_NodeId *nodeId, void *nodeContext,
                      const UA_NumericRange *range, const UA_DataValue *data)
 {
-    UA_Server_conditionInputValueChanged (server, &conditionInstance_1, &data->value);
+    UA_Double input = *(UA_Double*) data->value.data;
+    UA_Server_exclusiveLimitAlarmEvaluate(server, &conditionInstance_1, &input);
+}
+
+static void *
+sourceNodeGetInputDouble (UA_Server *server, const UA_NodeId *conditionId, void *conditionCtx)
+{
+    UA_Variant val;
+    UA_Variant_init (&val);
+    UA_StatusCode ret = UA_Server_conditionGetInputNodeValue(server, *conditionId, &val);
+    if (ret != UA_STATUSCODE_GOOD || val.type != &UA_TYPES[UA_TYPES_DOUBLE])
+    {
+        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "Getting input value from condition InputNode failed. StatusCode %s", UA_StatusCode_name(ret));
+        UA_Variant_clear(&val);
+        return NULL;
+    }
+    UA_Double *doubleVal = (UA_Double *) val.data;
+    val.data = NULL;
+    UA_Variant_clear(&val);
+    return doubleVal;
+}
+
+static void
+sourceNodeInputFreeDouble (void *input, void *conditionCtx)
+{
+    UA_Double_delete((UA_Double *) input);
 }
 
 static UA_StatusCode
@@ -105,18 +131,19 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
 
     UA_Duration test = 20.0f;
     UA_Duration reAlarmTime = 1000;
-    UA_Int16 repeatCount = 10;
+    UA_Int16 repeatCount = 1000;
 
     UA_AlarmConditionProperties baseP = {
         .inputNode = inputNode,
         .isLatching = true,
+        .isShelvable = true
         //.suppressible = true,
         //.serviceable = true,
         //.maxTimeShelved = &test,
         //.onDelay = &test,
         //.offDelay = &test,
-        .reAlarmRepeatCount = &repeatCount,
-        .reAlarmTime = &reAlarmTime
+        //.reAlarmRepeatCount = &repeatCount,
+        //.reAlarmTime = &reAlarmTime
 
     };
 
@@ -126,15 +153,20 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         .highLimit = &highLimit
     };
 
+    UA_ConditionInputFns inputFns;
+    inputFns.getInput = sourceNodeGetInputDouble;
+    inputFns.inputFree = sourceNodeInputFreeDouble;
+
     retval = UA_Server_createExclusiveLimitAlarm (
         server,
         UA_NODEID_NULL,
         &properties,
+        inputFns,
         &alarmProperties,
         &conditionInstance_1
     );
 
-    retval = UA_Server_conditionEnable (server, &conditionInstance_1, true);
+    retval = UA_Server_conditionEnable (server, conditionInstance_1, true);
     return retval;
 }
 
