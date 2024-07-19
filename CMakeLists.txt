@@ -131,7 +131,7 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
-set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
+set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Deprecated: Enable encryption support (uses openssl)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -181,25 +181,16 @@ else()
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_ENCRYPTION")
+    endif()
     find_library(TPM2_LIB tpm2_pkcs11)
     message(${TPM2_LIB})
 endif()
 
-if(UA_ENABLE_TPM2_SECURITY)
-    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
-    endif()
-endif()
-
 if(UA_ENABLE_TPM2_KEYSTORE)
-    if(UA_ENABLE_PUBSUB)
-        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-            message(FATAL_ERROR "TPM2 Keystore for PubSub cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
-        endif()
-    else()
-        if(NOT UA_ENABLE_ENCRYPTION)
-            message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
-        endif()
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
     endif()
 endif()
 
@@ -275,15 +266,12 @@ mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
 # General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" ON)
 
-option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
-
 option(UA_ENABLE_PUBSUB_SKS "Enable Security Key Service support for publisher and subscriber" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_SKS)
 if(UA_ENABLE_PUBSUB_SKS)
     message(WARNING "The PubSub SKS feature is under development and not yet ready.")
-    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_ENCRYPTION")
     endif()
     if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
         message(FATAL_ERROR "PubSub SKS needs the full Namespace Zero")
@@ -478,7 +466,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     endif()
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # The recommended way is to install mbedtls via the OS package manager. If
     # that is not possible, manually compile mbedTLS and set the cmake variables
     # defined in /tools/cmake/FindMbedTLS.cmake.
@@ -832,10 +820,6 @@ if(UA_ENABLE_PARSING)
     endif()
 endif()
 
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
-    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c)
-endif()
-
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.h
@@ -958,14 +942,11 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION OR UA_ENABLE_AMALGAMATION)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
   list(INSERT plugin_sources 0
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
-endif()
-
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
-  list(APPEND plugin_sources
+       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
+       # for pubsub:
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
        ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
 endif()

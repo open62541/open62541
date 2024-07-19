@@ -411,13 +411,11 @@ struct UA_WriterGroup {
     uintptr_t sendChannel;
     UA_Boolean deleteFlag;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
 #ifdef UA_ENABLE_PUBSUB_SKS
     UA_PubSubKeyStorage *keyStorage; /* non-owning pointer to keyStorage*/
-#endif
 #endif
 };
 
@@ -651,13 +649,11 @@ struct UA_ReaderGroup {
     size_t recvChannelsSize;
     UA_Boolean deleteFlag;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_UInt32 securityTokenId;
     UA_UInt32 nonceSequenceNumber; /* To be part of the MessageNonce */
     void *securityPolicyContext;
 #ifdef UA_ENABLE_PUBSUB_SKS
     UA_PubSubKeyStorage *keyStorage;
-#endif
 #endif
 };
 
@@ -737,17 +733,13 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 /*               Reading Message handling                */
 /*********************************************************/
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 /* The buffer is the entire message. The ctx->pos points after the decoded
  * header. The ctx->end is modified to remove padding, etc. */
 UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *readerGroup);
-#endif
 
-/* Takes a value (and not a pointer) to the buffer. The original buffer is
-   const. Internally we may adjust the length during decryption. */
 UA_StatusCode
 UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
                                          UA_Server *server, UA_ByteString buffer,

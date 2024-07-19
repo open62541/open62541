@@ -62,12 +62,10 @@ typedef struct {
     size_t offsetsSize;
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
     size_t rawMessageLength;
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
                                   * into the encrypt buffer for encryption and
                                   * signing*/
     UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
-#endif
 } UA_NetworkMessageOffsetBuffer;
 
 void
@@ -155,14 +153,11 @@ UA_NetworkMessage_encodeBinaryWithEncryptStart(const UA_NetworkMessage* src,
                                                UA_Byte **bufPos, const UA_Byte *bufEnd,
                                                UA_Byte **dataToEncryptStart);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-
 UA_StatusCode
 UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
                               UA_PubSubSecurityPolicy *policy, void *policyContext,
                               UA_Byte *messageStart, UA_Byte *encryptStart,
                               UA_Byte *sigStart);
-#endif
 
 _UA_END_DECLS
 

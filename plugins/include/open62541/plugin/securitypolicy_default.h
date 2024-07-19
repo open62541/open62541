@@ -52,16 +52,12 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
 
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
                                   const UA_Logger *logger);
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
                                   const UA_Logger *logger);
-
-#endif
 
 #ifdef UA_ENABLE_TPM2_SECURITY
 
