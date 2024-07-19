@@ -7,6 +7,9 @@
 
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/util.h>
+
+#ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
+
 #include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
@@ -394,3 +397,5 @@ UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
     /* Initialize the policyContext */
     return policyContext_newContext_sp_pubsub_aes128ctr(policy);
 }
+
+#endif
