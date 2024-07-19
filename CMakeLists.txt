@@ -947,17 +947,17 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
     list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic256sha256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_aes128sha256rsaoaep.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_aes256sha256rsapss.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_mbedtls_create_certificate.c
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_mbedtls.c)
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/create_certificate.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/certificategroup.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
