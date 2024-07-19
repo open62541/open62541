@@ -20,6 +20,35 @@
 
 _UA_BEGIN_DECLS
 
+
+#if !defined(OPENSSL_VERSION_NUMBER)
+#error "OPENSSL_VERSION_NUMBER is not defined."
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#define X509_STORE_CTX_set0_trusted_stack(STORE_CTX, CTX_SKTRUSTED) X509_STORE_CTX_trusted_stack(STORE_CTX, CTX_SKTRUSTED)
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || ( defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x3050000fL)
+#define X509_STORE_CTX_get_check_issued(STORE_CTX) STORE_CTX->check_issued
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || ( defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x3050000fL)
+#define get_pkey_rsa(evp) ((evp)->pkey.rsa)
+#else
+#define get_pkey_rsa(evp) EVP_PKEY_get0_RSA(evp)
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x1010000fL || defined(LIBRESSL_VERSION_NUMBER)
+#define X509_get0_subject_key_id(PX509_CERT) (const ASN1_OCTET_STRING *)X509_get_ext_d2i(PX509_CERT, NID_subject_key_identifier, NULL, NULL);
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x2000000fL || defined(LIBRESSL_VERSION_NUMBER)
+#define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_line_data(pFile, pLine, pData, pFlags)
+#else
+#define get_error_line_data(pFile, pLine, pData, pFlags) ERR_get_error_all(pFile, pLine, NULL, pData, pFlags)
+#endif
+
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
 void UA_Openssl_Init(void);
 

@@ -31,7 +31,6 @@ modification history
 #include <openssl/rand.h>
 
 #include "securitypolicy_openssl_common.h"
-#include "ua_openssl_version_abstraction.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
