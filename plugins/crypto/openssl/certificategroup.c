@@ -17,7 +17,7 @@
 #include <openssl/pem.h>
 
 #include "libc_time.h"
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #define SHA1_DIGEST_LENGTH 20
 

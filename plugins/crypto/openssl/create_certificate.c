@@ -9,7 +9,7 @@
 
 #include <open62541/plugin/create_certificate.h>
 
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 

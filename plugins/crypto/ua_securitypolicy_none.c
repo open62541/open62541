@@ -12,7 +12,7 @@
 #endif
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-#include "openssl/securitypolicy_openssl_common.h"
+#include "openssl/securitypolicy_common.h"
 #endif
 
 static UA_StatusCode
