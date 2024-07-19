@@ -8,7 +8,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-#include "mbedtls/securitypolicy_mbedtls_common.h"
+#include "mbedtls/securitypolicy_common.h"
 #endif
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)

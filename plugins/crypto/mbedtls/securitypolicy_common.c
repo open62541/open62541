@@ -12,7 +12,7 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
-#include "securitypolicy_mbedtls_common.h"
+#include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
