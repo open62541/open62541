@@ -1235,8 +1235,6 @@ UA_DataSetMessageHeader_encodeBinary(const UA_DataSetMessageHeader* src, UA_Byte
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-
 UA_StatusCode
 UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode securityMode,
                               UA_PubSubSecurityPolicy *policy, void *policyContext,
@@ -1278,7 +1276,6 @@ UA_NetworkMessage_signEncrypt(UA_NetworkMessage *nm, UA_MessageSecurityMode secu
 
     return res;
 }
-#endif
 
 UA_StatusCode
 UA_DataSetMessageHeader_decodeBinary(Ctx *ctx, UA_DataSetMessageHeader* dst) {
@@ -1808,9 +1805,7 @@ UA_NetworkMessageOffsetBuffer_clear(UA_NetworkMessageOffsetBuffer *nmob) {
         UA_free(nmob->nm);
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_ByteString_clear(&nmob->encryptBuffer);
-#endif
 
     if(nmob->offsetsSize == 0)
         return;

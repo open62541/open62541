@@ -158,12 +158,10 @@ hexstr_to_char(const char *hexstr) {
 //     UA_NodeId_clear(&readerGroup->linkedConnection);
 //     UA_NodeId_clear(&readerGroup->identifier);
 //
-// #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 //     if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
 //         readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
 //         readerGroup->securityPolicyContext = NULL;
 //     }
-// #endif
 // }
 
 /*
@@ -193,7 +191,6 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
     /* To check status after running both publisher and subscriber */
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId readerIdentifier;
     UA_DataSetReaderConfig readerConfig;
 
@@ -206,7 +203,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     readerGroupConfig.securityMode = mode;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+    UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
 
     /* Add the encryption key informaton for readergroup */
     // TODO security token not necessary for readergroup (extracted from security-header)
@@ -239,6 +236,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     pMetaData->fields[0].valueRank   = -1; /* scalar */
     retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                          &readerIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     return pMetaData->fields;
 }

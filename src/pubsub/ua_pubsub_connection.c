@@ -44,7 +44,6 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
         return rv;
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Boolean processed = false;
     UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
@@ -86,7 +85,6 @@ loops_exit:
          * buffer decoding and see if we have a matching DataSetReader for the
          * next network message. */
     }
-#endif
 
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {

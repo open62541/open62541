@@ -9,8 +9,6 @@
 #include <open62541/util.h>
 #include "securitypolicy_mbedtls_common.h"
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>
 #include <mbedtls/entropy.h>
@@ -396,5 +394,3 @@ UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
     /* Initialize the policyContext */
     return policyContext_newContext_sp_pubsub_aes128ctr(policy);
 }
-
-#endif

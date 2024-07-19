@@ -24,13 +24,10 @@
 
 #define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                UA_Byte *signStart, UA_Byte *encryptStart,
                UA_Byte *msgEnd);
-
-#endif
 
 static UA_StatusCode
 generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
@@ -283,12 +280,10 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
         UA_DataSetWriter_remove(server, dsw);
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityPolicy && wg->securityPolicyContext) {
         wg->config.securityPolicy->deleteContext(wg->securityPolicyContext);
         wg->securityPolicyContext = NULL;
     }
-#endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(wg->keyStorage) {
@@ -404,13 +399,11 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     msgSize = UA_NetworkMessage_calcSizeBinaryWithOffsetBuffer(&networkMessage,
                                                                &wg->bufferedMessage);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         msgSize += sp->symmetricModule.cryptoModule.
                    signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
     }
-#endif
 
     /* Generate the buffer for the pre-encoded message */
     res = UA_ByteString_allocBuffer(&buf, msgSize);
@@ -423,7 +416,6 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     bufPos = wg->bufferedMessage.buffer.data;
 
     /* Preallocate the encryption buffer */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinaryWithEncryptStart(&networkMessage, &bufPos, bufEnd,
@@ -433,7 +425,6 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
         wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
     }
-#endif
 
     if(wg->config.securityMode <= UA_MESSAGESECURITYMODE_NONE)
         UA_NetworkMessage_encodeBinaryWithEncryptStart(&networkMessage, &bufPos, bufEnd, NULL);
@@ -600,9 +591,7 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     res |= UA_ExtensionObject_copy(&src->messageSettings, &dst->messageSettings);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
-#endif
     if(res != UA_STATUSCODE_GOOD)
         UA_WriterGroupConfig_clear(dst);
     return res;
@@ -748,7 +737,6 @@ UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
     return NULL;
 }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              UA_UInt32 securityTokenId,
@@ -806,7 +794,6 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writer
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
-#endif
 
 void
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
@@ -814,9 +801,7 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
     UA_ExtensionObject_clear(&writerGroupConfig->transportSettings);
     UA_ExtensionObject_clear(&writerGroupConfig->messageSettings);
     UA_KeyValueMap_clear(&writerGroupConfig->groupProperties);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&writerGroupConfig->securityGroupId);
-#endif
     memset(writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
 }
 
@@ -870,11 +855,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
             wg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
         /* Security Mode not set-> PreOperational */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
         if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE &&
            wg->securityTokenId == 0)
             wg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
-#endif
 
         /* Enable publish callback if operational */
         if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
@@ -911,7 +894,6 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     return ret;
 }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 static UA_StatusCode
 encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
                UA_Byte *signStart, UA_Byte *encryptStart,
@@ -950,7 +932,6 @@ encryptAndSign(UA_WriterGroup *wg, const UA_NetworkMessage *nm,
     }
     return UA_STATUSCODE_GOOD;
 }
-#endif
 
 static UA_StatusCode
 encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
@@ -958,29 +939,20 @@ encodeNetworkMessage(UA_WriterGroup *wg, UA_NetworkMessage *nm,
     UA_Byte *bufPos = buf->data;
     UA_Byte *bufEnd = &buf->data[buf->length];
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Byte *networkMessageStart = bufPos;
-#endif
     UA_StatusCode rv = UA_NetworkMessage_encodeHeaders(nm, &bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Byte *payloadStart = bufPos;
-#endif
     rv = UA_NetworkMessage_encodePayload(nm, &bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
 
     rv = UA_NetworkMessage_encodeFooters(nm, &bufPos, bufEnd);
     UA_CHECK_STATUS(rv, return rv);
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* Encrypt and Sign the message */
     UA_Byte *footerEnd = bufPos;
-    rv = encryptAndSign(wg, nm, networkMessageStart, payloadStart, footerEnd);
-    UA_CHECK_STATUS(rv, return rv);
-#endif
-
-    return UA_STATUSCODE_GOOD;
+    return encryptAndSign(wg, nm, networkMessageStart, payloadStart, footerEnd);
 }
 
 static void
@@ -1105,7 +1077,6 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
 
     /* Set the SecurityHeader */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         networkMessage->securityEnabled = true;
         networkMessage->securityHeader.networkMessageSigned = true;
@@ -1125,7 +1096,6 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
         networkMessage->securityHeader.messageNonceSize = 8;
     }
-#endif
 
     networkMessage->version = 1;
     networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
@@ -1173,13 +1143,11 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
     /* Compute the message size. Add the overhead for the security signature.
      * There is no padding and the encryption incurs no size overhead. */
     size_t msgSize = UA_NetworkMessage_calcSizeBinary(&nm);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_PubSubSecurityPolicy *sp = wg->config.securityPolicy;
         msgSize += sp->symmetricModule.cryptoModule.
             signatureAlgorithm.getLocalSignatureSize(sp->policyContext);
     }
-#endif
 
     UA_ConnectionManager *cm = connection->cm;
     if(!cm)
@@ -1279,7 +1247,6 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
 
     UA_ByteString *buf = &writerGroup->bufferedMessage.buffer;
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     /* Send the encrypted buffered message if PubSub encryption is enabled */
     if(writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
@@ -1304,7 +1271,6 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
 
         buf = &writerGroup->bufferedMessage.encryptBuffer;
     }
-#endif
 
     UA_ConnectionManager *cm = connection->cm;
     if(!cm)

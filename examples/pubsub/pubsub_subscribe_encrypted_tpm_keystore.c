@@ -4,8 +4,7 @@
  * Copyright (c) 2021 Kalycito Infotech Private Limited
  */
 
- /* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE
-          to run the application */
+/* Note: Enable UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE to run the application */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
