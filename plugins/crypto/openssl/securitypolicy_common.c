@@ -30,7 +30,7 @@ modification history
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #define SHA1_DIGEST_LENGTH 20          /* 160 bits */
 #define RSA_DECRYPT_BUFFER_LENGTH 2048 /* bytes */
