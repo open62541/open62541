@@ -119,16 +119,16 @@ typedef uint64_t UA_UInt64;
  * ^^^^^
  * An IEEE single precision (32 bit) floating point value. */
 typedef float UA_Float;
-#define UA_FLOAT_MIN FLT_MIN;
-#define UA_FLOAT_MAX FLT_MAX;
+#define UA_FLOAT_MIN FLT_MIN
+#define UA_FLOAT_MAX FLT_MAX
 
 /**
  * Double
  * ^^^^^^
  * An IEEE double precision (64 bit) floating point value. */
 typedef double UA_Double;
-#define UA_DOUBLE_MIN DBL_MIN;
-#define UA_DOUBLE_MAX DBL_MAX;
+#define UA_DOUBLE_MIN DBL_MIN
+#define UA_DOUBLE_MAX DBL_MAX
 
 /**
  * .. _statuscode:
