@@ -27,6 +27,11 @@ _UA_BEGIN_DECLS
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
+/* Try if the type of the value can be adjusted "in situ" to the target type.
+ * That can be done, for example, to map between int32 and an enum. */
+void
+adjustType(UA_Variant *value, const UA_DataType *targetType);
+
 /* Print a NodeId in logs */
 #define UA_LOG_NODEID_INTERNAL(NODEID, LEVEL, LOG)   \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {         \
