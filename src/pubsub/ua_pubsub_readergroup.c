@@ -604,7 +604,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
 
     if(dsrCount > 1) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Mutiple DSR in a readerGroup not supported in RT "
+                                   "Multiple DSR in a readerGroup not supported in RT "
                                    "fixed size configuration");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
