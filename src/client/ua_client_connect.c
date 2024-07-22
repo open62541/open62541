@@ -534,8 +534,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
     /* Is the content of the expected type? */
     size_t offset = 0;
     UA_NodeId responseId;
-    UA_NodeId expectedId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
+    UA_NodeId expectedId = UA_NS0ID(OPENSECURECHANNELRESPONSE_ENCODING_DEFAULTBINARY);
     UA_StatusCode retval = UA_NodeId_decodeBinary(message, &offset, &responseId);
     if(retval != UA_STATUSCODE_GOOD) {
         closeSecureChannel(client);
