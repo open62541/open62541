@@ -1533,7 +1533,12 @@ foreach(lib ${open62541_PUBLIC_LIBRARIES})
     set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
 endforeach()
 
-string(REPLACE ";" ", " pkgcfglibs "${open62541_LIBRARIES}")
+if(BUILD_SHARED_LIBS)
+    foreach(lib ${open62541_LIBRARIES})
+        set(pkgcfgpubliclibs "${pkgcfgpubliclibs}-l${lib} ")
+    endforeach()
+endif()
+
 configure_file(tools/open62541.pc.in ${PROJECT_BINARY_DIR}/src_generated/open62541.pc @ONLY)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
