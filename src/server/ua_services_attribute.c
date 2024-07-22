@@ -335,15 +335,15 @@ getStructureDefinition(const UA_DataType *type, UA_StructureDefinition *def) {
     switch(type->typeKind) {
         case UA_DATATYPEKIND_STRUCTURE:
             def->structureType = UA_STRUCTURETYPE_STRUCTURE;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            def->baseDataType = UA_NS0ID(STRUCTURE);
             break;
         case UA_DATATYPEKIND_OPTSTRUCT:
             def->structureType = UA_STRUCTURETYPE_STRUCTUREWITHOPTIONALFIELDS;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_STRUCTURE);
+            def->baseDataType = UA_NS0ID(STRUCTURE);
             break;
         case UA_DATATYPEKIND_UNION:
             def->structureType = UA_STRUCTURETYPE_UNION;
-            def->baseDataType = UA_NODEID_NUMERIC(0, UA_NS0ID_UNION);
+            def->baseDataType = UA_NS0ID(UNION);
             break;
         default:
             return UA_STATUSCODE_BADENCODINGERROR;
@@ -760,7 +760,7 @@ readObjectProperty(UA_Server *server, const UA_NodeId objectId,
     /* Create a BrowsePath to get the target NodeId */
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = propertyName;
@@ -2127,7 +2127,7 @@ writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);
     rpe.isInverse = false;
     rpe.includeSubtypes = false;
     rpe.targetName = propertyName;
