@@ -977,7 +977,7 @@ __Client_backgroundConnectivity(UA_Client *client) {
     UA_ReadValueId rvid;
     UA_ReadValueId_init(&rvid);
     rvid.attributeId = UA_ATTRIBUTEID_VALUE;
-    rvid.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
+    rvid.nodeId = UA_NS0ID(SERVER_SERVERSTATUS_STATE);
     UA_ReadRequest request;
     UA_ReadRequest_init(&request);
     request.nodesToRead = &rvid;
