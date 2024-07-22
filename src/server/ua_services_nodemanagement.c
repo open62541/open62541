@@ -178,7 +178,7 @@ checkParentReference(UA_Server *server, UA_Session *session, const UA_NodeHead *
     }
 
     /* Test if the referencetype is hierarchical */
-    const UA_NodeId hierarchRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    const UA_NodeId hierarchRefs = UA_NS0ID(HIERARCHICALREFERENCES);
     if(!isNodeInTree_singleRef(server, referenceTypeId, &hierarchRefs,
                                UA_REFERENCETYPEINDEX_HASSUBTYPE)) {
         logAddNode(server->config.logging, session, &head->nodeId,
@@ -476,7 +476,7 @@ findChildByBrowsename(UA_Server *server, UA_Session *session,
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *searchInstance;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    bd.referenceTypeId = UA_NS0ID(AGGREGATES);
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
@@ -586,7 +586,7 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
     }
 
     for(size_t i = 0; i < hierarchySize; ++i) {
-        UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASINTERFACE);
+        UA_NodeId refId = UA_NS0ID(HASINTERFACE);
         retval = addRef(server, *nodeId, refId, hierarchy[i], true);
 
         /* Don't add the original HasInterface reference to ObjectType sub nodes */
@@ -699,7 +699,7 @@ copyChild(UA_Server *server, UA_Session *session,
          * addnode_finish. That way, we can call addnode_finish also on children that were
          * manually added by the user during addnode_begin and addnode_finish. */
         /* For now we keep all the modelling rule references and delete all others */
-        const UA_NodeId nodeId_typesFolder= UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+        const UA_NodeId nodeId_typesFolder= UA_NS0ID(TYPESFOLDER);
         const UA_ReferenceTypeSet reftypes_aggregates =
             UA_REFTYPESET(UA_REFERENCETYPEINDEX_AGGREGATES);
         UA_ReferenceTypeSet reftypes_skipped;
@@ -773,7 +773,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *source;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    bd.referenceTypeId = UA_NS0ID(AGGREGATES);
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_OBJECT | UA_NODECLASS_VARIABLE | UA_NODECLASS_METHOD;
@@ -944,8 +944,8 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             /* Abstract variable is allowed if parent is a children of a
              * base data variable. An abstract variable may be part of an
              * object type which again is below BaseObjectType */
-            const UA_NodeId variableTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
-            const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+            const UA_NodeId variableTypes = UA_NS0ID(BASEDATAVARIABLETYPE);
+            const UA_NodeId objectTypes = UA_NS0ID(BASEOBJECTTYPE);
             if(!isNodeInTree(server, parentNodeId, &variableTypes, &refTypes) &&
                !isNodeInTree(server, parentNodeId, &objectTypes, &refTypes)) {
                 logAddNode(server->config.logging, session, nodeId,
@@ -970,11 +970,11 @@ addNode_addRefs(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
             /* Object node created of an abstract ObjectType. Only allowed if
              * within BaseObjectType folder or if it's an event (subType of
              * BaseEventType) */
-            const UA_NodeId objectTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE);
+            const UA_NodeId objectTypes = UA_NS0ID(BASEOBJECTTYPE);
             UA_Boolean isInBaseObjectType =
                 isNodeInTree(server, parentNodeId, &objectTypes, &refTypes);
 
-            const UA_NodeId eventTypes = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+            const UA_NodeId eventTypes = UA_NS0ID(BASEEVENTTYPE);
             UA_Boolean isInBaseEventType =
                 isNodeInTree_singleRef(server, &type->head.nodeId, &eventTypes,
                                        UA_REFERENCETYPEINDEX_HASSUBTYPE);
@@ -1123,7 +1123,7 @@ findDefaultInstanceBrowseNameNode(UA_Server *server, UA_NodeId startingNode,
     UA_NodeId_init(foundId);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
-    rpe.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);
     rpe.targetName = UA_QUALIFIEDNAME(0, "DefaultInstanceBrowseName");
     UA_BrowsePath bp;
     UA_BrowsePath_init(&bp);
@@ -1228,7 +1228,7 @@ recursiveCallConstructors(UA_Server *server, UA_Session *session,
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *nodeId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
+    bd.referenceTypeId = UA_NS0ID(AGGREGATES);
     bd.includeSubtypes = true;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
 
@@ -1400,19 +1400,19 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     /* Get all hierarchical reference types */
     UA_ReferenceTypeSet reftypes_hierarchical;
     UA_ReferenceTypeSet_init(&reftypes_hierarchical);
-    UA_NodeId hierarchicalRefs = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_NodeId hierarchicalRefs = UA_NS0ID(HIERARCHICALREFERENCES);
     UA_StatusCode res =
         referenceTypeIndices(server, &hierarchicalRefs, &reftypes_hierarchical, true);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
     /* Is the variable under the server object? */
-    UA_NodeId serverNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    UA_NodeId serverNodeId = UA_NS0ID(SERVER);
     if(isNodeInTree(server, nodeId, &serverNodeId, &reftypes_hierarchical))
         return UA_STATUSCODE_GOOD;
 
     /* Is the variable in the type hierarchy? */
-    UA_NodeId typesNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_TYPESFOLDER);
+    UA_NodeId typesNodeId = UA_NS0ID(TYPESFOLDER);
     if(isNodeInTree(server, nodeId, &typesNodeId, &reftypes_hierarchical))
         return UA_STATUSCODE_GOOD;
 
@@ -1422,7 +1422,7 @@ checkSetIsDynamicVariable(UA_Server *server, UA_Session *session,
     UA_BrowseDescription_init(&bd);
     bd.nodeId = *nodeId;
     bd.browseDirection = UA_BROWSEDIRECTION_INVERSE;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.referenceTypeId = UA_NS0ID(HASPROPERTY);
     bd.includeSubtypes = false;
     bd.nodeClassMask = UA_NODECLASS_METHOD;
     UA_BrowseResult br;
@@ -2008,7 +2008,7 @@ deleteNodeOperation(UA_Server *server, UA_Session *session, void *context,
      * Getting the type hierarchy can fail in case of low RAM. In that case the
      * nodes are always deleted. */
     UA_ReferenceTypeSet hierarchRefsSet;
-    UA_NodeId hr = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
+    UA_NodeId hr = UA_NS0ID(HIERARCHICALREFERENCES);
     *result = referenceTypeIndices(server, &hr, &hierarchRefsSet, true);
     if(*result != UA_STATUSCODE_GOOD)
         return;
@@ -2622,7 +2622,7 @@ UA_Server_addMethodNodeEx_finish(UA_Server *server, const UA_NodeId nodeId,
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
     bd.nodeId = nodeId;
-    bd.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY);
+    bd.referenceTypeId = UA_NS0ID(HASPROPERTY);
     bd.includeSubtypes = false;
     bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
     bd.nodeClassMask = UA_NODECLASS_VARIABLE;
