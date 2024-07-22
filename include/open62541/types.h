@@ -434,6 +434,10 @@ UA_INLINABLE(UA_NodeId
     return id;
 })
 
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
+
 UA_INLINABLE(UA_NodeId
              UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
     UA_NodeId id;
