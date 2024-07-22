@@ -1546,6 +1546,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
 endif()
 
+# Install nodeset compiler
 install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
         DESTINATION ${open62541_install_tools_dir}
         FILES_MATCHING
@@ -1555,6 +1556,7 @@ install(DIRECTORY "tools/certs" "tools/nodeset_compiler"
         PATTERN ".git*" EXCLUDE
         PERMISSIONS OWNER_READ OWNER_EXECUTE GROUP_READ GROUP_EXECUTE)
 
+# Install schemas
 # Trailing slash to prevent "schema/schema" nesting
 install(DIRECTORY ${UA_SCHEMA_DIR}/
         DESTINATION ${open62541_install_schema_dir}
@@ -1565,6 +1567,7 @@ install(DIRECTORY ${UA_SCHEMA_DIR}/
         PATTERN "NodeIds.csv"
         PERMISSIONS OWNER_READ GROUP_READ)
 
+# Install python tools
 set(UA_install_tools_files "tools/generate_datatypes.py"
                            "tools/generate_nodeid_header.py"
                            "tools/generate_statuscode_descriptions.py")
