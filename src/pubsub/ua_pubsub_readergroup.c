@@ -20,6 +20,29 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#define MALLOCMEMBUFSIZE 256
+
+typedef struct {
+    size_t pos;
+    char buf[MALLOCMEMBUFSIZE];
+} MembufCalloc;
+
+static void *
+membufCalloc(void *context,
+             size_t nelem, size_t elsize) {
+    if(nelem > MALLOCMEMBUFSIZE || elsize > MALLOCMEMBUFSIZE)
+        return NULL;
+    size_t total = nelem * elsize;
+
+    MembufCalloc *mc = (MembufCalloc*)context;
+    if(mc->pos + total > MALLOCMEMBUFSIZE)
+        return NULL;
+    void *mem = mc->buf + mc->pos;
+    mc->pos += total;
+    memset(mem, 0, total);
+    return mem;
+}
+
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
     UA_ReaderGroup *rg;
@@ -58,9 +81,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    res = UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
-#endif
+    res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);
     return res;
@@ -70,9 +91,7 @@ void
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->name);
     UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&readerGroupConfig->securityGroupId);
-#endif
 }
 
 /* ReaderGroup Lifecycle */
@@ -234,12 +253,10 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         UA_DataSetReader_remove(server, dsr);
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(rg->config.securityPolicy && rg->securityPolicyContext) {
         rg->config.securityPolicy->deleteContext(rg->securityPolicyContext);
         rg->securityPolicyContext = NULL;
     }
-#endif
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(rg->keyStorage) {
@@ -440,7 +457,6 @@ UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     return ret;
 }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 UA_StatusCode
 setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
                              UA_UInt32 securityTokenId,
@@ -494,7 +510,6 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
-#endif
 
 /* Freezing of the configuration */
 
@@ -651,24 +666,24 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
 }
 
 UA_Boolean
-UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
+UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm) {
     /* Check if the ReaderGroup is enabled */
-    if(readerGroup->state != UA_PUBSUBSTATE_OPERATIONAL &&
-       readerGroup->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+    if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return false;
 
     /* Set to operational if required */
-    readerGroup->hasReceived = true;
-    UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+    rg->hasReceived = true;
+    UA_ReaderGroup_setPubSubState(server, rg, rg->state);
 
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
     UA_Boolean processed = false;
     UA_DataSetReader *reader, *reader_tmp;
-    LIST_FOREACH_SAFE(reader, &readerGroup->readers, listEntry, reader_tmp) {
+    LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
         UA_StatusCode res = UA_DataSetReader_checkIdentifier(server, nm, reader,
-                                                             readerGroup->config);
+                                                             rg->config);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
@@ -678,9 +693,9 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
             continue;
 
         /* Update the ReaderGroup state if this is the first received message */
-        if(!readerGroup->hasReceived) {
-            readerGroup->hasReceived = true;
-            UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+        if(!rg->hasReceived) {
+            rg->hasReceived = true;
+            UA_ReaderGroup_setPubSubState(server, rg, rg->state);
         }
 
         /* The message was processed by at least one reader */
@@ -709,48 +724,52 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *readerGroup,
 
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
-                                  UA_ByteString *buf) {
+                                  UA_ByteString buf) {
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
     rg->hasReceived = true;
     if(rg->state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
+    /* Set up the decoding context */
+    Ctx ctx;
+    ctx.pos = buf.data;
+    ctx.end = buf.data + buf.length;
+    ctx.depth = 0;
+    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
+    ctx.opts.customTypes = server->config.customDataTypes;
+
     UA_Boolean processed = false;
     UA_NetworkMessage currentNetworkMessage;
     memset(&currentNetworkMessage, 0, sizeof(UA_NetworkMessage));
 
-    /* Decode headers necessary for matching identifiers. This can use malloc.
-     * So enable membufAlloc if you need RT timings. Reset back to the normal
-     * malloc before processing the message. The userland (callbacks) below
-     * might rely on that. It needs to be ensured that the membuf-memory is not
-     * reset (zeroed out) in "useNormalAlloc". So the decoded memory can be used
-     * until the end of this method. */
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-    useMembufAlloc();
-#endif
-    size_t pos = 0;
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, &pos, &currentNetworkMessage);
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-    useNormalAlloc();
-#endif
+    /* Set the arena-based calloc for realtime processing. This is because the
+     * header can (in theory) contain PromotedFields that require
+     * heap-allocation.
+     *
+     * The arena is stack-allocated and rather small. So this method is
+     * reentrant. Typically the arena-based calloc is not used at all for the
+     * "static" network message headers encountered in an RT context. */
+    MembufCalloc mc;
+    mc.pos = 0;
+    ctx.opts.callocContext = &mc;
+    ctx.opts.calloc = membufCalloc;
+
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, &currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                               "PubSub receive. decoding headers failed");
-        goto cleanup;
+        return false;
     }
 
     /* Decrypt the message. Keep pos right after the header. */
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
-    rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &pos,
+    rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &ctx,
                                         &currentNetworkMessage, rg);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Subscribe failed. verify and decrypt network "
-                                   "message failed.");
-        goto cleanup;
+        UA_LOG_WARNING_READERGROUP(server->config.logging, rg, "Subscribe failed. "
+                                   "Verify and decrypt network message failed.");
+        return false;
     }
-#endif
 
     /* Process the message for each reader */
     UA_DataSetReader *dsr;
@@ -774,11 +793,136 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
         processed = true;
     }
 
- cleanup:
-#ifndef UA_ENABLE_PUBSUB_BUFMALLOC
-    UA_NetworkMessage_clear(&currentNetworkMessage);
-#endif
     return processed;
+}
+
+/******************************/
+/* Decrypt the NetworkMessage */
+/******************************/
+
+static UA_StatusCode
+needsDecryption(const UA_Logger *logger,
+                const UA_NetworkMessage *networkMessage,
+                const UA_MessageSecurityMode securityMode,
+                UA_Boolean *doDecrypt) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Boolean requiresEncryption = securityMode > UA_MESSAGESECURITYMODE_SIGN;
+    UA_Boolean isEncrypted = networkMessage->securityHeader.networkMessageEncrypted;
+
+    if(isEncrypted && requiresEncryption) {
+        *doDecrypt = true;
+    } else if(!isEncrypted && !requiresEncryption) {
+        *doDecrypt = false;
+    } else {
+        if(isEncrypted) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. "
+                         "Message is encrypted but ReaderGroup does not expect encryption");
+            retval = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+        } else {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. "
+                         "Message is not encrypted but ReaderGroup requires encryption");
+            retval = UA_STATUSCODE_BADSECURITYMODEREJECTED;
+        }
+    }
+    return retval;
+}
+
+static UA_StatusCode
+needsValidation(const UA_Logger *logger,
+                const UA_NetworkMessage *networkMessage,
+                const UA_MessageSecurityMode securityMode,
+                UA_Boolean *doValidate) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_Boolean isSigned = networkMessage->securityHeader.networkMessageSigned;
+    UA_Boolean requiresSignature = securityMode > UA_MESSAGESECURITYMODE_NONE;
+
+    if(isSigned &&
+       requiresSignature) {
+        *doValidate = true;
+    } else if(!isSigned && !requiresSignature) {
+        *doValidate = false;
+    } else {
+        if(isSigned) {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. "
+                         "Message is signed but ReaderGroup does not expect signatures");
+            retval = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
+        } else {
+            UA_LOG_ERROR(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. "
+                         "Message is not signed but ReaderGroup requires signature");
+            retval = UA_STATUSCODE_BADSECURITYMODEREJECTED;
+        }
+    }
+    return retval;
+}
+
+UA_StatusCode
+verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
+                               Ctx *ctx, UA_NetworkMessage *nm,
+                               UA_ReaderGroup *readerGroup) {
+    UA_MessageSecurityMode securityMode = readerGroup->config.securityMode;
+    UA_Boolean doValidate = false;
+    UA_Boolean doDecrypt = false;
+
+    UA_StatusCode rv = needsValidation(logger, nm, securityMode, &doValidate);
+    UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. Validation security mode error");
+
+    rv = needsDecryption(logger, nm, securityMode, &doDecrypt);
+    UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                         "PubSub receive. Decryption security mode error");
+
+    if(!doValidate && !doDecrypt)
+        return UA_STATUSCODE_GOOD;
+
+    void *channelContext = readerGroup->securityPolicyContext;
+    UA_PubSubSecurityPolicy *securityPolicy = readerGroup->config.securityPolicy;
+    UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
+                       logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub receive. securityPolicyContext must be initialized "
+                       "when security mode is enabled to sign and/or encrypt");
+    UA_CHECK_MEM_ERROR(securityPolicy, return UA_STATUSCODE_BADINVALIDARGUMENT,
+                       logger, UA_LOGCATEGORY_SERVER,
+                       "PubSub receive. securityPolicy must be set when security mode"
+                       "is enabled to sign and/or encrypt");
+
+    /* Validate the signature */
+    if(doValidate) {
+        size_t sigSize = securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(channelContext);
+        UA_ByteString toBeVerified = {buffer.length - sigSize, buffer.data};
+        UA_ByteString signature = {sigSize, buffer.data + buffer.length - sigSize};
+
+        rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
+            verify(channelContext, &toBeVerified, &signature);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Signature nvalid");
+
+        /* Remove the signature from the ctx->end. We do not want to decode that. */
+        ctx->end -= sigSize;
+    }
+
+    /* Decrypt the content */
+    if(doDecrypt) {
+        const UA_ByteString nonce = {
+            (size_t)nm->securityHeader.messageNonceSize,
+            (UA_Byte*)(uintptr_t)nm->securityHeader.messageNonce
+        };
+        rv = securityPolicy->setMessageNonce(channelContext, &nonce);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Faulty Nonce set");
+
+        UA_ByteString toBeDecrypted = {(uintptr_t)(ctx->end - ctx->pos), ctx->pos};
+        rv = securityPolicy->symmetricModule.cryptoModule
+            .encryptionAlgorithm.decrypt(channelContext, &toBeDecrypted);
+        UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                             "PubSub receive. Faulty Decryption");
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

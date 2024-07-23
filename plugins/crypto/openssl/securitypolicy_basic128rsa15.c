@@ -11,7 +11,7 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #include <openssl/x509.h>
 #include <openssl/rand.h>

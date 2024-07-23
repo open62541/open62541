@@ -10,7 +10,7 @@
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #include <openssl/hmac.h>
 #include <openssl/sha.h>

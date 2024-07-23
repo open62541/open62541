@@ -22,10 +22,6 @@
 
 #include "ua_types_encoding_binary.h"
 
-#ifdef UA_ENABLE_PUBSUB_BUFMALLOC
-#include "ua_pubsub_bufmalloc.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 static void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
@@ -967,21 +963,22 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
 UA_StatusCode
-UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader,
-                                     UA_ByteString *buf, size_t *pos) {
-    UA_NetworkMessage *nm = (UA_NetworkMessage*)UA_calloc(1, sizeof(UA_NetworkMessage));
+UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
+                                     UA_ByteString *buf) {
+    UA_NetworkMessage *nm = (UA_NetworkMessage *)
+        UA_calloc(1, sizeof(UA_NetworkMessage));
     if(!nm)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode using the non-rt decoding */
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buf, pos, nm);
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
         return rv;
     }
-    rv |= UA_NetworkMessage_decodePayload(buf, pos, nm, server->config.customDataTypes);
-    rv |= UA_NetworkMessage_decodeFooters(buf, pos, nm);
+    rv |= UA_NetworkMessage_decodePayload(ctx, nm);
+    rv |= UA_NetworkMessage_decodeFooters(ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         UA_free(nm);
@@ -1004,21 +1001,28 @@ UA_DataSetReader_prepareOffsetBuffer(UA_Server *server, UA_DataSetReader *reader
 
 void
 UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
-                                    UA_ByteString *buf) {
-    size_t pos = 0;
+                                    UA_ByteString buf) {
+    /* Set up the decoding context */
+    Ctx ctx;
+    ctx.pos = buf.data;
+    ctx.end = buf.data + buf.length;
+    ctx.depth = 0;
+    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
+    ctx.opts.customTypes = server->config.customDataTypes;
+
     UA_StatusCode rv;
     if(!dsr->bufferedMessage.nm) {
         /* This is the first message being received for the RT fastpath.
          * Prepare the offset buffer. */
-        rv = UA_DataSetReader_prepareOffsetBuffer(server, dsr, buf, &pos);
+        rv = UA_DataSetReader_prepareOffsetBuffer(&ctx, dsr, &buf);
     } else {
         /* Decode with offset information and update the networkMessage */
-        rv = UA_NetworkMessage_updateBufferedNwMessage(&dsr->bufferedMessage, buf, &pos);
+        rv = UA_NetworkMessage_updateBufferedNwMessage(&ctx, &dsr->bufferedMessage);
     }
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_INFO_READER(server->config.logging, dsr,
-                           "PubSub decoding failed. Could not decode with "
-                           "status code %s.", UA_StatusCode_name(rv));
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
+                              "PubSub decoding failed. Could not decode with "
+                              "status code %s.", UA_StatusCode_name(rv));
         return;
     }
 

@@ -87,7 +87,6 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(config->pubSubConfig.securityPolicies != NULL) {
         for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
             config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
@@ -96,7 +95,6 @@ UA_ServerConfig_clear(UA_ServerConfig *config) {
         config->pubSubConfig.securityPolicies = NULL;
         config->pubSubConfig.securityPoliciesSize = 0;
     }
-#endif
 #endif /* UA_ENABLE_PUBSUB */
 
     /* Logger */

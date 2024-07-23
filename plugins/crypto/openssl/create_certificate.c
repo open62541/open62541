@@ -9,11 +9,9 @@
 
 #include <open62541/plugin/create_certificate.h>
 
-#include "securitypolicy_openssl_common.h"
-#include "ua_openssl_version_abstraction.h"
+#include "securitypolicy_common.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-
 
 #include <openssl/pem.h>
 #include <openssl/x509v3.h>

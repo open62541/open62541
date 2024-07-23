@@ -18,7 +18,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
 
-#include "securitypolicy_mbedtls_common.h"
+#include "securitypolicy_common.h"
 
 #define REMOTECERTIFICATETRUSTED 1
 #define ISSUERKNOWN              2

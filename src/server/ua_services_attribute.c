@@ -1377,8 +1377,9 @@ writeValueAttributeWithoutRange(UA_VariableNode *node, const UA_DataValue *value
             /* Copy the data over the old memory */
             memcpy(tmpValue.value.data, value->value.data,
                    oSize * oldValue->value.type->memSize);
-            memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
-                   sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
+            if(oldValue->value.arrayDimensionsSize > 0) /* No memcpy with NULL-ptr */
+                memcpy(tmpValue.value.arrayDimensions, value->value.arrayDimensions,
+                       sizeof(UA_UInt32) * oldValue->value.arrayDimensionsSize);
 
             /* Set the value */
             node->value.data.value = tmpValue;

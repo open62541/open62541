@@ -16,9 +16,8 @@
 #include <openssl/x509v3.h>
 #include <openssl/pem.h>
 
-#include "ua_openssl_version_abstraction.h"
 #include "libc_time.h"
-#include "securitypolicy_openssl_common.h"
+#include "securitypolicy_common.h"
 
 #define SHA1_DIGEST_LENGTH 20
 

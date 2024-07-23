@@ -287,7 +287,6 @@ START_TEST(SetupInvalidPubSubConfig) {
 START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
     UA_WriterGroupConfig writerGroupConfig;
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
@@ -478,7 +477,6 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
 START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
-    UA_PubSubConnection *connection = UA_PubSubConnection_findConnectionbyId(server, connectionIdentifier);
     /* Add Subscribed Variables */
     UA_NodeId folderId1;
     UA_String folderName1 = UA_STRING("PubNodes");
@@ -511,10 +509,14 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
                                        folderId1,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed DateTime"),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &pubNodeId);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
     retVal = UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 60001),
                                        folderId1,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),  UA_QUALIFIEDNAME(1, "Subscribed1 DateTime"),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &pubNodeId1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
     UA_DataSetFieldConfig dsfConfig;
     memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
     UA_UInt32 *intValue = UA_UInt32_new();
@@ -600,10 +602,15 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
     retVal =  UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-    retVal = UA_Server_enableReaderGroup(server, readerGroupIdentifier);
-    // TODO security token not necessary for readergroup (extracted from security-header)
-    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableReaderGroup(server, readerGroupIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    // TODO security token not necessary for readergroup (extracted from security-header)
+    retVal = UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, sk, ek, kn);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
     /* Data Set Reader */
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));

@@ -29,7 +29,7 @@ include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 include_directories("${PROJECT_BINARY_DIR}")
 include_directories("${PROJECT_BINARY_DIR}/../plugins")
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # mbedtls includes
     include_directories(${MBEDTLS_INCLUDE_DIRS})
 endif()
@@ -266,7 +266,7 @@ if(UA_ENABLE_PUBSUB)
     ua_add_test(pubsub/check_pubsub_subscribe_rt_levels.c)
     ua_add_test(pubsub/check_pubsub_multiple_subscribe_rt_levels.c)
 
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(pubsub/check_pubsub_encryption.c)
         ua_add_test(pubsub/check_pubsub_encryption_aes256.c)
         ua_add_test(pubsub/check_pubsub_decryption.c)

@@ -131,7 +131,7 @@ mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
-set(UA_ENABLE_ENCRYPTION "OFF" CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
+set(UA_ENABLE_ENCRYPTION OFF CACHE STRING "Encryption support (LibreSSL EXPERIMENTAL)")
 SET_PROPERTY(CACHE UA_ENABLE_ENCRYPTION PROPERTY STRINGS "OFF" ${UA_ENCRYPTION_PLUGINS})
 option(UA_ENABLE_ENCRYPTION_OPENSSL "Deprecated: Enable encryption support (uses openssl)" OFF)
 mark_as_advanced(UA_ENABLE_ENCRYPTION_OPENSSL)
@@ -181,25 +181,16 @@ else()
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_ENCRYPTION")
+    endif()
     find_library(TPM2_LIB tpm2_pkcs11)
     message(${TPM2_LIB})
 endif()
 
-if(UA_ENABLE_TPM2_SECURITY)
-    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-        message(FATAL_ERROR "TPM2 encryption cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
-    endif()
-endif()
-
 if(UA_ENABLE_TPM2_KEYSTORE)
-    if(UA_ENABLE_PUBSUB)
-        if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-            message(FATAL_ERROR "TPM2 Keystore for PubSub cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
-        endif()
-    else()
-        if(NOT UA_ENABLE_ENCRYPTION)
-            message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
-        endif()
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "TPM2 Keystore cannot be used with disabled UA_ENABLE_ENCRYPTION")
     endif()
 endif()
 
@@ -275,15 +266,12 @@ mark_as_advanced(UA_ENABLE_DEBUG_SANITIZER)
 # General PubSub setup
 option(UA_ENABLE_PUBSUB "Enable the PubSub protocol" ON)
 
-option(UA_ENABLE_PUBSUB_ENCRYPTION "Enable encryption of the PubSub payload" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_ENCRYPTION)
-
 option(UA_ENABLE_PUBSUB_SKS "Enable Security Key Service support for publisher and subscriber" OFF)
 mark_as_advanced(UA_ENABLE_PUBSUB_SKS)
 if(UA_ENABLE_PUBSUB_SKS)
     message(WARNING "The PubSub SKS feature is under development and not yet ready.")
-    if(NOT UA_ENABLE_PUBSUB_ENCRYPTION)
-        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_PUBSUB_ENCRYPTION")
+    if(NOT UA_ENABLE_ENCRYPTION)
+        message(FATAL_ERROR "PubSub SKS cannot be used with disabled UA_ENABLE_ENCRYPTION")
     endif()
     if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
         message(FATAL_ERROR "PubSub SKS needs the full Namespace Zero")
@@ -313,22 +301,6 @@ mark_as_advanced(UA_ENABLE_PUBSUB_MONITORING)
 if(UA_ENABLE_PUBSUB_MONITORING)
     if(NOT UA_ENABLE_PUBSUB)
         message(FATAL_ERROR "PubSub monitoring cannot be used with PubSub function disabled")
-    endif()
-endif()
-
-option(UA_ENABLE_PUBSUB_BUFMALLOC "Enable allocation with static memory buffer for time critical PubSub parts" OFF)
-mark_as_advanced(UA_ENABLE_PUBSUB_BUFMALLOC)
-if(UA_ENABLE_PUBSUB_BUFMALLOC)
-    if(NOT UA_ENABLE_PUBSUB)
-        message(FATAL_ERROR "PubSub buffer allocation cannot be used with PubSub function disabled")
-    endif()
-    if(NOT UA_ENABLE_MALLOC_SINGLETON)
-        message(FATAL_ERROR "PubSub buffer allocation cannot be used without 'UA_ENABLE_MALLOC_SINGLETON' enabled")
-    endif()
-    if(UA_ENABLE_PUBSUB_MONITORING)
-        message(WARNING "PubSub monitoring option 'UA_ENABLE_PUBSUB_MONITORING' can only be used with option 'UA_ENABLE_PUBSUB_BUFMALLOC' if "
-            "a custom monitoring interface is provided, which does not allocate/deallocate memory at start/stopMonitoring callback. "
-            "It can't be used with the built-in ua_timer implementation, because this leads to memory deallocation problems.")
     endif()
 endif()
 
@@ -494,7 +466,7 @@ if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     endif()
 endif()
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
+if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # The recommended way is to install mbedtls via the OS package manager. If
     # that is not possible, manually compile mbedTLS and set the cmake variables
     # defined in /tools/cmake/FindMbedTLS.cmake.
@@ -805,7 +777,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_securechannel.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 # pubsub
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.c
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_eventloop.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
@@ -848,26 +820,14 @@ if(UA_ENABLE_PARSING)
     endif()
 endif()
 
-if(UA_ENABLE_PUBSUB)
-    if(UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_PUBSUB_BUFMALLOC)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.c)
-        list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_bufmalloc.h)
-    endif()
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_security.c)
-    endif()
-endif()
-
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/deps/cj5.h
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.h
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
-                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c)
-    if(UA_ENABLE_PUBSUB)
-        list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
-    endif()
+                            ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
+                            ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
 endif()
 
 if(UA_ENABLE_XML_ENCODING)
@@ -927,7 +887,8 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/access
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h)
+                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
+                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h)
 
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
@@ -980,56 +941,43 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION OR UA_ENABLE_AMALGAMATION)
-  list(INSERT plugin_sources 0
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.h
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_mbedtls_common.c)
-endif()
-
-if(UA_ENABLE_PUBSUB_ENCRYPTION)
-  list(APPEND plugin_sources
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
-       ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c)
-endif()
-
-if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h)
+if((UNIX AND UA_ENABLE_ENCRYPTION) OR UA_ENABLE_AMALGAMATION)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_filestore.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
-list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic128rsa15.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_basic256sha256.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes128sha256rsaoaep.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_securitypolicy_aes256sha256rsapss.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_mbedtls_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/ua_certificategroup_mbedtls.c)
-endif()
-
-if(UA_ENABLE_TPM2_SECURITY)
-list(INSERT plugin_sources 0
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic256sha256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_aes128sha256rsaoaep.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_aes256sha256rsapss.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes128ctr.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_pubsub_aes256ctr.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/create_certificate.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/certificategroup.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
-list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.h
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_version_abstraction.h
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_openssl_common.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic128rsa15.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_basic256sha256.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes128sha256rsaoaep.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_aes256sha256rsapss.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
-     ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_certificategroup_openssl.c)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic128rsa15.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256sha256.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes128sha256rsaoaep.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_aes256sha256rsapss.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/create_certificate.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/certificategroup.c)
 endif()
 
-if(UA_ENABLE_ENCRYPTION)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_filestore.c)
+if(UA_ENABLE_TPM2_SECURITY)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes128ctr_tpm.c
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/pkcs11/securitypolicy_pubsub_aes256ctr_tpm.c)
 endif()
 
 if(UA_ENABLE_DISCOVERY)

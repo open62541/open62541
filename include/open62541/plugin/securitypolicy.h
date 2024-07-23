@@ -343,7 +343,6 @@ struct UA_SecurityPolicy {
  * SecurityHeader. The nonce is required for the de- and encryption and has to
  * be set in the channel context before de/encrypting. */
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 struct UA_PubSubSecurityPolicy;
 typedef struct UA_PubSubSecurityPolicy UA_PubSubSecurityPolicy;
 
@@ -388,8 +387,6 @@ struct UA_PubSubSecurityPolicy {
     void (*clear)(UA_PubSubSecurityPolicy *policy);
     void *policyContext;
 };
-
-#endif
 
 _UA_END_DECLS
 

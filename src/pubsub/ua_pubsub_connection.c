@@ -20,13 +20,23 @@
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 UA_StatusCode
-decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
-                     UA_NetworkMessage *nm, UA_PubSubConnection *connection) {
+UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
+                                         UA_Server *server, UA_ByteString buffer,
+                                         UA_NetworkMessage *nm) {
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
 #endif
 
-    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(buffer, pos, nm);
+    /* Set up the decoding context */
+    Ctx ctx;
+    ctx.pos = buffer.data;
+    ctx.end = buffer.data + buffer.length;
+    ctx.depth = 0;
+    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
+    ctx.opts.customTypes = server->config.customDataTypes;
+
+    /* Decode the headers */
+    UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
                                   "PubSub receive. decoding headers failed");
@@ -34,7 +44,6 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
         return rv;
     }
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_Boolean processed = false;
     UA_ReaderGroup *readerGroup;
     UA_DataSetReader *reader;
@@ -48,8 +57,7 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
             if(retval != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
-            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, pos,
-                                                nm, readerGroup);
+            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, &ctx, nm, readerGroup);
             if(rv != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
                                           "Subscribe failed, verify and decrypt "
@@ -77,15 +85,14 @@ loops_exit:
          * buffer decoding and see if we have a matching DataSetReader for the
          * next network message. */
     }
-#endif
 
-    rv = UA_NetworkMessage_decodePayload(buffer, pos, nm, server->config.customDataTypes);
+    rv = UA_NetworkMessage_decodePayload(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         return rv;
     }
 
-    rv = UA_NetworkMessage_decodeFooters(buffer, pos, nm);
+    rv = UA_NetworkMessage_decodeFooters(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(nm);
         return rv;
@@ -333,7 +340,7 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
             nonRtRg = rg;
             continue;
         } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, &msg);
+        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, msg);
     }
 
     /* Any non-RT ReaderGroups? */
@@ -345,8 +352,7 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        size_t currentPosition = 0;
-        res = decodeNetworkMessage(server, &msg, &currentPosition, &nm, c);
+        res = UA_PubSubConnection_decodeNetworkMessage(c, server, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);

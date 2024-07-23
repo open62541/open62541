@@ -10,9 +10,9 @@
 #include <open62541/plugin/certificategroup.h>
 #include <open62541/types.h>
 
-#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) || defined(UA_ENABLE_PUBSUB_ENCRYPTION)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
 
-#include "securitypolicy_mbedtls_common.h"
+#include "securitypolicy_common.h"
 
 #include <mbedtls/aes.h>
 #include <mbedtls/ctr_drbg.h>

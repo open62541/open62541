@@ -454,8 +454,10 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
     /* Decode the request */
     UA_Request request;
     size_t requestPos = offset; /* Store the offset (for sendServiceFault) */
-    retval = UA_decodeBinaryInternal(msg, &offset, &request,
-                                     sd->requestType, server->config.customDataTypes);
+    UA_DecodeBinaryOptions opt;
+    memset(&opt, 0, sizeof(UA_DecodeBinaryOptions));
+    opt.customTypes = server->config.customDataTypes;
+    retval = UA_decodeBinaryInternal(msg, &offset, &request, sd->requestType, &opt);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG_CHANNEL(server->config.logging, channel,
                              "Could not decode the request with StatusCode %s",

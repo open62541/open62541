@@ -158,12 +158,10 @@ hexstr_to_char(const char *hexstr) {
 //     UA_NodeId_clear(&readerGroup->linkedConnection);
 //     UA_NodeId_clear(&readerGroup->identifier);
 //
-// #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
 //     if(readerGroup->config.securityPolicy && readerGroup->securityPolicyContext) {
 //         readerGroup->config.securityPolicy->deleteContext(readerGroup->securityPolicyContext);
 //         readerGroup->securityPolicyContext = NULL;
 //     }
-// #endif
 // }
 
 /*
@@ -193,7 +191,6 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     UA_ByteString kn = {UA_AES128CTR_KEYNONCE_LENGTH, keyNonce};
 
     /* To check status after running both publisher and subscriber */
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId readerIdentifier;
     UA_DataSetReaderConfig readerConfig;
 
@@ -206,7 +203,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     readerGroupConfig.securityMode = mode;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
+    UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &readerGroupId);
 
     /* Add the encryption key informaton for readergroup */
     // TODO security token not necessary for readergroup (extracted from security-header)
@@ -239,6 +236,7 @@ newReaderGroupWithSecurity(UA_MessageSecurityMode mode) {
     pMetaData->fields[0].valueRank   = -1; /* scalar */
     retVal |= UA_Server_addDataSetReader(server, readerGroupId, &readerConfig,
                                          &readerIdentifier);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     return pMetaData->fields;
 }
@@ -347,15 +345,14 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
-    const char * msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
+    const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
     UA_Byte *expectedData = hexstr_to_char(msg_dec_exp);
 
-    ck_assert(memcmp(buffer.data, expectedData, buffer.length) == 0);
+    ck_assert(memcmp(buffer.data, expectedData, strlen((const char*)expectedData)) == 0);
 
     UA_NetworkMessage_clear(&msg);
 
@@ -385,10 +382,8 @@ START_TEST(InvalidSignature) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -418,10 +413,8 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
         UA_NetworkMessage msg;
         memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-        size_t currentPosition = 0;
-
-        UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                                &msg, connection);
+        UA_StatusCode rv =
+            UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
         ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
         UA_NetworkMessage_clear(&msg);
@@ -450,10 +443,8 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     UA_NetworkMessage msg;
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
-    size_t currentPosition = 0;
-
-    UA_StatusCode rv = decodeNetworkMessage(server, &buffer, &currentPosition,
-                                            &msg, connection);
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);

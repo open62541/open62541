@@ -192,7 +192,7 @@ UA_NetworkMessage_calcSizeBinary(const UA_NetworkMessage *p);
 UA_EXPORT UA_StatusCode
 UA_NetworkMessage_decodeBinary(const UA_ByteString *src,
                                UA_NetworkMessage* dst,
-                               const UA_DataTypeArray *customTypes);
+                               const UA_DecodeBinaryOptions *options);
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
