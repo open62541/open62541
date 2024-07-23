@@ -201,7 +201,6 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
 
     if (!mon->subscription)
     {
-        /*Local monitored item*/
         UA_LocalMonitoredItem *local = (UA_LocalMonitoredItem*) mon;
         local->callback.eventCallback (
             server,
