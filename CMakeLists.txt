@@ -887,7 +887,8 @@ set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/access
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/nodestore_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/client_config_default.h
-                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h)
+                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/securitypolicy_default.h
+                   ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h)
 
 set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
@@ -940,9 +941,9 @@ endif()
 # Always include encryption plugins into the amalgamation
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
-if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_AMALGAMATION)
-    list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/create_certificate.h)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c)
+if((UNIX AND UA_ENABLE_ENCRYPTION) OR UA_ENABLE_AMALGAMATION)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_filestore.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
