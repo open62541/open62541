@@ -136,8 +136,7 @@ addSecurityGroup(UA_Server *server, UA_NodeId *outNodeId) {
     UA_UInt32 maxFutureKeyCount = DEMO_MAXFUTUREKEYCOUNT;
     UA_UInt32 maxPastKeyCount = DEMO_MAXPASTKEYCOUNT;
     char *securityGroupName = DEMO_SECURITYGROUPNAME;
-    UA_NodeId securityGroupParent =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS);
+    UA_NodeId securityGroupParent = UA_NS0ID(PUBLISHSUBSCRIBE_SECURITYGROUPS);
 
     UA_SecurityGroupConfig config;
     memset(&config, 0, sizeof(UA_SecurityGroupConfig));

@@ -108,8 +108,7 @@ addHelloWorldMethod1(UA_Server *server) {
     helloAttr.executable = true;
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
@@ -165,11 +164,10 @@ addHelloWorldMethod2(UA_Server *server) {
 	helloAttr.executable = true;
 	helloAttr.userExecutable = true;
 	UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62542),
-		UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-		UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-		UA_QUALIFIEDNAME(1, "hello world 2"),
-		helloAttr, &helloWorldMethodCallback2,
-		1, &inputArgument, 1, &outputArgument, NULL, NULL);
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "hello world 2"),
+                            helloAttr, &helloWorldMethodCallback2,
+                            1, &inputArgument, 1, &outputArgument, NULL, NULL);
 	/* Get the method node */
 	UA_NodeId id = UA_NODEID_NUMERIC(1, 62542);
 	UA_Server_setMethodNodeAsync(server, id, UA_TRUE);

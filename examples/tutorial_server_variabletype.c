@@ -38,8 +38,7 @@ addVariableType2DPoint(UA_Server *server) {
     UA_Variant_setArray(&vtAttr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE), UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), UA_NODEID_NULL,
                                   vtAttr, NULL, &pointTypeId);
 }
@@ -67,8 +66,7 @@ addVariable(UA_Server *server) {
 
     /* Add the node */
     UA_Server_addVariableNode(server, UA_NODEID_NULL,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                               vAttr, NULL, &pointVariableId);
 }
@@ -92,8 +90,7 @@ addVariableFail(UA_Server *server) {
 
     /* Add the node will return UA_STATUSCODE_BADTYPEMISMATCH*/
     UA_Server_addVariableNode(server, UA_NODEID_NULL,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "2DPoint Type (fail)"), pointTypeId,
                               vAttr, NULL, NULL);
 }

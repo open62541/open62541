@@ -78,26 +78,24 @@ int main(int argc, char* argv[]) {
     UA_StatusCode retCode;
 
     retCode = UA_Client_addVariableNode(client, newVariableIdRequest,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                            UA_QUALIFIEDNAME(1, "newVariable"),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                            newVariableAttributes, &newVariableId);
+                                        UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                                        UA_QUALIFIEDNAME(1, "newVariable"),
+                                        UA_NS0ID(BASEDATAVARIABLETYPE),
+                                        newVariableAttributes, &newVariableId);
 
     printf("addVariable returned: %s\n", UA_StatusCode_name(retCode));
 
     UA_ExpandedNodeId extNodeId = UA_EXPANDEDNODEID_NUMERIC(0, 0);
     extNodeId.nodeId = newVariableId;
 
-    retCode = UA_Client_addReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), UA_TRUE,
+    retCode = UA_Client_addReference(client, UA_NS0ID(OBJECTSFOLDER),
+                                     UA_NS0ID(HASCOMPONENT), UA_TRUE,
                                      UA_STRING_NULL, extNodeId, UA_NODECLASS_VARIABLE);
 
     printf("addReference returned: %s\n", UA_StatusCode_name(retCode));
 
-    retCode = UA_Client_deleteReference(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_TRUE, extNodeId,
-                                        UA_TRUE);
+    retCode = UA_Client_deleteReference(client, UA_NS0ID(OBJECTSFOLDER),
+                                        UA_NS0ID(ORGANIZES), UA_TRUE, extNodeId, UA_TRUE);
 
     printf("deleteReference returned: %s\n", UA_StatusCode_name(retCode));
 

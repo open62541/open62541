@@ -197,11 +197,10 @@ addSubscribedVariables (UA_Server *server) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                            folderBrowseName, UA_NODEID_NUMERIC (0,
-                            UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr,
+                            NULL, &folderId);
 
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
@@ -226,9 +225,9 @@ addSubscribedVariables (UA_Server *server) {
         UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
         vAttr.value = value;
         retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           folderId, UA_NS0ID(HASCOMPONENT),
                                            UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           UA_NS0ID(BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         repeatedFieldValues[i] = 0;
         repeatedDataValueRT[i] = UA_DataValue_new();

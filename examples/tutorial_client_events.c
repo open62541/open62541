@@ -77,7 +77,7 @@ setupSelectClauses(void) {
         UA_SimpleAttributeOperand_init(&selectClauses[i]);
     }
 
-    selectClauses[0].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    selectClauses[0].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
     selectClauses[0].browsePathSize = 1;
     selectClauses[0].browsePath = (UA_QualifiedName*)
         UA_Array_new(selectClauses[0].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
@@ -88,7 +88,7 @@ setupSelectClauses(void) {
     selectClauses[0].attributeId = UA_ATTRIBUTEID_VALUE;
     selectClauses[0].browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "Message");
 
-    selectClauses[1].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+    selectClauses[1].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
     selectClauses[1].browsePathSize = 1;
     selectClauses[1].browsePath = (UA_QualifiedName*)
         UA_Array_new(selectClauses[1].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);

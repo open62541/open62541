@@ -33,8 +33,7 @@ dataChangeNotificationCallback(UA_Server *server, UA_UInt32 monitoredItemId,
 
 static void
 addMonitoredItemToCurrentTimeVariable(UA_Server *server) {
-    UA_NodeId currentTimeNodeId =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+    UA_NodeId currentTimeNodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     UA_MonitoredItemCreateRequest monRequest =
         UA_MonitoredItemCreateRequest_default(currentTimeNodeId);
     monRequest.requestedParameters.samplingInterval = 100.0; /* 100 ms interval */

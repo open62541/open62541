@@ -192,9 +192,7 @@ int main(int argc, char *argv[]) {
     /* Read the server-time */
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Client_readValueAttribute(client,
-              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-              &value);
+    UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
     if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
