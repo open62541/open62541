@@ -288,10 +288,8 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
              const UA_Boolean deleteEventNode) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_LOG_NODEID_DEBUG(&origin,
-        UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "Events: An event is triggered on node %.*s",
-            (int)nodeIdStr.length, nodeIdStr.data));
+    UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
+                 "Events: An event is triggered on node %N", origin);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     UA_Boolean isCallerAC = false;

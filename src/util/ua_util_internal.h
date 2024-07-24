@@ -27,22 +27,6 @@ _UA_BEGIN_DECLS
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
-/* Print a NodeId in logs */
-#define UA_LOG_NODEID_INTERNAL(NODEID, LEVEL, LOG)   \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {         \
-        UA_String nodeIdStr = UA_STRING_NULL;        \
-        UA_NodeId_print(NODEID, &nodeIdStr);         \
-        LOG;                                         \
-        UA_String_clear(&nodeIdStr);                 \
-    }
-
-#define UA_LOG_NODEID_TRACE(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, TRACE, LOG)
-#define UA_LOG_NODEID_DEBUG(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, DEBUG, LOG)
-#define UA_LOG_NODEID_INFO(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, INFO, LOG)
-#define UA_LOG_NODEID_WARNING(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, WARNING, LOG)
-#define UA_LOG_NODEID_ERROR(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, ERROR, LOG)
-#define UA_LOG_NODEID_FATAL(NODEID, LOG) UA_LOG_NODEID_INTERNAL(NODEID, FATAL, LOG)
-
 /* Short names for integer. These are not exposed on the public API, since many
  * user-applications make the same definitions in their headers. */
 typedef UA_Byte u8;
