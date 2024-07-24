@@ -1111,7 +1111,7 @@ set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path 
 
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
-    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema)
+    set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
 
     # Set the full Nodeset for NS0
     if(NOT UA_FILE_NS0)
@@ -1129,7 +1129,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     endif()
 else()
     # Directory with the schema files for installation
-    set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema)
+    set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
 
     # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
