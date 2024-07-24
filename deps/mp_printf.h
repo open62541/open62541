@@ -63,6 +63,12 @@ __attribute__((format(printf, (one_based_format_index), (first_arg))))
 /**
  * An implementation of the C standard's snprintf/vsnprintf
  *
+ * This is extended for the open62541 project to take some OPC UA datatypes
+ * directly with the following format specifiers:
+ *
+ * %S - UA_String (without wrapping in quotation marks)
+ * %N - UA_NodeId (using UA_NodeId_print)
+ *
  * @param s An array in which to store the formatted string. It must be large
  * enough to fit either the entire formatted output, or at least @p n
  * characters. Alternatively, it can be NULL, in which case nothing will be

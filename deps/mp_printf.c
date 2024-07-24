@@ -42,6 +42,8 @@
 #include "mp_printf.h"
 #include "dtoa.h"
 
+#include <open62541/types.h>
+
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -542,8 +544,7 @@ format_string_loop(output_t *output, const char *format, va_list args) {
             }
 
             case 'p': {
-                width =
-                    sizeof(void *) * 2U + 2;  // 2 hex chars per byte + the "0x" prefix
+                width = sizeof(void *) * 2U + 2;  // 2 hex chars per byte + the "0x" prefix
                 flags |= FLAGS_ZEROPAD | FLAGS_POINTER;
                 uintptr_t value = (uintptr_t)va_arg(args, void *);
                 (value == (uintptr_t)NULL)
@@ -558,6 +559,27 @@ format_string_loop(output_t *output, const char *format, va_list args) {
                 putchar_(output, '%');
                 format++;
                 break;
+
+            case 'S': {
+                UA_String s = va_arg(args, UA_String);
+                out_(output, (const char*)s.data, s.length);
+                format++;
+                break;
+            }
+
+            case 'N': {
+                UA_String buf = UA_STRING_NULL;
+                UA_NodeId id = va_arg(args, UA_NodeId);
+                UA_StatusCode res = UA_NodeId_print(&id, &buf);
+                if(res == UA_STATUSCODE_GOOD) {
+                    out_(output, (const char*)buf.data, buf.length);
+                    UA_String_clear(&buf);
+                } else {
+                    out_rev_(output, ")rre(", 5, width, flags);
+                }
+                format++;
+                break;
+            }
 
             default:
                 putchar_(output, *format);
