@@ -92,8 +92,7 @@ int main(int argc, char **argv) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "the answer");
 
     UA_Server_addDataSourceVariableNode(server, myIntegerNodeId,
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                        UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
                                         myIntegerName, UA_NODEID_NULL, attr, dateDataSource,
                                         &myInteger, NULL);
 

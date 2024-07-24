@@ -166,7 +166,7 @@ create_event_filter_with_monitored_item(UA_UInt16 filterSelection, UA_Client *cl
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;

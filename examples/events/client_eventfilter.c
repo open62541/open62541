@@ -45,7 +45,7 @@ setupSelectClauses(size_t selectedFieldsSize, UA_QualifiedName *qName) {
     }
 
     for (size_t i = 0; i < selectedFieldsSize; ++i) {
-        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         selectClauses[i].browsePathSize = 1;
         selectClauses[i].browsePath = (UA_QualifiedName*)
                 UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
@@ -318,7 +318,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         UA_SimpleAttributeOperand sao;
         UA_SimpleAttributeOperand_init(&sao);
         sao.attributeId = UA_ATTRIBUTEID_VALUE;
-        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         sao.browsePathSize = 1;
         UA_QualifiedName *qn = UA_QualifiedName_new();
         *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
@@ -406,7 +406,7 @@ int main(int argc, char *argv[]) {
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 

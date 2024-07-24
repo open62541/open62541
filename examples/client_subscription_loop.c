@@ -86,8 +86,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                 return;
 
             /* Add a MonitoredItem */
-            UA_NodeId currentTimeNode =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+            UA_NodeId currentTimeNode = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
             UA_MonitoredItemCreateRequest monRequest =
                 UA_MonitoredItemCreateRequest_default(currentTimeNode);
 

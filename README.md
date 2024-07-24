@@ -160,8 +160,8 @@ int main(int argc, char** argv)
 
     /* 2) Define where the node shall be added with which browsename */
     UA_NodeId newNodeId = UA_NODEID_STRING(1, "the.answer");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_NodeId variableType = UA_NODEID_NULL; /* take the default variable type */
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "the answer");
 
