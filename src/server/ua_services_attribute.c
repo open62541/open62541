@@ -379,11 +379,9 @@ void
 ReadWithNode(const UA_Node *node, UA_Server *server, UA_Session *session,
              UA_TimestampsToReturn timestampsToReturn,
              const UA_ReadValueId *id, UA_DataValue *v) {
-    UA_LOG_NODEID_TRACE(&node->head.nodeId,
-                        UA_LOG_TRACE_SESSION(server->config.logging, session,
-                                             "Read attribute %"PRIi32 " of Node %.*s",
-                                             id->attributeId, (int)nodeIdStr.length,
-                                             nodeIdStr.data));
+    UA_LOG_TRACE_SESSION(server->config.logging, session,
+                         "Read attribute %"PRIi32 " of Node %N",
+                         id->attributeId, node->head.nodeId);
 
     /* Only Binary Encoding is supported */
     if(id->dataEncoding.name.length > 0 &&
@@ -1470,20 +1468,17 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
         if(!compatibleValue(server, session, &node->dataType, node->valueRank,
                             node->arrayDimensionsSize, node->arrayDimensions,
                             &adjustedValue.value, rangeptr, &reason)) {
-            UA_LOG_NODEID_WARNING(&node->head.nodeId,
             if(session == &server->adminSession) {
                 /* If the value is written via the local API, log a warning */
-                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                               "Writing the value of Node %.*s failed with the "
-                               "following reason: %s",
-                               (int)nodeIdStr.length, nodeIdStr.data, reason);
+                UA_LOG_WARNING_SESSION(server->config.logging, session,
+                               "Writing the value of Node %N failed with the "
+                               "following reason: %s", node->head.nodeId, reason);
             } else {
                 /* Don't spam the logs if writing from remote failed */
                 UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                                     "Writing the value of Node %.*s failed with the "
-                                     "following reason: %s",
-                                     (int)nodeIdStr.length, nodeIdStr.data, reason);
-            });
+                                     "Writing the value of Node %N failed with the "
+                                     "following reason: %s", node->head.nodeId, reason);
+            }
             if(rangeptr && rangeptr->dimensions != NULL)
                 UA_free(rangeptr->dimensions);
             return UA_STATUSCODE_BADTYPEMISMATCH;
@@ -1678,11 +1673,9 @@ copyAttributeIntoNode(UA_Server *server, UA_Session *session,
     UA_UInt32 userWriteMask = getUserWriteMask(server, session, &node->head);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
-    UA_LOG_NODEID_TRACE(&node->head.nodeId,
-                        UA_LOG_TRACE_SESSION(server->config.logging, session,
-                                             "Write attribute %"PRIi32 " of Node %.*s",
-                                             wvalue->attributeId, (int)nodeIdStr.length,
-                                             nodeIdStr.data));
+    UA_LOG_TRACE_SESSION(server->config.logging, session,
+                         "Write attribute %" PRIi32 " of Node %N",
+                         wvalue->attributeId, node->head.nodeId);
 
     const UA_VariableTypeNode *type;
 

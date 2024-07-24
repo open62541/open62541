@@ -695,17 +695,17 @@ verifyServerApplicationURI(const UA_Server *server) {
         if(UA_String_equal(&sp->policyUri, &securityPolicyNoneUri) &&
            sp->localCertificate.length == 0)
             continue;
-        UA_StatusCode retval = UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
-                                                                        &sp->localCertificate,
-                                                                        &server->config.applicationDescription.applicationUri);
+        UA_StatusCode retval =
+            UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
+                                                     &sp->localCertificate,
+                                                     &server->config.applicationDescription.applicationUri);
         UA_CHECK_STATUS_ERROR(retval, return retval, server->config.logging,
                               UA_LOGCATEGORY_SERVER,
-                              "The configured ApplicationURI \"%.*s\" does not match the "
+                              "The configured ApplicationURI \"%S\" does not match the "
                               "ApplicationURI specified in the certificate for the "
-                              "SecurityPolicy %.*s", (int)
-                              server->config.applicationDescription.applicationUri.length,
-                              server->config.applicationDescription.applicationUri.data,
-                              (int)sp->policyUri.length, sp->policyUri.data);
+                              "SecurityPolicy %S",
+                              server->config.applicationDescription.applicationUri,
+                              sp->policyUri);
     }
     return UA_STATUSCODE_GOOD;
 }

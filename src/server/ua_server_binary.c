@@ -696,8 +696,7 @@ addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
                             &discoveryServerUrl, &UA_TYPES[UA_TYPES_STRING]);
     if(res == UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "New DiscoveryUrl added: %.*s", (int)discoveryServerUrl.length,
-                    (char*)discoveryServerUrl.data);
+                    "New DiscoveryUrl added: %S", discoveryServerUrl);
     } else {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Could not register DiscoveryUrl -- out of memory");
@@ -982,8 +981,7 @@ retryReverseConnectCallback(UA_Server *server, void *context) {
         if(rc->currentConnection.connectionId)
             continue;
         UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                    "Attempt to reverse reconnect to %.*s:%d",
-                    (int)rc->hostname.length, rc->hostname.data, rc->port);
+                    "Attempt to reverse reconnect to %S:%d", rc->hostname, rc->port);
         attemptReverseConnect(bpm, rc);
     }
 
@@ -1094,8 +1092,7 @@ UA_Server_addReverseConnect(UA_Server *server, UA_String url,
     UA_StatusCode res = UA_parseEndpointUrl(&url, &hostname, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
-                       "OPC UA URL is invalid: %.*s",
-                       (int)url.length, url.data);
+                       "OPC UA URL is invalid: %S", url);
         return res;
     }
 
