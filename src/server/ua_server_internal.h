@@ -42,13 +42,16 @@ typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
+typedef union
+{
+    UA_Server_DataChangeNotificationCallback dataChangeCallback;
+    UA_Server_EventNotificationCallback eventCallback;
+} UA_Server_MonitoredItemNotificationCallback;
+
 typedef struct {
     UA_MonitoredItem monitoredItem;
     void *context;
-    union {
-        UA_Server_DataChangeNotificationCallback dataChangeCallback;
-        /* UA_Server_EventNotificationCallback eventCallback; */
-    } callback;
+    UA_Server_MonitoredItemNotificationCallback callback;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
@@ -389,7 +392,7 @@ addRef(UA_Server *server, const UA_NodeId sourceId,
 
 UA_StatusCode
 copyAllChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeId *source, const UA_NodeId *destination);
+                const UA_NodeId *source, const UA_NodeId *destination, UA_Boolean copyOptional);
 
 UA_StatusCode
 deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
@@ -471,6 +474,10 @@ UA_StatusCode
 readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value);
+
+UA_StatusCode
+getNodeIdWithBrowseName(UA_Server *server, const UA_NodeId *origin,
+                        UA_QualifiedName browseName, UA_NodeId *outNodeId);
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);

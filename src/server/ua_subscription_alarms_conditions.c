@@ -62,7 +62,44 @@ typedef struct UA_Condition {
     UA_UInt64 reAlarmCallbackId;
     UA_Int16 reAlarmCount;
     UA_UInt64 unshelveCallbackId;
+    const UA_ConditionImplCallbacks *callbacks;
 } UA_Condition;
+
+static inline UA_StatusCode UA_Condition_UserCallback_onAcked (UA_Server *server, UA_Condition *condition, const UA_NodeId *id)
+{
+   if (!condition->callbacks || !condition->callbacks->onAcked) return UA_STATUSCODE_GOOD;
+   UA_UNLOCK(&server->serviceMutex);
+   UA_StatusCode ret = condition->callbacks->onAcked (server, id, condition->context);
+   UA_LOCK(&server->serviceMutex);
+   return ret;
+}
+
+static inline UA_StatusCode UA_Condition_UserCallback_onConfirmed (UA_Server *server, UA_Condition *condition, const UA_NodeId *id)
+{
+    if (!condition->callbacks || !condition->callbacks->onConfirmed) return UA_STATUSCODE_GOOD;
+    UA_UNLOCK(&server->serviceMutex);
+    UA_StatusCode ret = condition->callbacks->onConfirmed(server, id, condition->context);
+    UA_LOCK(&server->serviceMutex);
+    return ret;
+}
+
+static inline UA_StatusCode UA_Condition_UserCallback_onActive(UA_Server *server, UA_Condition *condition, const UA_NodeId *id)
+{
+    if (!condition->callbacks || !condition->callbacks->onActive) return UA_STATUSCODE_GOOD;
+    UA_UNLOCK(&server->serviceMutex);
+    UA_StatusCode ret = condition->callbacks->onActive(server, id, condition->context);
+    UA_LOCK(&server->serviceMutex);
+    return ret;
+}
+
+static inline UA_StatusCode UA_Condition_UserCallback_onInactive(UA_Server *server, UA_Condition *condition, const UA_NodeId *id)
+{
+    if (!condition->callbacks || !condition->callbacks->onInactive) return UA_STATUSCODE_GOOD;
+    UA_UNLOCK(&server->serviceMutex);
+    UA_StatusCode ret = condition->callbacks->onInactive(server, id, condition->context);
+    UA_LOCK(&server->serviceMutex);
+    return ret;
+}
 
 static UA_Condition *UA_Condition_new (void)
 {
@@ -96,6 +133,17 @@ static inline void UA_Condition_removeUnshelveCallback (UA_Condition *condition,
     condition->unshelveCallbackId = 0;
 }
 
+static size_t UA_Condition_getBranchCount (const UA_Condition *condition)
+{
+    size_t count = 0;
+    UA_ConditionBranch *tmp = NULL;
+    LIST_FOREACH(tmp, &condition->branches, listEntry)
+    {
+        count++;
+    }
+    return count;
+}
+
 static enum ZIP_CMP
 cmpCondition (const void *a, const void *b) {
     const UA_ConditionBranch *aa = *((UA_ConditionBranch *const *)a);
@@ -122,6 +170,7 @@ static UA_ConditionBranch *UA_ConditionBranch_new (void)
 
 static void UA_ConditionBranch_delete (UA_ConditionBranch *cb)
 {
+    LIST_REMOVE(cb, listEntry);
     UA_NodeId_clear (&cb->id);
     UA_ByteString_clear(&cb->eventId);
     UA_free (cb);
@@ -146,15 +195,6 @@ cmpConditionBranch (const void *a, const void *b) {
 }
 
 ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_ConditionBranch, zipEntry, cmpConditionBranch)
-
-
-
-/* A ConditionSource can have multiple Conditions. */
-struct UA_ConditionSource {
-    LIST_ENTRY(UA_ConditionSource) listEntry;
-    LIST_HEAD(, UA_Condition) conditions;
-    UA_NodeId conditionSourceId;
-};
 
 #define CONDITION_SEVERITYCHANGECALLBACK_ENABLE
 
@@ -427,20 +467,6 @@ static UA_StatusCode
 getNodeIdValueOfNodeField(UA_Server *server, const UA_NodeId *nodeId,
                           UA_QualifiedName fieldName, UA_NodeId *outNodeId);
 
-static UA_StatusCode
-getNodeChildNodeId(UA_Server *server, const UA_NodeId *nodeId,
-                   UA_QualifiedName childBrowseName, UA_NodeId *outNodeId)
-{
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_BrowsePathResult bpr =
-        browseSimplifiedBrowsePath(server, *nodeId, 1, &childBrowseName);
-    if(bpr.statusCode != UA_STATUSCODE_GOOD)
-        return bpr.statusCode;
-    UA_StatusCode retval = UA_NodeId_copy(&bpr.targets[0].targetId.nodeId, outNodeId);
-    UA_BrowsePathResult_clear(&bpr);
-    return retval;
-}
-
 static UA_NodeId getTypeDefinitionId(UA_Server *server, const UA_NodeId *targetId)
 {
     UA_BrowseDescription bd;
@@ -577,7 +603,7 @@ updateShelvedStateMachineState (UA_Server *server, const UA_NodeId *shelvedState
 {
     UA_NodeId currentStateId;
     UA_Variant value;
-    UA_StatusCode retval = getNodeChildNodeId (server, shelvedStateId, UA_QUALIFIEDNAME(0, FIELD_CURRENT_STATE), &currentStateId);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, shelvedStateId, UA_QUALIFIEDNAME(0, FIELD_CURRENT_STATE), &currentStateId);
     CONDITION_ASSERT_GOTOLABEL(retval, "Get CurrentState Id failed", done);
 
     UA_LocalizedText stateText = UA_LOCALIZEDTEXT(LOCALE, (char *) (uintptr_t) currentStateText);
@@ -627,7 +653,7 @@ static UA_StatusCode
 getShelvedStateMachineStateId (UA_Server *server, const UA_NodeId *shelvedStateId, UA_NodeId *shelvedId)
 {
     UA_NodeId currentStateId;
-    UA_StatusCode status = getNodeChildNodeId (server, shelvedStateId, UA_QUALIFIEDNAME(0, FIELD_CURRENT_STATE), &currentStateId);
+    UA_StatusCode status = getNodeIdWithBrowseName (server, shelvedStateId, UA_QUALIFIEDNAME(0, FIELD_CURRENT_STATE), &currentStateId);
     if (status != UA_STATUSCODE_GOOD) goto done;
     status = getNodeIdValueOfNodeField(server, shelvedStateId, stateVariableIdQN, shelvedId);
     if (status != UA_STATUSCODE_GOOD) goto done;
@@ -641,7 +667,7 @@ static inline UA_StatusCode
 getConditionFieldNodeId(UA_Server *server, const UA_NodeId *conditionNodeId,
                         const UA_QualifiedName* fieldName, UA_NodeId *outFieldNodeId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    return getNodeChildNodeId(server, conditionNodeId, *fieldName, outFieldNodeId);
+    return getNodeIdWithBrowseName(server, conditionNodeId, *fieldName, outFieldNodeId);
 }
 
 /* Gets the NodeId of a Field Property (e.g. EnabledState/Id) */
@@ -1059,7 +1085,7 @@ static UA_StatusCode
 UA_Condition_State_setShelvingStateUnshelved(const UA_Condition *condition, UA_Server *server)
 {
     UA_NodeId shelvingStateId;
-    UA_StatusCode retval = getNodeChildNodeId(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = setShelvedStateMachineUnshelved(server, &shelvingStateId);
     UA_NodeId_clear (&shelvingStateId);
@@ -1070,7 +1096,7 @@ static UA_StatusCode
 UA_Condition_State_setShelvingStateOneShot(const UA_Condition *condition, UA_Server *server, const UA_Duration *shelvedTime)
 {
     UA_NodeId shelvingStateId;
-    UA_StatusCode retval = getNodeChildNodeId(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = setShelvedStateMachineOneShotShelved(server, &shelvingStateId);
     UA_NodeId_clear (&shelvingStateId);
@@ -1081,7 +1107,7 @@ static UA_StatusCode
 UA_Condition_State_setShelvingStateTimed(UA_Condition *condition, UA_Server *server, UA_Duration shelvedTime)
 {
     UA_NodeId shelvingStateId;
-    UA_StatusCode retval = getNodeChildNodeId(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
     if (retval != UA_STATUSCODE_GOOD) return retval;
     retval = setShelvedStateMachineTimedShelved(server, &shelvingStateId);
     UA_NodeId_clear (&shelvingStateId);
@@ -1092,7 +1118,7 @@ static UA_NodeId
 UA_Condition_State_getShelvingStateId(UA_Condition *condition, UA_Server *server)
 {
     UA_NodeId shelvingStateId;
-    UA_StatusCode retval = getNodeChildNodeId(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
+    UA_StatusCode retval = getNodeIdWithBrowseName(server, &condition->mainBranch->id, fieldShelvingStateQN, &shelvingStateId);
     if (retval != UA_STATUSCODE_GOOD) return UA_NODEID_NULL;
     UA_NodeId stateIdValue;
     retval = getShelvedStateMachineStateId(server, &shelvingStateId, &stateIdValue);
@@ -1183,20 +1209,24 @@ UA_ConditionBranch_triggerEvent (UA_ConditionBranch *branch, UA_Server *server,
     return retval;
 }
 
-static UA_StatusCode deleteConditionBranch (UA_Server *server, const UA_ConditionBranch* branch)
-{
-    //TODO
-    return UA_STATUSCODE_GOOD;
-}
+static UA_StatusCode removeConditionBranch (UA_Server *server, UA_ConditionBranch *branch);
+
+static void
+UA_ConditionBranch_evaluateRetainState(UA_ConditionBranch *branch, UA_Server *server);
 
 static UA_StatusCode
 UA_ConditionBranch_triggerNewBranchState (UA_ConditionBranch *branch, UA_Server *server, const UA_ConditionEventInfo *info) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_StatusCode status = UA_ConditionBranch_triggerEvent (branch, server, info);
     if (status != UA_STATUSCODE_GOOD) return status;
-    if (!branch->isMainBranch && UA_ConditionBranch_State_Retain(branch, server))
+    if (!branch->isMainBranch && !UA_ConditionBranch_State_Retain(branch, server))
     {
-        status = deleteConditionBranch (server, branch);
+        status = removeConditionBranch(server, branch);
+        UA_ConditionBranch_evaluateRetainState(branch->condition->mainBranch, server);
+        if (!UA_ConditionBranch_State_Retain(branch->condition->mainBranch, server))
+        {
+            status = UA_ConditionBranch_triggerEvent (branch->condition->mainBranch, server, info);
+        }
     }
     return status;
 }
@@ -1257,14 +1287,11 @@ conditionEnable (UA_Server *server, UA_Condition *condition, UA_Boolean enable)
      * Condition instance is currently not of interest to Clients. This includes all
      * ConditionBranches if any branches exist.
      * https://reference.opcfoundation.org/Core/Part9/v105/docs/5.5
-     *
-     *
      */
     if (enable == false)
     {
         UA_ConditionBranch *branch;
         LIST_FOREACH(branch, &condition->branches, listEntry) {
-            //set retain property for each branch
             UA_ConditionBranch_State_setRetain(branch, server, false);
             retval = UA_ConditionBranch_triggerEvent (branch, server, NULL);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "triggering condition event failed",);
@@ -1281,7 +1308,6 @@ conditionEnable (UA_Server *server, UA_Condition *condition, UA_Boolean enable)
             if (!UA_ConditionBranch_State_Retain(branch, server))
                 continue;
 
-            CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Time failed",);
             retval = UA_ConditionBranch_triggerEvent (branch, server, NULL);
             if (retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -1302,7 +1328,7 @@ conditionEnable (UA_Server *server, UA_Condition *condition, UA_Boolean enable)
 }
 
 UA_StatusCode
-UA_Server_conditionEnable (UA_Server *server, UA_NodeId conditionId, UA_Boolean enable)
+UA_Server_Condition_enable (UA_Server *server, UA_NodeId conditionId, UA_Boolean enable)
 {
     UA_LOCK (&server->serviceMutex);
     UA_Condition *condition = getCondition(server, &conditionId);
@@ -1346,43 +1372,151 @@ conditionBranch_addCommentAndEvent (UA_Server *server, UA_ConditionBranch *branc
     return UA_ConditionBranch_triggerEvent (branch, server, &info);
 }
 
+static void
+UA_ConditionBranch_evaluateRetainState(UA_ConditionBranch *branch, UA_Server *server)
+{
+    UA_Boolean retain = false;
+    if (branch->isMainBranch)
+    {
+        /*Retain for main branch should remain true if there are still branches active*/
+        size_t count = UA_Condition_getBranchCount(branch->condition);
+        if (count > 1)
+        {
+            retain = true;
+            goto done;
+        }
+
+        /*Active and latched only applicable for main condition*/
+        if (UA_Condition_State_Active(branch->condition, server) ||
+            UA_Condition_State_Latched(branch->condition, server))
+        {
+            retain = true;
+            goto done;
+        }
+    }
+
+    //branch still requires action
+    retain = !UA_ConditionBranch_State_Acked(branch, server) ||
+        (UA_ConditionBranch_State_isConfirmable(branch,server) && !UA_ConditionBranch_State_Confirmed(branch,server));
+done:
+    UA_ConditionBranch_State_setRetain(branch, server, retain);
+}
+
 static UA_StatusCode
-conditionBranchAcknowledge (UA_Server *server, UA_ConditionBranch *branch, const UA_LocalizedText *comment)
+conditionBranchAcknowledge(UA_Server *server, UA_ConditionBranch *branch, const UA_LocalizedText *comment)
 {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if(UA_ConditionBranch_State_Acked(branch, server))
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYACKED;
 
+    UA_StatusCode retval = UA_Condition_UserCallback_onAcked(server, branch->condition, &branch->id);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     UA_ConditionBranch_State_setAckedState(branch, server, true);
+    UA_ConditionBranch_evaluateRetainState(branch, server);
+
+    if (comment) conditionBranch_addComment (server, branch, comment);
 
     UA_ConditionEventInfo info = {
         .message = UA_LOCALIZEDTEXT(LOCALE, ACKED_MESSAGE)
     };
-
-    /* Only retain if lached or condition is confirmable */
-    UA_Boolean latched = UA_Condition_State_Latched (branch->condition, server);
-    UA_Boolean confirmable = UA_ConditionBranch_State_isConfirmable(branch, server);
-    UA_Boolean retain = latched || confirmable;
-    UA_ConditionBranch_State_setRetain(branch, server, retain);
-    if (confirmable) UA_ConditionBranch_State_setConfirmedState(branch, server, false);
-    if (comment) conditionBranch_addComment (server, branch, comment);
     return UA_ConditionBranch_triggerNewBranchState(branch, server, &info);
 }
 
+UA_StatusCode
+UA_Server_Condition_acknowledge(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_ConditionBranch *branch = getConditionBranch(server, &conditionId);
+    if (!branch)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = conditionBranchAcknowledge(server, branch, comment);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
 static UA_StatusCode
-conditionBranchConfirm (UA_Server *server, UA_ConditionBranch *branch, const UA_LocalizedText *comment)
+conditionBranchConfirm(UA_Server *server, UA_ConditionBranch *branch, const UA_LocalizedText *comment)
 {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     if (UA_ConditionBranch_State_Confirmed(branch, server))
         return UA_STATUSCODE_BADCONDITIONBRANCHALREADYCONFIRMED;
+
+    UA_StatusCode retval = UA_Condition_UserCallback_onConfirmed(server, branch->condition, &branch->id);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     UA_ConditionBranch_State_setConfirmedState(branch, server, true);
+    UA_ConditionBranch_evaluateRetainState(branch, server);
+
     if (comment) conditionBranch_addComment (server, branch, comment);
     UA_ConditionEventInfo info = {
         .message = UA_LOCALIZEDTEXT(LOCALE, CONFIRMED_MESSAGE)
     };
-    if (!UA_Condition_State_Latched(branch->condition, server))
-        UA_ConditionBranch_State_setRetain(branch, server, false);
     return UA_ConditionBranch_triggerNewBranchState (branch, server, &info);
+}
+
+UA_StatusCode
+UA_Server_Condition_confirm(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_ConditionBranch *branch = getConditionBranch(server, &conditionId);
+    if (!branch)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = conditionBranchConfirm(server, branch, comment);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_Condition_setRetain (UA_Server *server, UA_NodeId conditionId, UA_Boolean retain)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_ConditionBranch *branch = getConditionBranch(server, &conditionId);
+    if (!branch)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = UA_ConditionBranch_State_setRetain(branch, server, retain);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_Condition_setConfirmRequired(UA_Server *server, UA_NodeId conditionId)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_ConditionBranch *branch = getConditionBranch(server, &conditionId);
+    if (!branch)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = UA_ConditionBranch_State_setConfirmedState (branch, server, false);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_Condition_setAcknowledgeRequired(UA_Server *server, UA_NodeId conditionId)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_ConditionBranch *branch = getConditionBranch(server, &conditionId);
+    if (!branch)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ret = UA_ConditionBranch_State_setAckedState(branch, server, false);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
 }
 
 static UA_StatusCode
@@ -1570,7 +1704,7 @@ condition_oneShotShelve (UA_Server *server, UA_Condition *condition, const UA_Lo
     return UA_ConditionBranch_triggerEvent(condition->mainBranch, server, &info);
 }
 
-static void removeCondition (UA_Server *server, UA_Condition *condition);
+static UA_StatusCode removeCondition (UA_Server *server, UA_Condition *condition);
 
 static void *deleteConditionsWrapper (void *ctx, UA_Condition *condition)
 {
@@ -1627,7 +1761,9 @@ setupConditionInstanceSubtypeOfCallback(void *context, UA_ReferenceTarget *t) {
     if (!UA_NodePointer_isLocal(t->targetId)) return NULL;
     struct UA_SetupConditionContext *ctx = (struct UA_SetupConditionContext *) context;
     const UA_Node *node = UA_NODESTORE_GETFROMREF (ctx->server, t->targetId);
-    return recurseConditionTypeInstanceSetup (ctx->server, ctx, node) == UA_STATUSCODE_GOOD ? (void*)0x1 : NULL;
+    void *ret = recurseConditionTypeInstanceSetup (ctx->server, ctx, node) == UA_STATUSCODE_GOOD ? (void*)0x1 : NULL;
+    UA_NODESTORE_RELEASE(ctx->server, node);
+    return ret;
 }
 
 /**
@@ -1667,7 +1803,9 @@ setupConditionInstance (UA_Server *server, const UA_NodeId *conditionId, const U
         .conditionInstance = conditionId,
         .conditionSetupProperties = conditionSetupProperties
     };
-    return recurseConditionTypeInstanceSetup (server, &ctx, node);
+    retval = recurseConditionTypeInstanceSetup (server, &ctx, node);
+    UA_NODESTORE_RELEASE(server, node);
+    return retval;
 }
 
 static inline UA_Condition *getCondition (UA_Server *server, const UA_NodeId *conditionId)
@@ -1687,26 +1825,32 @@ static inline UA_ConditionBranch *getConditionBranch (UA_Server *server, const U
     return ZIP_FIND(UA_ConditionBranchTree, &server->conditionBranches, &dummy);
 }
 
-static void removeConditionBranch (UA_Server *server, UA_ConditionBranch *branch)
+static UA_StatusCode removeConditionBranch (UA_Server *server, UA_ConditionBranch *branch)
 {
+    UA_StatusCode ret = deleteNode(server, branch->id, true);
     ZIP_REMOVE(UA_ConditionBranchTree, &server->conditionBranches, branch);
     UA_ConditionBranch_delete(branch);
+    return ret;
 }
 
-static void removeCondition (UA_Server *server, UA_Condition *condition)
+static UA_StatusCode removeCondition (UA_Server *server, UA_Condition *condition)
 {
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    condition->mainBranch = NULL;
     UA_ConditionBranch *branch = NULL;
-    LIST_FOREACH (branch, &condition->branches, listEntry)
+    UA_ConditionBranch *tmp= NULL;
+    LIST_FOREACH_SAFE (branch, &condition->branches, listEntry, tmp)
     {
-        removeConditionBranch (server, branch);
+        ret |= removeConditionBranch (server, branch);
     }
-
     ZIP_REMOVE(UA_ConditionTree, &server->conditions ,condition);
+    if (condition->unshelveCallbackId) removeCallback(server, condition->unshelveCallbackId);
     if (condition->onDelayCallbackId) removeCallback (server, condition->onDelayCallbackId);
     if (condition->offDelayCallbackId) removeCallback (server, condition->offDelayCallbackId);
     UA_ConditionEventInfo_delete(condition->_delayCallbackInfo);
     if (condition->reAlarmCallbackId) removeCallback (server, condition->reAlarmCallbackId);
     UA_Condition_delete (condition);
+    return ret;
 }
 
 static UA_StatusCode
@@ -1882,7 +2026,7 @@ addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
  * ReferenceType should be passed to create the reference to condition source.
  * Otherwise, UA_NODEID_NULL should be passed to make the condition unexposed. */
 UA_StatusCode
-UA_Server_createCondition(UA_Server *server,
+__UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
                           const UA_ConditionProperties *conditionProperties,
@@ -1909,9 +2053,63 @@ UA_Server_createCondition(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_deleteCondition(UA_Server *server, const UA_NodeId condition) {
-    //TODO
-  return UA_STATUSCODE_BADNOTIMPLEMENTED;
+UA_Server_deleteCondition(UA_Server *server, const UA_NodeId conditionId)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_Condition *cond = getCondition(server, &conditionId);
+    if (!cond)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    UA_StatusCode ret = removeCondition(server, cond);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode
+UA_Server_Condition_setImplCallbacks(UA_Server *server, UA_NodeId conditionId, const UA_ConditionImplCallbacks *callbacks)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_Condition *cond = getCondition(server, &conditionId);
+    if (!cond)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    cond->callbacks = callbacks;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_Condition_setContext(UA_Server *server, UA_NodeId conditionId, void *conditionContext)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_Condition *cond = getCondition(server, &conditionId);
+    if (!cond)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    cond->context = conditionContext;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_Condition_getContext(UA_Server *server, UA_NodeId conditionId, void **conditionContext)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_Condition *cond = getCondition(server, &conditionId);
+    if (!cond)
+    {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNODEIDUNKNOWN;
+    }
+    *conditionContext = cond->context;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode UA_ConditionBranch_createBranch (UA_ConditionBranch *branch, UA_Server *server)
@@ -1937,7 +2135,7 @@ static UA_StatusCode UA_ConditionBranch_createBranch (UA_ConditionBranch *branch
     CONDITION_ASSERT_GOTOLABEL(retval,"Adding ConditionBranch failed", fail);
 
     /* Copy the state of the condition */
-    retval = copyAllChildren (server, &server->adminSession, &branch->id, &branchId);
+    retval = copyAllChildren (server, &server->adminSession, &branch->id, &branchId, true);
     CONDITION_ASSERT_GOTOLABEL(retval, "Copying Condition State failed", fail);
 
     /* Update branchId property */
@@ -1945,7 +2143,7 @@ static UA_StatusCode UA_ConditionBranch_createBranch (UA_ConditionBranch *branch
     UA_Variant_setScalar(&value, (void*)(uintptr_t) &branchId, &UA_TYPES[UA_TYPES_NODEID]);
     retval = setConditionField(server, branchId, &value,
                                UA_QUALIFIEDNAME(0,CONDITION_FIELD_BRANCHID));
-    CONDITION_ASSERT_GOTOLABEL(retval, "Set EventType Field failed", fail);
+    CONDITION_ASSERT_GOTOLABEL(retval, "Set BranchId Field failed", fail);
 
     //TODO DELETE - FOR TESTING expose it in the address space
     {
@@ -1953,13 +2151,13 @@ static UA_StatusCode UA_ConditionBranch_createBranch (UA_ConditionBranch *branch
         retval = addRef(server, source, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), branchId,
                         true);
         CONDITION_ASSERT_GOTOLABEL(retval,
-                                  "Creating hierarchical Reference to "
-                                  "ConditionSource failed", fail);
+                                   "Creating hierarchical Reference to "
+                                   "ConditionSource failed", fail);
 
         UA_NodeId hasCondition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
         retval = addRef(server, source, hasCondition, branchId, true);
         CONDITION_ASSERT_GOTOLABEL(retval,
-                                  "Creating HasCondition Reference failed", fail);
+                                   "Creating HasCondition Reference failed", fail);
     }
 
     retval = newConditionBranchEntry (server, &branchId, &branch->eventId, branch->condition, false);
@@ -2219,19 +2417,37 @@ static void UA_Condition_createReAlarmCallback (UA_Condition *condition, UA_Serv
     }
 }
 
+static void alarmTryBranch (UA_Server *server, UA_Condition *condition)
+{
+    /* if condition requires acknowledgement branch*/
+    if (!UA_ConditionBranch_State_Acked(condition->mainBranch, server) && UA_ConditionBranch_State_Retain(condition->mainBranch, server))
+    {
+        UA_StatusCode retval = UA_ConditionBranch_createBranch(condition->mainBranch, server);
+        if (retval != UA_STATUSCODE_GOOD)
+        {
+            CONDITION_LOG_ERROR(retval, "Could not create new ConditionBranch")
+        }
+        UA_ConditionBranch_State_setAckedState(condition->mainBranch, server, true);
+        UA_ConditionBranch_State_setConfirmedState(condition->mainBranch, server, true);
+    }
+}
+
 static void alarmActivate (UA_Server *server, UA_Condition *condition, const UA_ConditionEventInfo *info)
 {
+    alarmTryBranch(server, condition);
+
+    UA_StatusCode retval = UA_Condition_UserCallback_onActive(server, condition, &condition->mainBranch->id);
+    //TODO check error
+
     /* 5.8.17 In OneShotShelving, a user requests that an Alarm be Shelved for
      * its current Active state or if not Active its next Active state*/
     if (UA_Condition_State_isOneShotShelved(condition, server))
     {
         condition_oneShotShelveStart(server, condition);
     }
-
-    UA_ConditionBranch_State_setRetain(condition->mainBranch, server, true);
-    UA_ConditionBranch_State_setAckedState(condition->mainBranch, server, false);
     UA_Condition_State_setActiveState(condition, server, true);
     UA_Condition_State_setLatchedState(condition, server, true);
+    UA_ConditionBranch_evaluateRetainState(condition->mainBranch, server);
     UA_ConditionBranch_triggerEvent(condition->mainBranch, server, info);
     UA_Condition_createReAlarmCallback(condition, server);
 }
@@ -2334,6 +2550,11 @@ alarmEnteringActive (UA_Server *server, UA_Condition *condition, const UA_Condit
 static void alarmSetInactive(UA_Server *server, UA_Condition *condition,
                             const UA_ConditionEventInfo *info)
 {
+    alarmTryBranch(server, condition);
+
+    UA_StatusCode retval = UA_Condition_UserCallback_onInactive(server, condition, &condition->mainBranch->id);
+    //TODO check error
+
     /* 5.8.17 The OneShotShelving will automatically clear when an Alarm returns to an inactive state. */
     if (UA_Condition_State_isOneShotShelved(condition, server))
     {
@@ -2342,21 +2563,9 @@ static void alarmSetInactive(UA_Server *server, UA_Condition *condition,
 
     removeCallback(server, condition->reAlarmCallbackId);
     condition->reAlarmCount = 0;
-    //condition is in a state where we need to branch -> previous state needed acknowledgement/confirmed
-    UA_Boolean conditionRequiresAction = UA_ConditionBranch_State_Acked(condition->mainBranch, server) ||
-        (UA_ConditionBranch_State_isConfirmable(condition->mainBranch, server) &&
-          !UA_ConditionBranch_State_Confirmed(condition->mainBranch, server));
 
-    if (conditionRequiresAction && UA_ConditionBranch_State_Retain(condition->mainBranch, server))
-    {
-        UA_StatusCode retval = UA_ConditionBranch_createBranch(condition->mainBranch, server);
-        if (retval != UA_STATUSCODE_GOOD)
-        {
-            CONDITION_LOG_ERROR(retval, "Something went wrong creating a new branch")
-        }
-    }
-    UA_ConditionBranch_State_setAckedState(condition->mainBranch, server, false);
-    UA_ConditionBranch_State_setRetain(condition->mainBranch, server, true);
+    UA_Condition_State_setActiveState (condition, server, false);
+    UA_ConditionBranch_evaluateRetainState(condition->mainBranch, server);
     UA_ConditionBranch_triggerEvent(condition->mainBranch, server, info);
 }
 
@@ -2445,7 +2654,7 @@ condition_updateAlarmActive (UA_Server *server, UA_Condition *condition,
 }
 
 static UA_StatusCode
-conditionUpdateAlarmActive (UA_Server *server, const UA_NodeId *conditionId,
+conditionUpdateActive (UA_Server *server, const UA_NodeId *conditionId,
                                       const UA_ConditionEventInfo *info, UA_Boolean isActive)
 {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -2455,11 +2664,11 @@ conditionUpdateAlarmActive (UA_Server *server, const UA_NodeId *conditionId,
 }
 
 UA_StatusCode
-UA_Server_alarmUpdateActive(UA_Server *server, UA_NodeId conditionId,
+UA_Server_Condition_updateActive(UA_Server *server, UA_NodeId conditionId,
                                       const UA_ConditionEventInfo *info, UA_Boolean isActive)
 {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode ret = conditionUpdateAlarmActive(server, &conditionId, info, isActive);
+    UA_StatusCode ret = conditionUpdateActive(server, &conditionId, info, isActive);
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -2543,7 +2752,7 @@ enableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                      UA_Variant *output)
 {
     //TODO check object id type
-    return UA_Server_conditionEnable(server, *objectId, true);
+    return UA_Server_Condition_enable(server, *objectId, true);
 }
 
 static UA_StatusCode
@@ -2554,7 +2763,7 @@ disableMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
                       const UA_Variant *input, size_t outputSize, UA_Variant *output)
 {
     //TODO check object id type
-    return UA_Server_conditionEnable(server, *objectId, false);
+    return UA_Server_Condition_enable(server, *objectId, false);
 }
 
 static UA_StatusCode
@@ -3077,37 +3286,27 @@ setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
                      const UA_ConditionProperties *properties)
 {
     /* Set Fields */
-    /* 1.Set EventType */
+    /* Set EventType */
     UA_Variant value;
     UA_Variant_setScalar(&value, (void*)(uintptr_t) conditionType, &UA_TYPES[UA_TYPES_NODEID]);
     UA_StatusCode retval = setConditionField(server, *condition, &value,
                                              UA_QUALIFIEDNAME(0,CONDITION_FIELD_EVENTTYPE));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EventType Field failed",);
 
-    /* 2.Set ConditionName */
+    /* Set ConditionName */
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&properties->name.name,
                          &UA_TYPES[UA_TYPES_STRING]);
     retval = setConditionField(server, *condition, &value,
                                UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONDITIONNAME));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionName Field failed",);
 
-    /* 3.Set EnabledState (Disabled by default -> Retain Field = false) */
-    UA_LocalizedText text = UA_LOCALIZEDTEXT(LOCALE, DISABLED_TEXT);
-    UA_Variant_setScalar(&value, &text, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
-    retval = setConditionField(server, *condition, &value,
-                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE));
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState Field failed",);
+    /* Set EnabledState */
+    retval = setTwoStateVariable (server, condition, fieldEnabledStateQN, true, ENABLED_TEXT);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting initial Enabled state failed",);
 
-    /* 4.Set EnabledState/Id */
-    UA_Boolean stateId = false;
-    UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = setConditionVariableFieldProperty(server, *condition, &value,
-                                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_ENABLEDSTATE),
-                                               stateVariableIdQN);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EnabledState/Id Field failed",);
-
-    /* 5.Set Retain*/
-    UA_Variant_setScalar(&value, &stateId, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    /* Set Retain*/
+    UA_Boolean retain = false;
+    UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
     retval = setConditionField(server, *condition, &value, fieldRetainQN);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Retain Field failed",);
 
@@ -3119,7 +3318,7 @@ setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
         return UA_STATUSCODE_BADNOTFOUND;
     }
 
-    /* 6.Set SourceName*/
+    /* Set SourceName*/
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.browseName.name,
                          &UA_TYPES[UA_TYPES_STRING]);
     retval = setConditionField(server, *condition, &value,
@@ -3132,7 +3331,7 @@ setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
         return retval;
     }
 
-    /* 7.Set SourceNode*/
+    /* Set SourceNode*/
     UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.nodeId,
                          &UA_TYPES[UA_TYPES_NODEID]);
     retval = setConditionField(server, *condition, &value, fieldSourceNodeQN);
@@ -3145,14 +3344,14 @@ setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
 
     UA_NODESTORE_RELEASE(server, conditionSourceNode);
 
-    /* 8. Set Quality (TODO not supported, thus set with Status Good) */
+    /* Set Quality (TODO not supported, thus set with Status Good) */
     UA_StatusCode qualityValue = UA_STATUSCODE_GOOD;
     UA_Variant_setScalar(&value, &qualityValue, &UA_TYPES[UA_TYPES_STATUSCODE]);
     retval = setConditionField(server, *condition, &value,
                                UA_QUALIFIEDNAME(0,CONDITION_FIELD_QUALITY));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Quality Field failed",);
 
-    /* 9. Set Severity */
+    /* Set Severity */
     UA_UInt16 severityValue = 0;
     UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
     retval = setConditionField(server, *condition, &value,
@@ -3166,8 +3365,8 @@ UA_Server_setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId
                                               const UA_AcknowledgeableConditionProperties *properties)
 {
     UA_NodeId acknowledgeableConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    setTwoStateVariable (server, condition, fieldAckedStateQN, true, ACKED_TEXT);
+    UA_StatusCode retval = setTwoStateVariable (server, condition, fieldAckedStateQN, true, ACKED_TEXT);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting initial Acked state failed",);
     /* add optional field ConfirmedState*/
     if (properties->confirmable)
     {
@@ -3175,7 +3374,8 @@ UA_Server_setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId
                                   fieldConfirmedStateQN, NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding ConfirmedState optional Field failed",);
 
-        setTwoStateVariable (server, condition, fieldConfirmedStateQN, true, CONFIRMED_TEXT);
+        retval = setTwoStateVariable (server, condition, fieldConfirmedStateQN, true, CONFIRMED_TEXT);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting initial Confirmed state failed",);
 
         /* add reference from Condition to Confirm Method */
         UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
@@ -3679,7 +3879,7 @@ void initNs0ConditionAndAlarms (UA_Server *server)
 }
 
 UA_StatusCode
-UA_Server_conditionGetInputNodeValue (UA_Server *server, UA_NodeId conditionId, UA_Variant *out)
+UA_Server_Condition_getInputNodeValue (UA_Server *server, UA_NodeId conditionId, UA_Variant *out)
 {
     UA_QualifiedName inputNodeQN = UA_QUALIFIEDNAME(0, "InputNode");
     UA_BrowsePathResult bpr =  UA_Server_browseSimplifiedBrowsePath(server, conditionId, 1, &inputNodeQN);
@@ -3792,20 +3992,20 @@ exclusiveLimitAlarmUpdateLimitState (UA_Server *server, const UA_NodeId *conditi
     UA_NodeId currentStateIdId;
     UA_NodeId_init (&currentStateIdId);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval = getNodeChildNodeId(server, conditionId, fieldLimitStateQN, &limitStateId);
+    retval = getNodeIdWithBrowseName(server, conditionId, fieldLimitStateQN, &limitStateId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState nodeId")
         goto done;
     }
-    retval = getNodeChildNodeId(server, &limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
+    retval = getNodeIdWithBrowseName(server, &limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
     UA_NodeId_clear(&limitStateId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState CurrentState nodeId")
         goto done;
     }
-    retval = getNodeChildNodeId(server, &currentStateId, UA_QUALIFIEDNAME(0, "Id"), &currentStateIdId);
+    retval = getNodeIdWithBrowseName(server, &currentStateId, UA_QUALIFIEDNAME(0, "Id"), &currentStateIdId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState CurrentState Id nodeId")
@@ -3919,20 +4119,20 @@ exclusiveLimitAlarmGetState (UA_Server *server, const UA_NodeId *conditionId,
     UA_NodeId currentStateIdId;
     UA_NodeId_init (&currentStateIdId);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval = getNodeChildNodeId(server, conditionId, fieldLimitStateQN, &limitStateId);
+    retval = getNodeIdWithBrowseName(server, conditionId, fieldLimitStateQN, &limitStateId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState nodeId")
         goto done;
     }
-    retval = getNodeChildNodeId(server, &limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
+    retval = getNodeIdWithBrowseName(server, &limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
     UA_NodeId_clear(&limitStateId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState CurrentState nodeId")
         goto done;
     }
-    retval = getNodeChildNodeId(server, &currentStateId, UA_QUALIFIEDNAME(0, "Id"), &currentStateIdId);
+    retval = getNodeIdWithBrowseName(server, &currentStateId, UA_QUALIFIEDNAME(0, "Id"), &currentStateIdId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState CurrentState Id nodeId")
@@ -3985,13 +4185,12 @@ static UA_StatusCode exclusiveLimitAlarmEvaluate (
         &currentState,
         true
     );
-
     UA_Boolean isActive = currentState != 0;
     if (prevState != currentState)
     {
         exclusiveLimitAlarmCalculateEventInfo (server, conditionId, currentState, *input, &info);
         exclusiveLimitAlarmUpdateLimitState (server, conditionId, currentState);
-        conditionUpdateAlarmActive (server, conditionId, &info, isActive);
+        conditionUpdateActive (server, conditionId, &info, isActive);
     }
     return retval;
 }
@@ -4007,21 +4206,5 @@ UA_StatusCode UA_Server_exclusiveLimitAlarmEvaluate (
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
-
-inline UA_StatusCode
-UA_Server_createExclusiveLimitAlarm (UA_Server *server,
-                                     const UA_NodeId conditionId,
-                                     const UA_ConditionProperties *conditionProperties,
-                                     UA_ConditionInputFns inputFns,
-                                     const UA_LimitAlarmProperties *limitAlarmProperties,
-                                     UA_NodeId* outConditionId)
-{
-    return UA_Server_createCondition(
-        server, conditionId, UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITALARMTYPE), conditionProperties,
-        inputFns, (UA_ConditionEvaluateFn) UA_Server_exclusiveLimitAlarmEvaluate, limitAlarmProperties, outConditionId
-    );
-}
-
-
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */

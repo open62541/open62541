@@ -1181,11 +1181,13 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           void *monitoredItemContext,
           UA_Server_DataChangeNotificationCallback callback);
 
-/* UA_MonitoredItemCreateResult UA_EXPORT */
-/* UA_Server_createEventMonitoredItem(UA_Server *server, */
-/*           UA_TimestampsToReturn timestampsToReturn, */
-/*           const UA_MonitoredItemCreateRequest item, void *context, */
-/*           UA_Server_EventNotificationCallback callback); */
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Server_createEventMonitoredItem(UA_Server *server,
+          UA_TimestampsToReturn timestampsToReturn,
+          const UA_MonitoredItemCreateRequest item,
+          void *monitoredItemContext,
+          UA_Server_EventNotificationCallback callback);
+
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
@@ -1260,6 +1262,18 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
+/*
+ * Get the nodeId of a node from an origin node and a browse name
+ *
+ * @param server The server object
+ * @param origin The origin node
+ * @param browseName the browseName of the node
+ * @param outNodeId Contains the resulting nodeId
+ * @return The StatusCode for the operation
+ */
+UA_StatusCode
+UA_Server_getNodeIdWithBrowseName (UA_Server *server, const UA_NodeId *origin,
+                             UA_QualifiedName browseName, UA_NodeId *outNodeId);
 
 /**
  * .. _addnodes:
@@ -1599,6 +1613,19 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
+typedef UA_StatusCode (*UA_ConditionCallbackFn)(
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    void *context
+);
+
+typedef struct UA_ConditionImplCallbacks {
+    UA_ConditionCallbackFn onAcked;
+    UA_ConditionCallbackFn onConfirmed;
+    UA_ConditionCallbackFn onActive;
+    UA_ConditionCallbackFn onInactive;
+} UA_ConditionImplCallbacks;
+
 typedef struct UA_ConditionEventInfo {
     UA_LocalizedText message;
     UA_UInt16 severity;
@@ -1648,7 +1675,7 @@ typedef struct UA_ConditionProperties
  * @param outConditionId The NodeId of the created Condition
  * @return The StatusCode of the UA_Server_createCondition method */
 UA_StatusCode UA_EXPORT
-UA_Server_createCondition(UA_Server *server,
+__UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
                           const UA_ConditionProperties *conditionProperties,
@@ -1659,28 +1686,45 @@ UA_Server_createCondition(UA_Server *server,
 
 
 UA_StatusCode UA_EXPORT
-UA_Server_setConditionContext(UA_Server *server, UA_NodeId conditionId, void *conditionContext);
+UA_Server_Condition_setImplCallbacks (UA_Server *server, UA_NodeId conditionId, const UA_ConditionImplCallbacks *callback);
 
 UA_StatusCode UA_EXPORT
-UA_Server_getConditionContext(UA_Server *server, UA_NodeId conditionId, void **conditionContext);
+UA_Server_Condition_setContext(UA_Server *server, UA_NodeId conditionId, void *conditionContext);
 
 UA_StatusCode UA_EXPORT
-UA_Server_conditionEnable(UA_Server *server, UA_NodeId conditionId, UA_Boolean enable);
+UA_Server_Condition_getContext(UA_Server *server, UA_NodeId conditionId, void **conditionContext);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_enable(UA_Server *server, UA_NodeId conditionId, UA_Boolean enable);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_acknowledge(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_confirm(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
 
 UA_StatusCode
-UA_Server_alarmUpdateActive (UA_Server *server, UA_NodeId conditionId,
+UA_Server_Condition_updateActive(UA_Server *server, UA_NodeId conditionId,
                                       const UA_ConditionEventInfo *info, UA_Boolean isActive);
 
+/*
+ * Set the condition confirmed state where a confirmation is required. The logic for setting this is Server specific, so
+ * the only time a conditions ConfirmedState will be set to false is when a server implementation uses this function .
+ */
+UA_StatusCode
+UA_Server_Condition_setConfirmRequired(UA_Server *server, UA_NodeId conditionId);
+
 
 UA_StatusCode
-UA_Server_conditionGetInputNodeValue (UA_Server *server, UA_NodeId conditionId, UA_Variant *out);
+UA_Server_Condition_setAcknowledgeRequired(UA_Server *server, UA_NodeId conditionId);
 
+UA_StatusCode
+UA_Server_Condition_getInputNodeValue (UA_Server *server, UA_NodeId conditionId, UA_Variant *out);
 
-/* Delete a condition from the address space and the internal lists.
+/* Delete a condition from the address space and the internal structures.
  *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
- * @param conditionSource The NodeId of the node representation of the Condition Source
  * @return ``UA_STATUSCODE_GOOD`` on success */
 UA_StatusCode UA_EXPORT
 UA_Server_deleteCondition(UA_Server *server, UA_NodeId condition);
@@ -1753,6 +1797,13 @@ typedef struct UA_LimitAlarmProperties
 } UA_LimitAlarmProperties;
 
 UA_StatusCode UA_EXPORT
+UA_Server_exclusiveLimitAlarmEvaluate (
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    const UA_Double *input
+);
+
+static inline UA_StatusCode
 UA_Server_createExclusiveLimitAlarm (
     UA_Server *server,
     UA_NodeId conditionId,
@@ -1760,14 +1811,13 @@ UA_Server_createExclusiveLimitAlarm (
     UA_ConditionInputFns inputFns,
     const UA_LimitAlarmProperties *limitAlarmProperties,
     UA_NodeId* outConditionId
-);
-
-UA_StatusCode UA_EXPORT
-UA_Server_exclusiveLimitAlarmEvaluate (
-    UA_Server *server,
-    const UA_NodeId *conditionId,
-    const UA_Double *input
-);
+)
+{
+    return __UA_Server_createCondition(
+        server, conditionId, UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITALARMTYPE), conditionProperties,
+        inputFns, (UA_ConditionEvaluateFn) UA_Server_exclusiveLimitAlarmEvaluate, limitAlarmProperties, outConditionId
+    );
+}
 
 typedef struct UA_DeviationAlarmProperties
 {
@@ -1776,7 +1826,6 @@ typedef struct UA_DeviationAlarmProperties
     UA_NodeId baseSetpointNode;
 } UA_DeviationAlarmProperties;
 
-
 typedef struct UA_LimitAlarmProperties UA_LevelAlarmProperties;
 
 typedef struct UA_RateOfChangeAlarmProperties
@@ -1784,7 +1833,6 @@ typedef struct UA_RateOfChangeAlarmProperties
     UA_LimitAlarmProperties limitAlarmProperties;
     UA_EUInformation engineeringUnits;
 } UA_RateOfChangeAlarmProperties;
-
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 

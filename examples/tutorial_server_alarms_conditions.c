@@ -76,7 +76,7 @@ sourceNodeGetInputDouble (UA_Server *server, const UA_NodeId *conditionId, void 
 {
     UA_Variant val;
     UA_Variant_init (&val);
-    UA_StatusCode ret = UA_Server_conditionGetInputNodeValue(server, *conditionId, &val);
+    UA_StatusCode ret = UA_Server_Condition_getInputNodeValue(server, *conditionId, &val);
     if (ret != UA_STATUSCODE_GOOD || val.type != &UA_TYPES[UA_TYPES_DOUBLE])
     {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -166,7 +166,7 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         &conditionInstance_1
     );
 
-    retval = UA_Server_conditionEnable (server, conditionInstance_1, true);
+    retval = UA_Server_Condition_enable (server, conditionInstance_1, true);
     return retval;
 }
 

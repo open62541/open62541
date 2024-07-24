@@ -575,7 +575,7 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 
     /* Copy members of the type and supertypes (and instantiate them) */
     for(size_t i = 0; i < hierarchySize; ++i) {
-        retval = copyAllChildren(server, session, &hierarchy[i], nodeId);
+        retval = copyAllChildren(server, session, &hierarchy[i], nodeId, false);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_Array_delete(hierarchy, hierarchySize, &UA_TYPES[UA_TYPES_NODEID]);
             return retval;
@@ -601,7 +601,8 @@ addInterfaceChildren(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 copyChild(UA_Server *server, UA_Session *session,
           const UA_NodeId *destinationNodeId,
-          const UA_ReferenceDescription *rd) {
+          const UA_ReferenceDescription *rd,
+          UA_Boolean copyOptional) {
     UA_assert(session);
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -616,14 +617,14 @@ copyChild(UA_Server *server, UA_Session *session,
     if(!UA_NodeId_isNull(&existingChild)) {
         if(rd->nodeClass == UA_NODECLASS_VARIABLE ||
            rd->nodeClass == UA_NODECLASS_OBJECT)
-            retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild);
+            retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &existingChild, false);
         UA_NodeId_clear(&existingChild);
         return retval;
     }
 
     /* Is the child mandatory? If not, ask callback whether child should be instantiated.
      * If not, skip. */
-    if(!isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
+    if(!copyOptional && !isMandatoryChild(server, session, &rd->nodeId.nodeId)) {
         if(!server->config.nodeLifecycle.createOptionalChild)
             return UA_STATUSCODE_GOOD;
         UA_UNLOCK(&server->serviceMutex);
@@ -740,7 +741,7 @@ copyChild(UA_Server *server, UA_Session *session,
         /* For the new child, recursively copy the members of the original. No
          * typechecking is performed here. Assuming that the original is
          * consistent. */
-        retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId);
+        retval = copyAllChildren(server, session, &rd->nodeId.nodeId, &newNodeId, copyOptional);
         if(retval != UA_STATUSCODE_GOOD) {
             deleteNode(server, newNodeId, true);
             return retval;
@@ -765,7 +766,7 @@ copyChild(UA_Server *server, UA_Session *session,
 /* Copy any children of Node sourceNodeId to another node destinationNodeId. */
 UA_StatusCode
 copyAllChildren(UA_Server *server, UA_Session *session,
-                const UA_NodeId *source, const UA_NodeId *destination) {
+                const UA_NodeId *source, const UA_NodeId *destination, UA_Boolean copyOptional) {
     /* Browse to get all children of the source */
     UA_BrowseDescription bd;
     UA_BrowseDescription_init(&bd);
@@ -787,7 +788,7 @@ copyAllChildren(UA_Server *server, UA_Session *session,
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < br.referencesSize; ++i) {
         UA_ReferenceDescription *rd = &br.references[i];
-        retval = copyChild(server, session, destination, rd);
+        retval = copyChild(server, session, destination, rd, copyOptional);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }
@@ -810,7 +811,7 @@ addTypeChildren(UA_Server *server, UA_Session *session,
 
     /* Copy members of the type and supertypes (and instantiate them) */
     for(size_t i = 0; i < hierarchySize; ++i) {
-        retval = copyAllChildren(server, session, &hierarchy[i], nodeId);
+        retval = copyAllChildren(server, session, &hierarchy[i], nodeId, false);
         if(retval != UA_STATUSCODE_GOOD)
             break;
     }

@@ -331,10 +331,6 @@ UA_Subscription_removeRetransmissionMessage(UA_Subscription *sub,
 void
 UA_Session_ensurePublishQueueSpace(UA_Server *server, UA_Session *session);
 
-/* Forward declaration for A&C used in ua_server_internal.h" */
-struct UA_ConditionSource;
-typedef struct UA_ConditionSource UA_ConditionSource;
-
 /* Event Handling */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 
