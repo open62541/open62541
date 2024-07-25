@@ -182,7 +182,7 @@ defineObjectTypes(UA_Server *server) {
                               mnAttr, NULL, &manufacturerNameId);
     /* Make the manufacturer name mandatory */
     UA_Server_addReference(server, manufacturerNameId, UA_NS0ID(HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
 
     UA_VariableAttributes modelAttr = UA_VariableAttributes_default;
@@ -208,9 +208,8 @@ defineObjectTypes(UA_Server *server) {
                               UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Status"),
                               UA_NS0ID(BASEDATAVARIABLETYPE), statusAttr, NULL, &statusId);
     /* Make the status variable mandatory */
-    UA_Server_addReference(server, statusId,
-                           UA_NS0ID(HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+    UA_Server_addReference(server, statusId, UA_NS0ID(HASMODELLINGRULE),
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     UA_VariableAttributes rpmAttr = UA_VariableAttributes_default;
     rpmAttr.displayName = UA_LOCALIZEDTEXT("en-US", "MotorRPM");
