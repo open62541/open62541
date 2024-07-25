@@ -886,7 +886,11 @@ discovery_createMulticastSocket(UA_Server* server, UA_DiscoveryManager *dm) {
     size_t paramsSize = 5;
 
     UA_UInt16 port = 5353;
+#ifdef UA_ARCHITECTURE_POSIX
+    UA_String address = UA_STRING("0.0.0.0");
+#else
     UA_String address = UA_STRING("224.0.0.251");
+#endif
     UA_UInt32 ttl = 255;
     UA_Boolean reuse = true;
     UA_Boolean listen = true;
