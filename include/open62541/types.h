@@ -541,11 +541,16 @@ UA_INLINABLE(UA_ExpandedNodeId
 #endif
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
+
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 })
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars), {
