@@ -57,35 +57,29 @@ fallbackEndpointUrl(UA_Client* client) {
     UA_String currentUrl = getEndpointUrl(client);
     if(UA_String_equal(&currentUrl, &client->config.endpointUrl)) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                     "Could not open a TCP connection to the Endpoint at %.*s",
-                     (int)client->config.endpointUrl.length,
-                     client->config.endpointUrl.data);
+                     "Could not open a TCP connection to the Endpoint at %S",
+                     client->config.endpointUrl);
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
     }
 
     if(client->config.endpoint.endpointUrl.length > 0) {
         /* Overwrite the EndpointUrl of the Endpoint */
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a TCP connection to the Endpoint at %.*s. "
+                       "Could not open a TCP connection to the Endpoint at %S. "
                        "Overriding the endpoint description with the initial "
-                       "EndpointUrl at %.*s.",
-                       (int)client->config.endpoint.endpointUrl.length,
-                       client->config.endpoint.endpointUrl.data,
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data);
+                       "EndpointUrl at %S.",
+                       client->config.endpoint.endpointUrl,
+                       client->config.endpointUrl);
         UA_String_clear(&client->config.endpoint.endpointUrl);
         return UA_String_copy(&client->config.endpointUrl,
                               &client->config.endpoint.endpointUrl);
     } else {
         /* Overwrite the DiscoveryUrl returned by FindServers */
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "The DiscoveryUrl returned by the FindServers service (%.*s) "
+                       "The DiscoveryUrl returned by the FindServers service (%S) "
                        "could not be connected. Continuing with the initial EndpointUrl "
-                       "%.*s for the GetEndpoints service.",
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data,
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data);
+                       "%S for the GetEndpoints service.",
+                       client->config.endpointUrl, client->config.endpointUrl);
         UA_String_clear(&client->discoveryUrl);
         return UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
     }
@@ -404,9 +398,10 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
     }
 
     UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
-                         "Received an ERR response with StatusCode %s and the following "
-                         "reason: %.*s", UA_StatusCode_name(errMessage.error),
-                         (int)errMessage.reason.length, errMessage.reason.data);
+                         "Received an ERR response with StatusCode %s and "
+                         "the following ireason: %S",
+                         UA_StatusCode_name(errMessage.error),
+                         errMessage.reason);
     client->connectStatus = errMessage.error;
     closeSecureChannel(client);
     UA_TcpErrorMessage_clear(&errMessage);
@@ -602,10 +597,10 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
                             "renewed with a revised lifetime of %.2fs", lifetime);
     } else {
         UA_LOG_INFO_CHANNEL(client->config.logging, &client->channel,
-                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "SecureChannel opened with SecurityPolicy %S "
                             "and a revised lifetime of %.2fs",
-                            (int)client->channel.securityPolicy->policyUri.length,
-                            client->channel.securityPolicy->policyUri.data, lifetime);
+                            client->channel.securityPolicy->policyUri,
+                            lifetime);
     }
 
     client->channel.state = UA_SECURECHANNELSTATE_OPEN;
@@ -940,10 +935,9 @@ responseGetEndpoints(UA_Client *client, void *userdata,
                !getSecurityPolicy(client, tokenPolicy->securityPolicyUri)) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                             "Rejecting UserTokenPolicy %lu in endpoint %lu: "
-                            "security policy '%.*s' not available",
+                            "security policy \"%S\" not available",
                             (long unsigned)j, (long unsigned)i,
-                            (int)tokenPolicy->securityPolicyUri.length,
-                            tokenPolicy->securityPolicyUri.data);
+                            tokenPolicy->securityPolicyUri);
                 continue;
             }
 
@@ -1124,10 +1118,9 @@ responseFindServers(UA_Client *client, void *userdata,
     if(fsr->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "FindServers failed with error code %s. Continue with the "
-                       "EndpointURL %.*s.",
+                       "EndpointURL %S.",
                        UA_StatusCode_name(fsr->responseHeader.serviceResult),
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data);
+                       client->config.endpointUrl);
         UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
         return;
     }
@@ -1145,10 +1138,8 @@ responseFindServers(UA_Client *client, void *userdata,
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
             if(UA_String_equal(&client->config.endpointUrl, &server->discoveryUrls[j])) {
                 UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "The initially defined EndpointURL %.*s "
-                            "is valid for the server",
-                            (int)client->config.endpointUrl.length,
-                            client->config.endpointUrl.data);
+                            "The initially defined EndpointURL %S "
+                            "is valid for the server", client->config.endpointUrl);
                 UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
                 return;
             }
@@ -1187,8 +1178,8 @@ responseFindServers(UA_Client *client, void *userdata,
             UA_String_init(&server->discoveryUrls[j]);
 
             UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                        "Use the EndpointURL %.*s returned from FindServers",
-                        (int)client->discoveryUrl.length, client->discoveryUrl.data);
+                        "Use the EndpointURL %S returned from FindServers",
+                        client->discoveryUrl);
 
             /* Close the SecureChannel to build it up new with the correct
              * EndpointURL in the HEL/ACK handshake */
@@ -1201,9 +1192,7 @@ responseFindServers(UA_Client *client, void *userdata,
      * original EndpointURL. */
     UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                    "FindServers did not returned a suitable DiscoveryURL. "
-                   "Continue with the EndpointURL %.*s.",
-                   (int)client->config.endpointUrl.length,
-                   client->config.endpointUrl.data);
+                   "Continue with the EndpointURL %S.", client->config.endpointUrl);
     UA_String_clear(&client->discoveryUrl);
     UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
 }
@@ -1507,8 +1496,8 @@ verifyClientApplicationURI(const UA_Client *client) {
         UA_SecurityPolicy *sp = &client->config.securityPolicies[i];
         if(!sp->localCertificate.data) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "skip verifying ApplicationURI for the SecurityPolicy %.*s",
-                           (int)sp->policyUri.length, sp->policyUri.data);
+                           "skip verifying ApplicationURI for the SecurityPolicy %S",
+                           sp->policyUri);
             continue;
         }
 
@@ -1518,8 +1507,8 @@ verifyClientApplicationURI(const UA_Client *client) {
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "The configured ApplicationURI does not match the URI "
-                           "specified in the certificate for the SecurityPolicy %.*s",
-                           (int)sp->policyUri.length, sp->policyUri.data);
+                           "specified in the certificate for the SecurityPolicy %S",
+                           sp->policyUri.length);
         }
     }
 #endif
@@ -1681,9 +1670,7 @@ initConnect(UA_Client *client) {
         UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
-                       "OPC UA URL is invalid: %.*s",
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data);
+                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
         return;
     }
 
@@ -1728,9 +1715,8 @@ initConnect(UA_Client *client) {
     /* Opening the TCP connection failed */
     if(client->connectStatus != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "Could not open a TCP connection to %.*s",
-                       (int)client->config.endpointUrl.length,
-                       client->config.endpointUrl.data);
+                       "Could not open a TCP connection to %S",
+                       client->config.endpointUrl);
         client->connectStatus = UA_STATUSCODE_BADCONNECTIONCLOSED;
     }
 }

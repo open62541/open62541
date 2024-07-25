@@ -28,12 +28,10 @@ Client_warnEndpointsResult(UA_Client *client,
         if(response->endpoints[0].server.discoveryUrlsSize > 0)
             betterUrl = &response->endpoints[0].server.discoveryUrls[0];
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                       "The server returned Endpoints with a different EndpointUrl %.*s than was "
-                       "used to initialize the connection: %.*s. Some servers require a complete "
+                       "The server returned Endpoints with a different EndpointUrl %S than was "
+                       "used to initialize the connection: %S. Some servers require a complete "
                        "match of the EndpointUrl/DiscoveryUrl (including the path) "
-                       "to return all endpoints.",
-                       (int)betterUrl->length, betterUrl->data,
-                       (int)endpointUrl->length, endpointUrl->data);
+                       "to return all endpoints.", *betterUrl, *endpointUrl);
     }
 }
 
