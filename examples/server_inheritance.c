@@ -161,7 +161,7 @@ createCustomInheritance(UA_Server *server) {
                               UA_QUALIFIEDNAME(1, "IsOn"), UA_NS0ID(BASEDATAVARIABLETYPE),
                               vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30001), UA_NS0ID(HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     vAttr = UA_VariableAttributes_default;
     vAttr.description =  UA_LOCALIZEDTEXT("en-US", "Lamp brightness");
@@ -170,11 +170,11 @@ createCustomInheritance(UA_Server *server) {
     UA_Variant_setScalar(&vAttr.value, &brightness, &UA_TYPES[UA_TYPES_UINT16]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 30002),
                               UA_NODEID_NUMERIC(1, 30000), UA_NS0ID(HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "Brightness"), UA_NS0ID(BASEDATAVARIABLETYPE),
-                              vAttr, NULL, NULL);
+                              UA_QUALIFIEDNAME(1, "Brightness"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
     UA_Server_addReference(server, UA_NODEID_NUMERIC(1, 30002),
                            UA_NS0ID(HASMODELLINGRULE),
-                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_MODELLINGRULE_MANDATORY), true);
+                           UA_NS0EXID(MODELLINGRULE_MANDATORY), true);
 
     /* Now we want to inherit all the mandatory children for LampGreen and don't
      * care about the node ids. These will be automatically generated. This will
