@@ -176,9 +176,8 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds);
 
 #define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(PDS)->logIdString.length,                  \
-                       (char*)(PDS)->logIdString.data, __VA_ARGS__);    \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (PDS)->logIdString, __VA_ARGS__);                \
     }
 
 #define UA_LOG_TRACE_DATASET(LOGGER, PDS, ...)                          \
@@ -278,9 +277,8 @@ UA_PubSubConnection_setPubSubState(UA_Server *server,
 
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(CONNECTION)->logIdString.length,           \
-                       (char*)(CONNECTION)->logIdString.data, __VA_ARGS__); \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (CONNECTION)->logIdString, __VA_ARGS__);         \
     }
 
 #define UA_LOG_TRACE_CONNECTION(LOGGER, CONNECTION, ...)                \
@@ -365,10 +363,8 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
 #define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(WRITER)->logIdString.length,               \
-                       (char*)(WRITER)->logIdString.data,               \
-                       __VA_ARGS__);                                    \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (WRITER)->logIdString, __VA_ARGS__);             \
     }
 
 #define UA_LOG_TRACE_WRITER(LOGGER, WRITER, ...)                        \
@@ -476,11 +472,10 @@ UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_Server *server,
                                  const UA_NodeId writerGroup);
 
-#define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WG, MSG, ...) \
+#define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(WG)->logIdString.length,                   \
-                       (char*)(WG)->logIdString.data, __VA_ARGS__);     \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (WG)->logIdString, __VA_ARGS__);                 \
     }
 
 #define UA_LOG_TRACE_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \
@@ -605,10 +600,8 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
 
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(READER)->logIdString.length,               \
-                       (char*)(READER)->logIdString.data,               \
-                       __VA_ARGS__);                                    \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (READER)->logIdString, __VA_ARGS__);             \
     }
 
 #define UA_LOG_TRACE_READER(LOGGER, READER, ...)                        \
@@ -710,10 +703,8 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%.*s" MSG "%.0s", \
-                       (int)(RG)->logIdString.length,                   \
-                       (char*)(RG)->logIdString.data,                   \
-                       __VA_ARGS__);                                    \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (RG)->logIdString, __VA_ARGS__);                 \
     }
 
 #define UA_LOG_TRACE_READERGROUP(LOGGER, READERGROUP, ...)              \
