@@ -46,20 +46,6 @@
 extern "C" {
 #endif
 
-#ifdef __GNUC__
-# if ((__GNUC__ == 4 && __GNUC_MINOR__>= 4) || __GNUC__ > 4)
-#  define ATTR_PRINTF(one_based_format_index, first_arg) \
-__attribute__((format(gnu_printf, (one_based_format_index), (first_arg))))
-# else
-# define ATTR_PRINTF(one_based_format_index, first_arg) \
-__attribute__((format(printf, (one_based_format_index), (first_arg))))
-# endif
-# define ATTR_VPRINTF(one_based_format_index) ATTR_PRINTF((one_based_format_index), 0)
-#else
-# define ATTR_PRINTF(one_based_format_index, first_arg)
-# define ATTR_VPRINTF(one_based_format_index)
-#endif
-
 /**
  * An implementation of the C standard's snprintf/vsnprintf
  *
@@ -86,8 +72,8 @@ __attribute__((format(printf, (one_based_format_index), (first_arg))))
  * than @p n, the null-terminated string has been fully and successfully
  * printed.
  */
-int  mp_snprintf(char* s, size_t count, const char* format, ...) ATTR_PRINTF(3, 4);
-int mp_vsnprintf(char* s, size_t count, const char* format, va_list arg) ATTR_VPRINTF(3);
+int  mp_snprintf(char* s, size_t count, const char* format, ...);
+int mp_vsnprintf(char* s, size_t count, const char* format, va_list arg);
 
 #ifdef __cplusplus
 } // extern "C"
