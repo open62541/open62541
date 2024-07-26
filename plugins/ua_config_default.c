@@ -387,33 +387,33 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     if(portNumber == 0) {
         UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
-                       "Cannot set the ServerUrl with a zero port");
-    } else {
-        if(conf->serverUrlsSize > 0) {
-            UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
-                           "ServerUrls already set. Overriding.");
-            UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
-                            &UA_TYPES[UA_TYPES_STRING]);
-            conf->serverUrls = NULL;
-            conf->serverUrlsSize = 0;
-        }
-
-        /* Listen on all interfaces (also external). This must be the first
-         * entry if this is desired. Otherwise some interfaces may be blocked
-         * (already in use) with a hostname that is only locally reachable.*/
-        mp_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
-                    "opc.tcp://:%u", portNumber);
-        serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
-        serverUrlsSize++;
-
-        /* Add to the config */
-        UA_StatusCode retval =
-            UA_Array_copy(serverUrls, serverUrlsSize,
-                          (void**)&conf->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-        conf->serverUrlsSize = serverUrlsSize;
+                       "Dynamic port assignment will be used.");
     }
+
+    if(conf->serverUrlsSize > 0) {
+        UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
+                       "ServerUrls already set. Overriding.");
+        UA_Array_delete(conf->serverUrls, conf->serverUrlsSize,
+                        &UA_TYPES[UA_TYPES_STRING]);
+        conf->serverUrls = NULL;
+        conf->serverUrlsSize = 0;
+    }
+
+    /* Listen on all interfaces (also external). This must be the first
+     * entry if this is desired. Otherwise some interfaces may be blocked
+     * (already in use) with a hostname that is only locally reachable.*/
+    mp_snprintf(serverUrlBuffer[0], sizeof(serverUrlBuffer[0]),
+                "opc.tcp://:%u", portNumber);
+    serverUrls[serverUrlsSize] = UA_STRING(serverUrlBuffer[0]);
+    serverUrlsSize++;
+
+    /* Add to the config */
+    UA_StatusCode retval =
+        UA_Array_copy(serverUrls, serverUrlsSize,
+                      (void**)&conf->serverUrls, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    conf->serverUrlsSize = serverUrlsSize;
 
     /* Endpoints */
     /* conf->endpoints = {0, NULL}; */

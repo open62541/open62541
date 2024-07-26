@@ -19,20 +19,10 @@ else()
     find_library(MBEDCRYPTO_LIBRARY mbedcrypto HINTS ${MBEDTLS_FOLDER_LIBRARY})
 endif()
 
-if (NOT TARGET mbedtls::mbedtls)
-    # Only add library if not yet added. If project referenced multiple times, the target is also created multiple times.
-    add_library(mbedtls::mbedtls UNKNOWN IMPORTED)
-    set_property(TARGET mbedtls::mbedtls PROPERTY IMPORTED_LOCATION "${MBEDTLS_LIBRARY}")
-    add_library(mbedtls::mbedx509 UNKNOWN IMPORTED)
-    set_property(TARGET mbedtls::mbedx509 PROPERTY IMPORTED_LOCATION "${MBEDX509_LIBRARY}")
-    add_library(mbedtls::mbedcrypto UNKNOWN IMPORTED)
-    set_property(TARGET mbedtls::mbedcrypto PROPERTY IMPORTED_LOCATION "${MBEDCRYPTO_LIBRARY}")
-endif()
-
-set(MBEDTLS_LIBRARIES mbedtls::mbedtls mbedtls::mbedx509 mbedtls::mbedcrypto)
+set(MBEDTLS_LIBRARIES ${MBEDTLS_LIBRARY} ${MBEDX509_LIBRARY} ${MBEDCRYPTO_LIBRARY})
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(MbedTLS DEFAULT_MSG
-        MBEDTLS_INCLUDE_DIRS MBEDTLS_LIBRARY MBEDX509_LIBRARY MBEDCRYPTO_LIBRARY)
+find_package_handle_standard_args(MbedTLS DEFAULT_MSG MBEDTLS_INCLUDE_DIRS
+                                  MBEDTLS_LIBRARY MBEDX509_LIBRARY MBEDCRYPTO_LIBRARY)
 
 mark_as_advanced(MBEDTLS_INCLUDE_DIRS MBEDTLS_LIBRARY MBEDX509_LIBRARY MBEDCRYPTO_LIBRARY)

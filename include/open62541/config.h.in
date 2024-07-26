@@ -136,11 +136,13 @@
 #  define _BSD_SOURCE
 # endif
 
-/* Define _GNU_SOURCE to get functions like ppoll. Comment this out to
+/* Define _GNU_SOURCE to get functions like poll. Comment this out to
  * only use standard POSIX definitions. */
 # ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 # endif
+
+#define UA_HAS_GETIFADDR 1
 #endif
 
 /**

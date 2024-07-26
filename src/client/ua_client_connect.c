@@ -920,12 +920,12 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         }
 
         /* We have found a matching endpoint.
-         * But does it contain a matching user token policy? */
+         * But maybe not a amtching user token policy. */
         bestEndpointIndex = i;
 
-        /* Look for a supported user token policy */
+        /* Compare the available UserTokenPolicies */
         for(size_t j = 0; j < endpoint->userIdentityTokensSize; ++j) {
-            UA_UserTokenPolicy* tokenPolicy = &endpoint->userIdentityTokens[j];
+            UA_UserTokenPolicy *tokenPolicy = &endpoint->userIdentityTokens[j];
             const UA_DataType *tokenType =
                 client->config.userIdentityToken.content.decoded.type;
 
@@ -998,19 +998,8 @@ responseGetEndpoints(UA_Client *client, void *userdata,
             bestEndpointLevel = endpoint->securityLevel;
             bestTokenIndex = j;
 
-            /* Move to the client config */
-            UA_EndpointDescription_clear(&client->config.endpoint);
-            client->config.endpoint = *endpoint;
-            UA_EndpointDescription_init(endpoint);
-            UA_UserTokenPolicy_clear(&client->config.userTokenPolicy);
-            client->config.userTokenPolicy = *tokenPolicy;
-            UA_UserTokenPolicy_init(tokenPolicy);
-
-            /* Store the Server Description */
-            UA_ApplicationDescription_clear(&client->serverDescription);
-            UA_ApplicationDescription_copy(&endpoint->server,
-                                           &client->serverDescription);
-
+            /* Stop search for the UserTokenPolicy. But we go on searching for
+             * an endpoints with a better security level. */
             break;
         }
     }
@@ -1022,7 +1011,9 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         closeSecureChannel(client);
         UA_UNLOCK(&client->clientMutex);
         return;
-    } else if(bestTokenIndex == notFound) {
+    }
+
+    if(!client->config.noSession && bestTokenIndex == notFound) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "No suitable UserTokenPolicy found for the possible endpoints");
         client->connectStatus = UA_STATUSCODE_BADIDENTITYTOKENINVALID;
@@ -1031,26 +1022,42 @@ responseGetEndpoints(UA_Client *client, void *userdata,
         return;
     }
 
-    /* Log the selected Endpoint and UserTokenPolicy */
-#if UA_LOGLEVEL <= 300
-    UA_EndpointDescription *endpoint = &client->config.endpoint;
-    UA_UserTokenPolicy *tokenPolicy = &client->config.userTokenPolicy;
-    const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
-    const char *userTokenTypeNames[4] = {"Anonymous", "UserName", "Certificate", "IssuedToken"};
+    /* Move the application description and endpoint information to the client config */
+    UA_EndpointDescription *endpoint = &resp->endpoints[bestEndpointIndex];
+    UA_ApplicationDescription_clear(&client->serverDescription);
+    UA_ApplicationDescription_copy(&endpoint->server, &client->serverDescription);
+    UA_EndpointDescription_clear(&client->config.endpoint);
+    client->config.endpoint = *endpoint;
 
+#if UA_LOGLEVEL <= 300
+    const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
     UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
                 "Selected endpoint %lu in URL %S with SecurityMode "
                 "%s and SecurityPolicy %S",
                 (long unsigned)bestEndpointIndex, endpoint->endpointUrl,
                 securityModeNames[endpoint->securityMode - 1],
                 endpoint->securityPolicyUri);
-
-    UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                "Selected UserTokenPolicy %S with UserTokenType %s "
-                "and SecurityPolicy %S", tokenPolicy->policyId,
-                userTokenTypeNames[tokenPolicy->tokenType],
-                tokenPolicy->securityPolicyUri);
 #endif
+
+    /* Move the UserTokenPolicy information to the client config */
+    if(bestTokenIndex != notFound) {
+        UA_UserTokenPolicy *tokenPolicy = &endpoint->userIdentityTokens[bestTokenIndex];
+        UA_assert(tokenPolicy);
+#if UA_LOGLEVEL <= 300
+        const char *userTokenTypeNames[4] = {"Anonymous", "UserName", "Certificate", "IssuedToken"};
+        UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                    "Selected UserTokenPolicy %S with UserTokenType %s "
+                    "and SecurityPolicy %S", tokenPolicy->policyId,
+                    userTokenTypeNames[tokenPolicy->tokenType],
+                    tokenPolicy->securityPolicyUri);
+#endif
+        UA_UserTokenPolicy_clear(&client->config.userTokenPolicy);
+        client->config.userTokenPolicy = *tokenPolicy;
+        UA_UserTokenPolicy_init(tokenPolicy);
+    }
+
+    /* Don't clean up later -- was moved to the client config */
+    UA_EndpointDescription_init(endpoint);
 
     /* Close the SecureChannel -- a different SecurityMode or SecurityPolicy is
      * defined by the Endpoint. */

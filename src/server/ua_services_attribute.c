@@ -800,14 +800,6 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
 /* Type Checking */
 /*****************/
 
-static UA_DataTypeKind
-typeEquivalence(const UA_DataType *t) {
-    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
-    if(k == UA_DATATYPEKIND_ENUM)
-        return UA_DATATYPEKIND_INT32;
-    return k;
-}
-
 UA_Boolean
 compatibleValueDataType(UA_Server *server, const UA_DataType *dataType,
                         const UA_NodeId *constraintDataType) {
@@ -1150,12 +1142,12 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     if(!type)
         return;
 
-    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
-    unwrapEOArray(server, value);
-
     /* The target type is already achieved. No adjustment needed. */
     if(UA_NodeId_equal(&type->typeId, targetDataTypeId))
         return;
+
+    /* Unwrap ExtensionObject arrays if they all contain the same DataType */
+    unwrapEOArray(server, value);
 
     /* Find the target type */
     const UA_DataType *targetType =
@@ -1163,28 +1155,8 @@ adjustValueType(UA_Server *server, UA_Variant *value,
     if(!targetType)
         return;
 
-    /* A string is written to a byte array. the valuerank and array dimensions
-     * are checked later */
-    if(targetType == &UA_TYPES[UA_TYPES_BYTE] &&
-       type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
-       UA_Variant_isScalar(value)) {
-        UA_ByteString *str = (UA_ByteString*)value->data;
-        value->type = &UA_TYPES[UA_TYPES_BYTE];
-        value->arrayLength = str->length;
-        value->data = str->data;
-        return;
-    }
-
-    /* An enum was sent as an int32, or an opaque type as a bytestring. This
-     * is detected with the typeKind indicating the "true" datatype. */
-    UA_DataTypeKind te1 = typeEquivalence(targetType);
-    UA_DataTypeKind te2 = typeEquivalence(type);
-    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
-        value->type = targetType;
-        return;
-    }
-
-    /* Add more possible type adjustments here. What are they? */
+    /* Use the generic functionality shared by client and server */
+    adjustType(value, targetType);
 }
 
 static UA_StatusCode

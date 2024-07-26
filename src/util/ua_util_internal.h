@@ -27,6 +27,11 @@ _UA_BEGIN_DECLS
 /* Macro-Expand for MSVC workarounds */
 #define UA_MACRO_EXPAND(x) x
 
+/* Try if the type of the value can be adjusted "in situ" to the target type.
+ * That can be done, for example, to map between int32 and an enum. */
+void
+adjustType(UA_Variant *value, const UA_DataType *targetType);
+
 /* Short names for integer. These are not exposed on the public API, since many
  * user-applications make the same definitions in their headers. */
 typedef UA_Byte u8;

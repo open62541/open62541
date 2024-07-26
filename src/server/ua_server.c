@@ -903,6 +903,8 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
     /* Return the time until the next scheduled callback */
     UA_DateTime now = el->dateTime_nowMonotonic(el);
     UA_DateTime nextTimeout = (el->nextCyclicTime(el) - now) / UA_DATETIME_MSEC;
+    if(nextTimeout < 0)
+        nextTimeout = 0;
     if(nextTimeout > UA_UINT16_MAX)
         nextTimeout = UA_UINT16_MAX;
     return (UA_UInt16)nextTimeout;

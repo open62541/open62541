@@ -581,7 +581,7 @@ mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
     struct ifaddrs *ifaddr;
     struct ifaddrs *ifa;
     if(getifaddrs(&ifaddr) == -1) {
-        UA_LOG_ERROR(dm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "getifaddrs returned an unexpected error. Not setting mDNS A records.");
         return;
     }
@@ -1238,9 +1238,14 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
         listEntry->txtSet = true;
 
-        UA_STACKARRAY(char, newUrl, 10 + hostname.length + 8 + path.length + 1);
-        mp_snprintf(newUrl, 10 + hostname.length + 8 + path.length + 1,
-                    "opc.tcp://%S:%d%s%S", hostname, port, path.length > 0 ? "/" : "", path);
+        const size_t newUrlSize = 10 + hostname.length + 8 + path.length + 1;
+        UA_STACKARRAY(char, newUrl, newUrlSize);
+        memset(newUrl, 0, newUrlSize);
+        if(path.length > 0) {
+            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S:%d/%S", hostname, port, path);
+        } else {
+            mp_snprintf(newUrl, newUrlSize, "opc.tcp://%S:%d", hostname, port);
+        }
         listEntry->serverOnNetwork.discoveryUrl = UA_String_fromChars(newUrl);
         listEntry->srvSet = true;
     }
