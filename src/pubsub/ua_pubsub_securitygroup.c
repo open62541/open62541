@@ -117,9 +117,8 @@ updateSKSKeyStorage(UA_Server *server, UA_SecurityGroup *securityGroup){
         if(!newItem) {
             UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_PUBSUB,
                            "UpdateSKSKeyStorage callback failed to add new key to the "
-                           "sks keystorage for the SecurityGroup %.*s",
-                           (int)securityGroup->securityGroupId.length,
-                           securityGroup->securityGroupId.data);
+                           "sks keystorage for the SecurityGroup %S",
+                           securityGroup->securityGroupId);
             UA_Byte_delete(newKey.data);
             return;
         }

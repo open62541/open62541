@@ -191,8 +191,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&c->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %.*s\t| ",
-                (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %S\t| ", idStr);
     c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 
