@@ -182,10 +182,8 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&newGroup->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%.*sReaderGroup %.*s\t| ",
-                (int)connection->logIdString.length,
-                (char*)connection->logIdString.data,
-                (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "%SReaderGroup %S\t| ",
+                connection->logIdString, idStr);
     newGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 

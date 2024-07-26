@@ -722,7 +722,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&newPDS->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %.*s\t| ", (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %S\t| ", idStr);
     newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 

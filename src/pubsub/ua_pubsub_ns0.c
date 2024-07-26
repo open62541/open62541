@@ -1501,9 +1501,8 @@ addReserveIdsLocked(UA_Server *server,
 
     if(UA_String_equal(&transportProfileUri, &profile_1) ||
        UA_String_equal(&transportProfileUri, &profile_2)) {
-        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "ApplicationUri: %.*s",
-                    (int)server->config.applicationDescription.applicationUri.length,
-                    server->config.applicationDescription.applicationUri.data);
+        UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER, "ApplicationUri: %S",
+                    server->config.applicationDescription.applicationUri);
         retVal |= UA_Variant_setScalarCopy(&output[0],
                                            &server->config.applicationDescription.applicationUri,
                                            &UA_TYPES[UA_TYPES_STRING]);

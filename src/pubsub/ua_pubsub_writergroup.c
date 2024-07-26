@@ -176,10 +176,8 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&newWriterGroup->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%.*sWriterGroup %.*s\t| ",
-                (int)currentConnectionContext->logIdString.length,
-                (char*)currentConnectionContext->logIdString.data,
-                (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %S\t| ",
+                currentConnectionContext->logIdString, idStr);
     newWriterGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 

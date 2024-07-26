@@ -144,10 +144,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     UA_String idStr = UA_STRING_NULL;
     UA_NodeId_print(&newDataSetReader->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%.*sDataSetReader %.*s\t| ",
-                (int)newDataSetReader->linkedReaderGroup->logIdString.length,
-                (char*)newDataSetReader->linkedReaderGroup->logIdString.data,
-                (int)idStr.length, idStr.data);
+    mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %S\t| ",
+                newDataSetReader->linkedReaderGroup->logIdString, idStr);
     newDataSetReader->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
     UA_String_clear(&idStr);
 

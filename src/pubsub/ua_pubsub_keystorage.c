@@ -378,9 +378,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                                                    keyStorage->keyLifeTime, &keyStorage->callBackId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                     (int)keyStorage->securityGroupID.length,
-                     keyStorage->securityGroupID.data, UA_StatusCode_name(retval));
+                     "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                     keyStorage->securityGroupID, UA_StatusCode_name(retval));
     }
 
     if(keyStorage->currentItem != TAILQ_LAST(&keyStorage->keyList, keyListItems)) {
@@ -390,9 +389,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                                                                  keyStorage->securityGroupID);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                         (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
-                         UA_StatusCode_name(retval));
+                         "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                         keyStorage->securityGroupID, UA_StatusCode_name(retval));
         }
     } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
         UA_EventLoop *el = server->config.eventLoop;
