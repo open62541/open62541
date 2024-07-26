@@ -134,19 +134,15 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
             current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s is removed because "
-                            "the semaphore file '%.*s' was deleted",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data,
-                            (int)current->registeredServer.semaphoreFilePath.length,
-                            current->registeredServer.semaphoreFilePath.data);
+                            "Registration of server with URI %S is removed because "
+                            "the semaphore file '%S' was deleted",
+                            current->registeredServer.serverUri,
+                            current->registeredServer.semaphoreFilePath);
             } else {
                 // cppcheck-suppress unreadVariable
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s has timed out "
-                            "and is removed",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data);
+                            "Registration of server with URI %S has timed out "
+                            "and is removed", current->registeredServer.serverUri);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
@@ -513,8 +509,7 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String discoveryServerUrl,
                             const UA_String semaphoreFilePath) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Registering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Registering at the DiscoveryServer: %S", discoveryServerUrl);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
@@ -526,8 +521,7 @@ UA_StatusCode
 UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Deregistering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Deregistering at the DiscoveryServer: %S", discoveryServerUrl);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);

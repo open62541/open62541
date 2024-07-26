@@ -106,10 +106,9 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
     /* Success */
     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel,
-                            "SecureChannel opened with SecurityPolicy %.*s "
+                            "SecureChannel opened with SecurityPolicy %S "
                             "and a revised lifetime of %.2fs",
-                            (int)channel->securityPolicy->policyUri.length,
-                            channel->securityPolicy->policyUri.data,
+                            channel->securityPolicy->policyUri,
                             (UA_Float)response->securityToken.revisedLifetime / 1000);
     } else {
         UA_LOG_INFO_CHANNEL(server->config.logging, channel, "SecureChannel renewed "
