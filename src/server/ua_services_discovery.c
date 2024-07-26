@@ -608,8 +608,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
              * and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Discovery_updateMdnsForDiscoveryUrl(dm, mdnsServerName, mdnsConfig,
-                                                   &requestServer->discoveryUrls[i],
+            UA_Discovery_updateMdnsForDiscoveryUrl(dm, *mdnsServerName, mdnsConfig,
+                                                   requestServer->discoveryUrls[i],
                                                    requestServer->isOnline, updateTxt);
         }
     }
@@ -620,9 +620,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         if(!rs) {
             // server not found, show warning
             UA_LOG_WARNING_SESSION(server->config.logging, session,
-                                   "Could not unregister server %.*s. Not registered.",
-                                   (int)requestServer->serverUri.length,
-                                   requestServer->serverUri.data);
+                                   "Could not unregister server %S. Not registered.",
+                                   requestServer->serverUri);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
             return;
         }
@@ -647,9 +646,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     if(!rs) {
         // server not yet registered, register it by adding it to the list
         UA_LOG_DEBUG_SESSION(server->config.logging, session,
-                             "Registering new server: %.*s",
-                             (int)requestServer->serverUri.length,
-                             requestServer->serverUri.data);
+                             "Registering new server: %S",
+                             requestServer->serverUri);
 
         rs = (registeredServer*)UA_malloc(sizeof(registeredServer));
         if(!rs) {

@@ -575,10 +575,8 @@ decryptUserNamePW(UA_Server *server, UA_Session *session,
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
-                               "ActivateSession: Failed to create a "
-                               "context for the SecurityPolicy %.*s",
-                               (int)sp->policyUri.length,
-                               sp->policyUri.data);
+                               "ActivateSession: Failed to create a context for "
+                               "the SecurityPolicy %S", sp->policyUri);
         return res;
     }
 
@@ -669,9 +667,7 @@ checkActivateSessionX509(UA_Server *server, UA_Session *session,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "ActivateSession: Failed to create a context "
-                               "for the SecurityPolicy %.*s",
-                               (int)sp->policyUri.length,
-                               sp->policyUri.data);
+                               "for the SecurityPolicy %S", sp->policyUri);
         return res;
     }
 
@@ -902,9 +898,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
     /* Log the user for which the Session was activated */
     UA_LOG_INFO_SESSION(server->config.logging, session,
-                        "ActivateSession: Session activated with ClientUserId \"%.*s\"",
-                        (int)session->clientUserIdOfSession.length,
-                        session->clientUserIdOfSession.data);
+                        "ActivateSession: Session activated with ClientUserId \"%S\"",
+                        session->clientUserIdOfSession);
     return;
 
 securityRejected:

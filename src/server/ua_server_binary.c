@@ -677,8 +677,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
 static void
 addDiscoveryUrl(UA_Server *server, const UA_String hostname, UA_UInt16 port) {
     char urlstr[1024];
-    mp_snprintf(urlstr, 1024, "opc.tcp://%.*s:%d",
-                (int)hostname.length, (char*)hostname.data, port);
+    mp_snprintf(urlstr, 1024, "opc.tcp://%S:%d", hostname, port);
     UA_String discoveryServerUrl = UA_STRING(urlstr);
 
     /* Check if the ServerUrl is already present in the DiscoveryUrl array.

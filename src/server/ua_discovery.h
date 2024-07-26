@@ -132,9 +132,9 @@ UA_DiscoveryManager_setState(UA_Server *server,
  * serversOnNetwork list so that a client finds it when calling
  * FindServersOnNetwork. */
 void
-UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String *serverName,
+UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String serverName,
                                        const UA_MdnsDiscoveryConfiguration *mdnsConfig,
-                                       const UA_String *discoveryUrl, UA_Boolean isOnline,
+                                       const UA_String discoveryUrl, UA_Boolean isOnline,
                                        UA_Boolean updateTxt);
 
 void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
@@ -144,16 +144,13 @@ void UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm);
 UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
                                                const char *fqdnMdnsRecord,
-                                               const char *serverName,
-                                               size_t serverNameLen,
+                                               UA_String serverName,
                                                struct serverOnNetwork **addedEntry);
 
 UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                                                     const char *fqdnMdnsRecord,
-                                                    const char *serverName,
-                                                    size_t serverNameLen);
-
+                                                    UA_String serverName);
 
 void mdns_record_received(const struct resource *r, void *data);
 
