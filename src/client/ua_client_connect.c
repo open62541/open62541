@@ -1035,24 +1035,21 @@ responseGetEndpoints(UA_Client *client, void *userdata,
 #if UA_LOGLEVEL <= 300
     UA_EndpointDescription *endpoint = &client->config.endpoint;
     UA_UserTokenPolicy *tokenPolicy = &client->config.userTokenPolicy;
-    UA_String *securityPolicyUri = &tokenPolicy->securityPolicyUri;
     const char *securityModeNames[3] = {"None", "Sign", "SignAndEncrypt"};
-    const char *userTokenTypeNames[4] =
-        {"Anonymous", "UserName", "Certificate", "IssuedToken"};
+    const char *userTokenTypeNames[4] = {"Anonymous", "UserName", "Certificate", "IssuedToken"};
 
     UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                "Selected endpoint %lu in URL %.*s with SecurityMode "
-                "%s and SecurityPolicy %.*s",
-                (long unsigned)bestEndpointIndex, (int)endpoint->endpointUrl.length,
-                endpoint->endpointUrl.data, securityModeNames[endpoint->securityMode - 1],
-                (int)endpoint->securityPolicyUri.length, endpoint->securityPolicyUri.data);
+                "Selected endpoint %lu in URL %S with SecurityMode "
+                "%s and SecurityPolicy %S",
+                (long unsigned)bestEndpointIndex, endpoint->endpointUrl,
+                securityModeNames[endpoint->securityMode - 1],
+                endpoint->securityPolicyUri);
 
     UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                "Selected UserTokenPolicy %.*s with UserTokenType %s "
-                "and SecurityPolicy %.*s",
-                (int)tokenPolicy->policyId.length, tokenPolicy->policyId.data,
+                "Selected UserTokenPolicy %S with UserTokenType %s "
+                "and SecurityPolicy %S", tokenPolicy->policyId,
                 userTokenTypeNames[tokenPolicy->tokenType],
-                (int)securityPolicyUri->length, securityPolicyUri->data);
+                tokenPolicy->securityPolicyUri);
 #endif
 
     /* Close the SecureChannel -- a different SecurityMode or SecurityPolicy is
