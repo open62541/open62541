@@ -16,13 +16,17 @@ else
     MAKEOPTS="-j$(sysctl -n hw.ncpu)"
 fi
 
+# Allow to reuse TIME-WAIT sockets for new connections
+sudo echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+
 ###########
 # cpplint #
 ###########
 
 function cpplint {
     mkdir -p build; cd build; rm -rf *
-    cmake ..
+    cmake -DUA_FORCE_WERROR=ON \
+          ..
     make ${MAKEOPTS} cpplint
 }
 
@@ -34,6 +38,7 @@ function build_docs {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make doc
 }
@@ -46,6 +51,7 @@ function build_docs_pdf {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Release \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make doc doc_pdf
 }
@@ -60,8 +66,8 @@ function build_tpm_tool {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_ENCRYPTION_TPM2=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -75,9 +81,9 @@ function build_release {
     cmake -DBUILD_SHARED_LIBS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DCMAKE_BUILD_TYPE=RelWithDebInfo \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 }
@@ -90,37 +96,31 @@ function build_amalgamation {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 function build_amalgamation_mt {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_ENABLE_AMALGAMATION=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_MULTITHREADING=100 \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 ############################
@@ -138,21 +138,15 @@ function unit_tests {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_MQTT=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
-          -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -164,20 +158,16 @@ function unit_tests_32 {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_32BIT=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
-          #-DUA_ENABLE_PUBSUB_ETH_UADP=ON \ # TODO: Enable this
     make ${MAKEOPTS}
     set_capabilities
     make test ARGS="-V"
@@ -188,7 +178,9 @@ function unit_tests_nosub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
+          -DUA_ENABLE_HISTORIZING=OFF \
           -DUA_ENABLE_SUBSCRIPTIONS=OFF \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -201,20 +193,14 @@ function unit_tests_diag {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_DIAGNOSTICS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
-          -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -226,11 +212,9 @@ function unit_tests_mt {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -246,7 +230,8 @@ function unit_tests_alarms {
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-	      -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+              -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
+          -DUA_FORCE_WERROR=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
@@ -259,9 +244,8 @@ function unit_tests_encryption {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -273,15 +257,12 @@ function unit_tests_encryption_mbedtls_pubsub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_ENABLE_CERT_REJECTED_DIR=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -294,22 +275,17 @@ function unit_tests_pubsub_sks {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
-          -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
-    # set_capabilities not possible with valgrind
-    make test ARGS="-V -R sks"
+    sudo -E bash -c "make test ARGS=\"-V -R sks\""
 }
 
 ##########################################
@@ -322,22 +298,16 @@ function unit_tests_with_coverage {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_COVERAGE=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_MQTT=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
-          -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -353,26 +323,21 @@ function unit_tests_valgrind {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_MQTT=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL_METHODS=ON \
-          -DUA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
     # set_capabilities not possible with valgrind
-    make test ARGS="-V"
+    sudo -E bash -c "make test ARGS=\"-V\""
 }
 
 ########################################
@@ -383,20 +348,19 @@ function examples_valgrind {
     mkdir -p build; cd build; rm -rf *
 
     # create certificates for the examples
-    python3 ../tools/certs/create_self-signed.py -c server 
-    python3 ../tools/certs/create_self-signed.py -c client 
+    python3 ../tools/certs/create_self-signed.py -c server
+    python3 ../tools/certs/create_self-signed.py -c client
+
+    # copy json server config
+    cp ../plugins/server_config.json5 server_config.json5
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
-          -DUA_ENABLE_DISCOVERY_MULTICAST=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
@@ -404,16 +368,17 @@ function examples_valgrind {
           -DUA_ENABLE_PUBSUB_FILE_CONFIG=ON \
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
-          -DUA_ENABLE_PUBSUB_ETH_UADP=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
 
     # Run each example with valgrind. Wait 10 seconds and send the SIGINT
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
-    python3 ../tools/examples_with_valgrind.py
+    # set_capabilities not possible with valgrind
+    sudo -E bash -c "python3 ../tools/examples_with_valgrind.py"
     EXIT_CODE=$?
     if [[ $EXIT_CODE -ne 0 ]]; then
         echo "Processing failed with exit code $EXIT_CODE"
@@ -430,19 +395,17 @@ function build_clang_analyzer {
     scan-build-11 cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_DISCOVERY=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
-          -DUA_ENABLE_HISTORIZING=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_DELTAFRAMES=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
+          -DUA_FORCE_WERROR=ON \
           ..
-    scan-build-11 --status-bugs make ${MAKEOPTS}
+    scan-build-11 --status-bugs --exclude ../src/util make ${MAKEOPTS}
 }
 
 ###################################################
@@ -454,7 +417,8 @@ function build_all_companion_specs {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;ISA95-JOBCONTROL\;OpenSCS\;DEXPI\;AMB\;AutoID\;POWERLINK\;IA\;Machinery\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
+          -DUA_FORCE_WERROR=ON \
+          -DUA_INFORMATION_MODEL_AUTOLOAD=DI\;IA\;ISA95-JOBCONTROL\;OpenSCS\;CNC\;AMB\;AutoID\;POWERLINK\;Machinery\;PackML\;PNEM\;PLCopen\;MachineTool\;PROFINET\;MachineVision\;FDT\;CommercialKitchenEquipment\;Scales\;Weihenstephan\;Pumps\;CAS\;TMC \
           -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS} check_nodeset_compiler_testnodeset

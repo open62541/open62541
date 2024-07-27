@@ -43,7 +43,8 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
     UA_Session_detachFromSecureChannel(session);
     UA_ApplicationDescription_clear(&session->clientDescription);
-    UA_NodeId_clear(&session->header.authenticationToken);
+    UA_NodeId_clear(&session->authenticationToken);
+    UA_String_clear(&session->clientUserIdOfSession);
     UA_NodeId_clear(&session->sessionId);
     UA_String_clear(&session->sessionName);
     UA_ByteString_clear(&session->serverNonce);
@@ -71,26 +72,19 @@ void UA_Session_clear(UA_Session *session, UA_Server* server) {
 
 void
 UA_Session_attachToSecureChannel(UA_Session *session, UA_SecureChannel *channel) {
+    /* Ensure the Session is not attached to another SecureChannel */
     UA_Session_detachFromSecureChannel(session);
-    session->header.channel = channel;
-    session->header.serverSession = true;
-    SLIST_INSERT_HEAD(&channel->sessions, &session->header, next);
+
+    /* Add to singly-linked list */
+    session->next = channel->sessions;
+    channel->sessions = session;
+
+    /* Add backpointer */
+    session->channel = channel;
 }
 
 void
 UA_Session_detachFromSecureChannel(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
-    if(!channel)
-        return;
-    session->header.channel = NULL;
-    UA_SessionHeader *sh;
-    SLIST_FOREACH(sh, &channel->sessions, next) {
-        if((UA_Session*)sh != session)
-            continue;
-        SLIST_REMOVE(&channel->sessions, sh, UA_SessionHeader, next);
-        break;
-    }
-
     /* Clean up the response queue. Their RequestId is bound to the
      * SecureChannel so they cannot be reused. */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
@@ -100,11 +94,28 @@ UA_Session_detachFromSecureChannel(UA_Session *session) {
         UA_free(pre);
     }
 #endif
+
+    /* Remove from singly-linked list */
+    UA_SecureChannel *channel = session->channel;
+    if(!channel)
+        return;
+
+    if(channel->sessions == session) {
+        channel->sessions = session->next;
+    } else {
+        UA_Session *elm =  channel->sessions;
+        while(elm->next != session)
+            elm = elm->next;
+        elm->next = session->next;
+    }
+
+    /* Reset the backpointer */
+    session->channel = NULL;
 }
 
 UA_StatusCode
 UA_Session_generateNonce(UA_Session *session) {
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel || !channel->securityPolicy)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -121,11 +132,13 @@ UA_Session_generateNonce(UA_Session *session) {
         generateNonce(channel->securityPolicy->policyContext, &session->serverNonce);
 }
 
-void UA_Session_updateLifetime(UA_Session *session) {
-    session->validTill = UA_DateTime_nowMonotonic() +
+void
+UA_Session_updateLifetime(UA_Session *session, UA_DateTime now,
+                          UA_DateTime nowMonotonic) {
+    session->validTill = nowMonotonic +
         (UA_DateTime)(session->timeout * UA_DATETIME_MSEC);
 #ifdef UA_ENABLE_DIAGNOSTICS
-    session->diagnostics.clientLastContactTime = UA_DateTime_now();
+    session->diagnostics.clientLastContactTime = now;
 #endif
 }
 
@@ -175,8 +188,7 @@ UA_Session_detachSubscription(UA_Server *server, UA_Session *session,
     while((pre = UA_Session_dequeuePublishReq(session))) {
         UA_PublishResponse *response = &pre->response;
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOSUBSCRIPTION;
-        response->responseHeader.timestamp = UA_DateTime_now();
-        sendResponse(server, session, session->header.channel, pre->requestId,
+        sendResponse(server, session->channel, pre->requestId,
                      (UA_Response*)response, &UA_TYPES[UA_TYPES_PUBLISHRESPONSE]);
         UA_PublishResponse_clear(response);
         UA_free(pre);
@@ -211,7 +223,7 @@ getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId) {
 
 UA_PublishResponseEntry*
 UA_Session_dequeuePublishReq(UA_Session *session) {
-    UA_PublishResponseEntry* entry = SIMPLEQ_FIRST(&session->responseQueue);
+    UA_PublishResponseEntry *entry = SIMPLEQ_FIRST(&session->responseQueue);
     if(entry) {
         SIMPLEQ_REMOVE_HEAD(&session->responseQueue, listEntry);
         session->responseQueueSize--;
@@ -251,11 +263,12 @@ UA_Server_closeSession(UA_Server *server, const UA_NodeId *sessionId) {
 
 /* Session Attributes */
 
-#define UA_PROTECTEDATTRIBUTESSIZE 3
+#define UA_PROTECTEDATTRIBUTESSIZE 4
 static const UA_QualifiedName protectedAttributes[UA_PROTECTEDATTRIBUTESSIZE] = {
     {0, UA_STRING_STATIC("localeIds")},
     {0, UA_STRING_STATIC("clientDescription")},
-    {0, UA_STRING_STATIC("sessionName")}
+    {0, UA_STRING_STATIC("sessionName")},
+    {0, UA_STRING_STATIC("clientUserId")}
 };
 
 static UA_Boolean
@@ -289,8 +302,10 @@ UA_Server_deleteSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         return UA_STATUSCODE_BADNOTWRITABLE;
     UA_LOCK(&server->serviceMutex);
     UA_Session *session = getSessionById(server, sessionId);
-    if(!session)
+    if(!session) {
+        UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADSESSIONIDINVALID;
+    }
     UA_StatusCode res =
         UA_KeyValueMap_remove(session->attributes, key);
     UA_UNLOCK(&server->serviceMutex);
@@ -326,6 +341,11 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
         UA_Variant_setScalar(&localAttr, &session->sessionName,
                              &UA_TYPES[UA_TYPES_STRING]);
         attr = &localAttr;
+    } else if(UA_QualifiedName_equal(&key, &protectedAttributes[3])) {
+        /* Return client user id */
+        UA_Variant_setScalar(&localAttr, &session->clientUserIdOfSession,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        attr = &localAttr;
     } else {
         /* Get from the actual key-value list */
         attr = UA_KeyValueMap_get(session->attributes, key);
@@ -335,7 +355,9 @@ getSessionAttribute(UA_Server *server, const UA_NodeId *sessionId,
 
     if(copy)
         return UA_Variant_copy(attr, outValue);
+
     *outValue = *attr;
+    outValue->storageType = UA_VARIANT_DATA_NODELETE;
     return UA_STATUSCODE_GOOD;
 }
 

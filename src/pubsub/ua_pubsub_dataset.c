@@ -10,6 +10,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
+#include "open62541/plugin/eventloop.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
@@ -153,7 +154,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
         if(field->configurationFrozen) {
-            UA_LOG_WARNING_DATASET(&server->config.logger, publishedDataSet,
+            UA_LOG_WARNING_DATASET(server->config.logging, publishedDataSet,
                                    "Clearing a frozen field.");
         }
         field->fieldMetaData.arrayDimensions = NULL;
@@ -168,6 +169,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
     UA_NodeId_clear(&publishedDataSet->identifier);
+    UA_String_clear(&publishedDataSet->logIdString);
 }
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
@@ -221,7 +223,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the array dimensions failed");
         return res;
     }
@@ -242,7 +244,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the datatype failed");
         return res;
     }
@@ -252,7 +254,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_DATASET(&server->config.logger, pds,
+        UA_LOG_DEBUG_DATASET(server->config.logging, pds,
                              "MetaData creation: Found DataType %s",
                              currentDataType->typeName);
 #endif
@@ -266,12 +268,12 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
                 fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
             } else {
-                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                        "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
             }
         }
     } else {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: DataType is UA_NODEID_NULL");
     }
 
@@ -280,7 +282,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &valueRank);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "PubSub meta data generation: Reading the value rank failed");
         return res;
     }
@@ -322,7 +324,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     if(currDS->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, currDS,
+        UA_LOG_WARNING_DATASET(server->config.logging, currDS,
                                "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -400,8 +402,9 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     /* Update major version of parent published data set */
+    UA_EventLoop *el = server->config.eventLoop;
     currDS->dataSetMetaData.configurationVersion.majorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
     result.configurationVersion.majorVersion =
         currDS->dataSetMetaData.configurationVersion.majorVersion;
@@ -434,14 +437,14 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     }
 
     if(currentField->configurationFrozen) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "Remove DataSetField failed: DataSetField is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
     if(pds->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+        UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -453,8 +456,9 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     pds->fieldSize--;
 
     /* Update major version of PublishedDataSet */
+    UA_EventLoop *el = server->config.eventLoop;
     pds->dataSetMetaData.configurationVersion.majorVersion =
-        UA_PubSubConfigurationVersionTimeDifference();
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
     /* Clean up */
     currentField->fieldMetaData.arrayDimensions = NULL;
@@ -487,12 +491,12 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
             result.result = generateFieldMetaData(server, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING_DATASET(&server->config.logger, pds,
+                UA_LOG_WARNING_DATASET(server->config.logging, pds,
                                        "PubSub MetaData regeneration failed "
                                        "after removing a field!");
                 break;
             }
-            // The contents of the metadata is shared between the PDS and its fields.
+            /* The contents of the metadata is shared between the PDS and its fields */
             tmpDSF->fieldMetaData = fieldMetaData[counter++];
         }
         pds->dataSetMetaData.fields = fieldMetaData;
@@ -595,7 +599,8 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
         rvid.nodeId = params->publishedVariable;
         rvid.attributeId = params->attributeId;
         rvid.indexRange = params->indexRange;
-        *value = readAttribute(server, &rvid, UA_TIMESTAMPSTORETURN_BOTH);
+        *value = readWithSession(server, &server->adminSession,
+                                 &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
@@ -610,27 +615,27 @@ UA_PublishedDataSet_create(UA_Server *server,
 
     UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
     if(!publishedDataSetConfig){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. No config passed in.");
         return result;
     }
 
     if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
     }
 
     if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
         // DataSet has to have a valid name
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
@@ -640,7 +645,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPDS) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Out of Memory.");
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
@@ -653,7 +658,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     UA_StatusCode res = UA_PublishedDataSetConfig_copy(publishedDataSetConfig, newConfig);
     if(res != UA_STATUSCODE_GOOD){
         UA_free(newPDS);
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. Configuration copy failed.");
         result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
@@ -664,8 +669,11 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
 
     /* Fill the DataSetMetaData */
-    result.configurationVersion.majorVersion = UA_PubSubConfigurationVersionTimeDifference();
-    result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
+    UA_EventLoop *el = server->config.eventLoop;
+    result.configurationVersion.majorVersion =
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
+    result.configurationVersion.minorVersion =
+        UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     switch(newConfig->publishedDataSetType) {
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
         res = UA_STATUSCODE_BADNOTSUPPORTED;
@@ -675,9 +683,9 @@ UA_PublishedDataSet_create(UA_Server *server,
         break;
     case UA_PUBSUB_DATASET_PUBLISHEDITEMS:
         newPDS->dataSetMetaData.configurationVersion.majorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
+            UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
         newPDS->dataSetMetaData.configurationVersion.minorVersion =
-            UA_PubSubConfigurationVersionTimeDifference();
+            UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
         newPDS->dataSetMetaData.description = UA_LOCALIZEDTEXT_ALLOC("", "");
         newPDS->dataSetMetaData.dataSetClassId = UA_GUID_NULL;
         res = UA_String_copy(&newConfig->name, &newPDS->dataSetMetaData.name);
@@ -709,9 +717,20 @@ UA_PublishedDataSet_create(UA_Server *server,
     /* Generate unique nodeId */
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newPDS->identifier);
 #endif
+
+    /* Cache the log string */
+    UA_String idStr = UA_STRING_NULL;
+    UA_NodeId_print(&newPDS->identifier, &idStr);
+    char tmpLogIdStr[128];
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %S\t| ", idStr);
+    newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    UA_String_clear(&idStr);
+
+    UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
+
+    /* Return the created identifier */
     if(pdsIdentifier)
         UA_NodeId_copy(&newPDS->identifier, pdsIdentifier);
-
     return result;
 }
 
@@ -729,22 +748,21 @@ UA_Server_addPublishedDataSet(UA_Server *server,
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    //search for referenced writers -> delete this writers. (Standard: writer must be connected with PDS)
-    UA_PubSubConnection *tmpConnectoin;
-    TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
-        UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &tmpConnectoin->writerGroups, listEntry){
-            UA_DataSetWriter *currentWriter, *tmpWriterGroup;
-            LIST_FOREACH_SAFE(currentWriter, &writerGroup->writers, listEntry, tmpWriterGroup){
-                if(UA_NodeId_equal(&currentWriter->connectedDataSet,
-                                   &publishedDataSet->identifier)) {
-                    UA_DataSetWriter_remove(server, currentWriter);
-                }
+    /* Search for referenced writers -> delete this writers. (Standard: writer
+     * must be connected with PDS) */
+    UA_PubSubConnection *conn;
+    TAILQ_FOREACH(conn, &server->pubSubManager.connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw, *tmpWriter;
+            LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, tmpWriter) {
+                if(dsw->connectedDataSet == publishedDataSet)
+                    UA_DataSetWriter_remove(server, dsw);
             }
         }
     }
@@ -753,11 +771,13 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
     deleteNode(server, publishedDataSet->identifier, true);
 #endif
 
-    UA_PublishedDataSet_clear(server, publishedDataSet);
-    server->pubSubManager.publishedDataSetsSize--;
+    UA_LOG_INFO_DATASET(server->config.logging, publishedDataSet, "DataSet deleted");
 
     TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
+    server->pubSubManager.publishedDataSetsSize--;
+    UA_PublishedDataSet_clear(server, publishedDataSet);
     UA_free(publishedDataSet);
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -777,22 +797,20 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
-    UA_StandaloneSubscribedDataSet *subscribedDataSet;
-    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
-                  listEntry) {
-        if(UA_NodeId_equal(&identifier, &subscribedDataSet->identifier))
-            return subscribedDataSet;
+    UA_StandaloneSubscribedDataSet *sds;
+    TAILQ_FOREACH(sds, &server->pubSubManager.subscribedDataSets, listEntry) {
+        if(UA_NodeId_equal(&identifier, &sds->identifier))
+            return sds;
     }
     return NULL;
 }
 
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
-    UA_StandaloneSubscribedDataSet *subscribedDataSet;
-    TAILQ_FOREACH(subscribedDataSet, &server->pubSubManager.subscribedDataSets,
-                  listEntry) {
-        if(UA_String_equal(&identifier, &subscribedDataSet->config.name))
-            return subscribedDataSet;
+    UA_StandaloneSubscribedDataSet *sds;
+    TAILQ_FOREACH(sds, &server->pubSubManager.subscribedDataSets, listEntry) {
+        if(UA_String_equal(&identifier, &sds->config.name))
+            return sds;
     }
     return NULL;
 }
@@ -814,8 +832,7 @@ UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetCo
 }
 
 void
-UA_StandaloneSubscribedDataSetConfig_clear(
-    UA_StandaloneSubscribedDataSetConfig *sdsConfig) {
+UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig) {
     UA_String_clear(&sdsConfig->name);
     UA_DataSetMetaDataType_clear(&sdsConfig->dataSetMetaData);
     UA_TargetVariablesDataType_clear(&sdsConfig->subscribedDataSet.target);
@@ -826,7 +843,110 @@ UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet) {
     UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
     UA_NodeId_clear(&subscribedDataSet->identifier);
-    UA_NodeId_clear(&subscribedDataSet->connectedReader);
+}
+
+static UA_StatusCode
+addStandaloneSubscribedDataSet(UA_Server *server,
+                               const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    if(!sdsConfig){
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. No config passed in.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
+    memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    UA_StatusCode res = UA_StandaloneSubscribedDataSetConfig_copy(sdsConfig,
+                                                                  &tmpSubscribedDataSetConfig);
+    if(res != UA_STATUSCODE_GOOD){
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. Configuration copy failed.");
+        return res;
+    }
+
+    /* Create new PDS and add to UA_PubSubManager */
+    UA_StandaloneSubscribedDataSet *newSubscribedDataSet = (UA_StandaloneSubscribedDataSet *)
+            UA_calloc(1, sizeof(UA_StandaloneSubscribedDataSet));
+    if(!newSubscribedDataSet) {
+        UA_StandaloneSubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "SubscribedDataSet creation failed. Out of Memory.");
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+
+    newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
+    newSubscribedDataSet->connectedReader = NULL;
+
+    TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets,
+                      newSubscribedDataSet, listEntry);
+    server->pubSubManager.subscribedDataSetsSize++;
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
+#else
+    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+                                          &newSubscribedDataSet->identifier);
+#endif
+
+    if(sdsIdentifier)
+        UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
+                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
+                                         UA_NodeId *sdsIdentifier) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIdentifier) {
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_StandaloneSubscribedDataSet *sds =
+        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sdsIdentifier);
+    if(!sds)
+        return UA_STATUSCODE_BADNOTFOUND;
+
+    /* Search for referenced readers */
+    UA_PubSubConnection *conn;
+    TAILQ_FOREACH(conn, &server->pubSubManager.connections, listEntry) {
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
+            UA_DataSetReader *dsr, *tmpReader;
+            LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmpReader) {
+                if(dsr == sds->connectedReader)
+                    UA_DataSetReader_remove(server, dsr);
+            }
+        }
+    }
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    deleteNode(server, sds->identifier, true);
+#endif
+
+    TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, sds, listEntry);
+    server->pubSubManager.subscribedDataSetsSize--;
+    UA_StandaloneSubscribedDataSet_clear(server, sds);
+    UA_free(sds);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_StandaloneSubscribedDataSet_remove(server, sds);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

@@ -10,6 +10,7 @@
 #include "testing_clock.h"
 
 #include <signal.h>
+#include <stdlib.h>
 #include <check.h>
 
 #ifndef _WIN32

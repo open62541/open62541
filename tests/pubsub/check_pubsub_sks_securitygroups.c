@@ -12,11 +12,13 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <testing_clock.h>
 
 #include "../encryption/certificates.h"
@@ -27,16 +29,16 @@ UA_Boolean running;
 
 static void
 securityGroup_setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_calloc(2, sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 2;
     UA_PubSubSecurityPolicy_Aes128Ctr(&config->pubSubConfig.securityPolicies[0],
-                                      &config->logger);
+                                      config->logging);
     UA_PubSubSecurityPolicy_Aes256Ctr(&config->pubSubConfig.securityPolicies[1],
-                                      &config->logger);
+                                      config->logging);
 
     UA_Server_run_startup(server);
 }

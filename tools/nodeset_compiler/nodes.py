@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,7 +9,6 @@
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
 
-import sys
 import logging
 from datatypes import QualifiedName, LocalizedText, NodeId, String, Value, valueIsInternalType
 
@@ -20,12 +18,7 @@ __all__ = ['Reference', 'RefOrAlias', 'Node', 'ReferenceTypeNode',
 
 logger = logging.getLogger(__name__)
 
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-
-class Reference(object):
+class Reference:
     # all either nodeids or strings with an alias
     def __init__(self, source, referenceType, target, isForward):
         self.source = source
@@ -60,7 +53,7 @@ def RefOrAlias(s):
     except Exception:
         return s
 
-class Node(object):
+class Node:
     def __init__(self):
         self.id = None
         self.browseName = None
@@ -117,9 +110,9 @@ class Node(object):
                 elif x.localName == "Description":
                     self.description = LocalizedText(x.firstChild.data)
                 elif x.localName == "WriteMask":
-                    self.writeMask = int(unicode(x.firstChild.data))
+                    self.writeMask = int(x.firstChild.data)
                 elif x.localName == "UserWriteMask":
-                    self.userWriteMask = int(unicode(x.firstChild.data))
+                    self.userWriteMask = int(x.firstChild.data)
                 if x.localName == "References":
                     self.parseXMLReferences(x)
 
@@ -136,7 +129,7 @@ class Node(object):
                 if at == "ReferenceType":
                     reftype = RefOrAlias(av)
                 elif at == "IsForward":
-                    forward = not "false" in av.lower()
+                    forward = "false" not in av.lower()
             self.references[Reference(source, reftype, target, forward)] = None
 
     def getParentReference(self, parentreftypes):
@@ -209,7 +202,7 @@ class ReferenceTypeNode(Node):
         for x in xmlelement.childNodes:
             if x.nodeType == x.ELEMENT_NODE:
                 if x.localName == "InverseName" and x.firstChild:
-                    self.inverseName = str(unicode(x.firstChild.data))
+                    self.inverseName = str(x.firstChild.data)
 
 class ObjectNode(Node):
     def __init__(self, xmlelement=None):
@@ -266,18 +259,18 @@ class VariableNode(Node):
             elif x.localName == "DataType":
                 self.dataType = RefOrAlias(av)
             elif x.localName == "ValueRank":
-                self.valueRank = int(unicode(x.firstChild.data))
+                self.valueRank = int(x.firstChild.data)
             elif x.localName == "ArrayDimensions" and len(self.arrayDimensions) == 0:
-                elements = x.getElementsByTagName("ListOfUInt32");
+                elements = x.getElementsByTagName("ListOfUInt32")
                 if len(elements):
                     for idx, v in enumerate(elements[0].getElementsByTagName("UInt32")):
                         self.arrayDimensions.append(v.firstChild.data)
             elif x.localName == "AccessLevel":
-                self.accessLevel = int(unicode(x.firstChild.data))
+                self.accessLevel = int(x.firstChild.data)
             elif x.localName == "UserAccessLevel":
-                self.userAccessLevel = int(unicode(x.firstChild.data))
+                self.userAccessLevel = int(x.firstChild.data)
             elif x.localName == "MinimumSamplingInterval":
-                self.minimumSamplingInterval = float(unicode(x.firstChild.data))
+                self.minimumSamplingInterval = float(x.firstChild.data)
             elif x.localName == "Historizing":
                 self.historizing = "false" not in x.lower()
 
@@ -580,8 +573,8 @@ class DataTypeNode(Node):
                     fdTypeNodeId = NodeId(fdtype)
                     if namespaceMapping != None:
                         fdTypeNodeId.ns = namespaceMapping[fdTypeNodeId.ns]
-                    if not fdTypeNodeId in nodeset.nodes:
-                        raise Exception("Node {} not found in nodeset".format(fdTypeNodeId))
+                    if fdTypeNodeId not in nodeset.nodes:
+                        raise Exception(f"Node {fdTypeNodeId} not found in nodeset")
                     dtnode = nodeset.nodes[fdTypeNodeId]
                     # The node in the datatype element was found. we inherit its encoding,
                     # but must still ensure that the dtnode is itself validly encodable

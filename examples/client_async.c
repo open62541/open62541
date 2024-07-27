@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 
 #include <stdlib.h>
+#include "common.h"
 
 #define NODES_EXIST
 /* async connection callback, it only gets called after the completion of the whole
@@ -100,14 +101,14 @@ main(int argc, char *argv[]) {
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
     bReq.nodesToBrowseSize = 1;
-    bReq.nodesToBrowse[0].nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    bReq.nodesToBrowse[0].nodeId = UA_NS0ID(OBJECTSFOLDER);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; /* return everything */
 
     cc->stateCallback = onConnect;
     UA_Client_connectAsync(client, "opc.tcp://localhost:4840");
 
     /*Windows needs time to response*/
-    UA_sleep_ms(100);
+    sleep_ms(100);
 
     /* What happens if client tries to send request before connected? */
     UA_Client_sendAsyncBrowseRequest(client, &bReq, fileBrowsed, &userdata, &reqId);
@@ -123,7 +124,7 @@ main(int argc, char *argv[]) {
         /* Requests are processed */
         UA_BrowseRequest_clear(&bReq);
         UA_Client_run_iterate(client, 0);
-        UA_sleep_ms(100);
+        sleep_ms(100);
 
         /* Break loop if server cannot be connected within 2s -- prevents build timeout */
         if(UA_DateTime_nowMonotonic() - startTime > 2000 * UA_DATETIME_MSEC)
@@ -162,8 +163,7 @@ main(int argc, char *argv[]) {
             UA_String stringValue = UA_String_fromChars("World");
             UA_Variant_setScalar(&input, &stringValue, &UA_TYPES[UA_TYPES_STRING]);
 
-            UA_Client_call_async(client,
-                                 UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+            UA_Client_call_async(client, UA_NS0ID(OBJECTSFOLDER),
                                  UA_NODEID_NUMERIC(1, 62541), 1, &input,
                                  methodCalled, NULL, &reqId);
             UA_String_clear(&stringValue);

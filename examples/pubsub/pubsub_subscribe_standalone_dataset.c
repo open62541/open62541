@@ -14,8 +14,9 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
@@ -36,11 +37,11 @@ addTargetVariable(UA_Server *server) {
     /* Add the variable node to the information model */
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "demoVar");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "subscribedTargetVar");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_Server_addVariableNode(
-        server, myIntegerNodeId, parentNodeId, parentReferenceNodeId, myIntegerName,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
+                              parentReferenceNodeId, myIntegerName,
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 static void
@@ -93,7 +94,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     return UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 }
 
@@ -110,18 +112,16 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
 /* Add DataSetReader to the ReaderGroup */
 static UA_StatusCode
 addDataSetReader(UA_Server *server) {
-    if(server == NULL) {
+    if(server == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -130,19 +130,15 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId = 100;
     readerConfig.dataSetWriterId = 62541;
     readerConfig.linkedStandaloneSubscribedDataSetName = UA_STRING("DemoStandaloneSDS");
 
     /* DataSetMetaData already contained in Standalone SDS no need to set up */
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
-
-    readerConfig.publisherId.data = NULL;
-
-    return retval;
+    return UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
+                                      &readerIdentifier);
 }
 
 UA_Boolean running = true;
@@ -205,12 +201,14 @@ main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
 
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else {
             printf("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);

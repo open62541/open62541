@@ -10,10 +10,12 @@
 
 #include <stdio.h>
 
+#include "mp_printf.h"
+
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
 
-#ifdef UA_ENABLE_LOG_COLORS
+#ifdef UA_ARCHITECTURE_POSIX
 # define ANSI_COLOR_RED     "\x1b[31m"
 # define ANSI_COLOR_GREEN   "\x1b[32m"
 # define ANSI_COLOR_YELLOW  "\x1b[33m"
@@ -31,12 +33,14 @@
 # define ANSI_COLOR_RESET   ""
 #endif
 
+static
 const char *logLevelNames[6] = {"trace", "debug",
                                 ANSI_COLOR_GREEN "info",
                                 ANSI_COLOR_YELLOW "warn",
                                 ANSI_COLOR_RED "error",
                                 ANSI_COLOR_MAGENTA "fatal"};
-const char *logCategoryNames[UA_LOGCATEGORIES] =
+static const char *
+logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
      "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
 
@@ -83,13 +87,16 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 # endif
 #endif
 
+#define STDOUT_LOGBUFSIZE 512
+    char logbuf[STDOUT_LOGBUFSIZE];
+
     /* Log */
     printf("[%04u-%02u-%02u %02u:%02u:%02u.%03u (UTC%+05d)] %s/%s" ANSI_COLOR_RESET "\t",
            dts.year, dts.month, dts.day, dts.hour, dts.min, dts.sec, dts.milliSec,
            (int)(tOffset / UA_DATETIME_SEC / 36), logLevelNames[logLevelSlot],
            logCategoryNames[category]);
-    vprintf(msg, args);
-    printf("\n");
+    mp_vsnprintf(logbuf, STDOUT_LOGBUFSIZE, msg, args);
+    printf("%s\n", logbuf);
     fflush(stdout);
 
     /* Unlock */
@@ -103,14 +110,26 @@ UA_Log_Stdout_log(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 
 static void
-UA_Log_Stdout_clear(void *context) {}
+UA_Log_Stdout_clear(UA_Logger *logger) {
+    UA_free(logger);
+}
 
-const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, UA_Log_Stdout_clear};
+const UA_Logger UA_Log_Stdout_ = {UA_Log_Stdout_log, NULL, NULL};
 const UA_Logger *UA_Log_Stdout = &UA_Log_Stdout_;
 
 UA_Logger
 UA_Log_Stdout_withLevel(UA_LogLevel minlevel) {
     UA_Logger logger =
-        {UA_Log_Stdout_log, (void*)(uintptr_t)minlevel, UA_Log_Stdout_clear};
+        {UA_Log_Stdout_log, (void*)(uintptr_t)minlevel, NULL};
+    return logger;
+}
+
+UA_Logger *
+UA_Log_Stdout_new(UA_LogLevel minlevel) {
+    UA_Logger *logger = (UA_Logger*)UA_malloc(sizeof(UA_Logger));
+    if(!logger)
+        return NULL;
+    *logger = UA_Log_Stdout_withLevel(minlevel);
+    logger->clear = UA_Log_Stdout_clear;
     return logger;
 }

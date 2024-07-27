@@ -25,7 +25,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     UA_ReadValueId id;
     UA_ReadValueId_init(&id);
     id.attributeId = UA_ATTRIBUTEID_VALUE;
-    id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    id.nodeId = UA_NS0ID(SERVER_NAMESPACEARRAY);
     request.nodesToRead = &id;
     request.nodesToReadSize = 1;
 
@@ -65,6 +65,8 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
+    if(!bReq.nodesToBrowse)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     bReq.nodesToBrowseSize = 1;
     UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
@@ -231,8 +233,6 @@ __UA_Client_addNode(UA_Client *client, const UA_NodeClass nodeClass,
 /* Call */
 /********/
 
-#ifdef UA_ENABLE_METHODCALLS
-
 UA_StatusCode
 UA_Client_call(UA_Client *client, const UA_NodeId objectId,
                const UA_NodeId methodId, size_t inputSize,
@@ -275,8 +275,6 @@ UA_Client_call(UA_Client *client, const UA_NodeId objectId,
     return retval;
 }
 
-#endif
-
 /********************/
 /* Write Attributes */
 /********************/
@@ -285,19 +283,26 @@ UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
                            UA_AttributeId attributeId, const void *in,
                            const UA_DataType *inDataType) {
-    if(!in)
+    if(!in || !inDataType)
       return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
-    if(attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE &&
+       inDataType == &UA_TYPES[UA_TYPES_VARIANT]) {
         wValue.value.value = *(const UA_Variant*)in;
-    else
-        /* hack. is never written into. */
+        wValue.value.hasValue = true;
+    } else if(attributeId == UA_ATTRIBUTEID_VALUE &&
+              inDataType == &UA_TYPES[UA_TYPES_DATAVALUE]) {
+        wValue.value = *(const UA_DataValue*)in;
+    } else {
+        /* Hack to get rid of the const annotation.
+         * The value is never written into. */
         UA_Variant_setScalar(&wValue.value.value, (void*)(uintptr_t)in, inDataType);
-    wValue.value.hasValue = true;
+        wValue.value.hasValue = true;
+    }
     UA_WriteRequest wReq;
     UA_WriteRequest_init(&wReq);
     wReq.nodesToWrite = &wValue;
@@ -461,7 +466,7 @@ UA_Client_readArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeId
 /*********************/
 /* Historical Access */
 /*********************/
-#ifdef UA_ENABLE_HISTORIZING
+
 static UA_HistoryReadResponse
 __UA_Client_HistoryRead(UA_Client *client, const UA_NodeId *nodeId,
                         UA_ExtensionObject* details, UA_String indexRange,
@@ -508,7 +513,7 @@ __UA_Client_HistoryRead_service(UA_Client *client, const UA_NodeId *nodeId,
         UA_HistoryReadResponse response =
             __UA_Client_HistoryRead(client, nodeId, details, indexRange, timestampsToReturn, continuationPoint, cleanup);
 
-        if (cleanup) {
+        if(cleanup) {
             retval = response.responseHeader.serviceResult;
 cleanup:    UA_HistoryReadResponse_clear(&response);
             UA_ByteString_clear(&continuationPoint);
@@ -516,13 +521,13 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
         }
 
         retval = response.responseHeader.serviceResult;
-        if (retval == UA_STATUSCODE_GOOD) {
-            if (response.resultsSize == 1)
+        if(retval == UA_STATUSCODE_GOOD) {
+            if(response.resultsSize == 1)
                 retval = response.results[0].statusCode;
             else
                 retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
         }
-        if (!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
+        if(!UA_StatusCode_isEqualTop(retval,UA_STATUSCODE_GOOD))
             goto cleanup;
 
         UA_HistoryReadResult *res = response.results;
@@ -537,12 +542,11 @@ cleanup:    UA_HistoryReadResponse_clear(&response);
 
         /* Regular cleanup */
         UA_HistoryReadResponse_clear(&response);
-    } while (continuationAvail);
+    } while(continuationAvail);
 
     return retval;
 }
 
-#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode
 UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
                                 const UA_HistoricalIteratorCallback callback,
@@ -568,7 +572,6 @@ UA_Client_HistoryRead_events(UA_Client *client, const UA_NodeId *nodeId,
     return __UA_Client_HistoryRead_service(client, nodeId, callback, &detailsExtensionObject,
                                               indexRange, timestampsToReturn, callbackContext);
 }
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 static UA_StatusCode
 __UA_Client_HistoryRead_service_rawMod(UA_Client *client, const UA_NodeId *nodeId,
@@ -610,24 +613,19 @@ UA_Client_HistoryRead_raw(UA_Client *client, const UA_NodeId *nodeId,
                                                      numValuesPerNode, false, timestampsToReturn, callbackContext);
 }
 
-#ifdef UA_ENABLE_EXPERIMENTAL_HISTORIZING
 UA_StatusCode
 UA_Client_HistoryRead_modified(UA_Client *client, const UA_NodeId *nodeId,
                                   const UA_HistoricalIteratorCallback callback,
                                   UA_DateTime startTime, UA_DateTime endTime,
                                   UA_String indexRange, UA_Boolean returnBounds, UA_UInt32 maxItems,
                                   UA_TimestampsToReturn timestampsToReturn, void *callbackContext) {
-
-    return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime, endTime, indexRange, returnBounds,
-                                                     maxItems, true, timestampsToReturn, callbackContext);
+    return __UA_Client_HistoryRead_service_rawMod(client, nodeId, callback, startTime,
+                                                  endTime, indexRange, returnBounds, maxItems,
+                                                  true, timestampsToReturn, callbackContext);
 }
-#endif // UA_ENABLE_EXPERIMENTAL_HISTORIZING
 
 static UA_HistoryUpdateResponse
-__UA_Client_HistoryUpdate(UA_Client *client,
-                          void *details,
-                          size_t typeId)
-{
+__UA_Client_HistoryUpdate(UA_Client *client, void *details, size_t typeId) {
     UA_HistoryUpdateRequest request;
     UA_HistoryUpdateRequest_init(&request);
 
@@ -646,11 +644,8 @@ __UA_Client_HistoryUpdate(UA_Client *client,
 }
 
 static UA_StatusCode
-__UA_Client_HistoryUpdate_updateData(UA_Client *client,
-                          const UA_NodeId *nodeId,
-                          UA_PerformUpdateType type,
-                          UA_DataValue *value)
-{
+__UA_Client_HistoryUpdate_updateData(UA_Client *client, const UA_NodeId *nodeId,
+                                     UA_PerformUpdateType type, UA_DataValue *value) {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_UpdateDataDetails details;
     UA_UpdateDataDetails_init(&details);
@@ -662,15 +657,15 @@ __UA_Client_HistoryUpdate_updateData(UA_Client *client,
 
     UA_HistoryUpdateResponse response;
     response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_UPDATEDATADETAILS);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         ret = response.responseHeader.serviceResult;
         goto cleanup;
     }
-    if (response.resultsSize != 1 || response.results[0].operationResultsSize != 1) {
+    if(response.resultsSize != 1 || response.results[0].operationResultsSize != 1) {
         ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
         goto cleanup;
     }
-    if (response.results[0].statusCode != UA_STATUSCODE_GOOD) {
+    if(response.results[0].statusCode != UA_STATUSCODE_GOOD) {
         ret = response.results[0].statusCode;
         goto cleanup;
     }
@@ -682,61 +677,47 @@ cleanup:
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_insert(UA_Client *client,
-                               const UA_NodeId *nodeId,
-                               UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
+UA_Client_HistoryUpdate_insert(UA_Client *client, const UA_NodeId *nodeId,
+                               UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
                                                 UA_PERFORMUPDATETYPE_INSERT,
                                                 value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_replace(UA_Client *client,
-                                const UA_NodeId *nodeId,
-                                UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
+UA_Client_HistoryUpdate_replace(UA_Client *client, const UA_NodeId *nodeId,
+                                UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
                                                 UA_PERFORMUPDATETYPE_REPLACE,
                                                 value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_update(UA_Client *client,
-                               const UA_NodeId *nodeId,
-                               UA_DataValue *value)
-{
-    return __UA_Client_HistoryUpdate_updateData(client,
-                                                nodeId,
+UA_Client_HistoryUpdate_update(UA_Client *client, const UA_NodeId *nodeId,
+                               UA_DataValue *value) {
+    return __UA_Client_HistoryUpdate_updateData(client, nodeId,
                                                 UA_PERFORMUPDATETYPE_UPDATE,
                                                 value);
 }
 
 UA_StatusCode
-UA_Client_HistoryUpdate_deleteRaw(UA_Client *client,
-                                  const UA_NodeId *nodeId,
-                                  UA_DateTime startTimestamp,
-                                  UA_DateTime endTimestamp)
-{
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-
+UA_Client_HistoryUpdate_deleteRaw(UA_Client *client, const UA_NodeId *nodeId,
+                                  UA_DateTime startTimestamp, UA_DateTime endTimestamp) {
     UA_DeleteRawModifiedDetails details;
     UA_DeleteRawModifiedDetails_init(&details);
-
     details.isDeleteModified = false;
     details.startTime = startTimestamp;
     details.endTime = endTimestamp;
     UA_NodeId_copy(nodeId, &details.nodeId);
 
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_HistoryUpdateResponse response;
     response = __UA_Client_HistoryUpdate(client, &details, UA_TYPES_DELETERAWMODIFIEDDETAILS);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         ret = response.responseHeader.serviceResult;
         goto cleanup;
     }
-    if (response.resultsSize != 1) {
+    if(response.resultsSize != 1) {
         ret = UA_STATUSCODE_BADUNEXPECTEDERROR;
         goto cleanup;
     }
@@ -748,25 +729,24 @@ cleanup:
     UA_NodeId_clear(&details.nodeId);
     return ret;
 }
-#endif // UA_ENABLE_HISTORIZING
 
 /*******************/
 /* Async Functions */
 /*******************/
 
-/*Write Attributes*/
-UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
-        const UA_NodeId *nodeId, UA_AttributeId attributeId, const void *in,
-        const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
-    if (!in)
+UA_StatusCode
+__UA_Client_writeAttribute_async(UA_Client *client, const UA_NodeId *nodeId,
+                                 UA_AttributeId attributeId, const void *in,
+                                 const UA_DataType *inDataType, UA_ClientAsyncServiceCallback callback,
+                                 void *userdata, UA_UInt32 *reqId) {
+    if(!in)
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
     wValue.nodeId = *nodeId;
     wValue.attributeId = attributeId;
-    if (attributeId == UA_ATTRIBUTEID_VALUE)
+    if(attributeId == UA_ATTRIBUTEID_VALUE)
         wValue.value.value = *(const UA_Variant*) in;
     else
         /* hack. is never written into. */
@@ -783,16 +763,14 @@ UA_StatusCode __UA_Client_writeAttribute_async(UA_Client *client,
             &UA_TYPES[UA_TYPES_WRITERESPONSE], userdata, reqId);
 }
 
-/*Node Management*/
-
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
-        const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
-        const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
-        const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
-        const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
-        UA_ClientAsyncServiceCallback callback, void *userdata,
-        UA_UInt32 *reqId) {
+                          const UA_NodeId requestedNewNodeId, const UA_NodeId parentNodeId,
+                          const UA_NodeId referenceTypeId, const UA_QualifiedName browseName,
+                          const UA_NodeId typeDefinition, const UA_NodeAttributes *attr,
+                          const UA_DataType *attributeType, UA_NodeId *outNewNodeId,
+                          UA_ClientAsyncServiceCallback callback, void *userdata,
+                          UA_UInt32 *reqId) {
     UA_AddNodesRequest request;
     UA_AddNodesRequest_init(&request);
     UA_AddNodesItem item;
@@ -815,13 +793,11 @@ __UA_Client_addNode_async(UA_Client *client, const UA_NodeClass nodeClass,
 
 }
 
-/* Misc Highlevel Functions */
-#ifdef UA_ENABLE_METHODCALLS
-UA_StatusCode __UA_Client_call_async(UA_Client *client,
-        const UA_NodeId objectId, const UA_NodeId methodId, size_t inputSize,
-        const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
-        void *userdata, UA_UInt32 *reqId) {
-
+UA_StatusCode
+__UA_Client_call_async(UA_Client *client, const UA_NodeId objectId,
+                       const UA_NodeId methodId, size_t inputSize,
+                       const UA_Variant *input, UA_ClientAsyncServiceCallback callback,
+                       void *userdata, UA_UInt32 *reqId) {
     UA_CallRequest request;
     UA_CallRequest_init(&request);
     UA_CallMethodRequest item;
@@ -837,7 +813,6 @@ UA_StatusCode __UA_Client_call_async(UA_Client *client,
             &UA_TYPES[UA_TYPES_CALLREQUEST], callback,
             &UA_TYPES[UA_TYPES_CALLRESPONSE], userdata, reqId);
 }
-#endif
 
 /* UA_StatusCode */
 /* UA_Cient_translateBrowsePathsToNodeIds_async(UA_Client *client, char **paths, */
@@ -862,7 +837,7 @@ static void
 AttributeReadCallback(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, UA_ReadResponse *rr) {
     UA_AttributeReadContext *ctx = (UA_AttributeReadContext*)userdata;
-    UA_LOG_DEBUG(&UA_Client_getConfig(client)->logger, UA_LOGCATEGORY_CLIENT,
+    UA_LOG_DEBUG(UA_Client_getConfig(client)->logging, UA_LOGCATEGORY_CLIENT,
                 "Async read response for request %" PRIu32, requestId);
 
     UA_DataValue *dv = NULL;
@@ -1126,6 +1101,16 @@ UA_Client_readAccessLevelAttribute_async(UA_Client *client, const UA_NodeId node
                                          void *userdata, UA_UInt32 *requestId) {
     return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                                      &UA_TYPES[UA_TYPES_BYTE],
+                                     (UA_ClientAsyncOperationCallback)callback,
+                                     userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_readAccessLevelExAttribute_async(UA_Client *client, const UA_NodeId nodeId,
+                                           UA_ClientAsyncReadAccessLevelExAttributeCallback callback,
+                                           void *userdata, UA_UInt32 *requestId) {
+    return readAttribute_simpleAsync(client, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
+                                     &UA_TYPES[UA_TYPES_UINT32],
                                      (UA_ClientAsyncOperationCallback)callback,
                                      userdata, requestId);
 }

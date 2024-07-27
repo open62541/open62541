@@ -20,7 +20,7 @@ remove_keyword = [" UA_EXPORT", " UA_FUNC_ATTR_WARN_UNUSED_RESULT",
                   " UA_FUNC_ATTR_MALLOC", " UA_RESTRICT "]
 
 def clean_comment(line):
-    m = re.search("^\s*(\* |/\*\* )(.*?)( \*/)?$", line)
+    m = re.search(r"^\s*(\* |/\*\* )(.*?)( \*/)?$", line)
     if not m:
         return "\n"
     return m.group(2) + "\n"
@@ -31,13 +31,13 @@ def clean_line(line):
     return line
 
 def comment_start(line):
-    m = re.search("^\s*/\*\*[ \n]", line)
+    m = re.search("^\\s*/\\*\\*[ \n]", line)
     if not m:
         return False
     return True
 
 def comment_end(line):
-    m = re.search(" \*/$", line)
+    m = re.search(r" \*/$", line)
     if not m:
         return False
     return True
@@ -53,6 +53,8 @@ def last_line(c):
     "Searches for the latest ifdef (closing the include guard)"
     reg = re.compile("^#ifdef")
     for i in range(len(c)-1,1,-1):
+        if "stop-doc-generation" in c[i]:
+            return i
         if "_UA_END_DECLS" in c[i]:
             reg = re.compile("^_UA_END_DECLS")
     last = 1

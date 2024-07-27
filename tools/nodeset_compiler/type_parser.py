@@ -1,4 +1,5 @@
 import abc
+import codecs
 import csv
 import json
 import xml.etree.ElementTree as etree
@@ -6,14 +7,12 @@ import copy
 import re
 from collections import OrderedDict
 import sys
+import xml.dom.minidom as dom
 
-if sys.version_info[0] >= 3:
-    try:
-        from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-    except ImportError:
-        from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
-else:
+try:
     from opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
+except ImportError:
+    from nodeset_compiler.opaque_type_mapping import get_base_type_for_opaque as get_base_type_for_opaque_ns0
 
 builtin_types = ["Boolean", "SByte", "Byte", "Int16", "UInt16", "Int32", "UInt32",
                  "Int64", "UInt64", "Float", "Double", "String", "DateTime", "Guid",
@@ -68,7 +67,7 @@ def get_type_for_name(xml_type_name, types, xmlNamespaces):
     return types[resultNs][member_type_name]
 
 
-class Type(object):
+class Type:
     def __init__(self, outname, xml, namespaceUri):
         self.name = None
         if xml is not None:
@@ -106,7 +105,7 @@ class EnumerationType(Type):
         except ValueError as ex:
             raise Exception("Error at EnumerationType '" + self.name + "': 'LengthInBits' XML attribute '" +
                 xml.get("LengthInBits") + "' is not convertible to integer. " +
-                "Exception: {0}".format(ex));
+                f"Exception: {ex}")
 
         # default values for enumerations (encoded as int32):
         self.strDataType = "UA_Int32"
@@ -133,7 +132,7 @@ class EnumerationType(Type):
                 self.strTypeIndex = "UA_TYPES_UINT64"
             else:
                 raise Exception("Error at EnumerationType() CTOR '" + self.name + "': 'LengthInBits' value '" +
-                    self.lengthInBits + "' is not supported");
+                    self.lengthInBits + "' is not supported")
 
         for child in xml:
             if child.tag == "{http://opcfoundation.org/BinarySchema/}EnumeratedValue":
@@ -146,7 +145,7 @@ class OpaqueType(Type):
         self.base_type = base_type
 
 
-class StructMember(object):
+class StructMember:
     def __init__(self, name, member_type, is_array, is_optional):
         self.name = name
         self.member_type = member_type
@@ -385,12 +384,13 @@ class TypeParser():
 
 class CSVBSDTypeParser(TypeParser):
     def __init__(self, opaque_map, selected_types, no_builtin, outname,
-                 existing_bsd, type_bsd, type_csv, namespaceIndexMap):
+                 existing_bsd, type_bsd, type_csv, type_xml, namespaceIndexMap):
         TypeParser.__init__(self, opaque_map, selected_types, no_builtin, outname, namespaceIndexMap)
         self.existing_bsd = existing_bsd # bsd files with existing types that shall not be printed again
         self.existing_types_array = set() # existing TYPE_ARRAY from existing_bsd
         self.type_bsd = type_bsd # bsd files with new types
         self.type_csv = type_csv # csv files with nodeids, etc.
+        self.type_xml = type_xml # xml files with symbolicNames etc.
         self.existing_types = [] # existing types that shall not be printed
 
     def parse_types(self):
@@ -418,11 +418,40 @@ class CSVBSDTypeParser(TypeParser):
         for f in self.type_bsd:
             self.parseTypeDefinitions(self.outname, f)
 
+        # create a lookup table with symbolicNames
+        table = {}
+        for f in self.type_xml:
+            table = self.createSymbolicNameTable(f)
+
         # extend the type definitions with nodeids, etc. from the csv file
         for f in self.type_csv:
-            self.parseTypeDescriptions(f)
+            self.parseTypeDescriptions(f, table)
 
-    def parseTypeDescriptions(self, f):
+    def createSymbolicNameTable(self, f):
+        table = {}
+        nodeset_base = open(f.name, "rb")
+        fileContent = nodeset_base.read()
+        # Remove BOM since the dom parser cannot handle it on python 3 windows
+        if fileContent.startswith(codecs.BOM_UTF8):
+            fileContent = fileContent.lstrip(codecs.BOM_UTF8)
+        fileContent = fileContent.decode("utf-8")
+
+        # Remove the uax namespace from tags. UaModeler adds this namespace to some elements
+        fileContent = re.sub(r"<([/]?)uax:(.+?)([/]?)>", "<\\g<1>\\g<2>\\g<3>>", fileContent)
+
+        nodesets = dom.parseString(fileContent).getElementsByTagName("UANodeSet")
+        if len(nodesets) == 0 or len(nodesets) > 1:
+            raise Exception("contains no or more then 1 nodeset")
+        nodeset = nodesets[0]
+        dataTypeNodes = nodeset.getElementsByTagName("UADataType")
+        for nd in dataTypeNodes:
+            if nd.hasAttribute("SymbolicName"):
+                # Remove any digit and the colon
+                result_string = re.sub(r'\d|:', '', nd.attributes["BrowseName"].nodeValue)
+                table[nd.attributes["SymbolicName"].nodeValue] = result_string
+        return table
+
+    def parseTypeDescriptions(self, f, table):
         csvreader = csv.reader(f, delimiter=',')
         for row in csvreader:
             if len(row) < 3:
@@ -449,6 +478,9 @@ class CSVBSDTypeParser(TypeParser):
                 typeName = "ExtensionObject"
             if typeName in rename_types:
                 typeName = rename_types[typeName]
+            # check if typeName is a symbolicName and replace it with the browseName
+            if typeName in table:
+                typeName = table[typeName]
             for ns in self.types:
                 if typeName in self.types[ns]:
                     self.types[ns][typeName].nodeId = row[1]

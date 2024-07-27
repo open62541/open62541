@@ -14,6 +14,7 @@
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include "test_helpers.h"
 #include "testing_clock.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
@@ -89,7 +90,7 @@ addTestWriterGroup(UA_String securitygroupId){
     writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retval |= UA_Server_addWriterGroup(server, connection, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    UA_Server_enableWriterGroup(server, writerGroup);
 }
 
 static void
@@ -110,7 +111,7 @@ addTestReaderGroup(UA_String securitygroupId){
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
     retVal |=  UA_Server_addReaderGroup(server, connection, &readerGroupConfig, &readerGroup);
-    UA_Server_setReaderGroupOperational(server, readerGroup);
+    UA_Server_enableReaderGroup(server, readerGroup);
 }
 
 static UA_PubSubKeyStorage*
@@ -180,17 +181,16 @@ hexstr_to_char(const char *hexstr) {
 
 static void
 setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     SecurityGroupId = UA_STRING("TestSecurityGroup");
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setDefault(config);
 
+    UA_ServerConfig *config = &server->config;
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     UA_Server_run_startup(server);
     //add 2 connections

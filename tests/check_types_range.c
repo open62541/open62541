@@ -3,11 +3,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 
 #include "ua_server_internal.h"
 
-#include "check.h"
+#include <stdlib.h>
+#include <check.h>
 
 START_TEST(parseRange) {
     UA_NumericRange range;

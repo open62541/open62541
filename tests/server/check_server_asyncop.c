@@ -10,10 +10,13 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel_async.h>
 #include <open62541/plugin/log_stdout.h>
+
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Boolean running;
 THREAD_HANDLE server_thread;
@@ -22,11 +25,11 @@ static size_t clientCounter;
 
 static UA_StatusCode
 methodCallback(UA_Server *serverArg,
-         const UA_NodeId *sessionId, void *sessionHandle,
-         const UA_NodeId *methodId, void *methodContext,
-         const UA_NodeId *objectId, void *objectContext,
-         size_t inputSize, const UA_Variant *input,
-         size_t outputSize, UA_Variant *output) {
+               const UA_NodeId *sessionId, void *sessionHandle,
+               const UA_NodeId *methodId, void *methodContext,
+               const UA_NodeId *objectId, void *objectContext,
+               size_t inputSize, const UA_Variant *input,
+               size_t outputSize, UA_Variant *output) {
     return UA_STATUSCODE_GOOD;
 }
 
@@ -46,10 +49,9 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     clientCounter = 0;
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->asyncOperationTimeout = 2000.0; /* 2 seconds */
 
     UA_MethodAttributes methodAttr = UA_MethodAttributes_default;
@@ -89,10 +91,7 @@ static void teardown(void) {
 }
 
 START_TEST(Async_call) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -152,10 +151,7 @@ START_TEST(Async_call) {
 } END_TEST
 
 START_TEST(Async_timeout) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -197,12 +193,71 @@ START_TEST(Async_timeout) {
     UA_Client_delete(client);
 } END_TEST
 
+START_TEST(Async_cancel) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Call async method, then the sync method.
+     * The sync method returns first. */
+    UA_UInt32 reqId = 0;
+    retval = UA_Client_call_async(client,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_STRING(1, "asyncMethod"),
+                                  0, NULL, clientReceiveCallback, NULL, &reqId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Cancel the request */
+    UA_UInt32 cancelCount = 0;
+    UA_Client_cancelByRequestId(client, reqId, &cancelCount);
+    ck_assert_uint_eq(cancelCount, 1);
+
+    /* We expect to receive the cancelled response */
+    UA_Client_run_iterate(client, 0);
+    ck_assert_uint_eq(clientCounter, 1);
+
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
+START_TEST(Async_cancel_multiple) {
+    UA_Client *client = UA_Client_newForUnitTest();
+    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_CallRequest creq;
+    UA_CallRequest_init(&creq);
+    creq.requestHeader.requestHandle = 1337;
+    UA_CallMethodRequest cmr;
+    UA_CallMethodRequest_init(&cmr);
+    cmr.objectId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    cmr.methodId = UA_NODEID_STRING(1, "asyncMethod");
+    creq.methodsToCall = &cmr;
+    creq.methodsToCallSize = 1;
+
+    __UA_Client_AsyncService(client,
+                             &creq, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                             NULL, &UA_TYPES[UA_TYPES_CALLRESPONSE],
+                             NULL, NULL);
+
+    __UA_Client_AsyncService(client,
+                             &creq, &UA_TYPES[UA_TYPES_CALLREQUEST],
+                             NULL, &UA_TYPES[UA_TYPES_CALLRESPONSE],
+                             NULL, NULL);
+
+    /* Expect two cancelled requests */
+    UA_UInt32 cancelCount = 0;
+    UA_Client_cancelByRequestHandle(client, 1337, &cancelCount);
+    ck_assert_uint_eq(cancelCount, 2);
+
+    UA_Client_run_iterate(client, 0);
+    UA_Client_disconnect(client);
+    UA_Client_delete(client);
+} END_TEST
+
 /* Force a timeout when the operation is checked out with the worker */
 START_TEST(Async_timeout_worker) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(clientConfig);
-
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -254,6 +309,8 @@ static Suite* method_async_suite(void) {
     tcase_add_checked_fixture(tc_manager, setup, teardown);
     tcase_add_test(tc_manager, Async_call);
     tcase_add_test(tc_manager, Async_timeout);
+    tcase_add_test(tc_manager, Async_cancel);
+    tcase_add_test(tc_manager, Async_cancel_multiple);
     tcase_add_test(tc_manager, Async_timeout_worker);
     suite_add_tcase(s, tc_manager);
 

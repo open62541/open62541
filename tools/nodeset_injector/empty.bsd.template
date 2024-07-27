@@ -1,0 +1,3 @@
+<opc:TypeDictionary xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:tns="${TMP_NSURI}" DefaultByteOrder="LittleEndian" xmlns:opc="http://opcfoundation.org/BinarySchema/" xmlns:ua="http://opcfoundation.org/UA/" TargetNamespace="${TMP_NSURI}">
+    <opc:Import Namespace="http://opcfoundation.org/UA/"/>
+</opc:TypeDictionary>

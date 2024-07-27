@@ -6,6 +6,8 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
+#include <stdlib.h>
+
 /**
  * The PubSub connection example demonstrate the PubSub TransportLayer configuration and
  * the dynamic creation of PubSub Connections on runtime.
@@ -28,8 +30,8 @@ int main(void) {
         {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     /* Connection options are given as Key/Value Pairs. The available options are
      * maybe standard or vendor defined. */
     UA_KeyValuePair connectionOptions[3];

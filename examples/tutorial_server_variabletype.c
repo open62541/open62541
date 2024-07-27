@@ -38,8 +38,7 @@ addVariableType2DPoint(UA_Server *server) {
     UA_Variant_setArray(&vtAttr.value, zero, 2, &UA_TYPES[UA_TYPES_DOUBLE]);
 
     UA_Server_addVariableTypeNode(server, UA_NODEID_NULL,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE), UA_NS0ID(HASSUBTYPE),
                                   UA_QUALIFIEDNAME(1, "2DPoint Type"), UA_NODEID_NULL,
                                   vtAttr, NULL, &pointTypeId);
 }
@@ -67,8 +66,7 @@ addVariable(UA_Server *server) {
 
     /* Add the node */
     UA_Server_addVariableNode(server, UA_NODEID_NULL,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "2DPoint Type"), pointTypeId,
                               vAttr, NULL, &pointVariableId);
 }
@@ -84,15 +82,15 @@ addVariableFail(UA_Server *server) {
     /* Prepare the node attributes */
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
     vAttr.dataType = UA_TYPES[UA_TYPES_DOUBLE].typeId;
-    vAttr.valueRank = UA_VALUERANK_SCALAR; /* a scalar. this is not allowed per the variable type */
+    vAttr.valueRank = UA_VALUERANK_SCALAR; /* a scalar. this is not allowed per
+                                            * the variable type */
     vAttr.displayName = UA_LOCALIZEDTEXT("en-US", "2DPoint Variable (fail)");
     UA_String s = UA_STRING("2dpoint?");
     UA_Variant_setScalar(&vAttr.value, &s, &UA_TYPES[UA_TYPES_STRING]);
 
     /* Add the node will return UA_STATUSCODE_BADTYPEMISMATCH*/
     UA_Server_addVariableNode(server, UA_NODEID_NULL,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                               UA_QUALIFIEDNAME(1, "2DPoint Type (fail)"), pointTypeId,
                               vAttr, NULL, NULL);
 }
@@ -116,14 +114,11 @@ writeVariable(UA_Server *server) {
 
 int main(void) {
     UA_Server *server = UA_Server_new();
-
     addVariableType2DPoint(server);
     addVariable(server);
     addVariableFail(server);
     writeVariable(server);
-
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

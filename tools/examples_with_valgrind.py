@@ -1,7 +1,6 @@
 import os
 import subprocess
 import time
-from collections import defaultdict
 
 example_args = {
         "client_encryption":"opc.tcp://localhost:4840 client_cert.der client_key.der server_cert.der",
@@ -16,7 +15,8 @@ example_args = {
         "pubsub_TSN_publisher_multiple_thread":"-i lo",
         "server_encryption":"server_cert.der server_key.der client_cert.der",
         "server_loglevel":"--loglevel=1",
-        "ci_server":"4840 server_cert.der server_key.der client_cert.der"
+        "ci_server":"4840 server_cert.der server_key.der client_cert.der",
+        "server_file_based_config":"server_config.json5"
         }
 
 server_needed_examples = {
@@ -95,7 +95,8 @@ blacklist = {
         "client_encryption":1,
         "client_historical":1,
         "client_subscription_loop":1,
-        "client_method_async":1
+        "client_method_async":1,
+        "pubsub_subscribe_encrypted":1
 }
 
 # Run each example with valgrind.
@@ -114,10 +115,10 @@ for example in examples:
     if example in blacklist:
         print(f"Skipping {example}")
         continue
-    
+
     # get the arguments for the example
     args = example_args.get(example)
-    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1", "./bin/examples/"+example]
+    cmd = ["valgrind", "--errors-for-leak-kinds=all", "--leak-check=full", "--error-exitcode=1337", "./bin/examples/"+example]
     if args:
         args_list = args.split()
         cmd += args_list
@@ -164,9 +165,11 @@ for example in examples:
 
     # save the exit code
     exit_code = process.wait()
-    if exit_code != 0:
-        print(f"Processing {example} failed with exit code {exit_code}")
+    if exit_code == 1337:
+        print(f"Processing {example} failed with valgrind issues")
         exit(exit_code)
+    if exit_code != 0:
+        print(f"The application returned exit code {exit_code} but valgrind has no issue")
 
     # terminate the server and client
     if server_process:

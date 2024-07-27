@@ -2,6 +2,7 @@
 #define OPEN62541_MT_TESTING_H
 
 #include <open62541/server_config_default.h>
+#include "test_helpers.h"
 
 typedef struct {
     void (*func)(void *param); //function to execute
@@ -58,7 +59,7 @@ THREAD_CALLBACK_PARAM(workerLoop, val) {
 
 THREAD_CALLBACK_PARAM(clientLoop, val) {
     ThreadContext tmp = (*(ThreadContext *) val);
-    tc.clients[tmp.index] = UA_Client_new();
+    tc.clients[tmp.index] = UA_Client_newForUnitTest();
     UA_ClientConfig_setDefault(UA_Client_getConfig(tc.clients[tmp.index]));
     UA_StatusCode retval = UA_Client_connect(tc.clients[tmp.index], "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

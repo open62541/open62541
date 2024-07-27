@@ -11,6 +11,7 @@
 
 #include "server/ua_server_internal.h"
 #include "server/ua_services.h"
+#include "test_helpers.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,9 +33,8 @@ methodCallback(UA_Server *serverArg,
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_MethodAttributes noFpAttr = UA_MethodAttributes_default;
     noFpAttr.description = UA_LOCALIZEDTEXT("en-US","No function pointer attached");

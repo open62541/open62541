@@ -8,8 +8,11 @@
 #include <open62541/types.h>
 
 #include "check.h"
+#include <limits.h>
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "unistd.h"
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 UA_UInt16 testNamespaceIndex = (UA_UInt16) -1;
@@ -39,9 +42,8 @@ typedef struct {
 } UA_Point;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 
@@ -61,9 +63,9 @@ START_TEST(Server_loadTestNodeset) {
     UA_StatusCode retVal = UA_Server_loadNodeset(server,
         OPEN62541_TESTNODESET_DIR "testnodeset.xml", NULL);
     ck_assert(UA_StatusCode_isGood(retVal));
-    size_t nsIndex = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
-    ck_assert(nsIndex != (size_t)-1);
+    size_t nsIndex = LONG_MAX;
+    retVal = UA_Server_getNamespaceByName(server, UA_STRING("http://yourorganisation.org/test/"), &nsIndex);
+    ck_assert_uint_eq(retVal, UA_STATUSCODE_GOOD);
     testNamespaceIndex = (UA_UInt16) nsIndex;
 }
 END_TEST
@@ -142,7 +144,7 @@ START_TEST(readValueRank) {
     UA_Variant dims;
     // scalar
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
-    ck_assert_int_eq(rank, -2);
+    ck_assert_int_eq(rank, -1);
     UA_Variant_init(&dims);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
     ck_assert_uint_eq(dims.arrayLength, 0);
@@ -192,22 +194,20 @@ START_TEST(checkFrameValues) {
 }
 END_TEST
 
-/* TODO: Enable successful execution
- *       of this test case. */
-// START_TEST(checkInputArguments) {
-//     UA_Variant out;
-//     UA_Variant_init(&out);
-//     // Check argument
-//     UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6020), &out);
-//     ck_assert(status == UA_STATUSCODE_GOOD);
-//     ck_assert(out.type == &UA_TYPES[UA_TYPES_ARGUMENT]);
-//     UA_Argument *p = (UA_Argument *)out.data;
-//     ck_assert(p->dataType.identifierType == UA_NODEIDTYPE_NUMERIC);
-//     ck_assert(p->dataType.identifier.numeric == (UA_UInt32) 3006);
-//     ck_assert(p->dataType.namespaceIndex == (UA_UInt16) testNamespaceIndex);
-//     UA_Variant_clear(&out);
-// }
-// END_TEST
+START_TEST(checkInputArguments) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    // Check argument
+    UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6020), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_ARGUMENT]);
+    UA_Argument *p = (UA_Argument *)out.data;
+    ck_assert(p->dataType.identifierType == UA_NODEIDTYPE_NUMERIC);
+    ck_assert(p->dataType.identifier.numeric == (UA_UInt32) 3006);
+    ck_assert(p->dataType.namespaceIndex == (UA_UInt16) testNamespaceIndex);
+    UA_Variant_clear(&out);
+}
+END_TEST
 
 START_TEST(checkGuid) {
     UA_Variant out;
@@ -234,26 +234,24 @@ START_TEST(checkGuid) {
 }
 END_TEST
 
-/* TODO: Enable successful execution
- *       of this test case. */
-// START_TEST(checkDataSetMetaData) {
-//     UA_Variant out;
-//     UA_Variant_init(&out);
-//     UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6021), &out);
-//     ck_assert(status == UA_STATUSCODE_GOOD);
-//     ck_assert(out.type == &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
-//     UA_DataSetMetaDataType *p = (UA_DataSetMetaDataType *)out.data;
-//     UA_String dataSetName = UA_STRING("DataSetName");
-//     ck_assert(UA_String_equal(&p->name, &dataSetName) == UA_TRUE);
-//     ck_assert(p->fieldsSize == 1);
-//     UA_String fieldName = UA_STRING("FieldName");
-//     ck_assert(UA_String_equal(&p->fields[0].name, &fieldName) == UA_TRUE);
-//     UA_Guid guid = UA_GUID("10000000-2000-3000-4000-500000000000");
-//     ck_assert(UA_Guid_equal(&p->dataSetClassId, &guid) == UA_TRUE);
+START_TEST(checkDataSetMetaData) {
+    UA_Variant out;
+    UA_Variant_init(&out);
+    UA_StatusCode status = UA_Server_readValue(server, UA_NODEID_NUMERIC(testNamespaceIndex, 6021), &out);
+    ck_assert(status == UA_STATUSCODE_GOOD);
+    ck_assert(out.type == &UA_TYPES[UA_TYPES_DATASETMETADATATYPE]);
+    UA_DataSetMetaDataType *p = (UA_DataSetMetaDataType *)out.data;
+    UA_String dataSetName = UA_STRING("DataSetName");
+    ck_assert(UA_String_equal(&p->name, &dataSetName) == UA_TRUE);
+    ck_assert(p->fieldsSize == 1);
+    UA_String fieldName = UA_STRING("FieldName");
+    ck_assert(UA_String_equal(&p->fields[0].name, &fieldName) == UA_TRUE);
+    UA_Guid guid = UA_GUID("10000000-2000-3000-4000-500000000000");
+    ck_assert(UA_Guid_equal(&p->dataSetClassId, &guid) == UA_TRUE);
 
-//     UA_Variant_clear(&out);
-// }
-// END_TEST
+    UA_Variant_clear(&out);
+}
+END_TEST
 
 static Suite *testSuite_Client(void) {
     Suite *s = suite_create("Server Nodeset Compiler");

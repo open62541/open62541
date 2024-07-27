@@ -36,10 +36,6 @@ endif()
 # Required for common.h header file used in examples
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
-if(UA_ENABLE_AMALGAMATION)
-    add_definitions(-DUA_ENABLE_AMALGAMATION)
-endif()
-
 #############################
 # Compiled binaries folders #
 #############################
@@ -105,20 +101,20 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   add_example(tutorial_server_events tutorial_server_events.c)
   add_example(server_events_random events/server_random_events.c)
   add_example(client_event_filter events/client_eventfilter.c)
+  if(UA_ENABLE_PARSING)
+      add_example(client_event_filter_queries events/client_filter_queries.c)
+      file(STRINGS ${PROJECT_SOURCE_DIR}/events/example_queries/case_1.txt CASE_1 NEWLINE_CONSUME)
+      file(STRINGS ${PROJECT_SOURCE_DIR}/events/example_queries/case_2.txt CASE_2 NEWLINE_CONSUME)
+      STRING(REGEX REPLACE "\n" " " CASE_1 ${CASE_1})
+      STRING(REGEX REPLACE "\"" "\\\\\"" CASE_1 "${CASE_1}")
+      STRING(REGEX REPLACE "\n" " " CASE_2 ${CASE_2})
+      STRING(REGEX REPLACE "\"" "\\\\\"" CASE_2 "${CASE_2}")
+      configure_file(${PROJECT_SOURCE_DIR}/events/eventfilter_parser_examples.h.in ${PROJECT_BINARY_DIR}/../src_generated/open62541/eventfilter_parser_examples.h @ONLY)
+  endif()
   if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
   endif()
 endif()
-
-##################
-# Example Server #
-##################
-
-add_example(server_ctt server_ctt.c)
-
-install(PROGRAMS $<TARGET_FILE:server_ctt>
-        DESTINATION bin
-        RENAME ua_server_ctt.exe)
 
 ##################
 # Example Client #
@@ -165,6 +161,10 @@ add_example(server_repeated_job server_repeated_job.c)
 add_example(server_inheritance server_inheritance.c)
 
 add_example(server_loglevel server_loglevel.c)
+
+if(UA_ENABLE_JSON_ENCODING)
+    add_example(server_file_based_config file_based_server/server_file_based_config.c)
+endif()
 
 if(UA_ENABLE_HISTORIZING)
     add_example(tutorial_server_historicaldata tutorial_server_historicaldata.c)
@@ -217,37 +217,18 @@ if(UA_ENABLE_PUBSUB)
     add_example(tutorial_pubsub_publish pubsub/tutorial_pubsub_publish.c)
     add_example(server_pubsub_publish_on_demand pubsub/server_pubsub_publisher_on_demand.c)
     add_example(server_pubsub_publisher_iop pubsub/server_pubsub_publisher_iop.c)
-    add_example(server_pubsub_publish_rt_level pubsub/server_pubsub_publisher_rt_level.c)
-    add_example(server_pubsub_rt_information_model pubsub/server_pubsub_rt_field_information_model.c)
-    if(CMAKE_SYSTEM MATCHES "Linux")
-        if(UA_ENABLE_PUBSUB_ETH_UADP AND UA_ENABLE_MALLOC_SINGLETON AND UA_ENABLE_IMMUTABLE_NODES)
-            add_example(rt_publisher pubsub_realtime/pubsub_interrupt_publish.c)
-            target_link_libraries(rt_publisher rt)
-        endif()
+    if(NOT WIN32)
+        add_example(server_pubsub_publish_rt_level pubsub_realtime/server_pubsub_publisher_rt_level.c)
+        add_example(server_pubsub_subscribe_rt_level pubsub_realtime/server_pubsub_subscriber_rt_level.c)
+        add_example(server_pubsub_rt_information_model pubsub_realtime/server_pubsub_rt_field_information_model.c)
     endif()
-    add_example(server_pubsub_subscribe_rt_level pubsub/server_pubsub_subscriber_rt_level.c)
     add_example(tutorial_pubsub_subscribe pubsub/tutorial_pubsub_subscribe.c)
     if (BUILD_SHARED_LIBS)
         message(WARNING "Build option BUILD_SHARED_LIBS not supported for standalone subscriber and realtime examples. Skipping these examples.")
     else (NOT BUILD_SHARED_LIBS)
         add_example(pubsub_subscribe_standalone_dataset pubsub/pubsub_subscribe_standalone_dataset.c)
-
-        # TODO: The TSN examples need to be reworked for the EventLoop model
-        # if(CMAKE_SYSTEM MATCHES "Linux")
-        #     add_example(pubsub_TSN_publisher_multiple_thread pubsub_realtime/pubsub_TSN_publisher_multiple_thread.c)
-        #     add_example(pubsub_TSN_loopback_single_thread pubsub_realtime/pubsub_TSN_loopback_single_thread.c)
-        #     target_link_libraries(pubsub_TSN_publisher_multiple_thread rt pthread)
-        #     target_link_libraries(pubsub_TSN_loopback_single_thread rt pthread)
-        #     if(UA_ENABLE_PUBSUB_ETH_UADP)
-        #         add_subdirectory(pubsub_realtime/nodeset)
-        #         add_example(pubsub_TSN_publisher pubsub_realtime/pubsub_TSN_publisher.c)
-        #         add_example(pubsub_TSN_loopback pubsub_realtime/pubsub_TSN_loopback.c)
-        #         target_link_libraries(pubsub_TSN_publisher rt pthread)
-        #         target_link_libraries(pubsub_TSN_loopback rt pthread)
-        #     endif()
-        # endif()
     endif()
-    if(UA_ENABLE_PUBSUB_ENCRYPTION)
+    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
         add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
         if(UA_ENABLE_TPM2_SECURITY)
@@ -261,7 +242,7 @@ if(UA_ENABLE_PUBSUB)
             target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
         endif()
         if(UA_ENABLE_PUBSUB_SKS)
-        add_subdirectory(pubsub/sks)
+            add_subdirectory(pubsub/sks)
         endif()
     endif()
 
@@ -275,11 +256,7 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     if(UA_ENABLE_PUBSUB_MONITORING)
-        if(CMAKE_SYSTEM MATCHES "Linux")
-            add_example(server_pubsub_subscribe_custom_monitoring pubsub/monitoring/server_pubsub_subscribe_custom_monitoring.c)
-        else(NOT (CMAKE_SYSTEM MATCHES "Linux"))
-            message(WARNING "PubSub subscriber monitoring example build needs LINUX OS. Skip build.")
-        endif()
+        add_example(server_pubsub_subscribe_custom_monitoring pubsub/server_pubsub_subscribe_custom_monitoring.c)
     endif()
 endif()
 

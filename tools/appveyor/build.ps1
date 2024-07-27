@@ -37,7 +37,6 @@ try {
             -DUA_ENABLE_DA:BOOL=ON `
             -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
             -DUA_ENABLE_PUBSUB:BOOL=ON `
-            -DUA_ENABLE_PUBSUB_DELTAFRAMES:BOOL=ON `
             -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
             -DUA_ENABLE_SUBSCRIPTIONS_EVENTS:BOOL=ON `
             -DUA_ENABLE_MQTT:BOOL=ON `
@@ -51,7 +50,7 @@ try {
     Remove-Item -Path build -Recurse -Force
 
     Write-Host -ForegroundColor Green "`n###################################################################"
-    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME without amalgamation #####`n"
+    Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME (static) #####`n"
     New-Item -ItemType directory -Path "build"
     cd build
     & cmake $cmake_cnf `
@@ -59,7 +58,7 @@ try {
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-static" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
-            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
+            ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {
@@ -84,7 +83,7 @@ try {
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_INSTALL_PREFIX="$env:APPVEYOR_BUILD_FOLDER-$env:CC_SHORTNAME-dynamic" `
             -DUA_BUILD_EXAMPLES:BOOL=ON `
-            -DUA_ENABLE_AMALGAMATION:BOOL=OFF ..
+            ..
     & cmake --build . --target install --config RelWithDebInfo
     if ($LASTEXITCODE -and $LASTEXITCODE -ne 0)
     {

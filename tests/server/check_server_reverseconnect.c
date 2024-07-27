@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "test_helpers.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -63,12 +64,15 @@ static void setup(void) {
     reverseConnectHandle = 0;
     numClientCallbackCalled = 0;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
+    UA_ServerConfig *sc = UA_Server_getConfig(server);
+    sc->reverseReconnectInterval = 15000;
+    UA_Array_delete(sc->serverUrls, sc->serverUrlsSize, &UA_TYPES[UA_TYPES_STRING]);
+    sc->serverUrls = NULL;
+    sc->serverUrlsSize = 0;
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     UA_Client_getConfig(client)->stateCallback = clientStateCallback;
 }
 
@@ -282,21 +286,15 @@ START_TEST(checkReconnect) {
 
             UA_fakeSleep(UA_Server_getConfig(server)->reverseReconnectInterval + 1000);
 
-            UA_EventLoop *serverLoop = UA_Server_getConfig(server)->eventLoop;
-            UA_DateTime next = serverLoop->run(serverLoop, 1);
-            UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
-
             for(int j = 0; j < 5; ++j) {
+                UA_Server_run_iterate(server, true);
                 UA_Client_run_iterate(client, 1);
-                next = serverLoop->run(serverLoop, 1);
-                UA_fakeSleep((UA_UInt32)((next - UA_DateTime_now()) / UA_DATETIME_MSEC));
             }
 
             ck_assert_int_eq(numServerCallbackCalled, 9);
             ck_assert_int_eq(serverCallbackStates[6], UA_SECURECHANNELSTATE_RHE_SENT);
             ck_assert_int_eq(serverCallbackStates[7], UA_SECURECHANNELSTATE_ACK_SENT);
             ck_assert_int_eq(serverCallbackStates[8], UA_SECURECHANNELSTATE_OPEN);
-
         }
 
         if(i == 80)

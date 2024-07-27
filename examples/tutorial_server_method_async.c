@@ -34,7 +34,11 @@
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 
-#ifndef WIN32
+#include <signal.h>
+#include <stdlib.h>
+#include "common.h"
+
+#ifndef _WIN32
 #include <pthread.h>
 #define THREAD_HANDLE pthread_t
 #define THREAD_CREATE(handle, callback) do {            \
@@ -104,8 +108,7 @@ addHelloWorldMethod1(UA_Server *server) {
     helloAttr.executable = true;
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback1,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
@@ -161,11 +164,10 @@ addHelloWorldMethod2(UA_Server *server) {
 	helloAttr.executable = true;
 	helloAttr.userExecutable = true;
 	UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62542),
-		UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-		UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-		UA_QUALIFIEDNAME(1, "hello world 2"),
-		helloAttr, &helloWorldMethodCallback2,
-		1, &inputArgument, 1, &outputArgument, NULL, NULL);
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
+                            UA_QUALIFIEDNAME(1, "hello world 2"),
+                            helloAttr, &helloWorldMethodCallback2,
+                            1, &inputArgument, 1, &outputArgument, NULL, NULL);
 	/* Get the method node */
 	UA_NodeId id = UA_NODEID_NUMERIC(1, 62542);
 	UA_Server_setMethodNodeAsync(server, id, UA_TRUE);
@@ -187,7 +189,7 @@ THREAD_CALLBACK(ThreadWorker) {
             UA_CallMethodResult_clear(&response);
         } else {
             /* not a good style, but done for simplicity :-) */
-            UA_sleep_ms(100);
+            sleep_ms(100);
         }
     }
     return 0;
@@ -214,12 +216,12 @@ int main(void) {
     addHelloWorldMethod1(globalServer);
 	addHelloWorldMethod2(globalServer);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(globalServer);
+    UA_Server_runUntilInterrupt(globalServer);
 
     /* Shutdown the thread */
     running = false;
     THREAD_JOIN(hThread);
 
     UA_Server_delete(globalServer);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

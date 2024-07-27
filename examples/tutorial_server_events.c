@@ -30,8 +30,7 @@ addNewEventType(UA_Server *server) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "SimpleEventType");
     attr.description = UA_LOCALIZEDTEXT("en-US", "The simple event type we created");
     return UA_Server_addObjectTypeNode(server, UA_NODEID_NULL,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE),
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       UA_NS0ID(BASEEVENTTYPE), UA_NS0ID(HASSUBTYPE),
                                        UA_QUALIFIEDNAME(0, "SimpleEventType"),
                                        attr, NULL, &eventType);
 }
@@ -109,9 +108,7 @@ generateEventMethodCallback(UA_Server *server,
         return retval;
     }
 
-    retval = UA_Server_triggerEvent(server, eventNodeId,
-                                    UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                    NULL, UA_TRUE);
+    retval = UA_Server_triggerEvent(server, eventNodeId, UA_NS0ID(SERVER), NULL, UA_TRUE);
     if(retval != UA_STATUSCODE_GOOD)
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                        "Triggering event failed. StatusCode %s", UA_StatusCode_name(retval));
@@ -137,8 +134,7 @@ addGenerateEventMethod(UA_Server *server) {
     generateAttr.executable = true;
     generateAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1, 62541),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "Generate Event"),
                             generateAttr, &generateEventMethodCallback,
                             0, NULL, 0, NULL, NULL, NULL);
@@ -152,8 +148,7 @@ int main(void) {
     addNewEventType(server);
     addGenerateEventMethod(server);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

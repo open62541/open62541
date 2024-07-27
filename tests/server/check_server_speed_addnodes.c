@@ -3,19 +3,18 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include "test_helpers.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include <time.h>
+#include <stdio.h>
 
 static UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
-    /* Disable logging */
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    config->logger.log = NULL;
 }
 
 static void teardown(void) {

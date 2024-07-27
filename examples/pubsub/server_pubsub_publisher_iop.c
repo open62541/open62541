@@ -7,6 +7,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 #define Publisher_ID 60
 
@@ -72,8 +73,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = Publisher_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = Publisher_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdent);
 }
 
@@ -81,11 +82,9 @@ static void addPublisher1(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_NodeId folderId;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Publisher 1");
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-        UA_QUALIFIEDNAME(1, "Publisher 1"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-        oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "Publisher 1"),
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
     UA_NodeId_init(&ds1BoolToggleId);
     UA_VariableAttributes boolToggleAttr = UA_VariableAttributes_default;
@@ -93,10 +92,11 @@ static void addPublisher1(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_NodeId_copy(&UA_TYPES[UA_TYPES_BOOLEAN].typeId, &boolToggleAttr.dataType);
     UA_Variant_setScalar(&boolToggleAttr.value, &ds1BoolToggleVal, &UA_TYPES[UA_TYPES_BOOLEAN]);
     boolToggleAttr.displayName = UA_LOCALIZEDTEXT("en-US", "BoolToggle");
-    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher1.BoolToggle"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "BoolToggle"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), boolToggleAttr, NULL, &ds1BoolToggleId);
+    UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher1.BoolToggle"),
+                              folderId, UA_NS0ID(HASCOMPONENT),
+                              UA_QUALIFIEDNAME(1, "BoolToggle"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), boolToggleAttr, NULL,
+                              &ds1BoolToggleId);
 
     UA_NodeId_init(&ds1Int32Id);
     UA_VariableAttributes int32Attr = UA_VariableAttributes_default;
@@ -106,9 +106,8 @@ static void addPublisher1(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&int32Attr.value, &ds1Int32Val, &UA_TYPES[UA_TYPES_INT32]);
     int32Attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher1.Int32"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Int32"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), int32Attr, NULL, &ds1Int32Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Int32"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), int32Attr, NULL, &ds1Int32Id);
 
     UA_NodeId_init(&ds1Int32FastId);
     UA_VariableAttributes int32FastAttr = UA_VariableAttributes_default;
@@ -118,9 +117,8 @@ static void addPublisher1(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&int32FastAttr.value, &ds1Int32FastVal, &UA_TYPES[UA_TYPES_INT32]);
     int32FastAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32Fast");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher1.Int32Fast"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Int32Fast"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), int32FastAttr, NULL, &ds1Int32FastId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Int32Fast"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), int32FastAttr, NULL, &ds1Int32FastId);
 
     UA_NodeId_init(&ds1DateTimeId);
     UA_VariableAttributes dateTimeAttr = UA_VariableAttributes_default;
@@ -131,9 +129,8 @@ static void addPublisher1(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&dateTimeAttr.value, &dateTimeVal, &UA_TYPES[UA_TYPES_DATETIME]);
     dateTimeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher1.DateTime"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "DateTime"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), dateTimeAttr, NULL, &ds1DateTimeId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "DateTime"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), dateTimeAttr, NULL, &ds1DateTimeId);
 
     if (!UA_NodeId_equal(&publishedDataSetId, &UA_NODEID_NULL))
     {
@@ -179,10 +176,9 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_NodeId folderId;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Publisher 2");
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-        UA_QUALIFIEDNAME(1, "Publisher 2"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), UA_QUALIFIEDNAME(1, "Publisher 2"),
+                            UA_NS0ID(BASEOBJECTTYPE),
         oAttr, NULL, &folderId);
 
     UA_NodeId_init(&ds2BoolToggleId);
@@ -192,9 +188,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&boolToggleAttr.value, &ds2BoolToggleVal, &UA_TYPES[UA_TYPES_BOOLEAN]);
     boolToggleAttr.displayName = UA_LOCALIZEDTEXT("en-US", "BoolToggle");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.BoolToggle"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "BoolToggle"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), boolToggleAttr, NULL, &ds2BoolToggleId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "BoolToggle"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), boolToggleAttr, NULL, &ds2BoolToggleId);
 
     UA_NodeId_init(&ds2ByteId);
     UA_VariableAttributes byteAttr = UA_VariableAttributes_default;
@@ -204,9 +199,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&byteAttr.value, &ds2ByteVal, &UA_TYPES[UA_TYPES_BYTE]);
     byteAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Byte");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Byte"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Byte"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), byteAttr, NULL, &ds2ByteId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Byte"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), byteAttr, NULL, &ds2ByteId);
 
     UA_NodeId_init(&ds2Int16Id);
     UA_VariableAttributes int16Attr = UA_VariableAttributes_default;
@@ -216,9 +210,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&int16Attr.value, &ds2Int16Val, &UA_TYPES[UA_TYPES_INT16]);
     int16Attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int16");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Int16"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Int16"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), int16Attr, NULL, &ds2Int16Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Int16"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), int16Attr, NULL, &ds2Int16Id);
 
     UA_NodeId_init(&ds2Int32Id);
     UA_VariableAttributes int32Attr = UA_VariableAttributes_default;
@@ -228,9 +221,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&int32Attr.value, &ds2Int32Val, &UA_TYPES[UA_TYPES_INT32]);
     int32Attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int32");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Int32"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Int32"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), int32Attr, NULL, &ds2Int32Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Int32"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), int32Attr, NULL, &ds2Int32Id);
 
     UA_NodeId_init(&ds2Int64Id);
     UA_VariableAttributes int64Attr = UA_VariableAttributes_default;
@@ -240,9 +232,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&int64Attr.value, &ds2Int64Val, &UA_TYPES[UA_TYPES_INT64]);
     int64Attr.displayName = UA_LOCALIZEDTEXT("en-US", "Int64");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Int64"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Int64"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), int64Attr, NULL, &ds2Int64Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Int64"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), int64Attr, NULL, &ds2Int64Id);
 
     UA_NodeId_init(&ds2SByteId);
     UA_VariableAttributes sbyteAttr = UA_VariableAttributes_default;
@@ -252,9 +243,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&sbyteAttr.value, &ds2SByteVal, &UA_TYPES[UA_TYPES_SBYTE]);
     sbyteAttr.displayName = UA_LOCALIZEDTEXT("en-US", "SByte");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.SByte"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "SByte"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), sbyteAttr, NULL, &ds2SByteId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "SByte"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), sbyteAttr, NULL, &ds2SByteId);
 
     UA_NodeId_init(&ds2UInt16Id);
     UA_VariableAttributes uint16Attr = UA_VariableAttributes_default;
@@ -264,9 +254,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&uint16Attr.value, &ds2UInt16Val, &UA_TYPES[UA_TYPES_UINT16]);
     uint16Attr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt16");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.UInt16"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "UInt16"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), uint16Attr, NULL, &ds2UInt16Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt16"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), uint16Attr, NULL, &ds2UInt16Id);
 
     UA_NodeId_init(&ds2UInt32Id);
     UA_VariableAttributes uint32Attr = UA_VariableAttributes_default;
@@ -276,9 +265,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&uint32Attr.value, &ds2UInt32Val, &UA_TYPES[UA_TYPES_UINT32]);
     uint32Attr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.UInt32"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "UInt32"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), uint32Attr, NULL, &ds2UInt32Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt32"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), uint32Attr, NULL, &ds2UInt32Id);
 
     UA_NodeId_init(&ds2UInt64Id);
     UA_VariableAttributes uint64Attr = UA_VariableAttributes_default;
@@ -288,9 +276,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&uint64Attr.value, &ds2UInt64Val, &UA_TYPES[UA_TYPES_UINT64]);
     uint64Attr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt64");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.UInt64"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "UInt64"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), uint64Attr, NULL, &ds2UInt64Id);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt64"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), uint64Attr, NULL, &ds2UInt64Id);
 
     UA_NodeId_init(&ds2FloatId);
     UA_VariableAttributes floatAttr = UA_VariableAttributes_default;
@@ -300,9 +287,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&floatAttr.value, &ds2FloatVal, &UA_TYPES[UA_TYPES_FLOAT]);
     floatAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Float");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Float"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Float"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), floatAttr, NULL, &ds2FloatId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Float"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), floatAttr, NULL, &ds2FloatId);
 
     UA_NodeId_init(&ds2DoubleId);
     UA_VariableAttributes doubleAttr = UA_VariableAttributes_default;
@@ -312,9 +298,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&doubleAttr.value, &ds2DoubleVal, &UA_TYPES[UA_TYPES_DOUBLE]);
     doubleAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Double");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Double"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Double"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), doubleAttr, NULL, &ds2DoubleId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Double"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), doubleAttr, NULL, &ds2DoubleId);
 
     ds2StringArray[0] = UA_STRING("Alpha");
     ds2StringArray[1] = UA_STRING("Bravo");
@@ -354,9 +339,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&stringAttr.value, &stringVal, &UA_TYPES[UA_TYPES_STRING]);
     stringAttr.displayName = UA_LOCALIZEDTEXT("en-US", "String");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.String"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "String"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), stringAttr, NULL, &ds2StringId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "String"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), stringAttr, NULL, &ds2StringId);
 
     UA_Byte data[] = { 0x00 };
     UA_ByteString byteStringVal = { 1, data };
@@ -369,9 +353,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&byteStringAttr.value, &byteStringVal, &UA_TYPES[UA_TYPES_BYTESTRING]);
     byteStringAttr.displayName = UA_LOCALIZEDTEXT("en-US", "ByteString");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.ByteString"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "ByteString"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), byteStringAttr, NULL, &ds2ByteStringId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "ByteString"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), byteStringAttr, NULL, &ds2ByteStringId);
 
     UA_Guid guidVal = UA_Guid_random();
     UA_NodeId_init(&ds2GuidId);
@@ -382,9 +365,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&guidAttr.value, &guidVal, &UA_TYPES[UA_TYPES_GUID]);
     guidAttr.displayName = UA_LOCALIZEDTEXT("en-US", "Guid");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.Guid"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "Guid"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), guidAttr, NULL, &ds2GuidId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "Guid"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), guidAttr, NULL, &ds2GuidId);
 
     UA_NodeId_init(&ds2DateTimeId);
     UA_VariableAttributes dateTimeAttr = UA_VariableAttributes_default;
@@ -395,9 +377,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setScalar(&dateTimeAttr.value, &dateTimeVal, &UA_TYPES[UA_TYPES_DATETIME]);
     dateTimeAttr.displayName = UA_LOCALIZEDTEXT("en-US", "DateTime");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.DateTime"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "DateTime"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), dateTimeAttr, NULL, &ds2DateTimeId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "DateTime"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), dateTimeAttr, NULL, &ds2DateTimeId);
 
     // UInt32Array
     UA_NodeId_init(&ds2UInt32ArrId);
@@ -413,9 +394,8 @@ static void addPublisher2(UA_Server *server, UA_NodeId publishedDataSetId) {
     UA_Variant_setArray(&uint32ArrAttr.value, ds2UInt32ArrValue, 10, &UA_TYPES[UA_TYPES_UINT32]);
     uint32ArrAttr.displayName = UA_LOCALIZEDTEXT("en-US", "UInt32Array");
     UA_Server_addVariableNode(server, UA_NODEID_STRING(1, "Publisher2.UInt32Array"), folderId,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-        UA_QUALIFIEDNAME(1, "UInt32Array"),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), uint32ArrAttr, NULL, &ds2UInt32ArrId);
+                              UA_NS0ID(HASCOMPONENT), UA_QUALIFIEDNAME(1, "UInt32Array"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE), uint32ArrAttr, NULL, &ds2UInt32ArrId);
 
     if (!UA_NodeId_equal(&publishedDataSetId, &UA_NODEID_NULL))
     {
@@ -767,7 +747,7 @@ static int run(UA_String *transportProfile,
     /* Add the new WriterGroup to an existing Connection. */
     UA_NodeId writerGroupIdent;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
     // DataSetWriter ID 1 with Variant Encoding
@@ -845,13 +825,15 @@ int main(int argc, char **argv) {
                 printf("Error: UADP/ETH needs an interface name\n");
                 return EXIT_FAILURE;
             }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         }
         else {
             printf("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);

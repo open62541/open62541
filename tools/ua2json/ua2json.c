@@ -5,26 +5,17 @@
  *    Copyright 2018 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* Enable POSIX features */
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
 #include <open62541/types.h>
-#include <stdio.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
+#include <open62541/pubsub.h>
 
-/* Internal headers */
-#include "ua_pubsub_networkmessage.h"
+#include <stdio.h>
+#if defined(_MSC_VER)
+# include <BaseTsd.h>
+typedef SSIZE_T ssize_t;
+#else
+#include <unistd.h>
+#endif
 
 static UA_StatusCode
 encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
@@ -47,6 +38,8 @@ encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
     return UA_STATUSCODE_GOOD;
 }
 
+static const UA_DecodeJsonOptions decode_options = {0};
+
 static UA_StatusCode
 decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
     /* Allocate memory for the type */
@@ -55,8 +48,7 @@ decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     /* Decode JSON */
-    const UA_DecodeJsonOptions opt = {NULL};
-    UA_StatusCode retval = UA_decodeJson(buf, data, type, &opt);
+    UA_StatusCode retval = UA_decodeJson(buf, data, type, &decode_options);
     if(retval != UA_STATUSCODE_GOOD) {
         free(data);
         return retval;
@@ -74,63 +66,49 @@ decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
 
 static UA_StatusCode
 encodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
-    size_t offset = 0;
+    UA_EncodeJsonOptions options;
+    memset(&options, 0, sizeof(UA_EncodeJsonOptions));
+    options.useReversible = true;
+
     UA_NetworkMessage msg;
-    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &offset, &msg, NULL);
+    UA_StatusCode retval = UA_NetworkMessage_decodeBinary(buf, &msg, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    if(offset != buf->length) {
-        UA_NetworkMessage_clear(&msg);
-        fprintf(stderr, "Input buffer not completely read\n");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    size_t jsonLength = UA_NetworkMessage_calcSizeJson(&msg, NULL, 0, NULL, 0, true);
+    size_t jsonLength = UA_NetworkMessage_calcSizeJson(&msg, &options);
     retval = UA_ByteString_allocBuffer(out, jsonLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(&msg);
         return retval;
     }
 
-    uint8_t *bufPos = &out->data[0];
-    const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_NetworkMessage_encodeJson(&msg, &bufPos, &bufEnd, NULL, 0, NULL, 0, true);
+    retval = UA_NetworkMessage_encodeJson(&msg, out, &options);
     UA_NetworkMessage_clear(&msg);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(out);
-        return retval;
-    }
 
-    out->length = (size_t)((uintptr_t)bufPos - (uintptr_t)out->data);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 static UA_StatusCode
 decodeNetworkMessage(const UA_ByteString *buf, UA_ByteString *out) {
     UA_NetworkMessage msg;
-    UA_StatusCode retval = UA_NetworkMessage_decodeJson(&msg, buf);
+    UA_StatusCode retval = UA_NetworkMessage_decodeJson(buf, &msg, NULL);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg, NULL);
+    size_t binLength = UA_NetworkMessage_calcSizeBinary(&msg);
     retval = UA_ByteString_allocBuffer(out, binLength);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_NetworkMessage_clear(&msg);
         return retval;
     }
 
-    uint8_t *bufPos = &out->data[0];
-    const uint8_t *bufEnd = &out->data[out->length];
-    retval = UA_NetworkMessage_encodeBinary(&msg, &bufPos, bufEnd, NULL);
+    retval = UA_NetworkMessage_encodeBinary(&msg, out);
     UA_NetworkMessage_clear(&msg);
-    if(retval != UA_STATUSCODE_GOOD) {
+    if(retval != UA_STATUSCODE_GOOD)
         UA_ByteString_clear(out);
-        return retval;
-    }
-
-    out->length = (size_t)((uintptr_t)bufPos - (uintptr_t)out->data);
-    return UA_STATUSCODE_GOOD;
+    return retval;
 }
 
 #endif
@@ -248,7 +226,7 @@ int main(int argc, char **argv) {
     /* Read input until EOF */
     size_t pos = 0;
     size_t length = 128;
-    while(true) {
+    do {
         if(pos >= buf.length) {
             length = length * 8;
             UA_Byte *r = (UA_Byte*)realloc(buf.data, length);
@@ -260,16 +238,13 @@ int main(int argc, char **argv) {
             buf.data = r;
         }
 
-        ssize_t c = read(fileno(in), &buf.data[pos], length - pos);
-        if(c == 0)
-            break;
-        if(c < 0) {
-            fprintf(stderr, "Reading from input failed\n");
-            goto cleanup;
-        }
-
-        pos += (size_t)c;
-    }
+        size_t c = fread(&buf.data[pos], sizeof(UA_Byte), length - pos, in);
+		if(ferror(in)) {
+			fprintf(stderr, "Reading from input failed\n");
+			goto cleanup;
+		}
+        pos += c;
+	} while (!feof(in));
 
     if(pos == 0) {
         fprintf(stderr, "No input\n");

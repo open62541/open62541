@@ -3,14 +3,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/config.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 
 #include "ua_types_encoding_xml.h"
 
 #include "../deps/itoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/libc_time.h"
+#include "../deps/dtoa.h"
 
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for XML encoding
@@ -115,47 +115,39 @@ ENCODE_XML(UInt64) {
 
 /* Float */
 ENCODE_XML(Float) {
-    char buffer[200];
+    char buffer[32];
+    size_t len;
     if(*src != *src) {
         strcpy(buffer, "NaN");
+        len = strlen(buffer);
     } else if(*src == INFINITY) {
         strcpy(buffer, "INF");
+        len = strlen(buffer);
     } else if(*src == -INFINITY) {
         strcpy(buffer, "-INF");
+        len = strlen(buffer);
     } else {
-        /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
-         * Maximum digit counts for float: 149
-         */
-        UA_snprintf(buffer, 200, "%.149g", (UA_Double)*src);
+        len = dtoa((UA_Double)*src, buffer);
     }
-
-    size_t len = strlen(buffer);
-    if(len == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 
 /* Double */
 ENCODE_XML(Double) {
-    char buffer[2000];
+    char buffer[32];
+    size_t len;
     if(*src != *src) {
         strcpy(buffer, "NaN");
+        len = strlen(buffer);
     } else if(*src == INFINITY) {
         strcpy(buffer, "INF");
+        len = strlen(buffer);
     } else if(*src == -INFINITY) {
         strcpy(buffer, "-INF");
+        len = strlen(buffer);
     } else {
-        /* https://www.exploringbinary.com/maximum-number-of-decimal-digits-in-binary-floating-point-numbers/
-         * Maximum digit counts for double: 1074
-         */
-        UA_snprintf(buffer, 2000, "%.1074g", *src);
+        len = dtoa(*src, buffer);
     }
-
-    size_t len = strlen(buffer);
-    if(len == 0)
-        return UA_STATUSCODE_BADENCODINGERROR;
-
     return xmlEncodeWriteChars(ctx, buffer, len);
 }
 

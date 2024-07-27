@@ -6,6 +6,9 @@
 #include <open62541/server_config_default.h>
 #include <open62541/plugin/nodesetloader.h>
 
+#include <signal.h>
+#include <stdio.h>
+
 UA_Boolean running = true;
 static void stopHandler(int sign) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");

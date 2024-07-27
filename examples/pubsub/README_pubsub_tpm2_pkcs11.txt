@@ -91,7 +91,7 @@ Set environment variable for TCTI connection and path for database:
 To run PubSub applications over Ethernet in two nodes connected in peer-to-peer network
     cd open62541/
     mkdir build && cd build
-    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_PUBSUB_ETH_UADP=ON -DUA_ENABLE_PUBSUB_ENCRYPTION=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_ENCRYPTION_TPM2=ON ..
+    cmake -DUA_BUILD_EXAMPLES=ON -DUA_ENABLE_PUBSUB=ON -DUA_ENABLE_ENCRYPTION=MBEDTLS -DUA_ENABLE_ENCRYPTION_TPM2=ON ..
     make
 
 The binaries are generated in build/bin/ folder

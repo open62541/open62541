@@ -1,0 +1,60 @@
+# Docs see here:
+# https://aka.ms/yaml
+
+jobs:
+- job: 'win_vs2019'
+  displayName: 'Windows (VS2019)'
+  pool:
+    vmImage: 'windows-2019'
+  variables:
+    CC_NAME: Visual Studio 16 2019
+    CC_SHORTNAME: VS2019
+    GENERATOR: Visual Studio 16 2019
+    FORCE_CXX: OFF
+  steps:
+  - checkout: self
+    submodules: recursive
+  - powershell: ./tools/azure-devops/win/install.ps1
+    displayName: Install Requirements
+  - powershell: ./tools/azure-devops/win/build.ps1
+    displayName: "Build: $(CC_NAME)"
+
+- job: 'win_msys64'
+  displayName: 'Windows (msys64)'
+  pool:
+    vmImage: 'windows-2019'
+  variables:
+    CC_NAME: MinGW Makefiles
+    CC_SHORTNAME: mingw
+    GENERATOR: MinGW Makefiles
+    FORCE_CXX: OFF
+    MSYS2_ROOT: C:/msys64
+  steps:
+  - checkout: self
+    submodules: recursive
+  - powershell: ./tools/azure-devops/win/install.ps1
+    displayName: Install Requirements
+    errorActionPreference: continue # Errors are handled in the script
+  - powershell: ./tools/azure-devops/win/build.ps1
+    displayName: "Build: $(CC_NAME)"
+    errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code
+
+- job: 'win_clang'
+  displayName: 'Windows (clang)'
+  pool:
+    vmImage: 'windows-2019'
+  variables:
+    CC_NAME: Clang
+    CC_SHORTNAME: clang-mingw
+    GENERATOR: MinGW Makefiles
+    FORCE_CXX: OFF
+    MSYS2_ROOT: C:/msys64
+  steps:
+  - checkout: self
+    submodules: recursive
+  - powershell: ./tools/azure-devops/win/install.ps1
+    displayName: Install Requirements
+    errorActionPreference: continue # Errors are handled in the script
+  - powershell: ./tools/azure-devops/win/build.ps1
+    displayName: "Build: $(CC_NAME)"
+    errorActionPreference: continue # If set to Stop, we only get a truncated exception message. Error is handled by checking exit code

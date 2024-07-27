@@ -7,6 +7,7 @@
 #include "ua_securechannel.h"
 #include "ua_types_encoding_binary.h"
 
+#include <stdlib.h>
 #include <check.h>
 
 UA_ByteString *buffers;

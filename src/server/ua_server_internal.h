@@ -24,8 +24,9 @@
 #include <open62541/plugin/nodestore.h>
 
 #include "ua_session.h"
+#include "ua_services.h"
 #include "ua_server_async.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -47,8 +48,13 @@ typedef struct {
     void *context;
     union {
         UA_Server_DataChangeNotificationCallback dataChangeCallback;
-        /* UA_Server_EventNotificationCallback eventCallback; */
+        UA_Server_EventNotificationCallback eventCallback;
     } callback;
+
+    /* For Event-MonitoredItems only. The value fields are overwritten before
+     * each callback. They can contain stray pointers between callbacks. So
+     * don't clean up the value fields. */
+    UA_KeyValueMap eventFields;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
@@ -140,9 +146,15 @@ struct UA_Server {
     LIST_HEAD(session_list, session_list_entry) sessions;
     UA_UInt32 sessionCount;
     UA_UInt32 activeSessionCount;
-    UA_Session adminSession; /* Local access to the services (for startup and
-                              * maintenance) uses this Session with all possible
-                              * access rights (Session Id: 1) */
+
+    /* Session for local access to the services for upkeep and the C API. Comes
+     * equipped with all possible access rights (Session Id: 1). */
+    UA_Session adminSession;
+
+    /* SecureChannels */
+    TAILQ_HEAD(, UA_SecureChannel) channels;
+    UA_UInt32 lastChannelId;
+    UA_UInt32 lastTokenId;
 
     /* Namespaces */
     size_t namespacesSize;
@@ -154,16 +166,17 @@ struct UA_Server {
 
     /* Subscriptions */
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+    /* The admin session is initialized with a special subscription. This
+     * subscription generates delayed callbacks with notifications for local
+     * processing. */
+    UA_Subscription *adminSubscription;
+
     size_t subscriptionsSize;  /* Number of active subscriptions */
     size_t monitoredItemsSize; /* Number of active monitored items */
     LIST_HEAD(, UA_Subscription) subscriptions; /* All subscriptions in the
                                                  * server. They may be detached
                                                  * from a session. */
     UA_UInt32 lastSubscriptionId; /* To generate unique SubscriptionIds */
-
-    /* To be cast to UA_LocalMonitoredItem to get the callback and context */
-    LIST_HEAD(, UA_MonitoredItem) localMonitoredItems;
-    UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
     LIST_HEAD(, UA_ConditionSource) conditionSources;
@@ -216,7 +229,7 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString msg);
 
 UA_StatusCode
-sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
+sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
                  UA_UInt32 requestHandle, UA_StatusCode statusCode);
 
 /* Gets the a pointer to the context of a security policy supported by the
@@ -224,9 +237,6 @@ sendServiceFault(UA_SecureChannel *channel, UA_UInt32 requestId,
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
                        const UA_ByteString *securityPolicyUri);
-
-UA_UInt32
-generateSecureChannelTokenId(UA_Server *server);
 
 /********************/
 /* Session Handling */
@@ -274,10 +284,11 @@ getSessionById(UA_Server *server, const UA_NodeId *sessionId);
  * multithreading and the nodestore.*/
 typedef UA_StatusCode (*UA_EditNodeCallback)(UA_Server*, UA_Session*,
                                              UA_Node *node, void*);
-UA_StatusCode UA_Server_editNode(UA_Server *server, UA_Session *session,
-                                 const UA_NodeId *nodeId,
-                                 UA_EditNodeCallback callback,
-                                 void *data);
+UA_StatusCode
+UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                   UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+                   UA_BrowseDirection referenceDirections,
+                   UA_EditNodeCallback callback, void *data);
 
 /*********************/
 /* Utility Functions */
@@ -348,9 +359,15 @@ isConditionOrBranch(UA_Server *server,
 const UA_Node *
 getNodeType(UA_Server *server, const UA_NodeHead *nodeHead);
 
+/* Returns whether we send a response right away (async call or not) */
+UA_Boolean
+UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
+                         UA_UInt32 requestId, UA_ServiceDescription *sd,
+                         const UA_Request *request, UA_Response *response);
+
 UA_StatusCode
-sendResponse(UA_Server *server, UA_Session *session, UA_SecureChannel *channel,
-             UA_UInt32 requestId, UA_Response *response, const UA_DataType *responseType);
+sendResponse(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 requestId,
+             UA_Response *response, const UA_DataType *responseType);
 
 /* Many services come as an array of operations. This function generalizes the
  * processing of the operations. */
@@ -444,9 +461,14 @@ UA_WRITEATTRIBUTEFUNCS(AccessLevel, UA_ATTRIBUTEID_ACCESSLEVEL, UA_Byte, BYTE)
 UA_WRITEATTRIBUTEFUNCS(MinimumSamplingInterval, UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                        UA_Double, DOUBLE)
 
+void
+Operation_Read(UA_Server *server, UA_Session *session, UA_TimestampsToReturn *ttr,
+               const UA_ReadValueId *rvi, UA_DataValue *dv);
+
 UA_DataValue
-readAttribute(UA_Server *server, const UA_ReadValueId *item,
-              UA_TimestampsToReturn timestamps);
+readWithSession(UA_Server *server, UA_Session *session,
+                const UA_ReadValueId *item,
+                UA_TimestampsToReturn timestampsToReturn);
 
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
@@ -461,8 +483,6 @@ UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
-
-void monitoredItem_sampleCallback(UA_Server *server, UA_MonitoredItem *monitoredItem);
 
 UA_Subscription *
 getSubscriptionById(UA_Server *server, UA_UInt32 subscriptionId);
@@ -488,6 +508,16 @@ filterEvent(UA_Server *server, UA_Session *session,
 #endif /* UA_ENABLE_SUBSCRIPTIONS_EVENTS */
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS */
+
+/* Returns a configured SecurityPolicy with encryption. Use Basic256Sha256 if
+ * available. Otherwise use any encrypted SecurityPolicy. */
+UA_SecurityPolicy *
+getDefaultEncryptedSecurityPolicy(UA_Server *server);
+
+UA_StatusCode
+setCurrentEndPointsArray(UA_Server *server, const UA_String endpointURL,
+                         UA_String *profileUris, size_t profileUrisSize,
+                         UA_EndpointDescription **arr, size_t *arrSize);
 
 UA_BrowsePathResult
 browseSimplifiedBrowsePath(UA_Server *server, const UA_NodeId origin,
@@ -522,11 +552,6 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 #ifdef UA_ENABLE_DISCOVERY
 UA_ServerComponent *
 UA_DiscoveryManager_new(UA_Server *server);
-
-UA_StatusCode
-register_server_with_discovery_server(UA_Server *server, void *client,
-                                      const UA_Boolean isUnregister,
-                                      const char* semaphoreFilePath);
 #endif
 
 UA_ServerComponent *
@@ -654,11 +679,6 @@ void
 Operation_Browse(UA_Server *server, UA_Session *session, const UA_UInt32 *maxrefs,
                  const UA_BrowseDescription *descr, UA_BrowseResult *result);
 
-UA_DataValue
-UA_Server_readWithSession(UA_Server *server, UA_Session *session,
-                          const UA_ReadValueId *item,
-                          UA_TimestampsToReturn timestampsToReturn);
-
 /************/
 /* AddNodes */
 /************/
@@ -764,6 +784,15 @@ UA_NODESTORE_GET(UA_Server *server, const UA_NodeId *nodeId) {
                 UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH);
 }
 
+/* Get the editable node with all attributes and references */
+static UA_INLINE UA_Node *
+UA_NODESTORE_GET_EDIT(UA_Server *server, const UA_NodeId *nodeId) {
+    return server->config.nodestore.
+        getEditNode(server->config.nodestore.context, nodeId,
+                    UA_NODEATTRIBUTESMASK_ALL, UA_REFERENCETYPESET_ALL,
+                    UA_BROWSEDIRECTION_BOTH);
+}
+
 /* Get the node with all attributes and references */
 static UA_INLINE const UA_Node *
 UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
@@ -775,6 +804,10 @@ UA_NODESTORE_GETFROMREF(UA_Server *server, UA_NodePointer target) {
 #define UA_NODESTORE_GET_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
     server->config.nodestore.getNode(server->config.nodestore.context,      \
                                      nodeid, attrMask, refs, refDirs)
+
+#define UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeid, attrMask, refs, refDirs) \
+    server->config.nodestore.getEditNode(server->config.nodestore.context,       \
+                                         nodeid, attrMask, refs, refDirs)
 
 #define UA_NODESTORE_GETFROMREF_SELECTIVE(server, target, attrMask, refs, refDirs) \
     server->config.nodestore.getNodeFromPtr(server->config.nodestore.context,      \

@@ -12,17 +12,25 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
+#include <stdlib.h>
 #include "testing_clock.h"
 #include "../encryption/certificates.h"
 #include "thread_wrapper.h"
+#include "open62541/plugin/accesscontrol_default.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
 #define policUri "http://opcfoundation.org/UA/SecurityPolicy#PubSub-Aes256-CTR"
+
+static UA_UsernamePasswordLogin userNamePW[2] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password2")}
+};
 
 UA_Server *sksServer = NULL;
 UA_String securityGroupId;
@@ -38,6 +46,22 @@ THREAD_CALLBACK(serverloop) {
         UA_Server_run_iterate(sksServer, true);
     return 0;
 }
+
+typedef struct {
+    UA_Boolean allowAnonymous;
+    size_t usernamePasswordLoginSize;
+    UA_UsernamePasswordLogin *usernamePasswordLogin;
+    UA_UsernamePasswordLoginCallback loginCallback;
+    void *loginContext;
+    UA_CertificateGroup verifyX509;
+} AccessControlContext;
+
+#define ANONYMOUS_POLICY "open62541-anonymous-policy"
+#define CERTIFICATE_POLICY "open62541-certificate-policy"
+#define USERNAME_POLICY "open62541-username-policy"
+const UA_String anonymousPolicy = UA_STRING_STATIC(ANONYMOUS_POLICY);
+const UA_String certificatePolicy = UA_STRING_STATIC(CERTIFICATE_POLICY);
+const UA_String usernamePolicy = UA_STRING_STATIC(USERNAME_POLICY);
 
 static void
 addSecurityGroup(void) {
@@ -71,15 +95,10 @@ getUserExecutableOnObject_sks(UA_Server *server, UA_AccessControl *ac,
                               const UA_NodeId *objectId, void *objectContext) {
     if(!objectContext)
         return true;
-    if(!sessionContext)
-        return false;
-    UA_ExtensionObject *userIdentityToken = (UA_ExtensionObject*)sessionContext;
-    if(userIdentityToken->content.decoded.type != &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN])
-        return false;
-    UA_UserNameIdentityToken *token = (UA_UserNameIdentityToken*)
-        userIdentityToken->content.decoded.data;
+
+    UA_Session *session = getSessionById(server, sessionId);
     UA_ByteString *username = (UA_ByteString *)objectContext;
-    return UA_ByteString_equal(username, &token->userName);
+    return UA_ByteString_equal(username, &session->clientUserIdOfSession);
 }
 
 static void
@@ -102,22 +121,26 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    sksServer = UA_Server_new();
+    sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                             trustList, trustListSize,
+                                                             issuerList, issuerListSize,
+                                                             revocationList, revocationListSize);
+
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(
-        config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
 
+    UA_String basic256sha256 = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+    UA_AccessControl_default(config, true, &basic256sha256, 2, userNamePW);
+
     config->pubSubConfig.securityPolicies =
         (UA_PubSubSecurityPolicy *)UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes256Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -149,8 +172,21 @@ teardown(void) {
     UA_Server_delete(sksServer);
 }
 
+static void
+cleanupSessionContext(void) {
+    session_list_entry *current, *temp;
+    LIST_FOREACH_SAFE(current, &sksServer->sessions, pointers, temp) {
+        if(current->session.context) {
+            UA_ExtensionObject *handle = (UA_ExtensionObject*)current->session.context;
+            UA_ExtensionObject_clear(handle);
+            UA_free(current->session.context);
+            current->session.context = NULL;
+        }
+    }
+}
+
 static UA_StatusCode
-encyrptedclientconnect(UA_Client *client, const char *username, const char *password ) {
+encyrptedclientconnect(UA_Client *client) {
     UA_ByteString *trustList = NULL;
     size_t trustListSize = 0;
     UA_ByteString *revocationList = NULL;
@@ -178,8 +214,7 @@ encyrptedclientconnect(UA_Client *client, const char *username, const char *pass
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
-    /* Secure client connect */
-    return UA_Client_connectUsername(client, "opc.tcp://localhost:4840", username, password);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_CallResponse
@@ -212,39 +247,56 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
 }
 
 START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-    UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
+    UA_Client *client = UA_Client_newForUnitTest();
+    encyrptedclientconnect(client);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc->securityMode = UA_MESSAGESECURITYMODE_SIGN;
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
     }
     UA_StatusCode expectedCode = UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT;
     UA_CallResponse response = callGetSecurityKeys(client, securityGroupId, 1, 1);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(client);
 }
 END_TEST
 
 START_TEST(getSecuritykeysBadNotFound) {
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_String badSecurityGroupId = UA_STRING("BadSecurityGroupId");
     UA_StatusCode expectedCode = UA_STATUSCODE_BADNOTFOUND;
     UA_CallResponse response = callGetSecurityKeys(sksClient, badSecurityGroupId, 1, 1);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
 
 START_TEST(getSecuritykeysBadUserAccessDenied) {
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user2", "password1");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user2", "password2");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_BADUSERACCESSDENIED;
     UA_UInt32 reqkeyCount = 1;
     UA_CallResponse response =
@@ -252,23 +304,31 @@ START_TEST(getSecuritykeysBadUserAccessDenied) {
     /* set SecurityGroupNodeContext to username
         compare the SGNodeContext with sessioncontext in getUserExecutableOnObject
     */
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
 
 START_TEST(getSecuritykeysGoodAndValidOutput) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
     UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, 1, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -300,20 +360,27 @@ START_TEST(getSecuritykeysGoodAndValidOutput) {
         ck_assert(UA_ByteString_equal(&keys[i], &UA_BYTESTRING_NULL) == UA_FALSE);
     }
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
 
 START_TEST(requestCurrentKeyWithFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 1;
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response = callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -334,21 +401,28 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
 
 START_TEST(requestCurrentKeyOnly) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -368,6 +442,7 @@ START_TEST(requestCurrentKeyOnly) {
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
@@ -375,15 +450,21 @@ END_TEST
 START_TEST(requestPastKey) {
     /*wait for one keyLifeTime*/
     UA_fakeSleep(2000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = 0;
     UA_UInt32 reqStartingTokenId = 1;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -401,22 +482,29 @@ START_TEST(requestPastKey) {
     ck_assert(UA_ByteString_equal(retKeys, &firstItem->key) == UA_TRUE);
     ck_assert(UA_ByteString_equal(retKeys, &sg->keyStorage->currentItem->key) != UA_TRUE);
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST
 
 START_TEST(requestUnknownStartingTokenId){
     UA_fakeSleep(1000);
-    UA_sleep_ms(4000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_realSleep(4000);
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;
     UA_UInt32 reqStartingTokenId = UA_UINT32_MAX;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -436,20 +524,27 @@ START_TEST(requestUnknownStartingTokenId){
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }END_TEST
 
 START_TEST(requestMaxFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
-    encyrptedclientconnect(sksClient, "user1", "password");
+    UA_Client *sksClient = UA_Client_newForUnitTest();
+    encyrptedclientconnect(sksClient);
+    /* Secure client connect */
+    UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_Client_delete(sksClient);
+    }
     UA_StatusCode expectedCode = UA_STATUSCODE_GOOD;
     UA_UInt32 reqkeyCount = UA_UINT32_MAX;
     UA_UInt32 reqStartingTokenId = 0;
     UA_CallResponse response =
         callGetSecurityKeys(sksClient, securityGroupId, reqStartingTokenId, reqkeyCount);
+    ck_assert(response.results != NULL);
     ck_assert_msg(response.results->statusCode == expectedCode,
-                  "Expected %s but erorr code : %s \n", UA_StatusCode_name(expectedCode),
+                  "Expected %s but error code : %s \n", UA_StatusCode_name(expectedCode),
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
@@ -469,6 +564,7 @@ START_TEST(requestMaxFutureKeys) {
         iterator = TAILQ_NEXT(iterator, keyListEntry);
     }
     UA_CallResponse_clear(&response);
+    cleanupSessionContext();
     UA_Client_delete(sksClient);
 }
 END_TEST

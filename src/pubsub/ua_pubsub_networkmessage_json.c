@@ -6,7 +6,6 @@
  */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
@@ -129,13 +128,11 @@ UA_DataSetMessage_encodeJson_internal(const UA_DataSetMessage* src,
 
 static UA_StatusCode
 UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx) {
-    status rv = UA_STATUSCODE_GOOD;
-    const UA_DataType *publisherIdType;
     /* currently only ua-data is supported, no discovery message implemented */
     if(src->networkMessageType != UA_NETWORKMESSAGE_DATASET)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
 
-    writeJsonObjStart(ctx);
+    status rv = writeJsonObjStart(ctx);
 
     /* Table 91 – JSON NetworkMessage Definition
      * MessageId | String | A globally unique identifier for the message.
@@ -151,26 +148,10 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 
     /* PublisherId */
     if(src->publisherIdEnabled) {
-        rv = writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
-        switch (src->publisherIdType) {
-        case UA_PUBLISHERIDTYPE_BYTE:
-            publisherIdType = &UA_TYPES[UA_TYPES_BYTE];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT16:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT16];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT32:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT32];
-            break;
-        case UA_PUBLISHERIDTYPE_UINT64:
-            publisherIdType = &UA_TYPES[UA_TYPES_UINT64];
-            break;
-        case UA_PUBLISHERIDTYPE_STRING:
-            publisherIdType = &UA_TYPES[UA_TYPES_STRING];
-            break;
-        }
-        rv |= encodeJsonJumpTable[publisherIdType->typeKind]
-            (ctx, &src->publisherId, publisherIdType);
+        UA_Variant v;
+        UA_PublisherId_toVariant(&src->publisherId, &v);
+        rv |= writeJsonKey(ctx, UA_DECODEKEY_PUBLISHERID);
+        rv |= encodeJsonJumpTable[v.type->typeKind](ctx, v.data, v.type);
     }
     if(rv != UA_STATUSCODE_GOOD)
         return rv;
@@ -213,11 +194,11 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 }
 
 UA_StatusCode
-UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
-                             UA_Byte **bufPos, const UA_Byte **bufEnd,
-                             UA_String *namespaces, size_t namespaceSize,
-                             UA_String *serverUris, size_t serverUriSize,
-                             UA_Boolean useReversible) {
+UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
+                                     UA_Byte **bufPos, const UA_Byte **bufEnd,
+                                     UA_String *namespaces, size_t namespaceSize,
+                                     UA_String *serverUris, size_t serverUriSize,
+                                     UA_Boolean useReversible) {
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -238,11 +219,55 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
     return ret;
 }
 
+UA_StatusCode
+UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
+                             UA_ByteString *outBuf,
+                             const UA_EncodeJsonOptions *options) {
+    UA_Boolean alloced = (outBuf->length == 0);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    if(alloced) {
+        size_t length = UA_NetworkMessage_calcSizeJson(src, options);
+        if(length == 0)
+            return UA_STATUSCODE_BADENCODINGERROR;
+        ret = UA_ByteString_allocBuffer(outBuf, length);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
+    }
+
+    /* Set up the context */
+    CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.pos = outBuf->data;
+    ctx.end = ctx.pos + outBuf->length;
+    ctx.calcOnly = false;
+    if(options) {
+        ctx.useReversible = options->useReversible;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
+    }
+
+    ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
+
+    /* In case the buffer was supplied externally and is longer than the encoded
+     * string */
+    if(UA_LIKELY(ret == UA_STATUSCODE_GOOD))
+        outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
+
+    if(alloced && ret != UA_STATUSCODE_GOOD)
+        UA_String_clear(outBuf);
+    return ret;
+}
+
 size_t
-UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
-                               UA_String *namespaces, size_t namespaceSize,
-                               UA_String *serverUris, size_t serverUriSize,
-                               UA_Boolean useReversible){
+UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
+                                       UA_String *namespaces, size_t namespaceSize,
+                                       UA_String *serverUris, size_t serverUriSize,
+                                       UA_Boolean useReversible) {
     /* Set up the context */
     CtxJson ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -259,6 +284,32 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     status ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
     if(ret != UA_STATUSCODE_GOOD)
         return 0;
+    return (size_t)ctx.pos;
+}
+
+size_t
+UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
+                               const UA_EncodeJsonOptions *options) {
+    /* Set up the context */
+    CtxJson ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
+    ctx.calcOnly = true;
+    if(options) {
+        ctx.useReversible = options->useReversible;
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.prettyPrint = options->prettyPrint;
+        ctx.unquotedKeys = options->unquotedKeys;
+        ctx.stringNodeIds = options->stringNodeIds;
+    }
+
+    status ret = UA_NetworkMessage_encodeJson_internal(src, &ctx);
+    if(ret != UA_STATUSCODE_GOOD)
+        return 0;
+
     return (size_t)ctx.pos;
 }
 
@@ -411,6 +462,23 @@ DatasetMessage_Array_decodeJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
 }
 
 static status
+decodePublisherIdJsonInternal(ParseCtx *ctx, void *UA_RESTRICT dst,
+                              const UA_DataType *type) {
+    UA_PublisherId *p = (UA_PublisherId*)dst;
+    if(currentTokenType(ctx) == CJ5_TOKEN_NUMBER) {
+        /* Store in biggest possible integer. The problem is that with a UInt64
+         * is that a string is expected for it in JSON. Therefore, the maximum
+         * value is set to UInt32. */
+        p->idType = UA_PUBLISHERIDTYPE_UINT32;
+        return decodeJsonJumpTable[UA_DATATYPEKIND_UINT32](ctx, &p->id.uint32, NULL);
+    } else if(currentTokenType(ctx) == CJ5_TOKEN_STRING) {
+        p->idType = UA_PUBLISHERIDTYPE_STRING;
+        return decodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &p->id.string, NULL);
+    }
+    return UA_STATUSCODE_BADDECODINGERROR;
+}
+
+static status
 NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     memset(dst, 0, sizeof(UA_NetworkMessage));
     dst->chunkMessage = false;
@@ -419,28 +487,9 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     dst->picosecondsEnabled = false;
     dst->promotedFieldsEnabled = false;
 
-    /* Look forward for publisheId, if present check if type if primitve (Number) or String. */
-    const UA_DataType *pubIdType = &UA_TYPES[UA_TYPES_STRING];
-    size_t searchResultPublishIdType = 0;
-    status found = lookAheadForKey(ctx, UA_DECODEKEY_PUBLISHERID, &searchResultPublishIdType);
-    if(found == UA_STATUSCODE_GOOD) {
-        cj5_token *publishIdToken = &ctx->tokens[searchResultPublishIdType];
-        if(publishIdToken->type == CJ5_TOKEN_NUMBER) {
-            // store in biggest possible. The problem is that with a UInt64 a
-            // string is expected in the json. Therefore, the maximum value is
-            // set to UInt32.
-            pubIdType = &UA_TYPES[UA_TYPES_UINT32];
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        } else if(publishIdToken->type == CJ5_TOKEN_STRING) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        } else {
-            return UA_STATUSCODE_BADDECODINGERROR;
-        }
-    }
-
     /* Is Messages an Array? How big? */
     size_t searchResultMessages = 0;
-    found = lookAheadForKey(ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
+    status found = lookAheadForKey(ctx, UA_DECODEKEY_MESSAGES, &searchResultMessages);
     if(found != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     const cj5_token *bodyToken = &ctx->tokens[searchResultMessages];
@@ -482,9 +531,10 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     DecodeEntry entries[5] = {
         {UA_DECODEKEY_MESSAGEID, &dst->messageId, NULL, false, &UA_TYPES[UA_TYPES_STRING]},
         {UA_DECODEKEY_MESSAGETYPE, &messageType, NULL, false, NULL},
-        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, NULL, false, pubIdType},
+        {UA_DECODEKEY_PUBLISHERID, &dst->publisherId, decodePublisherIdJsonInternal, false, NULL},
         {UA_DECODEKEY_DATASETCLASSID, &dst->dataSetClassId, NULL, false, &UA_TYPES[UA_TYPES_GUID]},
-        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages, &DatasetMessage_Array_decodeJsonInternal, false, NULL}
+        {UA_DECODEKEY_MESSAGES, &dst->payload.dataSetPayload.dataSetMessages,
+         &DatasetMessage_Array_decodeJsonInternal, false, NULL}
     };
 
     status ret = decodeFields(ctx, entries, 5);
@@ -493,13 +543,6 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
 
     dst->messageIdEnabled = entries[0].found;
     dst->publisherIdEnabled = entries[2].found;
-    if(dst->publisherIdEnabled) {
-        if(pubIdType == &UA_TYPES[UA_TYPES_UINT32]) {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-        } else {
-            dst->publisherIdType = UA_PUBLISHERIDTYPE_STRING;
-        }
-    }
     dst->dataSetClassIdEnabled = entries[3].found;
     dst->payloadHeaderEnabled = true;
     dst->payloadHeader.dataSetPayloadHeader.count = (UA_Byte)messageCount;
@@ -509,19 +552,32 @@ NetworkMessage_decodeJsonInternal(ParseCtx *ctx, UA_NetworkMessage *dst) {
     return ret;
 }
 
-status
-UA_NetworkMessage_decodeJson(UA_NetworkMessage *dst, const UA_ByteString *src) {
+UA_StatusCode
+UA_NetworkMessage_decodeJson(const UA_ByteString *src,
+                             UA_NetworkMessage *dst,
+                             const UA_DecodeJsonOptions *options) {
     /* Set up the context */
+    cj5_token tokens[UA_JSON_MAXTOKENCOUNT];
     ParseCtx ctx;
     memset(&ctx, 0, sizeof(ParseCtx));
-    ctx.tokens = (cj5_token*)
-        UA_calloc(UA_JSON_MAXTOKENCOUNT, sizeof(cj5_token));
-    if(!ctx.tokens)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT);
+    ctx.tokens = tokens;
+    if(options) {
+        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaces = options->namespaces;
+        ctx.serverUrisSize = options->serverUrisSize;
+        ctx.serverUris = options->serverUris;
+        ctx.customTypes = options->customTypes;
+    }
+
+    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT, NULL);
     if(ret != UA_STATUSCODE_GOOD)
-        return ret;
+        goto cleanup;
+
     ret = NetworkMessage_decodeJsonInternal(&ctx, dst);
-    UA_free((void*)(uintptr_t)ctx.tokens);
+
+ cleanup:
+    /* Free token array on the heap */
+    if(ctx.tokens != tokens)
+        UA_free((void*)(uintptr_t)ctx.tokens);
     return ret;
 }

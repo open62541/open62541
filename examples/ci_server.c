@@ -69,8 +69,7 @@ addHelloWorldMethod(UA_Server *server) {
     helloAttr.executable = true;
     helloAttr.userExecutable = true;
     UA_Server_addMethodNode(server, UA_NODEID_NUMERIC(1,62541),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(HASCOMPONENT),
                             UA_QUALIFIEDNAME(1, "hello world"),
                             helloAttr, &helloWorldMethodCallback,
                             1, &inputArgument, 1, &outputArgument, NULL, NULL);
@@ -90,11 +89,11 @@ addVariable(UA_Server *server) {
     /* Add the variable node to the information model */
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 static void
@@ -183,7 +182,7 @@ int main(int argc, char* argv[]) {
         goto cleanup;   
 
 #endif
-    retval = UA_AccessControl_default(config, true, NULL,
+    retval = UA_AccessControl_default(config, true,
              &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 3, logins);
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;

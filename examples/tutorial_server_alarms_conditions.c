@@ -34,10 +34,9 @@ addConditionSourceObject(UA_Server *server) {
 
     object_attr.displayName = UA_LOCALIZEDTEXT("en", "ConditionSourceObject");
     UA_StatusCode retval =  UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                      UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
                                       UA_QUALIFIEDNAME(0, "ConditionSourceObject"),
-                                      UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+                                      UA_NS0ID(BASEOBJECTTYPE),
                                       object_attr, NULL, &conditionSource);
 
     if(retval != UA_STATUSCODE_GOOD) {
@@ -50,8 +49,7 @@ addConditionSourceObject(UA_Server *server) {
      * Server Object). If this Reference is not created by user then the A&C
      * Server will create "HasEventSource" reference to the Server Object
      * automatically when the condition is created*/
-    retval = UA_Server_addReference(server, UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
-                                     UA_NODEID_NUMERIC(0, UA_NS0ID_HASNOTIFIER),
+    retval = UA_Server_addReference(server, UA_NS0ID(SERVER), UA_NS0ID(HASNOTIFIER),
                                      UA_EXPANDEDNODEID_NUMERIC(conditionSource.namespaceIndex,
                                                                conditionSource.identifier.numeric),
                                      UA_TRUE);
@@ -73,12 +71,9 @@ addCondition_1(UA_Server *server) {
                      UA_StatusCode_name(retval));
     }
 
-    retval = UA_Server_createCondition(server,
-                                       UA_NODEID_NULL,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
+    retval = UA_Server_createCondition(server, UA_NODEID_NULL, UA_NS0ID(OFFNORMALALARMTYPE),
                                        UA_QUALIFIEDNAME(0, "Condition 1"), conditionSource,
-                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                       &conditionInstance_1);
+                                       UA_NS0ID(HASCOMPONENT), &conditionInstance_1);
 
     return retval;
 }
@@ -89,10 +84,8 @@ addCondition_1(UA_Server *server) {
 static UA_StatusCode
 addCondition_2(UA_Server *server) {
     UA_StatusCode retval =
-        UA_Server_createCondition(server, UA_NODEID_NULL,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OFFNORMALALARMTYPE),
-                                  UA_QUALIFIEDNAME(0, "Condition 2"),
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER),
+        UA_Server_createCondition(server, UA_NODEID_NULL, UA_NS0ID(OFFNORMALALARMTYPE),
+                                  UA_QUALIFIEDNAME(0, "Condition 2"), UA_NS0ID(SERVER),
                                   UA_NODEID_NULL, &conditionInstance_2);
 
     return retval;
@@ -107,9 +100,9 @@ addVariable_1_triggerAlarmOfCondition_1(UA_Server *server, UA_NodeId* outNodeId)
     UA_Variant_setScalar(&attr.value, &tboolValue, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     UA_QualifiedName CallbackTestVariableName = UA_QUALIFIEDNAME(0, "Activate Condition 1");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_NodeId variableTypeNodeId = UA_NS0ID(BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                               parentReferenceNodeId, CallbackTestVariableName,
                               variableTypeNodeId, attr, NULL, outNodeId);
@@ -126,9 +119,9 @@ addVariable_2_changeSeverityOfCondition_2(UA_Server *server,
 
     UA_QualifiedName CallbackTestVariableName =
         UA_QUALIFIEDNAME(0, "Change Severity Condition 2");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_NodeId variableTypeNodeId = UA_NS0ID(BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                               parentReferenceNodeId, CallbackTestVariableName,
                               variableTypeNodeId, attr, NULL, outNodeId);
@@ -145,9 +138,9 @@ addVariable_3_returnCondition_1_toNormalState(UA_Server *server,
 
     UA_QualifiedName CallbackTestVariableName =
         UA_QUALIFIEDNAME(0, "Return to Normal Condition 1");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
-    UA_NodeId variableTypeNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
+    UA_NodeId variableTypeNodeId = UA_NS0ID(BASEDATAVARIABLETYPE);
     UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId,
                               parentReferenceNodeId, CallbackTestVariableName,
                               variableTypeNodeId, attr, NULL, outNodeId);
@@ -551,8 +544,7 @@ int main (void) {
 
     setUpEnvironment(server);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

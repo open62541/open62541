@@ -10,16 +10,16 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
+#include <stdlib.h>
 
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
@@ -188,8 +188,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("UADP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-    connectionConf.publisherId.uint64 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
+    connectionConf.publisherId.id.uint64 = 223344;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;
@@ -220,8 +220,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("UADP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT64;
-    connectionConf.publisherId.uint64 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
+    connectionConf.publisherId.id.uint64 = 223344;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.address = address;

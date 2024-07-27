@@ -10,6 +10,8 @@
 #if defined(__linux__) || defined(__unix__)
 
 #include <syslog.h>
+#include <stdio.h>
+#include "mp_printf.h"
 
 const char *syslogLevelNames[6] = {"trace", "debug", "info",
                                    "warn", "error", "fatal"};
@@ -55,9 +57,9 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
 
 #define LOGBUFSIZE 512
     char logbuf[LOGBUFSIZE];
-    int pos = snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
-                       syslogLevelNames[logLevelSlot],
-                       syslogCategoryNames[category]);
+    int pos = mp_snprintf(logbuf, LOGBUFSIZE, "[%s/%s] ",
+                          syslogLevelNames[logLevelSlot],
+                          syslogCategoryNames[category]);
     if(pos < 0) {
         syslog(LOG_WARNING, "Log message too long for syslog");
         return;
@@ -72,10 +74,11 @@ UA_Log_Syslog_log(void *context, UA_LogLevel level, UA_LogCategory category,
 }
 
 static void
-UA_Log_Syslog_clear(void *logContext) {
+UA_Log_Syslog_clear(UA_Logger *logger) {
     /* closelog is optional. We don't use it as several loggers might be
      * instantiated in parallel. */
     /* closelog(); */
+    UA_free(logger);
 }
 
 UA_Logger
@@ -85,7 +88,17 @@ UA_Log_Syslog(void) {
 
 UA_Logger
 UA_Log_Syslog_withLevel(UA_LogLevel minlevel) {
-    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, UA_Log_Syslog_clear};
+    UA_Logger logger = {UA_Log_Syslog_log, (void*)(uintptr_t)minlevel, NULL};
+    return logger;
+}
+
+UA_Logger *
+UA_Log_Syslog_new(UA_LogLevel minlevel) {
+    UA_Logger *logger = (UA_Logger*)UA_malloc(sizeof(UA_Logger));
+    if(!logger)
+        return NULL;
+    *logger = UA_Log_Syslog_withLevel(minlevel);
+    logger->clear = UA_Log_Syslog_clear;
     return logger;
 }
 

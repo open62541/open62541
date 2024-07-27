@@ -66,49 +66,34 @@ UA_UInt16 itoaUnsigned(UA_UInt64 value, char* buffer, UA_Byte base) {
     return i;
 }
 
-/* adapted from http://www.techiedelight.com/implement-itoa-function-in-c/ to use UA_... types */
+/* adapted from http://www.techiedelight.com/implement-itoa-function-in-c/ */
 UA_UInt16 itoaSigned(UA_Int64 value, char* buffer) {
-    /* consider absolute value of number */
-
-
-    UA_UInt64 n;
-
     /* Special case for UA_INT64_MIN which can not simply be negated */
     /* it will cause a signed integer overflow */
-    if (value == UA_INT64_MIN) {
+    UA_UInt64 n;
+    if(value == UA_INT64_MIN) {
         n = (UA_UInt64)UA_INT64_MAX + 1;
-    }
-    else {
+    } else {
         n = (UA_UInt64)value;
-
         if(value < 0){
             n = (UA_UInt64)-value;
         }
     }
 
     UA_UInt16 i = 0;
-    while (n) {
+    while(n) {
         UA_UInt64 r = n % 10;
-
-        if (r >= 10)
-            buffer[i++] = (char)(65 + (r - 10));
-        else
-            buffer[i++] = (char)(48 + r);
-
+        buffer[i++] = (char)('0' + r);
         n = n / 10;
     }
 
-    /* if number is 0 */
-    if (i == 0)
-        buffer[i++] = '0';
-
-    if (value < 0)
+    if(i == 0)
+        buffer[i++] = '0'; /* if number is 0 */
+    if(value < 0)
         buffer[i++] = '-';
-
     buffer[i] = '\0'; /* null terminate string */
     i--;
-    /* reverse the string and return it */
-    reverse(buffer, 0, i);
+    reverse(buffer, 0, i); /* reverse the string and return it */
     i++;
     return i;
 }

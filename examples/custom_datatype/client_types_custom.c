@@ -5,6 +5,7 @@
 #include <open62541/client_highlevel.h>
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "custom_datatype.h"
 

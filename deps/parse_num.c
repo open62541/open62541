@@ -26,15 +26,15 @@
 #include <stdlib.h>
 #include <errno.h>
 
-size_t parseUInt64(const char *str, size_t size, uint64_t *result) {
+size_t
+parseUInt64(const char *str, size_t size, uint64_t *result) {
     size_t i = 0;
     uint64_t n = 0, prev = 0;
-    bool digit = false; /* At least one real digit */
-    if(size - i >= 2 && str[i] == '0' && (str[i+1] | 32) == 'x') {
-        /* Hex */
-        i += 2;
+
+    /* Hex */
+    if(size > 2 && str[0] == '0' && (str[1] | 32) == 'x') {
+        i = 2;
         for(; i < size; i++) {
-            /* Get the byte value */
             uint8_t c = (uint8_t)str[i] | 32;
             if(c >= '0' && c <= '9')
                 c = (uint8_t)(c - '0');
@@ -44,38 +44,31 @@ size_t parseUInt64(const char *str, size_t size, uint64_t *result) {
                 c = (uint8_t)(c - 'A' + 10);
             else
                 break;
-            /* Update */
-            digit = true;
             n = (n << 4) | (c & 0xF);
-            if(n < prev)
-            /* Check for overflow */
-                return 0;
-            prev = n;
-        }
-    } else {
-        /* Decimal */
-        for(; i < size; i++) {
-            /* Update */
-            if(str[i] < '0' || str[i] > '9')
-                break;
-            n *= 10;
-            digit = true;
-            n +=(uint8_t)(str[i] - '0');
             if(n < prev) /* Check for overflow */
                 return 0;
             prev = n;
         }
+        *result = n;
+        return (i > 2) ? i : 0; /* 2 -> No digit was parsed */
     }
 
-    /* No digit was parsed */
-    if(!digit)
-        return 0;
-
+    /* Decimal */
+    for(; i < size; i++) {
+        if(str[i] < '0' || str[i] > '9')
+            break;
+        /* Fast multiplication: n*10 == (n*8) + (n*2) */
+        n = (n << 3) + (n << 1) + (uint8_t)(str[i] - '0');
+        if(n < prev) /* Check for overflow */
+            return 0;
+        prev = n;
+    }
     *result = n;
     return i;
 }
 
-size_t parseInt64(const char *str, size_t size, int64_t *result) {
+size_t
+parseInt64(const char *str, size_t size, int64_t *result) {
     /* Negative value? */
     size_t i = 0;
     bool neg = false;
@@ -112,7 +105,7 @@ size_t parseDouble(const char *str, size_t size, double *result) {
     errno = 0;
     char *endptr;
     *result = strtod(str, &endptr);
-    if(errno != 0)
+    if(errno != 0 && errno != ERANGE)
         return 0;
     return (uintptr_t)endptr - (uintptr_t)str;
 }

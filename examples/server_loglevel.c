@@ -7,6 +7,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 #ifdef __linux__
 #include <getopt.h>
 #endif
@@ -45,10 +46,15 @@ int main(int argc, char **argv) {
     }
 #endif
 
+
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-    config->logger = UA_Log_Stdout_withLevel( log_level );
+
+    /* Exchange the logger */
+    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+    logger.clear = config->logging->clear;
+    *config->logging = logger;
 
     /* Some data */
     UA_StatusCode retval;
@@ -56,8 +62,7 @@ int main(int argc, char **argv) {
     otAttr.description = UA_LOCALIZEDTEXT("en-US", "Some Data");
     otAttr.displayName = UA_LOCALIZEDTEXT("en-US", "data");
     UA_Server_addObjectTypeNode(server, UA_NODEID_NUMERIC(1, 10000),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
-                                UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                UA_NS0ID(BASEOBJECTTYPE), UA_NS0ID(HASSUBTYPE),
                                 UA_QUALIFIEDNAME(1, "data"), otAttr, NULL, NULL);
 
     UA_VariableAttributes vAttr = UA_VariableAttributes_default;
@@ -66,8 +71,9 @@ int main(int argc, char **argv) {
     UA_UInt32 ageVar = 0;
     UA_Variant_setScalar(&vAttr.value, &ageVar, &UA_TYPES[UA_TYPES_UINT32]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 10001),
-                              UA_NODEID_NUMERIC(1, 10000), UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                              UA_QUALIFIEDNAME(1, "data"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, NULL);
+                              UA_NODEID_NUMERIC(1, 10000), UA_NS0ID(HASPROPERTY),
+                              UA_QUALIFIEDNAME(1, "data"), UA_NS0ID(BASEDATAVARIABLETYPE),
+                              vAttr, NULL, NULL);
 
     retval = UA_Server_run(server, &running);
 

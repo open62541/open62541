@@ -10,6 +10,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/types.h>
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
@@ -22,9 +23,80 @@
 
 #define UA_DATETIMESTAMP_2000 125911584000000000
 #define UA_RESERVEID_FIRST_ID 0x8000
-#ifdef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
-#define UA_RESERVEID_LAST_ID UA_RESERVEID_FIRST_ID + 10
-#endif
+
+static const char *pubSubStateNames[6] = {
+    "Disabled", "Paused", "Operational", "Error", "PreOperational", "Invalid"
+};
+
+const char *
+UA_PubSubState_name(UA_PubSubState state) {
+    if(state < UA_PUBSUBSTATE_DISABLED || state > UA_PUBSUBSTATE_PREOPERATIONAL)
+        return pubSubStateNames[5];
+    return pubSubStateNames[state];
+}
+
+UA_StatusCode
+UA_PublisherId_copy(const UA_PublisherId *src,
+                    UA_PublisherId *dst) {
+    memcpy(dst, src, sizeof(UA_PublisherId));
+    if(src->idType == UA_PUBLISHERIDTYPE_STRING)
+        return UA_String_copy(&src->id.string, &dst->id.string);
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_PublisherId_clear(UA_PublisherId *p) {
+    if(p->idType == UA_PUBLISHERIDTYPE_STRING)
+        UA_String_clear(&p->id.string);
+    memset(p, 0, sizeof(UA_PublisherId));
+}
+
+UA_StatusCode
+UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src) {
+    if(!UA_Variant_isScalar(src))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    memset(p, 0, sizeof(UA_PublisherId));
+
+    const void *data = (const void*)src->data;
+    if(src->type == &UA_TYPES[UA_TYPES_BYTE]) {
+        p->idType = UA_PUBLISHERIDTYPE_BYTE;
+        p->id.byte = *(const UA_Byte*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT16]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT16;
+        p->id.uint16 = *(const UA_UInt16*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT32]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT32;
+        p->id.uint32 = *(const UA_UInt32*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_UINT64]) {
+        p->idType  = UA_PUBLISHERIDTYPE_UINT64;
+        p->id.uint64 = *(const UA_UInt64*)data;
+    } else if(src->type == &UA_TYPES[UA_TYPES_STRING]) {
+        p->idType  = UA_PUBLISHERIDTYPE_STRING;
+        return UA_String_copy((const UA_String *)data, &p->id.string);
+    } else {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst) {
+    UA_PublisherId *p2 = (UA_PublisherId*)(uintptr_t)p;
+    switch(p->idType) {
+    case UA_PUBLISHERIDTYPE_BYTE:
+        UA_Variant_setScalar(dst, &p2->id.byte, &UA_TYPES[UA_TYPES_BYTE]); break;
+    case UA_PUBLISHERIDTYPE_UINT16:
+        UA_Variant_setScalar(dst, &p2->id.uint16, &UA_TYPES[UA_TYPES_UINT16]); break;
+    case UA_PUBLISHERIDTYPE_UINT32:
+        UA_Variant_setScalar(dst, &p2->id.uint32, &UA_TYPES[UA_TYPES_UINT32]); break;
+    case UA_PUBLISHERIDTYPE_UINT64:
+        UA_Variant_setScalar(dst, &p2->id.uint64, &UA_TYPES[UA_TYPES_UINT64]); break;
+    case UA_PUBLISHERIDTYPE_STRING:
+        UA_Variant_setScalar(dst, &p2->id.string, &UA_TYPES[UA_TYPES_STRING]); break;
+    default: break; /* This is not possible if the PublisherId is well-defined */
+    }
+}
 
 static void
 UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topicAssign) {
@@ -34,8 +106,9 @@ UA_PubSubManager_addTopic(UA_PubSubManager *pubSubManager, UA_TopicAssign *topic
 
 static UA_TopicAssign *
 UA_TopicAssign_new(UA_ReaderGroup *readerGroup,
-                   UA_String topic, UA_Logger *logger) {
-    UA_TopicAssign *topicAssign = (UA_TopicAssign *) calloc(1, sizeof(UA_TopicAssign));
+                   UA_String topic, const UA_Logger *logger) {
+    UA_TopicAssign *topicAssign = (UA_TopicAssign *)
+        UA_calloc(1, sizeof(UA_TopicAssign));
     if(!topicAssign) {
         UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
                      "PubSub TopicAssign creation failed. Out of Memory.");
@@ -49,7 +122,7 @@ UA_TopicAssign_new(UA_ReaderGroup *readerGroup,
 UA_StatusCode
 UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup, UA_String topic) {
     UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    UA_TopicAssign *topicAssign = UA_TopicAssign_new(readerGroup, topic, &server->config.logger);
+    UA_TopicAssign *topicAssign = UA_TopicAssign_new(readerGroup, topic, server->config.logging);
     UA_PubSubManager_addTopic(pubSubManager, topicAssign);
     return UA_STATUSCODE_GOOD;
 }
@@ -71,9 +144,10 @@ ZIP_FUNCTIONS(UA_ReserveIdTree, UA_ReserveId, treeEntry, UA_ReserveId, id, cmpRe
 static UA_ReserveId *
 UA_ReserveId_new(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
                  UA_ReserveIdType reserveIdType, UA_NodeId sessionId) {
-    UA_ReserveId *reserveId = (UA_ReserveId *) calloc(1, sizeof(UA_ReserveId));
+    UA_ReserveId *reserveId = (UA_ReserveId *)
+        UA_calloc(1, sizeof(UA_ReserveId));
     if(!reserveId) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. Out of Memory.");
         return NULL;
     }
@@ -139,20 +213,15 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
         next_id = next_id_writer;
 
     for(;numberOfIds > 0;numberOfIds--) {
-#ifndef UA_ENABLE_REDUCED_ITERATIONS_FOR_TESTING
         if(next_id < UA_RESERVEID_FIRST_ID)
             next_id = UA_RESERVEID_FIRST_ID;
-#else
-        if(next_id > UA_RESERVEID_LAST_ID)
-            next_id = UA_RESERVEID_FIRST_ID;
-#endif
         is_free = UA_ReserveId_isFree(server, next_id, transportProfileUri, reserveIdType);
         if(is_free)
             break;
         next_id++;
     }
     if(!is_free) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. No free ID could be found.");
         return 0;
     }
@@ -232,7 +301,7 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
     if(!UA_String_equal(&transportProfileUri, &profile_1) &&
        !UA_String_equal(&transportProfileUri, &profile_2) &&
        !UA_String_equal(&transportProfileUri, &profile_3)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. No valid transport profile uri.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -253,113 +322,9 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
 /* Calculate the time difference between current time and UTC (00:00) on January
  * 1, 2000. */
 UA_UInt32
-UA_PubSubConfigurationVersionTimeDifference(void) {
-    UA_UInt32 timeDiffSince2000 = (UA_UInt32) (UA_DateTime_now() - UA_DATETIMESTAMP_2000);
+UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now) {
+    UA_UInt32 timeDiffSince2000 = (UA_UInt32)(now - UA_DATETIMESTAMP_2000);
     return timeDiffSince2000;
-}
-
-static UA_StatusCode
-addStandaloneSubscribedDataSet(UA_Server *server,
-                               const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                               UA_NodeId *sdsIdentifier) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    if(!sdsConfig){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "SubscribedDataSet creation failed. No config passed in.");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
-    UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
-    memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
-    if(UA_StandaloneSubscribedDataSetConfig_copy(sdsConfig, &tmpSubscribedDataSetConfig) != UA_STATUSCODE_GOOD){
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "SubscribedDataSet creation failed. Configuration copy failed.");
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    //create new PDS and add to UA_PubSubManager
-    UA_StandaloneSubscribedDataSet *newSubscribedDataSet = (UA_StandaloneSubscribedDataSet *)
-            UA_calloc(1, sizeof(UA_StandaloneSubscribedDataSet));
-    if(!newSubscribedDataSet) {
-        UA_StandaloneSubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "SubscribedDataSet creation failed. Out of Memory.");
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-
-    newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
-    newSubscribedDataSet->connectedReader = UA_NODEID_NULL;
-
-    TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets, newSubscribedDataSet, listEntry);
-    server->pubSubManager.subscribedDataSetsSize++;
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
-#else
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newSubscribedDataSet->identifier);
-#endif
-
-    if(sdsIdentifier)
-        UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
-                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                                         UA_NodeId *sdsIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-static UA_StatusCode
-removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_StandaloneSubscribedDataSet *subscribedDataSet =
-        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sds);
-    if(!subscribedDataSet){
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    //search for referenced readers.
-    UA_PubSubConnection *tmpConnectoin;
-    TAILQ_FOREACH(tmpConnectoin, &server->pubSubManager.connections, listEntry){
-        UA_ReaderGroup *readerGroup;
-        LIST_FOREACH(readerGroup, &tmpConnectoin->readerGroups, listEntry){
-            UA_DataSetReader *currentReader, *tmpReader;
-            LIST_FOREACH_SAFE(currentReader, &readerGroup->readers, listEntry, tmpReader){
-                if(UA_NodeId_equal(&currentReader->identifier, &subscribedDataSet->connectedReader)){
-                    UA_DataSetReader_remove(server, currentReader);
-                    goto done;
-                }
-            }
-        }
-    }
-
- done:
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, subscribedDataSet->identifier, true);
-#endif
-
-    UA_StandaloneSubscribedDataSet_clear(server, subscribedDataSet);
-    server->pubSubManager.subscribedDataSetsSize--;
-
-    TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, subscribedDataSet, listEntry);
-    UA_free(subscribedDataSet);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = removeStandaloneSubscribedDataSet(server, sds);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
 }
 
 /* Generate a new unique NodeId. This NodeId will be used for the information
@@ -414,8 +379,7 @@ void
 UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager) {
     UA_PubSubConnection *tmpConnection;
     TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
-        UA_PubSubConnection_setPubSubState(server, tmpConnection,
-                                           UA_PUBSUBSTATE_DISABLED, UA_STATUSCODE_GOOD);
+        UA_PubSubConnection_setPubSubState(server, tmpConnection, UA_PUBSUBSTATE_DISABLED);
     }
 }
 
@@ -423,7 +387,7 @@ UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager) {
  * action also delete the configured PubSub transport Layers. */
 void
 UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
-    UA_LOG_INFO(&server->config.logger, UA_LOGCATEGORY_SERVER,
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
                 "PubSub cleanup was called.");
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -457,7 +421,7 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
     /* Delete subscribed datasets */
     UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
     TAILQ_FOREACH_SAFE(tmpSDS1, &server->pubSubManager.subscribedDataSets, listEntry, tmpSDS2){
-        removeStandaloneSubscribedDataSet(server, tmpSDS1->identifier);
+        UA_StandaloneSubscribedDataSet_remove(server, tmpSDS1->identifier);
     }
 
 #ifdef UA_ENABLE_PUBSUB_SKS
@@ -478,271 +442,240 @@ UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager) {
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 
 static UA_StatusCode
-UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
-                                    UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback) {
-
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "Error UA_PubSubComponent_createMonitoring(): "
-            "null pointer param");
+UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id,
+                                    UA_PubSubComponentEnumType eComponentType,
+                                    UA_PubSubMonitoringType eMonitoringType,
+                                    void *data, UA_ServerCallback callback) {
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetReader *reader = (UA_DataSetReader*) data;
+
+    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_createMonitoring(): "
+                            "PubSub component type '%i' is not supported",
+                            eComponentType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch (eComponentType) {
-        case UA_PUBSUB_COMPONENT_DATASETREADER: {
-            UA_DataSetReader *reader = (UA_DataSetReader*) data;
-            switch (eMonitoringType) {
-                case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT:
-                    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_PubSubComponent_createMonitoring(): DataSetReader '%.*s' "
-                        "- MessageReceiveTimeout", (UA_Int32) reader->config.name.length, reader->config.name.data);
-                    reader->msgRcvTimeoutTimerCallback = callback;
-                    break;
-                default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER, "UA_PubSubComponent_createMonitoring(): DataSetReader '%.*s' "
-                        "DataSetReader does not support timeout type '%i'", (UA_Int32) reader->config.name.length, reader->config.name.data,
-                        eMonitoringType);
-                    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-                    break;
-            }
-            break;
-        }
-        default:
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                "Error UA_PubSubComponent_createMonitoring(): PubSub component type '%i' is not supported", eComponentType);
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
-            break;
+
+    if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "UA_PubSubComponent_createMonitoring(): "
+                            "DataSetReader does not support timeout type '%i'",
+                            eMonitoringType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    return ret;
+
+    reader->msgRcvTimeoutTimerCallback = callback;
+
+    UA_LOG_DEBUG_READER(server->config.logging, reader,
+                 "UA_PubSubComponent_createMonitoring(): "
+                 "Set MessageReceiveTimeout callback");
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 monitoringReceiveTimeoutOnce(UA_Server *server, void *data) {
+    UA_LOCK(&server->serviceMutex);
     UA_DataSetReader *reader = (UA_DataSetReader*)data;
     reader->msgRcvTimeoutTimerCallback(server, reader);
     UA_EventLoop *el = server->config.eventLoop;
     el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
     reader->msgRcvTimeoutTimerId = 0;
+    UA_UNLOCK(&server->serviceMutex);
 }
 
 static UA_StatusCode
 UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
                                    UA_PubSubComponentEnumType eComponentType,
                                    UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_startMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetReader *reader = (UA_DataSetReader*)data;
+
+    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                     "Error UA_PubSubComponent_startMonitoring(): PubSub component "
+                     "type '%i' is not supported", eComponentType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch (eComponentType) {
-        case UA_PUBSUB_COMPONENT_DATASETREADER: {
-            UA_DataSetReader *reader = (UA_DataSetReader*) data;
-            switch (eMonitoringType) {
-                case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    /* use a timed callback, because one notification is enough,
-                     * we assume that MessageReceiveTimeout configuration is in
-                     * [ms], we do not handle or check fractions */
-                    UA_EventLoop *el = server->config.eventLoop;
-                    ret = el->addCyclicCallback(el, (UA_Callback)monitoringReceiveTimeoutOnce,
-                                                server, reader, reader->config.messageReceiveTimeout,
-                                                NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                                &reader->msgRcvTimeoutTimerId);
-                    if(ret == UA_STATUSCODE_GOOD) {
-                        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                     "UA_PubSubComponent_startMonitoring(): DataSetReader '%.*s'- "
-                                     "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
-                                     "Timer Id = '%u'", (UA_Int32) reader->config.name.length,
-                                     reader->config.name.data, reader->config.messageReceiveTimeout,
-                                     (UA_UInt32) reader->msgRcvTimeoutTimerId);
-                    } else {
-                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                     "Error UA_PubSubComponent_startMonitoring(): DataSetReader "
-                                     "'%.*s' - MessageReceiveTimeout: start timer failed",
-                                     (UA_Int32) reader->config.name.length, reader->config.name.data);
-                    }
-                    break;
-                }
-                default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_startMonitoring(): DataSetReader '%.*s' "
-                                 "DataSetReader does not support timeout type '%i'",
-                                 (UA_Int32) reader->config.name.length, reader->config.name.data,
-                                 eMonitoringType);
-                    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-                    break;
-            }
-            break;
-        }
-        default:
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Error UA_PubSubComponent_startMonitoring(): PubSub component "
-                         "type '%i' is not supported", eComponentType);
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
-            break;
+    if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                     "UA_PubSubComponent_startMonitoring(): "
+                     "DataSetReader does not support timeout type '%i'",
+                     eMonitoringType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    return ret;
+
+    /* No timeout configured */
+    if(reader->config.messageReceiveTimeout <= 0.0) {
+        UA_LOG_WARNING_READER(server->config.logging, reader,
+                              "Cannot monitor timeout for messageReceiveTimeout == 0");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Use a timed callback, because one notification is enough, we assume that
+     * MessageReceiveTimeout configuration is in [ms]. */
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_StatusCode ret =
+        el->addCyclicCallback(el, (UA_Callback)monitoringReceiveTimeoutOnce, server,
+                              reader, reader->config.messageReceiveTimeout,
+                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                              &reader->msgRcvTimeoutTimerId);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_startMonitoring(): "
+                            "MessageReceiveTimeout: Start timer failed");
+        return ret;
+    }
+
+    UA_LOG_DEBUG_READER(server->config.logging, reader,
+                 "UA_PubSubComponent_startMonitoring(): "
+                 "MessageReceiveTimeout = '%f' Timer Id = '%u'",
+                 reader->config.messageReceiveTimeout,
+                 (UA_UInt32)reader->msgRcvTimeoutTimerId);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
                                   UA_PubSubComponentEnumType eComponentType,
                                   UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_stopMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetReader *reader = (UA_DataSetReader*) data;
+
+    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_stopMonitoring(): "
+                            "PubSub component type '%i' is not supported",
+                            eComponentType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch (eComponentType) {
-        case UA_PUBSUB_COMPONENT_DATASETREADER: {
-            UA_DataSetReader *reader = (UA_DataSetReader*) data;
-            switch (eMonitoringType) {
-                case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    UA_EventLoop *el = server->config.eventLoop;
-                    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
-                    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_stopMonitoring(): DataSetReader '%.*s' - "
-                                 "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
-                                 "Timer Id = '%u'", (UA_Int32) reader->config.name.length,
-                                 reader->config.name.data, reader->config.messageReceiveTimeout,
-                                 (UA_UInt32) reader->msgRcvTimeoutTimerId);
-                    break;
-                }
-                default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_stopMonitoring(): DataSetReader '%.*s' "
-                                 "DataSetReader does not support timeout type '%i'",
-                                 (UA_Int32) reader->config.name.length, reader->config.name.data,
-                        eMonitoringType);
-                    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-                    break;
-            }
-            break;
-        }
-        default:
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Error UA_PubSubComponent_stopMonitoring(): PubSub component type '%i' "
-                         "is not supported", eComponentType);
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
-            break;
+    if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "UA_PubSubComponent_stopMonitoring(): "
+                            "DataSetReader does not support timeout type '%i'",
+                            eMonitoringType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    return ret;
+
+    UA_LOG_DEBUG_READER(server->config.logging, reader,
+                        "UA_PubSubComponent_stopMonitoring(): "
+                        "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
+                        "Timer Id = '%u'", reader->config.messageReceiveTimeout,
+                        (UA_UInt32)reader->msgRcvTimeoutTimerId);
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->removeCyclicCallback(el, reader->msgRcvTimeoutTimerId);
+    reader->msgRcvTimeoutTimerId = 0;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
                                             UA_PubSubComponentEnumType eComponentType,
-                                            UA_PubSubMonitoringType eMonitoringType, void *data) {
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_updateMonitoringInterval(): "
-                     "null pointer param");
+                                            UA_PubSubMonitoringType eMonitoringType,
+                                            void *data) {
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetReader *reader = (UA_DataSetReader*) data;
+
+    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_updateMonitoringInterval(): "
+                            "PubSub component type '%i' is not supported",
+                            eComponentType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch (eComponentType) {
-        case UA_PUBSUB_COMPONENT_DATASETREADER: {
-            UA_DataSetReader *reader = (UA_DataSetReader*) data;
-            switch (eMonitoringType) {
-                case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT: {
-                    UA_EventLoop *el = server->config.eventLoop;
-                    ret = el->modifyCyclicCallback(el, reader->msgRcvTimeoutTimerId,
-                                                   reader->config.messageReceiveTimeout, NULL,
-                                                   UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
-                    if (ret == UA_STATUSCODE_GOOD) {
-                        UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                     "UA_PubSubComponent_updateMonitoringInterval(): "
-                                     "DataSetReader '%.*s' - MessageReceiveTimeout: new "
-                                     "MessageReceiveTimeout = '%f' Timer Id = '%u'",
-                                     (UA_Int32) reader->config.name.length, reader->config.name.data,
-                                     reader->config.messageReceiveTimeout,
-                                     (UA_UInt32) reader->msgRcvTimeoutTimerId);
-                    } else {
-                        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                     "Error UA_PubSubComponent_updateMonitoringInterval(): "
-                                     "DataSetReader '%.*s': update timer interval failed",
-                                     (UA_Int32) reader->config.name.length, reader->config.name.data);
-                    }
-                    break;
-                }
-                default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_createMonitoring(): DataSetReader '%.*s' "
-                                 "DataSetReader does not support timeout type '%i'",
-                                 (UA_Int32) reader->config.name.length, reader->config.name.data,
-                                 eMonitoringType);
-                    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-                    break;
-            }
-            break;
-        }
-        default:
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Error UA_PubSubComponent_updateMonitoringInterval(): "
-                         "PubSub component type '%i' is not supported", eComponentType);
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
-            break;
+
+    if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "UA_PubSubComponent_createMonitoring(): "
+                            "DataSetReader does not support timeout type '%i'",
+                            eMonitoringType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    return ret;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_StatusCode ret =
+        el->modifyCyclicCallback(el, reader->msgRcvTimeoutTimerId,
+                                 reader->config.messageReceiveTimeout, NULL,
+                                 UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_updateMonitoringInterval(): "
+                            "Update timer interval failed");
+        return ret;
+    }
+
+    UA_LOG_DEBUG_READER(server->config.logging, reader,
+                        "UA_PubSubComponent_updateMonitoringInterval(): "
+                        "MessageReceiveTimeout: new MessageReceiveTimeout "
+                        "= '%f' Timer Id = '%u'",
+                        reader->config.messageReceiveTimeout,
+                        (UA_UInt32) reader->msgRcvTimeoutTimerId);
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
 UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
                                     UA_PubSubComponentEnumType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
-
-    if ((!server) || (!data)) {
-        UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                     "Error UA_PubSubComponent_deleteMonitoring(): "
-                     "null pointer param");
+    if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_DataSetReader *reader = (UA_DataSetReader*) data;
+
+    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                            "Error UA_PubSubComponent_deleteMonitoring(): PubSub component type "
+                            "'%i' is not supported", eComponentType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    switch (eComponentType) {
-        case UA_PUBSUB_COMPONENT_DATASETREADER: {
-            UA_DataSetReader *reader = (UA_DataSetReader*) data;
-            switch (eMonitoringType) {
-                case UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT:
-                    UA_LOG_DEBUG(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_deleteMonitoring(): DataSetReader '%.*s' - "
-                                 "MessageReceiveTimeout: Timer Id = '%u'",
-                                 (UA_Int32)reader->config.name.length, reader->config.name.data,
-                                 (UA_UInt32) reader->msgRcvTimeoutTimerId);
-                    break;
-                default:
-                    UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                                 "UA_PubSubComponent_deleteMonitoring(): DataSetReader '%.*s' "
-                                 "DataSetReader does not support timeout type '%i'",
-                                 (UA_Int32) reader->config.name.length, reader->config.name.data,
-                        eMonitoringType);
-                    ret = UA_STATUSCODE_BADNOTSUPPORTED;
-                    break;
-            }
-            break;
-        }
-        default:
-            UA_LOG_ERROR(&server->config.logger, UA_LOGCATEGORY_SERVER,
-                         "Error UA_PubSubComponent_deleteMonitoring(): PubSub component type "
-                         "'%i' is not supported", eComponentType);
-            ret = UA_STATUSCODE_BADNOTSUPPORTED;
-            break;
+
+    if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
+        UA_LOG_ERROR_READER(server->config.logging, reader,
+                     "UA_PubSubComponent_deleteMonitoring(): "
+                     "DataSetReader does not support timeout type '%i'",
+                     eMonitoringType);
+        return UA_STATUSCODE_BADNOTSUPPORTED;
     }
-    return ret;
+
+    /* This implementation only stops monitoring and does no other cleanup.
+     * Other implementations might do it differently. */
+    if(reader->msgRcvTimeoutTimerId != 0) {
+        UA_PubSubComponent_stopMonitoring(server, Id, eComponentType,
+                                          eMonitoringType, data);
+    }
+
+    UA_LOG_DEBUG_READER(server->config.logging, reader,
+                 "UA_PubSubComponent_deleteMonitoring(): DataSetReader "
+                 "MessageReceiveTimeout: Timer Id = '%u'",
+                 (UA_UInt32)reader->msgRcvTimeoutTimerId);
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface) {
-    if (monitoringInterface == NULL) {
+UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif) {
+    if(!mif)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    monitoringInterface->createMonitoring = UA_PubSubComponent_createMonitoring;
-    monitoringInterface->startMonitoring = UA_PubSubComponent_startMonitoring;
-    monitoringInterface->stopMonitoring = UA_PubSubComponent_stopMonitoring;
-    monitoringInterface->updateMonitoringInterval = UA_PubSubComponent_updateMonitoringInterval;
-    monitoringInterface->deleteMonitoring = UA_PubSubComponent_deleteMonitoring;
+
+    mif->createMonitoring = UA_PubSubComponent_createMonitoring;
+    mif->startMonitoring = UA_PubSubComponent_startMonitoring;
+    mif->stopMonitoring = UA_PubSubComponent_stopMonitoring;
+    mif->updateMonitoringInterval = UA_PubSubComponent_updateMonitoringInterval;
+    mif->deleteMonitoring = UA_PubSubComponent_deleteMonitoring;
     return UA_STATUSCODE_GOOD;
 }
 

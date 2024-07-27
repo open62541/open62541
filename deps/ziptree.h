@@ -70,10 +70,15 @@ typedef enum ZIP_CMP (*zip_cmp_cb)(const void *key1, const void *key2);
 #define ZIP_LEFT(elm, field) (elm)->field.left
 #define ZIP_RIGHT(elm, field) (elm)->field.right
 #define ZIP_INSERT(name, head, elm) name##_ZIP_INSERT(head, elm)
-#define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
 #define ZIP_FIND(name, head, key) name##_ZIP_FIND(head, key)
 #define ZIP_MIN(name, head) name##_ZIP_MIN(head)
 #define ZIP_MAX(name, head) name##_ZIP_MAX(head)
+
+/* Returns the element if it was found in the tree. Returns NULL otherwise. */
+#define ZIP_REMOVE(name, head, elm) name##_ZIP_REMOVE(head, elm)
+
+/* Split (_UNZIP) and merge (_ZIP) trees. _UNZIP splits at the key and moves
+ * elements <= into the left output (right otherwise). */
 #define ZIP_ZIP(name, left, right) name##_ZIP_ZIP(left, right)
 #define ZIP_UNZIP(name, head, key, left, right) \
     name##_ZIP_UNZIP(head, key, left, right)
@@ -100,10 +105,12 @@ name##_ZIP_INSERT(struct name *head, struct type *el) {                 \
                  offsetof(struct type, keyfield), el);                  \
 }                                                                       \
                                                                         \
-ZIP_UNUSED static ZIP_INLINE void                                       \
+ZIP_UNUSED static ZIP_INLINE struct type *                              \
 name##_ZIP_REMOVE(struct name *head, struct type *elm) {                \
-    __ZIP_REMOVE(head, (zip_cmp_cb)cmp, offsetof(struct type, field),   \
-                 offsetof(struct type, keyfield), elm);                 \
+    return (struct type*)                                               \
+        __ZIP_REMOVE(head, (zip_cmp_cb)cmp,                             \
+                     offsetof(struct type, field),                      \
+                     offsetof(struct type, keyfield), elm);             \
 }                                                                       \
                                                                         \
 ZIP_UNUSED static ZIP_INLINE struct type *                              \
@@ -179,7 +186,7 @@ void
 __ZIP_INSERT(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm);
 
-void
+void *
 __ZIP_REMOVE(void *h, zip_cmp_cb cmp, unsigned short fieldoffset,
              unsigned short keyoffset, void *elm);
 

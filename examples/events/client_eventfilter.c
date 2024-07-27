@@ -19,6 +19,7 @@
 #include <open62541/util.h>
 
 #include <signal.h>
+#include <stdio.h>
 
 #define USE_FILTER_OR_TYPEOF
 
@@ -44,7 +45,7 @@ setupSelectClauses(size_t selectedFieldsSize, UA_QualifiedName *qName) {
     }
 
     for (size_t i = 0; i < selectedFieldsSize; ++i) {
-        selectClauses[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        selectClauses[i].typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         selectClauses[i].browsePathSize = 1;
         selectClauses[i].browsePath = (UA_QualifiedName*)
                 UA_Array_new(selectClauses[i].browsePathSize, &UA_TYPES[UA_TYPES_QUALIFIEDNAME]);
@@ -317,7 +318,7 @@ setupWhereClauses(UA_ContentFilter *contentFilter, UA_UInt16 whereClauseSize, UA
         UA_SimpleAttributeOperand sao;
         UA_SimpleAttributeOperand_init(&sao);
         sao.attributeId = UA_ATTRIBUTEID_VALUE;
-        sao.typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
+        sao.typeDefinitionId = UA_NS0ID(BASEEVENTTYPE);
         sao.browsePathSize = 1;
         UA_QualifiedName *qn = UA_QualifiedName_new();
         *qn = UA_QUALIFIEDNAME_ALLOC(0, "Severity");
@@ -376,7 +377,7 @@ int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("Usage: tutorial_client_event_filter <opc.tcp://server-url>\n");
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     UA_Client *client = UA_Client_new();
@@ -386,7 +387,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* Create a subscription */
@@ -396,15 +397,16 @@ int main(int argc, char *argv[]) {
     if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
+
     UA_UInt32 subId = response.subscriptionId;
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Create subscription succeeded, id %u", subId);
 
     /* Add a MonitoredItem */
     UA_MonitoredItemCreateRequest item;
     UA_MonitoredItemCreateRequest_init(&item);
-    item.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER); // Root->Objects->Server
+    item.itemToMonitor.nodeId = UA_NS0ID(SERVER); // Root->Objects->Server
     item.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
     item.monitoringMode = UA_MONITORINGMODE_REPORTING;
 
@@ -422,7 +424,7 @@ int main(int argc, char *argv[]) {
     retval = setupWhereClauses(&filter.whereClause, 3, 4);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Client_delete(client);
-        return EXIT_FAILURE;
+        return 0;
     }
 
     item.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -437,11 +439,13 @@ int main(int argc, char *argv[]) {
 
     if(result.statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Could not add the MonitoredItem with %s", UA_StatusCode_name(result.statusCode));
+                    "Could not add the MonitoredItem with %s",
+                    UA_StatusCode_name(result.statusCode));
         goto cleanup;
     } else {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                    "Monitoring 'Root->Objects->Server', id %u", response.subscriptionId);
+                    "Monitoring 'Root->Objects->Server', id %u",
+                    response.subscriptionId);
     }
 
     monId = result.monitoredItemId;
@@ -453,10 +457,12 @@ int main(int argc, char *argv[]) {
 cleanup:
     UA_MonitoredItemCreateResult_clear(&result);
     UA_Client_Subscriptions_deleteSingle(client, response.subscriptionId);
-    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT, &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
-    UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize, &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
+    UA_Array_delete(filter.selectClauses, SELECT_CLAUSE_FIELD_COUNT,
+                    &UA_TYPES[UA_TYPES_SIMPLEATTRIBUTEOPERAND]);
+    UA_Array_delete(filter.whereClause.elements, filter.whereClause.elementsSize,
+                    &UA_TYPES[UA_TYPES_CONTENTFILTERELEMENT]);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

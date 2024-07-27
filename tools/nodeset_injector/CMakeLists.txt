@@ -5,11 +5,11 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
     # no dependency
     if(MODEL STREQUAL "DEXPI" OR MODEL STREQUAL "Safety" OR MODEL STREQUAL "CNC" OR MODEL STREQUAL "BACnet"
        OR MODEL STREQUAL "AMB" OR MODEL STREQUAL "MachineVision" OR MODEL STREQUAL "RSL" OR MODEL STREQUAL "I4AAS"
-       OR MODEL STREQUAL "PackML")
+       OR MODEL STREQUAL "PackML" OR MODEL STREQUAL "MTConnect")
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
         foreach(file ${files})
-            string(REGEX MATCH "(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
+            string(REGEX MATCH "(.*nodeids.csv)|(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
             if(csv_file_match)
                 set(csv_file ${file})
             endif()
@@ -34,13 +34,13 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
 
     # only one xml file
     # di as dependency
-    elseif(MODEL STREQUAL "AutoID" OR MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
-       OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT"
+    elseif(MODEL STREQUAL "CSPPlusForMachine" OR MODEL STREQUAL "POWERLINK"
+       OR MODEL STREQUAL "IA" OR MODEL STREQUAL "FDT" OR MODEL STREQUAL "Robotics"
        OR MODEL STREQUAL "CommercialKitchenEquipment" OR MODEL STREQUAL "Machinery")
         # get csv file
         file(GLOB files "${UA_NODESET_DIR}/${MODEL}/*.csv")
         foreach(file ${files})
-            string(REGEX MATCH "(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
+            string(REGEX MATCH "(.*nodeids.csv)|(.*NodeIds.csv)|(Opc.Ua.${MODEL}.NodeSet[2]?.csv)" csv_file_match ${file})
             if(csv_file_match)
                 set(csv_file ${file})
             endif()
@@ -139,6 +139,15 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 INTERNAL
                 AUTOLOAD
         )
+    elseif(MODEL STREQUAL "AutoID")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${PROJECT_SOURCE_DIR}/tools/nodeset_injector/schema/Opc.Ua.AutoID.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.AutoID.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+        )
     elseif(MODEL STREQUAL "PROFINET")
         ua_generate_nodeset_and_datatypes(
                 NAME "${NODESET_NAME}"
@@ -212,6 +221,61 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 AUTOLOAD
                 DEPENDS "di"
         )
+    elseif(MODEL STREQUAL "ADI")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/OpcUaAdiModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Adi.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+        )
+    elseif(MODEL STREQUAL "MDIS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/MDIS.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.MDIS.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+        )
+    elseif(MODEL STREQUAL "Sercos")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/SercosModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Sercos.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+        )
+    elseif(MODEL STREQUAL "GDS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                IMPORT_BSD "UA_TYPES#${UA_NODESET_DIR}/Schema/Opc.Ua.Types.bsd"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/OpcUaGdsModel.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.Gds.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+        )
+    elseif(MODEL STREQUAL "PADIM")
+        ua_generate_nodeset_and_datatypes(
+                NAME "irdi"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.IRDI.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+        )
+
+        set(TMP_NSURI "http://opcfoundation.org/UA/${MODEL}/")
+        configure_file(${PROJECT_SOURCE_DIR}/tools/nodeset_injector/empty.bsd.template "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
+                FILE_BSD "${CMAKE_BINARY_DIR}/bsd_files_gen/Opc.Ua.${MODEL}.Types.bsd"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+                DEPENDS "irdi"
+        )
     else()
         MESSAGE(WARNING "The specified nodeset '${MODEL}' is not supported or is misspelled.")
     endif()
@@ -221,6 +285,7 @@ endforeach()
 
 add_library(autoinject_library ${UA_NODESETINJECTOR_SOURCE_FILES} ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c)
 target_link_libraries(autoinject_library open62541)
+set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
 foreach(EXAMPLE_NAME ${UA_NODESETINJECTOR_EXAMPLE_NAMES})
     if(UA_NODESETINJECTOR_GENERATORS)
         target_link_libraries(${EXAMPLE_NAME} autoinject_library)

@@ -14,6 +14,8 @@
 #include <open62541/client_subscriptions.h>
 #include <open62541/plugin/log_stdout.h>
 
+#include "common.h"
+
 #include <signal.h>
 #include <stdlib.h>
 
@@ -84,8 +86,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                 return;
 
             /* Add a MonitoredItem */
-            UA_NodeId currentTimeNode =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+            UA_NodeId currentTimeNode = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
             UA_MonitoredItemCreateRequest monRequest =
                 UA_MonitoredItemCreateRequest_default(currentTimeNode);
 
@@ -130,7 +131,7 @@ main(void) {
                          "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
-            UA_sleep_ms(1000);
+            sleep_ms(1000);
             continue;
         }
 

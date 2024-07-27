@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "check.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
@@ -65,10 +66,9 @@ THREAD_CALLBACK(serverloop) {
 static void setup(void) {
     noNewSubscription = false;
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
@@ -145,8 +145,7 @@ static void changeLocale(UA_Client *client) {
 }
 
 START_TEST(Client_subscription_createDataChanges) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 

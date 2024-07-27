@@ -4,7 +4,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include "common.h"
 
@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     /* At least one argument is required for the server uri */
     if(argc <= 1) {
         usage();
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     /* Parse the arguments */
@@ -44,7 +44,7 @@ int main(int argc, char *argv[]) {
         if(strcmp(argv[argpos], "--help") == 0 ||
            strcmp(argv[argpos], "-h") == 0) {
             usage();
-            return EXIT_SUCCESS;
+            return 0;
         }
 
         if(argpos + 1 == argc) {
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
             argpos++;
             if(sscanf(argv[argpos], "%i", (int*)&securityMode) != 1) {
                 usage();
-                return EXIT_FAILURE;
+                return 0;
             }
             continue;
         }
@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
         }
 #endif
         usage();
-        return EXIT_FAILURE;
+        return 0;
     }
 
     /* Create the server and set its config */
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]) {
             /* If no trust list is passed, all certificates are accepted. */
             UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                                  NULL, 0, NULL, 0);
-            UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+            UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
         }
         UA_ByteString_clear(&certificate);
         UA_ByteString_clear(&privateKey);
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
         UA_Client_delete(client);
-        return EXIT_SUCCESS;
+        return 0;
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
@@ -192,9 +192,7 @@ int main(int argc, char *argv[]) {
     /* Read the server-time */
     UA_Variant value;
     UA_Variant_init(&value);
-    UA_Client_readValueAttribute(client,
-              UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME),
-              &value);
+    UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
     if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
         UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -206,5 +204,5 @@ int main(int argc, char *argv[]) {
     /* Clean up */
     UA_Client_disconnect(client);
     UA_Client_delete(client);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

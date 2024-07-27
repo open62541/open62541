@@ -41,7 +41,7 @@ if not os.path.isfile(logfile):
     exit(1)
 
 log_content = ""
-with open(logfile, 'r') as content_file:
+with open(logfile) as content_file:
     log_content = content_file.read()
 
 if len(log_content) == 0:
@@ -60,7 +60,7 @@ log_content = replace_re.sub('', log_content)
 
 # Try to parse the output. Look for the following line:
 # ==17054== FILE DESCRIPTORS: 5 open at exit.
-descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open at exit\..*")
+descriptors_re = re.compile(r".*==(\d+)==\s+FILE DESCRIPTORS: (\d+) open(\s\(\d std\))? at exit\..*")
 m = descriptors_re.match(log_content)
 
 if not m:

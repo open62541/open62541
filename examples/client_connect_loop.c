@@ -16,6 +16,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include "common.h"
 
 UA_Boolean running = true;
 
@@ -49,13 +50,12 @@ int main(void) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_CLIENT, "Not connected. Retrying to connect in 1 second");
             /* The connect may timeout after 1 second (see above) or it may fail immediately on network errors */
             /* E.g. name resolution errors or unreachable network. Thus there should be a small sleep here */
-            UA_sleep_ms(1000);
+            sleep_ms(1000);
             continue;
         }
 
         /* NodeId of the variable holding the current time */
-        const UA_NodeId nodeId =
-                UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        const UA_NodeId nodeId = UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
 
         retval = UA_Client_readValueAttribute(client, nodeId, &value);
         if(retval == UA_STATUSCODE_BADCONNECTIONCLOSED) {
@@ -72,7 +72,7 @@ int main(void) {
                         dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
         }
         UA_Variant_clear(&value);
-        UA_sleep_ms(1000);
+        sleep_ms(1000);
     };
 
     /* Clean up */

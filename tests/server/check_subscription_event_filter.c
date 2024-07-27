@@ -14,8 +14,11 @@
 #include <open62541/client_subscriptions.h>
 
 #include <check.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #include "testing_clock.h"
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 
 static UA_Server *server;
@@ -191,10 +194,9 @@ static void setup(void){
         exit(1);
     }
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
@@ -202,8 +204,7 @@ static void setup(void){
     THREAD_CREATE(server_thread, serverloop);
 
     /* Setup Client */
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Client can not connect to opc.tcp://localhost:4840. %s",
@@ -482,16 +483,17 @@ START_TEST(selectFilterValidation) {
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
     UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
+    UA_MonitoredItemCreateResult_clear(&createResult);
 
-    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "");
+    filter.selectClauses->browsePath[0] = UA_QUALIFIEDNAME_ALLOC(0, "xx");
+    createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADNODEIDUNKNOWN);
+    UA_MonitoredItemCreateResult_clear(&createResult);
+
+    UA_QualifiedName_clear(&filter.selectClauses->browsePath[0]);
     createResult = addMonitoredItem(handler_events_simple, &filter, true);
     ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADBROWSENAMEINVALID);
-
-    UA_QualifiedName_delete(&filter.selectClauses->browsePath[0]);
-    filter.selectClauses->browsePath = NULL;
-    filter.selectClauses->browsePathSize = 0;
-    createResult = addMonitoredItem(handler_events_simple, &filter, true);
-    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_GOOD);
+    UA_MonitoredItemCreateResult_clear(&createResult);
     UA_EventFilter_clear(&filter);
 } END_TEST
 
@@ -599,6 +601,36 @@ START_TEST(ofTypeOperatorValidation) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     checkForEvent(&createResult, true);
     deleteMonitoredItems();
+    UA_EventFilter_clear(&filter);
+} END_TEST
+
+START_TEST(ofTypeOperatorValidation_failure) {
+    /* setup event filter */
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    setupSelectClauses();
+    filter.selectClauses = selectClauses;
+    filter.selectClausesSize = defaultSlectClauseSize;
+    setupContentFilter(&filter.whereClause, 1);
+    setupOfTypeFilter(&filter.whereClause.elements[0]);
+
+    UA_Variant literalContent;
+    UA_NodeId *nodeId = UA_NodeId_new();
+    UA_NodeId_init(nodeId);
+    *nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    UA_Variant_setScalar(&literalContent, nodeId, &UA_TYPES[UA_TYPES_NODEID]);
+    setupLiteralOperand(&filter.whereClause.elements[0], 1, &literalContent);
+
+    /* setup event */
+    eventType = EventType_A_Layer_1;
+    UA_NodeId eventNodeId;
+    UA_StatusCode retval = eventSetup(&eventNodeId);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /*  add a monitored item (with filter) */
+    UA_MonitoredItemCreateResult createResult = addMonitoredItem(handler_events_simple, &filter, true);
+    ck_assert_uint_eq(createResult.statusCode, UA_STATUSCODE_BADFILTEROPERANDINVALID);
+    UA_MonitoredItemCreateResult_clear(&createResult);
     UA_EventFilter_clear(&filter);
 } END_TEST
 
@@ -813,6 +845,7 @@ static Suite *testSuite_Client(void) {
     tcase_add_test(tc_server, selectFilterValidation);
     tcase_add_test(tc_server, notOperatorValidation);
     tcase_add_test(tc_server, ofTypeOperatorValidation);
+    tcase_add_test(tc_server, ofTypeOperatorValidation_failure);
     tcase_add_test(tc_server, orTypeOperatorValidation);
     tcase_add_test(tc_server, andTypeOperatorValidation);
     tcase_add_test(tc_server, equalOperatorValidation);

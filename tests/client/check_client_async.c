@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -29,9 +30,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
@@ -67,9 +67,8 @@ asyncReadValueAtttributeCallback(UA_Client *client, void *userdata,
 }
 
 START_TEST(Client_highlevel_async_readValue) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
@@ -103,10 +102,7 @@ START_TEST(Client_highlevel_async_readValue) {
 } END_TEST
 
 START_TEST(Client_read_async) {
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
-
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -143,9 +139,8 @@ START_TEST(Client_read_async) {
 } END_TEST
 
 START_TEST(Client_read_async_timed) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
@@ -179,22 +174,19 @@ START_TEST(Client_read_async_timed) {
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(asyncCounter, 1);
 
-        /* Manually close the connection. The connection is internally closed at the
-         * next iteration of the EventLoop. Hence the next request is sent out. But
-         * the connection "actually closes" before receiving the response. */
+        /* Manually close the connection */
         UA_ConnectionManager *cm = client->channel.connectionManager;
         uintptr_t connId = client->channel.connectionId;
         cm->closeConnection(cm, connId);
 
         rr.requestHeader.timeoutHint = 100;
-        retval = __UA_Client_AsyncService(client, &rr,
-                                          &UA_TYPES[UA_TYPES_READREQUEST],
+        retval = __UA_Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
                                           (UA_ClientAsyncServiceCallback) asyncReadCallback,
-                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter, NULL);
-        ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-        /* Process async responses during 1s */
-        UA_Client_run_iterate(client, 100 + 1);
-        ck_assert_uint_eq(asyncCounter, 9999);
+                                          &UA_TYPES[UA_TYPES_READRESPONSE], &asyncCounter,
+                                          NULL);
+
+        /* Sending out the request failed */
+        ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
@@ -207,9 +199,8 @@ static void inactivityCallback(UA_Client *client) {
 }
 
 START_TEST(Client_connectivity_check) {
-        UA_Client *client = UA_Client_new();
+        UA_Client *client = UA_Client_newForUnitTest();
         UA_ClientConfig *clientConfig = UA_Client_getConfig(client);
-        UA_ClientConfig_setDefault(clientConfig);
 #ifdef UA_ENABLE_SUBSCRIPTIONS
         clientConfig->outStandingPublishRequests = 0;
 #endif
@@ -244,7 +235,7 @@ START_TEST(Client_connectivity_check) {
 
         UA_Client_disconnect(client);
         UA_Client_delete(client);
-    }END_TEST
+}END_TEST
 
 static Suite* testSuite_Client(void) {
     Suite *s = suite_create("Client");

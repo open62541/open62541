@@ -16,6 +16,7 @@
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
+#include <stdio.h>
 
 static void
 addVariable(UA_Server *server) {
@@ -31,11 +32,11 @@ addVariable(UA_Server *server) {
     /* Add the variable node to the information model */
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "the.answer");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "the answer");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 static void
@@ -59,12 +60,11 @@ addMatrixVariable(UA_Server *server) {
 
     UA_NodeId myIntegerNodeId = UA_NODEID_STRING(1, "double.matrix");
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "double matrix");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_Server_addVariableNode(server, myIntegerNodeId, parentNodeId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                              attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 }
 
 /**
@@ -132,8 +132,7 @@ int main(void) {
     writeVariable(server);
     writeWrongVariable(server);
 
-    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
-
+    UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

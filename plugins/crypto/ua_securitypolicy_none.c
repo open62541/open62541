@@ -8,11 +8,11 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
-#include "mbedtls/securitypolicy_mbedtls_common.h"
+#include "mbedtls/securitypolicy_common.h"
 #endif
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
-#include "openssl/securitypolicy_openssl_common.h"
+#include "openssl/securitypolicy_common.h"
 #endif
 
 static UA_StatusCode
@@ -129,6 +129,7 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
                        const UA_Logger *logger) {
     policy->policyContext = (void *)(uintptr_t)logger;
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#None");
+    policy->securityLevel = 0;
     policy->logger = logger;
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS

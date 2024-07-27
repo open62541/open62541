@@ -11,7 +11,7 @@
 #include "ua_server_internal.h"
 
 void
-UA_ServerConfig_clean(UA_ServerConfig *config) {
+UA_ServerConfig_clear(UA_ServerConfig *config) {
     if(!config)
         return;
 
@@ -86,21 +86,7 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->historyDatabase.clear(&config->historyDatabase);
 #endif
 
-    /* Logger */
-    if(config->logging != NULL) {
-        if((config->logging != &config->logger) &&
-           (config->logging->clear != NULL)) {
-            config->logging->clear(config->logging->context);
-        }
-        config->logging = NULL;
-    }
-    if(config->logger.clear)
-        config->logger.clear(config->logger.context);
-    config->logger.log = NULL;
-    config->logger.clear = NULL;
-
 #ifdef UA_ENABLE_PUBSUB
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     if(config->pubSubConfig.securityPolicies != NULL) {
         for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
             config->pubSubConfig.securityPolicies[i].clear(&config->pubSubConfig.securityPolicies[i]);
@@ -109,8 +95,12 @@ UA_ServerConfig_clean(UA_ServerConfig *config) {
         config->pubSubConfig.securityPolicies = NULL;
         config->pubSubConfig.securityPoliciesSize = 0;
     }
-#endif
 #endif /* UA_ENABLE_PUBSUB */
+
+    /* Logger */
+    if(config->logging != NULL && config->logging->clear != NULL)
+        config->logging->clear(config->logging);
+    config->logging = NULL;
 
     /* Custom Data Types */
     UA_cleanupDataTypeWithCustom(config->customDataTypes);

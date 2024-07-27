@@ -1334,6 +1334,41 @@
       </ListOfExtensionObject>
     </Value>
   </UAVariable>
+  <UAMethod NodeId="i=12873" BrowseName="ResendData" ParentNodeId="i=2253" MethodDeclarationId="i=12871">
+    <DisplayName>ResendData</DisplayName>
+    <Category>Base Info ServerType</Category>
+    <Documentation>https://reference.opcfoundation.org/v105/Core/docs/Part5/9.2</Documentation>
+    <References>
+      <Reference ReferenceType="HasProperty">i=12874</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=2253</Reference>
+    </References>
+  </UAMethod>
+  <UAVariable NodeId="i=12874" BrowseName="InputArguments" ParentNodeId="i=12873" DataType="i=296" ValueRank="1" ArrayDimensions="1">
+    <DisplayName>InputArguments</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=12873</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=297</Identifier>
+          </TypeId>
+          <Body>
+            <Argument>
+              <Name>SubscriptionId</Name>
+              <DataType>
+                <Identifier>i=7</Identifier>
+              </DataType>
+              <ValueRank>-1</ValueRank>
+              <ArrayDimensions />
+            </Argument>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
   <UAObjectType NodeId="i=17602" BrowseName="BaseInterfaceType" IsAbstract="true">
     <DisplayName>BaseInterfaceType</DisplayName>
     <References>
@@ -1508,6 +1543,157 @@
       <Field Name="ShutdownReason" DataType="i=21" />
     </Definition>
   </UADataType>
+  <UADataType NodeId="i=12554" BrowseName="TrustListDataType">
+    <DisplayName>TrustListDataType</DisplayName>
+    <Category>GDS Certificate Manager Pull Model</Category>
+    <Category>Push Model for Global Certificate and TrustList Management</Category>
+    <References>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=22</Reference>
+    </References>
+    <Definition Name="TrustListDataType">
+      <Field Name="SpecifiedLists" DataType="i=7" />
+      <Field Name="TrustedCertificates" DataType="i=15" ValueRank="1" />
+      <Field Name="TrustedCrls" DataType="i=15" ValueRank="1" />
+      <Field Name="IssuerCertificates" DataType="i=15" ValueRank="1" />
+      <Field Name="IssuerCrls" DataType="i=15" ValueRank="1" />
+    </Definition>
+  </UADataType>
+  <UADataType NodeId="i=12552" BrowseName="TrustListMasks">
+    <DisplayName>TrustListMasks</DisplayName>
+    <Category>GDS Certificate Manager Pull Model</Category>
+    <Category>Push Model for Global Certificate and TrustList Management</Category>
+    <References>
+      <Reference ReferenceType="HasProperty">i=12553</Reference>
+      <Reference ReferenceType="HasSubtype" IsForward="false">i=29</Reference>
+    </References>
+    <Definition Name="TrustListMasks">
+      <Field Name="None" Value="0">
+        <Description>No fields are provided.</Description>
+      </Field>
+      <Field Name="TrustedCertificates" Value="1">
+        <Description>The TrustedCertificates are provided.</Description>
+      </Field>
+      <Field Name="TrustedCrls" Value="2">
+        <Description>The TrustedCrls are provided.</Description>
+      </Field>
+      <Field Name="IssuerCertificates" Value="4">
+        <Description>The IssuerCertificates are provided.</Description>
+      </Field>
+      <Field Name="IssuerCrls" Value="8">
+        <Description>The IssuerCrls are provided.</Description>
+      </Field>
+      <Field Name="All" Value="15">
+        <Description>All fields are provided.</Description>
+      </Field>
+    </Definition>
+  </UADataType>
+  <UAVariable NodeId="i=12553" BrowseName="EnumValues" ParentNodeId="i=12552" DataType="i=7594" ValueRank="1" ArrayDimensions="6">
+    <DisplayName>EnumValues</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+      <Reference ReferenceType="HasProperty" IsForward="false">i=12552</Reference>
+    </References>
+    <Value>
+      <ListOfExtensionObject xmlns="http://opcfoundation.org/UA/2008/02/Types.xsd">
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>0</Value>
+              <DisplayName>
+                <Text>None</Text>
+              </DisplayName>
+              <Description>
+                <Text>No fields are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>1</Value>
+              <DisplayName>
+                <Text>TrustedCertificates</Text>
+              </DisplayName>
+              <Description>
+                <Text>The TrustedCertificates are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>2</Value>
+              <DisplayName>
+                <Text>TrustedCrls</Text>
+              </DisplayName>
+              <Description>
+                <Text>The TrustedCrls are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>4</Value>
+              <DisplayName>
+                <Text>IssuerCertificates</Text>
+              </DisplayName>
+              <Description>
+                <Text>The IssuerCertificates are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>8</Value>
+              <DisplayName>
+                <Text>IssuerCrls</Text>
+              </DisplayName>
+              <Description>
+                <Text>The IssuerCrls are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+        <ExtensionObject>
+          <TypeId>
+            <Identifier>i=7616</Identifier>
+          </TypeId>
+          <Body>
+            <EnumValueType>
+              <Value>15</Value>
+              <DisplayName>
+                <Text>All</Text>
+              </DisplayName>
+              <Description>
+                <Text>All fields are provided.</Text>
+              </Description>
+            </EnumValueType>
+          </Body>
+        </ExtensionObject>
+      </ListOfExtensionObject>
+    </Value>
+  </UAVariable>
   <UAObject NodeId="i=298" BrowseName="Default Binary" SymbolicName="DefaultBinary">
     <DisplayName>Default Binary</DisplayName>
     <References>

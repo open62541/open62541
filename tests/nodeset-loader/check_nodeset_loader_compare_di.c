@@ -10,13 +10,13 @@
 #include "check.h"
 #include "tests/namespace_nodesetloader_di_generated.h"
 #include "testing_clock.h"
+#include "test_helpers.h"
 
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
 }
 

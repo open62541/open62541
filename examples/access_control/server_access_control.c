@@ -6,8 +6,8 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 static UA_Boolean
 allowAddNode(UA_Server *server, UA_AccessControl *ac,
@@ -41,41 +41,34 @@ allowDeleteReference(UA_Server *server, UA_AccessControl *ac,
     return UA_TRUE;
 }
 
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
-static UA_UsernamePasswordLogin logins[2] = {
+static UA_UsernamePasswordLogin userNamePW[2] = {
     {UA_STRING_STATIC("peter"), UA_STRING_STATIC("peter123")},
     {UA_STRING_STATIC("paula"), UA_STRING_STATIC("paula123")}
 };
 
-int main(void) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
-    UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
-    /* Disable anonymous logins, enable two user/password logins */
+static void
+setCustomAccessControl(UA_ServerConfig *config) {
+    /* Use the default AccessControl plugin as the starting point */
+    UA_Boolean allowAnonymous = false;
+    UA_String encryptionPolicy =
+        config->securityPolicies[config->securityPoliciesSize-1].policyUri;
     config->accessControl.clear(&config->accessControl);
-    UA_StatusCode retval = UA_AccessControl_default(config, false,
-             &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 2, logins);
-    if(retval != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    UA_AccessControl_default(config, allowAnonymous, &encryptionPolicy, 2, userNamePW);
 
-    /* Set accessControl functions for nodeManagement */
+    /* Override accessControl functions for nodeManagement */
     config->accessControl.allowAddNode = allowAddNode;
     config->accessControl.allowAddReference = allowAddReference;
     config->accessControl.allowDeleteNode = allowDeleteNode;
     config->accessControl.allowDeleteReference = allowDeleteReference;
+}
 
-    retval = UA_Server_run(server, &running);
+int main(void) {
+    UA_Server *server = UA_Server_new();
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    setCustomAccessControl(config);
 
- cleanup:
+    UA_StatusCode retval = UA_Server_runUntilInterrupt(server);
     UA_Server_delete(server);
+
     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }

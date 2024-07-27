@@ -12,6 +12,7 @@
 
 #include <signal.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 UA_Boolean running = true;
 

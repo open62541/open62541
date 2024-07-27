@@ -7,6 +7,10 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <check.h>
+#include <stdlib.h>
+#include <stdio.h>
+
+#include "test_helpers.h"
 #include "thread_wrapper.h"
 #include "deviceObjectType.h"
 #include "mt_testing.h"
@@ -19,9 +23,8 @@
 
 static void setup(void) {
     tc.running = true;
-    tc.server = UA_Server_new();
+    tc.server = UA_Server_newForUnitTest();
     ck_assert(tc.server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(tc.server));
     defineObjectTypes();
     addPumpTypeConstructor(tc.server);
     UA_Server_run_startup(tc.server);

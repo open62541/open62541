@@ -2,8 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <open62541/client.h>
+#include <open62541/client_highlevel.h>
+#include <open62541/client_subscriptions.h>
 #include <open62541/client_config_default.h>
+#include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/accesscontrol_default.h>
 
 #include "client/ua_client_internal.h"
 #include "ua_server_internal.h"
@@ -11,6 +16,7 @@
 #include <check.h>
 #include <stdlib.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -56,11 +62,21 @@ THREAD_CALLBACK(serverloop) {
 
 #define VARLENGTH 16366
 
+static const size_t usernamePasswordsSize = 2;
+static UA_UsernamePasswordLogin usernamePasswords[2] = {
+    {UA_STRING_STATIC("user1"), UA_STRING_STATIC("password")},
+    {UA_STRING_STATIC("user2"), UA_STRING_STATIC("password1")}};
+
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
+    UA_AccessControl_default(config, true, &sp->policyUri,
+                             usernamePasswordsSize, usernamePasswords);
+
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
     THREAD_CREATE(server_thread, serverloop);
@@ -120,9 +136,8 @@ static void changeLocale(UA_Client *client) {
 }
 
 START_TEST(Client_activateSessionWithoutConnect) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -137,9 +152,8 @@ START_TEST(Client_activateSessionWithoutConnect) {
 END_TEST
 
 START_TEST(Client_activateSession) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -153,9 +167,8 @@ START_TEST(Client_activateSession) {
 END_TEST
 
 START_TEST(Client_activateSession_username) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -170,9 +183,8 @@ START_TEST(Client_activateSession_username) {
 END_TEST
 
 START_TEST(Client_read) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -198,9 +210,8 @@ START_TEST(Client_read) {
 END_TEST
 
 START_TEST(Client_renewSecureChannel) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -231,9 +242,8 @@ START_TEST(Client_renewSecureChannel) {
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 START_TEST(Client_renewSecureChannelWithActiveSubscription) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -277,9 +287,8 @@ START_TEST(Client_renewSecureChannelWithActiveSubscription) {
 #endif
 
 START_TEST(Client_switch) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -299,10 +308,7 @@ START_TEST(Client_switch) {
     UA_Client_getSessionAuthenticationToken(client, &authenticationToken,
                                             &sessionNonce);
 
-    UA_Client *client2 = UA_Client_new();
-    UA_ClientConfig *config2 = UA_Client_getConfig(client2);
-    UA_ClientConfig_setDefault(config2);
-
+    UA_Client *client2 = UA_Client_newForUnitTest();
     retval = UA_Client_connectSecureChannel(client2, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -331,9 +337,8 @@ START_TEST(Client_activateSessionClose) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -371,9 +376,8 @@ START_TEST(Client_activateSessionTimeout) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId *)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en-US");
@@ -401,7 +405,7 @@ START_TEST(Client_activateSessionTimeout) {
 
     UA_Variant_init(&val);
     retval = UA_Client_readValueAttribute(client, nodeId, &val);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURECHANNELCLOSED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCONNECTIONCLOSED);
 
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
@@ -423,10 +427,8 @@ START_TEST(Client_activateSessionLocaleIds) {
     setup();
     ck_assert_uint_eq(server->sessionCount, 0);
 
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
-
     config->sessionLocaleIdsSize = 2;
     config->sessionLocaleIds = (UA_LocaleId*)UA_Array_new(2, &UA_TYPES[UA_TYPES_LOCALEID]);
     config->sessionLocaleIds[0] = UA_STRING_ALLOC("en");

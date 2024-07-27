@@ -13,7 +13,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-di"
         FILE_CSV "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeIds.csv"
         FILE_BSD "${UA_NODESET_DIR}/DI/Opc.Ua.Di.Types.bsd"
-        NAMESPACE_MAP "2:http://opcfoundation.org/UA/DI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/DI/Opc.Ua.Di.NodeSet2.xml"
         INTERNAL
@@ -24,7 +23,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-adi"
         FILE_CSV "${UA_NODESET_DIR}/ADI/OpcUaAdiModel.csv"
         FILE_BSD "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.Types.bsd"
-        NAMESPACE_MAP "3:http://opcfoundation.org/UA/ADI/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${UA_NODESET_DIR}/ADI/Opc.Ua.Adi.NodeSet2.xml"
         DEPENDS "tests-di"
@@ -36,6 +34,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_ADI_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_ADI_SOURCES})
+    add_dependencies(check_nodeset_compiler_adi open62541-generator-ns-tests-adi)
 
     # generate PLCopen namespace which is using DI
     ua_generate_nodeset_and_datatypes(
@@ -53,13 +52,13 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_PLC_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_PLC_SOURCES})
+    add_dependencies(check_nodeset_compiler_plc open62541-generator-ns-tests-plc)
 
     # generate AutoID namespace which is using DI (test e.g. for structures with optional fields)
     ua_generate_nodeset_and_datatypes(
             NAME "tests-autoid"
             FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.NodeIds.csv"
             FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/Opc.Ua.AutoID.Types.bsd"
-            NAMESPACE_MAP "3:http://opcfoundation.org/UA/AutoID/"
             OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
             FILE_NS "${UA_NODESET_DIR}/AutoID/Opc.Ua.AutoID.NodeSet2.xml"
             DEPENDS "tests-di"
@@ -71,6 +70,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_AUTOID_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_AUTOID_SOURCES})
+    add_dependencies(check_nodeset_compiler_autoid open62541-generator-ns-tests-autoid)
 endif()
 
 #[[ua_generate_datatypes(
@@ -95,7 +95,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
         NAME "tests-testnodeset"
         FILE_CSV "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.csv"
         FILE_BSD "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testtypes.bsd"
-        NAMESPACE_MAP "3:http://yourorganisation.org/test/"
         OUTPUT_DIR "${GENERATE_OUTPUT_DIR}"
         FILE_NS "${PROJECT_SOURCE_DIR}/tests/nodeset-compiler/testnodeset.xml"
         DEPENDS "tests-di"
@@ -106,6 +105,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_NODESET_TESTS_TESTNODESET_SOURCES}
                 ${UA_TYPES_TESTS_DI_SOURCES}
                 ${UA_TYPES_TESTS_TESTNODESET_SOURCES})
+    add_dependencies(check_nodeset_compiler_testnodeset open62541-generator-ns-tests-testnodeset)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)

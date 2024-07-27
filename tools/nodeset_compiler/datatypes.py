@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -9,8 +8,6 @@
 ###    Copyright 2014-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
 ###    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
 
-
-import sys
 import logging
 import re
 from datetime import datetime
@@ -30,20 +27,11 @@ logger = logging.getLogger(__name__)
 
 namespaceMapping = {}
 
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
-
-    string_types = str
-else:
-    string_types = basestring 
-
 def getNextElementNode(xmlvalue):
     if xmlvalue is None:
         return None
     xmlvalue = xmlvalue.nextSibling
-    while not xmlvalue is None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
+    while xmlvalue is not None and not xmlvalue.nodeType == xmlvalue.ELEMENT_NODE:
         xmlvalue = xmlvalue.nextSibling
     return xmlvalue
 
@@ -54,7 +42,7 @@ def valueIsInternalType(valueTypeString):
                    'diagnosticinfo', 'nodeid', 'guid', 'datetime',
                    'qualifiedname', 'expandednodeid', 'xmlelement', 'integer', 'uinteger']
 
-class Value(object):
+class Value:
     def __init__(self):
         self.value = None
         self.alias = None
@@ -139,7 +127,7 @@ class Value(object):
     def parseXMLEncoding(self, xmlvalue, parentDataTypeNode, parent, parser):
         global namespaceMapping
         self.checkXML(xmlvalue)
-        if not "value" in xmlvalue.localName.lower():
+        if "value" not in xmlvalue.localName.lower():
             logger.error("Expected <Value> , but found " + xmlvalue.localName + \
                          " instead. Value will not be parsed.")
             return
@@ -172,9 +160,9 @@ class Value(object):
     def __parseXMLSingleValue(self, xmlvalue, parentDataTypeNode, parent, parser, alias=None, encodingPart=None, valueRank=None):
         enc = None
         if encodingPart is None:
-            if not parentDataTypeNode.symbolicName is None:
+            if parentDataTypeNode.symbolicName is not None:
                 for _, e in parser.types.items():
-                    if not enc is None:
+                    if enc is not None:
                         break
                     for key, value in e.items():
                         # Inside the parser are the symbolic names of the data types. If the display name and symbolic name are different, both must be checked.
@@ -184,7 +172,7 @@ class Value(object):
                             break
             else:
                 for _, e in parser.types.items():
-                    if not enc is None:
+                    if enc is not None:
                         break
                     for key, value in e.items():
                         if key == parentDataTypeNode.displayName.text:
@@ -324,7 +312,7 @@ class Value(object):
                     ebodypart = getNextElementNode(ebodypart)
 
             except Exception as ex:
-                logger.error(str(parent.id) + ": Could not parse <Body> for ExtensionObject. {}".format(ex))
+                logger.error(str(parent.id) + f": Could not parse <Body> for ExtensionObject. {ex}")
 
         elif valueIsInternalType(xmlvalue.localName):
             t = self.getTypeByString(xmlvalue.localName, None)
@@ -420,7 +408,7 @@ def getXmlTextTrimmed(xmlNode):
     # Check for empty string (including newlines)
     if not re.sub(r"[\s\n\r]", "", content).strip():
         return None
-    return unicode(content.strip())
+    return content.strip()
 
 
 class Boolean(Value):
@@ -437,7 +425,7 @@ class Boolean(Value):
         if val is None:
             self.value = "false"  # Catch XML <Boolean /> by setting the value to a default
         else:
-            if "false" in unicode(xmlvalue.firstChild.data).lower():
+            if "false" in xmlvalue.firstChild.data.lower():
                 self.value = "false"
             else:
                 self.value = "true"
@@ -502,7 +490,7 @@ class Int32(Integer):
         # Values of enumerations can be encoded as strings: <symbol>_<value> (see OPC specification part 6)
         # UaModeler does this for enums that are fields of structs
         # Extract <value> from string if possible
-        if isinstance(self.value, string_types) and not self.__strIsInt(self.value):
+        if isinstance(self.value, str) and not self.__strIsInt(self.value):
             split = self.value.split('_')
             if self.__strIsInt(split[len(split)-1]):
                 self.value = split[len(split)-1]
@@ -563,7 +551,7 @@ class String(Value):
             self.parseXML(xmlelement)
 
     def pack(self):
-        bin = structpack("I", len(unicode(self.value)))
+        bin = structpack("I", len(self.value))
         bin = bin + str(self.value)
         return bin
 
@@ -699,6 +687,9 @@ class NodeId(Value):
             else:
                 raise Exception("no valid nodeid: " + idstring)
 
+    def gAsString(self):
+        return '{:08X}-{:04X}-{:04X}-{:04X}-{:012X}'.format(*self.g)
+
     # The parsing can be called with an optional namespace mapping dict.
     def parseXML(self, xmlvalue):
         # Expect <NodeId> or <Alias>
@@ -719,7 +710,7 @@ class NodeId(Value):
             # Check if there is an <Identifier> tag
             if len(xmlvalue.getElementsByTagName("Identifier")) != 0:
                 xmlvalue = xmlvalue.getElementsByTagName("Identifier")[0]
-            self.setFromIdString(unicode(xmlvalue.firstChild.data))
+            self.setFromIdString(xmlvalue.firstChild.data)
 
     def __str__(self):
         s = "ns=" + str(self.ns) + ";"
@@ -786,7 +777,7 @@ class DateTime(Value):
             if "." in timestr:
                 timestr = timestr[:timestr.index(".")]
             # If the last character is not numeric, remove it
-            while len(timestr) > 0 and not timestr[-1] in "0123456789":
+            while len(timestr) > 0 and timestr[-1] not in "0123456789":
                 timestr = timestr[:-1]
             try:
                 self.value = datetime.strptime(timestr, "%Y-%m-%dT%H:%M:%S")
@@ -880,9 +871,9 @@ class Guid(Value):
                     tmp.append(int("0x" + g, 16))
                 except Exception:
                     logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
-                                 unicode(xmlvalue.firstChild.data))
+                                 xmlvalue.firstChild.data)
                     self.value = ['00000000', '0000', '0000', '0000', '000000000000']
             if len(tmp) != 5:
                 logger.error("Invalid formatting of Guid. Expected {01234567-89AB-CDEF-ABCD-0123456789AB}, got " + \
-                             unicode(xmlvalue.firstChild.data))
+                             xmlvalue.firstChild.data)
                 self.value = ['00000000', '0000', '0000', '0000', '000000000000']

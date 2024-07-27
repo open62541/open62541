@@ -1,18 +1,15 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-#ifdef UA_ENABLE_AMALGAMATION
-#include "open62541.h"
-#else
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
-#endif
 
 #include "open62541/namespace_di_generated.h"
 #include "open62541/namespace_plc_generated.h"
 
 #include <signal.h>
+#include <limits.h>
 #include <stdlib.h>
 
 UA_Boolean running = true;
@@ -29,12 +26,10 @@ int main(int argc, char** argv) {
     UA_Server *server = UA_Server_new();
     UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     /* create nodes from nodeset */
-    size_t idx = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
-    if(idx != (size_t) -1) {
+    size_t idx = LONG_MAX;
+    UA_StatusCode retval = UA_Server_getNamespaceByName(server, UA_STRING("http://opcfoundation.org/UA/DI/"), &idx);
+    if(retval != UA_STATUSCODE_GOOD) {
         retval = namespace_di_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -43,9 +38,8 @@ int main(int argc, char** argv) {
             return EXIT_FAILURE;
         }
     }
-    idx = (size_t) -1;
-    UA_Server_getNamespaceByName(server, UA_STRING("http://PLCopen.org/OpcUa/IEC61131-3/"), &idx);
-    if(idx != (size_t) -1) {
+    retval = UA_Server_getNamespaceByName(server, UA_STRING("http://PLCopen.org/OpcUa/IEC61131-3/"), &idx);
+    if(retval != UA_STATUSCODE_GOOD) {
         retval = namespace_plc_generated(server);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,

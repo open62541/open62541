@@ -16,7 +16,10 @@
 #include "server/ua_subscription.h"
 
 #include <check.h>
+#include <stdlib.h>
+#include <stdio.h>
 
+#include "test_helpers.h"
 #include "testing_clock.h"
 #include "thread_wrapper.h"
 
@@ -205,10 +208,8 @@ setup(void) {
     }
     running = true;
 
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
     config->maxPublishReqPerSession = 5;
     UA_Server_run_startup(server);
 
@@ -216,8 +217,7 @@ setup(void) {
     setupSelectClauses();
     THREAD_CREATE(server_thread, serverloop);
 
-    client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    client = UA_Client_newForUnitTest();
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     if(retval != UA_STATUSCODE_GOOD) {
@@ -804,10 +804,12 @@ START_TEST(evaluateFilterWhereClause) {
     /* No operand provided */
     contentFilterElement.filterOperator = UA_FILTEROPERATOR_OFTYPE;
     UA_LOCK(&server->serviceMutex);
-    retval = UA_ContentFilterValidation(server, &contentFilter, &contentFilterResult);
+    UA_ContentFilterElementResult elmRes =
+        UA_ContentFilterElementValidation(server, 0, 1, &contentFilterElement);
+    retval = elmRes.statusCode;
     UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADFILTEROPERANDCOUNTMISMATCH);
-    UA_ContentFilterResult_clear(&contentFilterResult);
+    UA_ContentFilterElementResult_clear(&elmRes);
 
     UA_ExtensionObject filterOperandExObj;
     UA_ExtensionObject_init(&filterOperandExObj);

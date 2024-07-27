@@ -4,7 +4,7 @@
 
 #include <open62541/client.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include <stdlib.h>
 
@@ -567,60 +567,6 @@ START_TEST(idOrderString) {
     ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
 } END_TEST
 
-START_TEST(chunkForLoopFitting) {
-    size_t validator[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    size_t start, size;
-    FOR_EACH_CHUNK(start, size, 2, 8) {
-        for(size_t i = start; i < start + size; i++) {
-            validator[i]++;
-        }
-    }
-    for(size_t i = 0; i < 8; i++) {
-        ck_assert_uint_eq(validator[i], 1);
-    }
-} END_TEST
-
-START_TEST(chunkForLoopUndersize) {
-    size_t validator[4] = {0, 0, 0, 0};
-    size_t start, size;
-
-    FOR_EACH_CHUNK(start, size, 6, 4) {
-        for(size_t i = start; i < start + size; i++) {
-            validator[i]++;
-        }
-    }
-    for(size_t i = 0; i < 4; i++) {
-        ck_assert_uint_eq(validator[i], 1);
-    }
-} END_TEST
-
-START_TEST(chunkForLoopWithRemainder) {
-    size_t validator[7] = {0, 0, 0, 0, 0, 0, 0};
-    size_t start, size;
-    FOR_EACH_CHUNK(start, size, 2, 7) {
-        for(size_t i = start; i < start + size; i++) {
-            validator[i]++;
-        }
-    }
-    for(size_t i = 0; i < 7; i++) {
-        ck_assert_uint_eq(validator[i], 1);
-    }
-} END_TEST
-
-START_TEST(chunkForLoopOneChunk) {
-    size_t validator[8] = {0, 0, 0, 0, 0, 0, 0, 0};
-    size_t start, size;
-
-    FOR_EACH_CHUNK(start, size, 8, 8) {
-        for(size_t i = start; i < start + size; i++) {
-            validator[i]++;
-        }
-    }
-    for(size_t i = 0; i < 8; i++) {
-        ck_assert_uint_eq(validator[i], 1);
-    }
-} END_TEST
-
 static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
@@ -651,13 +597,6 @@ static Suite* testSuite_Utils(void) {
     tcase_add_test(tc1, idOrderGuid);
     tcase_add_test(tc1, idOrderString);
     suite_add_tcase(s, tc2);
-
-    TCase *tc3 = tcase_create("test chunk for loop");
-    tcase_add_test(tc3, chunkForLoopFitting);
-    tcase_add_test(tc3, chunkForLoopUndersize);
-    tcase_add_test(tc3, chunkForLoopWithRemainder);
-    tcase_add_test(tc3, chunkForLoopOneChunk);
-    suite_add_tcase(s, tc3);
 
     return s;
 }

@@ -2,7 +2,8 @@
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
+#include <stdio.h>
+#include <errno.h>
 
 /* loadFile parses the certificate file.
  *

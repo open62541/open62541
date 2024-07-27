@@ -43,14 +43,14 @@ int main(void) {
     /* Add the variable node to the information model */
     UA_NodeId uint32NodeId = UA_NODEID_STRING(1, "myUintValue");
     UA_QualifiedName uint32Name = UA_QUALIFIEDNAME(1, "myUintValue");
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_NodeId outNodeId;
     UA_NodeId_init(&outNodeId);
     UA_StatusCode retval =
         UA_Server_addVariableNode(server, uint32NodeId, parentNodeId,
                                   parentReferenceNodeId, uint32Name,
-                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
                                   attr, NULL, &outNodeId);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
@@ -102,9 +102,9 @@ int main(void) {
     retval = gathering.startPoll(server, gathering.context, &outNodeId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "startPoll %s", UA_StatusCode_name(retval));
     */
-    retval = UA_Server_runUntilInterrupt(server);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                "UA_Server_run %s", UA_StatusCode_name(retval));
+
+    UA_Server_runUntilInterrupt(server);
+
     /*
      * If you use UA_HISTORIZINGUPDATESTRATEGY_POLL, then stop the polling.
      *
@@ -116,6 +116,5 @@ int main(void) {
 
     setting.historizingBackend.deleteMembers(&setting.historizingBackend);
     UA_NodeId_clear(&outNodeId);
-
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+    return 0;
 }

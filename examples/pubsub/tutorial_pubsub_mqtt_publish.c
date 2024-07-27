@@ -44,8 +44,11 @@
 #include <open62541/server.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include <stdio.h>
+
 #define CONNECTION_NAME              "MQTT Publisher Connection"
-#define TRANSPORT_PROFILE_URI        "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt"
+#define TRANSPORT_PROFILE_URI_UADP   "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"
+#define TRANSPORT_PROFILE_URI_JSON   "http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
 #define PUBLISHER_TOPIC              "customTopic"
@@ -75,7 +78,7 @@
 #define CA_FILE_PATH                    "/path/to/server.cert"
 #endif
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
 #define UA_AES128CTR_SIGNING_KEY_LENGTH 32
 #define UA_AES128CTR_KEY_LENGTH 16
 #define UA_AES128CTR_KEYNONCE_LENGTH 4
@@ -85,11 +88,7 @@ UA_Byte encryptingKey[UA_AES128CTR_KEY_LENGTH] = {0};
 UA_Byte keyNonce[UA_AES128CTR_KEYNONCE_LENGTH] = {0};
 #endif
 
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean useJson = true;
-#else
 static UA_Boolean useJson = false;
-#endif
 
 static UA_NodeId connectionIdent;
 static UA_NodeId publishedDataSetIdent;
@@ -102,7 +101,11 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
+    if (useJson) {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_JSON);
+    } else {
+        connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
+    }
     connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
@@ -111,8 +114,8 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
 /* #ifdef EXAMPLE_USE_MQTT_LOGIN */
@@ -187,7 +190,7 @@ addDataSetField(UA_Server *server) {
     dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime");
     dataSetFieldConfig.field.variable.promotedField = UA_FALSE;
     dataSetFieldConfig.field.variable.publishParameters.publishedVariable =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_CURRENTTIME);
+        UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME);
     dataSetFieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dataSetFieldConfig, NULL);
 }
@@ -257,7 +260,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
         writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     }
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Encryption settings */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     writerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
@@ -285,9 +288,8 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
 
     writerGroupConfig.transportSettings = transportSettings;
     retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
-    if (retval == UA_STATUSCODE_GOOD)
-        UA_Server_setWriterGroupOperational(server, writerGroupIdent);
 
 #ifdef UA_ENABLE_JSON_ENCODING
     if (useJson) {
@@ -299,7 +301,7 @@ addWriterGroup(UA_Server *server, char *topic, int interval) {
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
     }
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION) && !defined(UA_ENABLE_JSON_ENCODING)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS) && !defined(UA_ENABLE_JSON_ENCODING)
     /* Add the encryption key informaton */
     UA_ByteString sk = {UA_AES128CTR_SIGNING_KEY_LENGTH, signingKey};
     UA_ByteString ek = {UA_AES128CTR_KEY_LENGTH, encryptingKey};
@@ -422,7 +424,12 @@ int main(int argc, char **argv) {
         }
 
         if(strcmp(argv[argpos], "--json") == 0) {
+#ifdef UA_ENABLE_JSON_ENCODING
             useJson = true;
+#else 
+            printf("Json encoding not enabled (UA_ENABLE_JSON_ENCODING)\n");
+            useJson = false;
+#endif
             continue;
         }
 
@@ -470,14 +477,14 @@ int main(int argc, char **argv) {
 
     UA_Server *server = UA_Server_new();
 
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
+#if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
     /* Instantiate the PubSub SecurityPolicy */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
         UA_malloc(sizeof(UA_PubSubSecurityPolicy));
     config->pubSubConfig.securityPoliciesSize = 1;
     UA_PubSubSecurityPolicy_Aes128Ctr(config->pubSubConfig.securityPolicies,
-                                      &config->logger);
+                                      config->logging);
 #endif
 
     addPubSubConnection(server, addressUrl);

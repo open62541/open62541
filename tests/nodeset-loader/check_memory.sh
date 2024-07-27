@@ -167,19 +167,6 @@ memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
              $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.xml \
              $UA_NODESET_PATH/IA/Opc.Ua.IA.NodeSet2.examples.xml
 
-echo "... IEC61850-6 ..."
-memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml \
-             $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-6.NodeSet2.xml
-echo "... IEC61850-7-3 ..."
-memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml
-
-echo "... IEC61850-7-4 ..."
-memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
-             $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-3.NodeSet2.xml \
-             $UA_NODESET_PATH/IEC61850/Opc.Ua.IEC61850-7-4.NodeSet2.xml
-
 echo "... IOLinkIODD ..."
 memory_usage $NODESETLOADER_TESTS_PATH/$NODESETLOADER_TEST_APP \
              $UA_NODESET_PATH/IOLink/Opc.Ua.IOLinkIODD.NodeSet2.xml
