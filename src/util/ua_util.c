@@ -54,6 +54,47 @@ UA_AttributeId_fromName(const UA_String name) {
     return UA_ATTRIBUTEID_INVALID;
 }
 
+static UA_DataTypeKind
+typeEquivalence(const UA_DataType *t) {
+    UA_DataTypeKind k = (UA_DataTypeKind)t->typeKind;
+    if(k == UA_DATATYPEKIND_ENUM)
+        return UA_DATATYPEKIND_INT32;
+    return k;
+}
+
+void
+adjustType(UA_Variant *value, const UA_DataType *targetType) {
+    /* If the value is empty, there is nothing we can do here */
+    const UA_DataType *type = value->type;
+    if(!type || !targetType)
+        return;
+
+    /* A string is written to a byte array. the valuerank and array dimensions
+     * are checked later */
+    if(targetType == &UA_TYPES[UA_TYPES_BYTE] &&
+       type == &UA_TYPES[UA_TYPES_BYTESTRING] &&
+       UA_Variant_isScalar(value)) {
+        UA_ByteString *str = (UA_ByteString*)value->data;
+        value->type = &UA_TYPES[UA_TYPES_BYTE];
+        value->arrayLength = str->length;
+        value->data = str->data;
+        if(value->storageType != UA_VARIANT_DATA_NODELETE)
+            UA_free(str);
+        return;
+    }
+
+    /* An enum was sent as an int32, or an opaque type as a bytestring. This
+     * is detected with the typeKind indicating the "true" datatype. */
+    UA_DataTypeKind te1 = typeEquivalence(targetType);
+    UA_DataTypeKind te2 = typeEquivalence(type);
+    if(te1 == te2 && te1 <= UA_DATATYPEKIND_ENUM) {
+        value->type = targetType;
+        return;
+    }
+
+    /* Add more possible type adjustments here. What are they? */
+}
+
 size_t
 UA_readNumberWithBase(const UA_Byte *buf, size_t buflen, UA_UInt32 *number, UA_Byte base) {
     UA_assert(buf);

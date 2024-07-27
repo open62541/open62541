@@ -384,21 +384,6 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* If the INADDR_ANY is used, use the local hostname */
-    char hoststr[UA_MAXHOSTNAME_LENGTH];
-    if(hostname) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Creating listen socket for \"%s\" on port %u",
-                    (unsigned)listenSocket, hostname, port);
-    } else {
-        gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
-        hostname = hoststr;
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Creating listen socket for \"%s\" "
-                    "(with local hostname \"%s\") on port %u",
-                    (unsigned)listenSocket, addrstr, hostname, port);
-    }
-
     /* Some Linux distributions have net.ipv6.bindv6only not activated. So
      * sockets can double-bind to IPv4 and IPv6. This leads to problems. Use
      * AF_INET6 sockets only for IPv6. */
@@ -445,6 +430,31 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 
     /* Bind socket to address */
     int ret = bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+
+    /* Get the port being used if dynamic porting was used */
+    if(port == 0) {
+        struct sockaddr_in sin;
+        memset(&sin, 0, sizeof(sin));
+        socklen_t len = sizeof(sin);
+        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        port = ntohs(sin.sin_port);
+    }
+
+    /* If the INADDR_ANY is used, use the local hostname */
+    char hoststr[UA_MAXHOSTNAME_LENGTH];
+    if(hostname) {
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Creating listen socket for \"%s\" on port %u",
+                    (unsigned)listenSocket, hostname, port);
+    } else {
+        gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
+        hostname = hoststr;
+        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                    "TCP %u\t| Creating listen socket for \"%s\" "
+                    "(with local hostname \"%s\") on port %u",
+                    (unsigned)listenSocket, addrstr, hostname, port);
+    }
+
     if(ret < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
