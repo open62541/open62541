@@ -16,12 +16,6 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#include "ua_pubsub_networkmessage.h"
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-#include "ua_pubsub_ns0.h"
-#endif
-
 #define UA_MAX_STACKBUF 128 /* Max size of network messages on the stack */
 
 static UA_StatusCode
