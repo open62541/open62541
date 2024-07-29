@@ -202,25 +202,6 @@ UA_DataSetWriter_create(UA_Server *server,
         pds = UA_PublishedDataSet_findPDSbyId(server, dataSet);
         if(!pds)
             return UA_STATUSCODE_BADNOTFOUND;
-
-        if(pds->configurationFreezeCounter > 0) {
-            UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                   "Adding DataSetWriter failed: PublishedDataSet is frozen");
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
-
-        if(wg->config.rtLevel != UA_PUBSUB_RT_NONE) {
-            UA_DataSetField *tmpDSF;
-            TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
-                if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
-                   !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                           "Adding DataSetWriter failed: "
-                                           "Fields in PDS are not RT capable");
-                    return UA_STATUSCODE_BADCONFIGURATIONERROR;
-                }
-            }
-        }
     }
 
     UA_DataSetWriter *newDataSetWriter = (UA_DataSetWriter *)
@@ -313,34 +294,39 @@ UA_Server_addDataSetWriter(UA_Server *server,
     return res;
 }
 
-void
+UA_StatusCode
 UA_DataSetWriter_freezeConfiguration(UA_Server *server,
                                      UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
     if(pds) { /* Skip for heartbeat writers */
-        pds->configurationFreezeCounter++;
-        UA_DataSetField *dsf;
-        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-            dsf->configurationFrozen = true;
+        UA_PublishedDataSet_freezeConfiguration(server, pds);
+        /* Check if RT-requirements are met */
+        if((wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS)) {
+            UA_DataSetField *dsf;
+            TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+                if(!dsf->hasRtValueSource) {
+                    UA_LOG_WARNING_WRITER(
+                        server->config.logging, dsw, "PubSub-RT configuration fail: "
+                        "Target variable %N has no external value source",
+                        dsf->config.field.variable.publishParameters.publishedVariable);
+                    UA_PublishedDataSet_unfreezeConfiguration(server, pds);
+                    return UA_STATUSCODE_BADINTERNALERROR;
+                }
+            }
         }
     }
     dsw->configurationFrozen = true;
+    return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_DataSetWriter_unfreezeConfiguration(UA_Server *server,
                                        UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(pds) { /* Skip for heartbeat writers */
-        pds->configurationFreezeCounter--;
-        if(pds->configurationFreezeCounter == 0) {
-            UA_DataSetField *dsf;
-            TAILQ_FOREACH(dsf, &pds->fields, listEntry){
-                dsf->configurationFrozen = false;
-            }
-        }
-        dsw->configurationFrozen = false;
-    }
+    if(pds) /* Skip for heartbeat writers */
+        UA_PublishedDataSet_unfreezeConfiguration(server, pds);
+    dsw->configurationFrozen = false;
 }
 
 UA_StatusCode
@@ -398,17 +384,6 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
         }
 
         UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
-
-        /* TODO: Get the External Value Source from the node instead of from the config */
-
-        /* If direct-value-access is enabled, the pointers need to be set */
-        if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
-           !dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled) {
-            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
-                                "PubSub-RT configuration fail: PDS published-variable "
-                                "does not have an external data source");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
 
         /* Check that the values have a fixed size if fixed offsets are needed */
         if(wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {

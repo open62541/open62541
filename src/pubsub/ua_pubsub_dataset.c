@@ -171,7 +171,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     UA_String_clear(&publishedDataSet->logIdString);
 }
 
-/* The fieldMetaData variable has to be cleaned up external in case of an error */
+/* The output metadata has to be cleaned up external in case of an error */
 static UA_StatusCode
 generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
                       UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
@@ -188,32 +188,6 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     const UA_DataSetVariableConfig *var = &field->config.field.variable;
     UA_StatusCode res = UA_String_copy(&var->fieldNameAlias, &fieldMetaData->name);
     UA_CHECK_STATUS(res, return res);
-
-    /* Static value source. ToDo after freeze PR, the value source must be
-     * checked (other behavior for static value source) */
-    if(var->rtValueSource.rtFieldSourceEnabled &&
-       !var->rtValueSource.rtInformationModelNode) {
-        const UA_DataValue *svs = *var->rtValueSource.staticValueSource;
-        if(svs->value.arrayDimensionsSize > 0) {
-            fieldMetaData->arrayDimensions = (UA_UInt32 *)
-                UA_calloc(svs->value.arrayDimensionsSize, sizeof(UA_UInt32));
-            if(fieldMetaData->arrayDimensions == NULL)
-                return UA_STATUSCODE_BADOUTOFMEMORY;
-            memcpy(fieldMetaData->arrayDimensions, svs->value.arrayDimensions,
-                   sizeof(UA_UInt32) * svs->value.arrayDimensionsSize);
-        }
-        fieldMetaData->arrayDimensionsSize = svs->value.arrayDimensionsSize;
-
-        if(svs->value.type)
-            res = UA_NodeId_copy(&svs->value.type->typeId, &fieldMetaData->dataType);
-        UA_CHECK_STATUS(res, return res);
-
-        //TODO collect value rank for the static field source
-        fieldMetaData->properties = NULL;
-        fieldMetaData->propertiesSize = 0;
-        fieldMetaData->fieldFlags = UA_DATASETFIELDFLAGS_NONE;
-        return UA_STATUSCODE_GOOD;
-    }
 
     /* Set the Array Dimensions */
     const UA_PublishedVariableDataType *pp = &var->publishParameters;
@@ -260,8 +234,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
         /* Check if the datatype is a builtInType, if yes set the builtinType. */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
             fieldMetaData->builtInType = (UA_Byte)currentDataType->typeId.identifier.numeric;
-        /* set the maxStringLength attribute */
-        if(field->config.field.variable.maxStringLength != 0){
+        /* Set the maxStringLength attribute */
+        if(field->config.field.variable.maxStringLength != 0) {
             if(currentDataType->typeKind == UA_DATATYPEKIND_BYTESTRING ||
             currentDataType->typeKind == UA_DATATYPEKIND_STRING ||
             currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
@@ -299,7 +273,6 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
 
     //TODO collect the following fields*/
     //fieldMetaData.builtInType
-    //fieldMetaData.maxStringLength
 
     return UA_STATUSCODE_GOOD;
 }
@@ -571,10 +544,10 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
 }
 
 void
-UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig) {
-    if(dataSetFieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
-        UA_String_clear(&dataSetFieldConfig->field.variable.fieldNameAlias);
-        UA_PublishedVariableDataType_clear(&dataSetFieldConfig->field.variable.publishParameters);
+UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *fieldConfig) {
+    if(fieldConfig->dataSetFieldType == UA_PUBSUB_DATASETFIELD_VARIABLE) {
+        UA_String_clear(&fieldConfig->field.variable.fieldNameAlias);
+        UA_PublishedVariableDataType_clear(&fieldConfig->field.variable.publishParameters);
     }
 }
 
@@ -585,25 +558,27 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
                                   UA_DataValue *value) {
     UA_PublishedVariableDataType *params = &field->config.field.variable.publishParameters;
 
-    /* Read the value */
-    if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
-        const UA_VariableNode *rtNode = (const UA_VariableNode *)
-            UA_NODESTORE_GET(server, &params->publishedVariable);
-        *value = **rtNode->value.external.externalValue;
+    /* Realtime sampling path */
+    if(field->hasRtValueSource) {
+        if(field->rtValueSource.onRead) {
+            field->rtValueSource.onRead(server, NULL, NULL, &params->publishedVariable,
+                                        field->nodeContext, NULL,
+                                        (const UA_DataValue **)(uintptr_t)
+                                        field->rtValueSource.externalValue);
+        }
+        *value = **field->rtValueSource.externalValue;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
-    } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
-        UA_ReadValueId rvid;
-        UA_ReadValueId_init(&rvid);
-        rvid.nodeId = params->publishedVariable;
-        rvid.attributeId = params->attributeId;
-        rvid.indexRange = params->indexRange;
-        *value = readWithSession(server, &server->adminSession,
-                                 &rvid, UA_TIMESTAMPSTORETURN_BOTH);
-    } else {
-        *value = **field->config.field.variable.rtValueSource.staticValueSource;
-        value->value.storageType = UA_VARIANT_DATA_NODELETE;
+        return;
     }
+
+    /* Read from the information model */
+    UA_ReadValueId rvid;
+    UA_ReadValueId_init(&rvid);
+    rvid.nodeId = params->publishedVariable;
+    rvid.attributeId = params->attributeId;
+    rvid.indexRange = params->indexRange;
+    *value = readWithSession(server, &server->adminSession,
+                             &rvid, UA_TIMESTAMPSTORETURN_BOTH);
 }
 
 UA_AddPublishedDataSetResult
@@ -718,12 +693,9 @@ UA_PublishedDataSet_create(UA_Server *server,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newPDS->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %S\t| ", idStr);
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->identifier);
     newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
 
@@ -778,6 +750,44 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
     UA_free(publishedDataSet);
 
     return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_PublishedDataSet_freezeConfiguration(UA_Server *server, UA_PublishedDataSet *pds) {
+    if(pds->configurationFreezeCounter == 0) {
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            dsf->configurationFrozen = true;
+
+            /* Cache the external value source of the node */
+            const UA_Node *node =
+                UA_NODESTORE_GET_SELECTIVE(server,
+                                           &dsf->config.field.variable.publishParameters.publishedVariable,
+                                           UA_NODEATTRIBUTESMASK_VALUE,
+                                           UA_REFERENCETYPESET_NONE,
+                                           UA_BROWSEDIRECTION_INVALID);
+            if(node && node->head.nodeClass == UA_NODECLASS_VARIABLE &&
+               node->variableNode.valueSource == UA_VALUESOURCE_EXTERNAL) {
+                dsf->nodeContext = node->head.context;
+                dsf->rtValueSource = node->variableNode.value.external;
+                dsf->hasRtValueSource = true;
+            }
+        }
+    }
+
+    pds->configurationFreezeCounter++;
+}
+
+void
+UA_PublishedDataSet_unfreezeConfiguration(UA_Server *server, UA_PublishedDataSet *pds) {
+    pds->configurationFreezeCounter--;
+    if(pds->configurationFreezeCounter == 0) {
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            dsf->configurationFrozen = false;
+            dsf->hasRtValueSource = false;
+        }
+    }
 }
 
 UA_StatusCode

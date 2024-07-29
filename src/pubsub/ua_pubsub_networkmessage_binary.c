@@ -75,13 +75,13 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
                 rv = UA_DataValue_encodeBinary(&nmo->content.value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE_EXTERNAL:
-                rv = UA_DataValue_encodeBinary(*nmo->content.externalValue, &bufPos, bufEnd);
+                rv = UA_DataValue_encodeBinary(*nmo->content.rtValueSource.externalValue.externalValue, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT:
                 rv = UA_Variant_encodeBinary(&nmo->content.value.value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT_EXTERNAL:
-                rv = UA_Variant_encodeBinary(&(*nmo->content.externalValue)->value, &bufPos, bufEnd);
+                rv = UA_Variant_encodeBinary(&(*nmo->content.rtValueSource.externalValue.externalValue)->value, &bufPos, bufEnd);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
                 rv = UA_encodeBinaryInternal(nmo->content.value.value.data,
@@ -89,8 +89,8 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
                                              &bufPos, &bufEnd, NULL, NULL);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL:
-                rv = UA_encodeBinaryInternal((*nmo->content.externalValue)->value.data,
-                                             (*nmo->content.externalValue)->value.type,
+                rv = UA_encodeBinaryInternal((*nmo->content.rtValueSource.externalValue.externalValue)->value.data,
+                                             (*nmo->content.rtValueSource.externalValue.externalValue)->value.type,
                                              &bufPos, &bufEnd, NULL, NULL);
                 break;
             default:

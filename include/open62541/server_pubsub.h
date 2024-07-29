@@ -372,19 +372,9 @@ typedef struct{
     UA_String fieldNameAlias;
     UA_Boolean promotedField;
     UA_PublishedVariableDataType publishParameters;
-
-    /* non std. field */
-    struct {
-        UA_Boolean rtFieldSourceEnabled;
-        /* If the rtInformationModelNode is set, the nodeid in publishParameter must point
-         * to a node with external data source backend defined
-         * */
-        UA_Boolean rtInformationModelNode;
-        //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
-        UA_DataValue ** staticValueSource;
-    } rtValueSource;
     UA_UInt32 maxStringLength;
-
+    /* For realtime: The publishParameters must point to a variable with an
+     * ExternalValueSource configured. */
 } UA_DataSetVariableConfig;
 
 typedef enum {
@@ -395,13 +385,13 @@ typedef enum {
 typedef struct {
     UA_DataSetFieldType dataSetFieldType;
     union {
-        /* events need other config later */
+        /* TODO: Event field config */
         UA_DataSetVariableConfig variable;
     } field;
 } UA_DataSetFieldConfig;
 
 void UA_EXPORT
-UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig);
+UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *fieldConfig);
 
 typedef struct {
     UA_StatusCode result;
@@ -658,50 +648,12 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId);
  * mappings between received DataSet fields and added Variables in the
  * Subscriber AddressSpace. */
 
-/* SubscribedDataSetDataType Definition */
-typedef enum {
-    UA_PUBSUB_SDS_TARGET,
-    UA_PUBSUB_SDS_MIRROR
-} UA_SubscribedDataSetEnumType;
-
-typedef struct {
-    /* Standard-defined FieldTargetDataType */
-    UA_FieldTargetDataType targetVariable;
-
-    /* If realtime-handling is required, set this pointer non-NULL and it will be used
-     * to memcpy the value instead of using the Write service.
-     * If the beforeWrite method pointer is set, it will be called before a memcpy update
-     * to the value. But param externalDataValue already contains the new value.
-     * If the afterWrite method pointer is set, it will be called after a memcpy update
-     * to the value. */
-    UA_DataValue **externalDataValue;
-    void *targetVariableContext; /* user-defined pointer */
-    void (*beforeWrite)(UA_Server *server,
-                        const UA_NodeId *readerIdentifier,
-                        const UA_NodeId *readerGroupIdentifier,
-                        const UA_NodeId *targetVariableIdentifier,
-                        void *targetVariableContext,
-                        UA_DataValue **externalDataValue);
-    void (*afterWrite)(UA_Server *server,
-                       const UA_NodeId *readerIdentifier,
-                       const UA_NodeId *readerGroupIdentifier,
-                       const UA_NodeId *targetVariableIdentifier,
-                       void *targetVariableContext,
-                       UA_DataValue **externalDataValue);
-} UA_FieldTargetVariable;
-
-typedef struct {
-    size_t targetVariablesSize;
-    UA_FieldTargetVariable *targetVariables;
-} UA_TargetVariables;
-
-/* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_createTargetVariables(UA_Server *server, const UA_NodeId dsrId,
                                               size_t targetVariablesSize,
-                                              const UA_FieldTargetVariable *targetVariables);
+                                              const UA_FieldTargetDataType *targetVariables);
 
-/* To Do:Implementation of SubscribedDataSetMirrorType
+/* TODO: Implementation of SubscribedDataSetMirrorType
  * UA_StatusCode
  * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
  * UA_SubscribedDataSetMirrorDataType* mirror) */
@@ -709,11 +661,11 @@ UA_Server_DataSetReader_createTargetVariables(UA_Server *server, const UA_NodeId
 /**
  * DataSetReader
  * -------------
- * DataSetReader can receive NetworkMessages with the DataSetMessage
- * of interest sent by the Publisher. DataSetReaders represent
- * the configuration necessary to receive and process DataSetMessages
- * on the Subscriber side. DataSetReader must be linked with a
- * SubscribedDataSet and be contained within a ReaderGroup. */
+ * DataSetReader can receive NetworkMessages with the DataSetMessage of interest
+ * sent by the Publisher. DataSetReaders represent the configuration necessary
+ * to receive and process DataSetMessages on the Subscriber side. DataSetReader
+ * must be linked with a SubscribedDataSet and be contained within a
+ * ReaderGroup. */
 
 typedef enum {
     UA_PUBSUB_RT_UNKNOWN = 0,
@@ -721,6 +673,11 @@ typedef enum {
     UA_PUBSUB_RT_DATA_VALUE = 2,
     UA_PUBSUB_RT_RAW = 4,
 } UA_PubSubRtEncoding;
+
+typedef enum {
+    UA_PUBSUB_SDS_TARGET,
+    UA_PUBSUB_SDS_MIRROR
+} UA_SubscribedDataSetEnumType;
 
 /* Parameters for PubSub DataSetReader Configuration */
 typedef struct {
@@ -734,11 +691,13 @@ typedef struct {
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetEnumType subscribedDataSetType;
-    /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     union {
-        UA_TargetVariables subscribedDataSetTarget;
-        // UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror;
+        /* For the realtime subscribers the targetVariable in the information
+         * needs to have an external value source that gets cached. */
+        UA_TargetVariablesDataType subscribedDataSetTarget;
+        /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     } subscribedDataSet;
+
     /* non std. fields */
     UA_String linkedStandaloneSubscribedDataSetName;
     UA_PubSubRtEncoding expectedEncoding;
@@ -750,11 +709,6 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 
 UA_EXPORT void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_updateConfig(UA_Server *server, const UA_NodeId dsrId,
-                                     UA_NodeId readerGroupIdentifier,
-                                     const UA_DataSetReaderConfig *config);
 
 /* Get the configuration (deep copy) of the DataSetReader */
 UA_EXPORT UA_StatusCode UA_THREADSAFE

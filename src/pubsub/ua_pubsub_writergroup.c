@@ -337,11 +337,24 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     /* Freeze the WriterGroup */
     wg->configurationFrozen = true;
 
+    /* Define variables here for goto */
+    size_t msgSize;
+    UA_ByteString buf;
+    const UA_Byte *bufEnd;
+    UA_Byte *bufPos;
+    size_t dsmCount = 0;
+    UA_NetworkMessage networkMessage;
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
+
     /* Freeze the DataSetWriter */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_DataSetWriter_freezeConfiguration(server, dsw);
+        res |= UA_DataSetWriter_freezeConfiguration(server, dsw);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        goto cleanup_dsm;
 
     /* Offset table enabled? */
     if((wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
@@ -357,18 +370,7 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     //TODO Clarify: should we only allow = maxEncapsulatedDataSetMessageCount == 1 with RT?
     //TODO Clarify: Behaviour if the finale size is more than MTU
 
-    /* Define variables here for goto */
-    size_t msgSize;
-    UA_ByteString buf;
-    const UA_Byte *bufEnd;
-    UA_Byte *bufPos;
-    UA_NetworkMessage networkMessage;
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
-
     /* Validate the DataSetWriters and generate their DataSetMessage */
-    size_t dsmCount = 0;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_prepareDataSet(server, dsw, &dsmStore[dsmCount]);
@@ -443,13 +445,14 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
                         contentType != UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW);
                 UA_assert(fieldPos < wg->bufferedMessage.offsetsSize);
 
-                if(!dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled)
-                    continue;
+                UA_assert(dsf->hasRtValueSource); /* Checked during freeze */
 
                 /* Set the external value soure in the offset buffer */
                 UA_DataValue_clear(&wg->bufferedMessage.offsets[fieldPos].content.value);
-                wg->bufferedMessage.offsets[fieldPos].content.externalValue =
-                    dsf->config.field.variable.rtValueSource.staticValueSource;
+                wg->bufferedMessage.offsets[fieldPos].content.rtValueSource.externalValue =
+                    dsf->rtValueSource;
+                wg->bufferedMessage.offsets[fieldPos].content.rtValueSource.nodeContext =
+                    dsf->nodeContext;
 
                 /* Update the content type to _EXTERNAL */
                 wg->bufferedMessage.offsets[fieldPos].contentType =
@@ -466,6 +469,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     for(size_t i = 0; i < dsmCount; i++) {
         UA_DataSetMessage_clear(&dsmStore[i]);
     }
+    if(res != UA_STATUSCODE_GOOD)
+        UA_WriterGroup_unfreezeConfiguration(server, wg);
     return res;
 }
 
