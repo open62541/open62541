@@ -26,11 +26,8 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     /* Get the session */
     UA_Session* session = getSessionById(server, &ar->sessionId);
     if(!session) {
-        UA_String sessionId = UA_STRING_NULL;
-        UA_NodeId_print(&ar->sessionId, &sessionId);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Async Service: Session %S no longer exists", sessionId);
-        UA_String_clear(&sessionId);
+                       "Async Service: Session %N no longer exists", ar->sessionId);
         UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
         return;
     }
