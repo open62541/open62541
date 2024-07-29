@@ -179,13 +179,10 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newGroup->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%SReaderGroup %S\t| ",
-                connection->logIdString, idStr);
+    mp_snprintf(tmpLogIdStr, 128, "%SReaderGroup %N\t| ",
+                connection->logIdString, newGroup->identifier);
     newGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
 
