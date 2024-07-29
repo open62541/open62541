@@ -188,12 +188,9 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     pubSubManager->connectionsSize++;
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&c->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %S\t| ", idStr);
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->identifier);
     c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection created");
 

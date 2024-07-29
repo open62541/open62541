@@ -286,13 +286,11 @@ UA_DataSetWriter_create(UA_Server *server,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newDataSetWriter->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%SDataSetWriter %S\t| ",
-                newDataSetWriter->linkedWriterGroup->logIdString, idStr);
+    mp_snprintf(tmpLogIdStr, 128, "%SDataSetWriter %N\t| ",
+                newDataSetWriter->linkedWriterGroup->logIdString,
+                newDataSetWriter->identifier);
     newDataSetWriter->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_WRITER(server->config.logging, newDataSetWriter, "Writer created");
 

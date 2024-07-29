@@ -719,12 +719,9 @@ UA_PublishedDataSet_create(UA_Server *server,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newPDS->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %S\t| ", idStr);
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->identifier);
     newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
 

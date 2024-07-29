@@ -173,13 +173,11 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newWriterGroup->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %S\t| ",
-                currentConnectionContext->logIdString, idStr);
+    mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %N\t| ",
+                currentConnectionContext->logIdString,
+                newWriterGroup->identifier);
     newWriterGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_WRITERGROUP(server->config.logging, newWriterGroup, "WriterGroup created");
 

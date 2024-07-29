@@ -141,13 +141,11 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 #endif
 
     /* Cache the log string */
-    UA_String idStr = UA_STRING_NULL;
-    UA_NodeId_print(&newDataSetReader->identifier, &idStr);
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %S\t| ",
-                newDataSetReader->linkedReaderGroup->logIdString, idStr);
+    mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %N\t| ",
+                newDataSetReader->linkedReaderGroup->logIdString,
+                newDataSetReader->identifier);
     newDataSetReader->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
-    UA_String_clear(&idStr);
 
     UA_LOG_INFO_READER(server->config.logging, newDataSetReader, "DataSetReader created");
 
