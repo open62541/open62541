@@ -360,7 +360,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
             /* If a parent certificate is found traverse the revocationList and identify
              * if there is any CRL file that corresponds to the parentCertificate */
             if(parentFound == PARENTFOUND) {
-                tempCrl = &context->trustedCrls;
+                tempCrl = &context->issuerCrls;
                 while(tempCrl != NULL) {
                     if(tempCrl->version != 0 &&
                        tempCrl->issuer_raw.len == parentCert->subject_raw.len &&
