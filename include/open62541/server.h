@@ -1901,8 +1901,17 @@ UA_Server_updateCertificate(UA_Server *server,
                             UA_Boolean closeSecureChannels);
 
 /**
+ * Used to tell the Server to apply any security changes.
+ * Applies all changes from the transaction.
+ * ---------------------------------------------------------------------------------------- */
+
+UA_StatusCode UA_EXPORT
+UA_Server_applyChanges(UA_Server *server);
+
+/**
  * Creates a PKCS #10 DER encoded certificate request signed with the server's private key
  * ---------------------------------------------------------------------------------------- */
+
 UA_StatusCode UA_EXPORT
 UA_Server_createSigningRequest(UA_Server *server,
                                const UA_NodeId certificateGroupId,

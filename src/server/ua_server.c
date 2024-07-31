@@ -720,6 +720,99 @@ sercureChannel_delayedClose(void *application, void *context) {
     server->transaction = NULL;
 }
 
+UA_StatusCode
+UA_Server_applyChanges(UA_Server *server) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if(!server->transaction)
+        return UA_STATUSCODE_BADNOTHINGTODO;
+
+    UA_GDSTransaction *transaction = server->transaction;
+
+    /* Apply Trust list changes */
+    for(size_t i = 0; i < transaction->certGroupSize; i++) {
+        UA_CertificateGroup transactionCertGroup = transaction->certGroups[i];
+        UA_TrustListDataType trustList;
+        UA_TrustListDataType_init(&trustList);
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+        transactionCertGroup.getTrustList(&transactionCertGroup, &trustList);
+
+        UA_NodeId defaultApplicationGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP_TRUSTLIST);
+        UA_NodeId defaultUserTokenGroup =
+            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP_TRUSTLIST);
+        if(UA_NodeId_equal(&transactionCertGroup.certificateGroupId, &defaultApplicationGroup)) {
+            retval =
+                server->config.secureChannelPKI.setTrustList(&server->config.secureChannelPKI, &trustList);
+        }
+        if(UA_NodeId_equal(&transactionCertGroup.certificateGroupId, &defaultUserTokenGroup)) {
+            retval =
+                server->config.sessionPKI.setTrustList(&server->config.sessionPKI, &trustList);
+        }
+        UA_TrustListDataType_clear(&trustList);
+        if(retval != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Apply Server certificate changes */
+    for(size_t i = 0; i < transaction->certificateInfosSize; i++) {
+        UA_GDSCertificateInfo certInfo = transaction->certificateInfos[i];
+        UA_NodeId certGroupId = certInfo.certificateGroup;
+        UA_NodeId certTypeId = certInfo.certificateType;
+
+        for(size_t j = 0; j < server->config.securityPoliciesSize; j++) {
+            UA_SecurityPolicy *sp = &server->config.securityPolicies[j];
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            if(!UA_NodeId_equal(&certGroupId, &sp->certificateGroupId) ||
+               !UA_NodeId_equal(&certTypeId, &sp->certificateTypeId))
+                continue;
+
+            retval = sp->updateCertificateAndPrivateKey(sp, certInfo.certificate,
+                                                        certInfo.privateKey);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+        for(size_t j = 0; j < server->config.endpointsSize; j++) {
+            UA_EndpointDescription *ed = &server->config.endpoints[j];
+            UA_SecurityPolicy *sp =
+                getSecurityPolicyByUri(server, &server->config.endpoints[j].securityPolicyUri);
+            if(!sp) {
+                retval = UA_STATUSCODE_BADINTERNALERROR;
+                goto cleanup;
+            }
+
+            if(!UA_NodeId_equal(&certGroupId, &sp->certificateGroupId) ||
+               !UA_NodeId_equal(&certTypeId, &sp->certificateTypeId))
+                continue;
+
+            UA_String_clear(&ed->serverCertificate);
+            retval = UA_String_copy(&sp->localCertificate, &ed->serverCertificate);
+            if(retval != UA_STATUSCODE_GOOD)
+                goto cleanup;
+        }
+    }
+
+    /* Add to the delayed callback list. Will be cleaned up in the next iteration. */
+    UA_DelayedCallback *dc = &transaction->dc;
+    dc->callback = sercureChannel_delayedClose;
+    dc->application = NULL;
+    dc->context = server;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+
+    return UA_STATUSCODE_GOOD;
+
+cleanup:
+    UA_GDSTransaction_clear(transaction);
+    transaction = NULL;
+
+    return retval;
+}
+
 static void
 notifySecureChannelsStopped(UA_Server *server, struct UA_ServerComponent *sc,
                             UA_LifecycleState state) {
