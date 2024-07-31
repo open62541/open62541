@@ -102,55 +102,32 @@ writeTemperature(UA_Server *tmpServer,
                  const UA_NodeId *nodeId, void *nodeContext,
                  const UA_NumericRange *range, const UA_DataValue *data) {
     temperature = *(UA_Int32 *) data->value.data;
-    if (deleteNodeWhileWriting)
+    if(deleteNodeWhileWriting)
         UA_Server_deleteNode(server, temperatureNodeId, true);
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-writePressureNoAccess(
-   UA_Server *tmpServer,
-   const UA_NodeId *sessionId,
-   void *sessionContext,
-   const UA_NodeId *nodeId,
-   void *nodeContext,
-   const UA_NumericRange *range,
-   const UA_DataValue *data) {
+writePressureNoAccess(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+                      const UA_NodeId *nodeId, void *nodeContext,
+                      const UA_NumericRange *range,
+                      const UA_DataValue *newValue, UA_DataValue **externalValue) {
       return UA_STATUSCODE_BADUSERACCESSDENIED;
 }
 
 static UA_StatusCode
-writePressure(
-   UA_Server *tmpServer,
-   const UA_NodeId *sessionId,
-   void *sessionContext,
-   const UA_NodeId *nodeId,
-   void *nodeContext,
-   const UA_NumericRange *range,
-   const UA_DataValue *data) {
+writePressure(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
+              const UA_NodeId *nodeId, void *nodeContext, const UA_NumericRange *range,
+              const UA_DataValue *newValue, UA_DataValue **externalValue) {
       return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-readPressureNoAccess(
-   UA_Server *tmpServer,
-   const UA_NodeId *sessionId,
-   void *sessionContext,
-   const UA_NodeId *nodeId,
-   void *nodeContext,
-   const UA_NumericRange *range) {
-      return UA_STATUSCODE_BADUSERACCESSDENIED;
-}
-
-static UA_StatusCode
-readPressure(
-   UA_Server *tmpServer,
-   const UA_NodeId *sessionId,
-   void *sessionContext,
-   const UA_NodeId *nodeId,
-   void *nodeContext,
-   const UA_NumericRange *range) {
-      return UA_STATUSCODE_GOOD;
+static void
+readPressure(UA_Server *server,
+             const UA_NodeId *sessionId, void *sessionContext,
+             const UA_NodeId *nodeId, void *nodeContext,
+             const UA_NumericRange *range,
+             const UA_DataValue **externalValue) {
 }
 
 static void
@@ -176,20 +153,20 @@ addValueBackendVariable(void) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Pressure");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
-    UA_ValueBackend pressureValueBackend;
-    pressureValueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    UA_ExternalValueSource pressureValueBackend;
+    pressureValueBackend.externalValue = &pPressure;
+    pressureValueBackend.write = writePressure ;
+    pressureValueBackend.onRead = readPressure;
 
-    pressureValueBackend.backend.external.value = &pPressure;
-    pressureValueBackend.backend.external.callback.userWrite = writePressure ;
-    pressureValueBackend.backend.external.callback.notificationRead = readPressure;
-
-    UA_StatusCode retval = UA_Server_addVariableNode(server, pressureNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pressure"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
-                                        NULL, NULL);
+    UA_StatusCode retval = UA_Server_addVariableNode(
+        server, pressureNodeId, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+        UA_QUALIFIEDNAME(1, "Pressure"),
+        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
+        NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_setVariableNode_valueBackend(server, pressureNodeId, pressureValueBackend);
+    retval = UA_Server_setExternalValueSource(server, pressureNodeId, pressureValueBackend);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 
@@ -199,21 +176,21 @@ addValueBackendVariableNoAccess(void) {
     attr.displayName = UA_LOCALIZEDTEXT("en-US", "Pressure");
     attr.accessLevel = UA_ACCESSLEVELMASK_READ | UA_ACCESSLEVELMASK_WRITE;
 
-    UA_ValueBackend pressureValueBackend;
-    pressureValueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
+    UA_ExternalValueSource pressureValueBackend;
+    pressureValueBackend.externalValue = &pPressure;
+    pressureValueBackend.write = writePressureNoAccess ;
+    pressureValueBackend.onRead = readPressure;
 
-    pressureValueBackend.backend.external.value = &pPressure;
-    pressureValueBackend.backend.external.callback.userWrite = writePressureNoAccess ;
-    pressureValueBackend.backend.external.callback.notificationRead = readPressureNoAccess;
-
-    UA_StatusCode retval = UA_Server_addVariableNode(server, pressureNodeIdNoAccess, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_QUALIFIEDNAME(1, "Pressure_noAccess"),
-                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
-                                        NULL, NULL);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, pressureNodeIdNoAccess,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                                  UA_QUALIFIEDNAME(1, "Pressure_noAccess"),
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr,
+                                  NULL, NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-
-    retval = UA_Server_setVariableNode_valueBackend(server, pressureNodeIdNoAccess, pressureValueBackend);
+    retval = UA_Server_setExternalValueSource(server, pressureNodeIdNoAccess, pressureValueBackend);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 }
 

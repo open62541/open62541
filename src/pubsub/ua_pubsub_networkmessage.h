@@ -12,6 +12,7 @@
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/nodestore.h>
 #include <open62541/pubsub.h>
 #include <open62541/server_pubsub.h>
 
@@ -50,7 +51,10 @@ typedef struct {
     UA_NetworkMessageOffsetType contentType;
     union {
         UA_UInt16 sequenceNumber;
-        UA_DataValue **externalValue;
+        struct {
+            void *nodeContext;
+            UA_ExternalValueSource externalValue;
+        } rtValueSource;
         UA_DataValue value;
     } content;
     size_t offset;

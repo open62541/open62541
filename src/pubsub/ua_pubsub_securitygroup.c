@@ -7,12 +7,10 @@
  */
 
 #include <open62541/server_pubsub.h>
-
-#include "ua_pubsub_ns0.h"
+#include "ua_pubsub.h"
+#include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
-
-#include "server/ua_server_internal.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
 

@@ -377,12 +377,10 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         UA_Server_run_iterate(server, false);
 } END_TEST
 
-static UA_StatusCode
-simpleNotificationRead(UA_Server *srv, const UA_NodeId *sessionId,
-                       void *sessionContext, const UA_NodeId *nodeid,
-                       void *nodeContext, const UA_NumericRange *range){
-    //allow read without any preparation
-    return UA_STATUSCODE_GOOD;
+static void
+simpleNotificationRead(UA_Server *srv, const UA_NodeId *sessionId, void *sessionContext,
+                       const UA_NodeId *nodeid, void *nodeContext,
+                       const UA_NumericRange *range, const UA_DataValue **externalValue) {
 }
 
 static UA_NodeId *nodes[3];
@@ -395,7 +393,7 @@ static UA_StatusCode
 externalDataWriteCallback(UA_Server *s, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, const UA_NumericRange *range,
-                          const UA_DataValue *data){
+                          const UA_DataValue *data, UA_DataValue **externalValue) {
     if(UA_NodeId_equal(nodeId, nodes[0])){
         memcpy(values[0], data->value.data, sizeof(UA_UInt32));
     } else if(UA_NodeId_equal(nodeId, nodes[1])){
@@ -434,12 +432,11 @@ START_TEST(PubSubConfigWithInformationModelRTVariable) {
         *integerRTValue = 42;
         UA_DataValue *externalValueSourceDataValue = UA_DataValue_new();
         UA_Variant_setScalar(&externalValueSourceDataValue->value, integerRTValue, &UA_TYPES[UA_TYPES_UINT32]);
-        UA_ValueBackend valueBackend;
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = &externalValueSourceDataValue;
-        valueBackend.backend.external.callback.notificationRead = simpleNotificationRead;
-        valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-        UA_Server_setVariableNode_valueBackend(server, variableNodeId, valueBackend);
+        UA_ExternalValueSource valueBackend;
+        valueBackend.externalValue = &externalValueSourceDataValue;
+        valueBackend.onRead = simpleNotificationRead;
+        valueBackend.write = externalDataWriteCallback;
+        UA_Server_setExternalValueSource(server, variableNodeId, valueBackend);
         UA_DataSetFieldConfig dsfConfig;
         memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));
         dsfConfig.field.variable.publishParameters.publishedVariable = variableNodeId;
@@ -510,12 +507,11 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             externalValueSources[i]->hasValue = UA_TRUE;
             UA_Variant_setScalar(&externalValueSources[i]->value, values[i], &UA_TYPES[UA_TYPES_UINT32]);
 
-            UA_ValueBackend valueBackend;
-            valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-            valueBackend.backend.external.value = &externalValueSources[i];
-            valueBackend.backend.external.callback.notificationRead = simpleNotificationRead;
-            valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-            UA_Server_setVariableNode_valueBackend(server, *nodes[i], valueBackend);
+            UA_ExternalValueSource valueBackend;
+            valueBackend.externalValue = &externalValueSources[i];
+            valueBackend.onRead = simpleNotificationRead;
+            valueBackend.write = externalDataWriteCallback;
+            UA_Server_setExternalValueSource(server, *nodes[i], valueBackend);
 
             UA_DataSetFieldConfig dsfConfig;
             memset(&dsfConfig, 0, sizeof(UA_DataSetFieldConfig));

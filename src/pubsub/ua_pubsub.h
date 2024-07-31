@@ -153,6 +153,14 @@ UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
+void
+UA_PublishedDataSet_freezeConfiguration(UA_Server *server,
+                                        UA_PublishedDataSet *pds);
+
+void
+UA_PublishedDataSet_unfreezeConfiguration(UA_Server *server,
+                                          UA_PublishedDataSet *pds);
+
 typedef struct UA_StandaloneSubscribedDataSet {
     UA_StandaloneSubscribedDataSetConfig config;
     UA_NodeId identifier;
@@ -345,7 +353,7 @@ UA_StatusCode
 UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm);
 
-void
+UA_StatusCode
 UA_DataSetWriter_freezeConfiguration(UA_Server *server, UA_DataSetWriter *dsw);
 
 void
@@ -504,6 +512,13 @@ typedef struct UA_DataSetField {
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
     UA_Boolean configurationFrozen;
+
+    /* For realtime cache the information from the node. So we save the lookup
+     * from the information model. The session identifier and session context
+     * are set to NULL in the callback. */
+    UA_Boolean hasRtValueSource;
+    void *nodeContext;
+    UA_ExternalValueSource rtValueSource;
 } UA_DataSetField;
 
 UA_StatusCode
@@ -577,21 +592,10 @@ UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
 UA_StatusCode
 UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
 
-/* Copy the configuration of Target Variables */
-UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src,
-                                      UA_TargetVariables *dst);
-
-/* Clear the Target Variables configuration */
-void UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget);
-
-/* Copy the configuration of Field Target Variables */
-UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
-                                          UA_FieldTargetVariable *dst);
-
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
-                                    const UA_FieldTargetVariable *targetVariables);
+                                    const UA_FieldTargetDataType *targetVariables);
 
 /* Returns an error reason if the target state is `Error` */
 UA_StatusCode
@@ -885,6 +889,47 @@ UA_StatusCode
 UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
+
+/************************************/
+/* Information Model Representation */
+/************************************/
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+
+UA_StatusCode
+initPubSubNS0(UA_Server *server);
+
+UA_StatusCode
+addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
+
+UA_StatusCode
+addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+
+UA_StatusCode
+addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
+
+UA_StatusCode
+addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+
+UA_StatusCode
+addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
+addStandaloneSubscribedDataSetRepresentation(UA_Server *server,
+                                             UA_StandaloneSubscribedDataSet *subscribedDataSet);
+
+UA_StatusCode
+addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
+
+UA_StatusCode
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
+#endif /* UA_ENABLE_PUBSUB_SKS */
+
+#endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
 
 #endif /* UA_ENABLE_PUBSUB */
 

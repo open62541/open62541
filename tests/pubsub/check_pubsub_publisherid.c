@@ -157,11 +157,11 @@ static void AddPublishedDataSet(
         *pPublisherData = 42;
         UA_Variant_setScalar(&((**oppFastPathPublisherDataValue).value), pPublisherData, &UA_TYPES[UA_TYPES_INT32]);
         /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
+        UA_ExternalValueSource valueBackend = {0};
         memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathPublisherDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opPublishedVarId, valueBackend));
+        valueBackend.externalValue = oppFastPathPublisherDataValue;
+        ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                         UA_Server_setExternalValueSource(server, *opPublishedVarId, valueBackend));
     }
     UA_DataSetFieldResult PdsFieldResult =
         UA_Server_addDataSetField(server, *opPublishedDataSetId, &dataSetFieldConfig, &dataSetFieldId);
@@ -279,11 +279,11 @@ static void AddDataSetReader(
         *pSubscriberData = 0;
         UA_Variant_setScalar(&((**oppFastPathSubscriberDataValue).value), pSubscriberData, &UA_TYPES[UA_TYPES_INT32]);
         /* add external value backend for fast-path */
-        UA_ValueBackend valueBackend;
+        UA_ExternalValueSource valueBackend;
         memset(&valueBackend, 0, sizeof(valueBackend));
-        valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-        valueBackend.backend.external.value = oppFastPathSubscriberDataValue;
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setVariableNode_valueBackend(server, *opSubscriberVarId, valueBackend));
+        valueBackend.externalValue = oppFastPathSubscriberDataValue;
+        ck_assert_int_eq(UA_STATUSCODE_GOOD,
+                         UA_Server_setExternalValueSource(server, *opSubscriberVarId, valueBackend));
     }
 
     UA_FieldTargetVariable *pTargetVariables =  (UA_FieldTargetVariable *)

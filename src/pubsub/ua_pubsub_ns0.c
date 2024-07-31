@@ -9,7 +9,8 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include "ua_pubsub_ns0.h"
+#include "ua_pubsub.h"
+#include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -301,11 +302,11 @@ onWrite(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext,
 }
 
 static UA_StatusCode
-addVariableValueSource(UA_Server *server, UA_ValueCallback valueCallback,
+addVariableValueSource(UA_Server *server, UA_ValueNotificationCallback valueCallback,
                        UA_NodeId node, UA_NodePropertyContext *context){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     setNodeContext(server, node, context);
-    return setVariableNode_valueCallback(server, node, valueCallback);
+    return setValueNotificationCallback(server, node, valueCallback);
 }
 
 static UA_StatusCode
@@ -658,7 +659,8 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
     connectionPublisherIdContext->parentNodeId = connection->identifier;
     connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
-    UA_ValueCallback valueCallback;
+
+    UA_ValueNotificationCallback valueCallback;
     valueCallback.onRead = onRead;
     valueCallback.onWrite = NULL;
     retVal |= addVariableValueSource(server, valueCallback, publisherIdNode,
@@ -1397,10 +1399,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                             UA_NS0ID(HASPROPERTY), messageSettingsId);
     if(!UA_NodeId_isNull(&contentMaskId)) {
         /* Set the callback */
-        UA_DataSource ds;
+        UA_CallbackValueSource ds;
         ds.read = readContentMask;
         ds.write = writeContentMask;
-        setVariableNode_dataSource(server, contentMaskId, ds);
+        setCallbackValueSource(server, contentMaskId, ds);
         setNodeContext(server, contentMaskId, writerGroup);
 
         /* Make writable */

@@ -70,19 +70,18 @@ static UA_StatusCode
 externalDataWriteCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
                           void *sessionContext, const UA_NodeId *nodeId,
                           void *nodeContext, const UA_NumericRange *range,
-                          const UA_DataValue *data){
+                          const UA_DataValue *data, UA_DataValue **externalValue) {
     if(UA_NodeId_equal(nodeId, &subNodeId)){
         memcpy(subValue, data->value.data, sizeof(UA_UInt32));
     }
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
+static void
 externalDataReadNotificationCallback(UA_Server *serverLocal, const UA_NodeId *sessionId,
                                      void *sessionContext, const UA_NodeId *nodeid,
-                                     void *nodeContext, const UA_NumericRange *range){
-    //allow read without any preparation
-    return UA_STATUSCODE_GOOD;
+                                     void *nodeContext, const UA_NumericRange *range,
+                                     const UA_DataValue **externalValue) {
 }
 
 START_TEST(SubscribeMultipleMessagesRT) {
@@ -233,18 +232,19 @@ START_TEST(SubscribeMultipleMessagesRT) {
     subDataValueRT = UA_DataValue_new();
     UA_Variant_setScalar(&subDataValueRT->value, subValue, &UA_TYPES[UA_TYPES_UINT32]);
     subDataValueRT->hasValue = true;
+
     /* Set the value backend of the above create node to 'external value source' */
-    UA_ValueBackend valueBackend;
-    valueBackend.backendType = UA_VALUEBACKENDTYPE_EXTERNAL;
-    valueBackend.backend.external.value = &subDataValueRT;
-    valueBackend.backend.external.callback.userWrite = externalDataWriteCallback;
-    valueBackend.backend.external.callback.notificationRead = externalDataReadNotificationCallback;
-    UA_Server_setVariableNode_valueBackend(server, subNodeId, valueBackend);
+    UA_ExternalValueSource valueBackend;
+    valueBackend.externalValue = &subDataValueRT;
+    valueBackend.write = externalDataWriteCallback;
+    valueBackend.onRead = externalDataReadNotificationCallback;
+    UA_Server_setExternalValueSource(server, subNodeId, valueBackend);
 
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
         UA_calloc(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
+
     /* For creating Targetvariable */
     UA_FieldTargetDataType_init(&readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
     readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;

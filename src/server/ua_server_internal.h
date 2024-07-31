@@ -410,12 +410,12 @@ addRefWithSession(UA_Server *server, UA_Session *session, const UA_NodeId *sourc
                   UA_Boolean forward);
 
 UA_StatusCode
-setVariableNode_dataSource(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_DataSource dataSource);
+setCallbackValueSource(UA_Server *server, const UA_NodeId nodeId,
+                       UA_CallbackValueSource valueSource);
 
 UA_StatusCode
-setVariableNode_valueCallback(UA_Server *server, const UA_NodeId nodeId,
-                              const UA_ValueCallback callback);
+setValueNotificationCallback(UA_Server *server, const UA_NodeId nodeId,
+                             UA_ValueNotificationCallback vnc);
 
 UA_StatusCode
 setMethodNode_callback(UA_Server *server, const UA_NodeId methodNodeId,
