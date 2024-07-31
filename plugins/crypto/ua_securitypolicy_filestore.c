@@ -274,7 +274,7 @@ updateCertificateAndPrivateKey_sp_filestore(UA_SecurityPolicy *securityPolicy,
         (SecurityPolicy_FilestoreContext *) securityPolicy->policyContext;
 
     UA_StatusCode retval =
-        pc->innerPolicy->updateCertificateAndPrivateKey(securityPolicy, newCertificate, newPrivateKey);
+        pc->innerPolicy->updateCertificateAndPrivateKey(pc->innerPolicy, newCertificate, newPrivateKey);
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
