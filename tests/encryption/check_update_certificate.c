@@ -88,13 +88,15 @@ START_TEST(update_certificate) {
 
     generateCertificate(&newCertificate, &newPrivateKey);
 
-    UA_ByteString oldCertificate;
-    oldCertificate.length = CERT_DER_LENGTH;
-    oldCertificate.data = CERT_DER_DATA;
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 
     UA_StatusCode retval =
-            UA_Server_updateCertificate(server, &oldCertificate, &newCertificate,
-                                        &newPrivateKey, false, false);
+            UA_Server_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+                                        &newCertificate, NULL, 0, &newPrivateKey, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_applyChanges(server);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&newCertificate);
