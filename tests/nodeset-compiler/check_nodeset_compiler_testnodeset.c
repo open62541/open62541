@@ -12,7 +12,6 @@
 #include "tests/namespace_tests_testnodeset_generated.h"
 #include "namespace_tests_di_generated.h"
 #include <limits.h>
-#include "unistd.h"
 #include <stdlib.h>
 
 UA_Server *server = NULL;
