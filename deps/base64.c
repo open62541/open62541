@@ -75,7 +75,7 @@ static unsigned char dtable[256] = {
 
 unsigned char *
 UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
-	if(len == 0)
+	if(len == 0 || len % 4 != 0)
 		return NULL;
 
     unsigned char *out, *pos;
@@ -84,38 +84,40 @@ UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
 	if(!out)
 		return NULL;
 
-	int pad = 0;
-	size_t count = 0;
+	size_t pad = 0;
+    unsigned char count = 0;
     unsigned char block[4];
 	for(size_t i = 0; i < len; i++) {
 		unsigned char tmp = dtable[src[i]];
-		if(tmp == 0x80)
-			continue;
+        if(tmp == 0x80)
+            goto error; /* Invalid input */
 
 		if(src[i] == '=')
 			pad++;
+
 		block[count] = tmp;
 		count++;
 		if(count == 4) {
 			*pos++ = (block[0] << 2) | (block[1] >> 4);
 			*pos++ = (block[1] << 4) | (block[2] >> 2);
 			*pos++ = (block[2] << 6) | block[3];
-			count = 0;
 			if(pad) {
-				if(pad == 1)
-					pos--;
-				else if(pad == 2)
-					pos -= 2;
-				else {
-					/* Invalid padding */
-					UA_free(out);
-					return NULL;
-				}
+                if(pad == 1)
+                    pos--;
+                else if(pad == 2)
+                    pos -= 2;
+                else
+                    goto error; /* Invalid padding */
 				break;
-			}
+            }
+			count = 0;
 		}
 	}
 
 	*out_len = (size_t)(pos - out);
 	return out;
+
+ error:
+    UA_free(out);
+    return NULL;
 }
