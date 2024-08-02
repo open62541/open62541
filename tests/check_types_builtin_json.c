@@ -4339,7 +4339,7 @@ START_TEST(UA_ByteString_bad_json_decode) {
     
     UA_StatusCode retval = UA_decodeJson(&buf, &out, &UA_TYPES[UA_TYPES_BYTESTRING]);
     // then
-    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_ne(retval, UA_STATUSCODE_GOOD);
     UA_ByteString_clear(&out);
 }
 END_TEST
