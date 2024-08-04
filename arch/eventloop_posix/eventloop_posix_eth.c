@@ -184,7 +184,7 @@ setETHHeader(unsigned char *buf,
     size_t pos = 0;
     memcpy(buf, destAddr, ETHER_ADDR_LEN);
     pos += ETHER_ADDR_LEN;
-    memcpy(&buf[pos], destAddr, ETHER_ADDR_LEN);
+    memcpy(&buf[pos], sourceAddr, ETHER_ADDR_LEN);
     pos += ETHER_ADDR_LEN;
 
     /* Set the 802.1Q VLAN header */

@@ -410,8 +410,6 @@ findTopicConnection(MQTTConnectionManager *mcm, uintptr_t id) {
 static void
 MQTTKeepAliveCallback(void *app, MQTTBrokerConnection *bc) {
     (void)app;
-    if(bc->lastSendTime + (bc->keepalive * UA_DATETIME_SEC) > UA_DateTime_nowMonotonic())
-        return;
     mqtt_ping(&bc->client);
     __mqtt_send(&bc->client);
 }
@@ -643,7 +641,7 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
 
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
     res = el->addCyclicCallback(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
-                                (UA_Double)(bc->keepalive * UA_DATETIME_SEC),
+                                (UA_Double)(bc->keepalive * 0.75 * UA_DATETIME_MSEC),
                                 NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                                 &bc->keepAliveCallbackId);
     if(res != UA_STATUSCODE_GOOD) {
