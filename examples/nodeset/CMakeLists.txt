@@ -65,12 +65,10 @@ endif()
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
     set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
     set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
 else()
     set(FILE_CSV_DIRPREFIX ${UA_NODESET_DIR})
     set(FILE_BSD_PLCOPEN_DIRPREFIX ${UA_NODESET_DIR})
-    set(FILE_BSD_POWERLINK_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
     set(FILE_NS_DIRPREFIX ${UA_NODESET_DIR})
 endif()
 
@@ -102,25 +100,6 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
                 ${UA_TYPES_DI_SOURCES}
                 ${UA_TYPES_PLC_SOURCES})
     add_dependencies(server_nodeset_plcopen open62541-generator-ns-plc)
-
-    # POWERLINK requires the full ns0 as basis
-    # generate powerlink namespace which is using DI
-    ua_generate_nodeset_and_datatypes(
-        NAME "powerlink"
-        FILE_CSV "${FILE_CSV_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeIds.csv"
-        FILE_BSD "${FILE_BSD_POWERLINK_DIRPREFIX}/Opc.Ua.POWERLINK.NodeSet2.bsd"
-        FILE_NS "${FILE_NS_DIRPREFIX}/POWERLINK/Opc.Ua.POWERLINK.NodeSet2.xml"
-        # POWERLINK depends on the di nodeset, which must be generated before
-        DEPENDS "di"
-        INTERNAL
-    )
-
-    add_example(server_nodeset_powerlink server_nodeset_powerlink.c
-                ${UA_NODESET_DI_SOURCES}
-                ${UA_NODESET_POWERLINK_SOURCES}
-                ${UA_TYPES_DI_SOURCES}
-                ${UA_TYPES_POWERLINK_SOURCES})
-    add_dependencies(server_nodeset_powerlink open62541-generator-ns-powerlink)
 endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)

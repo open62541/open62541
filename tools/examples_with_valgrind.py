@@ -62,7 +62,6 @@ client_needed_examples = {
         "server_nodeset":"client",
         "server_nodeset_loader":"client",
         "server_nodeset_plcopen":"client",
-        "server_nodeset_powerlink":"client",
         "server_settimestamp":"client",
         "server_testnodeset":"client",
         "tutorial_server_monitoreditems":"client",
