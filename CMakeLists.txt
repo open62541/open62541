@@ -1115,7 +1115,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Set the full Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml CACHE INTERNAL "")
     endif()
 
     # Check that the submodule was checked out or manually downloaded into the folder
@@ -1133,7 +1133,7 @@ else()
 
     # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
     endif()
 
     # Set feature-specific datatypes definitions and nodesets
