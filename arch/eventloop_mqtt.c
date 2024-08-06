@@ -346,7 +346,7 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
 
     /* Remove the keepalive callback */
     if(bc->keepAliveCallbackId > 0)
-        el->removeCyclicCallback(el, bc->keepAliveCallbackId, NULL);
+        el->removeCyclicCallback(el, bc->keepAliveCallbackId);
     
     /* Remove from linked list */
     for(MQTTBrokerConnection **next = &mcm->connections; *next; next = &(*next)->next) {

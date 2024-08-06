@@ -93,6 +93,26 @@ isConditionConfirmed (UA_Server *server, UA_NodeId condition)
 }
 
 static inline UA_Boolean
+isConditionSuppressed (UA_Server *server, UA_NodeId condition)
+{
+    return isConditionTwoStateVariableInTrueState(
+        server,
+        condition,
+        UA_QUALIFIEDNAME(0, "SuppressedState")
+                                                 );
+}
+
+static inline UA_Boolean
+isConditionOutOfService (UA_Server *server, UA_NodeId condition)
+{
+    return isConditionTwoStateVariableInTrueState(
+        server,
+        condition,
+        UA_QUALIFIEDNAME(0, "OutOfServiceState")
+                                                 );
+}
+
+static inline UA_Boolean
 conditionRetain (UA_Server *server, UA_NodeId condition)
 {
     UA_Variant val;
@@ -130,14 +150,14 @@ START_TEST(createDelete) {
             NULL,
             NULL,
             &conditionInstance
-        );
+                                            );
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_msg(!UA_NodeId_isNull(&conditionInstance), "ConditionId is null");
 
         retval = UA_Server_deleteCondition(
             acserver,
             conditionInstance
-        );
+                                          );
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     }
 } END_TEST
@@ -151,55 +171,6 @@ typedef struct
     UA_Boolean active;
 }ConditionState;
 
-typedef struct {
-    UA_NodeId branch1;
-    UA_NodeId branch2;
-
-    ConditionState mainBranchState;
-    ConditionState branch1State;
-    ConditionState branch2State;
-}EventCBCtx;
-
-static void eventCB (UA_Server *server, UA_UInt32 monId, void *monContext,
-                     size_t nEventFields, const UA_Variant *eventFields)
-{
-    eventCount++;
-    EventCBCtx *ctx= (EventCBCtx *) monContext;
-
-    UA_NodeId conditionId = *(UA_NodeId *) eventFields[0].data;
-    UA_NodeId branchId = *(UA_NodeId *) eventFields[1].data;
-    UA_Boolean retain = *(UA_Boolean*) eventFields[2].data;
-    UA_Boolean acked = *(UA_Boolean*) eventFields[3].data;
-    UA_Boolean confirmed = *(UA_Boolean*) eventFields[4].data;
-    UA_Boolean active = *(UA_Boolean*) eventFields[5].data;
-
-    /*Update branchIds*/
-    if (!UA_NodeId_equal(&branchId, &UA_NODEID_NULL))
-    {
-        if (UA_NodeId_equal(&ctx->branch1, &UA_NODEID_NULL)) UA_NodeId_copy(&branchId, &ctx->branch1);
-        else if (UA_NodeId_equal(&ctx->branch2, &UA_NODEID_NULL) && !UA_NodeId_equal(&branchId, &ctx->branch1))
-            UA_NodeId_copy(&branchId, &ctx->branch2);
-    }
-
-    ConditionState state;
-    state.retain = retain;
-    state.acked = acked;
-    state.confirmed = confirmed;
-    state.active = active;
-
-    if (UA_NodeId_equal (&branchId, &UA_NODEID_NULL))
-    {
-       ctx->mainBranchState = state;
-    }
-    else if (UA_NodeId_equal(&branchId,&ctx->branch1))
-    {
-        ctx->branch1State = state;
-    }
-    else if (UA_NodeId_equal(&branchId,&ctx->branch2))
-    {
-        ctx->branch2State = state;
-    }
-}
 
 static UA_StatusCode onAcked(UA_Server *server, const UA_NodeId *id, void *ctx)
 {
@@ -235,8 +206,224 @@ const UA_ConditionImplCallbacks callbacks = {
     .onInactive = onInactive
 };
 
+static void conditionSequence1CB (UA_Server *server, UA_UInt32 monId, void *monContext,
+                                  size_t nEventFields, const UA_Variant *eventFields)
+{
+    eventCount++;
+}
+
+
+/* Based on https://reference.opcfoundation.org/Core/Part9/v105/docs/B.1.2 */
+START_TEST(conditionSequence1) {
+
+    UA_StatusCode retval;
+    UA_ConditionProperties conditionProperties;
+    conditionProperties.name = UA_QUALIFIEDNAME(0, "Test Condition");
+    conditionProperties.hierarchialReferenceType = UA_NODEID_NULL;
+    conditionProperties.source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    conditionProperties.canBranch = false;
+
+    UA_AlarmConditionProperties alarmProperties;
+    memset (&alarmProperties, 0, sizeof(alarmProperties));
+    alarmProperties.acknowledgeableConditionProperties.confirmable = true;
+
+    UA_ConditionInputFns inputs = {0};
+    UA_NodeId conditionInstance = UA_NODEID_NULL;
+    retval = __UA_Server_createCondition(
+        acserver,
+        UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE),
+        &conditionProperties,
+        inputs,
+        NULL,
+        &alarmProperties,
+        &conditionInstance
+                                        );
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_Condition_setImplCallbacks(acserver, conditionInstance, &callbacks);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Create monitored event */
+    UA_MonitoredItemCreateRequest req;
+    UA_MonitoredItemCreateRequest_init(&req);
+    req.itemToMonitor.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    req.monitoringMode = UA_MONITORINGMODE_REPORTING;
+    req.itemToMonitor.attributeId = UA_ATTRIBUTEID_EVENTNOTIFIER;
+    req.requestedParameters.samplingInterval = 250;
+    req.requestedParameters.discardOldest = true;
+    req.requestedParameters.queueSize = 1;
+
+    UA_SimpleAttributeOperand select[1];
+
+    size_t i =0;
+    UA_SimpleAttributeOperand_init(&select[i]);
+    select[i].typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
+    select[i].attributeId = UA_ATTRIBUTEID_NODEID;
+    i++;
+
+    UA_EventFilter filter;
+    UA_EventFilter_init(&filter);
+    filter.selectClausesSize = i;
+    filter.selectClauses = select;
+
+    req.requestedParameters.filter.content.decoded.type = &UA_TYPES[UA_TYPES_EVENTFILTER];
+    req.requestedParameters.filter.content.decoded.data = &filter;
+    req.requestedParameters.filter.encoding = UA_EXTENSIONOBJECT_DECODED_NODELETE;
+
+    UA_MonitoredItemCreateResult res = UA_Server_createEventMonitoredItem(
+        acserver,
+        UA_TIMESTAMPSTORETURN_NEITHER,
+        req,
+        NULL,
+        conditionSequence1CB
+                                                                         );
+    ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
+
+    UA_Boolean autoConfirm = false;
+    retval = UA_Server_Condition_setContext(acserver, conditionInstance, &autoConfirm);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    uint32_t expectedEventCount = 0;
+    ck_assert_uint_eq (expectedEventCount, eventCount);
+
+    /* Initial State of Condition */
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == false);
+
+    /* 1. Alarm goes Active */
+    retval = UA_Server_Condition_updateActive(acserver, conditionInstance, NULL, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == true);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == false);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 2. Condition Acknowledged Confirm required */
+    retval = UA_Server_Condition_acknowledge(acserver, conditionInstance, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == true);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == false);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 3. Alarm goes inactive */
+    retval = UA_Server_Condition_updateActive(acserver, conditionInstance, NULL, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == false);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 4. Condition confirmed */
+    retval = UA_Server_Condition_confirm (acserver, conditionInstance, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == false);
+
+    /* 5. Alarm goes active */
+    retval = UA_Server_Condition_updateActive(acserver, conditionInstance, NULL, true);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == true);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == false);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 6. Alarm goes inactive */
+    retval = UA_Server_Condition_updateActive(acserver, conditionInstance, NULL, false);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == false);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 7. Condition Acknowledged Confirm required */
+    retval = UA_Server_Condition_acknowledge(acserver, conditionInstance, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == false);
+    ck_assert(conditionRetain(acserver, conditionInstance) == true);
+
+    /* 8. Condition confirmed */
+    retval = UA_Server_Condition_confirm (acserver, conditionInstance, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+    expectedEventCount++;
+    ck_assert(isConditionActive(acserver, conditionInstance) == false);
+    ck_assert(isConditionAcked(acserver, conditionInstance) == true);
+    ck_assert(isConditionConfirmed(acserver, conditionInstance) == true);
+    ck_assert(conditionRetain(acserver, conditionInstance) == false);
+
+    retval = UA_Server_deleteCondition(
+        acserver,
+        conditionInstance
+                                      );
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+} END_TEST
+
+typedef struct {
+    UA_NodeId branch1;
+    UA_NodeId branch2;
+
+    ConditionState mainBranchState;
+    ConditionState branch1State;
+    ConditionState branch2State;
+}EventCBCtx;
+
+static void conditionSequence2CB (UA_Server *server, UA_UInt32 monId, void *monContext,
+                                  size_t nEventFields, const UA_Variant *eventFields)
+{
+    eventCount++;
+    EventCBCtx *ctx= (EventCBCtx *) monContext;
+
+    UA_NodeId conditionId = *(UA_NodeId *) eventFields[0].data;
+    UA_NodeId branchId = *(UA_NodeId *) eventFields[1].data;
+    UA_Boolean retain = *(UA_Boolean*) eventFields[2].data;
+    UA_Boolean acked = *(UA_Boolean*) eventFields[3].data;
+    UA_Boolean confirmed = *(UA_Boolean*) eventFields[4].data;
+    UA_Boolean active = *(UA_Boolean*) eventFields[5].data;
+
+    /*Update branchIds*/
+    if (!UA_NodeId_equal(&branchId, &UA_NODEID_NULL))
+    {
+        if (UA_NodeId_equal(&ctx->branch1, &UA_NODEID_NULL)) UA_NodeId_copy(&branchId, &ctx->branch1);
+        else if (UA_NodeId_equal(&ctx->branch2, &UA_NODEID_NULL) && !UA_NodeId_equal(&branchId, &ctx->branch1))
+            UA_NodeId_copy(&branchId, &ctx->branch2);
+    }
+
+    ConditionState state;
+    state.retain = retain;
+    state.acked = acked;
+    state.confirmed = confirmed;
+    state.active = active;
+
+    if (UA_NodeId_equal (&branchId, &UA_NODEID_NULL))
+    {
+        ctx->mainBranchState = state;
+    }
+    else if (UA_NodeId_equal(&branchId,&ctx->branch1))
+    {
+        ctx->branch1State = state;
+    }
+    else if (UA_NodeId_equal(&branchId,&ctx->branch2))
+    {
+        ctx->branch2State = state;
+    }
+}
+
 /* Based on https://reference.opcfoundation.org/Core/Part9/v105/docs/B.1.3 */
-START_TEST(eventSequence) {
+START_TEST(conditionSequence2) {
 
     EventCBCtx ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -246,6 +433,7 @@ START_TEST(eventSequence) {
     conditionProperties.name = UA_QUALIFIEDNAME(0, "Test Condition");
     conditionProperties.hierarchialReferenceType = UA_NODEID_NULL;
     conditionProperties.source = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+    conditionProperties.canBranch = true;
 
     UA_AlarmConditionProperties alarmProperties;
     memset (&alarmProperties, 0, sizeof(alarmProperties));
@@ -254,15 +442,15 @@ START_TEST(eventSequence) {
     UA_ConditionInputFns inputs = {0};
     UA_NodeId conditionInstance = UA_NODEID_NULL;
     retval = __UA_Server_createCondition(
-            acserver,
-            UA_NODEID_NULL,
-            UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE),
-            &conditionProperties,
-            inputs,
-            NULL,
-            &alarmProperties,
-            &conditionInstance
-    );
+        acserver,
+        UA_NODEID_NULL,
+        UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE),
+        &conditionProperties,
+        inputs,
+        NULL,
+        &alarmProperties,
+        &conditionInstance
+                                        );
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     retval = UA_Server_Condition_setImplCallbacks(acserver, conditionInstance, &callbacks);
@@ -344,9 +532,8 @@ START_TEST(eventSequence) {
         UA_TIMESTAMPSTORETURN_NEITHER,
         req,
         &ctx,
-        eventCB
-    );
-    assert (res.statusCode == UA_STATUSCODE_GOOD);
+        conditionSequence2CB
+                                                                         );
     ck_assert_uint_eq(res.statusCode, UA_STATUSCODE_GOOD);
 
     uint32_t expectedEventCount = 0;
@@ -498,10 +685,9 @@ START_TEST(eventSequence) {
     ck_assert(ctx.mainBranchState.retain == false);
 
     retval = UA_Server_deleteCondition(
-            acserver,
-            conditionInstance
-    );
-
+        acserver,
+        conditionInstance
+                                      );
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -510,16 +696,14 @@ START_TEST(eventSequence) {
 int main(void) {
     Suite *s = suite_create("server_alarmcondition");
 
-    TCase *tc_call = tcase_create("Alarms and Conditions");
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    TCase *tc_call = tcase_create("Alarms and Conditions");
     tcase_add_test(tc_call, createDelete);
-    tcase_add_test(tc_call, eventSequence);
-
-    // events are only generated for conditions that have retain set to true and for the initial transition of retain from true to false
-#endif
+    tcase_add_test(tc_call, conditionSequence1);
+    tcase_add_test(tc_call, conditionSequence2);
     tcase_add_checked_fixture(tc_call, setup, teardown);
-
     suite_add_tcase(s, tc_call);
+#endif
 
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);

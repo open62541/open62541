@@ -1653,6 +1653,7 @@ typedef struct UA_ConditionProperties
     UA_NodeId source;
     UA_QualifiedName name;
     UA_NodeId hierarchialReferenceType;
+    UA_Boolean canBranch;
 } UA_ConditionProperties;
 
 /* Create condition instance. The function checks first whether the passed
@@ -1703,23 +1704,49 @@ UA_Server_Condition_acknowledge(UA_Server *server, UA_NodeId conditionId, const 
 UA_StatusCode UA_EXPORT
 UA_Server_Condition_confirm(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
 
-UA_StatusCode
-UA_Server_Condition_updateActive(UA_Server *server, UA_NodeId conditionId,
-                                      const UA_ConditionEventInfo *info, UA_Boolean isActive);
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_suppress(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_unsuppress(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_removeFromService(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_placeInService(UA_Server *server, UA_NodeId conditionId, const UA_LocalizedText *comment);
 
 /*
  * Set the condition confirmed state where a confirmation is required. The logic for setting this is Server specific, so
  * the only time a conditions ConfirmedState will be set to false is when a server implementation uses this function .
  */
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Server_Condition_setConfirmRequired(UA_Server *server, UA_NodeId conditionId);
 
 
-UA_StatusCode
+UA_StatusCode UA_EXPORT
 UA_Server_Condition_setAcknowledgeRequired(UA_Server *server, UA_NodeId conditionId);
 
-UA_StatusCode
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_notifyStateChange(UA_Server *server, UA_NodeId condition, const UA_ConditionEventInfo *info);
+
+UA_StatusCode UA_EXPORT
+UA_Server_Condition_updateActive(UA_Server *server, UA_NodeId conditionId,
+                                 const UA_ConditionEventInfo *info, UA_Boolean isActive);
+
+UA_StatusCode UA_EXPORT
 UA_Server_Condition_getInputNodeValue (UA_Server *server, UA_NodeId conditionId, UA_Variant *out);
+
+typedef UA_StatusCode (*UA_ConditionBranchIterCb)(
+    UA_Server *server,
+    const UA_NodeId *conditionBranchId,
+    void *conditionContext,
+    void *iterCtx
+);
+
+void UA_EXPORT
+UA_Server_Condition_iterBranches (UA_Server *server, UA_NodeId conditionId,
+                                  UA_ConditionBranchIterCb iterFn, void *iterCtx);
 
 /* Delete a condition from the address space and the internal structures.
  *

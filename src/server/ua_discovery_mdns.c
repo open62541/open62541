@@ -989,7 +989,7 @@ stopMulticastDiscoveryServer(UA_Server *server) {
     if(dm->mdnsCallbackId != 0) {
         UA_EventLoop *el = server->config.eventLoop;
         if(el) {
-            el->removeCyclicCallback(el, dm->mdnsCallbackId, NULL);
+            el->removeCyclicCallback(el, dm->mdnsCallbackId);
             dm->mdnsCallbackId = 0;
         }
     }
