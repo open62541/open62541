@@ -569,7 +569,7 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
      */
     if(ks->callBackId != 0) {
         server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
-                                                       ks->callBackId, NULL);
+                                                       ks->callBackId);
         ks->callBackId = 0;
     }
 
