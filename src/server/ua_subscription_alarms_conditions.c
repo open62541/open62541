@@ -1227,7 +1227,7 @@ UA_ConditionBranch_evaluateRetainState(UA_ConditionBranch *branch, UA_Server *se
 static UA_StatusCode
 UA_ConditionBranch_notifyNewBranchState (UA_ConditionBranch *branch, UA_Server *server, const UA_ConditionEventInfo *info) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_ConditionBranch_evaluateRetainState(branch->condition->mainBranch, server);
+    UA_ConditionBranch_evaluateRetainState(branch, server);
     UA_StatusCode status = UA_ConditionBranch_triggerEvent (branch, server, info);
     if (status != UA_STATUSCODE_GOOD) return status;
     if (!branch->isMainBranch && !UA_ConditionBranch_State_Retain(branch, server))
