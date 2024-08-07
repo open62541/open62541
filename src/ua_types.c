@@ -144,12 +144,20 @@ UA_String_fromFormat (const char *format, ...)
     if (ret < FORMAT_STACK_SIZE)
     {
         s.data = (UA_Byte*) UA_malloc(s.length);
+        if(UA_UNLIKELY(!s.data)) {
+            s.length = 0;
+            return s;
+        }
         memcpy(s.data, tmp, s.length);
     }
     else
     {
         /* +1 for NULL terminator */
         s.data = (UA_Byte*) UA_malloc(s.length+1);
+        if(UA_UNLIKELY(!s.data)) {
+            s.length = 0;
+            return s;
+        }
         va_start (args, format);
         mp_vsnprintf((char *)s.data, s.length+1, format, args);
         va_end(args);
