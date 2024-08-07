@@ -1834,8 +1834,8 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
     }
 
     /* Check if the configured History-Backend supports the requested history type */
-    if(!readHistory){
-        UA_LOG_INFO_SESSION(server->config.logging, session,
+    if(!readHistory) {
+        UA_LOG_INFO_SESSION(&server->config.logger, session,
                             "The configured HistoryBackend does not support the selected history-type.");
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
