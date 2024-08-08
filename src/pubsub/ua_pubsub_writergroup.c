@@ -511,7 +511,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 
 UA_StatusCode
 UA_Server_enableWriterGroup(UA_Server *server,
-                                    const UA_NodeId writerGroup)  {
+                            const UA_NodeId writerGroup)  {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_WriterGroup_enableWriterGroup(server, writerGroup);
     UA_UNLOCK(&server->serviceMutex);
@@ -688,33 +688,33 @@ UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId writerGroupIde
 }
 
 UA_StatusCode
-UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier){
+UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier) {
     UA_LOCK(&server->serviceMutex);
 
     //search WriterGroup ToDo create lookup table for more efficiency
-    UA_WriterGroup *writerGroup;
-    writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
-    if(writerGroup == NULL){
+    UA_WriterGroup *wg;
+    wg = UA_WriterGroup_findWGbyId(server, writerGroupIdentifier);
+    if(!wg) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_UNLOCK(&server->serviceMutex);
-    UA_WriterGroup_publishCallback(server, writerGroup);
+    UA_WriterGroup_publishCallback(server, wg);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
-                                    UA_DateTime *timestamp){
+                                    UA_DateTime *timestamp) {
     UA_LOCK(&server->serviceMutex);
     //search WriterGroup ToDo create lookup table for more efficiency
-    UA_WriterGroup *writerGroup;
-    writerGroup = UA_WriterGroup_findWGbyId(server, writerGroupId);
-    if(writerGroup == NULL){
+    UA_WriterGroup *wg;
+    wg = UA_WriterGroup_findWGbyId(server, writerGroupId);
+    if(!wg) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    *timestamp = writerGroup->lastPublishTimeStamp;
+    *timestamp = wg->lastPublishTimeStamp;
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_BADNOTFOUND;
 }
@@ -1222,49 +1222,49 @@ sampleOffsetPublishingValues(UA_Server *server, UA_WriterGroup *wg) {
 }
 
 static void
-publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
+publishWithOffsets(UA_Server *server, UA_WriterGroup *wg,
                    UA_PubSubConnection *connection) {
-    UA_assert(writerGroup->configurationFrozen);
+    UA_assert(wg->configurationFrozen);
 
     /* Fixed size but no direct value access. Sample to get recent values into
      * the offset buffer structure. */
-    if((writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) == 0)
-        sampleOffsetPublishingValues(server, writerGroup);
+    if((wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS) == 0)
+        sampleOffsetPublishingValues(server, wg);
 
     UA_StatusCode res =
-        UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage);
+        UA_NetworkMessage_updateBufferedMessage(&wg->bufferedMessage);
 
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_PUBSUB(server->config.logging, writerGroup,
+        UA_LOG_DEBUG_PUBSUB(server->config.logging, wg,
                             "PubSub sending. Unknown field type.");
         return;
     }
 
-    UA_ByteString *buf = &writerGroup->bufferedMessage.buffer;
+    UA_ByteString *buf = &wg->bufferedMessage.buffer;
 
     /* Send the encrypted buffered message if PubSub encryption is enabled */
-    if(writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-        size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
-            signatureAlgorithm.getLocalSignatureSize(writerGroup->securityPolicyContext);
+    if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
+        size_t sigSize = wg->config.securityPolicy->symmetricModule.cryptoModule.
+            signatureAlgorithm.getLocalSignatureSize(wg->securityPolicyContext);
 
-        UA_Byte payloadOffset = (UA_Byte)(writerGroup->bufferedMessage.payloadPosition -
-                                          writerGroup->bufferedMessage.buffer.data);
-        memcpy(writerGroup->bufferedMessage.encryptBuffer.data,
-               writerGroup->bufferedMessage.buffer.data,
-               writerGroup->bufferedMessage.buffer.length);
-        res = encryptAndSign(writerGroup, writerGroup->bufferedMessage.nm,
-                             writerGroup->bufferedMessage.encryptBuffer.data,
-                             writerGroup->bufferedMessage.encryptBuffer.data + payloadOffset,
-                             writerGroup->bufferedMessage.encryptBuffer.data +
-                                 writerGroup->bufferedMessage.encryptBuffer.length - sigSize);
+        UA_Byte payloadOffset = (UA_Byte)(wg->bufferedMessage.payloadPosition -
+                                          wg->bufferedMessage.buffer.data);
+        memcpy(wg->bufferedMessage.encryptBuffer.data,
+               wg->bufferedMessage.buffer.data,
+               wg->bufferedMessage.buffer.length);
+        res = encryptAndSign(wg, wg->bufferedMessage.nm,
+                             wg->bufferedMessage.encryptBuffer.data,
+                             wg->bufferedMessage.encryptBuffer.data + payloadOffset,
+                             wg->bufferedMessage.encryptBuffer.data +
+                                 wg->bufferedMessage.encryptBuffer.length - sigSize);
 
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+            UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                                 "PubSub Encryption failed");
             return;
         }
 
-        buf = &writerGroup->bufferedMessage.encryptBuffer;
+        buf = &wg->bufferedMessage.encryptBuffer;
     }
 
     UA_ConnectionManager *cm = connection->cm;
@@ -1273,10 +1273,10 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
 
     /* Select the wg sendchannel if configured */
     uintptr_t sendChannel = connection->sendChannel;
-    if(writerGroup->sendChannel != 0)
-        sendChannel = writerGroup->sendChannel;
+    if(wg->sendChannel != 0)
+        sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Cannot send, no open connection");
         return;
     }
@@ -1285,12 +1285,12 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
     UA_ByteString outBuf;
     res = cm->allocNetworkBuffer(cm, sendChannel, &outBuf, buf->length);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "PubSub message memory allocation failed");
         return;
     }
     memcpy(outBuf.data, buf->data, buf->length);
-    sendNetworkMessageBuffer(server, writerGroup, connection, sendChannel, &outBuf);
+    sendNetworkMessageBuffer(server, wg, connection, sendChannel, &outBuf);
 }
 
 static void
@@ -1323,40 +1323,40 @@ sendNetworkMessage(UA_Server *server, UA_WriterGroup *wg, UA_PubSubConnection *c
 /* This callback triggers the collection and publish of NetworkMessages and the
  * contained DataSetMessages. */
 void
-UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
-    UA_assert(writerGroup != NULL);
+UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg) {
+    UA_assert(wg != NULL);
     UA_assert(server != NULL);
 
-    UA_LOG_DEBUG_PUBSUB(server->config.logging, writerGroup, "Publish Callback");
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, wg, "Publish Callback");
 
     /* Find the connection associated with the writer */
-    UA_PubSubConnection *connection = writerGroup->linkedConnection;
+    UA_PubSubConnection *connection = wg->linkedConnection;
     if(!connection) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Publish failed. PubSubConnection invalid");
         UA_LOCK(&server->serviceMutex);
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR);
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
 
     /* Realtime path - update the buffer message and send directly */
-    if(writerGroup->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-        publishWithOffsets(server, writerGroup, connection);
+    if(wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+        publishWithOffsets(server, wg, connection);
         return;
     }
 
     UA_LOCK(&server->serviceMutex);
 
     /* Nothing to do? */
-    if(writerGroup->writersCount == 0) {
+    if(wg->writersCount == 0) {
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
 
     /* How many DSM can be sent in one NM? */
-    UA_Byte maxDSM = (UA_Byte)writerGroup->config.maxEncapsulatedDataSetMessageCount;
-    if(writerGroup->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
+    UA_Byte maxDSM = (UA_Byte)wg->config.maxEncapsulatedDataSetMessageCount;
+    if(wg->config.maxEncapsulatedDataSetMessageCount > UA_BYTE_MAX)
         maxDSM = UA_BYTE_MAX;
     if(maxDSM == 0)
         maxDSM = 1; /* Send at least one dsm */
@@ -1366,12 +1366,12 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
      * are sent out right away. The others are kept in a buffer for
      * "batching". */
     size_t dsmCount = 0;
-    UA_STACKARRAY(UA_UInt16, dsWriterIds, writerGroup->writersCount);
-    UA_STACKARRAY(UA_DataSetMessage, dsmStore, writerGroup->writersCount);
+    UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
+    UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
 
     UA_DataSetWriter *dsw;
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, writerGroup->linkedConnection);
-    LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
+    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+    LIST_FOREACH(dsw, &wg->writers, listEntry) {
         if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
 
@@ -1391,12 +1391,12 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
 
         /* There is no promoted field -> send right away */
         if(pds && pds->promotedFieldsCount > 0) {
-            writerGroup->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
-            sendNetworkMessage(server, writerGroup, connection, &dsmStore[dsmCount],
+            wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
+            sendNetworkMessage(server, wg, connection, &dsmStore[dsmCount],
                                &dsWriterIds[dsmCount], 1);
 
             /* Clean up the current store entry */
-            if(writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
+            if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
                dsmStore[dsmCount].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
                 for(size_t i = 0; i < dsmStore[dsmCount].data.keyFrameData.fieldCount; ++i) {
                     dsmStore[dsmCount].data.keyFrameData.dataSetFields[i].value.data = NULL;
@@ -1415,15 +1415,15 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     for(size_t i = 0; i < dsmCount; i += nmDsmCount) {
         /* How many dsm are batched in this iteration? */
         nmDsmCount = (i + maxDSM > dsmCount) ? (UA_Byte)(dsmCount - i) : maxDSM;
-        writerGroup->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
+        wg->lastPublishTimeStamp = el->dateTime_nowMonotonic(el);
         /* Send the batched messages */
-        sendNetworkMessage(server, writerGroup, connection, &dsmStore[i],
+        sendNetworkMessage(server, wg, connection, &dsmStore[i],
                            &dsWriterIds[i], nmDsmCount);
     }
 
     /* Clean up DSM */
     for(size_t i = 0; i < dsmCount; i++) {
-        if(writerGroup->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
+        if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
            dsmStore[i].header.dataSetMessageType == UA_DATASETMESSAGE_DATAKEYFRAME) {
             for(size_t j = 0; j < dsmStore[i].data.keyFrameData.fieldCount; ++j) {
                 dsmStore[i].data.keyFrameData.dataSetFields[j].value.data = NULL;
