@@ -875,6 +875,7 @@ addStandaloneSubscribedDataSet(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
+    newSubscribedDataSet->head.componentType = UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET;
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = NULL;
 
