@@ -328,8 +328,8 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
     UA_Boolean processed = false;
     UA_ReaderGroup *nonRtRg = NULL;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
         if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE) {
             nonRtRg = rg;
@@ -363,8 +363,8 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
 
     /* Process the received message for the non-RT ReaderGroups */
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        if(rg->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           rg->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+           rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
             continue;
@@ -447,7 +447,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
      * non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->state);
+        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->head.state);
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {

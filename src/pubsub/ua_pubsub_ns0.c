@@ -91,9 +91,9 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, *myNodeId);
         if(!readerGroup)
             return;
-        switch(nodeContext->elementClassiefier){
+        switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &readerGroup->state,
+            UA_Variant_setScalar(&value, &readerGroup->head.state,
                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
         default:
@@ -823,7 +823,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName = UA_LOCALIZEDTEXT("", dsrName);
     retVal = addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                     dataSetReader->linkedReaderGroup->identifier,
+                     dataSetReader->linkedReaderGroup->head.identifier,
                      UA_NODEID_NUMERIC(0, UA_NS0ID_HASDATASETREADER),
                      UA_QUALIFIEDNAME(0, dsrName),
                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERTYPE),
@@ -1556,11 +1556,11 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
                 UA_NS0ID(HASCOMPONENT),
                 UA_QUALIFIEDNAME(0, rgName), UA_NS0ID(READERGROUPTYPE),
                 &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                NULL, &readerGroup->identifier);
+                NULL, &readerGroup->head.identifier);
 
     UA_NodeId statusIdNode = 
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), readerGroup->identifier);
+                            UA_NS0ID(HASCOMPONENT), readerGroup->head.identifier);
 
     if(UA_NodeId_isNull(&statusIdNode))
         return UA_STATUSCODE_BADNOTFOUND;
@@ -1575,7 +1575,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
     UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    stateContext->parentNodeId = readerGroup->identifier;
+    stateContext->parentNodeId = readerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_READERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
     UA_ValueCallback stateValueCallback;
@@ -1585,9 +1585,9 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
                                      stateIdNode, stateContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
-        retVal |= addRef(server, readerGroup->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, readerGroup->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(READERGROUPTYPE_ADDDATASETREADER), true);
-        retVal |= addRef(server, readerGroup->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, readerGroup->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(READERGROUPTYPE_REMOVEDATASETREADER), true);
     }
     return retVal;

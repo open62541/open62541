@@ -143,7 +143,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %N\t| ",
-                newDataSetReader->linkedReaderGroup->logIdString,
+                newDataSetReader->linkedReaderGroup->head.logIdString,
                 newDataSetReader->head.identifier);
     newDataSetReader->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
@@ -559,11 +559,11 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(rg->state == UA_PUBSUBSTATE_DISABLED ||
-           rg->state == UA_PUBSUBSTATE_ERROR) {
+        if(rg->head.state == UA_PUBSUBSTATE_DISABLED ||
+           rg->head.state == UA_PUBSUBSTATE_ERROR) {
             dsr->head.state = UA_PUBSUBSTATE_PAUSED; /* RG is disabled -> paused */
         } else {
-            dsr->head.state = rg->state; /* RG is enabled -> same state */
+            dsr->head.state = rg->head.state; /* RG is enabled -> same state */
         }
         break;
 
@@ -736,12 +736,14 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
         /* Write the value */
         if(tv->beforeWrite || tv->externalDataValue) {
             if(tv->beforeWrite)
-                tv->beforeWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
+                tv->beforeWrite(server, &dsr->head.identifier,
+                                &dsr->linkedReaderGroup->head.identifier,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
             memcpy((*tv->externalDataValue)->value.data, value, type->memSize);
             if(tv->afterWrite)
-                tv->afterWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
+                tv->afterWrite(server, &dsr->head.identifier,
+                               &dsr->linkedReaderGroup->head.identifier,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
         } else {
@@ -869,13 +871,15 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
             }
 
             if(tv->beforeWrite)
-                tv->beforeWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
+                tv->beforeWrite(server, &dsr->head.identifier,
+                                &dsr->linkedReaderGroup->head.identifier,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
             memcpy((*tv->externalDataValue)->value.data,
                    field->value.data, field->value.type->memSize);
             if(tv->afterWrite)
-                tv->afterWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
+                tv->afterWrite(server, &dsr->head.identifier,
+                               &dsr->linkedReaderGroup->head.identifier,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
             continue;
