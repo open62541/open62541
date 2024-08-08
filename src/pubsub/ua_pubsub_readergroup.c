@@ -181,7 +181,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SReaderGroup %N\t| ",
-                connection->logIdString, newGroup->identifier);
+                connection->head.logIdString, newGroup->identifier);
     newGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
@@ -196,7 +196,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     }
 
     /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -280,7 +280,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -367,13 +367,13 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(connection->state == UA_PUBSUBSTATE_DISABLED ||
-           connection->state == UA_PUBSUBSTATE_ERROR) {
+        if(connection->head.state == UA_PUBSUBSTATE_DISABLED ||
+           connection->head.state == UA_PUBSUBSTATE_ERROR) {
             /* Connection is disabled -> paused */
             rg->state = UA_PUBSUBSTATE_PAUSED;
         } else {
             /* Pre-operational until a message was received */
-            rg->state = connection->state;
+            rg->state = connection->head.state;
             if(rg->state == UA_PUBSUBSTATE_OPERATIONAL && !rg->hasReceived)
                 rg->state = UA_PUBSUBSTATE_PREOPERATIONAL;
 

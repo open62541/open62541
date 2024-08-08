@@ -170,7 +170,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * the connection state if connecting fails. Attention! If there are
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
-        if(psc->state == UA_PUBSUBSTATE_OPERATIONAL)
+        if(psc->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_PubSubConnection_connect(server, psc, false);
 
         UA_UNLOCK(&server->serviceMutex);
@@ -191,7 +191,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Connection open, set to operational if not already done */
-    UA_PubSubConnection_setPubSubState(server, psc, psc->state);
+    UA_PubSubConnection_setPubSubState(server, psc, psc->head.state);
 
     /* Message received */
     if(UA_LIKELY(recv && msg.length > 0))
