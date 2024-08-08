@@ -300,7 +300,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
         UA_ReaderGroup *tmpReaderGroup;
         LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
             if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->identifier,
+                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->head.identifier,
                                                       securityTokenId, signingKey,
                                                       encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)

@@ -49,7 +49,7 @@ START_TEST(CreateAndLockConfiguration) {
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    ck_assert(readerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
     UA_DataSetReaderConfig dataSetReaderConfig;
@@ -165,7 +165,7 @@ START_TEST(CreateLockAndEditConfiguration) {
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    ck_assert(readerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
     UA_DataSetReaderConfig dataSetReaderConfig;

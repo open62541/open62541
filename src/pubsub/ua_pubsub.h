@@ -630,16 +630,14 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
 /**********************************************/
 
 struct UA_ReaderGroup {
-    UA_PubSubComponentEnumType componentType;
-    UA_ReaderGroupConfig config;
-    UA_NodeId identifier;
-    UA_String logIdString;
+    UA_PubSubComponentHead head;
     LIST_ENTRY(UA_ReaderGroup) listEntry;
+
+    UA_ReaderGroupConfig config;
 
     LIST_HEAD(, UA_DataSetReader) readers;
     UA_UInt32 readersCount;
 
-    UA_PubSubState state;
     UA_Boolean configurationFrozen;
     UA_Boolean hasReceived; /* Received a message since the last _connect */
 
@@ -712,7 +710,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 #define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (RG)->logIdString, __VA_ARGS__);                 \
+                       (RG)->head.logIdString, __VA_ARGS__);            \
     }
 
 #define UA_LOG_TRACE_READERGROUP(LOGGER, READERGROUP, ...)              \

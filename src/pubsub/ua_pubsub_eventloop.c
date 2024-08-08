@@ -769,7 +769,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
 
         /* Reconnect if still operational */
-        UA_ReaderGroup_setPubSubState(server, rg, rg->state);
+        UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -787,7 +787,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* The connection has opened - set the ReaderGroup to operational */
-    UA_ReaderGroup_setPubSubState(server, rg, rg->state);
+    UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
 
     /* No message received */
     if(msg.length == 0) {
@@ -795,7 +795,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    if(rg->state != UA_PUBSUBSTATE_OPERATIONAL) {
+    if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
         UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
                                    "Received a messaage for a non-operational ReaderGroup");
         UA_UNLOCK(&server->serviceMutex);
