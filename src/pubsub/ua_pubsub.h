@@ -289,25 +289,6 @@ UA_PubSubConnection_setPubSubState(UA_Server *server,
                                    UA_PubSubConnection *connection,
                                    UA_PubSubState targetState);
 
-#define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (CONNECTION)->head.logIdString, __VA_ARGS__);    \
-    }
-
-#define UA_LOG_TRACE_CONNECTION(LOGGER, CONNECTION, ...)                \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, TRACE, CONNECTION, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_CONNECTION(LOGGER, CONNECTION, ...)                \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, DEBUG, CONNECTION, __VA_ARGS__, ""))
-#define UA_LOG_INFO_CONNECTION(LOGGER, CONNECTION, ...)                 \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, INFO, CONNECTION, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_CONNECTION(LOGGER, CONNECTION, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, WARNING, CONNECTION, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_CONNECTION(LOGGER, CONNECTION, ...)                \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, ERROR, CONNECTION, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_CONNECTION(LOGGER, CONNECTION, ...)                \
-    UA_MACRO_EXPAND(UA_LOG_CONNECTION_INTERNAL(LOGGER, FATAL, CONNECTION, __VA_ARGS__, ""))
-
 /**********************************************/
 /*              DataSetWriter                 */
 /**********************************************/
