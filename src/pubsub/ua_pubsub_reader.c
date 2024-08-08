@@ -222,7 +222,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
                     connectDataSetReaderToDataSet(server, newDataSetReader->identifier,
-                                                  subscribedDataSet->identifier);
+                                                  subscribedDataSet->head.identifier);
 #endif
                 }
             }

@@ -168,8 +168,8 @@ getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
 typedef struct UA_StandaloneSubscribedDataSet {
+    UA_PubSubComponentHead head;
     UA_StandaloneSubscribedDataSetConfig config;
-    UA_NodeId identifier;
     TAILQ_ENTRY(UA_StandaloneSubscribedDataSet) listEntry;
     UA_DataSetReader *connectedReader;
 } UA_StandaloneSubscribedDataSet;
