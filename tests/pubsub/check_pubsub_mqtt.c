@@ -213,7 +213,7 @@ START_TEST(SinglePublishSubscribeDateTime){
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
         ck_assert(wg != 0);
 
-        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+        while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
 
         UA_WriterGroup_publishCallback(server, wg);

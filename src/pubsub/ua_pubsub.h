@@ -397,17 +397,15 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 /**********************************************/
 
 struct UA_WriterGroup {
-    UA_PubSubComponentEnumType componentType;
-    UA_WriterGroupConfig config;
+    UA_PubSubComponentHead head;
     LIST_ENTRY(UA_WriterGroup) listEntry;
-    UA_NodeId identifier;
-    UA_String logIdString;
+
+    UA_WriterGroupConfig config;
 
     LIST_HEAD(, UA_DataSetWriter) writers;
     UA_UInt32 writersCount;
 
     UA_UInt64 publishCallbackId; /* registered if != 0 */
-    UA_PubSubState state;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
     UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
     UA_Boolean configurationFrozen;
@@ -487,7 +485,7 @@ UA_WriterGroup_enableWriterGroup(UA_Server *server,
 #define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WG, MSG, ...)        \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (WG)->logIdString, __VA_ARGS__);                 \
+                       (WG)->head.logIdString, __VA_ARGS__);            \
     }
 
 #define UA_LOG_TRACE_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \

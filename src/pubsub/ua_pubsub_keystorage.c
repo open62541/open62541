@@ -288,7 +288,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
             if(UA_String_equal(&tmpWriterGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->identifier,
+                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->head.identifier,
                                                       securityTokenId, signingKey,
                                                       encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)

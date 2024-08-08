@@ -489,7 +489,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * the connection state if connecting fails. Attention! If there are
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
-        if(wg->state == UA_PUBSUBSTATE_OPERATIONAL)
+        if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_WriterGroup_connect(server, wg, false);
 
         UA_UNLOCK(&server->serviceMutex);
@@ -506,7 +506,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     wg->sendChannel = connectionId;
 
     /* Connection open, set to operational if not already done */
-    UA_WriterGroup_setPubSubState(server, wg, wg->state);
+    UA_WriterGroup_setPubSubState(server, wg, wg->head.state);
     
     /* Send-channels don't receive messages */
     UA_UNLOCK(&server->serviceMutex);
