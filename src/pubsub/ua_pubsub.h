@@ -114,6 +114,18 @@ typedef struct UA_DataSetReader UA_DataSetReader;
 const char *
 UA_PubSubState_name(UA_PubSubState state);
 
+/* All PubSubComponents share the same header structure */
+
+typedef struct {
+    UA_NodeId identifier;
+    UA_PubSubComponentEnumType componentType;
+    UA_PubSubState state;
+    UA_String logIdString; /* Precomputed logging prefix */
+} UA_PubSubComponentHead;
+
+void
+UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch);
+
 /**********************************************/
 /*            PublishedDataSet                */
 /**********************************************/
