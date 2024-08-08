@@ -131,10 +131,9 @@ UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch);
 /**********************************************/
 
 typedef struct UA_PublishedDataSet {
+    UA_PubSubComponentHead head;
     TAILQ_ENTRY(UA_PublishedDataSet) listEntry;
     TAILQ_HEAD(, UA_DataSetField) fields;
-    UA_NodeId identifier;
-    UA_String logIdString;
     UA_PublishedDataSetConfig config;
     UA_DataSetMetaDataType dataSetMetaData;
     UA_UInt16 fieldSize;
@@ -192,7 +191,7 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds);
 #define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (PDS)->logIdString, __VA_ARGS__);                \
+                       (PDS)->head.logIdString, __VA_ARGS__);           \
     }
 
 #define UA_LOG_TRACE_DATASET(LOGGER, PDS, ...)                          \
