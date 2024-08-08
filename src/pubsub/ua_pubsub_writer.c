@@ -209,8 +209,8 @@ UA_DataSetWriter_create(UA_Server *server,
             return UA_STATUSCODE_BADNOTFOUND;
 
         if(pds->configurationFreezeCounter > 0) {
-            UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                   "Adding DataSetWriter failed: PublishedDataSet is frozen");
+            UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                                  "Adding DataSetWriter failed: PublishedDataSet is frozen");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
 
@@ -219,9 +219,9 @@ UA_DataSetWriter_create(UA_Server *server,
             TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
                 if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
                    !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                           "Adding DataSetWriter failed: "
-                                           "Fields in PDS are not RT capable");
+                    UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                                          "Adding DataSetWriter failed: "
+                                          "Fields in PDS are not RT capable");
                     return UA_STATUSCODE_BADCONFIGURATIONERROR;
                 }
             }
