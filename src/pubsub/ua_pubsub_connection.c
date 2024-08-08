@@ -138,7 +138,7 @@ UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionIdentifier) {
     UA_PubSubConnection *pubSubConnection;
     TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(UA_NodeId_equal(&connectionIdentifier, &pubSubConnection->identifier))
+        if(UA_NodeId_equal(&connectionIdentifier, &pubSubConnection->head.identifier))
             break;
     }
     return pubSubConnection;
@@ -166,7 +166,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    c->componentType = UA_PUBSUB_COMPONENT_CONNECTION;
+    c->head.componentType = UA_PUBSUB_COMPONENT_CONNECTION;
 
     /* Copy the connection config */
     UA_StatusCode ret = UA_PubSubConnectionConfig_copy(cc, &c->config);
@@ -179,7 +179,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 #else
     /* Create a unique NodeId that does not correspond to a Node */
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &c->identifier);
+                                          &c->head.identifier);
 #endif
 
     /* Register */
@@ -189,8 +189,8 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
 
     /* Cache the log string */
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->identifier);
-    c->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
+    c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection created");
 
@@ -211,7 +211,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     /* Copy the created NodeId to the output. Cannot fail as we create a
      * numerical NodeId. */
     if(cId)
-        UA_NodeId_copy(&c->identifier, cId);
+        UA_NodeId_copy(&c->head.identifier, cId);
 
  cleanup:
     if(ret != UA_STATUSCODE_GOOD)
@@ -291,7 +291,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Remove from the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, c->identifier, true);
+    deleteNode(server, c->head.identifier, true);
 #endif
 
     /* Unlink from the server */
@@ -301,8 +301,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection deleted");
 
     UA_PubSubConnectionConfig_clear(&c->config);
-    UA_NodeId_clear(&c->identifier);
-    UA_String_clear(&c->logIdString);
+    UA_PubSubComponentHead_clear(&c->head);
     UA_free(c);
 }
 
@@ -393,7 +392,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     }
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_PubSubState oldState = c->state;
+    UA_PubSubState oldState = c->head.state;
 
  set_state:
 
@@ -403,7 +402,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         case UA_PUBSUBSTATE_DISABLED:
             /* Close the EventLoop connection */
             UA_PubSubConnection_disconnect(c);
-            c->state = targetState;
+            c->head.state = targetState;
             break;
 
         case UA_PUBSUBSTATE_PREOPERATIONAL:
@@ -412,9 +411,9 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
              * open an additional recv connection, etc. Sets the new state
              * internally. */
             if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL || oldState == UA_PUBSUBSTATE_OPERATIONAL)
-                c->state = UA_PUBSUBSTATE_OPERATIONAL;
+                c->head.state = UA_PUBSUBSTATE_OPERATIONAL;
             else
-                c->state = UA_PUBSUBSTATE_PREOPERATIONAL;
+                c->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
             /* This is the only place where UA_PubSubConnection_connect is
              * called (other than to validate the parameters). So we handle the
@@ -432,14 +431,14 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     }
 
     /* Inform application about state change */
-    if(c->state != oldState) {
+    if(c->head.state != oldState) {
         UA_ServerConfig *config = &server->config;
         UA_LOG_INFO_CONNECTION(config->logging, c, "State change: %s -> %s",
                                UA_PubSubState_name(oldState),
-                               UA_PubSubState_name(c->state));
+                               UA_PubSubState_name(c->head.state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->identifier, targetState, ret);
+            config->pubSubConfig.stateChangeCallback(server, &c->head.identifier, targetState, ret);
         UA_LOCK(&server->serviceMutex);
     }
 

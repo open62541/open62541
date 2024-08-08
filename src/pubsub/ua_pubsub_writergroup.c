@@ -175,7 +175,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SWriterGroup %N\t| ",
-                currentConnectionContext->logIdString,
+                currentConnectionContext->head.logIdString,
                 newWriterGroup->identifier);
     newWriterGroup->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
@@ -225,7 +225,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
     /* Trigger the connection */
     UA_PubSubConnection_setPubSubState(server, currentConnectionContext,
-                                       currentConnectionContext->state);
+                                       currentConnectionContext->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(writerGroupIdentifier)
@@ -309,7 +309,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->state);
+    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -833,7 +833,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(connection->state != UA_PUBSUBSTATE_OPERATIONAL) {
+        if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
             wg->state = UA_PUBSUBSTATE_PAUSED;
             UA_WriterGroup_disconnect(wg);
             UA_WriterGroup_removePublishCallback(server, wg);

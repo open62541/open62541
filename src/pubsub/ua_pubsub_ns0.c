@@ -598,19 +598,19 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                             UA_NS0ID(PUBSUBCONNECTIONTYPE),
                             (const UA_NodeAttributes*)&attr,
                             &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                            NULL, &connection->identifier);
+                            NULL, &connection->head.identifier);
 
     attr.displayName = UA_LOCALIZEDTEXT("", "Address");
     retVal |= addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0),
-                      connection->identifier, UA_NS0ID(HASCOMPONENT),
+                      connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                       UA_QUALIFIEDNAME(0, "Address"), UA_NS0ID(NETWORKADDRESSURLTYPE),
                       &attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
 
-    retVal |= addNode_finish(server, &server->adminSession, &connection->identifier);
+    retVal |= addNode_finish(server, &server->adminSession, &connection->head.identifier);
 
     UA_NodeId addressNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Address"),
-                            UA_NS0ID(HASCOMPONENT), connection->identifier);
+                            UA_NS0ID(HASCOMPONENT), connection->head.identifier);
     UA_NodeId urlNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Url"),
                             UA_NS0ID(HASCOMPONENT), addressNode);
@@ -619,13 +619,13 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                             UA_NS0ID(HASCOMPONENT), addressNode);
     UA_NodeId publisherIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
-                            UA_NS0ID(HASPROPERTY), connection->identifier);
+                            UA_NS0ID(HASPROPERTY), connection->head.identifier);
     UA_NodeId connectionPropertyNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConnectionProperties"),
-                            UA_NS0ID(HASPROPERTY), connection->identifier);
+                            UA_NS0ID(HASPROPERTY), connection->head.identifier);
     UA_NodeId transportProfileUri =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "TransportProfileUri"),
-                            UA_NS0ID(HASCOMPONENT), connection->identifier);
+                            UA_NS0ID(HASCOMPONENT), connection->head.identifier);
 
     if(UA_NodeId_isNull(&addressNode) || UA_NodeId_isNull(&urlNode) ||
        UA_NodeId_isNull(&interfaceNode) || UA_NodeId_isNull(&publisherIdNode) ||
@@ -655,7 +655,7 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
 
     UA_NodePropertyContext *connectionPublisherIdContext =
         (UA_NodePropertyContext *)UA_malloc(sizeof(UA_NodePropertyContext));
-    connectionPublisherIdContext->parentNodeId = connection->identifier;
+    connectionPublisherIdContext->parentNodeId = connection->head.identifier;
     connectionPublisherIdContext->parentClassifier = UA_NS0ID_PUBSUBCONNECTIONTYPE;
     connectionPublisherIdContext->elementClassiefier = UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID;
     UA_ValueCallback valueCallback;
@@ -665,11 +665,11 @@ addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connec
                                      connectionPublisherIdContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
-        retVal |= addRef(server, connection->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDWRITERGROUP), true);
-        retVal |= addRef(server, connection->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_ADDREADERGROUP), true);
-        retVal |= addRef(server, connection->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, connection->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBSUBCONNECTIONTYPE_REMOVEGROUP), true);
     }
     return retVal;
@@ -1309,7 +1309,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     object_attr.displayName = UA_LOCALIZEDTEXT("", wgName);
     retVal = addNode(server, UA_NODECLASS_OBJECT,
                      UA_NODEID_NUMERIC(1, 0), /* create a new id */
-                     writerGroup->linkedConnection->identifier, UA_NS0ID(HASCOMPONENT),
+                     writerGroup->linkedConnection->head.identifier, UA_NS0ID(HASCOMPONENT),
                      UA_QUALIFIEDNAME(0, wgName), UA_NS0ID(WRITERGROUPTYPE), &object_attr,
                      &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &writerGroup->identifier);
 
@@ -1552,7 +1552,7 @@ addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup) {
     object_attr.displayName = UA_LOCALIZEDTEXT("", rgName);
     UA_StatusCode retVal =
         addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                readerGroup->linkedConnection->identifier,
+                readerGroup->linkedConnection->head.identifier,
                 UA_NS0ID(HASCOMPONENT),
                 UA_QUALIFIEDNAME(0, rgName), UA_NS0ID(READERGROUPTYPE),
                 &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],

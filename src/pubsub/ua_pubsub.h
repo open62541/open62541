@@ -216,14 +216,10 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribed
 /**********************************************/
 
 typedef struct UA_PubSubConnection {
-    UA_PubSubComponentEnumType componentType;
-
+    UA_PubSubComponentHead head;
     TAILQ_ENTRY(UA_PubSubConnection) listEntry;
-    UA_NodeId identifier;
-    UA_String logIdString;
 
     /* The send/recv connections are only opened if the state is operational */
-    UA_PubSubState state;
     UA_PubSubConnectionConfig config;
     UA_Boolean json; /* Extracted from the TransportProfileUrl */
 
@@ -296,7 +292,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server,
 #define UA_LOG_CONNECTION_INTERNAL(LOGGER, LEVEL, CONNECTION, MSG, ...) \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (CONNECTION)->logIdString, __VA_ARGS__);         \
+                       (CONNECTION)->head.logIdString, __VA_ARGS__);    \
     }
 
 #define UA_LOG_TRACE_CONNECTION(LOGGER, CONNECTION, ...)                \
