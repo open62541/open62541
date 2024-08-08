@@ -185,8 +185,8 @@ void
 UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet);
 
-UA_StatusCode
-UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sds);
+void
+UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribedDataSet *sds);
 
 #define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \

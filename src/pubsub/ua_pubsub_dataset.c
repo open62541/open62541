@@ -906,14 +906,9 @@ UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
     return res;
 }
 
-UA_StatusCode
-UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIdentifier) {
+void
+UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribedDataSet *sds) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_StandaloneSubscribedDataSet *sds =
-        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sdsIdentifier);
-    if(!sds)
-        return UA_STATUSCODE_BADNOTFOUND;
 
     /* Search for referenced readers */
     UA_PubSubConnection *conn;
@@ -922,6 +917,8 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIden
         LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
             UA_DataSetReader *dsr, *tmpReader;
             LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmpReader) {
+                /* TODO: What if the reader is still operational?
+                 * This should be checked before calling _remove. */
                 if(dsr == sds->connectedReader)
                     UA_DataSetReader_remove(server, dsr);
             }
@@ -936,14 +933,18 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIden
     server->pubSubManager.subscribedDataSetsSize--;
     UA_StandaloneSubscribedDataSet_clear(server, sds);
     UA_free(sds);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sds) {
+UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_StandaloneSubscribedDataSet_remove(server, sds);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_StandaloneSubscribedDataSet *sds =
+        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sdsId);
+    if(sds)
+        UA_StandaloneSubscribedDataSet_remove(server, sds);
+    else
+        res = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
