@@ -93,7 +93,10 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_PUBSUB
 
-/* Max number of underlying for sending and receiving */
+/* Max number of underlying sockets for sending and receiving for every
+ * PubSubConnection. Note that a PubSubConnection may have WriterGroups with
+ * dedicated sockets. Because for UDP unicast only the WriterGroup has the
+ * target host information. */
 #define UA_PUBSUB_MAXCHANNELS 8
 
 struct UA_WriterGroup;
