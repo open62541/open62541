@@ -498,8 +498,8 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Store the connectionId (if a new connection) */
     if(wg->sendChannel && wg->sendChannel != connectionId) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                  "WriterGroup is already bound to a different channel");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "WriterGroup is already bound to a different channel");
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -533,8 +533,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
         wg->config.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        wg->config.transportSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Invalid TransportSettings for a UDP Connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Invalid TransportSettings for a UDP Connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_DatagramWriterGroupTransport2DataType *ts =
@@ -545,8 +545,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
     if((ts->address.encoding != UA_EXTENSIONOBJECT_DECODED &&
         ts->address.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->address.content.decoded.type != &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Invalid TransportSettings Address for a UDP Connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Invalid TransportSettings Address for a UDP Connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType *)
@@ -557,8 +557,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
     UA_UInt16 port;
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                "Could not parse the UDP network URL");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Could not parse the UDP network URL");
         return res;
     }
 
@@ -587,8 +587,8 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
     res = cm->openConnection(cm, &kvm, server, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Could not open a UDP send channel");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Could not open a UDP send channel");
     }
     return res;
 }
@@ -608,8 +608,8 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
         ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->content.decoded.type !=
        &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Wrong TransportSettings type for MQTT");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Wrong TransportSettings type for MQTT");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_BrokerWriterGroupTransportDataType *transportSettings =
@@ -647,8 +647,8 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
     res = c->cm->openConnection(c->cm, &kvm, server, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Could not open the MQTT connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Could not open the MQTT connection");
     }
     return res;
 }
@@ -676,7 +676,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg, "No EventLoop configured");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
