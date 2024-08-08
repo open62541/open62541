@@ -131,7 +131,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                  &UA_TYPES[UA_TYPES_DURATION]);
             break;
         case UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &writerGroup->state,
+            UA_Variant_setScalar(&value, &writerGroup->head.state,
                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
         default:
@@ -1311,17 +1311,17 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
                      UA_NODEID_NUMERIC(1, 0), /* create a new id */
                      writerGroup->linkedConnection->head.identifier, UA_NS0ID(HASCOMPONENT),
                      UA_QUALIFIEDNAME(0, wgName), UA_NS0ID(WRITERGROUPTYPE), &object_attr,
-                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &writerGroup->identifier);
+                     &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, &writerGroup->head.identifier);
 
     UA_NodeId keepAliveNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeepAliveTime"),
-                            UA_NS0ID(HASPROPERTY), writerGroup->identifier);
+                            UA_NS0ID(HASPROPERTY), writerGroup->head.identifier);
     UA_NodeId publishingIntervalNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishingInterval"),
-                            UA_NS0ID(HASPROPERTY), writerGroup->identifier);
+                            UA_NS0ID(HASPROPERTY), writerGroup->head.identifier);
     UA_NodeId statusIdNode = 
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), writerGroup->identifier);
+                            UA_NS0ID(HASCOMPONENT), writerGroup->head.identifier);
 
     if(UA_NodeId_isNull(&statusIdNode))
         return UA_STATUSCODE_BADNOTFOUND;
@@ -1337,7 +1337,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    publishingIntervalContext->parentNodeId = writerGroup->identifier;
+    publishingIntervalContext->parentNodeId = writerGroup->head.identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL;
     UA_ValueCallback valueCallback;
@@ -1351,7 +1351,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_NodePropertyContext * stateContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
     UA_CHECK_MEM(stateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    stateContext->parentNodeId = writerGroup->identifier;
+    stateContext->parentNodeId = writerGroup->head.identifier;
     stateContext->parentClassifier = UA_NS0ID_WRITERGROUPTYPE;
     stateContext->elementClassiefier = UA_NS0ID_PUBSUBGROUPTYPE_STATUS_STATE;
     UA_ValueCallback stateValueCallback;
@@ -1363,10 +1363,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_NodeId priorityNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Priority"),
-                            UA_NS0ID(HASPROPERTY), writerGroup->identifier);
+                            UA_NS0ID(HASPROPERTY), writerGroup->head.identifier);
     UA_NodeId writerGroupIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
-                            UA_NS0ID(HASPROPERTY), writerGroup->identifier);
+                            UA_NS0ID(HASPROPERTY), writerGroup->head.identifier);
 
     UA_Variant value;
     UA_Variant_init(&value);
@@ -1381,7 +1381,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     object_attr.displayName = UA_LOCALIZEDTEXT("", "MessageSettings");
     retVal |= addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0),
-                      writerGroup->identifier, UA_NS0ID(HASCOMPONENT),
+                      writerGroup->head.identifier, UA_NS0ID(HASCOMPONENT),
                       UA_QUALIFIEDNAME(0, "MessageSettings"),
                       UA_NS0ID(UADPWRITERGROUPMESSAGETYPE), &object_attr,
                       &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
@@ -1391,7 +1391,7 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     UA_NodeId messageSettingsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "MessageSettings"),
-                            UA_NS0ID(HASCOMPONENT), writerGroup->identifier);
+                            UA_NS0ID(HASCOMPONENT), writerGroup->head.identifier);
     UA_NodeId contentMaskId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "NetworkMessageContentMask"),
                             UA_NS0ID(HASPROPERTY), messageSettingsId);
@@ -1411,10 +1411,10 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
 
     /* Add reference to methods */
     if(server->config.pubSubConfig.enableInformationModelMethods) {
-        retVal |= addRef(server, writerGroup->identifier,
+        retVal |= addRef(server, writerGroup->head.identifier,
                          UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(WRITERGROUPTYPE_ADDDATASETWRITER), true);
-        retVal |= addRef(server, writerGroup->identifier,
+        retVal |= addRef(server, writerGroup->head.identifier,
                          UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(WRITERGROUPTYPE_REMOVEDATASETWRITER), true);
     }
@@ -1749,7 +1749,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     object_attr.displayName = UA_LOCALIZEDTEXT("", dswName);
     retVal =
         addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0), /* create an id */
-                dataSetWriter->linkedWriterGroup->identifier, UA_NS0ID(HASDATASETWRITER),
+                dataSetWriter->linkedWriterGroup->head.identifier, UA_NS0ID(HASDATASETWRITER),
                 UA_QUALIFIEDNAME(0, dswName), UA_NS0ID(DATASETWRITERTYPE), &object_attr,
                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                      NULL, &dataSetWriter->head.identifier);

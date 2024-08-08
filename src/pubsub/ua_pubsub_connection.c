@@ -451,7 +451,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->state);
+        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->head.state);
     }
     return ret;
 }

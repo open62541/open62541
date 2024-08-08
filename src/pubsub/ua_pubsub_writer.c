@@ -143,11 +143,11 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
-        if(wg->state == UA_PUBSUBSTATE_DISABLED ||
-           wg->state == UA_PUBSUBSTATE_ERROR) {
+        if(wg->head.state == UA_PUBSUBSTATE_DISABLED ||
+           wg->head.state == UA_PUBSUBSTATE_ERROR) {
             dsw->head.state = UA_PUBSUBSTATE_PAUSED; /* WG is disabled -> paused */
         } else {
-            dsw->head.state = wg->state; /* WG is enabled -> same state */
+            dsw->head.state = wg->head.state; /* WG is enabled -> same state */
         }
         break;
 
@@ -287,7 +287,7 @@ UA_DataSetWriter_create(UA_Server *server,
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetWriter %N\t| ",
-                newDataSetWriter->linkedWriterGroup->logIdString,
+                newDataSetWriter->linkedWriterGroup->head.logIdString,
                 newDataSetWriter->head.identifier);
     newDataSetWriter->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 

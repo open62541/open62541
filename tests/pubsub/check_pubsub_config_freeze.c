@@ -69,7 +69,7 @@ START_TEST(CreateAndLockConfiguration) {
 
     //get internal WG Pointer
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetMetaDataType dataSetMetaDataType;
     UA_DataSetMetaDataType_init(&dataSetMetaDataType);
@@ -154,7 +154,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
 
         //get internal WG Pointer
         UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
-        ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
+        ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -296,7 +296,7 @@ START_TEST(CreateLockAndEditConfiguration) {
 
     //get internal WG Pointer
     UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    ck_assert(writerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
