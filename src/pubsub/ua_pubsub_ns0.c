@@ -151,7 +151,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
                                      &UA_TYPES[UA_TYPES_UINT16]);
                 break;
             case UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE:
-                UA_Variant_setScalar(&value, &dataSetWriter->state,
+                UA_Variant_setScalar(&value, &dataSetWriter->head.state,
                                      &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
                 break;
             default:
@@ -1752,26 +1752,26 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                 dataSetWriter->linkedWriterGroup->identifier, UA_NS0ID(HASDATASETWRITER),
                 UA_QUALIFIEDNAME(0, dswName), UA_NS0ID(DATASETWRITERTYPE), &object_attr,
                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                     NULL, &dataSetWriter->identifier);
+                     NULL, &dataSetWriter->head.identifier);
     //if connected dataset is null this means it's configured for heartbeats
     if(dataSetWriter->connectedDataSet) {
         retVal |= addRef(server, dataSetWriter->connectedDataSet->head.identifier,
-                         UA_NS0ID(DATASETTOWRITER), dataSetWriter->identifier, true);
+                         UA_NS0ID(DATASETTOWRITER), dataSetWriter->head.identifier, true);
     }
 
     UA_NodeId dataSetWriterIdNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
-                            UA_NS0ID(HASPROPERTY), dataSetWriter->identifier);
+                            UA_NS0ID(HASPROPERTY), dataSetWriter->head.identifier);
     UA_NodeId keyFrameNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "KeyFrameCount"),
-                            UA_NS0ID(HASPROPERTY), dataSetWriter->identifier);
+                            UA_NS0ID(HASPROPERTY), dataSetWriter->head.identifier);
     UA_NodeId dataSetFieldContentMaskNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetFieldContentMask"),
-                            UA_NS0ID(HASPROPERTY), dataSetWriter->identifier);
+                            UA_NS0ID(HASPROPERTY), dataSetWriter->head.identifier);
 
     UA_NodeId statusIdNode = 
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
-                            UA_NS0ID(HASCOMPONENT), dataSetWriter->identifier);
+                            UA_NS0ID(HASCOMPONENT), dataSetWriter->head.identifier);
     
     if(UA_NodeId_isNull(&statusIdNode)) {
         return UA_STATUSCODE_BADNOTFOUND;
@@ -1791,7 +1791,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
 
     UA_NodePropertyContext *dataSetWriterIdContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    dataSetWriterIdContext->parentNodeId = dataSetWriter->identifier;
+    dataSetWriterIdContext->parentNodeId = dataSetWriter->head.identifier;
     dataSetWriterIdContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterIdContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_DATASETWRITERID;
     UA_ValueCallback valueCallback;
@@ -1803,7 +1803,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
     UA_NodePropertyContext *dataSetWriterStateContext =
         (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     UA_CHECK_MEM(dataSetWriterStateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    dataSetWriterStateContext->parentNodeId = dataSetWriter->identifier;
+    dataSetWriterStateContext->parentNodeId = dataSetWriter->head.identifier;
     dataSetWriterStateContext->parentClassifier = UA_NS0ID_DATASETWRITERTYPE;
     dataSetWriterStateContext->elementClassiefier = UA_NS0ID_DATASETWRITERTYPE_STATUS_STATE;
     retVal |= addVariableValueSource(server, valueCallback,
@@ -1825,7 +1825,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
 
     object_attr.displayName = UA_LOCALIZEDTEXT("", "MessageSettings");
     retVal |= addNode(server, UA_NODECLASS_OBJECT, UA_NODEID_NUMERIC(1, 0),
-                      dataSetWriter->identifier, UA_NS0ID(HASCOMPONENT),
+                      dataSetWriter->head.identifier, UA_NS0ID(HASCOMPONENT),
                       UA_QUALIFIEDNAME(0, "MessageSettings"),
                       UA_NS0ID(UADPDATASETWRITERMESSAGETYPE), &object_attr,
                       &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],

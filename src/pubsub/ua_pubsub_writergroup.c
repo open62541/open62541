@@ -884,7 +884,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
 
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        UA_DataSetWriter_setPubSubState(server, writer, writer->state);
+        UA_DataSetWriter_setPubSubState(server, writer, writer->head.state);
     }
 
     return ret;
@@ -1373,7 +1373,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_DataSetWriter *dsw;
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, writerGroup->linkedConnection);
     LIST_FOREACH(dsw, &writerGroup->writers, listEntry) {
-        if(dsw->state != UA_PUBSUBSTATE_OPERATIONAL)
+        if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
 
         /* PDS can be NULL -> Heartbeat */

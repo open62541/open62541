@@ -318,15 +318,13 @@ typedef struct UA_DataSetWriterSample {
 } UA_DataSetWriterSample;
 
 typedef struct UA_DataSetWriter {
-    UA_PubSubComponentEnumType componentType;
-    UA_DataSetWriterConfig config;
+    UA_PubSubComponentHead head;
     LIST_ENTRY(UA_DataSetWriter) listEntry;
-    UA_NodeId identifier;
-    UA_String logIdString;
+
+    UA_DataSetWriterConfig config;
     UA_WriterGroup *linkedWriterGroup;
     UA_PublishedDataSet *connectedDataSet;
     UA_ConfigurationVersionDataType connectedDataSetVersion;
-    UA_PubSubState state;
 
     /* Deltaframes */
     UA_UInt16 deltaFrameCounter; /* count of sent deltaFrames */
@@ -335,7 +333,7 @@ typedef struct UA_DataSetWriter {
 
     UA_UInt16 actualDataSetMessageSequenceCount;
     UA_Boolean configurationFrozen;
-    UA_UInt64  pubSubStateTimerId;
+    UA_UInt64 pubSubStateTimerId;
 } UA_DataSetWriter;
 
 UA_StatusCode
@@ -378,7 +376,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 #define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (WRITER)->logIdString, __VA_ARGS__);             \
+                       (WRITER)->head.logIdString, __VA_ARGS__);        \
     }
 
 #define UA_LOG_TRACE_WRITER(LOGGER, WRITER, ...)                        \

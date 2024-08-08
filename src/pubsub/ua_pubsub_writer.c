@@ -60,7 +60,7 @@ UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dataSetWrite
     UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriterIdentifier);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(dsw) {
-        *state = dsw->state;
+        *state = dsw->head.state;
     } else {
         res = UA_STATUSCODE_BADNOTFOUND;
     }
@@ -71,14 +71,13 @@ UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dataSetWrite
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
+    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry) {
         UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry){
+        LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry) {
             UA_DataSetWriter *tmpWriter;
-            LIST_FOREACH(tmpWriter, &tmpWriterGroup->writers, listEntry){
-                if(UA_NodeId_equal(&tmpWriter->identifier, &identifier)){
+            LIST_FOREACH(tmpWriter, &tmpWriterGroup->writers, listEntry) {
+                if(UA_NodeId_equal(&tmpWriter->head.identifier, &identifier))
                     return tmpWriter;
-                }
             }
         }
     }
@@ -131,10 +130,10 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
 
-    UA_PubSubState oldState = dsw->state;
-    dsw->state = targetState;
+    UA_PubSubState oldState = dsw->head.state;
+    dsw->head.state = targetState;
 
-    switch(dsw->state) {
+    switch(dsw->head.state) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
@@ -146,28 +145,28 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
     case UA_PUBSUBSTATE_OPERATIONAL:
         if(wg->state == UA_PUBSUBSTATE_DISABLED ||
            wg->state == UA_PUBSUBSTATE_ERROR) {
-            dsw->state = UA_PUBSUBSTATE_PAUSED; /* WG is disabled -> paused */
+            dsw->head.state = UA_PUBSUBSTATE_PAUSED; /* WG is disabled -> paused */
         } else {
-            dsw->state = wg->state; /* WG is enabled -> same state */
+            dsw->head.state = wg->state; /* WG is enabled -> same state */
         }
         break;
 
     default:
-        dsw->state = UA_PUBSUBSTATE_ERROR;
+        dsw->head.state = UA_PUBSUBSTATE_ERROR;
         res = UA_STATUSCODE_BADINTERNALERROR;
         break;
     }
 
     /* Inform application about state change */
-    if(dsw->state != oldState) {
+    if(dsw->head.state != oldState) {
         UA_ServerConfig *config = &server->config;
         UA_LOG_INFO_WRITER(config->logging, dsw, "State change: %s -> %s",
                            UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(dsw->state));
+                           UA_PubSubState_name(dsw->head.state));
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.
-                stateChangeCallback(server, &dsw->identifier, dsw->state, res);
+                stateChangeCallback(server, &dsw->head.identifier, dsw->head.state, res);
             UA_LOCK(&server->serviceMutex);
         }
     }
@@ -234,7 +233,7 @@ UA_DataSetWriter_create(UA_Server *server,
     if(!newDataSetWriter)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newDataSetWriter->componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
+    newDataSetWriter->head.componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
     newDataSetWriter->linkedWriterGroup = wg;
 
     /* Copy the config into the new dataSetWriter */
@@ -282,15 +281,15 @@ UA_DataSetWriter_create(UA_Server *server,
     res |= addDataSetWriterRepresentation(server, newDataSetWriter);
 #else
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &newDataSetWriter->identifier);
+                                          &newDataSetWriter->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetWriter %N\t| ",
                 newDataSetWriter->linkedWriterGroup->logIdString,
-                newDataSetWriter->identifier);
-    newDataSetWriter->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+                newDataSetWriter->head.identifier);
+    newDataSetWriter->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_WRITER(server->config.logging, newDataSetWriter, "Writer created");
 
@@ -299,7 +298,7 @@ UA_DataSetWriter_create(UA_Server *server,
                                     UA_PUBSUBSTATE_OPERATIONAL);
 
     if(writerIdentifier)
-        UA_NodeId_copy(&newDataSetWriter->identifier, writerIdentifier);
+        UA_NodeId_copy(&newDataSetWriter->head.identifier, writerIdentifier);
     return res;
 }
 
@@ -451,7 +450,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, dataSetWriter->identifier, true);
+    deleteNode(server, dataSetWriter->head.identifier, true);
 #endif
 
     /* Remove DataSetWriter from group */
@@ -462,7 +461,6 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
     UA_LOG_INFO_WRITER(server->config.logging, dataSetWriter, "Writer deleted");
 
     UA_DataSetWriterConfig_clear(&dataSetWriter->config);
-    UA_NodeId_clear(&dataSetWriter->identifier);
 
     if(server->config.pubSubConfig.enableDeltaFrames) {
         /* Delete lastSamples store */
@@ -474,7 +472,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
         dataSetWriter->lastSamplesCount = 0;
     }
 
-    UA_String_clear(&dataSetWriter->logIdString);
+    UA_PubSubComponentHead_clear(&dataSetWriter->head);
     UA_free(dataSetWriter);
     return UA_STATUSCODE_GOOD;
 }
