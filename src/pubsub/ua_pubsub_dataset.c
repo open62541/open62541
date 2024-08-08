@@ -106,7 +106,7 @@ UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PublishedDataSet *tmpPDS = NULL;
     TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry) {
-        if(UA_NodeId_equal(&tmpPDS->identifier, &identifier))
+        if(UA_NodeId_equal(&tmpPDS->head.identifier, &identifier))
             break;
     }
     return tmpPDS;
@@ -168,8 +168,7 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
     }
     UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
     UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
-    UA_NodeId_clear(&publishedDataSet->identifier);
-    UA_String_clear(&publishedDataSet->logIdString);
+    UA_PubSubComponentHead_clear(&publishedDataSet->head);
 }
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
@@ -347,7 +346,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
         return result;
     }
 
-    result.result = UA_NodeId_copy(&currDS->identifier, &newField->publishedDataSet);
+    result.result = UA_NodeId_copy(&currDS->head.identifier, &newField->publishedDataSet);
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_DataSetFieldConfig_clear(&newField->config);
         UA_free(newField);
@@ -720,14 +719,14 @@ UA_PublishedDataSet_create(UA_Server *server,
 
     /* Cache the log string */
     char tmpLogIdStr[128];
-    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->identifier);
-    newPDS->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+    mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->head.identifier);
+    newPDS->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
 
     /* Return the created identifier */
     if(pdsIdentifier)
-        UA_NodeId_copy(&newPDS->identifier, pdsIdentifier);
+        UA_NodeId_copy(&newPDS->head.identifier, pdsIdentifier);
     return result;
 }
 
@@ -765,7 +764,7 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, publishedDataSet->identifier, true);
+    deleteNode(server, publishedDataSet->head.identifier, true);
 #endif
 
     UA_LOG_INFO_DATASET(server->config.logging, publishedDataSet, "DataSet deleted");

@@ -399,7 +399,7 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
     UA_PublishedDataSet *tmpPDS;
     TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
         if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
-            publishedDataSetId = tmpPDS->identifier;
+            publishedDataSetId = tmpPDS->head.identifier;
             break;
         }
     }
@@ -1016,7 +1016,7 @@ addPublishedDataItemsRepresentation(UA_Server *server,
                      UA_QUALIFIEDNAME(0, pdsName),
                      UA_NS0ID(PUBLISHEDDATAITEMSTYPE),
                      &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                     NULL, &publishedDataSet->identifier);
+                     NULL, &publishedDataSet->head.identifier);
     UA_CHECK_STATUS(retVal, return retVal);
 
     UA_ValueCallback valueCallback;
@@ -1025,13 +1025,13 @@ addPublishedDataItemsRepresentation(UA_Server *server,
     //ToDo: Need to move the browse name from namespaceindex 0 to 1
     UA_NodeId configurationVersionNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "ConfigurationVersion"),
-                            UA_NS0ID(HASPROPERTY), publishedDataSet->identifier);
+                            UA_NS0ID(HASPROPERTY), publishedDataSet->head.identifier);
     if(UA_NodeId_isNull(&configurationVersionNode))
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_NodePropertyContext *configurationVersionContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    configurationVersionContext->parentNodeId = publishedDataSet->identifier;
+    configurationVersionContext->parentNodeId = publishedDataSet->head.identifier;
     configurationVersionContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     configurationVersionContext->elementClassiefier =
         UA_NS0ID_PUBLISHEDDATASETTYPE_CONFIGURATIONVERSION;
@@ -1040,13 +1040,13 @@ addPublishedDataItemsRepresentation(UA_Server *server,
 
     UA_NodeId publishedDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublishedData"),
-                            UA_NS0ID(HASPROPERTY), publishedDataSet->identifier);
+                            UA_NS0ID(HASPROPERTY), publishedDataSet->head.identifier);
     if(UA_NodeId_isNull(&publishedDataNode))
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_NodePropertyContext * publishingIntervalContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    publishingIntervalContext->parentNodeId = publishedDataSet->identifier;
+    publishingIntervalContext->parentNodeId = publishedDataSet->head.identifier;
     publishingIntervalContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     publishingIntervalContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE_PUBLISHEDDATA;
     retVal |= addVariableValueSource(server, valueCallback, publishedDataNode,
@@ -1054,22 +1054,22 @@ addPublishedDataItemsRepresentation(UA_Server *server,
 
     UA_NodeId dataSetMetaDataNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
-                            UA_NS0ID(HASPROPERTY), publishedDataSet->identifier);
+                            UA_NS0ID(HASPROPERTY), publishedDataSet->head.identifier);
     if(UA_NodeId_isNull(&dataSetMetaDataNode))
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    metaDataContext->parentNodeId = publishedDataSet->identifier;
+    metaDataContext->parentNodeId = publishedDataSet->head.identifier;
     metaDataContext->parentClassifier = UA_NS0ID_PUBLISHEDDATAITEMSTYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_PUBLISHEDDATASETTYPE_DATASETMETADATA;
     retVal |= addVariableValueSource(server, valueCallback,
                                      dataSetMetaDataNode, metaDataContext);
 
     if(server->config.pubSubConfig.enableInformationModelMethods) {
-        retVal |= addRef(server, publishedDataSet->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, publishedDataSet->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBLISHEDDATAITEMSTYPE_ADDVARIABLES), true);
-        retVal |= addRef(server, publishedDataSet->identifier, UA_NS0ID(HASCOMPONENT),
+        retVal |= addRef(server, publishedDataSet->head.identifier, UA_NS0ID(HASCOMPONENT),
                          UA_NS0ID(PUBLISHEDDATAITEMSTYPE_REMOVEVARIABLES), true);
     }
     return retVal;
@@ -1755,7 +1755,7 @@ addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWrite
                      NULL, &dataSetWriter->identifier);
     //if connected dataset is null this means it's configured for heartbeats
     if(dataSetWriter->connectedDataSet) {
-        retVal |= addRef(server, dataSetWriter->connectedDataSet->identifier,
+        retVal |= addRef(server, dataSetWriter->connectedDataSet->head.identifier,
                          UA_NS0ID(DATASETTOWRITER), dataSetWriter->identifier, true);
     }
 
