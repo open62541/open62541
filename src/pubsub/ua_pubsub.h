@@ -123,6 +123,25 @@ typedef struct {
     UA_String logIdString; /* Precomputed logging prefix */
 } UA_PubSubComponentHead;
 
+#define UA_LOG_PUBSUB_INTERNAL(LOGGER, LEVEL, COMPONENT, MSG, ...)      \
+    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
+        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
+                       (COMPONENT)->head.logIdString, __VA_ARGS__);     \
+    }
+
+#define UA_LOG_TRACE_PUBSUB(LOGGER, COMPONENT, ...)                          \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, TRACE, COMPONENT, __VA_ARGS__, ""))
+#define UA_LOG_DEBUG_PUBSUB(LOGGER, COMPONENT, ...)                          \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, DEBUG, COMPONENT, __VA_ARGS__, ""))
+#define UA_LOG_INFO_PUBSUB(LOGGER, COMPONENT, ...)                           \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, INFO, COMPONENT, __VA_ARGS__, ""))
+#define UA_LOG_WARNING_PUBSUB(LOGGER, COMPONENT, ...)                        \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, WARNING, COMPONENT, __VA_ARGS__, ""))
+#define UA_LOG_ERROR_PUBSUB(LOGGER, COMPONENT, ...)                          \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, ERROR, COMPONENT, __VA_ARGS__, ""))
+#define UA_LOG_FATAL_PUBSUB(LOGGER, COMPONENT, ...)                          \
+    UA_MACRO_EXPAND(UA_LOG_PUBSUB_INTERNAL(LOGGER, FATAL, COMPONENT, __VA_ARGS__, ""))
+
 void
 UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch);
 
