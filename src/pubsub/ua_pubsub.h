@@ -640,7 +640,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
-                               UA_ReaderGroup *readerGroup);
+                               UA_ReaderGroup *rg);
 
 UA_StatusCode
 UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
