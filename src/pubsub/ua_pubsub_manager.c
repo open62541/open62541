@@ -35,6 +35,13 @@ UA_PubSubState_name(UA_PubSubState state) {
     return pubSubStateNames[state];
 }
 
+void
+UA_PubSubComponentHead_clear(UA_PubSubComponentHead *psch) {
+    UA_NodeId_clear(&psch->identifier);
+    UA_String_clear(&psch->logIdString);
+    memset(psch, 0, sizeof(UA_PubSubComponentHead));
+}
+
 UA_StatusCode
 UA_PublisherId_copy(const UA_PublisherId *src,
                     UA_PublisherId *dst) {
