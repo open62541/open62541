@@ -154,8 +154,8 @@ UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataS
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
         if(field->configurationFrozen) {
-            UA_LOG_WARNING_DATASET(server->config.logging, publishedDataSet,
-                                   "Clearing a frozen field.");
+            UA_LOG_WARNING_PUBSUB(server->config.logging, publishedDataSet,
+                                  "Clearing a frozen field.");
         }
         field->fieldMetaData.arrayDimensions = NULL;
         field->fieldMetaData.properties = NULL;
@@ -222,8 +222,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "PubSub meta data generation: Reading the array dimensions failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "PubSub meta data generation: Reading the array dimensions failed");
         return res;
     }
 
@@ -243,8 +243,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "PubSub meta data generation: Reading the datatype failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "PubSub meta data generation: Reading the datatype failed");
         return res;
     }
 
@@ -253,9 +253,9 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
                                       server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_DATASET(server->config.logging, pds,
-                             "MetaData creation: Found DataType %s",
-                             currentDataType->typeName);
+        UA_LOG_DEBUG_PUBSUB(server->config.logging, pds,
+                            "MetaData creation: Found DataType %s",
+                            currentDataType->typeName);
 #endif
         /* Check if the datatype is a builtInType, if yes set the builtinType. */
         if(currentDataType->typeKind <= UA_DATATYPEKIND_ENUM)
@@ -267,13 +267,13 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
                 fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
             } else {
-                UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                       "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
+                UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                                      "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
             }
         }
     } else {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "PubSub meta data generation: DataType is UA_NODEID_NULL");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "PubSub meta data generation: DataType is UA_NODEID_NULL");
     }
 
     /* Set the ValueRank */
@@ -281,8 +281,8 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     res = readWithReadValue(server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &valueRank);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "PubSub meta data generation: Reading the value rank failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "PubSub meta data generation: Reading the value rank failed");
         return res;
     }
     fieldMetaData->valueRank = valueRank;
@@ -323,8 +323,8 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     if(currDS->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(server->config.logging, currDS,
-                               "Adding DataSetField failed: PublishedDataSet is frozen");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, currDS,
+                              "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -436,15 +436,15 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     }
 
     if(currentField->configurationFrozen) {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "Remove DataSetField failed: DataSetField is frozen");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "Remove DataSetField failed: DataSetField is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
     if(pds->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                               "Remove DataSetField failed: PublishedDataSet is frozen");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                              "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -490,9 +490,9 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
             result.result = generateFieldMetaData(server, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING_DATASET(server->config.logging, pds,
-                                       "PubSub MetaData regeneration failed "
-                                       "after removing a field!");
+                UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                                      "PubSub MetaData regeneration failed "
+                                      "after removing a field!");
                 break;
             }
             /* The contents of the metadata is shared between the PDS and its fields */
@@ -724,7 +724,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->head.identifier);
     newPDS->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_DATASET(server->config.logging, newPDS, "DataSet created");
+    UA_LOG_INFO_PUBSUB(server->config.logging, newPDS, "DataSet created");
 
     /* Return the created identifier */
     if(pdsIdentifier)
@@ -746,8 +746,8 @@ UA_Server_addPublishedDataSet(UA_Server *server,
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_DATASET(server->config.logging, publishedDataSet,
-                       "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, publishedDataSet,
+                              "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -769,7 +769,7 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
     deleteNode(server, publishedDataSet->head.identifier, true);
 #endif
 
-    UA_LOG_INFO_DATASET(server->config.logging, publishedDataSet, "DataSet deleted");
+    UA_LOG_INFO_PUBSUB(server->config.logging, publishedDataSet, "DataSet deleted");
 
     TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
     server->pubSubManager.publishedDataSetsSize--;

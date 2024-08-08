@@ -186,25 +186,6 @@ UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
-#define UA_LOG_DATASET_INTERNAL(LOGGER, LEVEL, PDS, MSG, ...)           \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (PDS)->head.logIdString, __VA_ARGS__);           \
-    }
-
-#define UA_LOG_TRACE_DATASET(LOGGER, PDS, ...)                          \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, TRACE, PDS, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_DATASET(LOGGER, PDS, ...)                          \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, DEBUG, PDS, __VA_ARGS__, ""))
-#define UA_LOG_INFO_DATASET(LOGGER, PDS, ...)                           \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, INFO, PDS, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_DATASET(LOGGER, PDS, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, WARNING, PDS, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_DATASET(LOGGER, PDS, ...)                          \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, ERROR, PDS, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_DATASET(LOGGER, PDS, ...)                          \
-    UA_MACRO_EXPAND(UA_LOG_DATASET_INTERNAL(LOGGER, FATAL, PDS, __VA_ARGS__, ""))
-
 /*******************************/
 /* StandaloneSubscribedDataSet */
 /*******************************/
