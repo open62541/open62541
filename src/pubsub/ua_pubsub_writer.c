@@ -621,15 +621,15 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
  * must not be called twice for the same message */
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
-                                                 UA_DataSetMessage *dataSetMessage,
+                                                 UA_DataSetMessage *dsm,
                                                  UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Prepare DataSetMessageContent */
-    dataSetMessage->header.dataSetMessageValid = true;
-    dataSetMessage->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
+    dsm->header.dataSetMessageValid = true;
+    dsm->header.dataSetMessageType = UA_DATASETMESSAGE_DATADELTAFRAME;
     if(pds->fieldSize == 0)
         return UA_STATUSCODE_GOOD;
 
@@ -645,7 +645,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
         if(valueChangedVariant(&ls->value.value, &value.value)) {
             /* increase fieldCount for current delta message */
-            dataSetMessage->data.deltaFrameData.fieldCount++;
+            dsm->data.deltaFrameData.fieldCount++;
             ls->valueChanged = true;
 
             /* Update last stored sample */
@@ -665,8 +665,8 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
     if(!deltaFields)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    dataSetMessage->data.deltaFrameData.deltaFrameFields = deltaFields;
-    dataSetMessage->data.deltaFrameData.fieldCount = counter;
+    dsm->data.deltaFrameData.deltaFrameFields = deltaFields;
+    dsm->data.deltaFrameData.fieldCount = counter;
 
     size_t currentDeltaField = 0;
     for(size_t i = 0; i < pds->fieldSize; i++) {

@@ -200,10 +200,13 @@ typedef struct UA_StandaloneSubscribedDataSet {
 UA_StatusCode
 UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
                                           UA_StandaloneSubscribedDataSetConfig *dst);
+
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
+
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
+
 void
 UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet);
@@ -275,7 +278,6 @@ void
 UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
                             UA_ByteString msg);
 
-
 void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 
@@ -285,8 +287,7 @@ UA_EventLoop *
 UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_setPubSubState(UA_Server *server,
-                                   UA_PubSubConnection *connection,
+UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
 
 /**********************************************/
@@ -330,7 +331,7 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
-                                        UA_DataSetMessage *dataSetMessage,
+                                        UA_DataSetMessage *dsm,
                                         UA_DataSetWriter *dsw);
 
 UA_StatusCode
