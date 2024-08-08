@@ -549,25 +549,6 @@ UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState);
 
-#define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (READER)->head.logIdString, __VA_ARGS__);        \
-    }
-
-#define UA_LOG_TRACE_READER(LOGGER, READER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, TRACE, READER, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_READER(LOGGER, READER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, DEBUG, READER, __VA_ARGS__, ""))
-#define UA_LOG_INFO_READER(LOGGER, READER, ...)                         \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, INFO, READER, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_READER(LOGGER, READER, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, WARNING, READER, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_READER(LOGGER, READER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, ERROR, READER, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_READER(LOGGER, READER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_READER_INTERNAL(LOGGER, FATAL, READER, __VA_ARGS__, ""))
-
 /**********************************************/
 /*                ReaderGroup                 */
 /**********************************************/

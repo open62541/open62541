@@ -459,7 +459,7 @@ UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id,
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
     if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_createMonitoring(): "
                             "PubSub component type '%i' is not supported",
                             eComponentType);
@@ -467,7 +467,7 @@ UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id,
     }
 
     if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "UA_PubSubComponent_createMonitoring(): "
                             "DataSetReader does not support timeout type '%i'",
                             eMonitoringType);
@@ -476,9 +476,9 @@ UA_PubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id,
 
     reader->msgRcvTimeoutTimerCallback = callback;
 
-    UA_LOG_DEBUG_READER(server->config.logging, reader,
-                 "UA_PubSubComponent_createMonitoring(): "
-                 "Set MessageReceiveTimeout callback");
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, reader,
+                        "UA_PubSubComponent_createMonitoring(): "
+                        "Set MessageReceiveTimeout callback");
 
     return UA_STATUSCODE_GOOD;
 }
@@ -504,23 +504,23 @@ UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
     UA_DataSetReader *reader = (UA_DataSetReader*)data;
 
     if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
-                     "Error UA_PubSubComponent_startMonitoring(): PubSub component "
-                     "type '%i' is not supported", eComponentType);
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
+                            "Error UA_PubSubComponent_startMonitoring(): PubSub component "
+                            "type '%i' is not supported", eComponentType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
-                     "UA_PubSubComponent_startMonitoring(): "
-                     "DataSetReader does not support timeout type '%i'",
-                     eMonitoringType);
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
+                            "UA_PubSubComponent_startMonitoring(): "
+                            "DataSetReader does not support timeout type '%i'",
+                            eMonitoringType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* No timeout configured */
     if(reader->config.messageReceiveTimeout <= 0.0) {
-        UA_LOG_WARNING_READER(server->config.logging, reader,
+        UA_LOG_WARNING_PUBSUB(server->config.logging, reader,
                               "Cannot monitor timeout for messageReceiveTimeout == 0");
         return UA_STATUSCODE_GOOD;
     }
@@ -534,17 +534,17 @@ UA_PubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id,
                               NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
                               &reader->msgRcvTimeoutTimerId);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_startMonitoring(): "
                             "MessageReceiveTimeout: Start timer failed");
         return ret;
     }
 
-    UA_LOG_DEBUG_READER(server->config.logging, reader,
-                 "UA_PubSubComponent_startMonitoring(): "
-                 "MessageReceiveTimeout = '%f' Timer Id = '%u'",
-                 reader->config.messageReceiveTimeout,
-                 (UA_UInt32)reader->msgRcvTimeoutTimerId);
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, reader,
+                        "UA_PubSubComponent_startMonitoring(): "
+                        "MessageReceiveTimeout = '%f' Timer Id = '%u'",
+                        reader->config.messageReceiveTimeout,
+                        (UA_UInt32)reader->msgRcvTimeoutTimerId);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -559,7 +559,7 @@ UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
     if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_stopMonitoring(): "
                             "PubSub component type '%i' is not supported",
                             eComponentType);
@@ -567,14 +567,14 @@ UA_PubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id,
     }
 
     if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "UA_PubSubComponent_stopMonitoring(): "
                             "DataSetReader does not support timeout type '%i'",
                             eMonitoringType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
-    UA_LOG_DEBUG_READER(server->config.logging, reader,
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, reader,
                         "UA_PubSubComponent_stopMonitoring(): "
                         "MessageReceiveTimeout: MessageReceiveTimeout = '%f' "
                         "Timer Id = '%u'", reader->config.messageReceiveTimeout,
@@ -598,7 +598,7 @@ UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
     if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_updateMonitoringInterval(): "
                             "PubSub component type '%i' is not supported",
                             eComponentType);
@@ -606,7 +606,7 @@ UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
     }
 
     if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "UA_PubSubComponent_createMonitoring(): "
                             "DataSetReader does not support timeout type '%i'",
                             eMonitoringType);
@@ -619,13 +619,13 @@ UA_PubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
                                  reader->config.messageReceiveTimeout, NULL,
                                  UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_updateMonitoringInterval(): "
                             "Update timer interval failed");
         return ret;
     }
 
-    UA_LOG_DEBUG_READER(server->config.logging, reader,
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, reader,
                         "UA_PubSubComponent_updateMonitoringInterval(): "
                         "MessageReceiveTimeout: new MessageReceiveTimeout "
                         "= '%f' Timer Id = '%u'",
@@ -644,17 +644,17 @@ UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
     if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "Error UA_PubSubComponent_deleteMonitoring(): PubSub component type "
                             "'%i' is not supported", eComponentType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     if(eMonitoringType != UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT) {
-        UA_LOG_ERROR_READER(server->config.logging, reader,
-                     "UA_PubSubComponent_deleteMonitoring(): "
-                     "DataSetReader does not support timeout type '%i'",
-                     eMonitoringType);
+        UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
+                            "UA_PubSubComponent_deleteMonitoring(): "
+                            "DataSetReader does not support timeout type '%i'",
+                            eMonitoringType);
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -665,10 +665,10 @@ UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
                                           eMonitoringType, data);
     }
 
-    UA_LOG_DEBUG_READER(server->config.logging, reader,
-                 "UA_PubSubComponent_deleteMonitoring(): DataSetReader "
-                 "MessageReceiveTimeout: Timer Id = '%u'",
-                 (UA_UInt32)reader->msgRcvTimeoutTimerId);
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, reader,
+                        "UA_PubSubComponent_deleteMonitoring(): DataSetReader "
+                        "MessageReceiveTimeout: Timer Id = '%u'",
+                        (UA_UInt32)reader->msgRcvTimeoutTimerId);
 
     return UA_STATUSCODE_GOOD;
 }
