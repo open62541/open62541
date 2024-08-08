@@ -549,14 +549,14 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     /* Support only to UADP encoding */
     if(dsr->config.messageSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_READER(server->config.logging, dsr,
+        UA_LOG_WARNING_PUBSUB(server->config.logging, dsr,
                               "PubSub-RT configuration fail: Non-RT capable encoding.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
     /* Don't support string PublisherId for the fast-path (at this time) */
     if(dsr->config.publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
-        UA_LOG_WARNING_READER(server->config.logging, dsr,
+        UA_LOG_WARNING_PUBSUB(server->config.logging, dsr,
                               "PubSub-RT configuration fail: String PublisherId");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -586,13 +586,13 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
             UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
            field->maxStringLength == 0) {
-            UA_LOG_WARNING_READER(server->config.logging, dsr,
+            UA_LOG_WARNING_PUBSUB(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains String/ByteString with dynamic length.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
                   !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_READER(server->config.logging, dsr,
+            UA_LOG_WARNING_PUBSUB(server->config.logging, dsr,
                                   "PubSub-RT configuration fail: "
                                   "PDS contains variable with dynamic size.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -777,7 +777,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
         rv = UA_DataSetReader_checkIdentifier(server, &currentNetworkMessage,
                                               dsr, rg->config);
         if(rv != UA_STATUSCODE_GOOD) {
-            UA_LOG_DEBUG_READER(server->config.logging, dsr,
+            UA_LOG_DEBUG_PUBSUB(server->config.logging, dsr,
                                 "PubSub receive. Message intended for a different reader.");
             continue;
         }
