@@ -651,6 +651,8 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
     TAILQ_INIT(&newPDS->fields);
 
+    newPDS->head.componentType = UA_PUBSUB_COMPONENT_PUBLISHEDDATASET;
+
     UA_PublishedDataSetConfig *newConfig = &newPDS->config;
 
     /* Deep copy the given connection config */
