@@ -38,8 +38,8 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
     /* Decode the headers */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
-                                  "PubSub receive. decoding headers failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
+                              "PubSub receive. decoding headers failed");
         UA_NetworkMessage_clear(nm);
         return rv;
     }
@@ -59,9 +59,9 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
             processed = true;
             rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, &ctx, nm, readerGroup);
             if(rv != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
-                                          "Subscribe failed, verify and decrypt "
-                                          "network message failed.");
+                UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
+                                      "Subscribe failed, verify and decrypt "
+                                      "network message failed.");
                 UA_NetworkMessage_clear(nm);
                 return rv;
             }
@@ -73,9 +73,9 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_INFO_CONNECTION(server->config.logging, connection,
-                               "Dataset reader not found. Check PublisherId, "
-                               "WriterGroupId and DatasetWriterId");
+        UA_LOG_INFO_PUBSUB(server->config.logging, connection,
+                           "Dataset reader not found. Check PublisherId, "
+                           "WriterGroupId and DatasetWriterId");
         /* Possible multicast scenario: there are multiple connections (with one
          * or more ReaderGroups) within a multicast group every connection
          * receives all network messages, even if some of them are not meant for
@@ -192,13 +192,13 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection created");
+    UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection created");
 
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(server, c, true);
     if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_CONNECTION(server->config.logging, c,
-                                "Could not validate connection parameters");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
+                            "Could not validate connection parameters");
         UA_PubSubConnection_delete(server, c);
         return ret;
     }
@@ -298,7 +298,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
     server->pubSubManager.connectionsSize--;
 
-    UA_LOG_INFO_CONNECTION(server->config.logging, c, "Connection deleted");
+    UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection deleted");
 
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_PubSubComponentHead_clear(&c->head);
@@ -356,8 +356,8 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
 #endif
     }
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
-                                  "Verify, decrypt and decode network message failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                              "Verify, decrypt and decode network message failed");
         return;
     }
 
@@ -374,9 +374,9 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
 
  finish:
     if(!processed) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
-                                  "Message received that could not be processed. "
-                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                              "Message received that could not be processed. "
+                              "Check PublisherID, WriterGroupID and DatasetWriterID.");
     }
 }
 
@@ -386,8 +386,8 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(c->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, c,
-                                  "The connection is being deleted. Can only be disabled.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                              "The connection is being deleted. Can only be disabled.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -425,17 +425,17 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             }
             break;
         default:
-            UA_LOG_WARNING_CONNECTION(server->config.logging, c,
-                                      "Received unknown PubSub state!");
+            UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                                  "Received unknown PubSub state!");
             return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Inform application about state change */
     if(c->head.state != oldState) {
         UA_ServerConfig *config = &server->config;
-        UA_LOG_INFO_CONNECTION(config->logging, c, "State change: %s -> %s",
-                               UA_PubSubState_name(oldState),
-                               UA_PubSubState_name(c->head.state));
+        UA_LOG_INFO_PUBSUB(config->logging, c, "State change: %s -> %s",
+                           UA_PubSubState_name(oldState),
+                           UA_PubSubState_name(c->head.state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
             config->pubSubConfig.stateChangeCallback(server, &c->head.identifier, targetState, ret);

@@ -111,9 +111,9 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
         return UA_STATUSCODE_BADNOTFOUND;
 
     if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_CONNECTION(server->config.logging, connection,
-                                  "Adding ReaderGroup failed. "
-                                  "Connection configuration is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
+                              "Adding ReaderGroup failed. "
+                              "Connection configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
