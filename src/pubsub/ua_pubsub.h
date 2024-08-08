@@ -541,14 +541,12 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
 
 /* DataSetReader Type definition */
 struct UA_DataSetReader {
-    UA_PubSubComponentEnumType componentType;
-    UA_DataSetReaderConfig config;
-    UA_NodeId identifier;
-    UA_String logIdString;
-    UA_ReaderGroup *linkedReaderGroup;
+    UA_PubSubComponentHead head;
     LIST_ENTRY(UA_DataSetReader) listEntry;
 
-    UA_PubSubState state;
+    UA_DataSetReaderConfig config;
+    UA_ReaderGroup *linkedReaderGroup;
+
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
@@ -611,7 +609,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
 #define UA_LOG_READER_INTERNAL(LOGGER, LEVEL, READER, MSG, ...)         \
     if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
         UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (READER)->logIdString, __VA_ARGS__);             \
+                       (READER)->head.logIdString, __VA_ARGS__);        \
     }
 
 #define UA_LOG_TRACE_READER(LOGGER, READER, ...)                        \

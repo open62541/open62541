@@ -112,7 +112,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
             UA_PublisherId_toVariant(&dataSetReader->config.publisherId, &value);
             break;
         case UA_NS0ID_DATASETREADERTYPE_STATUS_STATE:
-            UA_Variant_setScalar(&value, &dataSetReader->state,
+            UA_Variant_setScalar(&value, &dataSetReader->head.state,
                                  &UA_TYPES[UA_TYPES_PUBSUBSTATE]);
             break;
         default:
@@ -828,22 +828,22 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
                      UA_QUALIFIEDNAME(0, dsrName),
                      UA_NODEID_NUMERIC(0, UA_NS0ID_DATASETREADERTYPE),
                      &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                     NULL, &dataSetReader->identifier);
+                     NULL, &dataSetReader->head.identifier);
 
     /* Add childNodes such as PublisherId, WriterGroupId and DataSetWriterId in
      * DataSetReader object */
     publisherIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "PublisherId"),
                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                          dataSetReader->identifier);
+                                          dataSetReader->head.identifier);
     writerGroupIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "WriterGroupId"),
                                             UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                            dataSetReader->identifier);
+                                            dataSetReader->head.identifier);
     dataSetwriterIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetWriterId"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY),
-                                              dataSetReader->identifier);
+                                              dataSetReader->head.identifier);
     statusIdNode = findSingleChildNode(server, UA_QUALIFIEDNAME(0, "Status"),
                                               UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
-                                              dataSetReader->identifier);
+                                              dataSetReader->head.identifier);
 
     if(UA_NodeId_isNull(&statusIdNode)) {
         return UA_STATUSCODE_BADNOTFOUND;
@@ -862,7 +862,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
 
     UA_NodePropertyContext *dataSetReaderPublisherIdContext =
         (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
-    dataSetReaderPublisherIdContext->parentNodeId = dataSetReader->identifier;
+    dataSetReaderPublisherIdContext->parentNodeId = dataSetReader->head.identifier;
     dataSetReaderPublisherIdContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderPublisherIdContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_PUBLISHERID;
     UA_ValueCallback valueCallback;
@@ -874,7 +874,7 @@ addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReade
     UA_NodePropertyContext *dataSetReaderStateContext =
         (UA_NodePropertyContext *) UA_malloc(sizeof(UA_NodePropertyContext));
     UA_CHECK_MEM(dataSetReaderStateContext, return UA_STATUSCODE_BADOUTOFMEMORY);
-    dataSetReaderStateContext->parentNodeId = dataSetReader->identifier;
+    dataSetReaderStateContext->parentNodeId = dataSetReader->head.identifier;
     dataSetReaderStateContext->parentClassifier = UA_NS0ID_DATASETREADERTYPE;
     dataSetReaderStateContext->elementClassiefier = UA_NS0ID_DATASETREADERTYPE_STATUS_STATE;
 
