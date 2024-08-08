@@ -648,9 +648,11 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
                                          UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
+
 /*********************************************************/
 /*                    SecurityGroup                      */
 /*********************************************************/
+
 struct UA_SecurityGroup {
     UA_String securityGroupId;
     UA_SecurityGroupConfig config;
@@ -677,10 +679,10 @@ UA_SecurityGroup *
 UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
 
 void
-UA_SecurityGroup_delete(UA_SecurityGroup *securityGroup);
+UA_SecurityGroup_delete(UA_SecurityGroup *sg);
 
 void
-removeSecurityGroup(UA_Server *server, UA_SecurityGroup *securityGroup);
+removeSecurityGroup(UA_Server *server, UA_SecurityGroup *sg);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
@@ -745,9 +747,11 @@ UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *rg,
                                       UA_String topic);
 
 UA_StatusCode
-UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 numRegWriterGroupIds,
-                            UA_UInt16 numRegDataSetWriterIds, UA_String transportProfileUri,
-                            UA_UInt16 **writerGroupIds, UA_UInt16 **dataSetWriterIds);
+UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId,
+                            UA_UInt16 numRegWriterGroupIds,
+                            UA_UInt16 numRegDataSetWriterIds,
+                            UA_String transportProfileUri, UA_UInt16 **writerGroupIds,
+                            UA_UInt16 **dataSetWriterIds);
 
 void
 UA_PubSubManager_freeIds(UA_Server *server);
