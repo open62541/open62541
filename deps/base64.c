@@ -80,18 +80,27 @@ static unsigned char dtable[256] = {
 
 unsigned char *
 UA_unbase64(const unsigned char *src, size_t len, size_t *out_len) {
-	if(len == 0 || len % 4 != 0)
+    /* Empty base64 results in an empty byte-string */
+    if(len == 0) {
+        *out_len = 0;
+        return (unsigned char*)UA_EMPTY_ARRAY_SENTINEL;
+    }
+
+    /* The input length must be a multiple of four */
+    if(len % 4 != 0)
 		return NULL;
 
-    unsigned char *out, *pos;
+    /* Allocate the output string */
 	size_t olen = len / 4 * 3;
-	pos = out = (unsigned char*)UA_malloc(olen);
+    unsigned char *out = (unsigned char*)UA_malloc(olen);
 	if(!out)
 		return NULL;
 
+    /* Iterate over the input */
 	size_t pad = 0;
     unsigned char count = 0;
     unsigned char block[4];
+    unsigned char *pos = out;
 	for(size_t i = 0; i < len; i++) {
 		unsigned char tmp = dtable[src[i]];
         if(tmp == 0x80)
