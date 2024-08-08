@@ -741,7 +741,7 @@ typedef struct UA_PubSubManager {
 } UA_PubSubManager;
 
 UA_StatusCode
-UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *readerGroup,
+UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *rg,
                                       UA_String topic);
 
 UA_StatusCode
@@ -753,13 +753,13 @@ void
 UA_PubSubManager_freeIds(UA_Server *server);
 
 void
-UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *pubSubManager);
+UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *psm);
 
 void
-UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *pubSubManager);
+UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *psm);
 
 void
-UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *pubSubManager);
+UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *psm);
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 void
@@ -793,7 +793,7 @@ UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 
 UA_StatusCode
-UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *monitoringInterface);
+UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif);
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
