@@ -107,8 +107,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
         return UA_STATUSCODE_BADNOTFOUND;
 
     if(readerGroup->configurationFrozen) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, readerGroup,
-                                   "Add DataSetReader failed, Subscriber configuration is frozen");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, readerGroup,
+                              "Add DataSetReader failed, Subscriber configuration is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -127,8 +127,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retVal = addDataSetReaderRepresentation(server, newDataSetReader);
     if(retVal != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READERGROUP(server->config.logging, readerGroup,
-                                 "Add DataSetReader failed, addDataSetReaderRepresentation failed");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, readerGroup,
+                            "Add DataSetReader failed, addDataSetReaderRepresentation failed");
         UA_DataSetReaderConfig_clear(&newDataSetReader->config);
         UA_free(newDataSetReader);
         newDataSetReader = 0;

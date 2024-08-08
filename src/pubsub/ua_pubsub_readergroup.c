@@ -184,13 +184,13 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
                 connection->head.logIdString, newGroup->head.identifier);
     newGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_READERGROUP(server->config.logging, newGroup, "ReaderGroup created");
+    UA_LOG_INFO_PUBSUB(server->config.logging, newGroup, "ReaderGroup created");
 
     /* Validate the connection settings */
     retval = UA_ReaderGroup_connect(server, newGroup, true);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READERGROUP(server->config.logging, newGroup,
-                                 "Could not validate the connection parameters");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, newGroup,
+                            "Could not validate the connection parameters");
         UA_ReaderGroup_remove(server, newGroup);
         return retval;
     }
@@ -222,18 +222,18 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(rg->configurationFrozen) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Remove ReaderGroup failed. "
-                                   "Subscriber configuration is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "Remove ReaderGroup failed. "
+                              "Subscriber configuration is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
     if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Deleting the ReaderGroup failed. "
-                                   "PubSubConnection is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "Deleting the ReaderGroup failed. "
+                              "PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -271,7 +271,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
         deleteNode(server, rg->head.identifier, true);
 #endif
 
-        UA_LOG_INFO_READERGROUP(server->config.logging, rg, "ReaderGroup deleted");
+        UA_LOG_INFO_PUBSUB(server->config.logging, rg, "ReaderGroup deleted");
 
         UA_ReaderGroupConfig_clear(&rg->config);
         UA_PubSubComponentHead_clear(&rg->head);
@@ -340,8 +340,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(rg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                  "The ReaderGroup is being deleted. Can only be disabled.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "The ReaderGroup is being deleted. Can only be disabled.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -387,9 +387,9 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     /* Inform application about state change */
     if(rg->head.state != oldState) {
         UA_ServerConfig *pConfig = &server->config;
-        UA_LOG_INFO_READERGROUP(pConfig->logging, rg, "State change: %s -> %s",
-                                UA_PubSubState_name(oldState),
-                                UA_PubSubState_name(rg->head.state));
+        UA_LOG_INFO_PUBSUB(pConfig->logging, rg, "State change: %s -> %s",
+                           UA_PubSubState_name(oldState),
+                           UA_PubSubState_name(rg->head.state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
@@ -460,14 +460,14 @@ setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
     UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "JSON encoding is enabled. The message security is "
-                                   "only defined for the UADP message mapping.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "JSON encoding is enabled. The message security is "
+                              "only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!rg->config.securityPolicy) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "No SecurityPolicy configured for the ReaderGroup");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "No SecurityPolicy configured for the ReaderGroup");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -538,9 +538,9 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         return UA_STATUSCODE_GOOD;
 
     if(dsrCount > 1) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Multiple DSR in a readerGroup not supported in RT "
-                                   "fixed size configuration");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "Multiple DSR in a readerGroup not supported in RT "
+                              "fixed size configuration");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
     }
 
@@ -570,7 +570,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
         /*     UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId); */
         /* if(!rtNode || */
         /*    rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) { */
-        /*     UA_LOG_WARNING_READER(server->config.logging, dsr, */
+        /*     UA_LOG_WARNING_PUBSUB(server->config.logging, dsr, */
         /*                           "PubSub-RT configuration fail: PDS contains field " */
         /*                           "without external data source."); */
         /*     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
@@ -751,7 +751,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
 
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, &currentNetworkMessage);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
                               "PubSub receive. decoding headers failed");
         return false;
     }
@@ -760,8 +760,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
     rv = verifyAndDecryptNetworkMessage(server->config.logging, buf, &ctx,
                                         &currentNetworkMessage, rg);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg, "Subscribe failed. "
-                                   "Verify and decrypt network message failed.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg, "Subscribe failed. "
+                              "Verify and decrypt network message failed.");
         return false;
     }
 
