@@ -325,14 +325,13 @@ UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server,
-                                UA_DataSetWriter *dataSetWriter,
+UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState);
 
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetMessage *dataSetMessage,
-                                        UA_DataSetWriter *dataSetWriter);
+                                        UA_DataSetWriter *dsw);
 
 UA_StatusCode
 UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
@@ -352,7 +351,7 @@ UA_DataSetWriter_create(UA_Server *server,
 
 
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw);
 
 /**********************************************/
 /*               WriterGroup                  */

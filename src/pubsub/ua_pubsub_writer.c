@@ -438,54 +438,54 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
 }
 
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter) {
+UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Frozen? */
-    if(dataSetWriter->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, dataSetWriter,
+    if(dsw->configurationFrozen) {
+        UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
                               "Remove DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, dataSetWriter->head.identifier, true);
+    deleteNode(server, dsw->head.identifier, true);
 #endif
 
     /* Remove DataSetWriter from group */
-    UA_WriterGroup *linkedWriterGroup = dataSetWriter->linkedWriterGroup;
-    LIST_REMOVE(dataSetWriter, listEntry);
+    UA_WriterGroup *linkedWriterGroup = dsw->linkedWriterGroup;
+    LIST_REMOVE(dsw, listEntry);
     linkedWriterGroup->writersCount--;
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, dataSetWriter, "Writer deleted");
+    UA_LOG_INFO_PUBSUB(server->config.logging, dsw, "Writer deleted");
 
-    UA_DataSetWriterConfig_clear(&dataSetWriter->config);
+    UA_DataSetWriterConfig_clear(&dsw->config);
 
     if(server->config.pubSubConfig.enableDeltaFrames) {
         /* Delete lastSamples store */
-        for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++) {
-            UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+        for(size_t i = 0; i < dsw->lastSamplesCount; i++) {
+            UA_DataValue_clear(&dsw->lastSamples[i].value);
         }
-        UA_free(dataSetWriter->lastSamples);
-        dataSetWriter->lastSamples = NULL;
-        dataSetWriter->lastSamplesCount = 0;
+        UA_free(dsw->lastSamples);
+        dsw->lastSamples = NULL;
+        dsw->lastSamplesCount = 0;
     }
 
-    UA_PubSubComponentHead_clear(&dataSetWriter->head);
-    UA_free(dataSetWriter);
+    UA_PubSubComponentHead_clear(&dsw->head);
+    UA_free(dsw);
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dsw) {
+UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dsw);
-    if(!dataSetWriter) {
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    if(!dsw) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
     }
-    UA_StatusCode res = UA_DataSetWriter_remove(server, dataSetWriter);
+    UA_StatusCode res = UA_DataSetWriter_remove(server, dsw);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -550,8 +550,8 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
                                                UA_DataSetMessage *dataSetMessage,
-                                               UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
+                                               UA_DataSetWriter *dsw) {
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -589,28 +589,28 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
         UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
 
         /* Deactivate statuscode? */
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
             dfv->hasStatus = false;
 
         /* Deactivate timestamps */
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
             dfv->hasSourceTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
             dfv->hasSourcePicoseconds = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
             dfv->hasServerTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dfv->hasServerPicoseconds = false;
 
         if(server->config.pubSubConfig.enableDeltaFrames) {
             /* Update lastValue store */
-            UA_DataValue_clear(&dataSetWriter->lastSamples[counter].value);
-            UA_DataValue_copy(dfv, &dataSetWriter->lastSamples[counter].value);
+            UA_DataValue_clear(&dsw->lastSamples[counter].value);
+            UA_DataValue_copy(dfv, &dsw->lastSamples[counter].value);
         }
         counter++;
     }
@@ -622,8 +622,8 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 static UA_StatusCode
 UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
                                                  UA_DataSetMessage *dataSetMessage,
-                                                 UA_DataSetWriter *dataSetWriter) {
-    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
+                                                 UA_DataSetWriter *dsw) {
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -642,7 +642,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         UA_PubSubDataSetField_sampleValue(server, dsf, &value);
 
         /* Check if the value has changed */
-        UA_DataSetWriterSample *ls = &dataSetWriter->lastSamples[counter];
+        UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
         if(valueChangedVariant(&ls->value.value, &value.value)) {
             /* increase fieldCount for current delta message */
             dataSetMessage->data.deltaFrameData.fieldCount++;
@@ -670,33 +670,33 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
     size_t currentDeltaField = 0;
     for(size_t i = 0; i < pds->fieldSize; i++) {
-        if(!dataSetWriter->lastSamples[i].valueChanged)
+        if(!dsw->lastSamples[i].valueChanged)
             continue;
 
         UA_DataSetMessage_DeltaFrameField *dff = &deltaFields[currentDeltaField];
 
         dff->fieldIndex = (UA_UInt16) i;
-        UA_DataValue_copy(&dataSetWriter->lastSamples[i].value, &dff->fieldValue);
+        UA_DataValue_copy(&dsw->lastSamples[i].value, &dff->fieldValue);
 
         /* Reset the changed flag */
-        dataSetWriter->lastSamples[i].valueChanged = false;
+        dsw->lastSamples[i].valueChanged = false;
 
         /* Deactivate statuscode? */
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_STATUSCODE) == 0)
             dff->fieldValue.hasStatus = false;
 
         /* Deactivate timestamps? */
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP) == 0)
             dff->fieldValue.hasSourceTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS) == 0)
             dff->fieldValue.hasServerPicoseconds = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERTIMESTAMP) == 0)
             dff->fieldValue.hasServerTimestamp = false;
-        if(((u64)dataSetWriter->config.dataSetFieldContentMask &
+        if(((u64)dsw->config.dataSetFieldContentMask &
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dff->fieldValue.hasServerPicoseconds = false;
 
@@ -709,11 +709,11 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 UA_StatusCode
 UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
                                         UA_DataSetMessage *dataSetMessage,
-                                        UA_DataSetWriter *dataSetWriter) {
+                                        UA_DataSetWriter *dsw) {
     /* Heartbeat message if no pds is connected */
-    UA_PublishedDataSet *pds = dataSetWriter->connectedDataSet;
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
 
-    UA_WriterGroup *wg = dataSetWriter->linkedWriterGroup;
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
 
     /* Reset the message */
@@ -724,7 +724,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     UA_UadpDataSetWriterMessageDataType defaultUadpConfiguration;
     UA_UadpDataSetWriterMessageDataType *dsm = NULL;
     UA_JsonDataSetWriterMessageDataType *jsonDsm = NULL;
-    const UA_ExtensionObject *ms = &dataSetWriter->config.messageSettings;
+    const UA_ExtensionObject *ms = &dsw->config.messageSettings;
     if(ms->content.decoded.type == &UA_TYPES[UA_TYPES_UADPDATASETWRITERMESSAGEDATATYPE]) {
         dsm = (UA_UadpDataSetWriterMessageDataType*)ms->content.decoded.data; /* type is UADP */
     } else if(ms->content.decoded.type == &UA_TYPES[UA_TYPES_JSONDATASETWRITERMESSAGEDATATYPE]) {
@@ -741,10 +741,10 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     }
 
     /* The field encoding depends on the flags inside the writer config. */
-    if(dataSetWriter->config.dataSetFieldContentMask &
+    if(dsw->config.dataSetFieldContentMask &
        (u64)UA_DATASETFIELDCONTENTMASK_RAWDATA) {
         dataSetMessage->header.fieldEncoding = UA_FIELDENCODING_RAWDATA;
-    } else if((u64)dataSetWriter->config.dataSetFieldContentMask &
+    } else if((u64)dsw->config.dataSetFieldContentMask &
               ((u64)UA_DATASETFIELDCONTENTMASK_SOURCETIMESTAMP |
                (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS |
                (u64)UA_DATASETFIELDCONTENTMASK_SOURCEPICOSECONDS |
@@ -758,7 +758,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         /* Sanity-test the configuration */
         if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
            dsm->configuredSize != 0) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, dataSetWriter,
+            UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
                                   "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;
@@ -797,7 +797,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
            (u64)UA_UADPDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
             dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
             dataSetMessage->header.dataSetMessageSequenceNr =
-                dataSetWriter->actualDataSetMessageSequenceCount;
+                dsw->actualDataSetMessageSequenceCount;
         }
 
         if((u64)dsm->dataSetMessageContentMask &
@@ -845,7 +845,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_SEQUENCENUMBER) {
             dataSetMessage->header.dataSetMessageSequenceNrEnabled = true;
             dataSetMessage->header.dataSetMessageSequenceNr =
-                dataSetWriter->actualDataSetMessageSequenceCount;
+                dsw->actualDataSetMessageSequenceCount;
         }
 
         if((u64)jsonDsm->dataSetMessageContentMask &
@@ -862,7 +862,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     }
 
     /* Set the sequence count. Automatically rolls over to zero */
-    dataSetWriter->actualDataSetMessageSequenceCount++;
+    dsw->actualDataSetMessageSequenceCount++;
 
     if(!pds) {
         /* Prepare DataSetMessageContent for the heartbeat message */
@@ -877,49 +877,49 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
     if(dsm && server->config.pubSubConfig.enableDeltaFrames) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
-        if(dataSetWriter->connectedDataSetVersion.majorVersion !=
+        if(dsw->connectedDataSetVersion.majorVersion !=
            pds->dataSetMetaData.configurationVersion.majorVersion ||
-           dataSetWriter->connectedDataSetVersion.minorVersion !=
+           dsw->connectedDataSetVersion.minorVersion !=
            pds->dataSetMetaData.configurationVersion.minorVersion) {
             /* Remove old samples */
-            for(size_t i = 0; i < dataSetWriter->lastSamplesCount; i++)
-                UA_DataValue_clear(&dataSetWriter->lastSamples[i].value);
+            for(size_t i = 0; i < dsw->lastSamplesCount; i++)
+                UA_DataValue_clear(&dsw->lastSamples[i].value);
 
             /* Realloc PDS dependent memory */
-            dataSetWriter->lastSamplesCount = pds->fieldSize;
+            dsw->lastSamplesCount = pds->fieldSize;
             UA_DataSetWriterSample *newSamplesArray = (UA_DataSetWriterSample * )
-                UA_realloc(dataSetWriter->lastSamples,
-                           sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
+                UA_realloc(dsw->lastSamples,
+                           sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
             if(!newSamplesArray)
                 return UA_STATUSCODE_BADOUTOFMEMORY;
-            dataSetWriter->lastSamples = newSamplesArray;
-            memset(dataSetWriter->lastSamples, 0,
-                   sizeof(UA_DataSetWriterSample) * dataSetWriter->lastSamplesCount);
+            dsw->lastSamples = newSamplesArray;
+            memset(dsw->lastSamples, 0,
+                   sizeof(UA_DataSetWriterSample) * dsw->lastSamplesCount);
 
-            dataSetWriter->connectedDataSetVersion =
+            dsw->connectedDataSetVersion =
                 pds->dataSetMetaData.configurationVersion;
             UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
-                                                           dataSetWriter);
-            dataSetWriter->deltaFrameCounter = 0;
+                                                           dsw);
+            dsw->deltaFrameCounter = 0;
             return UA_STATUSCODE_GOOD;
         }
 
         /* The standard defines: if a PDS contains only one fields no delta messages
          * should be generated because they need more memory than a keyframe with 1
          * field. */
-        if(pds->fieldSize > 1 && dataSetWriter->deltaFrameCounter > 0 &&
-           dataSetWriter->deltaFrameCounter <= dataSetWriter->config.keyFrameCount) {
+        if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
+           dsw->deltaFrameCounter <= dsw->config.keyFrameCount) {
             UA_PubSubDataSetWriter_generateDeltaFrameMessage(server, dataSetMessage,
-                                                             dataSetWriter);
-            dataSetWriter->deltaFrameCounter++;
+                                                             dsw);
+            dsw->deltaFrameCounter++;
             return UA_STATUSCODE_GOOD;
         }
 
-        dataSetWriter->deltaFrameCounter = 1;
+        dsw->deltaFrameCounter = 1;
     }
 
     return UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
-                                                          dataSetWriter);
+                                                          dsw);
 }
 
 #endif /* UA_ENABLE_PUBSUB */
