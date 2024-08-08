@@ -1383,8 +1383,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
         UA_StatusCode res =
             UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_WRITER(server->config.logging, dsw,
-                         "PubSub Publish: DataSetMessage creation failed");
+            UA_LOG_ERROR_PUBSUB(server->config.logging, dsw,
+                                "PubSub Publish: DataSetMessage creation failed");
             UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
             continue;
         }
