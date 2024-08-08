@@ -444,25 +444,6 @@ UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_Server *server,
                                  const UA_NodeId writerGroup);
 
-#define UA_LOG_WRITERGROUP_INTERNAL(LOGGER, LEVEL, WG, MSG, ...)        \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (WG)->head.logIdString, __VA_ARGS__);            \
-    }
-
-#define UA_LOG_TRACE_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, TRACE, WRITERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, DEBUG, WRITERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_INFO_WRITERGROUP(LOGGER, WRITERGROUP, ...)               \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, INFO, WRITERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_WRITERGROUP(LOGGER, WRITERGROUP, ...)            \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, WARNING, WRITERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, ERROR, WRITERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_WRITERGROUP(LOGGER, WRITERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_WRITERGROUP_INTERNAL(LOGGER, FATAL, WRITERGROUP, __VA_ARGS__, ""))
-
 /**********************************************/
 /*               DataSetField                 */
 /**********************************************/

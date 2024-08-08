@@ -179,13 +179,13 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
                 newWriterGroup->head.identifier);
     newWriterGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_WRITERGROUP(server->config.logging, newWriterGroup, "WriterGroup created");
+    UA_LOG_INFO_PUBSUB(server->config.logging, newWriterGroup, "WriterGroup created");
 
     /* Validate the connection settings */
     res = UA_WriterGroup_connect(server, newWriterGroup, true);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, newWriterGroup,
-                                 "Could not validate the connection parameters");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, newWriterGroup,
+                            "Could not validate the connection parameters");
         UA_WriterGroup_remove(server, newWriterGroup);
         return res;
     }
@@ -250,18 +250,18 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->configurationFrozen) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Deleting the WriterGroup failed. "
-                                   "WriterGroup is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Deleting the WriterGroup failed. "
+                              "WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
     if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Deleting the WriterGroup failed. "
-                                   "PubSubConnection is frozen.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Deleting the WriterGroup failed. "
+                              "PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -299,7 +299,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
         deleteNode(server, wg->head.identifier, true);
 #endif
 
-        UA_LOG_INFO_WRITERGROUP(server->config.logging, wg, "WriterGroup deleted");
+        UA_LOG_INFO_PUBSUB(server->config.logging, wg, "WriterGroup deleted");
 
         UA_WriterGroupConfig_clear(&wg->config);
         UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
@@ -352,8 +352,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
 
     /* Offset table only possible for binary encoding */
     if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "PubSub-RT configuration fail: Non-RT capable encoding.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "PubSub-RT configuration fail: Non-RT capable encoding.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
 
@@ -613,9 +613,9 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(wg->configurationFrozen){
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Modify WriterGroup failed. WriterGroup is frozen.");
+    if(wg->configurationFrozen) {
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Modify WriterGroup failed. WriterGroup is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -624,9 +624,9 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
     if(wg->config.maxEncapsulatedDataSetMessageCount != config->maxEncapsulatedDataSetMessageCount) {
         wg->config.maxEncapsulatedDataSetMessageCount = config->maxEncapsulatedDataSetMessageCount;
         if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-            UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                       "MaxEncapsulatedDataSetMessag need enabled "
-                                       "'PayloadHeader' within the message settings.");
+            UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                                  "MaxEncapsulatedDataSetMessag need enabled "
+                                  "'PayloadHeader' within the message settings.");
         }
     }
 
@@ -637,18 +637,18 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
             UA_WriterGroup_removePublishCallback(server, wg);
             res = UA_WriterGroup_addPublishCallback(server, wg);
             if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                           "Modify WriterGroup failed. Adding publish callback failed"
-                                           "with status code %s", UA_StatusCode_name(res));
+                UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                                      "Modify WriterGroup failed. Adding publish callback failed"
+                                      "with status code %s", UA_StatusCode_name(res));
                 return res;
             }
         }
     }
 
     if(wg->config.priority != config->priority) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Priority parameter is not yet "
-                                   "supported for WriterGroup updates");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Priority parameter is not yet "
+                              "supported for WriterGroup updates");
     }
 
     return UA_STATUSCODE_GOOD;
@@ -744,13 +744,13 @@ setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
     if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!wg->config.securityPolicy) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "No SecurityPolicy configured for the WriterGroup");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "No SecurityPolicy configured for the WriterGroup");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -806,8 +806,8 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                  "The WriterGroup is being deleted. Can only be disabled.");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "The WriterGroup is being deleted. Can only be disabled.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -870,9 +870,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     if(wg->head.state != oldState) {
         /* Inform application about state change */
         UA_ServerConfig *pConfig = &server->config;
-        UA_LOG_INFO_WRITERGROUP(pConfig->logging, wg, "State change: %s -> %s",
-                               UA_PubSubState_name(oldState),
-                               UA_PubSubState_name(wg->head.state));
+        UA_LOG_INFO_PUBSUB(pConfig->logging, wg, "State change: %s -> %s",
+                           UA_PubSubState_name(oldState),
+                           UA_PubSubState_name(wg->head.state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
@@ -960,8 +960,8 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
 
     /* Failure, set the WriterGroup into an error mode */
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Sending NetworkMessage failed");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Sending NetworkMessage failed");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR);
         return;
@@ -999,8 +999,8 @@ sendNetworkMessageJson(UA_Server *server, UA_PubSubConnection *connection, UA_Wr
     if(wg->sendChannel != 0)
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Cannot send, no open connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Cannot send, no open connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1153,8 +1153,8 @@ sendNetworkMessageBinary(UA_Server *server, UA_PubSubConnection *connection, UA_
     if(wg->sendChannel != 0)
         sendChannel = wg->sendChannel;
     if(sendChannel == 0) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "Cannot send, no open connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "Cannot send, no open connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -1235,8 +1235,8 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
         UA_NetworkMessage_updateBufferedMessage(&writerGroup->bufferedMessage);
 
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_DEBUG_WRITERGROUP(server->config.logging, writerGroup,
-                                 "PubSub sending. Unknown field type.");
+        UA_LOG_DEBUG_PUBSUB(server->config.logging, writerGroup,
+                            "PubSub sending. Unknown field type.");
         return;
     }
 
@@ -1259,8 +1259,8 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
                                  writerGroup->bufferedMessage.encryptBuffer.length - sigSize);
 
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
-                                     "PubSub Encryption failed");
+            UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+                                "PubSub Encryption failed");
             return;
         }
 
@@ -1276,8 +1276,8 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
     if(writerGroup->sendChannel != 0)
         sendChannel = writerGroup->sendChannel;
     if(sendChannel == 0) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
-                                 "Cannot send, no open connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+                            "Cannot send, no open connection");
         return;
     }
 
@@ -1285,8 +1285,8 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
     UA_ByteString outBuf;
     res = cm->allocNetworkBuffer(cm, sendChannel, &outBuf, buf->length);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
-                                 "PubSub message memory allocation failed");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+                            "PubSub message memory allocation failed");
         return;
     }
     memcpy(outBuf.data, buf->data, buf->length);
@@ -1313,9 +1313,9 @@ sendNetworkMessage(UA_Server *server, UA_WriterGroup *wg, UA_PubSubConnection *c
 
     /* If sending failed, disable all writer of the writergroup */
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, wg,
-                                 "PubSub Publish: Could not send a NetworkMessage "
-                                 "with status code %s", UA_StatusCode_name(res));
+        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+                            "PubSub Publish: Could not send a NetworkMessage "
+                            "with status code %s", UA_StatusCode_name(res));
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
     }
 }
@@ -1327,13 +1327,13 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_assert(writerGroup != NULL);
     UA_assert(server != NULL);
 
-    UA_LOG_DEBUG_WRITERGROUP(server->config.logging, writerGroup, "Publish Callback");
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, writerGroup, "Publish Callback");
 
     /* Find the connection associated with the writer */
     UA_PubSubConnection *connection = writerGroup->linkedConnection;
     if(!connection) {
-        UA_LOG_ERROR_WRITERGROUP(server->config.logging, writerGroup,
-                                 "Publish failed. PubSubConnection invalid");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, writerGroup,
+                            "Publish failed. PubSubConnection invalid");
         UA_LOCK(&server->serviceMutex);
         UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_ERROR);
         UA_UNLOCK(&server->serviceMutex);

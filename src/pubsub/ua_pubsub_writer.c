@@ -189,15 +189,15 @@ UA_DataSetWriter_create(UA_Server *server,
 
     /* Make checks for a heartbeat */
     if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Adding DataSetWriter failed: DataSet can be null only for "
-                                   "a heartbeat in which case KeyFrameCount shall be 1");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Adding DataSetWriter failed: DataSet can be null only for "
+                              "a heartbeat in which case KeyFrameCount shall be 1");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     if(wg->configurationFrozen) {
-        UA_LOG_WARNING_WRITERGROUP(server->config.logging, wg,
-                                   "Adding DataSetWriter failed: WriterGroup is frozen");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                              "Adding DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
