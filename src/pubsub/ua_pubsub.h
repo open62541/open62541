@@ -631,25 +631,6 @@ UA_Boolean
 UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm);
 
-#define UA_LOG_READERGROUP_INTERNAL(LOGGER, LEVEL, RG, MSG, ...)        \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (RG)->head.logIdString, __VA_ARGS__);            \
-    }
-
-#define UA_LOG_TRACE_READERGROUP(LOGGER, READERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, TRACE, READERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_READERGROUP(LOGGER, READERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, DEBUG, READERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_INFO_READERGROUP(LOGGER, READERGROUP, ...)               \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, INFO, READERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_READERGROUP(LOGGER, READERGROUP, ...)            \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, WARNING, READERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_READERGROUP(LOGGER, READERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, ERROR, READERGROUP, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_READERGROUP(LOGGER, READERGROUP, ...)              \
-    UA_MACRO_EXPAND(UA_LOG_READERGROUP_INTERNAL(LOGGER, FATAL, READERGROUP, __VA_ARGS__, ""))
-
 /*********************************************************/
 /*               Reading Message handling                */
 /*********************************************************/

@@ -777,8 +777,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Store the connectionId (if a new connection) */
     UA_StatusCode res = UA_ReaderGroup_addRecvConnection(rg, connectionId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                  "No more space for an additional EventLoop connection");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "No more space for an additional EventLoop connection");
         UA_PubSubConnection *c = rg->linkedConnection;
         if(c && c->cm)
             c->cm->closeConnection(c->cm, connectionId);
@@ -796,8 +796,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                   "Received a messaage for a non-operational ReaderGroup");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "Received a messaage for a non-operational ReaderGroup");
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -822,8 +822,8 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 #endif
     }
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_READERGROUP(server->config.logging, rg,
-                                  "Verify, decrypt and decode network message failed");
+        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                              "Verify, decrypt and decode network message failed");
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -849,8 +849,8 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
         ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->content.decoded.type !=
        &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
-        UA_LOG_ERROR_READERGROUP(server->config.logging, rg,
-                                "Wrong TransportSettings type for MQTT");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, rg,
+                            "Wrong TransportSettings type for MQTT");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_BrokerDataSetReaderTransportDataType *transportSettings =
@@ -888,8 +888,8 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
     res = c->cm->openConnection(c->cm, &kvm, server, rg, ReaderGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_READERGROUP(server->config.logging, rg,
-                                 "Could not open the MQTT connection");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, rg,
+                            "Could not open the MQTT connection");
     }
     return res;
 }
@@ -920,7 +920,7 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validat
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
     if(!el) {
-        UA_LOG_ERROR_READERGROUP(server->config.logging, rg, "No EventLoop configured");
+        UA_LOG_ERROR_PUBSUB(server->config.logging, rg, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
