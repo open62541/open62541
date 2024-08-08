@@ -744,7 +744,7 @@ UA_Server_addPublishedDataSet(UA_Server *server,
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
     if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING_DATASET(server->config.logging, publishedDataSet,
                        "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
