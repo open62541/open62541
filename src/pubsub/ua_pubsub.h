@@ -426,15 +426,14 @@ UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server,
-                              UA_WriterGroup *writerGroup,
+UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
                               UA_PubSubState targetState);
 UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *writerGroup);
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg);
 
 void
 UA_WriterGroup_publishCallback(UA_Server *server,
-                               UA_WriterGroup *writerGroup);
+                               UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
