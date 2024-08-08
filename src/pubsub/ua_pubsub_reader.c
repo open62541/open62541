@@ -119,7 +119,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     if(!newDataSetReader)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newDataSetReader->componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
+    newDataSetReader->head.componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
     newDataSetReader->linkedReaderGroup = readerGroup;
 
     /* Copy the config into the new dataSetReader */
@@ -137,22 +137,22 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     }
 #else
     UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &newDataSetReader->identifier);
+                                          &newDataSetReader->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetReader %N\t| ",
                 newDataSetReader->linkedReaderGroup->logIdString,
-                newDataSetReader->identifier);
-    newDataSetReader->logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+                newDataSetReader->head.identifier);
+    newDataSetReader->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_READER(server->config.logging, newDataSetReader, "DataSetReader created");
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Create message receive timeout timer */
     retVal = server->config.pubSubConfig.monitoringInterface.
-        createMonitoring(server, newDataSetReader->identifier,
+        createMonitoring(server, newDataSetReader->head.identifier,
                          UA_PUBSUB_COMPONENT_DATASETREADER,
                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
                          newDataSetReader,
@@ -221,7 +221,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                     UA_free(targetVars);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-                    connectDataSetReaderToDataSet(server, newDataSetReader->identifier,
+                    connectDataSetReaderToDataSet(server, newDataSetReader->head.identifier,
                                                   subscribedDataSet->head.identifier);
 #endif
                 }
@@ -253,7 +253,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     }
 
     if(readerIdentifier)
-        UA_NodeId_copy(&newDataSetReader->identifier, readerIdentifier);
+        UA_NodeId_copy(&newDataSetReader->head.identifier, readerIdentifier);
 
     /* Set the DataSetReader state after finalizing the configuration */
     return UA_DataSetReader_setPubSubState(server, newDataSetReader,
@@ -281,13 +281,13 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, dsr->identifier, true);
+    deleteNode(server, dsr->head.identifier, true);
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Remove message receive timeout timer */
     server->config.pubSubConfig.monitoringInterface.
-        deleteMonitoring(server, dsr->identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+        deleteMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
@@ -319,8 +319,7 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
     UA_LOG_INFO_READER(server->config.logging, dsr, "DataSetReader deleted");
 
-    UA_NodeId_clear(&dsr->identifier);
-    UA_String_clear(&dsr->logIdString);
+    UA_PubSubComponentHead_clear(&dsr->head);
     UA_free(dsr);
     return UA_STATUSCODE_GOOD;
 }
@@ -394,7 +393,7 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
         dsr->config.messageReceiveTimeout = config->messageReceiveTimeout;
         if(dsr->msgRcvTimeoutTimerId != 0) {
             res = server->config.pubSubConfig.monitoringInterface.
-                updateMonitoringInterval(server, dsr->identifier,
+                updateMonitoringInterval(server, dsr->head.identifier,
                                          UA_PUBSUB_COMPONENT_DATASETREADER,
                                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
                                          dsr);
@@ -504,7 +503,7 @@ UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dsrId,
     UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
     if(dsr) {
         res = UA_STATUSCODE_GOOD;
-        *state = dsr->state;
+        *state = dsr->head.state;
     }
     UA_UNLOCK(&server->serviceMutex);
     return res;
@@ -547,10 +546,10 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
 
-    UA_PubSubState oldState = dsr->state;
-    dsr->state = targetState;
+    UA_PubSubState oldState = dsr->head.state;
+    dsr->head.state = targetState;
 
-    switch(dsr->state) {
+    switch(dsr->head.state) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
@@ -562,28 +561,28 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
     case UA_PUBSUBSTATE_OPERATIONAL:
         if(rg->state == UA_PUBSUBSTATE_DISABLED ||
            rg->state == UA_PUBSUBSTATE_ERROR) {
-            dsr->state = UA_PUBSUBSTATE_PAUSED; /* RG is disabled -> paused */
+            dsr->head.state = UA_PUBSUBSTATE_PAUSED; /* RG is disabled -> paused */
         } else {
-            dsr->state = rg->state; /* RG is enabled -> same state */
+            dsr->head.state = rg->state; /* RG is enabled -> same state */
         }
         break;
 
     default:
-        dsr->state = UA_PUBSUBSTATE_ERROR;
+        dsr->head.state = UA_PUBSUBSTATE_ERROR;
         res = UA_STATUSCODE_BADINTERNALERROR;
         break;
     }
 
     /* Inform application about state change */
-    if(dsr->state != oldState) {
+    if(dsr->head.state != oldState) {
         UA_ServerConfig *config = &server->config;
         UA_LOG_INFO_READER(config->logging, dsr, "State change: %s -> %s",
                            UA_PubSubState_name(oldState),
-                           UA_PubSubState_name(dsr->state));
+                           UA_PubSubState_name(dsr->head.state));
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.
-                stateChangeCallback(server, &dsr->identifier, dsr->state, res);
+                stateChangeCallback(server, &dsr->head.identifier, dsr->head.state, res);
             UA_LOCK(&server->serviceMutex);
         }
     }
@@ -737,12 +736,12 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
         /* Write the value */
         if(tv->beforeWrite || tv->externalDataValue) {
             if(tv->beforeWrite)
-                tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                tv->beforeWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
             memcpy((*tv->externalDataValue)->value.data, value, type->memSize);
             if(tv->afterWrite)
-                tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                tv->afterWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
         } else {
@@ -786,15 +785,15 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
 
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
-    if(dsr->state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_DataSetReader_setPubSubState(server, dsr, dsr->state);
+    if(dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
+        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state);
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
 #endif
 
-    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL) {
+    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
         UA_LOG_WARNING_READER(server->config.logging, dsr,
                             "Received a network message but not operational");
         return;
@@ -870,13 +869,13 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
             }
 
             if(tv->beforeWrite)
-                tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                tv->beforeWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
             memcpy((*tv->externalDataValue)->value.data,
                    field->value.data, field->value.type->memSize);
             if(tv->afterWrite)
-                tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup->identifier,
+                tv->afterWrite(server, &dsr->head.identifier, &dsr->linkedReaderGroup->identifier,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
             continue;
@@ -907,7 +906,7 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
 
     /* If previous reader state was error (because we haven't received messages
      * and ran into timeout) we should set the state back to operational */
-    if(dsr->state == UA_PUBSUBSTATE_ERROR) {
+    if(dsr->head.state == UA_PUBSUBSTATE_ERROR) {
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
     }
 
@@ -915,7 +914,7 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
     UA_StatusCode res;
     if(dsr->msgRcvTimeoutTimerId != 0) {
         res = server->config.pubSubConfig.monitoringInterface.
-            stopMonitoring(server, dsr->identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+            stopMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
                            UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
         if(res != UA_STATUSCODE_GOOD)
             UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
@@ -923,7 +922,7 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
 
     /* Start message receive timeout timer */
     res = server->config.pubSubConfig.monitoringInterface.
-        startMonitoring(server, dsr->identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+        startMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
@@ -935,7 +934,7 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
     UA_assert(server);
     UA_assert(dsr);
 
-    if(dsr->componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(dsr->head.componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
         UA_LOG_ERROR_READER(server->config.logging, dsr,
                             "UA_DataSetReader_handleMessageReceiveTimeout(): "
                             "input param is not of type DataSetReader");
@@ -943,8 +942,8 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
     }
 
     /* Don't signal an error if we don't expect messages to arrive */
-    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
         return;
 
     UA_LOG_DEBUG_READER(server->config.logging, dsr,

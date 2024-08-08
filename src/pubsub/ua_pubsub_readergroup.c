@@ -64,7 +64,7 @@ UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
     TAILQ_FOREACH(psc, &server->pubSubManager.connections, listEntry) {
         LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
             LIST_FOREACH(tmpReader, &rg->readers, listEntry) {
-                if(UA_NodeId_equal(&tmpReader->identifier, &identifier))
+                if(UA_NodeId_equal(&tmpReader->head.identifier, &identifier))
                     return tmpReader;
             }
         }
@@ -402,7 +402,7 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     /* Update the attached DataSetReaders */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(server, dsr, dsr->state);
+        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state);
     }
 
     return ret;
@@ -683,8 +683,8 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
             continue;
 
         /* Check if the reader is enabled */
-        if(reader->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           reader->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(reader->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+           reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
 
         /* Update the ReaderGroup state if this is the first received message */
@@ -770,8 +770,8 @@ UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
         /* Check if the reader is enabled */
-        if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
-           dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+           dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
 
         /* Check the identifier */
