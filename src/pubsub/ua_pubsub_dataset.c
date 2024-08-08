@@ -797,7 +797,7 @@ UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
     UA_StandaloneSubscribedDataSet *sds;
     TAILQ_FOREACH(sds, &server->pubSubManager.subscribedDataSets, listEntry) {
-        if(UA_NodeId_equal(&identifier, &sds->identifier))
+        if(UA_NodeId_equal(&identifier, &sds->head.identifier))
             return sds;
     }
     return NULL;
@@ -840,7 +840,7 @@ void
 UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
                                      UA_StandaloneSubscribedDataSet *subscribedDataSet) {
     UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
-    UA_NodeId_clear(&subscribedDataSet->identifier);
+    UA_PubSubComponentHead_clear(&subscribedDataSet->head);
 }
 
 static UA_StatusCode
@@ -890,7 +890,7 @@ addStandaloneSubscribedDataSet(UA_Server *server,
 #endif
 
     if(sdsIdentifier)
-        UA_NodeId_copy(&newSubscribedDataSet->identifier, sdsIdentifier);
+        UA_NodeId_copy(&newSubscribedDataSet->head.identifier, sdsIdentifier);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -928,7 +928,7 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, const UA_NodeId sdsIden
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, sds->identifier, true);
+    deleteNode(server, sds->head.identifier, true);
 #endif
 
     TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, sds, listEntry);

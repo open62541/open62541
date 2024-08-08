@@ -1187,16 +1187,16 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server,
             UA_QUALIFIEDNAME(0, sdsName),
             UA_NS0ID(STANDALONESUBSCRIBEDDATASETTYPE),
             &object_attr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-            NULL, &subscribedDataSet->identifier);
+            NULL, &subscribedDataSet->head.identifier);
     UA_NodeId sdsObjectNode =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
-                            UA_NS0ID(HASCOMPONENT), subscribedDataSet->identifier);
+                            UA_NS0ID(HASCOMPONENT), subscribedDataSet->head.identifier);
     UA_NodeId metaDataId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
-                            UA_NS0ID(HASPROPERTY), subscribedDataSet->identifier);
+                            UA_NS0ID(HASPROPERTY), subscribedDataSet->head.identifier);
     UA_NodeId connectedId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "IsConnected"),
-                            UA_NS0ID(HASPROPERTY), subscribedDataSet->identifier);
+                            UA_NS0ID(HASPROPERTY), subscribedDataSet->head.identifier);
 
     if(UA_NodeId_equal(&sdsObjectNode, &UA_NODEID_NULL) ||
        UA_NodeId_equal(&metaDataId, &UA_NODEID_NULL) ||
@@ -1227,7 +1227,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server,
 
     UA_NodePropertyContext *isConnectedNodeContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    isConnectedNodeContext->parentNodeId = subscribedDataSet->identifier;
+    isConnectedNodeContext->parentNodeId = subscribedDataSet->head.identifier;
     isConnectedNodeContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     isConnectedNodeContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED;
 
@@ -1238,7 +1238,7 @@ addStandaloneSubscribedDataSetRepresentation(UA_Server *server,
 
     UA_NodePropertyContext *metaDataContext = (UA_NodePropertyContext *)
         UA_malloc(sizeof(UA_NodePropertyContext));
-    metaDataContext->parentNodeId = subscribedDataSet->identifier;
+    metaDataContext->parentNodeId = subscribedDataSet->head.identifier;
     metaDataContext->parentClassifier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE;
     metaDataContext->elementClassiefier = UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_DATASETMETADATA;
     ret |= addVariableValueSource(server, valueCallback, metaDataId, metaDataContext);
