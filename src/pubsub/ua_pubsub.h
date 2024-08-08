@@ -354,25 +354,6 @@ UA_DataSetWriter_create(UA_Server *server,
 UA_StatusCode
 UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dataSetWriter);
 
-#define UA_LOG_WRITER_INTERNAL(LOGGER, LEVEL, WRITER, MSG, ...)         \
-    if(UA_LOGLEVEL <= UA_LOGLEVEL_##LEVEL) {                            \
-        UA_LOG_##LEVEL(LOGGER, UA_LOGCATEGORY_PUBSUB, "%S" MSG "%.0s",  \
-                       (WRITER)->head.logIdString, __VA_ARGS__);        \
-    }
-
-#define UA_LOG_TRACE_WRITER(LOGGER, WRITER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, TRACE, WRITER, __VA_ARGS__, ""))
-#define UA_LOG_DEBUG_WRITER(LOGGER, WRITER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, DEBUG, WRITER, __VA_ARGS__, ""))
-#define UA_LOG_INFO_WRITER(LOGGER, WRITER, ...)                         \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, INFO, WRITER, __VA_ARGS__, ""))
-#define UA_LOG_WARNING_WRITER(LOGGER, WRITER, ...)                      \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, WARNING, WRITER, __VA_ARGS__, ""))
-#define UA_LOG_ERROR_WRITER(LOGGER, WRITER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, ERROR, WRITER, __VA_ARGS__, ""))
-#define UA_LOG_FATAL_WRITER(LOGGER, WRITER, ...)                        \
-    UA_MACRO_EXPAND(UA_LOG_WRITER_INTERNAL(LOGGER, FATAL, WRITER, __VA_ARGS__, ""))
-
 /**********************************************/
 /*               WriterGroup                  */
 /**********************************************/
