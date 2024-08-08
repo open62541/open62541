@@ -856,8 +856,8 @@ needsValidation(const UA_Logger *logger,
 UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
-                               UA_ReaderGroup *readerGroup) {
-    UA_MessageSecurityMode securityMode = readerGroup->config.securityMode;
+                               UA_ReaderGroup *rg) {
+    UA_MessageSecurityMode securityMode = rg->config.securityMode;
     UA_Boolean doValidate = false;
     UA_Boolean doDecrypt = false;
 
@@ -872,8 +872,8 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     if(!doValidate && !doDecrypt)
         return UA_STATUSCODE_GOOD;
 
-    void *channelContext = readerGroup->securityPolicyContext;
-    UA_PubSubSecurityPolicy *securityPolicy = readerGroup->config.securityPolicy;
+    void *channelContext = rg->securityPolicyContext;
+    UA_PubSubSecurityPolicy *securityPolicy = rg->config.securityPolicy;
     UA_CHECK_MEM_ERROR(channelContext, return UA_STATUSCODE_BADINVALIDARGUMENT,
                        logger, UA_LOGCATEGORY_SERVER,
                        "PubSub receive. securityPolicyContext must be initialized "
