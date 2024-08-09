@@ -67,8 +67,7 @@ afterInputNodeWrite (UA_Server *server,
                      const UA_NodeId *nodeId, void *nodeContext,
                      const UA_NumericRange *range, const UA_DataValue *data)
 {
-    UA_Double input = *(UA_Double*) data->value.data;
-    UA_Server_exclusiveLimitAlarmEvaluate(server, &conditionInstance_1, &input);
+    UA_Server_exclusiveLimitAlarmEvaluate_default(server, &conditionInstance_1, (UA_Double*) data->value.data);
 }
 
 static void *
@@ -153,15 +152,16 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         .highLimit = &highLimit
     };
 
-    UA_ConditionInputFns inputFns;
-    inputFns.getInput = sourceNodeGetInputDouble;
-    inputFns.inputFree = sourceNodeInputFreeDouble;
+    UA_ConditionFns fns;
+    fns.getInput = sourceNodeGetInputDouble;
+    fns.inputFree = sourceNodeInputFreeDouble;
+    fns.evaluate = (UA_ConditionEvaluateFn) UA_Server_exclusiveLimitAlarmEvaluate_default;
 
     retval = UA_Server_createExclusiveLimitAlarm (
         server,
         UA_NODEID_NULL,
         &properties,
-        inputFns,
+        fns,
         &alarmProperties,
         &conditionInstance_1
     );

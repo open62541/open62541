@@ -54,8 +54,7 @@ typedef struct UA_Condition {
     UA_ConditionBranch *mainBranch;
     UA_NodeId sourceId;
     void *context;
-    UA_ConditionInputFns inputFns;
-    UA_ConditionEvaluateFn evaluateFn;
+    UA_ConditionFns fns;
     UA_UInt64 onDelayCallbackId;
     UA_UInt64 offDelayCallbackId;
     UA_ConditionEventInfo *_delayCallbackInfo;
@@ -197,8 +196,6 @@ cmpConditionBranch (const void *a, const void *b) {
 
 ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_ConditionBranch, zipEntry, cmpConditionBranch)
 
-#define CONDITION_SEVERITYCHANGECALLBACK_ENABLE
-
 /* Condition Field Names */
 #define SHELVEDSTATE_METHOD_TIMEDSHELVE "TimedShelve"
 #define SHELVEDSTATE_METHOD_ONESHOTSHELVE "OneShotShelve"
@@ -277,11 +274,11 @@ ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_Condition
 #define REFRESHEVENT_START_IDX                                 0
 #define REFRESHEVENT_END_IDX                                   1
 #define REFRESHEVENT_SEVERITY_DEFAULT                          100
-#define EXPIRATION_LIMIT_DEFAULT_VALUE                         15
 
-#ifdef UA_ENABLE_ENCRYPTION
 #define CONDITION_FIELD_EXPIRATION_LIMIT                       "ExpirationLimit"
-#endif
+#define CONDITION_FIELD_EXPIRATION_DATE                        "ExpirationDate"
+#define CONDITION_FIELD_CERTIFICATE                            "Certificate"
+#define CONDITION_FIELD_CERTIFICATE_TYPE                       "CertificateType"
 
 #define LOCALE                                                 "en"
 #define LOCALE_NULL                                             ""
@@ -357,7 +354,7 @@ static const UA_QualifiedName fieldLowLowLimitQN = STATIC_QN(CONDITION_FIELD_LOW
 static const UA_QualifiedName fieldHighLimitQN = STATIC_QN(CONDITION_FIELD_HIGHLIMIT);
 static const UA_QualifiedName fieldHighHighLimitQN = STATIC_QN(CONDITION_FIELD_HIGHHIGHLIMIT);
 static const UA_QualifiedName fieldEngineeringUnitsQN = STATIC_QN(CONDITION_FIELD_ENGINEERINGUNITS);
-static const UA_QualifiedName fieldExpirationDateQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_DATE);
+static const UA_QualifiedName fieldNormalStateQN = STATIC_QN(CONDITION_FIELD_NORMALSTATE);
 
 #ifdef UA_ENABLE_ENCRYPTION
 static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_LIMIT);
@@ -432,7 +429,6 @@ getConditionBranchFromConditionAndEvent(
     if (!condition) return NULL;
     return UA_Condition_GetBranchWithEventId(condition, eventId);
 }
-
 
 static UA_StatusCode
 setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
@@ -1252,29 +1248,15 @@ addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                          server, data, date, callbackId);
 }
 
-static UA_StatusCode
-conditionEvaluate (
-    UA_Server*server,
-    UA_Condition *condition,
-    const void* input
-)
-{
-    UA_LOCK_ASSERT(&server->serviceMutex, 0);
-    UA_StatusCode retval = condition->evaluateFn ?
-        condition->evaluateFn(server, &condition->mainBranch->id, input) :
-        UA_STATUSCODE_BADINTERNALERROR;
-    return retval;
-}
-
 static void
 enabledEvaluateCondition (UA_Server *server, UA_Condition* condition)
 {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    if (!condition->inputFns.getInput) return;
+    if (!condition->fns.getInput) return;
     UA_UNLOCK(&server->serviceMutex);
-    void *input = condition->inputFns.getInput(server, &condition->mainBranch->id, condition->context);
-    if (input) (void) conditionEvaluate(server, condition, input);
-    if (condition->inputFns.inputFree) condition->inputFns.inputFree (input, condition->context);
+    void *input = condition->fns.getInput(server, &condition->mainBranch->id, condition->context);
+    if (input && condition->fns.evaluate) (void) condition->fns.evaluate (server, &condition->mainBranch->id, input);
+    if (condition->fns.inputFree) condition->fns.inputFree (input, condition->context);
     UA_LOCK(&server->serviceMutex);
 }
 
@@ -1951,8 +1933,8 @@ fail:
 
 static UA_StatusCode
 newConditionEntry (UA_Server *server, const UA_NodeId *conditionNodeId,
-                   const UA_ConditionProperties *conditionProperties, UA_ConditionInputFns inputFns,
-                   UA_ConditionEvaluateFn evaluateFn, UA_Condition **out)
+                   const UA_ConditionProperties *conditionProperties, UA_ConditionFns conditionFns,
+                   UA_Condition **out)
 {
     /*make sure entry doesn't exist*/
     if (getCondition(server, conditionNodeId))
@@ -1964,8 +1946,7 @@ newConditionEntry (UA_Server *server, const UA_NodeId *conditionNodeId,
     UA_Condition *condition = UA_Condition_new();
     status = UA_NodeId_copy (&conditionProperties->source, (UA_NodeId *) &condition->sourceId);
     if (status != UA_STATUSCODE_GOOD) goto fail;
-    condition->evaluateFn = evaluateFn;
-    condition->inputFns = inputFns;
+    condition->fns = conditionFns;
     condition->canBranch = conditionProperties->canBranch;
     ZIP_INSERT (UA_ConditionTree, &server->conditions, condition);
     *out = condition;
@@ -1977,10 +1958,10 @@ fail:
 
 static UA_StatusCode
 newConditionInstanceEntry (UA_Server *server, const UA_NodeId *conditionNodeId, const UA_ConditionProperties *conditionProperties,
-                           UA_ConditionInputFns inputFns, UA_ConditionEvaluateFn evaluateFn)
+                           UA_ConditionFns conditionFns)
 {
     UA_Condition *condition = NULL;
-    UA_StatusCode status = newConditionEntry(server, conditionNodeId, conditionProperties, inputFns, evaluateFn, &condition);
+    UA_StatusCode status = newConditionEntry(server, conditionNodeId, conditionProperties, conditionFns, &condition);
     if (status != UA_STATUSCODE_GOOD) return status;
     /*Could just pass this out of newConditionEntry*/
     if (!condition) return UA_STATUSCODE_BADINTERNALERROR;
@@ -1998,8 +1979,7 @@ addCondition_finish(
     const UA_NodeId conditionId,
     const UA_NodeId *conditionType,
     const UA_ConditionProperties *conditionProperties,
-    UA_ConditionInputFns inputFns,
-    UA_ConditionEvaluateFn evaluateFn,
+    UA_ConditionFns conditionFns,
     const void *conditionSetupProperties
 ) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
@@ -2039,7 +2019,7 @@ addCondition_finish(
 
     retval = setupConditionInstance (server, &conditionId, conditionType, conditionProperties, conditionSetupProperties);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Setup Condition failed",);
-    return newConditionInstanceEntry (server, &conditionId, conditionProperties, inputFns, evaluateFn);
+    return newConditionInstanceEntry (server, &conditionId, conditionProperties, conditionFns);
 }
 
 static UA_StatusCode
@@ -2089,8 +2069,7 @@ __UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
                           const UA_ConditionProperties *conditionProperties,
-                          UA_ConditionInputFns inputFns,
-                          UA_ConditionEvaluateFn evaluateFn,
+                          UA_ConditionFns conditionFns,
                           const void *conditionSetupProperties,
                           UA_NodeId *outNodeId) {
     if(!outNodeId) {
@@ -2106,7 +2085,7 @@ __UA_Server_createCondition(UA_Server *server,
 
     UA_LOCK(&server->serviceMutex);
     retval = addCondition_finish(server, *outNodeId, &conditionType, conditionProperties,
-                                 inputFns, evaluateFn, conditionSetupProperties);
+                                 conditionFns, conditionSetupProperties);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -3640,26 +3619,43 @@ UA_Server_setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condit
 
 static UA_StatusCode
 UA_Server_setupOffNormalAlarmNodes (UA_Server *server, const UA_NodeId *condition,
-                                    const UA_DiscrepancyAlarmProperties *properties)
+                                    const UA_OffNormalAlarmProperties *properties)
 {
-    //TODO
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode ret = writeObjectProperty_scalar(server, *condition, fieldNormalStateQN, &properties->normalState, &UA_TYPES[UA_TYPES_NODEID]);
+    CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting NormalState value failed",);
+    return ret;
 }
-
 
 static UA_StatusCode
 UA_Server_setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                                                 const UA_CertificateExpirationAlarmProperties *properties)
 {
-    UA_NodeId certificateConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE);
-    UA_StatusCode retval = addOptionalField(server, *condition, certificateConditionTypeId,
-                                            fieldExpirationDateQN, NULL);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Expiration Limit optional field failed",);
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if (properties->expirationLimit)
+    {
+        UA_NodeId certificateConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE);
+        retval = addOptionalField(server, *condition, certificateConditionTypeId,
+                                  UA_QUALIFIEDNAME(0,CONDITION_FIELD_EXPIRATION_LIMIT), NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Expiration Limit optional field failed",);
 
-    /* Set the default value for the Expiration limit property */
-    UA_Duration defaultValue = EXPIRATION_LIMIT_DEFAULT_VALUE;
-    retval |= writeObjectProperty_scalar (server, *condition, fieldExpirationDateQN,
-                                          &defaultValue, &UA_TYPES[UA_TYPES_DURATION]);
+        /* Set the default value for the Expiration limit property */
+        retval = writeObjectProperty_scalar (server, *condition, UA_QUALIFIEDNAME(0, CONDITION_FIELD_EXPIRATION_LIMIT),
+                                              properties->expirationLimit, &UA_TYPES[UA_TYPES_DURATION]);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting Expiration Limit value failed",);
+    }
+
+    retval = writeObjectProperty_scalar (server, *condition, UA_QUALIFIEDNAME(0, CONDITION_FIELD_CERTIFICATE),
+                                         &properties->certificate, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting Certificate value failed",);
+
+    retval = writeObjectProperty_scalar (server, *condition, UA_QUALIFIEDNAME(0, CONDITION_FIELD_CERTIFICATE_TYPE),
+                                         &properties->certificateType, &UA_TYPES[UA_TYPES_NODEID]);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting CertificateType value failed",);
+
+    retval = writeObjectProperty_scalar (server, *condition, UA_QUALIFIEDNAME(0, CONDITION_FIELD_EXPIRATION_DATE),
+                                         &properties->expirationDate, &UA_TYPES[UA_TYPES_DATETIME]);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting ExpirationDate value failed",);
+
     return retval;
 }
 
@@ -3971,26 +3967,17 @@ UA_Server_Condition_iterBranches (UA_Server *server, UA_NodeId conditionId,
 
 /* Condition Types */
 
-#define LIMITSTATE_LOWLOWSTATEBIT 1
-#define LIMITSTATE_LOWSTATEBIT 2
-#define LIMITSTATE_HIGHSTATEBIT 3
-#define LIMITSTATE_HIGHHIGHSTATEBIT 4
 
-#define LIMITSTATE_CHECK(state, bit) (((state) >> (bit)) & 1)
-#define LIMITSTATE_SET(state, bit) ((state) |= 1 << (bit))
-
-typedef UA_Byte UA_LimitAlarmLimitState;
-
-static void limitAlarmCalculateLimitState (
+static UA_StatusCode calculateNewLimitState (
     UA_Server *server,
     const UA_NodeId *conditionId,
     UA_Double inputValue,
-    UA_LimitAlarmLimitState prevState,
-    UA_LimitAlarmLimitState *stateOut,
+    UA_LimitState prevState,
+    UA_LimitState *stateOut,
     UA_Boolean exclusive
 )
 {
-    UA_LimitAlarmLimitState state = 0;
+    UA_LimitState state = 0;
     UA_Double highHighLimit;
     UA_Double highLimit;
     UA_Double lowLimit;
@@ -4006,11 +3993,11 @@ static void limitAlarmCalculateLimitState (
     retval = readObjectPropertyDouble (server, *conditionId, UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHHIGHLIMIT), &highHighLimit);
     if (retval == UA_STATUSCODE_GOOD)
     {
-        UA_Double limit = LIMITSTATE_CHECK(prevState, LIMITSTATE_HIGHHIGHSTATEBIT) ?
+        UA_Double limit = UA_LIMITSTATE_CHECK(prevState, UA_LIMITSTATE_HIGHHIGHSTATEBIT) ?
                           (highHighLimit - highHighDeadband) :  highHighLimit;
         if (inputValue >= limit)
         {
-            LIMITSTATE_SET(state, LIMITSTATE_HIGHHIGHSTATEBIT);
+            UA_LIMITSTATE_SET(state, UA_LIMITSTATE_HIGHHIGHSTATEBIT);
             if (exclusive) goto done;
         }
     }
@@ -4019,11 +4006,11 @@ static void limitAlarmCalculateLimitState (
     retval = readObjectPropertyDouble (server, *conditionId, UA_QUALIFIEDNAME(0, CONDITION_FIELD_HIGHLIMIT), &highLimit);
     if (retval == UA_STATUSCODE_GOOD)
     {
-        UA_Double limit = LIMITSTATE_CHECK(prevState, LIMITSTATE_HIGHSTATEBIT) ?
+        UA_Double limit = UA_LIMITSTATE_CHECK(prevState, UA_LIMITSTATE_HIGHSTATEBIT) ?
                           (highLimit - highDeadband) :  highLimit;
         if (inputValue >= limit)
         {
-            LIMITSTATE_SET(state, LIMITSTATE_HIGHSTATEBIT);
+            UA_LIMITSTATE_SET(state, UA_LIMITSTATE_HIGHSTATEBIT);
             if (exclusive) goto done;
         }
     }
@@ -4032,11 +4019,11 @@ static void limitAlarmCalculateLimitState (
     retval = readObjectPropertyDouble (server, *conditionId, UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLIMIT), &lowLimit);
     if (retval == UA_STATUSCODE_GOOD)
     {
-        UA_Double limit = LIMITSTATE_CHECK(prevState, LIMITSTATE_LOWSTATEBIT) ?
+        UA_Double limit = UA_LIMITSTATE_CHECK(prevState, UA_LIMITSTATE_LOWSTATEBIT) ?
                           (lowLimit + lowDeadband) :  lowLimit;
         if (inputValue <= limit)
         {
-            LIMITSTATE_SET(state, LIMITSTATE_LOWSTATEBIT);
+            UA_LIMITSTATE_SET(state, UA_LIMITSTATE_LOWSTATEBIT);
             if (exclusive) goto done;
         }
     }
@@ -4045,21 +4032,23 @@ static void limitAlarmCalculateLimitState (
     retval = readObjectPropertyDouble (server, *conditionId, UA_QUALIFIEDNAME(0, CONDITION_FIELD_LOWLOWLIMIT), &lowLowLimit);
     if (retval == UA_STATUSCODE_GOOD)
     {
-        UA_Double limit = LIMITSTATE_CHECK(prevState, LIMITSTATE_LOWLOWSTATEBIT) ?
+        UA_Double limit = UA_LIMITSTATE_CHECK(prevState, UA_LIMITSTATE_LOWLOWSTATEBIT) ?
                           (lowLowLimit + lowLowDeadband) :  lowLowLimit;
         if (inputValue <= limit)
         {
-            LIMITSTATE_SET(state, LIMITSTATE_LOWLOWSTATEBIT);
+            UA_LIMITSTATE_SET(state, UA_LIMITSTATE_LOWLOWSTATEBIT);
             if (exclusive) goto done;
         }
     }
+    retval = UA_STATUSCODE_GOOD;
 done:
     *stateOut = state;
+    return retval;
 }
 
 static UA_StatusCode
 exclusiveLimitAlarmUpdateLimitState (UA_Server *server, const UA_NodeId *conditionId,
-                                     UA_LimitAlarmLimitState state)
+                                     UA_LimitState state)
 {
     UA_NodeId limitStateId;
     UA_NodeId_init (&limitStateId);
@@ -4091,22 +4080,22 @@ exclusiveLimitAlarmUpdateLimitState (UA_Server *server, const UA_NodeId *conditi
     UA_LocalizedText currentStateValue;
     UA_NodeId currentStateIdValue;
 
-    if (LIMITSTATE_CHECK(state, LIMITSTATE_HIGHHIGHSTATEBIT))
+    if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_HIGHHIGHSTATEBIT))
     {
         currentStateValue = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGHHIGH_TEXT);
         currentStateIdValue = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_HIGHHIGH);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_HIGHSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_HIGHSTATEBIT))
     {
         currentStateValue = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_HIGH_TEXT);
         currentStateIdValue = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_HIGH);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_LOWSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_LOWSTATEBIT))
     {
         currentStateValue = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOW_TEXT);
         currentStateIdValue = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_LOW);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_LOWLOWSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_LOWLOWSTATEBIT))
     {
         currentStateValue = UA_LOCALIZEDTEXT(LOCALE, ACTIVE_LOWLOW_TEXT);
         currentStateIdValue = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_LOWLOW);
@@ -4143,7 +4132,7 @@ done:
 
 static void
 exclusiveLimitAlarmCalculateEventInfo (UA_Server *server, const UA_NodeId *conditionId,
-                                       UA_LimitAlarmLimitState state, UA_Double value,
+                                       UA_LimitState state, UA_Double value,
                                        UA_ConditionEventInfo *info)
 {
     if (state == 0)
@@ -4155,22 +4144,22 @@ exclusiveLimitAlarmCalculateEventInfo (UA_Server *server, const UA_NodeId *condi
     }
     UA_UInt16 severity = 250; //Arbitrary default
     char *stateText = NULL;
-    if (LIMITSTATE_CHECK(state, LIMITSTATE_HIGHHIGHSTATEBIT))
+    if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_HIGHHIGHSTATEBIT))
     {
         stateText = "HighHigh";
         readObjectPropertyUInt16(server, *conditionId, UA_QUALIFIEDNAME(0, "SeverityHighHigh"), &severity);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_HIGHSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_HIGHSTATEBIT))
     {
         stateText = "High";
         readObjectPropertyUInt16(server, *conditionId, UA_QUALIFIEDNAME(0, "SeverityHigh"), &severity);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_LOWSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_LOWSTATEBIT))
     {
         stateText = "Low";
         readObjectPropertyUInt16(server, *conditionId, UA_QUALIFIEDNAME(0, "SeverityLow"), &severity);
     }
-    else if (LIMITSTATE_CHECK(state, LIMITSTATE_LOWLOWSTATEBIT))
+    else if (UA_LIMITSTATE_CHECK(state, UA_LIMITSTATE_LOWLOWSTATEBIT))
     {
         stateText = "LowLow";
         readObjectPropertyUInt16(server, *conditionId, UA_QUALIFIEDNAME(0, "SeverityLowLow"), &severity);
@@ -4183,26 +4172,17 @@ exclusiveLimitAlarmCalculateEventInfo (UA_Server *server, const UA_NodeId *condi
 }
 
 static UA_StatusCode
-exclusiveLimitAlarmGetState (UA_Server *server, const UA_NodeId *conditionId,
-                             UA_LimitAlarmLimitState* stateOut)
+exclusiveLimitStateMachine_getState (UA_Server *server, const UA_NodeId *limitStateId,
+                             UA_LimitState* stateOut)
 {
     UA_Variant outValue;
     UA_Variant_init (&outValue);
-    UA_NodeId limitStateId;
-    UA_NodeId_init (&limitStateId);
     UA_NodeId currentStateId;
     UA_NodeId_init (&currentStateId);
     UA_NodeId currentStateIdId;
     UA_NodeId_init (&currentStateIdId);
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    retval = getNodeIdWithBrowseName(server, conditionId, fieldLimitStateQN, &limitStateId);
-    if (retval != UA_STATUSCODE_GOOD)
-    {
-        CONDITION_LOG_ERROR(retval, "Could not get LimitState nodeId")
-        goto done;
-    }
-    retval = getNodeIdWithBrowseName(server, &limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
-    UA_NodeId_clear(&limitStateId);
+    retval = getNodeIdWithBrowseName(server, limitStateId, UA_QUALIFIEDNAME(0, "CurrentState"), &currentStateId);
     if (retval != UA_STATUSCODE_GOOD)
     {
         CONDITION_LOG_ERROR(retval, "Could not get LimitState CurrentState nodeId")
@@ -4222,16 +4202,16 @@ exclusiveLimitAlarmGetState (UA_Server *server, const UA_NodeId *conditionId,
         goto done;
     }
 
-    UA_LimitAlarmLimitState state = 0;
+    UA_LimitState state = 0;
     const UA_NodeId *idValue = (const UA_NodeId *) outValue.data;
     UA_NodeId highhigh = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_HIGHHIGH);
     UA_NodeId high = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_HIGH);
     UA_NodeId low = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_LOW);
     UA_NodeId lowlow = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITSTATEMACHINETYPE_LOWLOW);
-    if (UA_NodeId_equal(idValue, &highhigh)) LIMITSTATE_SET(state, LIMITSTATE_HIGHHIGHSTATEBIT);
-    else if (UA_NodeId_equal(idValue, &high)) LIMITSTATE_SET(state, LIMITSTATE_HIGHSTATEBIT);
-    else if (UA_NodeId_equal(idValue, &low)) LIMITSTATE_SET(state, LIMITSTATE_LOWSTATEBIT);
-    else if (UA_NodeId_equal(idValue, &lowlow)) LIMITSTATE_SET(state, LIMITSTATE_LOWLOWSTATEBIT);
+    if (UA_NodeId_equal(idValue, &highhigh)) UA_LIMITSTATE_SET(state, UA_LIMITSTATE_HIGHHIGHSTATEBIT);
+    else if (UA_NodeId_equal(idValue, &high)) UA_LIMITSTATE_SET(state, UA_LIMITSTATE_HIGHSTATEBIT);
+    else if (UA_NodeId_equal(idValue, &low)) UA_LIMITSTATE_SET(state, UA_LIMITSTATE_LOWSTATEBIT);
+    else if (UA_NodeId_equal(idValue, &lowlow)) UA_LIMITSTATE_SET(state, UA_LIMITSTATE_LOWLOWSTATEBIT);
     *stateOut = state;
 done:
     UA_Variant_clear(&outValue);
@@ -4240,47 +4220,62 @@ done:
     return retval;
 }
 
-static UA_StatusCode exclusiveLimitAlarmEvaluate (
+static UA_StatusCode
+limitAlarmTypeCalculateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Boolean exclusive,
+                                             UA_Double input, UA_LimitState *stateOut, UA_Boolean *stateChanged)
+{
+    UA_LimitState prevState = 0;
+    UA_NodeId limitStateId;
+    UA_NodeId_init (&limitStateId);
+    UA_StatusCode ret = getNodeIdWithBrowseName(server, conditionId, fieldLimitStateQN, &limitStateId);
+    if (ret != UA_STATUSCODE_GOOD)
+    {
+        CONDITION_LOG_ERROR(ret, "Could not get LimitState nodeId")
+        return ret;
+    }
+    ret = exclusiveLimitStateMachine_getState(server, &limitStateId, &prevState);
+    UA_NodeId_clear(&limitStateId);
+    if (ret != UA_STATUSCODE_GOOD) return ret;
+
+    ret = calculateNewLimitState(server, conditionId, input, prevState, stateOut, exclusive);
+    if (ret != UA_STATUSCODE_GOOD) return ret;
+
+    *stateChanged = prevState != *stateOut;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_LimitAlarmTypeCalculateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Boolean exclusive,
+                                             UA_Double input, UA_LimitState *stateOut, UA_Boolean *stateChanged)
+{
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = limitAlarmTypeCalculateLimitState (server, conditionId, exclusive, input, stateOut, stateChanged);
+    UA_UNLOCK(&server->serviceMutex);
+    return ret;
+}
+
+UA_StatusCode UA_Server_exclusiveLimitAlarmEvaluate_default (
     UA_Server *server,
     const UA_NodeId *conditionId,
     const UA_Double *input
 )
 {
     UA_ConditionEventInfo info = {0};
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_LimitAlarmLimitState prevState;
-    retval = exclusiveLimitAlarmGetState (server, conditionId, &prevState);
+    UA_LimitState currentState = 0;
+    UA_Boolean stateChanged = false;
+    UA_StatusCode retval = UA_Server_LimitAlarmTypeCalculateLimitState(server, conditionId, true, *input, &currentState, &stateChanged);
     if (retval != UA_STATUSCODE_GOOD) return retval;
-
-    UA_LimitAlarmLimitState currentState;
-    limitAlarmCalculateLimitState (
-        server,
-        conditionId,
-        *input,
-        prevState,
-        &currentState,
-        true
-    );
     UA_Boolean isActive = currentState != 0;
-    if (prevState != currentState)
+    if (stateChanged)
     {
+        UA_LOCK(&server->serviceMutex);
         exclusiveLimitAlarmCalculateEventInfo (server, conditionId, currentState, *input, &info);
         exclusiveLimitAlarmUpdateLimitState (server, conditionId, currentState);
-        conditionUpdateActive (server, conditionId, &info, isActive);
+        UA_UNLOCK(&server->serviceMutex);
+
+        UA_Server_Condition_updateActive (server, *conditionId, &info, isActive);
     }
     return retval;
-}
-
-UA_StatusCode UA_Server_exclusiveLimitAlarmEvaluate (
-    UA_Server *server,
-    const UA_NodeId *conditionId,
-    const UA_Double *input
-)
-{
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode ret = exclusiveLimitAlarmEvaluate (server, conditionId, input);
-    UA_UNLOCK(&server->serviceMutex);
-    return ret;
 }
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
