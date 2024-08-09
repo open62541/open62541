@@ -36,7 +36,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 3)
+set(OPEN62541_VER_PATCH 4)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -1013,7 +1013,7 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
 
     # Set the full Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml CACHE INTERNAL "")
     endif()
 
     # Check that the submodule was checked out or manually downloaded into the folder
@@ -1032,7 +1032,7 @@ else()
 
     # Set the reduced Nodeset for NS0
     if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml)
+        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
     endif()
 
     # Set feature-specific datatypes definitions and nodesets

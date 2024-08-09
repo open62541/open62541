@@ -1343,10 +1343,10 @@ FUNC_ENCODE_BINARY(DiagnosticInfo) {
         ret |= ENCODE_DIRECT(&src->symbolicId, UInt32); /* Int32 */
     if(src->hasNamespaceUri)
         ret |= ENCODE_DIRECT(&src->namespaceUri, UInt32); /* Int32 */
-    if(src->hasLocalizedText)
-        ret |= ENCODE_DIRECT(&src->localizedText, UInt32); /* Int32 */
     if(src->hasLocale)
         ret |= ENCODE_DIRECT(&src->locale, UInt32); /* Int32 */
+    if(src->hasLocalizedText)
+        ret |= ENCODE_DIRECT(&src->localizedText, UInt32); /* Int32 */
     if(ret != UA_STATUSCODE_GOOD)
         return ret;
 
@@ -1389,13 +1389,13 @@ FUNC_DECODE_BINARY(DiagnosticInfo) {
         dst->hasNamespaceUri = true;
         ret |= DECODE_DIRECT(&dst->namespaceUri, UInt32); /* Int32 */
     }
-    if(encodingMask & 0x04u) {
-        dst->hasLocalizedText = true;
-        ret |= DECODE_DIRECT(&dst->localizedText, UInt32); /* Int32 */
-    }
     if(encodingMask & 0x08u) {
         dst->hasLocale = true;
         ret |= DECODE_DIRECT(&dst->locale, UInt32); /* Int32 */
+    }
+    if(encodingMask & 0x04u) {
+        dst->hasLocalizedText = true;
+        ret |= DECODE_DIRECT(&dst->localizedText, UInt32); /* Int32 */
     }
     if(encodingMask & 0x10u) {
         dst->hasAdditionalInfo = true;

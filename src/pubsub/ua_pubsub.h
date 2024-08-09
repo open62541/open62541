@@ -25,7 +25,7 @@
 #include "ua_pubsub_networkmessage.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS
-#include <ua_pubsub_keystorage.h>
+#include "ua_pubsub_keystorage.h"
 #endif
 
 /**
