@@ -42,17 +42,25 @@ typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
+typedef union
+{
+    UA_Server_DataChangeNotificationCallback dataChangeCallback;
+    UA_Server_EventNotificationCallback eventCallback;
+} UA_Server_MonitoredItemNotificationCallback;
+
 typedef struct {
     UA_MonitoredItem monitoredItem;
     void *context;
-    union {
-        UA_Server_DataChangeNotificationCallback dataChangeCallback;
-        /* UA_Server_EventNotificationCallback eventCallback; */
-    } callback;
+    UA_Server_MonitoredItemNotificationCallback callback;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+/* Forward Declarations */
+typedef ZIP_HEAD(UA_ConditionTree, UA_Condition) UA_ConditionTree;
+typedef ZIP_HEAD(UA_ConditionBranchTree, UA_ConditionBranch) UA_ConditionBranchTree;
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 /********************/
 /* Server Component */
 /********************/
@@ -166,7 +174,8 @@ struct UA_Server {
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) conditionSources;
+    UA_ConditionTree conditions;
+    UA_ConditionBranchTree conditionBranches;
     UA_NodeId refreshEvents[2];
 # endif
 #endif
@@ -382,6 +391,10 @@ addRef(UA_Server *server, const UA_NodeId sourceId,
        UA_Boolean forward);
 
 UA_StatusCode
+copyAllChildren(UA_Server *server, UA_Session *session,
+                const UA_NodeId *source, const UA_NodeId *destination, UA_Boolean copyOptional);
+
+UA_StatusCode
 deleteReference(UA_Server *server, const UA_NodeId sourceNodeId,
                 const UA_NodeId referenceTypeId, UA_Boolean isForward,
                 const UA_ExpandedNodeId targetNodeId,
@@ -461,6 +474,10 @@ UA_StatusCode
 readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value);
+
+UA_StatusCode
+getNodeIdWithBrowseName(UA_Server *server, const UA_NodeId *origin,
+                        UA_QualifiedName browseName, UA_NodeId *outNodeId);
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);

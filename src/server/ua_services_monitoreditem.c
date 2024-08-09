@@ -349,8 +349,8 @@ struct createMonContext {
     UA_TimestampsToReturn timestampsToReturn;
 
     /* If sub is NULL, use local callbacks */
-    UA_Server_DataChangeNotificationCallback dataChangeCallback;
     void *context;
+    UA_Server_MonitoredItemNotificationCallback callback;
 };
 
 static void
@@ -419,15 +419,6 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
     /* Adding an Event MonitoredItem */
 #ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
     if(request->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
-        /* TODO: Only remote clients can add Event-MonitoredItems at the moment */
-        if(!cmc->sub) {
-            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                           "Only remote clients can add Event-MonitoredItems");
-            result->statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
-            UA_DataValue_clear(&v);
-            return;
-        }
-
         /* If the 'SubscribeToEvents' bit of EventNotifier attribute is
          * zero, then the object cannot be subscribed to monitor events */
         if(!v.hasValue || !v.value.data) {
@@ -461,7 +452,7 @@ Operation_CreateMonitoredItem(UA_Server *server, UA_Session *session,
         if(localMon) {
             /* Set special values only for the LocalMonitoredItem */
             localMon->context = cmc->context;
-            localMon->callback.dataChangeCallback = cmc->dataChangeCallback;
+            localMon->callback = cmc->callback;
         }
         newMon = &localMon->monitoredItem;
     }
@@ -580,11 +571,37 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
     struct createMonContext cmc;
     cmc.sub = NULL;
     cmc.context = monitoredItemContext;
-    cmc.dataChangeCallback = callback;
+    cmc.callback.dataChangeCallback = callback;
     cmc.timestampsToReturn = timestampsToReturn;
 
     UA_MonitoredItemCreateResult result;
     UA_MonitoredItemCreateResult_init(&result);
+    UA_LOCK(&server->serviceMutex);
+    Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
+    UA_UNLOCK(&server->serviceMutex);
+    return result;
+}
+
+UA_MonitoredItemCreateResult
+UA_Server_createEventMonitoredItem(UA_Server *server,
+                                        UA_TimestampsToReturn timestampsToReturn,
+                                        const UA_MonitoredItemCreateRequest item,
+                                        void *monitoredItemContext,
+                                        UA_Server_EventNotificationCallback callback) {
+    UA_MonitoredItemCreateResult result;
+    UA_MonitoredItemCreateResult_init(&result);
+    if (item.itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER)
+    {
+        result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    struct createMonContext cmc;
+    cmc.sub = NULL;
+    cmc.context = monitoredItemContext;
+    cmc.callback.eventCallback = callback;
+    cmc.timestampsToReturn = timestampsToReturn;
+
     UA_LOCK(&server->serviceMutex);
     Operation_CreateMonitoredItem(server, &server->adminSession, &cmc, &item, &result);
     UA_UNLOCK(&server->serviceMutex);
