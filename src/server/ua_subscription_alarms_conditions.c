@@ -2204,21 +2204,6 @@ static UA_StatusCode UA_ConditionBranch_createBranch (UA_ConditionBranch *branch
                                UA_QUALIFIEDNAME(0,CONDITION_FIELD_BRANCHID));
     CONDITION_ASSERT_GOTOLABEL(retval, "Set BranchId Field failed", fail);
 
-    //TODO DELETE - FOR TESTING expose it in the address space
-    {
-        UA_NodeId source = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-        retval = addRef(server, source, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT), branchId,
-                        true);
-        CONDITION_ASSERT_GOTOLABEL(retval,
-                                   "Creating hierarchical Reference to "
-                                   "ConditionSource failed", fail);
-
-        UA_NodeId hasCondition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
-        retval = addRef(server, source, hasCondition, branchId, true);
-        CONDITION_ASSERT_GOTOLABEL(retval,
-                                   "Creating HasCondition Reference failed", fail);
-    }
-
     retval = newConditionBranchEntry (server, &branchId, &branch->eventId, branch->condition, false);
     UA_ByteString_clear(&lastEventId);
     CONDITION_ASSERT_GOTOLABEL(retval, "Creating ConditionBranch entry failed", fail);
