@@ -1923,7 +1923,7 @@ UA_Server_createCertificateExpirationAlarm(
 typedef UA_Byte UA_LimitState;
 
 UA_StatusCode
-UA_Server_LimitAlarmTypeCalculateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Boolean exclusive,
+UA_Server_ExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Boolean exclusive,
                                              UA_Double input, UA_LimitState *stateOut, UA_Boolean *stateChanged);
 
 typedef struct UA_LimitAlarmProperties
