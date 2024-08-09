@@ -22,6 +22,7 @@
 #include "ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
+#include "../deps/mp_printf.h"
 #include "libc_time.h"
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
@@ -114,6 +115,56 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
 /*****************/
 /* Builtin Types */
 /*****************/
+#define FORMAT_STACK_SIZE 256
+
+
+UA_StatusCode
+UA_String_fromFormatWithBuffer (UA_String *string, const char *format, ...)
+{
+    if(!string || !string->data || string->length < 1) return UA_STATUSCODE_BADINTERNALERROR;
+    va_list args;
+    va_start (args, format);
+    int ret = mp_vsnprintf((char *)string->data, string->length, format, args);
+    /* Len -1 to not include the null term in the string */
+    string->length = UA_MIN (string->length-1, (size_t) ret);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_String
+UA_String_fromFormat (const char *format, ...)
+{
+    char tmp[FORMAT_STACK_SIZE];
+    va_list args;
+    va_start (args, format);
+    int ret = mp_vsnprintf(tmp, FORMAT_STACK_SIZE, format, args);
+    va_end(args);
+    if (ret <= 0) return UA_STRING_NULL;
+    UA_String s;
+    s.length = ret;
+    if (ret < FORMAT_STACK_SIZE)
+    {
+        s.data = (UA_Byte*) UA_malloc(s.length);
+        if(UA_UNLIKELY(!s.data)) {
+            s.length = 0;
+            return s;
+        }
+        memcpy(s.data, tmp, s.length);
+    }
+    else
+    {
+        /* +1 for NULL terminator */
+        s.data = (UA_Byte*) UA_malloc(s.length+1);
+        if(UA_UNLIKELY(!s.data)) {
+            s.length = 0;
+            return s;
+        }
+        va_start (args, format);
+        mp_vsnprintf((char *)s.data, s.length+1, format, args);
+        va_end(args);
+    }
+
+    return s;
+}
 
 UA_String
 UA_String_fromChars(const char *src) {
