@@ -1929,25 +1929,25 @@ UA_Server_ExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_Nod
 typedef struct UA_LimitAlarmProperties
 {
     UA_AlarmConditionProperties alarmConditionProperties;
-    UA_Double *highHighLimit;
-    UA_Double *highLimit;
-    UA_Double *lowLimit;
-    UA_Double *lowLowLimit;
+    const UA_Double *highHighLimit;
+    const UA_Double *highLimit;
+    const UA_Double *lowLimit;
+    const UA_Double *lowLowLimit;
 
-    //UA_Double base_high_high_limit;
-    //UA_Double base_high_limit;
-    //UA_Double base_low_limit;
-    //UA_Double base_low_low_limit;
+    const UA_Double *base_high_high_limit;
+    const UA_Double *base_high_limit;
+    const UA_Double *base_low_limit;
+    const UA_Double *base_low_low_limit;
 
-    //UA_Double severity_high_high;
-    //UA_Double severity_high;
-    //UA_Double severity_low;
-    //UA_Double severity_low_low;
+    const UA_Double *high_high_deadband;
+    const UA_Double *high_deadband;
+    const UA_Double *low_deadband;
+    const UA_Double *low_low_deadband;
 
-    //UA_Double high_high_deadband;
-    //UA_Double high_deadband;
-    //UA_Double low_deadband;
-    //UA_Double low_low_deadband;
+    const UA_UInt16 *severity_high_high;
+    const UA_UInt16 *severity_high;
+    const UA_UInt16 *severity_low;
+    const UA_UInt16 *severity_low_low;
 } UA_LimitAlarmProperties;
 
 UA_StatusCode UA_EXPORT

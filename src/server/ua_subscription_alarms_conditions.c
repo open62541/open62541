@@ -246,6 +246,14 @@ ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_Condition
 #define CONDITION_FIELD_OFFDELAY                               "OffDelay"
 #define CONDITION_FIELD_REALARMTIME                            "ReAlarmTime"
 #define CONDITION_FIELD_REALARMREPEATCOUNT                     "ReAlarmRepeatCount"
+#define CONDITION_FIELD_BASEHIGHHIGHLIMIT                      "BaseHighHighLimit"
+#define CONDITION_FIELD_BASEHIGHLIMIT                          "BaseHighLimit"
+#define CONDITION_FIELD_BASELOWLIMIT                           "BaseLowLimit"
+#define CONDITION_FIELD_BASELOWLOWLIMIT                        "BaseLowLowLimit"
+#define CONDITION_FIELD_SEVERITYHIGHHIGH                       "SeverityHighHigh"
+#define CONDITION_FIELD_SEVERITYHIGH                           "SeverityHigh"
+#define CONDITION_FIELD_SEVERITYLOW                            "SeverityLow"
+#define CONDITION_FIELD_SEVERITYLOWLOW                         "SeverityLowLow"
 #define CONDITION_FIELD_HIGHHIGHLIMIT                          "HighHighLimit"
 #define CONDITION_FIELD_HIGHLIMIT                              "HighLimit"
 #define CONDITION_FIELD_LOWLIMIT                               "LowLimit"
@@ -353,6 +361,18 @@ static const UA_QualifiedName fieldLowLimitQN = STATIC_QN(CONDITION_FIELD_LOWLIM
 static const UA_QualifiedName fieldLowLowLimitQN = STATIC_QN(CONDITION_FIELD_LOWLOWLIMIT);
 static const UA_QualifiedName fieldHighLimitQN = STATIC_QN(CONDITION_FIELD_HIGHLIMIT);
 static const UA_QualifiedName fieldHighHighLimitQN = STATIC_QN(CONDITION_FIELD_HIGHHIGHLIMIT);
+static const UA_QualifiedName fieldSeverityLowQN = STATIC_QN(CONDITION_FIELD_SEVERITYLOW);
+static const UA_QualifiedName fieldSeverityLowLowQN = STATIC_QN(CONDITION_FIELD_SEVERITYLOWLOW);
+static const UA_QualifiedName fieldSeverityHighQN = STATIC_QN(CONDITION_FIELD_SEVERITYHIGH);
+static const UA_QualifiedName fieldSeverityHighHighQN = STATIC_QN(CONDITION_FIELD_SEVERITYHIGHHIGH);
+static const UA_QualifiedName fieldBaseLowLimitQN = STATIC_QN(CONDITION_FIELD_BASELOWLIMIT);
+static const UA_QualifiedName fieldBaseLowLowLimitQN = STATIC_QN(CONDITION_FIELD_BASELOWLOWLIMIT);
+static const UA_QualifiedName fieldBaseHighLimitQN = STATIC_QN(CONDITION_FIELD_BASEHIGHLIMIT);
+static const UA_QualifiedName fieldBaseHighHighLimitQN = STATIC_QN(CONDITION_FIELD_BASEHIGHHIGHLIMIT);
+static const UA_QualifiedName fieldLowDeadbandQN = STATIC_QN(CONDITION_FIELD_LOWDEADBAND);
+static const UA_QualifiedName fieldLowLowDeadbandQN = STATIC_QN(CONDITION_FIELD_LOWLOWDEADBAND);
+static const UA_QualifiedName fieldHighDeadbandQN = STATIC_QN(CONDITION_FIELD_HIGHDEADBAND);
+static const UA_QualifiedName fieldHighHighDeadbandQN = STATIC_QN(CONDITION_FIELD_HIGHHIGHDEADBAND);
 static const UA_QualifiedName fieldEngineeringUnitsQN = STATIC_QN(CONDITION_FIELD_ENGINEERINGUNITS);
 static const UA_QualifiedName fieldNormalStateQN = STATIC_QN(CONDITION_FIELD_NORMALSTATE);
 
@@ -3662,19 +3682,18 @@ UA_Server_setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_Node
 static UA_StatusCode
 UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
 {
-    UA_StatusCode retval = UA_STATUSCODE_BADCONFIGURATIONERROR;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (!properties->lowLimit && !properties->lowLowLimit && !properties->highLimit && !properties->highHighLimit)
     {
         CONDITION_LOG_ERROR (retval, "At least one limit field is mandatory");
-        return retval;
+        return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     UA_NodeId LimitAlarmTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_LIMITALARMTYPE);
     UA_Variant value;
-
+    /* Limits */
     if (properties->lowLowLimit)
     {
-        /* Add optional field LowLowLimit */
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldLowLowLimitQN, NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding LowLowLimit optional Field failed",);
         UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->lowLowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
@@ -3684,7 +3703,6 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
 
     if (properties->lowLimit)
     {
-        /* Add optional field LowLimit */
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldLowLimitQN, NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding LowLimit optional Field failed",);
         UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->lowLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
@@ -3694,7 +3712,6 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
 
     if (properties->highLimit)
     {
-        /* Add optional field HighLimit */
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldHighLimitQN, NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding HighLimit optional Field failed",);
         UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->highLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
@@ -3704,13 +3721,125 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
 
     if (properties->highHighLimit)
     {
-        /* Add optional field HighHighLimit */
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldHighHighLimitQN, NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding HighHighLimit optional Field failed",);
         UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->highHighLimit, &UA_TYPES[UA_TYPES_DOUBLE]);
         retval = setConditionField (server, *condition, &value, fieldHighHighLimitQN);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set HighHighLimit Field failed",);
     }
+
+    /* Base Limits */
+    if (properties->base_low_low_limit)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldBaseLowLowLimitQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding BaseLowLowLimit optional Field failed",);
+        UA_Variant_setScalar(&value, (void *) (uintptr_t) properties->base_low_low_limit, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField (server, *condition, &value, fieldBaseLowLowLimitQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set BaseLowLowLimit Field failed",);
+    }
+
+    if (properties->base_low_limit)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldBaseLowLimitQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding BaseLowLimit optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->base_low_low_limit, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldBaseLowLimitQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set BaseLowLimit Field failed",);
+    }
+
+    if (properties->base_high_limit)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldBaseHighLimitQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding BaseHighLimit optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->base_high_limit, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldBaseHighLimitQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set BaseHighLimit Field failed",);
+    }
+
+    if (properties->base_high_high_limit)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldBaseHighHighLimitQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding BaseHighHighLimit optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->base_high_high_limit, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldBaseHighHighLimitQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set BaseHighHighLimit Field failed",);
+    }
+
+    /* Deadband */
+    if (properties->low_low_deadband)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldLowLowDeadbandQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding LowLowDeadband optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->low_low_deadband, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldLowLowDeadbandQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set LowLowDeadband Field failed",);
+    }
+
+    if (properties->low_deadband)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldLowDeadbandQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding LowDeadband optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->low_deadband, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldLowDeadbandQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set LowDeadband Field failed",);
+    }
+
+    if (properties->high_deadband)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldHighDeadbandQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding HighDeadband optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->high_deadband, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldHighDeadbandQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set HighDeadband Field failed",);
+    }
+
+    if (properties->high_high_deadband)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldHighHighDeadbandQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding HighHighDeadband optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->high_high_deadband, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldHighHighDeadbandQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set HighHighDeadband Field failed",);
+    }
+
+    /* Limit Severity */
+
+    if (properties->severity_low_low)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityLowLowQN , NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityLowLow optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low_low, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldSeverityLowLowQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityLowLow Field failed",);
+    }
+
+    if (properties->severity_low)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityLowQN , NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityLow optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldSeverityLowQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityLow Field failed",);
+    }
+
+    if (properties->severity_high)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityHighQN , NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityHigh optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_high, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldSeverityHighQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityHigh Field failed",);
+    }
+
+    if (properties->severity_high_high)
+    {
+        retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityHighHighQN , NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityHighHigh optional Field failed",);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t) properties->severity_high_high, &UA_TYPES[UA_TYPES_DOUBLE]);
+        retval = setConditionField(server, *condition, &value, fieldSeverityHighHighQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityHighHigh Field failed",);
+    }
+
 
     return retval;
 }
