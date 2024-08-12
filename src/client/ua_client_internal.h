@@ -125,6 +125,8 @@ struct UA_Client {
 
     UA_Boolean findServersHandshake;   /* Ongoing FindServers */
     UA_Boolean endpointsHandshake;     /* Ongoing GetEndpoints */
+    UA_Boolean namespacesHandshake;    /* Ongoing Namespaces read */
+    UA_Boolean haveNamespaces;         /* Do we have the namespaces? */
 
     /* The discoveryUrl can be different from the EndpointUrl in the client
      * configuration. The EndpointUrl is used to connect initially, then the
