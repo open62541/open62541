@@ -1781,7 +1781,7 @@ typedef struct UA_DiscrepancyAlarmProperties
     UA_AlarmConditionProperties alarmConditionProperties;
     UA_Variant targetValue;
     UA_Duration expectedTime;
-    UA_Double tolerance;
+    const UA_Double *tolerance;
 } UA_DiscrepancyAlarmProperties;
 
 static inline UA_StatusCode

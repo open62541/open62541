@@ -223,6 +223,9 @@ ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_Condition
 #define CONDITION_FIELD_QUALITY                                "Quality"
 #define CONDITION_FIELD_LASTSEVERITY                           "LastSeverity"
 #define CONDITION_FIELD_COMMENT                                "Comment"
+#define CONDITION_FIELD_EXPECTEDTIME                           "ExpectedTime"
+#define CONDITION_FIELD_TARGETVALUENODE                        "TargetValueNode"
+#define CONDITION_FIELD_TOLERANCE                              "Tolerance"
 #define CONDITION_FIELD_CLIENTUSERID                           "ClientUserId"
 #define CONDITION_FIELD_CONDITIONVARIABLE_SOURCETIMESTAMP      "SourceTimestamp"
 #define CONDITION_FIELD_DISABLE                                "Disable"
@@ -375,6 +378,9 @@ static const UA_QualifiedName fieldHighDeadbandQN = STATIC_QN(CONDITION_FIELD_HI
 static const UA_QualifiedName fieldHighHighDeadbandQN = STATIC_QN(CONDITION_FIELD_HIGHHIGHDEADBAND);
 static const UA_QualifiedName fieldEngineeringUnitsQN = STATIC_QN(CONDITION_FIELD_ENGINEERINGUNITS);
 static const UA_QualifiedName fieldNormalStateQN = STATIC_QN(CONDITION_FIELD_NORMALSTATE);
+static const UA_QualifiedName fieldExpectedTimeQN = STATIC_QN(CONDITION_FIELD_EXPECTEDTIME);
+static const UA_QualifiedName fieldTargetValueNodeQN = STATIC_QN(CONDITION_FIELD_TARGETVALUENODE);
+static const UA_QualifiedName fieldToleranceQN = STATIC_QN(CONDITION_FIELD_TOLERANCE);
 
 #ifdef UA_ENABLE_ENCRYPTION
 static const UA_QualifiedName fieldExpirationLimitQN = STATIC_QN(CONDITION_FIELD_EXPIRATION_LIMIT);
@@ -3633,8 +3639,22 @@ static UA_StatusCode
 UA_Server_setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                                       const UA_DiscrepancyAlarmProperties *properties)
 {
-    //TODO
-    return UA_STATUSCODE_GOOD;
+    UA_StatusCode ret = writeObjectProperty_scalar(server, *condition, fieldExpectedTimeQN, &properties->expectedTime, &UA_TYPES[UA_TYPES_DURATION]);
+    CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting ExpectedTime value failed",);
+
+    ret = writeObjectProperty_scalar(server, *condition, fieldTargetValueNodeQN, &properties->targetValue, &UA_TYPES[UA_TYPES_NODEID]);
+    CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting TargetValueNode value failed",);
+
+    if (properties->tolerance)
+    {
+        UA_NodeId type = UA_NODEID_NUMERIC(0, UA_NS0ID_DISCREPANCYALARMTYPE);
+        ret = addOptionalField(server, *condition, type, fieldToleranceQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(ret, "Adding Tolerance optional field failed",);
+
+        ret = writeObjectProperty_scalar(server, *condition, fieldToleranceQN, properties->tolerance, &UA_TYPES[UA_TYPES_DOUBLE]);
+        CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting Tolerance value failed",);
+    }
+    return ret;
 }
 
 static UA_StatusCode
@@ -3808,7 +3828,7 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
     {
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityLowLowQN , NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityLowLow optional Field failed",);
-        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low_low, &UA_TYPES[UA_TYPES_DOUBLE]);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low_low, &UA_TYPES[UA_TYPES_UINT16]);
         retval = setConditionField(server, *condition, &value, fieldSeverityLowLowQN);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityLowLow Field failed",);
     }
@@ -3817,7 +3837,7 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
     {
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityLowQN , NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityLow optional Field failed",);
-        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low, &UA_TYPES[UA_TYPES_DOUBLE]);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_low, &UA_TYPES[UA_TYPES_UINT16]);
         retval = setConditionField(server, *condition, &value, fieldSeverityLowQN);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityLow Field failed",);
     }
@@ -3826,7 +3846,7 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
     {
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityHighQN , NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityHigh optional Field failed",);
-        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_high, &UA_TYPES[UA_TYPES_DOUBLE]);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)properties->severity_high, &UA_TYPES[UA_TYPES_UINT16]);
         retval = setConditionField(server, *condition, &value, fieldSeverityHighQN);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityHigh Field failed",);
     }
@@ -3835,7 +3855,7 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
     {
         retval = addOptionalField(server, *condition, LimitAlarmTypeId, fieldSeverityHighHighQN , NULL);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding SeverityHighHigh optional Field failed",);
-        UA_Variant_setScalar(&value, (void *)(uintptr_t) properties->severity_high_high, &UA_TYPES[UA_TYPES_DOUBLE]);
+        UA_Variant_setScalar(&value, (void *)(uintptr_t) properties->severity_high_high, &UA_TYPES[UA_TYPES_UINT16]);
         retval = setConditionField(server, *condition, &value, fieldSeverityHighHighQN);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SeverityHighHigh Field failed",);
     }
