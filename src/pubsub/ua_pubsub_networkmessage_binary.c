@@ -86,12 +86,12 @@ UA_NetworkMessage_updateBufferedMessage(UA_NetworkMessageOffsetBuffer *buffer) {
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW:
                 rv = UA_encodeBinaryInternal(nmo->content.value.value.data,
                                              nmo->content.value.value.type,
-                                             &bufPos, &bufEnd, NULL, NULL);
+                                             &bufPos, &bufEnd, NULL, NULL, NULL);
                 break;
             case UA_PUBSUB_OFFSETTYPE_PAYLOAD_RAW_EXTERNAL:
                 rv = UA_encodeBinaryInternal((*nmo->content.externalValue)->value.data,
                                              (*nmo->content.externalValue)->value.type,
-                                             &bufPos, &bufEnd, NULL, NULL);
+                                             &bufPos, &bufEnd, NULL, NULL, NULL);
                 break;
             default:
                 break; /* The other fields are assumed to not change between messages.
@@ -1405,13 +1405,15 @@ UA_DataSetMessage_keyFrame_encodeBinary(const UA_DataSetMessage* src, UA_Byte **
                 if(fmd->maxStringLength != 0 &&
                    (v->value.type->typeKind == UA_DATATYPEKIND_STRING ||
                     v->value.type->typeKind == UA_DATATYPEKIND_BYTESTRING)) {
-                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd, NULL, NULL);
+                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
+                                                 NULL, NULL, NULL);
                     size_t lengthDifference = fmd->maxStringLength - ((UA_String *)valuePtr)->length;
                     memset(*bufPos, 0, lengthDifference);
                     *bufPos += lengthDifference;
                 } else {
                     /* Padding not yet supported for strings as part of structures */
-                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd, NULL, NULL);
+                    rv = UA_encodeBinaryInternal(valuePtr, v->value.type, bufPos, &bufEnd,
+                                                 NULL, NULL, NULL);
                 }
                 valuePtr += v->value.type->memSize;
             }
@@ -1685,7 +1687,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT) {
                 if(offsetBuffer)
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_VARIANT;
-                size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT]);
+                size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
                 if(p->data.keyFrameData.dataSetFields != NULL) {
                     if(offsetBuffer) {
@@ -1704,7 +1706,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
                     for(size_t cnt = 0; cnt < fmd->arrayDimensionsSize; cnt++) {
                         elemCnt *= fmd->arrayDimensions[cnt];
                     }
-                    size += (elemCnt * UA_calcSizeBinary(v->value.data, v->value.type));
+                    size += (elemCnt * UA_calcSizeBinary(v->value.data, v->value.type, NULL));
 
                     /* Handle zero-padding for strings with max-string-length.
                      * Currently not supported for strings that are a part of larger
@@ -1731,7 +1733,7 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
             } else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE) {
                 if(offsetBuffer)
                     nmo->contentType = UA_PUBSUB_OFFSETTYPE_PAYLOAD_DATAVALUE;
-                size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
             }
         }
     } else if(p->header.dataSetMessageType == UA_DATASETMESSAGE_DATADELTAFRAME) {
@@ -1747,9 +1749,9 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
         for(UA_UInt16 i = 0; i < p->data.deltaFrameData.fieldCount; i++) {
             const UA_DataValue *v = &p->data.deltaFrameData.deltaFrameFields[i].fieldValue;
             if(p->header.fieldEncoding == UA_FIELDENCODING_VARIANT)
-                size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT]);
+                size += UA_calcSizeBinary(&v->value, &UA_TYPES[UA_TYPES_VARIANT], NULL);
             else if(p->header.fieldEncoding == UA_FIELDENCODING_DATAVALUE)
-                size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE]);
+                size += UA_calcSizeBinary(v, &UA_TYPES[UA_TYPES_DATAVALUE], NULL);
         }
     } else {
         return 0;

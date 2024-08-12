@@ -500,8 +500,8 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     if(!oldValue || !newValue)
         return false;
 
-    size_t oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT]);
-    size_t newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT]);
+    size_t oldValueEncodingSize = UA_calcSizeBinary(oldValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    size_t newValueEncodingSize = UA_calcSizeBinary(newValue, &UA_TYPES[UA_TYPES_VARIANT], NULL);
     if(oldValueEncodingSize == 0 || newValueEncodingSize == 0)
         return false;
 
@@ -528,12 +528,12 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
     UA_Boolean compareResult = false; /* default */
 
     res = UA_encodeBinaryInternal(oldValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosOldValue, &bufEndOldValue, NULL, NULL);
+                                  &bufPosOldValue, &bufEndOldValue, NULL, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     res = UA_encodeBinaryInternal(newValue, &UA_TYPES[UA_TYPES_VARIANT],
-                                  &bufPosNewValue, &bufEndNewValue, NULL, NULL);
+                                  &bufPosNewValue, &bufEndNewValue, NULL, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 

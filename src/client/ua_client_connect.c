@@ -470,7 +470,7 @@ sendHELMessage(UA_Client *client) {
     const UA_Byte *bufEnd = &message.data[message.length];
     client->connectStatus =
         UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
-                                &bufPos, &bufEnd, NULL, NULL);
+                                &bufPos, &bufEnd, NULL, NULL, NULL);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
@@ -479,7 +479,7 @@ sendHELMessage(UA_Client *client) {
     bufPos = message.data;
     retval = UA_encodeBinaryInternal(&messageHeader,
                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                     &bufPos, &bufEnd, NULL, NULL);
+                                     &bufPos, &bufEnd, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, client->channel.connectionId, &message);
         return retval;

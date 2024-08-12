@@ -258,10 +258,10 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
     const UA_Byte *bufEnd = &ack_msg.data[ack_msg.length];
     retval |= UA_encodeBinaryInternal(&ackHeader,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     retval |= UA_encodeBinaryInternal(&ackMessage,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPACKNOWLEDGEMESSAGE],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, channel->connectionId, &ack_msg);
         return retval;
@@ -944,7 +944,7 @@ sendRHEMessage(UA_Server *server, uintptr_t connectionId,
     UA_StatusCode result =
         UA_encodeBinaryInternal(&reverseHello,
                                 &UA_TRANSPORT[UA_TRANSPORT_TCPREVERSEHELLOMESSAGE],
-                                &bufPos, &bufEnd, NULL, NULL);
+                                &bufPos, &bufEnd, NULL, NULL, NULL);
 
     if(result != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, connectionId, &message);
@@ -958,7 +958,7 @@ sendRHEMessage(UA_Server *server, uintptr_t connectionId,
     bufPos = message.data;
     retval = UA_encodeBinaryInternal(&messageHeader,
                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                     &bufPos, &bufEnd, NULL, NULL);
+                                     &bufPos, &bufEnd, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, connectionId, &message);
         return retval;
