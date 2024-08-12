@@ -167,6 +167,11 @@ struct UA_Client {
     UA_UInt32 monitoredItemHandles;
     UA_UInt16 currentlyOutStandingPublishRequests;
 
+    /* Internal namespaces. The table maps the namespace Uri to its index. This
+     * is used for the automatic namespace mapping in de/encoding. */
+    UA_String *namespaces;
+    size_t namespacesSize;
+
     /* Internal locking for thread-safety. Methods starting with UA_Client_ that
      * are marked with UA_THREADSAFE take the lock. The lock is released before
      * dropping into the EventLoop and before calling user-defined callbacks.
