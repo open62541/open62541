@@ -61,7 +61,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_delete(obj1, &UA_TYPES[_i]);
         UA_ByteString_clear(&msg1);
@@ -79,7 +79,7 @@ START_TEST(encodeShallYieldDecode) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     pos = msg2.data;
     end = &msg2.data[msg2.length];
-    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj2, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     // then
@@ -115,7 +115,7 @@ START_TEST(decodeShallFailWithTruncatedBufferButSurvive) {
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg1, 65000); // fixed buf size
     UA_Byte *pos = msg1.data;
     const UA_Byte *end = &msg1.data[msg1.length];
-    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval |= UA_encodeBinaryInternal(obj1, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
     UA_delete(obj1, &UA_TYPES[_i]);
 
@@ -208,14 +208,14 @@ END_TEST
 
 START_TEST(calcSizeBinaryShallBeCorrect) {
     void *obj = UA_new(&UA_TYPES[_i]);
-    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i]);
+    size_t predicted_size = UA_calcSizeBinary(obj, &UA_TYPES[_i], NULL);
     ck_assert_uint_ne(predicted_size, 0);
     UA_ByteString msg;
     UA_StatusCode retval = UA_ByteString_allocBuffer(&msg, predicted_size);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
     UA_Byte *pos = msg.data;
     const UA_Byte *end = &msg.data[msg.length];
-    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL);
+    retval = UA_encodeBinaryInternal(obj, &UA_TYPES[_i], &pos, &end, NULL, NULL, NULL);
     if(retval)
         printf("%i\n",_i);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);

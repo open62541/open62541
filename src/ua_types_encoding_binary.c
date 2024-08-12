@@ -892,7 +892,10 @@ FUNC_ENCODE_BINARY(ExtensionObject) {
      * calcSizeBinary mode. This is avoids recursive cycles.*/
     i32 signed_len = 0;
     if(ctx->end != NULL) {
-        size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType);
+        UA_EncodeBinaryOptions opts;
+        memset(&opts, 0, sizeof(UA_EncodeBinaryOptions));
+        opts.namespaceMapping = ctx->opts.namespaceMapping;
+        size_t len = UA_calcSizeBinary(src->content.decoded.data, contentType, &opts);
         UA_CHECK(len <= UA_INT32_MAX, return UA_STATUSCODE_BADENCODINGERROR);
         signed_len = (i32)len;
     }
@@ -1643,6 +1646,7 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
 status
 UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         u8 **bufPos, const u8 **bufEnd,
+                        UA_EncodeBinaryOptions *options,
                         UA_exchangeEncodeBuffer exchangeCallback,
                         void *exchangeHandle) {
     if(!type || !src)
@@ -1655,6 +1659,9 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
     ctx.depth = 0;
     ctx.exchangeBufferCallback = exchangeCallback;
     ctx.exchangeBufferCallbackHandle = exchangeHandle;
+    memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
+    if(options)
+        ctx.opts.namespaceMapping = options->namespaceMapping;
 
     /* Encode */
     status ret = encodeWithExchangeBuffer(&ctx, src, type);
@@ -1669,12 +1676,12 @@ UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
 
 UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
-                UA_ByteString *outBuf) {
+                UA_ByteString *outBuf, UA_EncodeBinaryOptions *options) {
     /* Allocate buffer */
     UA_Boolean allocated = false;
     status res = UA_STATUSCODE_GOOD;
     if(outBuf->length == 0) {
-        size_t len = UA_calcSizeBinary(p, type);
+        size_t len = UA_calcSizeBinary(p, type, options);
         res = UA_ByteString_allocBuffer(outBuf, len);
         if(res != UA_STATUSCODE_GOOD)
             return res;
@@ -1684,7 +1691,7 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
     /* Encode */
     u8 *pos = outBuf->data;
     const u8 *posEnd = &outBuf->data[outBuf->length];
-    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+    res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
 
     /* Clean up */
     if(res == UA_STATUSCODE_GOOD) {
@@ -1904,10 +1911,11 @@ UA_decodeBinary(const UA_ByteString *inBuf,
  * throw an error when the buffer limits are exceeded. */
 
 size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type) {
+UA_calcSizeBinary(const void *p, const UA_DataType *type,
+                  UA_EncodeBinaryOptions *options) {
     u8 *pos = NULL;
     const u8 *posEnd = NULL;
-    UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, NULL, NULL);
+    UA_StatusCode res = UA_encodeBinaryInternal(p, type, &pos, &posEnd, options, NULL, NULL);
     if(res != UA_STATUSCODE_GOOD)
         return 0;
     return (size_t)(uintptr_t)pos;

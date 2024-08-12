@@ -77,6 +77,7 @@ extern const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS];
 UA_StatusCode
 UA_encodeBinaryInternal(const void *src, const UA_DataType *type,
                         UA_Byte **bufPos, const UA_Byte **bufEnd,
+                        UA_EncodeBinaryOptions *options,
                         UA_exchangeEncodeBuffer exchangeCallback,
                         void *exchangeHandle)
     UA_FUNC_ATTR_WARN_UNUSED_RESULT;

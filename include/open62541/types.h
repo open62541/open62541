@@ -1312,10 +1312,17 @@ UA_NamespaceMapping_delete(UA_NamespaceMapping *nm);
  * Encoding and decoding routines for the binary format. For the binary decoding
  * additional data types can be forwarded. */
 
+typedef struct {
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+} UA_EncodeBinaryOptions;
+
 /* Returns the number of bytes the value p takes in binary encoding. Returns
  * zero if an error occurs. */
 UA_EXPORT size_t
-UA_calcSizeBinary(const void *p, const UA_DataType *type);
+UA_calcSizeBinary(const void *p, const UA_DataType *type,
+                  UA_EncodeBinaryOptions *options);
 
 /* Encodes a data-structure in the binary format. If outBuf has a length of
  * zero, a buffer of the required size is allocated. Otherwise, encoding into
@@ -1323,7 +1330,7 @@ UA_calcSizeBinary(const void *p, const UA_DataType *type);
  * small). */
 UA_EXPORT UA_StatusCode
 UA_encodeBinary(const void *p, const UA_DataType *type,
-                UA_ByteString *outBuf);
+                UA_ByteString *outBuf, UA_EncodeBinaryOptions *options);
 
 /* The structure with the decoding options may be extended in the future.
  * Zero-out the entire structure initially to ensure code-compatibility when
@@ -1331,6 +1338,10 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
 typedef struct {
     /* Begin of a linked list with custom datatype definitions */
     const UA_DataTypeArray *customTypes;
+
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
 
     /* Override calloc for arena-based memory allocation. Note that allocated
      * memory is not freed if decoding fails afterwards. */
