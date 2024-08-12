@@ -670,7 +670,7 @@ openTrustList(UA_Server *server,
     certGroup->getTrustList(certGroup, &trustList);
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
-    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList);
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
     UA_TrustListDataType_clear(&trustList);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&encTrustList);
@@ -737,7 +737,7 @@ openTrustListWithMask(UA_Server *server,
     certGroup->getTrustList(certGroup, &trustList);
 
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
-    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList);
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
     UA_TrustListDataType_clear(&trustList);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&encTrustList);

@@ -104,6 +104,10 @@ struct UA_SecureChannel {
     UA_ConnectionManager *connectionManager;
     uintptr_t connectionId;
 
+    /* The namespace mapping translates namespace indices of NodeIds during
+     * de/encoding (client only) */
+    UA_NamespaceMapping *namespaceMapping;
+
     /* Linked lists (only used in the server) */
     TAILQ_ENTRY(UA_SecureChannel) serverEntry;
     TAILQ_ENTRY(UA_SecureChannel) componentEntry;
