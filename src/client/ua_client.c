@@ -121,7 +121,27 @@ UA_Client_newWithConfig(const UA_ClientConfig *config) {
     UA_LOCK_INIT(&client->clientMutex);
 #endif
 
+    /* Initialize the namespace mapping */
+    size_t initialNs = 2 + config->namespacesSize;
+    client->namespaces = (UA_String*)UA_calloc(initialNs, sizeof(UA_String));
+    if(!client->namespaces)
+        goto error;
+    client->namespacesSize = initialNs;
+    client->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
+    client->namespaces[1] = UA_STRING_NULL; /* Gets set when we connect to the server */
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < config->namespacesSize; i++) {
+        res |= UA_String_copy(&client->namespaces[i+2], &config->namespaces[i]);
+    }
+    if(res != UA_STATUSCODE_GOOD)
+        goto error;
+
     return client;
+
+error:
+    memset(&client->config, 0, sizeof(UA_ClientConfig));
+    UA_Client_delete(client);
+    return NULL;
 }
 
 void
@@ -226,7 +246,14 @@ UA_Client_clear(UA_Client *client) {
     UA_Client_removeCallback(client, client->houseKeepingCallbackId);
     client->houseKeepingCallbackId = 0;
 
+    /* Clean up the SecureChannel */
     UA_SecureChannel_clear(&client->channel);
+
+    /* Free the namespace mapping */
+    UA_Array_delete(&client->namespaces, client->namespacesSize,
+                    &UA_TYPES[UA_TYPES_STRING]);
+    client->namespaces = NULL;
+    client->namespacesSize = 0;
 
 #if UA_MULTITHREADING >= 100
     UA_LOCK_DESTROY(&client->clientMutex);
@@ -1162,4 +1189,49 @@ UA_Client_getConnectionAttribute_scalar(UA_Client *client,
 
     UA_UNLOCK(&client->clientMutex);
     return UA_STATUSCODE_GOOD;
+}
+
+/* Namespace Mapping */
+
+UA_StatusCode
+UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
+                          UA_String *nsUri) {
+    UA_LOCK(&client->clientMutex);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(index > client->namespacesSize)
+        res = UA_String_copy(&client->namespaces[index], nsUri);
+    else
+        res = UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&client->clientMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Client_getNamespaceIndex(UA_Client *client, const UA_String nsUri,
+                            UA_UInt16 *outIndex) {
+    UA_LOCK(&client->clientMutex);
+    for(size_t i = 0; i < client->namespacesSize; i++) {
+        if(UA_String_equal(&nsUri, &client->namespaces[i])) {
+            *outIndex = i;
+            UA_UNLOCK(&client->clientMutex);
+            return UA_STATUSCODE_GOOD;
+        }
+    }
+    UA_UNLOCK(&client->clientMutex);
+    return UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
+                       UA_UInt16 *outIndex) {
+    UA_StatusCode res = UA_Client_getNamespaceIndex(client, nsUri, outIndex);
+    if(res == UA_STATUSCODE_GOOD)
+        return res;
+    UA_LOCK(&client->clientMutex);
+    res = UA_Array_appendCopy((void**)&client->namespaces, &client->namespacesSize,
+                              &nsUri, &UA_TYPES[UA_TYPES_STRING]);
+    if(res == UA_STATUSCODE_GOOD)
+        *outIndex = (UA_UInt16)(client->namespacesSize - 1);
+    UA_UNLOCK(&client->clientMutex);
+    return res;
 }

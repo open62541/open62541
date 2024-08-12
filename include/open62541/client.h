@@ -157,6 +157,32 @@ struct UA_ClientConfig {
     const UA_DataTypeArray *customDataTypes;
 
     /**
+     * Namespace Mapping
+     * ~~~~~~~~~~~~~~~~~
+     * The namespaces index is "just" a mapping to the Uris in the namespace
+     * array of the server. In order to have stable NodeIds across servers, the
+     * client keeps a list of predefined namespaces. Use
+     * ``UA_Client_addNamespaceUri``, ``UA_Client_getNamespaceUri`` and
+     * ``UA_Client_getNamespaceIndex`` to interact with the local namespace
+     * mapping.
+     *
+     * The namespace indices are assigned internally in the client as follows:
+     *
+     * - Ns0 and Ns1 are pre-defined by the standard. Ns0 is always
+     *   ```http://opcfoundation.org/UA/``` and used for standard-defined
+     *   NodeIds. Ns1 corresponds to the application uri of the individual
+     *   server.
+     * - The next namespaces are added in-order from the list below at startup
+     *   (starting at index 2).
+     * - The local API ``UA_Client_addNamespaceUri`` can be used to add more
+     *   namespaces.
+     * - When the client connects, the namespace array of the server is read.
+     *   All previously unknown namespaces are added from this to the internal
+     *   array of the client. */
+    UA_String *namespaces;
+    size_t namespacesSize;
+
+    /**
      * Advanced Client Configuration
      * ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ */
 
@@ -962,6 +988,20 @@ UA_Client_removeCallback(UA_Client *client, UA_UInt64 callbackId);
  * configuration into account. Return NULL if none found. */
 UA_EXPORT const UA_DataType *
 UA_Client_findDataType(UA_Client *client, const UA_NodeId *typeId);
+
+/* The string is allocated and needs to be cleared */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getNamespaceUri(UA_Client *client, UA_UInt16 index,
+                          UA_String *nsUri);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_getNamespaceIndex(UA_Client *client, const UA_String nsUri,
+                            UA_UInt16 *outIndex);
+
+/* Returns the old index of the namespace already exists */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Client_addNamespace(UA_Client *client, const UA_String nsUri,
+                       UA_UInt16 *outIndex);
 
 /**
  * .. toctree::
