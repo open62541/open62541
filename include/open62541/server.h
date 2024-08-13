@@ -1923,8 +1923,12 @@ UA_Server_createCertificateExpirationAlarm(
 typedef UA_Byte UA_LimitState;
 
 UA_StatusCode
-UA_Server_ExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Boolean exclusive,
-                                             UA_Double input, UA_LimitState *stateOut, UA_Boolean *stateChanged);
+UA_Server_ExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Double input,
+                                                 UA_LimitState *stateOut, UA_Boolean *stateChanged);
+
+UA_StatusCode
+UA_Server_NonExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_NodeId *conditionId, UA_Double input,
+                                                    UA_LimitState *stateOut, UA_Boolean *stateChanged);
 
 typedef struct UA_LimitAlarmProperties
 {
@@ -1969,6 +1973,29 @@ UA_Server_createExclusiveLimitAlarm (
 {
     return __UA_Server_createCondition(
         server, conditionId, UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVELIMITALARMTYPE),
+        conditionProperties, conditionFns, limitAlarmProperties, outConditionId
+    );
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_nonExclusiveLimitAlarmEvaluate_default (
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    const UA_Double *input
+);
+
+static inline UA_StatusCode
+UA_Server_createNonExclusiveLimitAlarm (
+    UA_Server *server,
+    UA_NodeId conditionId,
+    const UA_ConditionProperties *conditionProperties,
+    UA_ConditionFns conditionFns,
+    const UA_LimitAlarmProperties *limitAlarmProperties,
+    UA_NodeId* outConditionId
+)
+{
+    return __UA_Server_createCondition(
+        server, conditionId, UA_NODEID_NUMERIC(0, UA_NS0ID_NONEXCLUSIVEDEVIATIONALARMTYPE),
         conditionProperties, conditionFns, limitAlarmProperties, outConditionId
     );
 }
