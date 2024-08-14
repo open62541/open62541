@@ -195,7 +195,7 @@ addServerComponent(UA_Server *server, UA_ServerComponent *sc,
 
     /* Start the component if the server is started */
     if(server->state == UA_LIFECYCLESTATE_STARTED && sc->start)
-        sc->start(server, sc);
+        sc->start(sc, server);
 
     if(identifier)
         *identifier = sc->identifier;
@@ -215,27 +215,27 @@ getServerComponentByName(UA_Server *server, UA_String name) {
 }
 
 static void *
-removeServerComponent(void *application, UA_ServerComponent *sc) {
+removeServerComponent(void *_, UA_ServerComponent *sc) {
     UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
-    sc->free((UA_Server*)application, sc);
+    sc->free(sc);
     return NULL;
 }
 
 static void *
-startServerComponent(void *application, UA_ServerComponent *sc) {
-    sc->start((UA_Server*)application, sc);
+startServerComponent(void *server, UA_ServerComponent *sc) {
+    sc->start(sc, (UA_Server*)server);
     return NULL;
 }
 
 static void *
-stopServerComponent(void *application, UA_ServerComponent *sc) {
-    sc->stop((UA_Server*)application, sc);
+stopServerComponent(void *_, UA_ServerComponent *sc) {
+    sc->stop(sc);
     return NULL;
 }
 
 /* ZIP_ITER returns NULL only if all components are stopped */
 static void *
-checkServerComponent(void *application, UA_ServerComponent *sc) {
+checkServerComponent(void *_, UA_ServerComponent *sc) {
     return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
 }
 
@@ -295,7 +295,7 @@ UA_Server_delete(UA_Server *server) {
 
     /* Remove all remaining server components (must be all stopped) */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             removeServerComponent, server);
+             removeServerComponent, NULL);
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 
@@ -388,11 +388,11 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binay protocol support */
-    addServerComponent(server, UA_BinaryProtocolManager_new(server), NULL);
+    addServerComponent(server, UA_BinaryProtocolManager_new(), NULL);
 
     /* Initialized discovery */
 #ifdef UA_ENABLE_DISCOVERY
-    addServerComponent(server, UA_DiscoveryManager_new(server), NULL);
+    addServerComponent(server, UA_DiscoveryManager_new(), NULL);
 #endif
 
     /* Initialize namespace 0*/
@@ -544,12 +544,12 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
 }
 
 static void
-notifySecureChannelsStopped(UA_Server *server, struct UA_ServerComponent *sc,
+notifySecureChannelsStopped(struct UA_ServerComponent *sc,
                             UA_LifecycleState state) {
     if(sc->state == UA_LIFECYCLESTATE_STOPPED &&
-       server->state == UA_LIFECYCLESTATE_STARTED) {
+       sc->server->state == UA_LIFECYCLESTATE_STARTED) {
         sc->notifyState = NULL; /* remove the callback */
-        sc->start(server, sc);
+        sc->start(sc, sc->server);
     }
 }
 
@@ -587,7 +587,7 @@ UA_Server_updateCertificate(UA_Server *server,
             getServerComponentByName(server, UA_STRING("binary"));
         if(binaryProtocolManager) {
             binaryProtocolManager->notifyState = notifySecureChannelsStopped;
-            binaryProtocolManager->stop(server, binaryProtocolManager);
+            binaryProtocolManager->stop(binaryProtocolManager);
         }
     }
 
@@ -876,7 +876,7 @@ UA_Server_run_startup(UA_Server *server) {
                        "The binary protocol support component could not been started.");
         /* Stop all server components that have already been started */
         ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                 stopServerComponent, server);
+                 stopServerComponent, NULL);
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -923,7 +923,7 @@ static UA_Boolean
 testStoppedCondition(UA_Server *server) {
     /* Check if there are remaining server components that did not fully stop */
     if(ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-                checkServerComponent, server) != NULL)
+                checkServerComponent, NULL) != NULL)
         return false;
     return true;
 }
@@ -963,7 +963,7 @@ UA_Server_run_shutdown(UA_Server *server) {
 
     /* Stop all ServerComponents */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             stopServerComponent, server);
+             stopServerComponent, NULL);
 
     /* Are we already stopped? */
     if(testStoppedCondition(server)) {
