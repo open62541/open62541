@@ -35,11 +35,6 @@ _UA_BEGIN_DECLS
 #include "ua_pubsub.h"
 #endif
 
-#ifdef UA_ENABLE_DISCOVERY
-struct UA_DiscoveryManager;
-typedef struct UA_DiscoveryManager UA_DiscoveryManager;
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
