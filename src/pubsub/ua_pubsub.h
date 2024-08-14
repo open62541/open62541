@@ -689,12 +689,6 @@ removeSecurityGroup(UA_Server *server, UA_SecurityGroup *sg);
 /* PubSub Manager */
 /******************/
 
-typedef struct UA_TopicAssign {
-    UA_ReaderGroup *rgIdentifier;
-    UA_String topic;
-    TAILQ_ENTRY(UA_TopicAssign) listEntry;
-} UA_TopicAssign;
-
 typedef enum {
     UA_WRITER_GROUP = 0,
     UA_DATA_SET_WRITER = 1,
@@ -723,9 +717,6 @@ typedef struct UA_PubSubManager {
     size_t subscribedDataSetsSize;
     TAILQ_HEAD(, UA_StandaloneSubscribedDataSet) subscribedDataSets;
 
-    size_t topicAssignSize;
-    TAILQ_HEAD(, UA_TopicAssign) topicAssign;
-
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;
 
@@ -740,10 +731,6 @@ typedef struct UA_PubSubManager {
     UA_UInt32 uniqueIdCount;
 #endif
 } UA_PubSubManager;
-
-UA_StatusCode
-UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *rg,
-                                      UA_String topic);
 
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId,

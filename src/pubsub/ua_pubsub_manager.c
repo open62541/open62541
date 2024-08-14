@@ -105,36 +105,6 @@ UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst) {
     }
 }
 
-static void
-UA_PubSubManager_addTopic(UA_PubSubManager *psm, UA_TopicAssign *topicAssign) {
-    TAILQ_INSERT_TAIL(&psm->topicAssign, topicAssign, listEntry);
-    psm->topicAssignSize++;
-}
-
-static UA_TopicAssign *
-UA_TopicAssign_new(UA_ReaderGroup *readerGroup,
-                   UA_String topic, const UA_Logger *logger) {
-    UA_TopicAssign *topicAssign = (UA_TopicAssign *)
-        UA_calloc(1, sizeof(UA_TopicAssign));
-    if(!topicAssign) {
-        UA_LOG_ERROR(logger, UA_LOGCATEGORY_SERVER,
-                     "PubSub TopicAssign creation failed. Out of Memory.");
-        return NULL;
-    }
-    topicAssign->rgIdentifier = readerGroup;
-    topicAssign->topic = topic;
-    return topicAssign;
-}
-
-UA_StatusCode
-UA_PubSubManager_addPubSubTopicAssign(UA_Server *server, UA_ReaderGroup *rg,
-                                      UA_String topic) {
-    UA_PubSubManager *psm = &server->pubSubManager;
-    UA_TopicAssign *topicAssign = UA_TopicAssign_new(rg, topic, server->config.logging);
-    UA_PubSubManager_addTopic(psm, topicAssign);
-    return UA_STATUSCODE_GOOD;
-}
-
 static enum ZIP_CMP
 cmpReserveId(const void *a, const void *b) {
     const UA_ReserveId *aa = (const UA_ReserveId*)a;
@@ -365,84 +335,6 @@ generateRandomUInt64(UA_Server *server) {
     id = (id << 32) + ident.data2;
     id = (id << 16) + ident.data3;
     return id;
-}
-
-/* Initialization the PubSub configuration. */
-void
-UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *psm) {
-    //TODO: Using the Mac address to generate the defaultPublisherId.
-    // In the future, this can be retrieved from the eventloop.
-    psm->defaultPublisherId = generateRandomUInt64(server);
-
-    TAILQ_INIT(&psm->connections);
-    TAILQ_INIT(&psm->publishedDataSets);
-    TAILQ_INIT(&psm->subscribedDataSets);
-    TAILQ_INIT(&psm->topicAssign);
-
-#ifdef UA_ENABLE_PUBSUB_SKS
-    TAILQ_INIT(&psm->securityGroups);
-#endif
-}
-
-void
-UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *psm) {
-    UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
-        UA_PubSubConnection_setPubSubState(server, tmpConnection, UA_PUBSUBSTATE_DISABLED);
-    }
-}
-
-/* Delete the current PubSub configuration including all nested members. This
- * action also delete the configured PubSub transport Layers. */
-void
-UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *psm) {
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "PubSub cleanup was called.");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    /* Remove Connections - this also remove WriterGroups and ReaderGroups */
-    UA_PubSubConnection *tmpConnection1, *tmpConnection2;
-    TAILQ_FOREACH_SAFE(tmpConnection1, &psm->connections, listEntry, tmpConnection2) {
-        UA_PubSubConnection_delete(server, tmpConnection1);
-    }
-
-    /* Remove the DataSets */
-    UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
-    TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2){
-        UA_PublishedDataSet_remove(server, tmpPDS1);
-    }
-
-    /* Remove the TopicAssigns */
-    UA_TopicAssign *tmpTopicAssign1, *tmpTopicAssign2;
-    TAILQ_FOREACH_SAFE(tmpTopicAssign1, &psm->topicAssign, listEntry, tmpTopicAssign2){
-        psm->topicAssignSize--;
-        TAILQ_REMOVE(&psm->topicAssign, tmpTopicAssign1, listEntry);
-        UA_free(tmpTopicAssign1);
-    }
-
-    /* Remove the ReserveIds*/
-    ZIP_ITER(UA_ReserveIdTree, &psm->reserveIds, removeReserveId, NULL);
-    psm->reserveIdsSize = 0;
-
-    /* Delete subscribed datasets */
-    UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
-    TAILQ_FOREACH_SAFE(tmpSDS1, &psm->subscribedDataSets, listEntry, tmpSDS2) {
-        UA_StandaloneSubscribedDataSet_remove(server, tmpSDS1);
-    }
-
-#ifdef UA_ENABLE_PUBSUB_SKS
-    /* Remove the SecurityGroups */
-    UA_SecurityGroup *tmpSG1, *tmpSG2;
-    TAILQ_FOREACH_SAFE(tmpSG1, &psm->securityGroups, listEntry, tmpSG2) {
-        removeSecurityGroup(server, tmpSG1);
-    }
-
-    /* Remove the keyStorages */
-    UA_PubSubKeyStorage *ks, *ksTmp;
-    LIST_FOREACH_SAFE(ks, &psm->pubSubKeyList, keyStorageList, ksTmp) {
-        UA_PubSubKeyStorage_delete(server, ks);
-    }
-#endif
 }
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
