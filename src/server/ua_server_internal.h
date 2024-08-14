@@ -76,23 +76,21 @@ typedef struct UA_ServerComponent {
     UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
+    UA_Server *server; /* Every ServerComponent has a backpointer to the server */
 
     /* Starting fails if the server is not also already started */
-    UA_StatusCode (*start)(UA_Server *server,
-                           struct UA_ServerComponent *sc);
+    UA_StatusCode (*start)(struct UA_ServerComponent *sc, UA_Server *server);
 
     /* Stopping is asynchronous and might need a few iterations of the main-loop
      * to succeed. */
-    void (*stop)(UA_Server *server,
-                 struct UA_ServerComponent *sc);
+    void (*stop)(struct UA_ServerComponent *sc);
 
     /* Clean up the ServerComponent. Can fail if it is not stopped. */
-    UA_StatusCode (*free)(UA_Server *server,
-                          struct UA_ServerComponent *sc);
+    UA_StatusCode (*free)(struct UA_ServerComponent *sc);
 
     /* To be set by the server. So the component can notify the server about
      * asynchronous state changes. */
-    void (*notifyState)(UA_Server *server, struct UA_ServerComponent *sc,
+    void (*notifyState)(struct UA_ServerComponent *sc,
                         UA_LifecycleState state);
 } UA_ServerComponent;
 
@@ -550,12 +548,10 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
-UA_ServerComponent *
-UA_DiscoveryManager_new(UA_Server *server);
+UA_ServerComponent * UA_DiscoveryManager_new(void);
 #endif
 
-UA_ServerComponent *
-UA_BinaryProtocolManager_new(UA_Server *server);
+UA_ServerComponent * UA_BinaryProtocolManager_new(void);
 
 /***********/
 /* RefTree */

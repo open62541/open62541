@@ -79,8 +79,6 @@ struct UA_DiscoveryManager {
 
     UA_UInt64 discoveryCallbackId;
 
-    UA_Server *server; /* backpointer */
-
     /* Outstanding requests. So they can be cancelled during shutdown. */
     asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
 
@@ -117,8 +115,7 @@ struct UA_DiscoveryManager {
 };
 
 void
-UA_DiscoveryManager_setState(UA_Server *server,
-                             UA_DiscoveryManager *dm,
+UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
                              UA_LifecycleState state);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
