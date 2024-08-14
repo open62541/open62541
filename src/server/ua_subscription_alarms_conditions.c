@@ -271,6 +271,8 @@ ZIP_FUNCTIONS(UA_ConditionBranchTree, UA_ConditionBranch, zipEntry, UA_Condition
 #define CONDITION_FIELD_HIGHHIGHDEADBAND                       "HighHighDeadband"
 #define CONDITION_FIELD_PROPERTY_EFFECTIVEDISPLAYNAME          "EffectiveDisplayName"
 #define CONDITION_FIELD_LIMITSTATE                             "LimitState"
+#define CONDITION_FIELD_SETPOINTNODE                           "SetpointNode"
+#define CONDITION_FIELD_BASESETPOINTNODE                       "BaseSetpointNode"
 #define CONDITION_FIELD_CURRENTSTATE                           "CurrentState"
 #define CONDITION_FIELD_HIGHHIGHSTATE                          "HighHighState"
 #define CONDITION_FIELD_HIGHSTATE                              "HighState"
@@ -3927,7 +3929,23 @@ static UA_StatusCode
 setupDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                           const UA_DeviationAlarmProperties *properties)
 {
-    //TODO
+
+    UA_Variant value;
+    UA_Variant_setScalar(&value, (void *)(uintptr_t)&properties->setpointNode, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode retval = setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0, CONDITION_FIELD_SETPOINTNODE));
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SetpointNode Field failed",);
+
+    if (properties->baseSetpointNode)
+    {
+        UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_NONEXCLUSIVEDEVIATIONALARMTYPE);
+        retval = addOptionalField(server, *condition, typeId, UA_QUALIFIEDNAME(0, CONDITION_FIELD_BASESETPOINTNODE), NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding optional BaseSetpointNode Field failed",);
+
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)&properties->baseSetpointNode, &UA_TYPES[UA_TYPES_NODEID]);
+        retval = setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0, CONDITION_FIELD_BASESETPOINTNODE));
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set BaseSetpointNode Field failed",);
+    }
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -3950,9 +3968,18 @@ setupRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                              const UA_RateOfChangeAlarmProperties *properties)
 {
     UA_NodeId RateOfChangeAlarmTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVERATEOFCHANGEALARMTYPE);
-    UA_StatusCode retval = addOptionalField(server, *condition, RateOfChangeAlarmTypeId,
-                                            fieldEngineeringUnitsQN, NULL);
-    //todo write value to node
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    if (properties->engineeringUnits)
+    {
+        retval = addOptionalField(server, *condition, RateOfChangeAlarmTypeId,
+                                                fieldEngineeringUnitsQN, NULL);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding optional EngineeringUnits Field failed",);
+
+        UA_Variant value;
+        UA_Variant_setScalar(&value, (void *)(uintptr_t)&properties->engineeringUnits, &UA_TYPES[UA_TYPES_EUINFORMATION]);
+        retval = setConditionField(server, *condition, &value, fieldEngineeringUnitsQN);
+        CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EngineeringUnits Field failed",);
+    }
     return retval;
 }
 
