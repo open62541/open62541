@@ -20,6 +20,11 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_DISCOVERY
+struct UA_DiscoveryManager;
+typedef struct UA_DiscoveryManager UA_DiscoveryManager;
+#endif
+
 typedef struct registeredServer {
     LIST_ENTRY(registeredServer) pointers;
     UA_RegisteredServer registeredServer;
