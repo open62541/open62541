@@ -741,6 +741,10 @@ getPSM(UA_Server *server) {
 void
 UA_PubSubManager_clear(UA_PubSubManager *psm);
 
+void
+UA_PubSubManager_setState(UA_PubSubManager *psm,
+                          UA_LifecycleState state);
+
 UA_StatusCode
 UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
