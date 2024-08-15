@@ -7,6 +7,7 @@
  */
 
 #include "ua_pubsub_keystorage.h"
+#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
@@ -20,10 +21,14 @@ UA_PubSubKeyStorage_findKeyStorage(UA_Server *server, UA_String securityGroupId)
     if(!server || UA_String_isEmpty(&securityGroupId))
         return NULL;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubKeyStorage *outKeyStorage;
-    LIST_FOREACH(outKeyStorage, &server->pubSubManager.pubSubKeyList, keyStorageList) {
+    LIST_FOREACH(outKeyStorage, &psm->pubSubKeyList, keyStorageList) {
         if(UA_String_equal(&outKeyStorage->securityGroupID, &securityGroupId))
             return outKeyStorage;
     }
@@ -84,6 +89,10 @@ UA_PubSubKeyStorage_init(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
                          const UA_String *securityGroupId,
                          UA_PubSubSecurityPolicy *policy,
                          UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode res = UA_String_copy(securityGroupId, &keyStorage->securityGroupID);
     if(res != UA_STATUSCODE_GOOD)
         return res;
@@ -95,7 +104,7 @@ UA_PubSubKeyStorage_init(UA_Server *server, UA_PubSubKeyStorage *keyStorage,
     keyStorage->policy = policy;
 
     /* Add this keystorage to the server keystoragelist */
-    LIST_INSERT_HEAD(&server->pubSubManager.pubSubKeyList, keyStorage, keyStorageList);
+    LIST_INSERT_HEAD(&psm->pubSubKeyList, keyStorage, keyStorageList);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -280,10 +289,14 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_PubSubConnection *tmpPubSubConnections;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
      * securityGroupId*/
-    TAILQ_FOREACH(tmpPubSubConnections, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(tmpPubSubConnections, &psm->connections, listEntry) {
         /* For each writerGroup in server with matching SecurityGroupId */
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {

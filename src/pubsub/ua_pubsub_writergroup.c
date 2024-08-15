@@ -98,8 +98,12 @@ UA_StatusCode
 UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
                       UA_NodeId *writerGroupIdentifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Delete the reserved IDs if the related session no longer exists. */
-    UA_PubSubManager_freeIds(server);
+    UA_PubSubManager_freeIds(psm);
     if(!writerGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -721,8 +725,12 @@ UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGro
 
 UA_WriterGroup *
 UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &tmpConnection->writerGroups, listEntry) {
             if(UA_NodeId_equal(&identifier, &tmpWriterGroup->head.identifier))

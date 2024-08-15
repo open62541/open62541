@@ -217,6 +217,7 @@ static void teardown(void) {
 }
 
 START_TEST(TestPubSubKeyStorage_initialize) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_UInt32 maxPastkeyCount = 0;
     UA_UInt32 maxFuturekeyCount = 0;
@@ -241,7 +242,7 @@ START_TEST(TestPubSubKeyStorage_initialize) {
     }
     ck_assert_msg(UA_String_equal(&tKeyStorage->securityGroupID, &SecurityGroupId), "Expected SecurityGroupId to be equal to keystorage->securityGroupID");
     /*check if the keystorage is in the Server Keystorage list*/
-    ck_assert_ptr_eq(server->pubSubManager.pubSubKeyList.lh_first, tKeyStorage);
+    ck_assert_ptr_eq(psm->pubSubKeyList.lh_first, tKeyStorage);
 
     UA_UNLOCK(&server->serviceMutex);
 } END_TEST

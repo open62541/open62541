@@ -13,7 +13,6 @@
 #include <open62541/types.h>
 #include "ua_pubsub.h"
 #include "ua_pubsub_ns0.h"
-#include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -120,28 +119,21 @@ cmpReserveId(const void *a, const void *b) {
 ZIP_FUNCTIONS(UA_ReserveIdTree, UA_ReserveId, treeEntry, UA_ReserveId, id, cmpReserveId)
 
 static UA_ReserveId *
-UA_ReserveId_new(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
+UA_ReserveId_new(UA_UInt16 id, UA_String transportProfileUri,
                  UA_ReserveIdType reserveIdType, UA_NodeId sessionId) {
-    UA_ReserveId *reserveId = (UA_ReserveId *)
-        UA_calloc(1, sizeof(UA_ReserveId));
-    if(!reserveId) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "PubSub ReserveId creation failed. Out of Memory.");
+    UA_ReserveId *reserveId = (UA_ReserveId *)UA_calloc(1, sizeof(UA_ReserveId));
+    if(!reserveId)
         return NULL;
-    }
     reserveId->id = id;
     reserveId->reserveIdType = reserveIdType;
     UA_String_copy(&transportProfileUri, &reserveId->transportProfileUri);
     reserveId->sessionId = sessionId;
-
     return reserveId;
 }
 
 static UA_Boolean
-UA_ReserveId_isFree(UA_Server *server, UA_UInt16 id, UA_String transportProfileUri,
+UA_ReserveId_isFree(UA_PubSubManager *psm, UA_UInt16 id, UA_String transportProfileUri,
                     UA_ReserveIdType reserveIdType) {
-    UA_PubSubManager *psm = &server->pubSubManager;
-
     /* Is the id already in use? */
     UA_ReserveId compare;
     compare.id = id;
@@ -175,7 +167,7 @@ UA_ReserveId_isFree(UA_Server *server, UA_UInt16 id, UA_String transportProfileU
 }
 
 static UA_UInt16
-UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
+UA_ReserveId_createId(UA_PubSubManager *psm,  UA_NodeId sessionId,
                       UA_String transportProfileUri, UA_ReserveIdType reserveIdType) {
     /* Total number of possible Ids */
     UA_UInt16 numberOfIds = 0x8000;
@@ -193,13 +185,13 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
     for(;numberOfIds > 0;numberOfIds--) {
         if(next_id < UA_RESERVEID_FIRST_ID)
             next_id = UA_RESERVEID_FIRST_ID;
-        is_free = UA_ReserveId_isFree(server, next_id, transportProfileUri, reserveIdType);
+        is_free = UA_ReserveId_isFree(psm, next_id, transportProfileUri, reserveIdType);
         if(is_free)
             break;
         next_id++;
     }
     if(!is_free) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. No free ID could be found.");
         return 0;
     }
@@ -210,11 +202,10 @@ UA_ReserveId_createId(UA_Server *server,  UA_NodeId sessionId,
         next_id_writer = (UA_UInt16)(next_id + 1);
 
     UA_ReserveId *reserveId =
-        UA_ReserveId_new(server, next_id, transportProfileUri, reserveIdType, sessionId);
+        UA_ReserveId_new(next_id, transportProfileUri, reserveIdType, sessionId);
     if(!reserveId)
         return 0;
 
-    UA_PubSubManager *psm = &server->pubSubManager;
     ZIP_INSERT(UA_ReserveIdTree, &psm->reserveIds, reserveId);
     psm->reserveIdsSize++;
     return next_id;
@@ -228,7 +219,7 @@ removeReserveId(void *context, UA_ReserveId *elem) {
 }
 
 struct RemoveInactiveReserveIdContext {
-    UA_Server *server;
+    UA_PubSubManager *psm;
     UA_ReserveIdTree newTree;
 };
 
@@ -238,16 +229,16 @@ removeInactiveReserveId(void *context, UA_ReserveId *elem) {
     struct RemoveInactiveReserveIdContext *ctx =
         (struct RemoveInactiveReserveIdContext*)context;
 
-    if(UA_NodeId_equal(&ctx->server->adminSession.sessionId, &elem->sessionId))
+    if(UA_NodeId_equal(&ctx->psm->sc.server->adminSession.sessionId, &elem->sessionId))
         goto still_active;
 
     session_list_entry *session;
-    LIST_FOREACH(session, &ctx->server->sessions, pointers) {
+    LIST_FOREACH(session, &ctx->psm->sc.server->sessions, pointers) {
         if(UA_NodeId_equal(&session->session.sessionId, &elem->sessionId))
             goto still_active;
     }
 
-    ctx->server->pubSubManager.reserveIdsSize--;
+    ctx->psm->reserveIdsSize--;
     UA_String_clear(&elem->transportProfileUri);
     UA_free(elem);
     return NULL;
@@ -258,20 +249,20 @@ removeInactiveReserveId(void *context, UA_ReserveId *elem) {
 }
 
 void
-UA_PubSubManager_freeIds(UA_Server *server) {
+UA_PubSubManager_freeIds(UA_PubSubManager *psm) {
     struct RemoveInactiveReserveIdContext removeCtx;
-    removeCtx.server = server;
+    removeCtx.psm = psm;
     removeCtx.newTree.root = NULL;
-    ZIP_ITER(UA_ReserveIdTree, &server->pubSubManager.reserveIds,
+    ZIP_ITER(UA_ReserveIdTree, &psm->reserveIds,
              removeInactiveReserveId, &removeCtx);
-    server->pubSubManager.reserveIds = removeCtx.newTree;
+    psm->reserveIds = removeCtx.newTree;
 }
 
 UA_StatusCode
-UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 numRegWriterGroupIds,
+UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId, UA_UInt16 numRegWriterGroupIds,
                             UA_UInt16 numRegDataSetWriterIds, UA_String transportProfileUri,
                             UA_UInt16 **writerGroupIds, UA_UInt16 **dataSetWriterIds) {
-    UA_PubSubManager_freeIds(server);
+    UA_PubSubManager_freeIds(psm);
 
     /* Check the validation of the transportProfileUri */
     UA_String profile_1 = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
@@ -280,7 +271,7 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
     if(!UA_String_equal(&transportProfileUri, &profile_1) &&
        !UA_String_equal(&transportProfileUri, &profile_2) &&
        !UA_String_equal(&transportProfileUri, &profile_3)) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PubSub ReserveId creation failed. No valid transport profile uri.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -289,11 +280,11 @@ UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId, UA_UInt16 nu
 
     for(int i = 0; i < numRegWriterGroupIds; i++) {
         (*writerGroupIds)[i] =
-            UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_WRITER_GROUP);
+            UA_ReserveId_createId(psm, sessionId, transportProfileUri, UA_WRITER_GROUP);
     }
     for(int i = 0; i < numRegDataSetWriterIds; i++) {
         (*dataSetWriterIds)[i] =
-            UA_ReserveId_createId(server, sessionId, transportProfileUri, UA_DATA_SET_WRITER);
+            UA_ReserveId_createId(psm, sessionId, transportProfileUri, UA_DATA_SET_WRITER);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -327,7 +318,7 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server) {
 }
 
 static UA_UInt64
-generateRandomUInt64(UA_Server *server) {
+generateRandomUInt64(void) {
     UA_UInt64 id = 0;
     UA_Guid ident = UA_Guid_random();
 
@@ -578,5 +569,119 @@ UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif
 }
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
+
+static UA_StatusCode
+UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
+        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "The PubSubManager is still stopping");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_PubSubManager_stop(UA_ServerComponent *sc) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
+        UA_PubSubConnection_setPubSubState(sc->server, tmpConnection, UA_PUBSUBSTATE_DISABLED);
+    }
+}
+
+void
+UA_PubSubManager_clear(UA_PubSubManager *psm) {
+    UA_Server *server = psm->sc.server;
+    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
+                "PubSub cleanup was called.");
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Remove Connections - this also remove WriterGroups and ReaderGroups */
+    UA_PubSubConnection *tmpConnection1, *tmpConnection2;
+    TAILQ_FOREACH_SAFE(tmpConnection1, &psm->connections, listEntry, tmpConnection2) {
+        UA_PubSubConnection_delete(server, tmpConnection1);
+    }
+
+    /* Remove the DataSets */
+    UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
+    TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2){
+        UA_PublishedDataSet_remove(server, tmpPDS1);
+    }
+
+    /* Remove the ReserveIds*/
+    ZIP_ITER(UA_ReserveIdTree, &psm->reserveIds, removeReserveId, NULL);
+    psm->reserveIdsSize = 0;
+
+    /* Delete subscribed datasets */
+    UA_StandaloneSubscribedDataSet *tmpSDS1, *tmpSDS2;
+    TAILQ_FOREACH_SAFE(tmpSDS1, &psm->subscribedDataSets, listEntry, tmpSDS2) {
+        UA_StandaloneSubscribedDataSet_remove(server, tmpSDS1);
+    }
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    /* Remove the SecurityGroups */
+    UA_SecurityGroup *tmpSG1, *tmpSG2;
+    TAILQ_FOREACH_SAFE(tmpSG1, &psm->securityGroups, listEntry, tmpSG2) {
+        removeSecurityGroup(server, tmpSG1);
+    }
+
+    /* Remove the keyStorages */
+    UA_PubSubKeyStorage *ks, *ksTmp;
+    LIST_FOREACH_SAFE(ks, &psm->pubSubKeyList, keyStorageList, ksTmp) {
+        UA_PubSubKeyStorage_delete(server, ks);
+    }
+#endif
+}
+
+/* Delete the current PubSub configuration including all nested members. This
+ * action also delete the configured PubSub transport Layers. */
+static UA_StatusCode
+UA_PubSubManager_free(UA_ServerComponent *sc) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
+    UA_PubSubManager_clear(psm);
+    UA_free(psm);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_ServerComponent *
+UA_PubSubManager_new(UA_Server *server) {
+    UA_PubSubManager *psm = (UA_PubSubManager*)UA_calloc(1, sizeof(UA_PubSubManager));
+    if(!psm)
+        return NULL;
+
+    psm->sc.server = server;
+    psm->sc.name = UA_STRING("pubsub");
+    psm->sc.start = UA_PubSubManager_start;
+    psm->sc.stop = UA_PubSubManager_stop;
+    psm->sc.free = UA_PubSubManager_free;
+
+    /* TODO: Using the Mac address to generate the defaultPublisherId.
+     * In the future, this can be retrieved from the Eventloop. */
+    psm->defaultPublisherId = generateRandomUInt64();
+
+    TAILQ_INIT(&psm->connections);
+    TAILQ_INIT(&psm->publishedDataSets);
+    TAILQ_INIT(&psm->subscribedDataSets);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+    TAILQ_INIT(&psm->securityGroups);
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+    /* Build PubSub information model */
+    initPubSubNS0(server);
+#endif
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    /* setup default PubSub monitoring callbacks */
+    UA_PubSubManager_setDefaultMonitoringCallbacks(&server->config.pubSubConfig.monitoringInterface);
+#endif /* UA_ENABLE_PUBSUB_MONITORING */
+
+    return &psm->sc;
+}
 
 #endif /* UA_ENABLE_PUBSUB */

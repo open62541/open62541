@@ -489,8 +489,9 @@ START_TEST(Test_error_case) {
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
     /* close the connection socket to generate error*/
+    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
        if(UA_NodeId_equal(&tmpConnection->head.identifier, &ConnId_1)) {
             shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
        }

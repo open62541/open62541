@@ -92,13 +92,17 @@ updatePubSubConfig(UA_Server *server,
                    const UA_PubSubConfigurationDataType *configurationParameters) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     if(configurationParameters == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_updatePubSubConfig] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_PubSubManager_delete(server, &server->pubSubManager);
+    UA_PubSubManager_clear(psm);
 
     /* Configuration of Published DataSets: */
     UA_UInt32 pdsCount = (UA_UInt32)configurationParameters->publishedDataSetsSize;
@@ -1113,20 +1117,19 @@ generatePubSubConfigurationDataType(UA_Server* server,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    const UA_PubSubManager *manager = &server->pubSubManager;
-
+    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConfigurationDataType_init(configDT);
 
     configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
-        UA_calloc(manager->publishedDataSetsSize,
+        UA_calloc(psm->publishedDataSetsSize,
                   sizeof(UA_PublishedDataSetDataType));
     if(configDT->publishedDataSets == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    configDT->publishedDataSetsSize = manager->publishedDataSetsSize;
+    configDT->publishedDataSetsSize = psm->publishedDataSetsSize;
 
     UA_PublishedDataSet *pds;
     UA_UInt32 pdsIndex = 0;
-    TAILQ_FOREACH(pds, &manager->publishedDataSets, listEntry) {
+    TAILQ_FOREACH(pds, &psm->publishedDataSets, listEntry) {
         UA_PublishedDataSetDataType *dst = &configDT->publishedDataSets[pdsIndex];
         res = generatePublishedDataSetDataType(server, pds, dst);
         if(res != UA_STATUSCODE_GOOD) {
@@ -1139,14 +1142,14 @@ generatePubSubConfigurationDataType(UA_Server* server,
     }
 
     configDT->connections = (UA_PubSubConnectionDataType*)
-        UA_calloc(manager->connectionsSize, sizeof(UA_PubSubConnectionDataType));
+        UA_calloc(psm->connectionsSize, sizeof(UA_PubSubConnectionDataType));
     if(configDT->connections == NULL)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    configDT->connectionsSize = manager->connectionsSize;
+    configDT->connectionsSize = psm->connectionsSize;
 
     UA_UInt32 connectionIndex = 0;
     UA_PubSubConnection *connection;
-    TAILQ_FOREACH(connection, &manager->connections, listEntry) {
+    TAILQ_FOREACH(connection, &psm->connections, listEntry) {
         UA_PubSubConnectionDataType *cdt = &configDT->connections[connectionIndex];
         res = generatePubSubConnectionDataType(server, connection, cdt);
         if(res != UA_STATUSCODE_GOOD) {
