@@ -173,6 +173,11 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(psc->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_PubSubConnection_connect(server, psc, false);
 
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -492,6 +497,11 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             UA_WriterGroup_connect(server, wg, false);
 
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -772,6 +782,12 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Reconnect if still operational */
         UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
         UA_UNLOCK(&server->serviceMutex);
         return;
     }

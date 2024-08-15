@@ -570,6 +570,43 @@ UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
+void
+UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
+    if(state == UA_LIFECYCLESTATE_STOPPED)
+        state = UA_LIFECYCLESTATE_STOPPING;
+
+    /* Check if all connections are closed */
+    if(state == UA_LIFECYCLESTATE_STOPPING) {
+        UA_PubSubConnection *c;
+        TAILQ_FOREACH(c, &psm->connections, listEntry) {
+            if(c->sendChannel != 0 || c->recvChannelsSize > 0)
+                goto set_state;
+
+            UA_WriterGroup *wg;
+            LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+                if(wg->sendChannel > 0)
+                    goto set_state;
+            }
+
+            UA_ReaderGroup *rg;
+            LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+                if(rg->recvChannelsSize > 0)
+                    goto set_state;
+            }
+        }
+
+        /* No open connections -> stopped */
+        state = UA_LIFECYCLESTATE_STOPPED;
+    }
+
+ set_state:
+    if(state == psm->sc.state)
+        return;
+    psm->sc.state = state;
+    if(psm->sc.notifyState)
+        psm->sc.notifyState(&psm->sc, state);
+}
+
 static UA_StatusCode
 UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
@@ -601,6 +638,8 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
 
         UA_PubSubConnection_setPubSubState(sc->server, c, UA_PUBSUBSTATE_DISABLED);
     }
+
+    UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
 }
 
 void
