@@ -141,9 +141,9 @@ UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {
 
 static void
 PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                     void *application, void **connectionContext,
-                     UA_ConnectionState state, const UA_KeyValueMap *params,
-                     UA_ByteString msg, UA_Boolean recv) {
+                      void *application, void **connectionContext,
+                      UA_ConnectionState state, const UA_KeyValueMap *params,
+                      UA_ByteString msg, UA_Boolean recv) {
     if(!connectionContext)
         return;
 
