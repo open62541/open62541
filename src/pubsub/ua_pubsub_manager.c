@@ -587,9 +587,19 @@ UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
 static void
 UA_PubSubManager_stop(UA_ServerComponent *sc) {
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
-    UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
-        UA_PubSubConnection_setPubSubState(sc->server, tmpConnection, UA_PUBSUBSTATE_DISABLED);
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_WriterGroup_setPubSubState(sc->server, wg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            UA_ReaderGroup_setPubSubState(sc->server, rg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_PubSubConnection_setPubSubState(sc->server, c, UA_PUBSUBSTATE_DISABLED);
     }
 }
 
