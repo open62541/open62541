@@ -400,8 +400,6 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
 
- set_state:
-
     switch(targetState) {
         case UA_PUBSUBSTATE_ERROR:
         case UA_PUBSUBSTATE_PAUSED:
@@ -412,7 +410,16 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
             break;
 
         case UA_PUBSUBSTATE_PREOPERATIONAL:
-        case UA_PUBSUBSTATE_OPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL: {
+            UA_PubSubManager *psm = getPSM(server);
+            if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+                UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                                      "Cannot enable the connection "
+                                      "while the server is not running");
+               return UA_STATUSCODE_BADINTERNALERROR;
+            }
+            }
+
             /* Called also if the connection is already operational. We might to
              * open an additional recv connection, etc. Sets the new state
              * internally. */
@@ -425,15 +432,18 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
              * called (other than to validate the parameters). So we handle the
              * fallout of a failed connection here. */
             ret = UA_PubSubConnection_connect(server, c, false);
-            if(ret != UA_STATUSCODE_GOOD) {
-                targetState = UA_PUBSUBSTATE_ERROR;
-                goto set_state;
-            }
             break;
+
+            /* Unknown case */
         default:
-            UA_LOG_WARNING_PUBSUB(server->config.logging, c,
-                                  "Received unknown PubSub state!");
-            return UA_STATUSCODE_BADINTERNALERROR;
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
+    }
+
+    /* Failure */
+    if(ret != UA_STATUSCODE_GOOD) {
+        c->head.state = UA_PUBSUBSTATE_ERROR;
+        UA_PubSubConnection_disconnect(c);
     }
 
     /* Inform application about state change */
