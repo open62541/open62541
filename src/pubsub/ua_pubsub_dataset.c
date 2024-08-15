@@ -104,8 +104,12 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
 
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_PublishedDataSet *tmpPDS = NULL;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry) {
+    TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         if(UA_NodeId_equal(&tmpPDS->head.identifier, &identifier))
             break;
     }
@@ -114,8 +118,12 @@ UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier) {
 
 UA_PublishedDataSet *
 UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_PublishedDataSet *tmpPDS = NULL;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry) {
+    TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         if(UA_String_equal(&name, &tmpPDS->config.name))
             break;
     }
@@ -559,8 +567,12 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
 
 UA_DataSetField *
 UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry) {
+    TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         UA_DataSetField *tmpField;
         TAILQ_FOREACH(tmpField, &tmpPDS->fields, listEntry) {
             if(UA_NodeId_equal(&tmpField->identifier, &identifier))
@@ -640,6 +652,12 @@ UA_PublishedDataSet_create(UA_Server *server,
         return result;
     }
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
     /* Create new PDS and add to UA_PubSubManager */
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
@@ -708,8 +726,8 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
 
     /* Insert into the queue of the manager */
-    TAILQ_INSERT_TAIL(&server->pubSubManager.publishedDataSets, newPDS, listEntry);
-    server->pubSubManager.publishedDataSetsSize++;
+    TAILQ_INSERT_TAIL(&psm->publishedDataSets, newPDS, listEntry);
+    psm->publishedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Create representation and unique id */
@@ -751,10 +769,14 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Search for referenced writers -> delete this writers. (Standard: writer
      * must be connected with PDS) */
     UA_PubSubConnection *conn;
-    TAILQ_FOREACH(conn, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(conn, &psm->connections, listEntry) {
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
             UA_DataSetWriter *dsw, *tmpWriter;
@@ -771,8 +793,8 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
 
     UA_LOG_INFO_PUBSUB(server->config.logging, publishedDataSet, "DataSet deleted");
 
-    TAILQ_REMOVE(&server->pubSubManager.publishedDataSets, publishedDataSet, listEntry);
-    server->pubSubManager.publishedDataSetsSize--;
+    TAILQ_REMOVE(&psm->publishedDataSets, publishedDataSet, listEntry);
+    psm->publishedDataSetsSize--;
     UA_PublishedDataSet_clear(server, publishedDataSet);
     UA_free(publishedDataSet);
 
@@ -795,8 +817,12 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_StandaloneSubscribedDataSet *sds;
-    TAILQ_FOREACH(sds, &server->pubSubManager.subscribedDataSets, listEntry) {
+    TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
         if(UA_NodeId_equal(&identifier, &sds->head.identifier))
             return sds;
     }
@@ -805,8 +831,12 @@ UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifi
 
 UA_StandaloneSubscribedDataSet *
 UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_StandaloneSubscribedDataSet *sds;
-    TAILQ_FOREACH(sds, &server->pubSubManager.subscribedDataSets, listEntry) {
+    TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
         if(UA_String_equal(&identifier, &sds->config.name))
             return sds;
     }
@@ -849,7 +879,11 @@ addStandaloneSubscribedDataSet(UA_Server *server,
                                UA_NodeId *sdsIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    if(!sdsConfig){
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!sdsConfig) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. No config passed in.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -879,15 +913,13 @@ addStandaloneSubscribedDataSet(UA_Server *server,
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = NULL;
 
-    TAILQ_INSERT_TAIL(&server->pubSubManager.subscribedDataSets,
-                      newSubscribedDataSet, listEntry);
-    server->pubSubManager.subscribedDataSetsSize++;
+    TAILQ_INSERT_TAIL(&psm->subscribedDataSets, newSubscribedDataSet, listEntry);
+    psm->subscribedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
 #else
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &newSubscribedDataSet->identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->identifier);
 #endif
 
     if(sdsIdentifier)
@@ -910,9 +942,13 @@ void
 UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribedDataSet *sds) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return;
+
     /* Search for referenced readers */
     UA_PubSubConnection *conn;
-    TAILQ_FOREACH(conn, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(conn, &psm->connections, listEntry) {
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &conn->readerGroups, listEntry) {
             UA_DataSetReader *dsr, *tmpReader;
@@ -929,8 +965,8 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribed
     deleteNode(server, sds->head.identifier, true);
 #endif
 
-    TAILQ_REMOVE(&server->pubSubManager.subscribedDataSets, sds, listEntry);
-    server->pubSubManager.subscribedDataSetsSize--;
+    TAILQ_REMOVE(&psm->subscribedDataSets, sds, listEntry);
+    psm->subscribedDataSetsSize--;
     UA_StandaloneSubscribedDataSet_clear(server, sds);
     UA_free(sds);
 }

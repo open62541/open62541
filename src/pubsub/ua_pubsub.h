@@ -19,10 +19,9 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 
-#include "open62541_queue.h"
-#include "ziptree.h"
 #include "mp_printf.h"
 #include "ua_pubsub_networkmessage.h"
+#include "../server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
@@ -705,6 +704,8 @@ typedef struct UA_ReserveId {
 typedef ZIP_HEAD(UA_ReserveIdTree, UA_ReserveId) UA_ReserveIdTree;
 
 typedef struct UA_PubSubManager {
+    UA_ServerComponent sc;
+
     UA_UInt64 defaultPublisherId;
     /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
      * level components */
@@ -732,24 +733,23 @@ typedef struct UA_PubSubManager {
 #endif
 } UA_PubSubManager;
 
+static UA_INLINE UA_PubSubManager *
+getPSM(UA_Server *server) {
+    return (UA_PubSubManager*)getServerComponentByName(server, UA_STRING("pubsub"));
+}
+
+void
+UA_PubSubManager_clear(UA_PubSubManager *psm);
+
 UA_StatusCode
-UA_PubSubManager_reserveIds(UA_Server *server, UA_NodeId sessionId,
+UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId,
                             UA_UInt16 numRegWriterGroupIds,
                             UA_UInt16 numRegDataSetWriterIds,
                             UA_String transportProfileUri, UA_UInt16 **writerGroupIds,
                             UA_UInt16 **dataSetWriterIds);
 
 void
-UA_PubSubManager_freeIds(UA_Server *server);
-
-void
-UA_PubSubManager_init(UA_Server *server, UA_PubSubManager *psm);
-
-void
-UA_PubSubManager_shutdown(UA_Server *server, UA_PubSubManager *psm);
-
-void
-UA_PubSubManager_delete(UA_Server *server, UA_PubSubManager *psm);
+UA_PubSubManager_freeIds(UA_PubSubManager *psm);
 
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 void

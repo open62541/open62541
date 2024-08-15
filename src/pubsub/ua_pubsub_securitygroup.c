@@ -18,8 +18,11 @@
 
 UA_SecurityGroup *
 UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
     UA_SecurityGroup *tmpSG;
-    TAILQ_FOREACH(tmpSG, &server->pubSubManager.securityGroups, listEntry) {
+    TAILQ_FOREACH(tmpSG, &psm->securityGroups, listEntry) {
         if(UA_String_equal(&securityGroupName, &tmpSG->config.securityGroupName))
             return tmpSG;
     }
@@ -202,6 +205,10 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
     if(!securityGroupConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /*check minimal config parameters*/
     if(!securityGroupConfig->keyLifeTime ||
        UA_String_isEmpty(&securityGroupConfig->securityGroupName) ||
@@ -261,15 +268,14 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
         return retval;
     }
 #else
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &newSecurityGroup->securityGroupNodeId);
+    UA_PubSubManager_generateUniqueNodeId(psm, &newSecurityGroup->securityGroupNodeId);
 #endif
     if(securityGroupNodeId)
         UA_NodeId_copy(&newSecurityGroup->securityGroupNodeId, securityGroupNodeId);
 
-    TAILQ_INSERT_TAIL(&server->pubSubManager.securityGroups, newSecurityGroup, listEntry);
+    TAILQ_INSERT_TAIL(&psm->securityGroups, newSecurityGroup, listEntry);
 
-    server->pubSubManager.securityGroupsSize++;
+    psm->securityGroupsSize++;
     return retval;
 }
 
@@ -286,8 +292,11 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
 
 UA_SecurityGroup *
 UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
     UA_SecurityGroup *tmpSG;
-    TAILQ_FOREACH(tmpSG, &server->pubSubManager.securityGroups, listEntry) {
+    TAILQ_FOREACH(tmpSG, &psm->securityGroups, listEntry) {
         if(UA_NodeId_equal(&identifier, &tmpSG->securityGroupNodeId))
             return tmpSG;
     }
@@ -320,13 +329,17 @@ UA_SecurityGroup_delete(UA_SecurityGroup *sg) {
 
 void
 removeSecurityGroup(UA_Server *server, UA_SecurityGroup *sg) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return;
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, sg->securityGroupNodeId, true);
 #endif
 
     /* Unlink from the server */
-    TAILQ_REMOVE(&server->pubSubManager.securityGroups, sg, listEntry);
-    server->pubSubManager.securityGroupsSize--;
+    TAILQ_REMOVE(&psm->securityGroups, sg, listEntry);
+    psm->securityGroupsSize--;
     if(sg->callbackId > 0)
         removeCallback(server, sg->callbackId);
 

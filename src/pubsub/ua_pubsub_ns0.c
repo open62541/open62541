@@ -10,6 +10,7 @@
  */
 
 #include "ua_pubsub_ns0.h"
+#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
@@ -395,9 +396,13 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
                        UA_NodeId *dataSetWriterId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_NodeId publishedDataSetId = UA_NODEID_NULL;
     UA_PublishedDataSet *tmpPDS;
-    TAILQ_FOREACH(tmpPDS, &server->pubSubManager.publishedDataSets, listEntry){
+    TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry){
         if(UA_String_equal(&dataSetWriter->dataSetName, &tmpPDS->config.name)) {
             publishedDataSetId = tmpPDS->head.identifier;
             break;
@@ -1479,6 +1484,11 @@ addReserveIdsLocked(UA_Server *server,
                     size_t inputSize, const UA_Variant *input,
                     size_t outputSize, UA_Variant *output){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_String transportProfileUri = *((UA_String *)input[0].data);
     UA_UInt16 numRegWriterGroupIds = *((UA_UInt16 *)input[1].data);
@@ -1487,7 +1497,7 @@ addReserveIdsLocked(UA_Server *server,
     UA_UInt16 *writerGroupIds;
     UA_UInt16 *dataSetWriterIds;
 
-    retVal |= UA_PubSubManager_reserveIds(server, *sessionId, numRegWriterGroupIds,
+    retVal |= UA_PubSubManager_reserveIds(psm, *sessionId, numRegWriterGroupIds,
                                           numRegDataSetWriterIds, transportProfileUri,
                                           &writerGroupIds, &dataSetWriterIds);
     if(retVal != UA_STATUSCODE_GOOD) {
@@ -1507,8 +1517,7 @@ addReserveIdsLocked(UA_Server *server,
                                            &server->config.applicationDescription.applicationUri,
                                            &UA_TYPES[UA_TYPES_STRING]);
     } else {
-        retVal |= UA_Variant_setScalarCopy(&output[0],
-                                           &server->pubSubManager.defaultPublisherId,
+        retVal |= UA_Variant_setScalarCopy(&output[0], &psm->defaultPublisherId,
                                            &UA_TYPES[UA_TYPES_UINT64]);
     }
 
@@ -2362,7 +2371,9 @@ UA_deletePubSubConfigMethodCallback(UA_Server *server,
                                     size_t inputSize, const UA_Variant *input,
                                     size_t outputSize, UA_Variant *output) {
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager_delete(server, &server->pubSubManager);
+    UA_PubSubManager *psm = getPSM(server);
+    if(psm)
+        UA_PubSubManager_clear(psm);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }

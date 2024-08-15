@@ -277,10 +277,6 @@ UA_Server_delete(UA_Server *server) {
 
 #endif
 
-#ifdef UA_ENABLE_PUBSUB
-    UA_PubSubManager_delete(server, &server->pubSubManager);
-#endif
-
 #if UA_MULTITHREADING >= 100
     UA_AsyncManager_clear(&server->asyncManager, server);
 #endif
@@ -387,14 +383,6 @@ UA_Server_init(UA_Server *server) {
     UA_AsyncManager_init(&server->asyncManager, server);
 #endif
 
-    /* Initialize the binay protocol support */
-    addServerComponent(server, UA_BinaryProtocolManager_new(), NULL);
-
-    /* Initialized discovery */
-#ifdef UA_ENABLE_DISCOVERY
-    addServerComponent(server, UA_DiscoveryManager_new(), NULL);
-#endif
-
     /* Initialize namespace 0*/
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
@@ -406,21 +394,19 @@ UA_Server_init(UA_Server *server) {
     UA_CHECK_STATUS(res, goto cleanup);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB
-    /* Initialized PubSubManager */
-    UA_PubSubManager_init(server, &server->pubSubManager);
+    /* Initialize the binay protocol support */
+    addServerComponent(server, UA_BinaryProtocolManager_new(), NULL);
 
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    /* Build PubSub information model */
-    initPubSubNS0(server);
+    /* Initialized Discovery */
+#ifdef UA_ENABLE_DISCOVERY
+    addServerComponent(server, UA_DiscoveryManager_new(), NULL);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    /* setup default PubSub monitoring callbacks */
-    res = UA_PubSubManager_setDefaultMonitoringCallbacks(&server->config.pubSubConfig.monitoringInterface);
-    UA_CHECK_STATUS(res, goto cleanup);
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-#endif /* UA_ENABLE_PUBSUB */
+    /* Initialize PubSub */
+#ifdef UA_ENABLE_PUBSUB
+    if(server->config.pubsubEnabled)
+        addServerComponent(server, UA_PubSubManager_new(server), NULL);
+#endif
 
     UA_UNLOCK(&server->serviceMutex);
     return server;
@@ -955,11 +941,6 @@ UA_Server_run_shutdown(UA_Server *server) {
         removeCallback(server, server->houseKeepingCallbackId);
         server->houseKeepingCallbackId = 0;
     }
-
-    /* Stop PubSub */
-#ifdef UA_ENABLE_PUBSUB
-    UA_PubSubManager_shutdown(server, &server->pubSubManager);
-#endif
 
     /* Stop all ServerComponents */
     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,

@@ -136,8 +136,11 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
 
 UA_PubSubConnection *
 UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionIdentifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
     UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
+    TAILQ_FOREACH(pubSubConnection, &psm->connections, listEntry){
         if(UA_NodeId_equal(&connectionIdentifier, &pubSubConnection->head.identifier))
             break;
     }
@@ -160,6 +163,10 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     if(!server || !cc)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
@@ -178,14 +185,12 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     addPubSubConnectionRepresentation(server, c);
 #else
     /* Create a unique NodeId that does not correspond to a Node */
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &c->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &c->head.identifier);
 #endif
 
     /* Register */
-    UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    TAILQ_INSERT_HEAD(&pubSubManager->connections, c, listEntry);
-    pubSubManager->connectionsSize++;
+    TAILQ_INSERT_HEAD(&psm->connections, c, listEntry);
+    psm->connectionsSize++;
 
     /* Cache the log string */
     char tmpLogIdStr[128];
@@ -295,8 +300,9 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 #endif
 
     /* Unlink from the server */
-    TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
-    server->pubSubManager.connectionsSize--;
+    UA_PubSubManager *psm = getPSM(server);
+    TAILQ_REMOVE(&psm->connections, c, listEntry);
+    psm->connectionsSize--;
 
     UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection deleted");
 

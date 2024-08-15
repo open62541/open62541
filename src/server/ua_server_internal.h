@@ -31,10 +31,6 @@
 
 _UA_BEGIN_DECLS
 
-#ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub.h"
-#endif
-
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
@@ -175,11 +171,6 @@ struct UA_Server {
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     UA_NodeId refreshEvents[2];
 # endif
-#endif
-
-    /* Publish/Subscribe */
-#ifdef UA_ENABLE_PUBSUB
-    UA_PubSubManager pubSubManager;
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -547,6 +538,11 @@ UA_ServerComponent * UA_DiscoveryManager_new(void);
 #endif
 
 UA_ServerComponent * UA_BinaryProtocolManager_new(void);
+
+
+#ifdef UA_ENABLE_PUBSUB
+UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
+#endif
 
 /***********/
 /* RefTree */

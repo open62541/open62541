@@ -70,8 +70,12 @@ UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dataSetWrite
 
 UA_DataSetWriter *
 UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
     UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(pubSubConnection, &psm->connections, listEntry) {
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry) {
             UA_DataSetWriter *tmpWriter;
@@ -308,8 +312,13 @@ UA_Server_addDataSetWriter(UA_Server *server,
                            const UA_DataSetWriterConfig *dataSetWriterConfig,
                            UA_NodeId *writerIdentifier) {
     UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     /* Delete the reserved IDs if the related session no longer exists. */
-    UA_PubSubManager_freeIds(server);
+    UA_PubSubManager_freeIds(psm);
     UA_StatusCode res = UA_DataSetWriter_create(server, writerGroup, dataSet,
                                                 dataSetWriterConfig, writerIdentifier);
     UA_UNLOCK(&server->serviceMutex);
