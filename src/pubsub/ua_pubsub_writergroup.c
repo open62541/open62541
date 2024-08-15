@@ -822,16 +822,12 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_PubSubState oldState = wg->head.state;
-    wg->head.state = targetState;
 
-    switch(wg->head.state) {
-        /* Disabled */
-    default:
-        wg->head.state = UA_PUBSUBSTATE_ERROR;
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        /* fallthrough */
+    switch(targetState) {
+        /* Disabled or Error */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
+        wg->head.state = targetState;
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(server, wg);
         break;
@@ -839,7 +835,16 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         /* Enabled */
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_OPERATIONAL: {
+        UA_PubSubManager *psm = getPSM(server);
+        if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+            UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                                  "Cannot enable the WriterGroup "
+                                  "while the server is not running");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        }
+
         if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
             wg->head.state = UA_PUBSUBSTATE_PAUSED;
             UA_WriterGroup_disconnect(wg);
@@ -865,6 +870,11 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         /* Enable publish callback if operational */
         if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
             ret = UA_WriterGroup_addPublishCallback(server, wg);
+        break;
+
+        /* Unknown case */
+    default:
+        ret = UA_STATUSCODE_BADINTERNALERROR;
         break;
     }
 

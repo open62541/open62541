@@ -356,16 +356,12 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_PubSubState oldState = rg->head.state;
-    rg->head.state = targetState;
 
-    switch(rg->head.state) {
-        /* Disabled */
-    default:
-        rg->head.state = UA_PUBSUBSTATE_ERROR;
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        /* fallthrough */
+    switch(targetState) {
+        /* Disabled or Error */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
+        rg->head.state = targetState;
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
         break;
@@ -373,7 +369,16 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
         /* Enabled */
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-    case UA_PUBSUBSTATE_OPERATIONAL:
+    case UA_PUBSUBSTATE_OPERATIONAL: {
+        UA_PubSubManager *psm = getPSM(server);
+        if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+            UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                                  "Cannot enable the ReaderGroup "
+                                  "while the server is not running");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        }
+
         if(connection->head.state == UA_PUBSUBSTATE_DISABLED ||
            connection->head.state == UA_PUBSUBSTATE_ERROR) {
             /* Connection is disabled -> paused */
@@ -386,10 +391,20 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
 
             /* Connect RG-specific connections. For example for MQTT. */
             ret = UA_ReaderGroup_connect(server, rg, false);
-            if(ret != UA_STATUSCODE_GOOD)
-                rg->head.state = UA_PUBSUBSTATE_ERROR;
         }
         break;
+
+        /* Unknown case */
+    default:
+        ret = UA_STATUSCODE_BADINTERNALERROR;
+        break;
+    }
+
+    /* Failure */
+    if(ret != UA_STATUSCODE_GOOD) {
+        rg->head.state = UA_PUBSUBSTATE_ERROR;
+        UA_ReaderGroup_disconnect(rg);
+        rg->hasReceived = false;
     }
 
     /* Inform application about state change */
