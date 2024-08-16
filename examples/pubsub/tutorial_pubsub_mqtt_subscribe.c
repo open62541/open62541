@@ -220,9 +220,7 @@ addDataSetReader(UA_Server *server) {
     readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     readerConfig.messageReceiveTimeout = 10;
-#endif
 
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);

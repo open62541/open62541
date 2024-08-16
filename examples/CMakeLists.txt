@@ -255,9 +255,8 @@ if(UA_ENABLE_PUBSUB)
         add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
     endif()
 
-    if(UA_ENABLE_PUBSUB_MONITORING)
-        add_example(server_pubsub_subscribe_custom_monitoring pubsub/server_pubsub_subscribe_custom_monitoring.c)
-    endif()
+    add_example(server_pubsub_subscribe_custom_monitoring
+                pubsub/server_pubsub_subscribe_custom_monitoring.c)
 endif()
 
 ###########################

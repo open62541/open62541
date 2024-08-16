@@ -328,8 +328,6 @@ generateRandomUInt64(void) {
     return id;
 }
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-
 static UA_StatusCode
 PubSubMonitoring_create(UA_Server *server, UA_NodeId Id,
                         UA_PubSubComponentType eComponentType,
@@ -551,8 +549,6 @@ PubSubMonitoring_delete(UA_Server *server, UA_NodeId Id,
     return UA_STATUSCODE_GOOD;
 }
 
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-
 void
 UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STOPPED)
@@ -708,7 +704,6 @@ UA_PubSubManager_new(UA_Server *server) {
     initPubSubNS0(server);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Setup default PubSub monitoring callbacks */
     UA_PubSubMonitoringInterface *mif = &server->config.pubSubConfig.monitoringInterface;
     mif->createMonitoring = PubSubMonitoring_create;
@@ -716,7 +711,6 @@ UA_PubSubManager_new(UA_Server *server) {
     mif->stopMonitoring = PubSubMonitoring_stop;
     mif->updateMonitoringInterval = PubSubMonitoring_updateMonitoringInterval;
     mif->deleteMonitoring = PubSubMonitoring_delete;
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
 
     return &psm->sc;
 }

@@ -185,8 +185,6 @@ UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
  * The global configuration is part of the server-config.
  */
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-
 /* Monitoring gives callbacks into userland upon certain events.
  * For example when a timeout occurred without a received message. */
 
@@ -219,8 +217,6 @@ typedef struct {
                                       void *data);
 } UA_PubSubMonitoringInterface;
 
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-
 /* Global PubSub Configuration */
 struct UA_PubSubConfiguration {
     /* Callback for PubSub component state changes: If provided this callback
@@ -241,9 +237,7 @@ struct UA_PubSubConfiguration {
     size_t securityPoliciesSize;
     UA_PubSubSecurityPolicy *securityPolicies;
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_PubSubMonitoringInterface monitoringInterface;
-#endif
 };
 
 /**

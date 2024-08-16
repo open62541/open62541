@@ -50,7 +50,6 @@ cd build
         -DUA_ENABLE_JSON_ENCODING:BOOL=ON `
         -DUA_ENABLE_PUBSUB:BOOL=ON `
         -DUA_ENABLE_PUBSUB_INFORMATIONMODEL:BOOL=ON `
-        -DUA_ENABLE_PUBSUB_MONITORING:BOOL=ON `
         -DUA_FORCE_WERROR=ON `
         ..
 & cmake --build .

@@ -491,12 +491,11 @@ struct UA_DataSetReader {
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
+    UA_DateTime lastHeartbeatReceived;
+
     /* MessageReceiveTimeout handling */
     UA_ServerCallback msgRcvTimeoutTimerCallback;
     UA_UInt64 msgRcvTimeoutTimerId;
-#endif
-    UA_DateTime lastHeartbeatReceived;
 };
 
 /* Process Network Message using DataSetReader */
