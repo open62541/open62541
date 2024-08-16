@@ -766,17 +766,6 @@ UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
-/*************************************************/
-/*      PubSub component monitoring              */
-/*************************************************/
-
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-
-UA_StatusCode
-UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif);
-
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
