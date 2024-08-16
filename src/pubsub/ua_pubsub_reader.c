@@ -575,7 +575,7 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             config->pubSubConfig.
-                stateChangeCallback(server, &dsr->head.identifier, dsr->head.state, res);
+                stateChangeCallback(server, dsr->head.identifier, dsr->head.state, res);
             UA_LOCK(&server->serviceMutex);
         }
     }

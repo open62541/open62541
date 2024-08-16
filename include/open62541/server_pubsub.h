@@ -224,7 +224,7 @@ struct UA_PubSubConfiguration {
      * change from operational to error in case of a DataSetReader
      * MessageReceiveTimeout. The status code provides additional
      * information. */
-    void (*stateChangeCallback)(UA_Server *server, UA_NodeId *id,
+    void (*stateChangeCallback)(UA_Server *server, const UA_NodeId id,
                                 UA_PubSubState state, UA_StatusCode status);
 
     UA_Boolean enableDeltaFrames;
