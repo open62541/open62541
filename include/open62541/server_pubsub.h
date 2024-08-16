@@ -139,28 +139,19 @@ typedef UA_PubSubComponentType UA_PubSubComponentEnumType UA_DEPRECATED;
  * generated automatically. This feature can be enabled/disabled by changing the
  * UA_ENABLE_PUBSUB_INFORMATIONMODEL option.
  *
- * Connections
- * -----------
- * The PubSub connections are the abstraction between the concrete transport protocol
- * and the PubSub functionality. It is possible to create multiple connections with
- * different transport protocols at runtime.
- */
-
-/* Valid PublisherId types are defined in Part 14, 7.2.2.2.2 NetworkMessage
- * Layout (bit range 0-2).
- *
- * - 000 Byte (default value if ExtendedFlags1 is omitted)
- * - 001 UInt16
- * - 010 UInt32
- * - 011 UInt64
- * - 100 String */
+ * PublisherId handling
+ * --------------------
+ * Valid PublisherId types are defined in Part 14, 7.2.2.2.2 NetworkMessage. The
+ * PublisherId is sometimes encoded as a variant in the standard (e.g. in some
+ * configuration structures). We do however use our own tagged-union structure
+ * where we can. */
 
 typedef enum {
-    UA_PUBLISHERIDTYPE_BYTE   = 0,
-    UA_PUBLISHERIDTYPE_UINT16 = 1,
-    UA_PUBLISHERIDTYPE_UINT32 = 2,
-    UA_PUBLISHERIDTYPE_UINT64 = 3,
-    UA_PUBLISHERIDTYPE_STRING = 4
+    UA_PUBLISHERIDTYPE_BYTE   = 0, /* 000 Byte (default) */
+    UA_PUBLISHERIDTYPE_UINT16 = 1, /* 001 UInt16 */
+    UA_PUBLISHERIDTYPE_UINT32 = 2, /* 010 UInt32 */
+    UA_PUBLISHERIDTYPE_UINT64 = 3, /* 011 UInt64 */
+    UA_PUBLISHERIDTYPE_STRING = 4  /* 100 String */
 } UA_PublisherIdType;
 
 typedef struct {
@@ -188,52 +179,49 @@ UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src);
 UA_EXPORT void
 UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
 
-typedef struct {
-    UA_String name;
-    UA_Boolean enabled;
-    UA_PublisherId publisherId;
-    UA_String transportProfileUri;
-    UA_Variant address;
-    UA_KeyValueMap connectionProperties;
-    UA_Variant connectionTransportSettings;
-
-    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
-                              * the server if this is NULL). Propagates to the
-                              * ReaderGroup/WriterGroup attached to the
-                              * Connection. */
-} UA_PubSubConnectionConfig;
+/**
+ * Global Configuration
+ * --------------------
+ * The global configuration is part of the server-config.
+ */
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
 
+/* Monitoring gives callbacks into userland upon certain events.
+ * For example when a timeout occurred without a received message. */
+
 typedef enum {
     UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT
-    // extend as needed
+    /* Extend as needed */
 } UA_PubSubMonitoringType;
 
-/* PubSub monitoring interface */
+/* PubSub Monitoring Interface */
 typedef struct {
     UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentType eComponentType,
-                                      UA_PubSubMonitoringType eMonitoringType,
+                                      UA_PubSubComponentType componentType,
+                                      UA_PubSubMonitoringType monitoringType,
                                       void *data, UA_ServerCallback callback);
     UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
-                                     UA_PubSubComponentType eComponentType,
-                                     UA_PubSubMonitoringType eMonitoringType, void *data);
+                                     UA_PubSubComponentType componentType,
+                                     UA_PubSubMonitoringType monitoringType,
+                                     void *data);
     UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
-                                    UA_PubSubComponentType eComponentType,
-                                    UA_PubSubMonitoringType eMonitoringType, void *data);
+                                    UA_PubSubComponentType componentType,
+                                    UA_PubSubMonitoringType monitoringType,
+                                    void *data);
     UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
-                                              UA_PubSubComponentType eComponentType,
-                                              UA_PubSubMonitoringType eMonitoringType,
+                                              UA_PubSubComponentType componentType,
+                                              UA_PubSubMonitoringType monitoringType,
                                               void *data);
     UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentType eComponentType,
-                                      UA_PubSubMonitoringType eMonitoringType, void *data);
+                                      UA_PubSubComponentType componentType,
+                                      UA_PubSubMonitoringType monitoringType,
+                                      void *data);
 } UA_PubSubMonitoringInterface;
 
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
-/* General PubSub configuration */
+/* Global PubSub Configuration */
 struct UA_PubSubConfiguration {
     /* Callback for PubSub component state changes: If provided this callback
      * informs the application about PubSub component state changes. E.g. state
@@ -257,6 +245,28 @@ struct UA_PubSubConfiguration {
     UA_PubSubMonitoringInterface monitoringInterface;
 #endif
 };
+
+/**
+ * Connections
+ * -----------
+ * The PubSub connections are the abstraction between the concrete transport protocol
+ * and the PubSub functionality. It is possible to create multiple connections with
+ * different transport protocols at runtime. */
+
+typedef struct {
+    UA_String name;
+    UA_Boolean enabled;
+    UA_PublisherId publisherId;
+    UA_String transportProfileUri;
+    UA_Variant address;
+    UA_KeyValueMap connectionProperties;
+    UA_Variant connectionTransportSettings;
+
+    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
+                              * the server if this is NULL). Propagates to the
+                              * ReaderGroup/WriterGroup attached to the
+                              * Connection. */
+} UA_PubSubConnectionConfig;
 
 /* Add a new PubSub connection to the given server and open it.
  * @param server The server to add the connection to.
@@ -299,9 +309,6 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connectionId
  * configuration tools. You should normally create an empty PDS and call the
  * functions to add new fields. */
 
-/* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members and
- * thus no dedicated config structure. */
-
 typedef enum {
     UA_PUBSUB_DATASET_PUBLISHEDITEMS,
     UA_PUBSUB_DATASET_PUBLISHEDEVENTS,
@@ -333,8 +340,8 @@ typedef struct {
     UA_String name;
     UA_PublishedDataSetType publishedDataSetType;
     union {
-        /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members
-         * and thus no dedicated config structure.*/
+        /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional
+         * members and thus no dedicated config structure.*/
         UA_PublishedDataItemsTemplateConfig itemsTemplate;
         UA_PublishedEventConfig event;
         UA_PublishedEventTemplateConfig eventTemplate;
@@ -353,7 +360,7 @@ typedef struct {
 
 UA_EXPORT UA_AddPublishedDataSetResult UA_THREADSAFE
 UA_Server_addPublishedDataSet(UA_Server *server,
-                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                              const UA_PublishedDataSetConfig *pdsConfig,
                               UA_NodeId *pdsId);
 
 /* Returns a deep copy of the config */
@@ -389,11 +396,11 @@ typedef struct{
     /* non std. field */
     struct {
         UA_Boolean rtFieldSourceEnabled;
-        /* If the rtInformationModelNode is set, the nodeid in publishParameter must point
-         * to a node with external data source backend defined
-         * */
+        /* If the rtInformationModelNode is set, the nodeid in publishParameter
+         * must point to a node with external data source backend defined */
         UA_Boolean rtInformationModelNode;
-        //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
+        /* TODO: Decide if suppress C++ warnings and use 'UA_DataValue * * const
+         * staticValueSource;' */
         UA_DataValue ** staticValueSource;
     } rtValueSource;
     UA_UInt32 maxStringLength;
