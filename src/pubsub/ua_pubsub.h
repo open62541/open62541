@@ -117,7 +117,7 @@ UA_PubSubState_name(UA_PubSubState state);
 
 typedef struct {
     UA_NodeId identifier;
-    UA_PubSubComponentEnumType componentType;
+    UA_PubSubComponentType componentType;
     UA_PubSubState state;
     UA_String logIdString; /* Precomputed logging prefix */
 } UA_PubSubComponentHead;

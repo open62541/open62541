@@ -118,7 +118,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     if(!newDataSetReader)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newDataSetReader->head.componentType = UA_PUBSUB_COMPONENT_DATASETREADER;
+    newDataSetReader->head.componentType = UA_PUBSUBCOMPONENT_DATASETREADER;
     newDataSetReader->linkedReaderGroup = readerGroup;
 
     /* Copy the config into the new dataSetReader */
@@ -152,7 +152,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     /* Create message receive timeout timer */
     retVal = server->config.pubSubConfig.monitoringInterface.
         createMonitoring(server, newDataSetReader->head.identifier,
-                         UA_PUBSUB_COMPONENT_DATASETREADER,
+                         UA_PUBSUBCOMPONENT_DATASETREADER,
                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
                          newDataSetReader,
                          (void (*)(UA_Server *, void *))
@@ -286,7 +286,7 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 #ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Remove message receive timeout timer */
     server->config.pubSubConfig.monitoringInterface.
-        deleteMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+        deleteMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
@@ -393,7 +393,7 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
         if(dsr->msgRcvTimeoutTimerId != 0) {
             res = server->config.pubSubConfig.monitoringInterface.
                 updateMonitoringInterval(server, dsr->head.identifier,
-                                         UA_PUBSUB_COMPONENT_DATASETREADER,
+                                         UA_PUBSUBCOMPONENT_DATASETREADER,
                                          UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
                                          dsr);
         }
@@ -917,7 +917,7 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
     UA_StatusCode res;
     if(dsr->msgRcvTimeoutTimerId != 0) {
         res = server->config.pubSubConfig.monitoringInterface.
-            stopMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+            stopMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
                            UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
         if(res != UA_STATUSCODE_GOOD)
             UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
@@ -925,7 +925,7 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
 
     /* Start message receive timeout timer */
     res = server->config.pubSubConfig.monitoringInterface.
-        startMonitoring(server, dsr->head.identifier, UA_PUBSUB_COMPONENT_DATASETREADER,
+        startMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
@@ -937,7 +937,7 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
     UA_assert(server);
     UA_assert(dsr);
 
-    if(dsr->head.componentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(dsr->head.componentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, dsr,
                             "UA_DataSetReader_handleMessageReceiveTimeout(): "
                             "input param is not of type DataSetReader");

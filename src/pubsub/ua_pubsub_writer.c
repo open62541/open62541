@@ -237,7 +237,7 @@ UA_DataSetWriter_create(UA_Server *server,
     if(!newDataSetWriter)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newDataSetWriter->head.componentType = UA_PUBSUB_COMPONENT_DATASETWRITER;
+    newDataSetWriter->head.componentType = UA_PUBSUBCOMPONENT_DATASETWRITER;
     newDataSetWriter->linkedWriterGroup = wg;
 
     /* Copy the config into the new dataSetWriter */

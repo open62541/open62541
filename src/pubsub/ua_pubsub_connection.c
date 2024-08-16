@@ -173,7 +173,7 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    c->head.componentType = UA_PUBSUB_COMPONENT_CONNECTION;
+    c->head.componentType = UA_PUBSUBCOMPONENT_CONNECTION;
 
     /* Copy the connection config */
     UA_StatusCode ret = UA_PubSubConnectionConfig_copy(cc, &c->config);

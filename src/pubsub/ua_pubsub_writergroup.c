@@ -140,7 +140,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
     if(!newWriterGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newWriterGroup->head.componentType = UA_PUBSUB_COMPONENT_WRITERGROUP;
+    newWriterGroup->head.componentType = UA_PUBSUBCOMPONENT_WRITERGROUP;
     newWriterGroup->linkedConnection = currentConnectionContext;
 
     /* Deep copy of the config */
