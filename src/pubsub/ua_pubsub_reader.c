@@ -22,13 +22,11 @@
 
 #include "ua_types_encoding_binary.h"
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
 static void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
 
 static void
 UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
-#endif
 
 static UA_Boolean
 publisherIdIsMatching(UA_NetworkMessage *msg, UA_PublisherId *idB) {
@@ -95,10 +93,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-#if defined(UA_ENABLE_PUBSUB_INFORMATIONMODEL) || defined(UA_ENABLE_PUBSUB_MONITORING)
-	UA_StatusCode retVal;
-#endif
 	/* Search the reader group by the given readerGroupIdentifier */
+	UA_StatusCode retVal;
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
     if(readerGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
@@ -148,22 +144,22 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
     UA_LOG_INFO_PUBSUB(server->config.logging, newDataSetReader, "DataSetReader created");
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Create message receive timeout timer */
-    retVal = server->config.pubSubConfig.monitoringInterface.
-        createMonitoring(server, newDataSetReader->head.identifier,
-                         UA_PUBSUBCOMPONENT_DATASETREADER,
-                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-                         newDataSetReader,
-                         (void (*)(UA_Server *, void *))
-                         UA_DataSetReader_handleMessageReceiveTimeout);
-    if(retVal != UA_STATUSCODE_GOOD) {
-        UA_DataSetReaderConfig_clear(&newDataSetReader->config);
-        UA_free(newDataSetReader);
-        newDataSetReader = 0;
-        return retVal;
+    if(server->config.pubSubConfig.monitoringInterface.createMonitoring) {
+        retVal = server->config.pubSubConfig.monitoringInterface.
+            createMonitoring(server, newDataSetReader->head.identifier,
+                             UA_PUBSUBCOMPONENT_DATASETREADER,
+                             UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
+                             newDataSetReader,
+                             (void (*)(UA_Server *, void *))
+                             UA_DataSetReader_handleMessageReceiveTimeout);
+        if(retVal != UA_STATUSCODE_GOOD) {
+            UA_DataSetReaderConfig_clear(&newDataSetReader->config);
+            UA_free(newDataSetReader);
+            newDataSetReader = 0;
+            return retVal;
+        }
     }
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
 
     /* Add the new reader to the group */
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
@@ -283,12 +279,11 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     deleteNode(server, dsr->head.identifier, true);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     /* Remove message receive timeout timer */
-    server->config.pubSubConfig.monitoringInterface.
-        deleteMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
-                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
+    if(server->config.pubSubConfig.monitoringInterface.deleteMonitoring)
+        server->config.pubSubConfig.monitoringInterface.
+            deleteMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
+                             UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
 
     /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
     if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
@@ -386,8 +381,8 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
     }
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    if(dsr->config.messageReceiveTimeout != config->messageReceiveTimeout) {
+    if(dsr->config.messageReceiveTimeout != config->messageReceiveTimeout &&
+       server->config.pubSubConfig.monitoringInterface.updateMonitoringInterval) {
         /* Update message receive timeout timer interval */
         dsr->config.messageReceiveTimeout = config->messageReceiveTimeout;
         if(dsr->msgRcvTimeoutTimerId != 0) {
@@ -398,7 +393,6 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
                                          dsr);
         }
     }
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
     return res;
 }
 
@@ -789,9 +783,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
     if(dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
         UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state);
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
     UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
-#endif
 
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
@@ -899,8 +891,6 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
     }
 }
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-
 static void
 UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
                                             UA_DataSetReader *dsr) {
@@ -915,7 +905,8 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
 
     /* Stop message receive timeout timer */
     UA_StatusCode res;
-    if(dsr->msgRcvTimeoutTimerId != 0) {
+    if(dsr->msgRcvTimeoutTimerId != 0 &&
+       server->config.pubSubConfig.monitoringInterface.stopMonitoring) {
         res = server->config.pubSubConfig.monitoringInterface.
             stopMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
                            UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
@@ -924,9 +915,10 @@ UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
     }
 
     /* Start message receive timeout timer */
-    res = server->config.pubSubConfig.monitoringInterface.
-        startMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
-                        UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
+    if(server->config.pubSubConfig.monitoringInterface.startMonitoring)
+        res = server->config.pubSubConfig.monitoringInterface.
+            startMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
+                            UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
 }
@@ -958,7 +950,6 @@ UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader
 
     UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
 }
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
 
 UA_StatusCode
 UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,

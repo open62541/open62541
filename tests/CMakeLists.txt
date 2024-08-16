@@ -282,9 +282,7 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 
-    if(UA_ENABLE_PUBSUB_MONITORING)
-       ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
-    endif()
+    ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
 
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)
