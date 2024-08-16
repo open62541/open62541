@@ -555,19 +555,6 @@ UA_PubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_PubSubManager_setDefaultMonitoringCallbacks(UA_PubSubMonitoringInterface *mif) {
-    if(!mif)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    mif->createMonitoring = UA_PubSubComponent_createMonitoring;
-    mif->startMonitoring = UA_PubSubComponent_startMonitoring;
-    mif->stopMonitoring = UA_PubSubComponent_stopMonitoring;
-    mif->updateMonitoringInterval = UA_PubSubComponent_updateMonitoringInterval;
-    mif->deleteMonitoring = UA_PubSubComponent_deleteMonitoring;
-    return UA_STATUSCODE_GOOD;
-}
-
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
 void
@@ -726,8 +713,13 @@ UA_PubSubManager_new(UA_Server *server) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB_MONITORING
-    /* setup default PubSub monitoring callbacks */
-    UA_PubSubManager_setDefaultMonitoringCallbacks(&server->config.pubSubConfig.monitoringInterface);
+    /* Setup default PubSub monitoring callbacks */
+    UA_PubSubMonitoringInterface *mif = &server->config.pubSubConfig.monitoringInterface;
+    mif->createMonitoring = UA_PubSubComponent_createMonitoring;
+    mif->startMonitoring = UA_PubSubComponent_startMonitoring;
+    mif->stopMonitoring = UA_PubSubComponent_stopMonitoring;
+    mif->updateMonitoringInterval = UA_PubSubComponent_updateMonitoringInterval;
+    mif->deleteMonitoring = UA_PubSubComponent_deleteMonitoring;
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 
     return &psm->sc;
