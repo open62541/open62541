@@ -454,7 +454,7 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                            UA_PubSubState_name(c->head.state));
         UA_UNLOCK(&server->serviceMutex);
         if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->head.identifier, targetState, ret);
+            config->pubSubConfig.stateChangeCallback(server, c->head.identifier, targetState, ret);
         UA_LOCK(&server->serviceMutex);
     }
 

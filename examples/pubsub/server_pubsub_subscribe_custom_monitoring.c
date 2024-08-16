@@ -250,26 +250,19 @@ static void stopHandler(int sign) {
     check the callback invocation here */
 static void
 pubsubStateChangeCallback(UA_Server *server,
-                                    UA_NodeId *pubsubComponentId,
-                                    UA_PubSubState state,
-                                    UA_StatusCode code) {
+                          const UA_NodeId pubsubComponentId,
+                          UA_PubSubState state,
+                          UA_StatusCode code) {
     /* Use the application context kept by the server.
        In this case, count up the number of times the state changed */
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_UInt32 *stateChangeCnt = (UA_UInt32 *)config->context;
     (*stateChangeCnt)++;
 
-    if (pubsubComponentId == 0) {
-        UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "pubsubStateChangeCallback(): Null pointer error. Internal error");
-        return;
-    }
-
-    UA_String strId;
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "pubsubStateChangeCallback(): State of component '%.*s' changed to '%i'. "
-        "Status code '0x%08x' '%s'", (UA_Int32) strId.length, strId.data, state, code, UA_StatusCode_name(code));
-    UA_String_clear(&strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "pubsubStateChangeCallback(): State of component '%N' changed to '%i'. "
+                "Status code '0x%08x' '%s'",
+                pubsubComponentId, state, code, UA_StatusCode_name(code));
 }
 
 static void
@@ -282,7 +275,7 @@ monitoringCallbackHandler(union sigval val)
 
 /* Custom monitoring backend implementation: only 1 DataSetReader is supported */
 static UA_StatusCode
-pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
+pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data, UA_ServerCallback callback) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -313,7 +306,7 @@ pubSubComponent_createMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompo
 }
 
 static UA_StatusCode
-pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
+pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -339,7 +332,7 @@ pubSubComponent_startMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompon
 }
 
 static UA_StatusCode
-pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
+pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -365,7 +358,7 @@ pubSubComponent_stopMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubCompone
 }
 
 static UA_StatusCode
-pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
+pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_PubSubComponentType eComponentType,
                                             UA_PubSubMonitoringType eMonitoringType, void *data)
 {
     if ((!server) || (!data)) {
@@ -400,7 +393,7 @@ pubSubComponent_updateMonitoringInterval(UA_Server *server, UA_NodeId Id, UA_Pub
 }
 
 static UA_StatusCode
-pubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentEnumType eComponentType,
+pubSubComponent_deleteMonitoring(UA_Server *server, UA_NodeId Id, UA_PubSubComponentType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data) {
     if ((!server) || (!data)) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;

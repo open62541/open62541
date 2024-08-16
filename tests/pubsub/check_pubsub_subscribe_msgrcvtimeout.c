@@ -389,19 +389,16 @@ ValidatePublishSubscribe_fast_path(UA_Int32 TestValue, UA_UInt32 Sleep_ms,
 }
 
 static void
-PubSubStateChangeCallback_basic (UA_Server *hostServer, UA_NodeId *pubsubComponentId,
-                                 UA_PubSubState state, UA_StatusCode reason) {
+PubSubStateChangeCallback_basic(UA_Server *hostServer, const UA_NodeId pubsubComponentId,
+                                UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
-    UA_String strId;
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-                "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
-    UA_String_clear(&strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "PubSubStateChangeCallback(): "
+                "Component Id = %N, state = %i, status = 0x%08x %s",
+                pubsubComponentId, state, reason, UA_StatusCode_name(reason));
 
-    checkExpected(*pubsubComponentId, state, reason);
+    checkExpected(pubsubComponentId, state, reason);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
                 "Callback Cnt = %u", CallbackCnt);
@@ -647,7 +644,7 @@ START_TEST(Test_basic) {
 /* Test different message receive timeouts */
 
 static void
-PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, const UA_NodeId pubsubComponentId,
                                              UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
@@ -658,14 +655,12 @@ PubSubStateChangeCallback_different_timeouts(UA_Server *hostServer, UA_NodeId *p
     UA_String strId;
     UA_Boolean componentExists = UA_FALSE;
 
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-                "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, reason, UA_StatusCode_name(reason));
-    UA_String_clear(&strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "PubSubStateChangeCallback(): "
+                "Component Id = %N, state = %i, status = 0x%08x %s",
+                pubsubComponentId, state, reason, UA_StatusCode_name(reason));
 
-    checkExpected(*pubsubComponentId, state, reason);
+    checkExpected(pubsubComponentId, state, reason);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
         "Callback Cnt = %u", CallbackCnt);
@@ -877,20 +872,16 @@ START_TEST(Test_different_timeouts) {
 /* Test wrong message receive timeout setting (receive timeout is smaller than
  * publishing interval)*/
 static void
-PubSubStateChangeCallback_wrong_timeout(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_wrong_timeout(UA_Server *hostServer, const UA_NodeId pubsubComponentId,
                                         UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
-    UA_String strId;
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-                "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, reason,
-                UA_StatusCode_name(reason));
-    UA_String_clear(&strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "PubSubStateChangeCallback(): "
+                "Component Id = %N, state = %i, status = 0x%08x %s",
+                pubsubComponentId, state, reason, UA_StatusCode_name(reason));
 
-    checkExpected(*pubsubComponentId, state, reason);
+    checkExpected(pubsubComponentId, state, reason);
     CallbackCnt++;
 }
 
@@ -1574,23 +1565,19 @@ START_TEST(Test_wrong_timeout) {
 /* Test update DataSetReader configuration */
 /* Custom PubSub statechange callback: count no of message receive timeouts */
 static void
-PubSubStateChangeCallback_update_config(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_update_config(UA_Server *hostServer, const UA_NodeId pubsubComponentId,
                                         UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
     if(!runtime)
         return;
 
-    UA_String strId;
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "PubSubStateChangeCallback(): "
-                "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, reason,
-                UA_StatusCode_name(reason));
-    UA_String_clear(&strId);
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                "PubSubStateChangeCallback(): "
+                "Component Id = %N, state = %i, status = 0x%08x %s",
+                pubsubComponentId, state, reason, UA_StatusCode_name(reason));
 
-    checkExpected(*pubsubComponentId, state, reason);
+    checkExpected(pubsubComponentId, state, reason);
     CallbackCnt++;
 }
 
@@ -1767,21 +1754,16 @@ START_TEST(Test_add_remove) {
 } END_TEST
 
 static void
-PubSubStateChangeCallback_fast_path(UA_Server *hostServer, UA_NodeId *pubsubComponentId,
+PubSubStateChangeCallback_fast_path(UA_Server *hostServer, const UA_NodeId pubsubComponentId,
                                     UA_PubSubState state, UA_StatusCode reason) {
     ck_assert(hostServer == server);
 
-    UA_String strId;
-    UA_String_init(&strId);
-    UA_NodeId_print(pubsubComponentId, &strId);
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "PubSubStateChangeCallback_fast_path(): "
-                "Component Id = %.*s, state = %i, status = 0x%08x %s",
-                (UA_Int32) strId.length, strId.data, state, reason,
-                UA_StatusCode_name(reason));
-    UA_String_clear(&strId);
+                "Component Id = %N, state = %i, status = 0x%08x %s",
+                pubsubComponentId, state, reason, UA_StatusCode_name(reason));
 
-    checkExpected(*pubsubComponentId, state, reason);
+    checkExpected(pubsubComponentId, state, reason);
     CallbackCnt++;
 }
 

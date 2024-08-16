@@ -894,7 +894,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
             pConfig->pubSubConfig.
-                stateChangeCallback(server, &wg->head.identifier, wg->head.state, ret);
+                stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
             UA_LOCK(&server->serviceMutex);
         }
     }
