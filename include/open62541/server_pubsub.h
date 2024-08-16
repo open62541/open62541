@@ -58,17 +58,28 @@ _UA_BEGIN_DECLS
  * The configuration model for PubSub uses the following components: */
 
 typedef enum  {
-    UA_PUBSUB_COMPONENT_CONNECTION,
-    UA_PUBSUB_COMPONENT_WRITERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETWRITER,
-    UA_PUBSUB_COMPONENT_READERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETREADER,
-    UA_PUBSUB_COMPONENT_PUBLISHEDDATASET,
-    UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET
-} UA_PubSubComponentEnumType;
+    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
+    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
+    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
+    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
+    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
+    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
+    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
+
+    /* Deprecated definition */
+    UA_PUBSUB_COMPONENT_CONNECTION = 0,
+    UA_PUBSUB_COMPONENT_WRITERGROUP = 1,
+    UA_PUBSUB_COMPONENT_DATASETWRITER = 2,
+    UA_PUBSUB_COMPONENT_READERGROUP = 3,
+    UA_PUBSUB_COMPONENT_DATASETREADER = 4,
+    UA_PUBSUB_COMPONENT_PUBLISHEDDATASET = 5,
+    UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET = 6
+} UA_PubSubComponentType;
+
+typedef UA_PubSubComponentType UA_PubSubComponentEnumType UA_DEPRECATED;
 
 /**
- * The following figure shows how the PubSub components are related.
+ * The figure below shows how the PubSub components are related.
  * The PubSub Tutorials have more examples about the API usage::
  *
  *  +--------+
@@ -202,21 +213,21 @@ typedef enum {
 /* PubSub monitoring interface */
 typedef struct {
     UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentEnumType eComponentType,
+                                      UA_PubSubComponentType eComponentType,
                                       UA_PubSubMonitoringType eMonitoringType,
                                       void *data, UA_ServerCallback callback);
     UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
-                                     UA_PubSubComponentEnumType eComponentType,
+                                     UA_PubSubComponentType eComponentType,
                                      UA_PubSubMonitoringType eMonitoringType, void *data);
     UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
-                                    UA_PubSubComponentEnumType eComponentType,
+                                    UA_PubSubComponentType eComponentType,
                                     UA_PubSubMonitoringType eMonitoringType, void *data);
     UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
-                                              UA_PubSubComponentEnumType eComponentType,
+                                              UA_PubSubComponentType eComponentType,
                                               UA_PubSubMonitoringType eMonitoringType,
                                               void *data);
     UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentEnumType eComponentType,
+                                      UA_PubSubComponentType eComponentType,
                                       UA_PubSubMonitoringType eMonitoringType, void *data);
 } UA_PubSubMonitoringInterface;
 

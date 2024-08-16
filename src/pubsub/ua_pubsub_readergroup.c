@@ -130,7 +130,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     if(!newGroup)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newGroup->head.componentType = UA_PUBSUB_COMPONENT_READERGROUP;
+    newGroup->head.componentType = UA_PUBSUBCOMPONENT_READERGROUP;
     newGroup->linkedConnection = connection;
 
     /* Deep copy of the config */

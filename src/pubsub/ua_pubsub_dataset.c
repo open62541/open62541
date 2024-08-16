@@ -669,7 +669,7 @@ UA_PublishedDataSet_create(UA_Server *server,
     }
     TAILQ_INIT(&newPDS->fields);
 
-    newPDS->head.componentType = UA_PUBSUB_COMPONENT_PUBLISHEDDATASET;
+    newPDS->head.componentType = UA_PUBSUBCOMPONENT_PUBLISHEDDATASET;
 
     UA_PublishedDataSetConfig *newConfig = &newPDS->config;
 
@@ -909,7 +909,7 @@ addStandaloneSubscribedDataSet(UA_Server *server,
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    newSubscribedDataSet->head.componentType = UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET;
+    newSubscribedDataSet->head.componentType = UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET;
     newSubscribedDataSet->config = tmpSubscribedDataSetConfig;
     newSubscribedDataSet->connectedReader = NULL;
 

@@ -332,7 +332,7 @@ generateRandomUInt64(void) {
 
 static UA_StatusCode
 PubSubMonitoring_create(UA_Server *server, UA_NodeId Id,
-                        UA_PubSubComponentEnumType eComponentType,
+                        UA_PubSubComponentType eComponentType,
                         UA_PubSubMonitoringType eMonitoringType,
                         void *data, UA_ServerCallback callback) {
     if(!server || !data)
@@ -340,7 +340,7 @@ PubSubMonitoring_create(UA_Server *server, UA_NodeId Id,
 
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
-    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(eComponentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "PubSubMonitoring_create: "
                             "PubSub component type '%i' is not supported",
@@ -378,14 +378,14 @@ monitoringReceiveTimeoutOnce(UA_Server *server, void *data) {
 
 static UA_StatusCode
 PubSubMonitoring_start(UA_Server *server, UA_NodeId Id,
-                       UA_PubSubComponentEnumType eComponentType,
+                       UA_PubSubComponentType eComponentType,
                        UA_PubSubMonitoringType eMonitoringType, void *data) {
     if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_DataSetReader *reader = (UA_DataSetReader*)data;
 
-    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(eComponentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "PubSubMonitoring_start: "
                             "Component type '%i' is not supported", eComponentType);
@@ -434,14 +434,14 @@ PubSubMonitoring_start(UA_Server *server, UA_NodeId Id,
 
 static UA_StatusCode
 PubSubMonitoring_stop(UA_Server *server, UA_NodeId Id,
-                      UA_PubSubComponentEnumType eComponentType,
+                      UA_PubSubComponentType eComponentType,
                       UA_PubSubMonitoringType eMonitoringType, void *data) {
     if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
-    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(eComponentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "PubSubMonitoring_stop: "
                             "PubSub component type '%i' is not supported",
@@ -472,7 +472,7 @@ PubSubMonitoring_stop(UA_Server *server, UA_NodeId Id,
 
 static UA_StatusCode
 PubSubMonitoring_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
-                                          UA_PubSubComponentEnumType eComponentType,
+                                          UA_PubSubComponentType eComponentType,
                                           UA_PubSubMonitoringType eMonitoringType,
                                           void *data) {
     if(!server || !data)
@@ -480,7 +480,7 @@ PubSubMonitoring_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
 
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
-    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(eComponentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "PubSubMonitoring_updateMonitoringInterval: "
                             "PubSub component type '%i' is not supported",
@@ -519,14 +519,14 @@ PubSubMonitoring_updateMonitoringInterval(UA_Server *server, UA_NodeId Id,
 
 static UA_StatusCode
 PubSubMonitoring_delete(UA_Server *server, UA_NodeId Id,
-                        UA_PubSubComponentEnumType eComponentType,
+                        UA_PubSubComponentType eComponentType,
                         UA_PubSubMonitoringType eMonitoringType, void *data) {
     if(!server || !data)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_DataSetReader *reader = (UA_DataSetReader*) data;
 
-    if(eComponentType != UA_PUBSUB_COMPONENT_DATASETREADER) {
+    if(eComponentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, reader,
                             "PubSubMonitoring_delete: "
                             "'%i' is not supported", eComponentType);
