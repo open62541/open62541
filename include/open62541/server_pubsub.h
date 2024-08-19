@@ -55,30 +55,6 @@ _UA_BEGIN_DECLS
  * can be used with broker based protocols like MQTT and AMQP or brokerless
  * implementations like UDP-Multicasting.
  *
- * The configuration model for PubSub uses the following components: */
-
-typedef enum  {
-    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
-    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
-    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
-    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
-    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
-    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
-    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
-
-    /* Deprecated definition */
-    UA_PUBSUB_COMPONENT_CONNECTION = 0,
-    UA_PUBSUB_COMPONENT_WRITERGROUP = 1,
-    UA_PUBSUB_COMPONENT_DATASETWRITER = 2,
-    UA_PUBSUB_COMPONENT_READERGROUP = 3,
-    UA_PUBSUB_COMPONENT_DATASETREADER = 4,
-    UA_PUBSUB_COMPONENT_PUBLISHEDDATASET = 5,
-    UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET = 6
-} UA_PubSubComponentType;
-
-typedef UA_PubSubComponentType UA_PubSubComponentEnumType UA_DEPRECATED;
-
-/**
  * The figure below shows how the PubSub components are related.
  * The PubSub Tutorials have more examples about the API usage::
  *
@@ -185,40 +161,7 @@ UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
  * The global configuration is part of the server-config.
  */
 
-/* Monitoring gives callbacks into userland upon certain events.
- * For example when a timeout occurred without a received message. */
-
-typedef enum {
-    UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT
-    /* Extend as needed */
-} UA_PubSubMonitoringType;
-
-/* PubSub Monitoring Interface */
 typedef struct {
-    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentType componentType,
-                                      UA_PubSubMonitoringType monitoringType,
-                                      void *data, UA_ServerCallback callback);
-    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
-                                     UA_PubSubComponentType componentType,
-                                     UA_PubSubMonitoringType monitoringType,
-                                     void *data);
-    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
-                                    UA_PubSubComponentType componentType,
-                                    UA_PubSubMonitoringType monitoringType,
-                                    void *data);
-    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
-                                              UA_PubSubComponentType componentType,
-                                              UA_PubSubMonitoringType monitoringType,
-                                              void *data);
-    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentType componentType,
-                                      UA_PubSubMonitoringType monitoringType,
-                                      void *data);
-} UA_PubSubMonitoringInterface;
-
-/* Global PubSub Configuration */
-struct UA_PubSubConfiguration {
     /* Callback for PubSub component state changes: If provided this callback
      * informs the application about PubSub component state changes. E.g. state
      * change from operational to error in case of a DataSetReader
@@ -236,9 +179,7 @@ struct UA_PubSubConfiguration {
     /* PubSub security policies */
     size_t securityPoliciesSize;
     UA_PubSubSecurityPolicy *securityPolicies;
-
-    UA_PubSubMonitoringInterface monitoringInterface;
-};
+} UA_PubSubConfiguration;
 
 /**
  * Connections
@@ -744,7 +685,11 @@ typedef struct {
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
     UA_DataSetFieldContentMask dataSetFieldContentMask;
-    UA_Double messageReceiveTimeout;
+    UA_Double messageReceiveTimeout; /* The maximum interval (in milliseconds)
+                                      * after which we want to receive a
+                                      * message. Gets reset after every received
+                                      * message. If <= 0.0, then no timeout is
+                                      * configured. */
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
     UA_SubscribedDataSetEnumType subscribedDataSetType;

@@ -22,12 +22,6 @@
 
 #include "ua_types_encoding_binary.h"
 
-static void
-UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
-
-static void
-UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr);
-
 static UA_Boolean
 publisherIdIsMatching(UA_NetworkMessage *msg, UA_PublisherId *idB) {
     if(!msg->publisherIdEnabled)
@@ -144,23 +138,6 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
     UA_LOG_INFO_PUBSUB(server->config.logging, newDataSetReader, "DataSetReader created");
 
-    /* Create message receive timeout timer */
-    if(server->config.pubSubConfig.monitoringInterface.createMonitoring) {
-        retVal = server->config.pubSubConfig.monitoringInterface.
-            createMonitoring(server, newDataSetReader->head.identifier,
-                             UA_PUBSUBCOMPONENT_DATASETREADER,
-                             UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-                             newDataSetReader,
-                             (void (*)(UA_Server *, void *))
-                             UA_DataSetReader_handleMessageReceiveTimeout);
-        if(retVal != UA_STATUSCODE_GOOD) {
-            UA_DataSetReaderConfig_clear(&newDataSetReader->config);
-            UA_free(newDataSetReader);
-            newDataSetReader = 0;
-            return retVal;
-        }
-    }
-
     /* Add the new reader to the group */
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
     readerGroup->readersCount++;
@@ -252,7 +229,8 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
     /* Set the DataSetReader state after finalizing the configuration */
     return UA_DataSetReader_setPubSubState(server, newDataSetReader,
-                                           UA_PUBSUBSTATE_OPERATIONAL);
+                                           UA_PUBSUBSTATE_OPERATIONAL,
+                                           UA_STATUSCODE_GOOD);
 }
 
 UA_StatusCode
@@ -278,12 +256,6 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(server, dsr->head.identifier, true);
 #endif
-
-    /* Remove message receive timeout timer */
-    if(server->config.pubSubConfig.monitoringInterface.deleteMonitoring)
-        server->config.pubSubConfig.monitoringInterface.
-            deleteMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
-                             UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
 
     /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
     if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
@@ -380,20 +352,7 @@ DataSetReader_updateConfig(UA_Server *server, UA_ReaderGroup *rg, UA_DataSetRead
                                             newTV->targetVariables);
     }
 
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(dsr->config.messageReceiveTimeout != config->messageReceiveTimeout &&
-       server->config.pubSubConfig.monitoringInterface.updateMonitoringInterval) {
-        /* Update message receive timeout timer interval */
-        dsr->config.messageReceiveTimeout = config->messageReceiveTimeout;
-        if(dsr->msgRcvTimeoutTimerId != 0) {
-            res = server->config.pubSubConfig.monitoringInterface.
-                updateMonitoringInterval(server, dsr->head.identifier,
-                                         UA_PUBSUBCOMPONENT_DATASETREADER,
-                                         UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT,
-                                         dsr);
-        }
-    }
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -512,7 +471,8 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     }
 
     UA_StatusCode ret =
-        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                        UA_STATUSCODE_GOOD);
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -527,15 +487,16 @@ UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     }
 
     UA_StatusCode ret =
-        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_DISABLED);
+        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_DISABLED,
+                                        UA_STATUSCODE_GOOD);
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
 
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
-                                UA_PubSubState targetState) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+                                UA_PubSubState targetState,
+                                UA_StatusCode errorReason) {
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
 
@@ -562,8 +523,15 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
 
     default:
         dsr->head.state = UA_PUBSUBSTATE_ERROR;
-        res = UA_STATUSCODE_BADINTERNALERROR;
+        errorReason = UA_STATUSCODE_BADINTERNALERROR;
         break;
+    }
+
+    /* Only keep the timeout callback if the reader is operational */
+    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL && dsr->msgRcvTimeoutTimerId != 0) {
+        UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
+        el->removeTimer(el, dsr->msgRcvTimeoutTimerId);
+        dsr->msgRcvTimeoutTimerId = 0;
     }
 
     /* Inform application about state change */
@@ -574,13 +542,13 @@ UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
                            UA_PubSubState_name(dsr->head.state));
         if(config->pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
-            config->pubSubConfig.
-                stateChangeCallback(server, dsr->head.identifier, dsr->head.state, res);
+            config->pubSubConfig.stateChangeCallback(server, dsr->head.identifier,
+                                                     dsr->head.state, errorReason);
             UA_LOCK(&server->serviceMutex);
         }
     }
 
-    return res;
+    return errorReason;
 }
 
 UA_StatusCode
@@ -770,6 +738,21 @@ DataSetReader_processRaw(UA_Server *server, UA_DataSetReader *dsr,
     }
 }
 
+static void
+UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr) {
+    UA_assert(dsr->head.componentType == UA_PUBSUBCOMPONENT_DATASETREADER);
+
+    /* Don't signal an error if we don't expect messages to arrive */
+    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+        return;
+
+    UA_LOG_DEBUG_PUBSUB(server->config.logging, dsr, "Message receive timeout occurred");
+
+    UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR,
+                                    UA_STATUSCODE_BADTIMEOUT);
+}
+
 void
 UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
                          UA_DataSetMessage *msg) {
@@ -781,9 +764,7 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
     /* Received a (first) message for the Reader.
      * Transition from PreOperational to Operational. */
     if(dsr->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state);
-
-    UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
+        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state, UA_STATUSCODE_GOOD);
 
     if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL) {
@@ -815,6 +796,22 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
         return;
     }
 
+    /* Configure / Update the timeout callback */
+    if(dsr->config.messageReceiveTimeout > 0.0) {
+        UA_EventLoop *el =
+            UA_PubSubConnection_getEL(server, dsr->linkedReaderGroup->linkedConnection);
+        if(dsr->msgRcvTimeoutTimerId == 0) {
+            el->addTimer(el, (UA_Callback)UA_DataSetReader_handleMessageReceiveTimeout,
+                         server, dsr, dsr->config.messageReceiveTimeout, NULL,
+                         UA_TIMERPOLICY_CURRENTTIME, &dsr->msgRcvTimeoutTimerId);
+        } else {
+            /* Reset the next execution time to now + interval */
+            el->modifyTimer(el, dsr->msgRcvTimeoutTimerId,
+                            dsr->config.messageReceiveTimeout, NULL,
+                            UA_TIMERPOLICY_CURRENTTIME);
+        }
+    }
+
     /* Process message with raw encoding. We have no field-count information for
      * the message. */
     if(msg->header.fieldEncoding == UA_FIELDENCODING_RAWDATA) {
@@ -823,12 +820,8 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
     }
 
     /* Received a heartbeat with no fields */
-    if(msg->data.keyFrameData.fieldCount == 0) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(server,
-                                                     dsr->linkedReaderGroup->linkedConnection);
-        dsr->lastHeartbeatReceived = el->dateTime_nowMonotonic(el);
+    if(msg->data.keyFrameData.fieldCount == 0)
         return;
-    }
 
     /* Check whether the field count matches the configuration */
     size_t fieldCount = msg->data.keyFrameData.fieldCount;
@@ -889,66 +882,6 @@ UA_DataSetReader_process(UA_Server *server, UA_DataSetReader *dsr,
                                "Error writing KeyFrame field %u: %s",
                                (unsigned)i, UA_StatusCode_name(res));
     }
-}
-
-static void
-UA_DataSetReader_checkMessageReceiveTimeout(UA_Server *server,
-                                            UA_DataSetReader *dsr) {
-    UA_assert(server != 0);
-    UA_assert(dsr != 0);
-
-    /* If previous reader state was error (because we haven't received messages
-     * and ran into timeout) we should set the state back to operational */
-    if(dsr->head.state == UA_PUBSUBSTATE_ERROR) {
-        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_OPERATIONAL);
-    }
-
-    /* Stop message receive timeout timer */
-    UA_StatusCode res;
-    if(dsr->msgRcvTimeoutTimerId != 0 &&
-       server->config.pubSubConfig.monitoringInterface.stopMonitoring) {
-        res = server->config.pubSubConfig.monitoringInterface.
-            stopMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
-                           UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
-    }
-
-    /* Start message receive timeout timer */
-    if(server->config.pubSubConfig.monitoringInterface.startMonitoring)
-        res = server->config.pubSubConfig.monitoringInterface.
-            startMonitoring(server, dsr->head.identifier, UA_PUBSUBCOMPONENT_DATASETREADER,
-                            UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT, dsr);
-    if(res != UA_STATUSCODE_GOOD)
-        UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
-}
-
-/* Timeout callback for DataSetReader MessageReceiveTimeout handling */
-static void
-UA_DataSetReader_handleMessageReceiveTimeout(UA_Server *server, UA_DataSetReader *dsr) {
-    UA_assert(server);
-    UA_assert(dsr);
-
-    if(dsr->head.componentType != UA_PUBSUBCOMPONENT_DATASETREADER) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, dsr,
-                            "UA_DataSetReader_handleMessageReceiveTimeout(): "
-                            "input param is not of type DataSetReader");
-        return;
-    }
-
-    /* Don't signal an error if we don't expect messages to arrive */
-    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
-        return;
-
-    UA_LOG_DEBUG_PUBSUB(server->config.logging, dsr,
-                        "UA_DataSetReader_handleMessageReceiveTimeout(): "
-                        "MessageReceiveTimeout occurred "
-                        "MessageReceiveTimeout = %f Timer Id = %u ",
-                        dsr->config.messageReceiveTimeout,
-                        (UA_UInt32) dsr->msgRcvTimeoutTimerId);
-
-    UA_DataSetReader_setPubSubState(server, dsr, UA_PUBSUBSTATE_ERROR);
 }
 
 UA_StatusCode
