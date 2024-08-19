@@ -1647,14 +1647,6 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     UA_fakeSleep(100);
     UA_Server_run_iterate(server, false);
     UA_Server_run_iterate(server, false);
-
-    /* since the test cases are using a fake timer with a static timestamp,
-     * we compare the lastHeartbeatReceived with the static timestamp
-     * (given by UA_DateTime_nowMonotonic()). If the timestamps are equal,
-     * the code path was executed and the lastHeartbeatReceived set correctly */
-    UA_EventLoop *el = server->config.eventLoop;
-    ck_assert(el->dateTime_nowMonotonic(el) == dsr->lastHeartbeatReceived);
-
 } END_TEST
 
 START_TEST(SinglePublishSubscribeWithoutPayloadHeader) {

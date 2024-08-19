@@ -115,6 +115,16 @@ UA_PubSubState_name(UA_PubSubState state);
 
 /* All PubSubComponents share the same header structure */
 
+typedef enum  {
+    UA_PUBSUBCOMPONENT_CONNECTION  = 0,
+    UA_PUBSUBCOMPONENT_WRITERGROUP  = 1,
+    UA_PUBSUBCOMPONENT_DATASETWRITER  = 2,
+    UA_PUBSUBCOMPONENT_READERGROUP  = 3,
+    UA_PUBSUBCOMPONENT_DATASETREADER  = 4,
+    UA_PUBSUBCOMPONENT_PUBLISHEDDATASET  = 5,
+    UA_PUBSUBCOMPONENT_SUBSCRIBEDDDATASET = 6,
+} UA_PubSubComponentType;
+
 typedef struct {
     UA_NodeId identifier;
     UA_PubSubComponentType componentType;
@@ -491,10 +501,7 @@ struct UA_DataSetReader {
     UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
-    UA_DateTime lastHeartbeatReceived;
-
     /* MessageReceiveTimeout handling */
-    UA_ServerCallback msgRcvTimeoutTimerCallback;
     UA_UInt64 msgRcvTimeoutTimerId;
 };
 
@@ -544,7 +551,8 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
 /* Returns an error reason if the target state is `Error` */
 UA_StatusCode
 UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
-                                UA_PubSubState targetState);
+                                UA_PubSubState targetState,
+                                UA_StatusCode errorReason);
 
 /**********************************************/
 /*                ReaderGroup                 */

@@ -41,8 +41,6 @@
 _UA_BEGIN_DECLS
 
 /* Forward declarations */
-struct UA_PubSubConfiguration;
-typedef struct UA_PubSubConfiguration UA_PubSubConfiguration;
 typedef void (*UA_Server_AsyncOperationNotifyCallback)(UA_Server *server);
 
 /**

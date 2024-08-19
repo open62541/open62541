@@ -424,7 +424,8 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     /* Update the attached DataSetReaders */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state);
+        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state,
+                                        UA_STATUSCODE_GOOD);
     }
 
     return ret;
