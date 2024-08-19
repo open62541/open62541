@@ -239,9 +239,8 @@ checkServerComponent(void *_, UA_ServerComponent *sc) {
 /* The server needs to be stopped before it can be deleted */
 UA_StatusCode
 UA_Server_delete(UA_Server *server) {
-    if(server == NULL) {
+    if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
-    }
 
     if(server->state != UA_LIFECYCLESTATE_STOPPED) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
