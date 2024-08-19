@@ -215,13 +215,6 @@ getServerComponentByName(UA_Server *server, UA_String name) {
 }
 
 static void *
-removeServerComponent(void *_, UA_ServerComponent *sc) {
-    UA_assert(sc->state == UA_LIFECYCLESTATE_STOPPED);
-    sc->free(sc);
-    return NULL;
-}
-
-static void *
 startServerComponent(void *server, UA_ServerComponent *sc) {
     sc->start(sc, (UA_Server*)server);
     return NULL;
@@ -289,9 +282,14 @@ UA_Server_delete(UA_Server *server) {
     UA_assert(server->subscriptionsSize == 0);
 #endif
 
-    /* Remove all remaining server components (must be all stopped) */
-    ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
-             removeServerComponent, NULL);
+    /* Remove all server components (all stopped by now) */
+    UA_ServerComponent *top;
+    while((top = ZIP_ROOT(&server->serverComponents))) {
+        UA_assert(top->state == UA_LIFECYCLESTATE_STOPPED);
+        top->clear(top);
+        ZIP_REMOVE(UA_ServerComponentTree, &server->serverComponents, top);
+        UA_free(top);
+    }
 
     UA_UNLOCK(&server->serviceMutex); /* The timer has its own mutex */
 

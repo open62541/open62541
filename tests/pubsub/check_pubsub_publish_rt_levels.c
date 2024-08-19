@@ -75,8 +75,24 @@ static void setup(void) {
 }
 
 static void teardown(void) {
+    /* Teardown needs both the sever and the RT EventLoop. Because the RT
+     * EventLoop needs to close the PubSubConnection sockets. Before that the
+     * server cannot shutdown. So we first force the shutdown of the PubSub
+     * "ServerComponent" and iterate both EventLoops until that is done. */
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    psm->sc.stop(&psm->sc);
+    UA_UNLOCK(&server->serviceMutex);
+
+    while(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
+        rtEventLoop->run(rtEventLoop, 100);
+        server->config.eventLoop->run(server->config.eventLoop, 100);
+    }
+
+    /* Now shutdown the server */
     UA_Server_run_shutdown(server);
 
+    /* Now stop the RT EventLoop */
     if(rtEventLoop->state != UA_EVENTLOOPSTATE_FRESH &&
        rtEventLoop->state != UA_EVENTLOOPSTATE_STOPPED) {
         rtEventLoop->stop(rtEventLoop);
