@@ -76,8 +76,9 @@ typedef struct UA_ServerComponent {
      * to succeed. */
     void (*stop)(struct UA_ServerComponent *sc);
 
-    /* Clean up the ServerComponent. Can fail if it is not stopped. */
-    UA_StatusCode (*free)(struct UA_ServerComponent *sc);
+    /* Clean up the ServerComponent. Can fail if it is not stopped. This does
+     * not free the memory and does not remove from the ziptree. */
+    UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
 
     /* To be set by the server. So the component can notify the server about
      * asynchronous state changes. */

@@ -400,11 +400,16 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
 }
 
-void
+UA_StatusCode
 UA_PubSubManager_clear(UA_PubSubManager *psm) {
     UA_Server *server = psm->sc.server;
-    UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "PubSub cleanup was called.");
+    if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+                     "Cannot delete the PubSubManager because "
+                     "it is not stopped");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
@@ -415,7 +420,7 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
 
     /* Remove the DataSets */
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
-    TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2){
+    TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2) {
         UA_PublishedDataSet_remove(server, tmpPDS1);
     }
 
@@ -442,15 +447,7 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
         UA_PubSubKeyStorage_delete(server, ks);
     }
 #endif
-}
 
-/* Delete the current PubSub configuration including all nested members. This
- * action also delete the configured PubSub transport Layers. */
-static UA_StatusCode
-UA_PubSubManager_free(UA_ServerComponent *sc) {
-    UA_PubSubManager *psm = (UA_PubSubManager*)sc;
-    UA_PubSubManager_clear(psm);
-    UA_free(psm);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -464,7 +461,7 @@ UA_PubSubManager_new(UA_Server *server) {
     psm->sc.name = UA_STRING("pubsub");
     psm->sc.start = UA_PubSubManager_start;
     psm->sc.stop = UA_PubSubManager_stop;
-    psm->sc.free = UA_PubSubManager_free;
+    psm->sc.clear = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_clear;
 
     /* TODO: Using the Mac address to generate the defaultPublisherId.
      * In the future, this can be retrieved from the Eventloop. */

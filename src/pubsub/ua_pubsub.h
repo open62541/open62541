@@ -745,7 +745,7 @@ getPSM(UA_Server *server) {
     return (UA_PubSubManager*)getServerComponentByName(server, UA_STRING("pubsub"));
 }
 
-void
+UA_StatusCode
 UA_PubSubManager_clear(UA_PubSubManager *psm);
 
 void
