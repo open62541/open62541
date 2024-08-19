@@ -3,6 +3,11 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### Timer Simplification
+
+For timed callbacks that are not repeated, use the same API
+but with the UA_TIMERPOLICY_ONCE TimerPolicy.
+
 ### EventLoop Canceling
 
 The `cancel` method of the EventLoop makes the (blocking) EventLoop `run` return

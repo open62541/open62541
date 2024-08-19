@@ -337,7 +337,7 @@ removeBrokerConnection(MQTTBrokerConnection *bc) {
 
     /* Remove the keepalive callback */
     if(bc->keepAliveCallbackId > 0)
-        el->removeCyclicCallback(el, bc->keepAliveCallbackId);
+        el->removeTimer(el, bc->keepAliveCallbackId);
     
     /* Remove from linked list */
     LIST_REMOVE(bc, next);
@@ -640,10 +640,9 @@ createBrokerConnection(MQTTConnectionManager *mcm, const UA_KeyValueMap *params,
     }
 
     UA_EventLoop *el = mcm->cm.eventSource.eventLoop;
-    res = el->addCyclicCallback(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
-                                (UA_Double)(bc->keepalive * 0.75 * UA_DATETIME_MSEC),
-                                NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                &bc->keepAliveCallbackId);
+    res = el->addTimer(el, (UA_Callback)MQTTKeepAliveCallback, NULL, bc,
+                       (UA_Double)(bc->keepalive * 0.75 * UA_DATETIME_MSEC),
+                       NULL, UA_TIMERPOLICY_CURRENTTIME, &bc->keepAliveCallbackId);
     if(res != UA_STATUSCODE_GOOD) {
         removeBrokerConnection(bc);
         return NULL;

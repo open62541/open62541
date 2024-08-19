@@ -220,10 +220,8 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_EventLoop *el = server->config.eventLoop;
-    UA_DateTime dateTimeToNextKey = el->dateTime_nowMonotonic(el) +
-        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
-    return el->addTimedCallback(el, (UA_Callback)callback, server, keyStorage,
-                                dateTimeToNextKey, callbackID);
+    return el->addTimer(el, (UA_Callback)callback, server, keyStorage,
+                        timeToNextMs, NULL, UA_TIMERPOLICY_ONCE, callbackID);
 }
 
 static UA_StatusCode
@@ -406,15 +404,13 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                          keyStorage->securityGroupID, UA_StatusCode_name(retval));
         }
     } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
-        UA_EventLoop *el = server->config.eventLoop;
-        UA_DateTime now = el->dateTime_nowMonotonic(el);
-        /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
+        /* Publishers using a central SKS shall call GetSecurityKeys at a period
+         * of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
-        UA_DateTime dateTimeToNextGetSecurityKeys =
-            now + (UA_DateTime)(UA_DATETIME_MSEC * msTimeToNextGetSecurityKeys);
-        retval = server->config.eventLoop->addTimedCallback(
-            server->config.eventLoop, (UA_Callback)nextGetSecuritykeysCallback, server,
-            keyStorage, dateTimeToNextGetSecurityKeys, NULL);
+        UA_EventLoop *el = server->config.eventLoop;
+        retval = el->addTimer(el, (UA_Callback)nextGetSecuritykeysCallback, server,
+                              keyStorage, msTimeToNextGetSecurityKeys, NULL,
+                              UA_TIMERPOLICY_ONCE, NULL);
     }
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -573,15 +569,14 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
             goto cleanup;
     }
 
-    /**
-     * After a new batch of keys is fetched from SKS server, the key storage is updated
-     * with new keys and new keylifetime. Also the remaining time for current
-     * keyRollover is also returned. When setting a new keyRollover callback, the
-     * previous callback must be removed so that the keyRollover does not happen twice
-     */
+    /* After a new batch of keys is fetched from SKS server, the key storage is
+     * updated with new keys and new keylifetime. Also the remaining time for
+     * current keyRollover is also returned. When setting a new keyRollover
+     * callback, the previous callback must be removed so that the keyRollover
+     * does not happen twice */
     if(ks->callBackId != 0) {
-        server->config.eventLoop->removeCyclicCallback(server->config.eventLoop,
-                                                       ks->callBackId);
+        server->config.eventLoop->removeTimer(server->config.eventLoop,
+                                              ks->callBackId);
         ks->callBackId = 0;
     }
 
