@@ -401,31 +401,35 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
     UA_PubSubState oldState = c->head.state;
 
     switch(targetState) {
+        /* Disabled or Error */
         case UA_PUBSUBSTATE_ERROR:
-        case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_DISABLED:
-            /* Close the EventLoop connection */
             UA_PubSubConnection_disconnect(c);
             c->head.state = targetState;
             break;
 
+        case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_PREOPERATIONAL:
         case UA_PUBSUBSTATE_OPERATIONAL: {
             UA_PubSubManager *psm = getPSM(server);
             if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, c,
-                                      "Cannot enable the connection "
-                                      "while the server is not running");
-               return UA_STATUSCODE_BADINTERNALERROR;
+                /* Avoid repeat warnings */
+                if(oldState != UA_PUBSUBSTATE_PAUSED) {
+                    UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+                                          "Cannot enable the connection "
+                                          "while the server is not running");
+                }
+                UA_PubSubConnection_disconnect(c);
+                c->head.state = UA_PUBSUBSTATE_PAUSED;
+                break;
             }
             }
 
-            /* Called also if the connection is already operational. We might to
-             * open an additional recv connection, etc. Sets the new state
-             * internally. */
-            if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL || oldState == UA_PUBSUBSTATE_OPERATIONAL)
-                c->head.state = UA_PUBSUBSTATE_OPERATIONAL;
-            else
+            /* Set the PREOPERATIONAL initially. The OPERATIONAL state is set in
+             * UA_PubSubConnection_connect or delayed in the network callback
+             * once the connection has succeeded. */
+            if(oldState != UA_PUBSUBSTATE_PREOPERATIONAL &&
+               oldState != UA_PUBSUBSTATE_OPERATIONAL)
                 c->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
 
             /* This is the only place where UA_PubSubConnection_connect is
