@@ -44,10 +44,10 @@
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
  * |**Component**   |       |**Disabled**        |**Paused**      |**Pre-Operational** |**Operational** |**Error**       |
  * +----------------+-------+--------------------+----------------+--------------------+----------------+----------------+
- * |PubSubConnection|Trigger|Manual disable      |Not available   |Manual enable ||    |Pre-Operational |Unrecoverable   |
- * |                |       |                    |                |Recoverable abort of|&& Connected    |abort of the    |
- * |                |       |                    |                |EventLoop connection|EventLoop       |EventLoop       |
- * |                |       |                    |                |                    |connection      |connection ||   |
+ * |PubSubConnection|Trigger|Manual disable      |Connection      |Manual enable ||    |Pre-Operational |Unrecoverable   |
+ * |                |       |                    |enabled but the |Recoverable abort of|&& Connected    |abort of the    |
+ * |                |       |                    |server is not   |EventLoop connection|EventLoop       |EventLoop       |
+ * |                |       |                    |running.        |                    |connection      |connection ||   |
  * |                |       |                    |                |                    |                |Internal Error  |
  * |                +-------+--------------------+----------------+--------------------+----------------+----------------+
  * |                |Action |The underlying      |                |Start the async     |                |Same as the     |

@@ -333,7 +333,7 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STOPPED)
         state = UA_LIFECYCLESTATE_STOPPING;
 
-    /* Check if all connections are closed */
+    /* Check if all connections are closed if we are started */
     if(state == UA_LIFECYCLESTATE_STOPPING) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
@@ -363,6 +363,15 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     psm->sc.state = state;
     if(psm->sc.notifyState)
         psm->sc.notifyState(&psm->sc, state);
+
+    /* When we just started, trigger all connections to go from PAUSED to
+     * OPERATIONAL */
+    if(state == UA_LIFECYCLESTATE_STARTED) {
+        UA_PubSubConnection *c;
+        TAILQ_FOREACH(c, &psm->connections, listEntry) {
+            UA_PubSubConnection_setPubSubState(psm->sc.server, c, c->head.state);
+        }
+    }
 }
 
 static UA_StatusCode
