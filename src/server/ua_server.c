@@ -468,8 +468,8 @@ UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
                            void *data, UA_DateTime date, UA_UInt64 *callbackId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = server->config.eventLoop->
-        addTimedCallback(server->config.eventLoop, (UA_Callback)callback,
-                         server, data, date, callbackId);
+        addTimer(server->config.eventLoop, (UA_Callback)callback,
+                 server, data, 0.0, &date, UA_TIMERPOLICY_ONCE, callbackId);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -478,10 +478,9 @@ UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    return server->config.eventLoop->
-        addCyclicCallback(server->config.eventLoop, (UA_Callback) callback,
-                          server, data, interval_ms, NULL,
-                          UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME, callbackId);
+    return server->config.eventLoop->addTimer(
+        server->config.eventLoop, (UA_Callback)callback, server, data, interval_ms, NULL,
+        UA_TIMERPOLICY_CURRENTTIME, callbackId);
 }
 
 UA_StatusCode
@@ -499,8 +498,8 @@ changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     return server->config.eventLoop->
-        modifyCyclicCallback(server->config.eventLoop, callbackId, interval_ms,
-                             NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME);
+        modifyTimer(server->config.eventLoop, callbackId, interval_ms,
+                    NULL, UA_TIMERPOLICY_CURRENTTIME);
 }
 
 UA_StatusCode
@@ -517,9 +516,8 @@ void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_EventLoop *el = server->config.eventLoop;
-    if(el) {
-        el->removeCyclicCallback(el, callbackId);
-    }
+    if(el)
+        el->removeTimer(el, callbackId);
 }
 
 void
@@ -888,7 +886,7 @@ UA_Server_run_iterate(UA_Server *server, UA_Boolean waitInternal) {
 
     /* Return the time until the next scheduled callback */
     UA_DateTime now = el->dateTime_nowMonotonic(el);
-    UA_DateTime nextTimeout = (el->nextCyclicTime(el) - now) / UA_DATETIME_MSEC;
+    UA_DateTime nextTimeout = (el->nextTimer(el) - now) / UA_DATETIME_MSEC;
     if(nextTimeout < 0)
         nextTimeout = 0;
     if(nextTimeout > UA_UINT16_MAX)

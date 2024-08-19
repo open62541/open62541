@@ -975,7 +975,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
     if(dm->mdnsCallbackId != 0) {
         UA_EventLoop *el = server->config.eventLoop;
         if(el) {
-            el->removeCyclicCallback(el, dm->mdnsCallbackId);
+            el->removeTimer(el, dm->mdnsCallbackId);
             dm->mdnsCallbackId = 0;
         }
     }

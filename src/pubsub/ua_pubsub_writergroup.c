@@ -65,16 +65,16 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
             addCustomCallback(server, wg->head.identifier,
                               (UA_ServerCallback)UA_WriterGroup_publishCallback,
                               wg, wg->config.publishingInterval,
-                              NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
+                              NULL, UA_TIMERPOLICY_CURRENTTIME,
                               &wg->publishCallbackId);
     } else {
         /* Use EventLoop for cyclic callbacks */
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
-        retval = el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
-                                       server, wg, wg->config.publishingInterval,
-                                       NULL /* TODO: use basetime */,
-                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                       &wg->publishCallbackId);
+        retval = el->addTimer(el, (UA_Callback)UA_WriterGroup_publishCallback,
+                              server, wg, wg->config.publishingInterval,
+                              NULL /* TODO: use basetime */,
+                              UA_TIMERPOLICY_CURRENTTIME,
+                              &wg->publishCallbackId);
     }
 
     return retval;
@@ -89,7 +89,7 @@ UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
             removeCustomCallback(server, wg->head.identifier, wg->publishCallbackId);
     } else {
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
-        el->removeCyclicCallback(el, wg->publishCallbackId);
+        el->removeTimer(el, wg->publishCallbackId);
     }
     wg->publishCallbackId = 0;
 }

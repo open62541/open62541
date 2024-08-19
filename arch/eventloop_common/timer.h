@@ -31,7 +31,7 @@ typedef struct UA_TimerEntry {
     UA_TimerPolicy timerPolicy;      /* Timer policy to handle cycle misses */
     UA_DateTime nextTime;            /* The next time when the callback is to be
                                       * executed */
-    UA_UInt64 interval;              /* Interval in 100ns resolution. If the
+    UA_DateTime interval;            /* Interval in 100ns resolution. If the
                                       * interval is zero, the callback is not
                                       * repeated and removed after execution. */
     UA_ApplicationCallback callback; /* This is also a sentinel value. If the
@@ -55,36 +55,27 @@ typedef struct {
 #if UA_MULTITHREADING >= 100
     UA_Lock timerMutex;
 #endif
-
-    UA_TimerTree processTree; /* When the timer is processed, all entries that
-                               * need processing now are moved to processTree.
-                               * Then we iterate over that tree. */
 } UA_Timer;
 
 void
 UA_Timer_init(UA_Timer *t);
 
 UA_DateTime
-UA_Timer_nextRepeatedTime(UA_Timer *t);
+UA_Timer_next(UA_Timer *t);
 
 UA_StatusCode
-UA_Timer_addTimedCallback(UA_Timer *t, UA_ApplicationCallback callback,
-                          void *application, void *data, UA_DateTime date,
-                          UA_UInt64 *callbackId);
+UA_Timer_add(UA_Timer *t, UA_ApplicationCallback callback,
+             void *application, void *data, UA_Double interval_ms,
+             UA_DateTime now, UA_DateTime *baseTime,
+             UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
 UA_StatusCode
-UA_Timer_addRepeatedCallback(UA_Timer *t, UA_ApplicationCallback callback,
-                             void *application, void *data, UA_Double interval_ms,
-                             UA_DateTime now, UA_DateTime *baseTime,
-                             UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
-
-UA_StatusCode
-UA_Timer_changeRepeatedCallback(UA_Timer *t, UA_UInt64 callbackId,
-                                UA_Double interval_ms, UA_DateTime now,
-                                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
+UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
+                UA_Double interval_ms, UA_DateTime now,
+                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
 
 void
-UA_Timer_removeCallback(UA_Timer *t, UA_UInt64 callbackId);
+UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId);
 
 UA_DateTime
 UA_Timer_process(UA_Timer *t, UA_DateTime now);
