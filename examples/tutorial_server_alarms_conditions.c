@@ -95,6 +95,19 @@ sourceNodeInputFreeDouble (void *input, void *conditionCtx)
     UA_Double_delete((UA_Double *) input);
 }
 
+static UA_StatusCode onCondition1Active (
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    void *context
+)
+{
+    return UA_Server_Condition_setAcknowledgeRequired(server, *conditionId);
+}
+
+UA_ConditionImplCallbacks condition1Impl = {
+    .onActive = onCondition1Active
+};
+
 static UA_StatusCode
 addExclusiveLimitAlarmCondition (UA_Server *server) {
 
@@ -128,11 +141,10 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
     };
 
-    UA_Duration test = 20.0f;
-    UA_Duration reAlarmTime = 1000;
-    UA_Int16 repeatCount = 1000;
-
     UA_AlarmConditionProperties baseP = {
+        .acknowledgeableConditionProperties = {
+            .confirmable = true
+        },
         .inputNode = inputNode,
         .isLatching = true,
         .isShelvable = true
@@ -152,6 +164,7 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         .highLimit = &highLimit
     };
 
+
     UA_ConditionFns fns;
     fns.getInput = sourceNodeGetInputDouble;
     fns.inputFree = sourceNodeInputFreeDouble;
@@ -165,6 +178,8 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         &alarmProperties,
         &conditionInstance_1
     );
+
+    retval = UA_Server_Condition_setImplCallbacks(server, conditionInstance_1, &condition1Impl);
 
     retval = UA_Server_Condition_enable (server, conditionInstance_1, true);
     return retval;
