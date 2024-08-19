@@ -372,26 +372,36 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_PubSubManager *psm = getPSM(server);
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
-                                  "Cannot enable the ReaderGroup "
-                                  "while the server is not running");
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-        }
-
-        if(connection->head.state == UA_PUBSUBSTATE_DISABLED ||
-           connection->head.state == UA_PUBSUBSTATE_ERROR) {
-            /* Connection is disabled -> paused */
+            /* Avoid repeat warnings */
+            if(oldState != UA_PUBSUBSTATE_PAUSED) {
+                UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+                                      "Cannot enable the ReaderGroup "
+                                      "while the server is not running");
+            }
+            UA_ReaderGroup_disconnect(rg);
             rg->head.state = UA_PUBSUBSTATE_PAUSED;
-        } else {
-            /* Pre-operational until a message was received */
-            rg->head.state = connection->head.state;
-            if(rg->head.state == UA_PUBSUBSTATE_OPERATIONAL && !rg->hasReceived)
-                rg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
-            /* Connect RG-specific connections. For example for MQTT. */
-            ret = UA_ReaderGroup_connect(server, rg, false);
+            break;
         }
+        }
+
+        /* Connection is not operational -> paused */
+        if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
+            UA_ReaderGroup_disconnect(rg);
+            rg->head.state = UA_PUBSUBSTATE_PAUSED;
+            break;
+        }
+
+        /* Preoperational until a message was received */
+        if(oldState != UA_PUBSUBSTATE_PREOPERATIONAL &&
+           oldState != UA_PUBSUBSTATE_OPERATIONAL)
+            rg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
+        if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL && rg->hasReceived)
+            rg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+        if(oldState == UA_PUBSUBSTATE_OPERATIONAL && !rg->hasReceived)
+            rg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
+
+        /* Connect RG-specific connections. For example for MQTT. */
+        ret = UA_ReaderGroup_connect(server, rg, false);
         break;
 
         /* Unknown case */

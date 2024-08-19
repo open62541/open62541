@@ -838,10 +838,16 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_OPERATIONAL: {
         UA_PubSubManager *psm = getPSM(server);
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                                  "Cannot enable the WriterGroup "
-                                  "while the server is not running");
-            return UA_STATUSCODE_BADINTERNALERROR;
+            /* Avoid repeat warnings */
+            if(oldState != UA_PUBSUBSTATE_PAUSED) {
+                UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+                                      "Cannot enable the WriterGroup "
+                                      "while the server is not running");
+            }
+            UA_WriterGroup_disconnect(wg);
+            UA_WriterGroup_removePublishCallback(server, wg);
+            wg->head.state = UA_PUBSUBSTATE_PAUSED;
+            break;
         }
         }
 
