@@ -723,6 +723,17 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dsrId,
                                  UA_PubSubState *state);
 
+/* Add DataSetReader to the ReaderGroup */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier);
+
+/* Remove DataSetReader from ReaderGroup */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+
+
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
@@ -792,30 +803,14 @@ typedef struct {
 void UA_EXPORT
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
-/* Add DataSetReader to the ReaderGroup */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                           const UA_DataSetReaderConfig *dataSetReaderConfig,
-                           UA_NodeId *readerIdentifier);
-
-/* Remove DataSetReader from ReaderGroup */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
-
-/* To Do: Update Configuration of ReaderGroup
- * UA_StatusCode UA_EXPORT
- * UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
- *                                    const UA_ReaderGroupConfig *config);
- */
-
 /* Get configuration of ReaderGroup (deep copy) */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_ReaderGroup_getConfig(UA_Server *server, const UA_NodeId rgId,
-                                UA_ReaderGroupConfig *config);
+UA_Server_getReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
+                               UA_ReaderGroupConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_ReaderGroup_getState(UA_Server *server, const UA_NodeId rgId,
-                               UA_PubSubState *state);
+UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
+                              UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, const UA_NodeId connectionId,
@@ -836,12 +831,6 @@ UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId rgId);
-
-#define UA_Server_setReaderGroupOperational(server, rgId) \
-    UA_Server_enableReaderGroup(server, rgId)
-
-#define UA_Server_setReaderGroupDisabled(server, rgId) \
-    UA_Server_disableReaderGroup(server, rgId)
 
 /* Set the group key for the message encryption */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
@@ -864,6 +853,16 @@ UA_EXPORT UA_StatusCode
 UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
 	                                           UA_ByteString *buffer);
 #endif
+
+/* Legacy API */
+#define UA_Server_ReaderGroup_getConfig(server, rgId, config) \
+    UA_Server_getReaderGroupConfig(server, rgId, config)
+#define UA_Server_ReaderGroup_getState(server, rgId, state) \
+    UA_Server_getReaderGroupState(server, rgId, state)
+#define UA_Server_setReaderGroupOperational(server, rgId) \
+    UA_Server_enableReaderGroup(server, rgId)
+#define UA_Server_setReaderGroupDisabled(server, rgId) \
+    UA_Server_disableReaderGroup(server, rgId)
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 

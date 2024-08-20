@@ -309,36 +309,26 @@ UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId groupIdentifier) 
 }
 
 UA_StatusCode
-UA_Server_ReaderGroup_getConfig(UA_Server *server, const UA_NodeId readerGroupIdentifier,
-                                UA_ReaderGroupConfig *config) {
+UA_Server_getReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
+                               UA_ReaderGroupConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
     UA_LOCK(&server->serviceMutex);
-
-    /* Identify the readergroup through the readerGroupIdentifier */
-    UA_ReaderGroup *currentReaderGroup =
-        UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
-    if(!currentReaderGroup) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    UA_StatusCode ret =
-        UA_ReaderGroupConfig_copy(&currentReaderGroup->config, config);
-
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, rgId);
+    UA_StatusCode ret = (rg) ?
+        UA_ReaderGroupConfig_copy(&rg->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
 
 UA_StatusCode
-UA_Server_ReaderGroup_getState(UA_Server *server, const UA_NodeId readerGroupIdentifier,
-                               UA_PubSubState *state) {
+UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
+                              UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, rgId);
     if(rg) {
         *state = rg->head.state;
         ret = UA_STATUSCODE_GOOD;
