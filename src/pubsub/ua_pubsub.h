@@ -385,7 +385,7 @@ struct UA_WriterGroup {
 
     UA_UInt64 publishCallbackId; /* registered if != 0 */
     UA_NetworkMessageOffsetBuffer bufferedMessage;
-    UA_UInt16 sequenceNumber; /* Increased after every succressuly sent message */
+    UA_UInt16 sequenceNumber; /* Increased after every sent message */
     UA_Boolean configurationFrozen;
     UA_DateTime lastPublishTimeStamp;
 
