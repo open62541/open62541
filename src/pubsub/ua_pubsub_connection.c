@@ -44,20 +44,19 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
         return rv;
     }
 
-    UA_Boolean processed = false;
-    UA_ReaderGroup *readerGroup;
-    UA_DataSetReader *reader;
-
     /* Choose a correct readergroup for decrypt/verify this message
      * (there could be multiple) */
-    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
-        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
+    UA_Boolean processed = false;
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &connection->readerGroups, listEntry) {
+        UA_DataSetReader *reader;
+        LIST_FOREACH(reader, &rg->readers, listEntry) {
             UA_StatusCode retval =
-                UA_DataSetReader_checkIdentifier(server, nm, reader, readerGroup->config);
+                UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
             if(retval != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
-            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, &ctx, nm, readerGroup);
+            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, &ctx, nm, rg);
             if(rv != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
                                       "Subscribe failed, verify and decrypt "
@@ -258,25 +257,25 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
      * Connection. Do this before removing them because we need to unfreeze all
      * to remove the Connection.*/
-    UA_ReaderGroup *readerGroup, *tmpReaderGroup;
-    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED);
-        UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
+    UA_ReaderGroup *rg, *tmpRg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED);
+        UA_ReaderGroup_unfreezeConfiguration(server, rg);
     }
 
-    UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED);
-        UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
+    UA_WriterGroup *wg, *tmpWg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
+        UA_WriterGroup_unfreezeConfiguration(server, wg);
     }
 
     /* Remove all ReaderGorups and WriterGroups */
-    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
-        UA_ReaderGroup_remove(server, readerGroup);
+    LIST_FOREACH_SAFE(rg, &c->readerGroups, listEntry, tmpRg) {
+        UA_ReaderGroup_remove(server, rg);
     }
 
-    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_remove(server, writerGroup);
+    LIST_FOREACH_SAFE(wg, &c->writerGroups, listEntry, tmpWg) {
+        UA_WriterGroup_remove(server, wg);
     }
 
     /* Not all sockets are closed. This method will be called again */
