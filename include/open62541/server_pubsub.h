@@ -414,8 +414,7 @@ typedef struct {
 
 typedef enum {
     UA_PUBSUB_ENCODING_UADP = 0,
-    UA_PUBSUB_ENCODING_JSON = 1,
-    UA_PUBSUB_ENCODING_BINARY = 2
+    UA_PUBSUB_ENCODING_JSON
 } UA_PubSubEncodingType;
 
 /**
