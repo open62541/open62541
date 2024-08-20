@@ -396,6 +396,10 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Are we doing a top-level state update or recursively? */
+    UA_Boolean isTransient = c->head.transientState;
+    c->head.transientState = true;
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
 
@@ -418,23 +422,19 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
                                           "Cannot enable the connection "
                                           "while the server is not running");
                 }
-                UA_PubSubConnection_disconnect(c);
                 c->head.state = UA_PUBSUBSTATE_PAUSED;
+                UA_PubSubConnection_disconnect(c);
                 break;
             }
             }
 
-            /* Set the PREOPERATIONAL initially. The OPERATIONAL state is set in
-             * UA_PubSubConnection_connect or delayed in the network callback
-             * once the connection has succeeded. */
-            if(oldState != UA_PUBSUBSTATE_PREOPERATIONAL &&
-               oldState != UA_PUBSUBSTATE_OPERATIONAL)
-                c->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            c->head.state = UA_PUBSUBSTATE_OPERATIONAL;
 
-            /* This is the only place where UA_PubSubConnection_connect is
-             * called (other than to validate the parameters). So we handle the
-             * fallout of a failed connection here. */
-            ret = UA_PubSubConnection_connect(server, c, false);
+            /* Whether the connection needs to connect depends on whether a
+             * ReaderGroup or WriterGroup is attached. If not, then we don't
+             * open any connections. */
+            if(UA_PubSubConnection_canConnect(c))
+                ret = UA_PubSubConnection_connect(server, c, false);
             break;
 
             /* Unknown case */
@@ -449,16 +449,24 @@ UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
         UA_PubSubConnection_disconnect(c);
     }
 
+    /* Only the top-level state update (if recursive calls are happening)
+     * notifies the application and updates Reader and WriterGroups */
+    c->head.transientState = isTransient;
+    if(c->head.transientState)
+        return ret;
+
     /* Inform application about state change */
     if(c->head.state != oldState) {
         UA_ServerConfig *config = &server->config;
         UA_LOG_INFO_PUBSUB(config->logging, c, "State change: %s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
-        UA_UNLOCK(&server->serviceMutex);
-        if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, c->head.identifier, targetState, ret);
-        UA_LOCK(&server->serviceMutex);
+        if(config->pubSubConfig.stateChangeCallback) {
+            UA_UNLOCK(&server->serviceMutex);
+            config->pubSubConfig.
+                stateChangeCallback(server, c->head.identifier, targetState, ret);
+            UA_LOCK(&server->serviceMutex);
+        }
     }
 
     /* Update Reader and WriterGroups. This will set them to PAUSED (if

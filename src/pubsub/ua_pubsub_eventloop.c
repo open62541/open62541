@@ -286,16 +286,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
     }
 
     /* Open a recv connection */
-    if(c->recvChannelsSize == 0) {
-        /* Validate only if no ReaderGroup configured */
-        validate = (c->readerGroupsSize == 0);
-        if(validate) {
-            UA_LOG_INFO_PUBSUB(server->config.logging, c,
-                               "No ReaderGroups configured. "
-                               "Only validate the connection parameters "
-                               "instead of opening a receiving channel.");
-        }
-
+    if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
@@ -314,16 +305,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
     }
 
     /* Open a send connection */
-    if(c->sendChannel == 0) {
-        /* Validate only if no WriterGroup configured */
-        validate = (c->writerGroupsSize == 0);
-        if(validate) {
-            UA_LOG_INFO_PUBSUB(server->config.logging, c,
-                               "No WriterGroups configured. "
-                               "Only validate the connection parameters "
-                               "instead of opening a channel for sending.");
-        }
-
+    if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
@@ -372,7 +354,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
 
     /* Open recv channels */
-    if(c->recvChannelsSize == 0) {
+    if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
@@ -384,7 +366,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     }
 
     /* Open send channels */
-    if(c->sendChannel == 0) {
+    if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
         res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
@@ -398,13 +380,13 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     return res;
 }
 
-static UA_Boolean
-UA_PubSubConnection_isConnected(UA_PubSubConnection *c) {
+UA_Boolean
+UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
     if(c->sendChannel == 0 && c->writerGroupsSize > 0)
-        return false;
+        return true;
     if(c->recvChannelsSize == 0 && c->readerGroupsSize > 0)
-        return false;
-    return true;
+        return true;
+    return false;
 }
 
 UA_StatusCode
@@ -412,26 +394,18 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
                             UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    /* Already connected -> success */
-    if(UA_PubSubConnection_isConnected(c) && !validate)
-        return UA_STATUSCODE_GOOD;
-
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
     if(!el) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c, "No EventLoop configured");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
     /* Look up the connection manager for the connection */
     ProfileMapping *profile = getProfile(c->config.transportProfileUri);
-    UA_ConnectionManager *cm = NULL;
-    if(profile)
-        cm = getCM(el, profile->protocol);
+    UA_ConnectionManager *cm = (profile) ? getCM(el, profile->protocol) : NULL;
     if(!cm) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c,
                             "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -439,7 +413,6 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
     if(c->cm && cm != c->cm) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c,
                             "The connection is configured for a different protocol already");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -451,10 +424,16 @@ UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    /* Connect */
+    /* Update the connection settings from the profile information */
     c->cm = cm;
     c->json = profile->json;
-    return (profile->connect) ? profile->connect(server, c, validate) : UA_STATUSCODE_GOOD;
+
+    /* Some protocols (such as MQTT) don't connect at this level */
+    if(!profile->connect)
+        return UA_STATUSCODE_GOOD;
+
+    /* The state gets set to OPERATIONAL in the netowrk callback */
+    return profile->connect(server, c, validate);
 }
 
 /***************/
@@ -923,13 +902,14 @@ UA_ReaderGroup_disconnect(UA_ReaderGroup *rg) {
     }
 }
 
+UA_Boolean
+UA_ReaderGroup_canConnect(UA_ReaderGroup *rg) {
+    return rg->recvChannelsSize == 0;
+}
+
 UA_StatusCode
 UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    /* Already connected */
-    if(rg->recvChannelsSize != 0 && !validate)
-        return UA_STATUSCODE_GOOD;
 
     /* Is this a ReaderGroup with custom TransportSettings beyond the
      * PubSubConnection? */
@@ -960,10 +940,13 @@ UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validat
     c->cm = cm;
     c->json = profile->json;
 
+    /* No ReaderGroup-specific connections.
+     * The ReaderGroup is set to operational when we return. */
+    if(!profile->connectReaderGroup)
+        return UA_STATUSCODE_GOOD;
+
     /* Connect */
-    if(profile->connectReaderGroup)
-        return profile->connectReaderGroup(server, rg, validate);
-    return UA_STATUSCODE_GOOD;
+    return profile->connectReaderGroup(server, rg, validate);
 }
 
 #endif /* UA_ENABLE_PUBSUB */

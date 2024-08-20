@@ -353,9 +353,13 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Are we doing a top-level state update or recursively? */
+    UA_Boolean isTransient = rg->head.transientState;
+    rg->head.transientState = true;
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_PubSubConnection *connection = rg->linkedConnection;
     UA_PubSubState oldState = rg->head.state;
+    UA_PubSubConnection *connection = rg->linkedConnection;
 
     switch(targetState) {
         /* Disabled or Error */
@@ -378,30 +382,26 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
                                       "Cannot enable the ReaderGroup "
                                       "while the server is not running");
             }
-            UA_ReaderGroup_disconnect(rg);
             rg->head.state = UA_PUBSUBSTATE_PAUSED;
+            UA_ReaderGroup_disconnect(rg);
             break;
         }
         }
 
-        /* Connection is not operational -> paused */
+        /* Connection is not operational -> ReaderGroup paused */
         if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
             UA_ReaderGroup_disconnect(rg);
             rg->head.state = UA_PUBSUBSTATE_PAUSED;
             break;
         }
 
-        /* Preoperational until a message was received */
-        if(oldState != UA_PUBSUBSTATE_PREOPERATIONAL &&
-           oldState != UA_PUBSUBSTATE_OPERATIONAL)
-            rg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
-        if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL && rg->hasReceived)
-            rg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
-        if(oldState == UA_PUBSUBSTATE_OPERATIONAL && !rg->hasReceived)
-            rg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
         /* Connect RG-specific connections. For example for MQTT. */
-        ret = UA_ReaderGroup_connect(server, rg, false);
+        if(UA_ReaderGroup_canConnect(rg))
+            ret = UA_ReaderGroup_connect(server, rg, false);
+
+        /* Preoperational until a message was received */
+        rg->head.state = (rg->hasReceived) ?
+            UA_PUBSUBSTATE_OPERATIONAL : UA_PUBSUBSTATE_PREOPERATIONAL;
         break;
 
         /* Unknown case */
@@ -416,6 +416,12 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
     }
+
+    /* Only the top-level state update (if recursive calls are happening)
+     * notifies the application and updates Reader and WriterGroups */
+    rg->head.transientState = isTransient;
+    if(rg->head.transientState)
+        return ret;
 
     /* Inform application about state change */
     if(rg->head.state != oldState) {
