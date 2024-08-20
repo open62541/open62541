@@ -450,30 +450,6 @@ START_TEST(AddMultipleDataSetReaderWithValidConfiguration) {
         ck_assert_int_eq(readerGroupIdent2->readersCount, 2);
     } END_TEST
 
-START_TEST(UpdateDataSetReaderConfigWithInvalidId) {
-        /* Check status of updatting DataSetReader with invalid configuration */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        UA_DataSetReaderConfig dataSetreaderConfig;
-        UA_NodeId localreaderGroup;
-        UA_NodeId localDataSetreader;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup(server, connectionId,
-                                            &readerGroupConfig, &localreaderGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
-        dataSetreaderConfig.name = UA_STRING("DataSetReader Test");
-        retVal |= UA_Server_addDataSetReader(server, localreaderGroup,
-                                             &dataSetreaderConfig, &localDataSetreader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        retVal |=  UA_Server_DataSetReader_updateConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX),
-                                                      localreaderGroup, &dataSetreaderConfig );
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
-
 START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         /* Check status of getting DataSetReader with Valid configuration */
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -536,63 +512,6 @@ START_TEST(GetDataSetReaderConfigWithInvalidIdentifier) {
 
         retVal |= UA_Server_DataSetReader_getConfig(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetreaderConfig);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-} END_TEST
-
-START_TEST(UpdateDataSetReaderConfigWithValidConfiguration){
-        /* Check status of updatting DataSetReader with valid configurations */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        UA_DataSetReaderConfig dataSetreaderConfig;
-        UA_NodeId localreaderGroup;
-        UA_NodeId localDataSetReaderId;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localreaderGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        memset(&dataSetreaderConfig, 0, sizeof(dataSetreaderConfig));
-        dataSetreaderConfig.name = UA_STRING("DataSet Reader 1");
-        UA_UInt16 publisherIdentifier        = 2234;
-        dataSetreaderConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
-        dataSetreaderConfig.publisherId.id.uint16 = publisherIdentifier;
-        dataSetreaderConfig.writerGroupId    = 100;
-        dataSetreaderConfig.dataSetWriterId  = 62541;
-
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 1;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
-            UA_calloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize, sizeof(UA_FieldTargetVariable));
-
-        /* For creating Targetvariables */
-        UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable);
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[0].targetVariable.targetNodeId = nodeId32;
-        retVal |= UA_Server_addDataSetReader(server, localreaderGroup, &dataSetreaderConfig, &localDataSetReaderId);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        dataSetreaderConfig.writerGroupId = 101;
-        dataSetreaderConfig.dataSetWriterId = 500;
-        UA_DataSetReader *localDataSetReader = UA_ReaderGroup_findDSRbyId(server, localDataSetReaderId);
-        ck_assert_int_ne(localDataSetReader->config.writerGroupId, dataSetreaderConfig.writerGroupId);
-        ck_assert_int_ne(localDataSetReader->config.dataSetWriterId, dataSetreaderConfig.dataSetWriterId);
-
-        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId,
-                                                        localreaderGroup, &dataSetreaderConfig);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(localDataSetReader->config.writerGroupId, dataSetreaderConfig.writerGroupId);
-        ck_assert_int_eq(localDataSetReader->config.dataSetWriterId, dataSetreaderConfig.dataSetWriterId);
-
-        /* Add extra TargetVariables and update config */
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize = 2;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables = (UA_FieldTargetVariable *)
-            UA_realloc(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables, 2*sizeof(UA_FieldTargetVariable));
-
-        UA_FieldTargetDataType_init(&dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable);
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
-        dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables[1].targetVariable.targetNodeId = nodeId64;
-
-        retVal |=  UA_Server_DataSetReader_updateConfig(server, localDataSetReaderId, localreaderGroup, &dataSetreaderConfig);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_uint_eq(2, localDataSetReader->config.subscribedDataSet.subscribedDataSetTarget.targetVariablesSize);
-        UA_free(dataSetreaderConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
 } END_TEST
 
 START_TEST(CreateTargetVariableWithInvalidConfiguration) {
@@ -2019,11 +1938,11 @@ addTargetVariable(void) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
-START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
+START_TEST(ValidDataSetConfigurationAddAndRemove) {
     addTargetVariable();
-    UA_StandaloneSubscribedDataSetConfig cfg;
+    UA_SubscribedDataSetConfig cfg;
     UA_NodeId ret;
-    memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    memset(&cfg, 0, sizeof(UA_SubscribedDataSetConfig));
 
     /* Fill the SSDS MetaData */
     UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
@@ -2040,7 +1959,6 @@ START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
     cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
 
     cfg.name = UA_STRING("DemoStandaloneSDS");
-    cfg.isConnected = UA_FALSE;
     cfg.subscribedDataSet.target.targetVariablesSize = 1;
     UA_FieldTargetDataType fieldTargetDataType;
     cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
@@ -2049,37 +1967,33 @@ START_TEST(ValidStandaloneDataSetConfigurationAddAndRemove) {
     cfg.subscribedDataSet.target.targetVariables[0].attributeId = UA_ATTRIBUTEID_VALUE;
     cfg.subscribedDataSet.target.targetVariables[0].targetNodeId =
     UA_NODEID_STRING(1, "demoVar");
-    UA_StatusCode retVal = UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
+    UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_StandaloneSubscribedDataSet *ssds = NULL;
-    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    UA_SubscribedDataSet *ssds = NULL;
+    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
     ck_assert_ptr_ne(ssds, NULL);
     ssds = NULL;
-    ssds = UA_StandaloneSubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_ne(ssds, NULL);
-    UA_StandaloneSubscribedDataSetConfig ssds_config;
-    memset(&ssds_config, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
-    retVal = UA_StandaloneSubscribedDataSetConfig_copy(&ssds->config, &ssds_config);
+    UA_SubscribedDataSetConfig ssds_config;
+    memset(&ssds_config, 0, sizeof(UA_SubscribedDataSetConfig));
+    retVal = UA_SubscribedDataSetConfig_copy(&ssds->config, &ssds_config);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_StandaloneSubscribedDataSetConfig_clear(&ssds_config);
-    retVal = UA_Server_removeStandaloneSubscribedDataSet(server, ret);
+    UA_SubscribedDataSetConfig_clear(&ssds_config);
+    retVal = UA_Server_removeSubscribedDataSet(server, ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ssds = UA_StandaloneSubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_eq(ssds, NULL);
-    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
     ck_assert_ptr_eq(ssds, NULL);
 
 } END_TEST
 
-START_TEST(ReceiveStandaloneDataSetFrame) {
-
-} END_TEST
-
-START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
+START_TEST(AddAndRemoveReaderUsingDataSet) {
     addTargetVariable();
-    UA_StandaloneSubscribedDataSetConfig cfg;
+    UA_SubscribedDataSetConfig cfg;
     UA_NodeId ret;
-    memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    memset(&cfg, 0, sizeof(UA_SubscribedDataSetConfig));
 
     /* Fill the SSDS MetaData */
     UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
@@ -2096,7 +2010,6 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
 
     cfg.name = UA_STRING("DemoStandaloneSDS");
-    cfg.isConnected = UA_FALSE;
     cfg.subscribedDataSet.target.targetVariablesSize = 1;
     UA_FieldTargetDataType fieldTargetDataType;
     cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
@@ -2105,10 +2018,10 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
     cfg.subscribedDataSet.target.targetVariables[0].attributeId = UA_ATTRIBUTEID_VALUE;
     cfg.subscribedDataSet.target.targetVariables[0].targetNodeId =
     UA_NODEID_STRING(1, "demoVar");
-    UA_StatusCode retVal = UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
+    UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_StandaloneSubscribedDataSet *ssds = NULL;
-    ssds = UA_StandaloneSubscribedDataSet_findSDSbyId(server, ret);
+    UA_SubscribedDataSet *ssds = NULL;
+    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
     ck_assert_ptr_ne(ssds, NULL);
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;
@@ -2133,11 +2046,11 @@ START_TEST(AddAndRemoveReaderUsingStandaloneDataSet) {
                                          &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     /* SSDS is now connected to this reader -> isConnected shall be true */
-    ck_assert_uint_eq(ssds->config.isConnected, UA_TRUE);
+    ck_assert(ssds->connectedReader != NULL);
 
     UA_Server_removeDataSetReader(server, readerIdentifier);
     /* SSDS no longer connected, isConnected has to reset(false) */
-    ck_assert_uint_eq(ssds->config.isConnected, UA_FALSE);
+    ck_assert(ssds->connectedReader == NULL);
 } END_TEST
 
 START_TEST(SinglePublishOnDemand) {
@@ -2612,11 +2525,9 @@ int main(void) {
     tcase_add_test(tc_add_pubsub_readergroup, RemoveDataSetReaderWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, RemoveDataSetReaderWithInvalidIdentifier);
     tcase_add_test(tc_add_pubsub_readergroup, AddMultipleDataSetReaderWithValidConfiguration);
-    tcase_add_test(tc_add_pubsub_readergroup, UpdateDataSetReaderConfigWithInvalidId);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithInvalidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, GetDataSetReaderConfigWithInvalidIdentifier);
-    tcase_add_test(tc_add_pubsub_readergroup, UpdateDataSetReaderConfigWithValidConfiguration);
     tcase_add_test(tc_add_pubsub_readergroup, CreateTargetVariableWithInvalidConfiguration);
 
     /*Test case to run both publisher and subscriber */
@@ -2634,12 +2545,10 @@ int main(void) {
     tcase_add_test(tc_pubsub_publish_subscribe, MultiPublishSubscribeInt32);
     tcase_add_test(tc_pubsub_publish_subscribe, SinglePublishOnDemand);
 
-
-    /*Test cases for the standalone datasets */
-    TCase *tc_pubsub_standalone_datasets = tcase_create("Subscriber using standalone datasets");
-    tcase_add_test(tc_pubsub_publish_subscribe, ValidStandaloneDataSetConfigurationAddAndRemove);
-    tcase_add_test(tc_pubsub_publish_subscribe, ReceiveStandaloneDataSetFrame);
-    tcase_add_test(tc_pubsub_publish_subscribe, AddAndRemoveReaderUsingStandaloneDataSet);
+    /*Test cases for the subscribed datasets */
+    TCase *tc_pubsub_datasets = tcase_create("Subscriber using subscribed datasets");
+    tcase_add_test(tc_pubsub_publish_subscribe, ValidDataSetConfigurationAddAndRemove);
+    tcase_add_test(tc_pubsub_publish_subscribe, AddAndRemoveReaderUsingDataSet);
 
     TCase *tc_dataSetMessage_padding = tcase_create("PubSub DataSetMessage padding");
     tcase_add_checked_fixture(tc_dataSetMessage_padding, setup, teardown);
@@ -2650,7 +2559,7 @@ int main(void) {
     Suite *suite = suite_create("PubSub readerGroups/reader/Fields handling and publishing");
     suite_add_tcase(suite, tc_add_pubsub_readergroup);
     suite_add_tcase(suite, tc_pubsub_publish_subscribe);
-    suite_add_tcase(suite, tc_pubsub_standalone_datasets);
+    suite_add_tcase(suite, tc_pubsub_datasets);
     suite_add_tcase(suite, tc_dataSetMessage_padding);
 
     SRunner *suiteRunner = srunner_create(suite);

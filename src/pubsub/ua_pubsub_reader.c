@@ -142,50 +142,41 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
     LIST_INSERT_HEAD(&readerGroup->readers, newDataSetReader, listEntry);
     readerGroup->readersCount++;
 
-    if(!UA_String_isEmpty(&newDataSetReader->config.linkedStandaloneSubscribedDataSetName)) {
-        // find sds by name
-        UA_StandaloneSubscribedDataSet *subscribedDataSet =
-            UA_StandaloneSubscribedDataSet_findSDSbyName(server,
-               newDataSetReader->config.linkedStandaloneSubscribedDataSetName);
-        if(subscribedDataSet != NULL) {
-            if(subscribedDataSet->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+    UA_String sdsName = newDataSetReader->config.linkedStandaloneSubscribedDataSetName;
+    if(!UA_String_isEmpty(&sdsName)) {
+        UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findSDSbyName(server, sdsName);
+        if(sds) {
+            if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
                 UA_LOG_ERROR_PUBSUB(server->config.logging, newDataSetReader,
                                     "Not implemented! Currently only SubscribedDataSet as "
                                     "TargetVariables is implemented");
             } else {
-                if(subscribedDataSet->config.isConnected) {
+                if(sds->connectedReader) {
                     UA_LOG_ERROR_PUBSUB(server->config.logging, newDataSetReader,
                                         "SubscribedDataSet is already connected");
                 } else {
                     UA_LOG_DEBUG_PUBSUB(server->config.logging, newDataSetReader,
                                         "Found SubscribedDataSet");
-                    subscribedDataSet->config.isConnected = true;
-                    UA_DataSetMetaDataType_copy(
-                        &subscribedDataSet->config.dataSetMetaData,
-                        &newDataSetReader->config.dataSetMetaData);
-                    UA_FieldTargetVariable *targetVars =
-                        (UA_FieldTargetVariable *)UA_calloc(
-                            subscribedDataSet->config.subscribedDataSet.target
-                                .targetVariablesSize,
-                            sizeof(UA_FieldTargetVariable));
+                    UA_DataSetMetaDataType_copy(&sds->config.dataSetMetaData,
+                                                &newDataSetReader->config.dataSetMetaData);
+                    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
+                        UA_calloc(sds->config.subscribedDataSet.target.targetVariablesSize,
+                                  sizeof(UA_FieldTargetVariable));
                     for(size_t index = 0;
-                        index < subscribedDataSet->config.subscribedDataSet.target
-                                    .targetVariablesSize;
+                        index < sds->config.subscribedDataSet.target.targetVariablesSize;
                         index++) {
-                        UA_FieldTargetDataType_copy(
-                            &subscribedDataSet->config.subscribedDataSet.target
-                                 .targetVariables[index],
-                            &targetVars[index].targetVariable);
+                        UA_FieldTargetDataType_copy(&sds->config.subscribedDataSet.target
+                                                    .targetVariables[index],
+                                                    &targetVars[index].targetVariable);
                     }
 
                     DataSetReader_createTargetVariables(server, newDataSetReader,
-                                                        subscribedDataSet->config.subscribedDataSet.
+                                                        sds->config.subscribedDataSet.
                                                         target.targetVariablesSize, targetVars);
-                    subscribedDataSet->connectedReader = newDataSetReader;
+                    sds->connectedReader = newDataSetReader;
 
                     for(size_t index = 0;
-                        index < subscribedDataSet->config.subscribedDataSet.target
-                                    .targetVariablesSize;
+                        index < sds->config.subscribedDataSet.target.targetVariablesSize;
                         index++) {
                         UA_FieldTargetDataType_clear(&targetVars[index].targetVariable);
                     }
@@ -194,7 +185,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
                     connectDataSetReaderToDataSet(server, newDataSetReader->head.identifier,
-                                                  subscribedDataSet->head.identifier);
+                                                  sds->head.identifier);
 #endif
                 }
             }
@@ -259,13 +250,11 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 
     /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
     if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
-        UA_StandaloneSubscribedDataSet *sds =
-            UA_StandaloneSubscribedDataSet_findSDSbyName(
-                server, dsr->config.linkedStandaloneSubscribedDataSetName);
-        if(sds != NULL) {
-            sds->config.isConnected = false;
+        UA_SubscribedDataSet *sds =
+            UA_SubscribedDataSet_findSDSbyName(server,
+                                               dsr->config.linkedStandaloneSubscribedDataSetName);
+        if(sds)
             sds->connectedReader = NULL;
-        }
     }
 
     /* Delete DataSetReader config */
@@ -516,8 +505,7 @@ UA_TargetVariables_clear(UA_TargetVariables *subscribedDataSetTarget) {
  * SubscribedDataSetType. */
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
-                                    size_t targetVariablesSize,
-                                    const UA_FieldTargetVariable *targetVariables) {
+                                    size_t tvsSize, const UA_FieldTargetVariable *tvs) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(dsr->configurationFrozen) {
@@ -533,24 +521,18 @@ DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
     /* Set subscribed dataset to TargetVariableType */
     dsr->config.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
     UA_TargetVariables tmp;
-    tmp.targetVariablesSize = targetVariablesSize;
-    tmp.targetVariables = (UA_FieldTargetVariable*)(uintptr_t)targetVariables;
+    tmp.targetVariablesSize = tvsSize;
+    tmp.targetVariables = (UA_FieldTargetVariable*)(uintptr_t)tvs;
     return UA_TargetVariables_copy(&tmp, &dsr->config.subscribedDataSet.subscribedDataSetTarget);
 }
 
 UA_StatusCode
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server,
-                                              const UA_NodeId dataSetReaderIdentifier,
-                                              size_t targetVariablesSize,
-                                              const UA_FieldTargetVariable *targetVariables) {
+UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsrId,
+                                          size_t tvsSize, const UA_FieldTargetVariable *tvs) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReaderIdentifier);
-    if(!dataSetReader) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-    UA_StatusCode res = DataSetReader_createTargetVariables(server, dataSetReader,
-                                                            targetVariablesSize, targetVariables);
+    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_StatusCode res = (dsr) ?
+        DataSetReader_createTargetVariables(server, dsr, tvsSize, tvs) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

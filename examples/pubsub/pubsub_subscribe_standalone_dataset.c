@@ -1,14 +1,6 @@
 /* This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information. */
 
-/**
- * With the OPC UA Part 14 1.0.5, the concept of StandaloneSubscribedDataSet (SSDS) was
- * introduced. The SSDS is the counterpart to the PublishedDataSet and has its own
- * lifecycle. The SSDS can be connected to exactly one DataSetReader. In general,
- * the SSDS is optional and DSR's can still be defined without referencing a SSDS.
- * This example shows, how to configure a SSDS.
- */
-
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
@@ -45,10 +37,10 @@ addTargetVariable(UA_Server *server) {
 }
 
 static void
-addStandaloneSubscribedDataSet(UA_Server *server) {
-    UA_StandaloneSubscribedDataSetConfig cfg;
+addSubscribedDataSet(UA_Server *server) {
+    UA_SubscribedDataSetConfig cfg;
     UA_NodeId ret;
-    memset(&cfg, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    memset(&cfg, 0, sizeof(UA_SubscribedDataSetConfig));
 
     /* Fill the SSDS MetaData */
     UA_DataSetMetaDataType_init(&cfg.dataSetMetaData);
@@ -65,7 +57,6 @@ addStandaloneSubscribedDataSet(UA_Server *server) {
     cfg.dataSetMetaData.fields[0].valueRank = -1; /* scalar */
 
     cfg.name = UA_STRING("DemoStandaloneSDS");
-    cfg.isConnected = UA_FALSE;
     cfg.subscribedDataSet.target.targetVariablesSize = 1;
     UA_FieldTargetDataType fieldTargetDataType;
     cfg.subscribedDataSet.target.targetVariables = &fieldTargetDataType;
@@ -75,7 +66,7 @@ addStandaloneSubscribedDataSet(UA_Server *server) {
     cfg.subscribedDataSet.target.targetVariables[0].targetNodeId =
         UA_NODEID_STRING(1, "demoVar");
 
-    UA_Server_addStandaloneSubscribedDataSet(server, &cfg, &ret);
+    UA_Server_addSubscribedDataSet(server, &cfg, &ret);
 }
 
 /* Add new connection to the server */
@@ -159,7 +150,7 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_ServerConfig_setDefault(config);
 
     addTargetVariable(server);
-    addStandaloneSubscribedDataSet(server);
+    addSubscribedDataSet(server);
 
     /* Add PubSub configuration */
     addPubSubConnection(server, transportProfile, networkAddressUrl);

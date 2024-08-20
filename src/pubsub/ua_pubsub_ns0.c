@@ -77,6 +77,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
     UA_Variant value;
     UA_Variant_init(&value);
+    UA_Boolean isConnected;
 
     switch(nodeContext->parentClassifier){
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
@@ -204,11 +205,12 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }    
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
-        UA_StandaloneSubscribedDataSet *sds =
-            UA_StandaloneSubscribedDataSet_findSDSbyId(server, *myNodeId);
+        UA_SubscribedDataSet *sds =
+            UA_SubscribedDataSet_findSDSbyId(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
-                UA_Variant_setScalar(&value, &sds->config.isConnected,
+                isConnected = (sds->connectedReader != NULL);
+                UA_Variant_setScalar(&value, &isConnected,
                                      &UA_TYPES[UA_TYPES_BOOLEAN]);
                 break;
             }
@@ -1187,13 +1189,13 @@ removePublishedDataSetAction(UA_Server *server,
     return UA_Server_removePublishedDataSet(server, nodeToRemove);
 }
 
-/**********************************************/
-/*       StandaloneSubscribedDataSet          */
-/**********************************************/
+/*********************/
+/* SubscribedDataSet */
+/*********************/
 
 UA_StatusCode
-addStandaloneSubscribedDataSetRepresentation(UA_Server *server,
-                                             UA_StandaloneSubscribedDataSet *subscribedDataSet) {
+addSubscribedDataSetRepresentation(UA_Server *server,
+                                   UA_SubscribedDataSet *subscribedDataSet) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
@@ -2326,10 +2328,10 @@ publishedDataItemsTypeDestructor(UA_Server *server,
 }
 
 static void
-standaloneSubscribedDataSetTypeDestructor(UA_Server *server,
-                            const UA_NodeId *sessionId, void *sessionContext,
-                            const UA_NodeId *typeId, void *typeContext,
-                            const UA_NodeId *nodeId, void **nodeContext) {
+subscribedDataSetTypeDestructor(UA_Server *server,
+                                const UA_NodeId *sessionId, void *sessionContext,
+                                const UA_NodeId *typeId, void *typeContext,
+                                const UA_NodeId *nodeId, void **nodeContext) {
     UA_LOCK(&server->serviceMutex);
     void *childContext;
     UA_NodeId node =
@@ -2505,14 +2507,14 @@ initPubSubNS0(UA_Server *server) {
     lifeCycle.destructor = dataSetReaderTypeDestructor;
     retVal |= setNodeTypeLifecycle(server, UA_NS0ID(DATASETREADERTYPE), lifeCycle);
 
-    lifeCycle.destructor = standaloneSubscribedDataSetTypeDestructor;
+    lifeCycle.destructor = subscribedDataSetTypeDestructor;
     retVal |= setNodeTypeLifecycle(server, UA_NS0ID(STANDALONESUBSCRIBEDDATASETTYPE), lifeCycle);
 
     return retVal;
 }
 
 UA_StatusCode
-connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId) {
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
@@ -2525,10 +2527,10 @@ connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId stan
                             UA_NS0ID(HASCOMPONENT), dsrId);
     UA_NodeId dataSetMetaDataOnSdsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "DataSetMetaData"),
-                            UA_NS0ID(HASPROPERTY), standaloneSdsId);
+                            UA_NS0ID(HASPROPERTY), sdsId);
     UA_NodeId subscribedDataSetOnSdsId =
         findSingleChildNode(server, UA_QUALIFIEDNAME(0, "SubscribedDataSet"),
-                            UA_NS0ID(HASCOMPONENT), standaloneSdsId);
+                            UA_NS0ID(HASCOMPONENT), sdsId);
 
     if(UA_NodeId_isNull(&dataSetMetaDataOnDsrId) ||
        UA_NodeId_isNull(&subscribedDataSetOnDsrId) ||

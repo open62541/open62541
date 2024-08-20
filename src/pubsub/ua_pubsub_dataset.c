@@ -814,14 +814,13 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     return res;
 }
 
-
-UA_StandaloneSubscribedDataSet *
-UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
+UA_SubscribedDataSet *
+UA_SubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
 
-    UA_StandaloneSubscribedDataSet *sds;
+    UA_SubscribedDataSet *sds;
     TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
         if(UA_NodeId_equal(&identifier, &sds->head.identifier))
             return sds;
@@ -829,13 +828,13 @@ UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifi
     return NULL;
 }
 
-UA_StandaloneSubscribedDataSet *
-UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
+UA_SubscribedDataSet *
+UA_SubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
 
-    UA_StandaloneSubscribedDataSet *sds;
+    UA_SubscribedDataSet *sds;
     TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
         if(UA_String_equal(&identifier, &sds->config.name))
             return sds;
@@ -844,39 +843,38 @@ UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identi
 }
 
 UA_StatusCode
-UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
-                                          UA_StandaloneSubscribedDataSetConfig *dst) {
+UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
+                                UA_SubscribedDataSetConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    memcpy(dst, src, sizeof(UA_StandaloneSubscribedDataSetConfig));
+    memcpy(dst, src, sizeof(UA_SubscribedDataSetConfig));
     res = UA_DataSetMetaDataType_copy(&src->dataSetMetaData, &dst->dataSetMetaData);
     res |= UA_String_copy(&src->name, &dst->name);
-    res |= UA_Boolean_copy(&src->isConnected, &dst->isConnected);
     res |= UA_TargetVariablesDataType_copy(&src->subscribedDataSet.target,
                                            &dst->subscribedDataSet.target);
 
     if(res != UA_STATUSCODE_GOOD)
-        UA_StandaloneSubscribedDataSetConfig_clear(dst);
+        UA_SubscribedDataSetConfig_clear(dst);
     return res;
 }
 
 void
-UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig) {
+UA_SubscribedDataSetConfig_clear(UA_SubscribedDataSetConfig *sdsConfig) {
     UA_String_clear(&sdsConfig->name);
     UA_DataSetMetaDataType_clear(&sdsConfig->dataSetMetaData);
     UA_TargetVariablesDataType_clear(&sdsConfig->subscribedDataSet.target);
 }
 
 void
-UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
-                                     UA_StandaloneSubscribedDataSet *subscribedDataSet) {
-    UA_StandaloneSubscribedDataSetConfig_clear(&subscribedDataSet->config);
+UA_SubscribedDataSet_clear(UA_Server *server,
+                           UA_SubscribedDataSet *subscribedDataSet) {
+    UA_SubscribedDataSetConfig_clear(&subscribedDataSet->config);
     UA_PubSubComponentHead_clear(&subscribedDataSet->head);
 }
 
 static UA_StatusCode
-addStandaloneSubscribedDataSet(UA_Server *server,
-                               const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                               UA_NodeId *sdsIdentifier) {
+addSubscribedDataSet(UA_Server *server,
+                     const UA_SubscribedDataSetConfig *sdsConfig,
+                     UA_NodeId *sdsIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubManager *psm = getPSM(server);
@@ -889,10 +887,10 @@ addStandaloneSubscribedDataSet(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StandaloneSubscribedDataSetConfig tmpSubscribedDataSetConfig;
-    memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_StandaloneSubscribedDataSetConfig));
-    UA_StatusCode res = UA_StandaloneSubscribedDataSetConfig_copy(sdsConfig,
-                                                                  &tmpSubscribedDataSetConfig);
+    UA_SubscribedDataSetConfig tmpSubscribedDataSetConfig;
+    memset(&tmpSubscribedDataSetConfig, 0, sizeof(UA_SubscribedDataSetConfig));
+    UA_StatusCode res = UA_SubscribedDataSetConfig_copy(sdsConfig,
+                                                        &tmpSubscribedDataSetConfig);
     if(res != UA_STATUSCODE_GOOD){
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. Configuration copy failed.");
@@ -900,10 +898,10 @@ addStandaloneSubscribedDataSet(UA_Server *server,
     }
 
     /* Create new PDS and add to UA_PubSubManager */
-    UA_StandaloneSubscribedDataSet *newSubscribedDataSet = (UA_StandaloneSubscribedDataSet *)
-            UA_calloc(1, sizeof(UA_StandaloneSubscribedDataSet));
+    UA_SubscribedDataSet *newSubscribedDataSet = (UA_SubscribedDataSet *)
+            UA_calloc(1, sizeof(UA_SubscribedDataSet));
     if(!newSubscribedDataSet) {
-        UA_StandaloneSubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
+        UA_SubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "SubscribedDataSet creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -917,7 +915,7 @@ addStandaloneSubscribedDataSet(UA_Server *server,
     psm->subscribedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addStandaloneSubscribedDataSetRepresentation(server, newSubscribedDataSet);
+    addSubscribedDataSetRepresentation(server, newSubscribedDataSet);
 #else
     UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->identifier);
 #endif
@@ -929,17 +927,17 @@ addStandaloneSubscribedDataSet(UA_Server *server,
 }
 
 UA_StatusCode
-UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
-                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                                         UA_NodeId *sdsIdentifier) {
+UA_Server_addSubscribedDataSet(UA_Server *server,
+                               const UA_SubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addStandaloneSubscribedDataSet(server, sdsConfig, sdsIdentifier);
+    UA_StatusCode res = addSubscribedDataSet(server, sdsConfig, sdsIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 void
-UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribedDataSet *sds) {
+UA_SubscribedDataSet_remove(UA_Server *server, UA_SubscribedDataSet *sds) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubManager *psm = getPSM(server);
@@ -967,18 +965,17 @@ UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribed
 
     TAILQ_REMOVE(&psm->subscribedDataSets, sds, listEntry);
     psm->subscribedDataSetsSize--;
-    UA_StandaloneSubscribedDataSet_clear(server, sds);
+    UA_SubscribedDataSet_clear(server, sds);
     UA_free(sds);
 }
 
 UA_StatusCode
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
+UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_StandaloneSubscribedDataSet *sds =
-        UA_StandaloneSubscribedDataSet_findSDSbyId(server, sdsId);
+    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findSDSbyId(server, sdsId);
     if(sds)
-        UA_StandaloneSubscribedDataSet_remove(server, sds);
+        UA_SubscribedDataSet_remove(server, sds);
     else
         res = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
