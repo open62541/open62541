@@ -476,7 +476,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
         if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
-            UA_WriterGroup_connect(server, wg, false);
+            UA_WriterGroup_connect(psm, wg, false);
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
@@ -654,10 +654,10 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
 }
 
 UA_StatusCode
-UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validate) {
+UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                       UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_PubSubManager *psm = getPSM(server);
 
     /* Check if already connected or no WG TransportSettings */
     if(!UA_WriterGroup_canConnect(wg) && !validate)

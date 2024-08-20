@@ -65,6 +65,10 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
              const UA_NumericRange *range, const UA_DataValue *data) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return;
+
     const UA_NodePropertyContext *nodeContext = (const UA_NodePropertyContext*)context;
     const UA_NodeId *myNodeId = &nodeContext->parentNodeId;
 
@@ -76,9 +80,6 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
     switch(nodeContext->parentClassifier){
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
-        UA_PubSubManager *psm = getPSM(server);
-        if(!psm)
-            return;
         UA_PubSubConnection *pubSubConnection =
             UA_PubSubConnection_findConnectionbyId(psm, *myNodeId);
         switch(nodeContext->elementClassiefier) {
@@ -126,7 +127,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_WRITERGROUPTYPE: {
-        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, *myNodeId);
+        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, *myNodeId);
         if(!writerGroup)
             return;
         switch(nodeContext->elementClassiefier){
@@ -250,6 +251,10 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
     UA_NodePropertyContext *npc = (UA_NodePropertyContext *)nodeContext;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return;
+
     UA_WriterGroup *writerGroup = NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(npc->parentClassifier) {
@@ -257,7 +262,7 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
             //no runtime writable attributes
             break;
         case UA_NS0ID_WRITERGROUPTYPE: {
-            writerGroup = UA_WriterGroup_findWGbyId(server, npc->parentNodeId);
+            writerGroup = UA_WriterGroup_findWGbyId(psm, npc->parentNodeId);
             if(!writerGroup)
                 return;
             UA_WriterGroupConfig writerGroupConfig;
@@ -362,6 +367,10 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
                      UA_WriterGroupDataType *writerGroup, UA_NodeId *writerGroupId){
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Now we create a new WriterGroupConfig and add the group to the existing
      * PubSubConnection. */
     UA_WriterGroupConfig writerGroupConfig;
@@ -388,7 +397,7 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
         }
     }
 
-    return UA_WriterGroup_create(server, connectionId, &writerGroupConfig, writerGroupId);
+    return UA_WriterGroup_create(psm, connectionId, &writerGroupConfig, writerGroupId);
 }
 
 /**
@@ -735,11 +744,11 @@ addPubSubConnectionLocked(UA_Server *server,
 
         /* TODO: Need to handle the UA_Server_setWriterGroupOperational based on
          * the status variable in information model */
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupId);
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupId);
         if(!wg)
             continue;
         if(pubSubConnection->enabled) {
-            UA_WriterGroup_freezeConfiguration(server, wg);
+            UA_WriterGroup_freezeConfiguration(psm, wg);
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
@@ -1469,11 +1478,12 @@ removeGroupAction(UA_Server *server,
                   const UA_NodeId *objectId, void *objectContext,
                   size_t inputSize, const UA_Variant *input,
                   size_t outputSize, UA_Variant *output){
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    if(UA_WriterGroup_findWGbyId(server, nodeToRemove)) {
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, nodeToRemove);
-        if(wg->configurationFrozen)
-            UA_Server_unfreezeWriterGroupConfiguration(server, nodeToRemove);
+    if(UA_WriterGroup_findWGbyId(psm, nodeToRemove)) {
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     } else {
         UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
@@ -1863,8 +1873,12 @@ addDataSetWriterLocked(UA_Server *server,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, *objectId);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, *objectId);
     if(!wg) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Not a WriterGroup");
