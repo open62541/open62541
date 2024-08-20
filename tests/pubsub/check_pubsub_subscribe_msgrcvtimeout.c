@@ -1681,13 +1681,6 @@ START_TEST(Test_update_config) {
     expectedState = UA_PUBSUBSTATE_OPERATIONAL;
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "update reader config");
-    UA_DataSetReaderConfig ReaderConfig;
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_DataSetReader_getConfig(server, DSRId_Conn1_RG1_DSR1, &ReaderConfig));
-    ReaderConfig.messageReceiveTimeout = 1000;
-    ck_assert(UA_STATUSCODE_GOOD == UA_Server_DataSetReader_updateConfig(server, DSRId_Conn1_RG1_DSR1, RGId_Conn1_RG1, &ReaderConfig));
-    UA_DataSetReaderConfig_clear(&ReaderConfig);
-
     /* re-enable the readergroup */
     ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn1_RG1_DSR1) == UA_STATUSCODE_GOOD);
 

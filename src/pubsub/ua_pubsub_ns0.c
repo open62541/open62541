@@ -256,7 +256,6 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return;
-
     UA_WriterGroup *writerGroup = NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     switch(npc->parentClassifier) {
@@ -265,23 +264,27 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
             break;
         case UA_NS0ID_WRITERGROUPTYPE: {
             writerGroup = UA_WriterGroup_findWGbyId(psm, npc->parentNodeId);
-            if(!writerGroup)
-                return;
-            UA_WriterGroupConfig writerGroupConfig;
-            memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
+            if(!writerGroup) {
+                res = UA_STATUSCODE_BADNOTFOUND;
+                break;
+            }
             switch(npc->elementClassiefier) {
                 case UA_NS0ID_WRITERGROUPTYPE_PUBLISHINGINTERVAL:
                     if(!UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DURATION]) &&
                        !UA_Variant_hasScalarType(&data->value, &UA_TYPES[UA_TYPES_DOUBLE])) {
                         res = UA_STATUSCODE_BADTYPEMISMATCH;
-                        goto cleanup;
+                        break;
                     }
-                    res = UA_WriterGroupConfig_copy(&writerGroup->config, &writerGroupConfig);
-                    if(res != UA_STATUSCODE_GOOD)
-                        goto cleanup;
-                    writerGroupConfig.publishingInterval = *((UA_Duration *) data->value.data);
-                    UA_WriterGroup_updateConfig(server, writerGroup, &writerGroupConfig);
-                    UA_WriterGroupConfig_clear(&writerGroupConfig);
+                    UA_Duration interval = *((UA_Duration *) data->value.data);
+                    if(interval <= 0.0) {
+                        res = UA_STATUSCODE_BADOUTOFRANGE;
+                        break;
+                    }
+                    writerGroup->config.publishingInterval = interval;
+                    if(writerGroup->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
+                        UA_WriterGroup_removePublishCallback(server, writerGroup);
+                        UA_WriterGroup_addPublishCallback(server, writerGroup);
+                    }
                     break;
                 default:
                     UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -294,7 +297,6 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
                            "Read error! Unknown parent element.");
     }
 
- cleanup:
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "Changing the ReaderGroupConfig failed with status %s",
