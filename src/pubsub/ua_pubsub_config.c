@@ -299,6 +299,10 @@ createWriterGroup(UA_Server *server,
                   const UA_NodeId *pdsIdent) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_WriterGroupConfig config;
     memset(&config, 0, sizeof(UA_WriterGroupConfig));
     config.name =                  writerGroupParameters->name;
@@ -324,10 +328,10 @@ createWriterGroup(UA_Server *server,
 
     /* Load config into server: */
     UA_NodeId writerGroupIdent;
-    res = UA_WriterGroup_create(server, connectionIdent, &config, &writerGroupIdent);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
+    res = UA_WriterGroup_create(psm, connectionIdent, &config, &writerGroupIdent);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdent);
     if(wg)
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createWriterGroup] "

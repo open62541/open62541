@@ -211,7 +211,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdent);
         ck_assert(wg != 0);
 
         while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)

@@ -68,7 +68,8 @@ START_TEST(PublishSpeedTest) {
     UA_StatusCode retval = UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup1);
 
     printf("start sending 8000 publish messages via UDP\n");
 

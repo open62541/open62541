@@ -187,7 +187,11 @@ UA_DataSetWriter_create(UA_Server *server,
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 

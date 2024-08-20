@@ -404,7 +404,7 @@ struct UA_WriterGroup {
 };
 
 UA_StatusCode
-UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
+UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
                       UA_NodeId *writerGroupIdentifier);
 
@@ -415,7 +415,7 @@ void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        UA_Boolean validate);
 
 UA_Boolean
@@ -433,34 +433,31 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst);
 
 UA_WriterGroup *
-UA_WriterGroup_findWGbyId(UA_Server *server, UA_NodeId identifier);
+UA_WriterGroup_findWGbyId(UA_PubSubManager *psm, UA_NodeId identifier);
 
 UA_StatusCode
-UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState);
-UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg);
 
 void
-UA_WriterGroup_publishCallback(UA_Server *server,
-                               UA_WriterGroup *wg);
+UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
                             const UA_WriterGroupConfig *config);
 
 UA_StatusCode
-UA_WriterGroup_enableWriterGroup(UA_Server *server,
+UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
                                  const UA_NodeId writerGroup);
 
 UA_StatusCode
-UA_WriterGroup_disableWriterGroup(UA_Server *server,
+UA_WriterGroup_disableWriterGroup(UA_PubSubManager *psm,
                                   const UA_NodeId writerGroup);
 
 /**********************************************/

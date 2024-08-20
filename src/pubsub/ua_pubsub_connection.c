@@ -267,7 +267,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_WriterGroup *wg, *tmpWg;
     LIST_FOREACH(wg, &c->writerGroups, listEntry) {
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-        UA_WriterGroup_unfreezeConfiguration(server, wg);
+        UA_WriterGroup_unfreezeConfiguration(psm, wg);
     }
 
     /* Remove all ReaderGorups and WriterGroups */

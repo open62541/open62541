@@ -69,7 +69,8 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
     //get internal WG Pointer
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetMetaDataType dataSetMetaDataType;
@@ -154,7 +155,8 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
         //get internal WG Pointer
-        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
         ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
         UA_DataSetWriterConfig dataSetWriterConfig;
@@ -233,8 +235,9 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 3");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
 
-    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(psm, writerGroup2);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
     //freeze configuratoin of both WG
@@ -296,7 +299,8 @@ START_TEST(CreateLockAndEditConfiguration) {
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
 
     //get internal WG Pointer
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriterConfig dataSetWriterConfig;

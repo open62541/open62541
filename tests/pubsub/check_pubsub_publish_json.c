@@ -89,9 +89,7 @@ START_TEST(SinglePublishDataSetField){
                                         &dataSetWriterConfig, &dataSetWriter1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    ck_assert(wg != 0);
-    UA_WriterGroup_publishCallback(server, wg);
+    UA_Server_WriterGroup_publish(server, writerGroup1);
 } END_TEST
 
 int main(void) {

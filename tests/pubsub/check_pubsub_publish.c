@@ -59,7 +59,7 @@ START_TEST(AddWriterGroupWithValidConfiguration){
         UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection1);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 1);
@@ -189,27 +189,29 @@ static void setupPublishedDataSetTestEnvironment(void){
 }
 
 START_TEST(AddDataSetWriterWithValidConfiguration){
-        setupDataSetWriterTestEnvironment();
-        setupPublishedDataSetTestEnvironment();
-        UA_StatusCode retVal;
-        UA_DataSetWriterConfig dataSetWriterConfig;
-        memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
-        dataSetWriterConfig.name = UA_STRING("DataSetWriter 1 ");
-        UA_NodeId localDataSetWriter;
-        retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &localDataSetWriter);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_DataSetWriter *dsw1 = UA_DataSetWriter_findDSWbyId(server, localDataSetWriter);
-        ck_assert_ptr_ne(dsw1, NULL);
-        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
-        ck_assert_ptr_ne(wg1, NULL);
-        ck_assert_uint_eq(wg1->writersCount, 1);
-    } END_TEST
+    setupDataSetWriterTestEnvironment();
+    setupPublishedDataSetTestEnvironment();
+    UA_StatusCode retVal;
+    UA_DataSetWriterConfig dataSetWriterConfig;
+    memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
+    dataSetWriterConfig.name = UA_STRING("DataSetWriter 1 ");
+    UA_NodeId localDataSetWriter;
+    retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &localDataSetWriter);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_DataSetWriter *dsw1 = UA_DataSetWriter_findDSWbyId(server, localDataSetWriter);
+    ck_assert_ptr_ne(dsw1, NULL);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+    ck_assert_ptr_ne(wg1, NULL);
+    ck_assert_uint_eq(wg1->writersCount, 1);
+} END_TEST
 
 START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
         setupDataSetWriterTestEnvironment();
         setupPublishedDataSetTestEnvironment();
         UA_StatusCode retVal;
-        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -229,7 +231,7 @@ START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(wg1->writersCount, 2);
 
-        UA_WriterGroup *wg2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
+        UA_WriterGroup *wg2 = UA_WriterGroup_findWGbyId(psm, writerGroup2);
         ck_assert_ptr_ne(wg2, NULL);
         retVal = UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -239,8 +241,9 @@ START_TEST(AddRemoveAddDataSetWriterWithValidConfiguration){
 START_TEST(AddDataSetWriterWithNullConfig){
         setupDataSetWriterTestEnvironment();
         UA_StatusCode retVal;
+        UA_PubSubManager *psm = getPSM(server);
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, NULL, NULL);
-        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
         ck_assert_uint_eq(wg1->writersCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -248,12 +251,13 @@ START_TEST(AddDataSetWriterWithNullConfig){
 
 START_TEST(AddDataSetWriterWithInvalidPDSId){
         setupDataSetWriterTestEnvironment();
+        UA_PubSubManager *psm = getPSM(server);
         UA_StatusCode retVal;
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1 ");
         retVal = UA_Server_addDataSetWriter(server, writerGroup1, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &dataSetWriterConfig, NULL);
-        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_WriterGroup *wg1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
         ck_assert_ptr_ne(wg1, NULL);
         ck_assert_uint_eq(wg1->writersCount, 0);
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
@@ -494,8 +498,7 @@ START_TEST(SinglePublishDataSetFieldAndPublishTimestampTest){
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
 
         UA_DateTime currentTime = UA_DateTime_now();
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_Server_WriterGroup_publish(server, writerGroup1);
         UA_DateTime publishTime;
         UA_WriterGroup_lastPublishTimestamp(server, writerGroup1, &publishTime);
         ck_assert((publishTime - currentTime) < UA_DATETIME_MSEC * 100);
@@ -516,7 +519,9 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         dataSetFieldConfig.field.variable.fieldNameAlias = UA_STRING("Server localtime2");
         retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &dataSetFieldConfig, NULL).result;
         setupDataSetFieldTestEnvironment();
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup1);
+
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup1);
         wg->config.maxEncapsulatedDataSetMessageCount = 3;
         UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
         dsw->config.keyFrameCount = 3;
