@@ -109,7 +109,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 
     /* Search the connection by the given connectionIdentifier */
     UA_PubSubConnection *currentConnectionContext =
-        UA_PubSubConnection_findConnectionbyId(server, connection);
+        UA_PubSubConnection_findConnectionbyId(psm, connection);
     if(!currentConnectionContext)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -228,7 +228,7 @@ UA_WriterGroup_create(UA_Server *server, const UA_NodeId connection,
 #endif
 
     /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, currentConnectionContext,
+    UA_PubSubConnection_setPubSubState(psm, currentConnectionContext,
                                        currentConnectionContext->head.state);
 
     /* Copying a numeric NodeId always succeeds */
@@ -312,7 +312,8 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -996,7 +997,8 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Sending NetworkMessage failed");
         UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
-        UA_PubSubConnection_setPubSubState(server, connection, UA_PUBSUBSTATE_ERROR);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection_setPubSubState(psm, connection, UA_PUBSUBSTATE_ERROR);
         return;
     }
 

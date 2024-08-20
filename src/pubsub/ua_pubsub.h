@@ -110,6 +110,9 @@ typedef struct UA_SecurityGroup UA_SecurityGroup;
 struct UA_DataSetReader;
 typedef struct UA_DataSetReader UA_DataSetReader;
 
+struct UA_PubSubManager;
+typedef struct UA_PubSubManager UA_PubSubManager;
+
 const char *
 UA_PubSubState_name(UA_PubSubState state);
 
@@ -266,8 +269,8 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst);
 
 UA_PubSubConnection *
-UA_PubSubConnection_findConnectionbyId(UA_Server *server,
-                                       UA_NodeId connectionIdentifier);
+UA_PubSubConnection_findConnectionbyId(UA_PubSubManager *psm,
+                                       UA_NodeId connectionId);
 
 UA_StatusCode
 UA_PubSubConnection_create(UA_Server *server,
@@ -300,7 +303,7 @@ UA_EventLoop *
 UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
 
 /**********************************************/
@@ -718,7 +721,7 @@ typedef struct UA_ReserveId {
 
 typedef ZIP_HEAD(UA_ReserveIdTree, UA_ReserveId) UA_ReserveIdTree;
 
-typedef struct UA_PubSubManager {
+struct UA_PubSubManager {
     UA_ServerComponent sc;
 
     UA_UInt64 defaultPublisherId;
@@ -746,7 +749,7 @@ typedef struct UA_PubSubManager {
 #ifndef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     UA_UInt32 uniqueIdCount;
 #endif
-} UA_PubSubManager;
+};
 
 static UA_INLINE UA_PubSubManager *
 getPSM(UA_Server *server) {

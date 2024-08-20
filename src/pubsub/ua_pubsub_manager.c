@@ -369,7 +369,7 @@ UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STARTED) {
         UA_PubSubConnection *c;
         TAILQ_FOREACH(c, &psm->connections, listEntry) {
-            UA_PubSubConnection_setPubSubState(psm->sc.server, c, c->head.state);
+            UA_PubSubConnection_setPubSubState(psm, c, c->head.state);
         }
     }
 }
@@ -403,7 +403,7 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
             UA_ReaderGroup_setPubSubState(sc->server, rg, UA_PUBSUBSTATE_DISABLED);
         }
 
-        UA_PubSubConnection_setPubSubState(sc->server, c, UA_PUBSUBSTATE_DISABLED);
+        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
     }
 
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
