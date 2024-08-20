@@ -50,7 +50,7 @@ UA_WriterGroup_canConnect(UA_WriterGroup *wg) {
     return true;
 }
 
-static UA_StatusCode
+UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
@@ -80,7 +80,7 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     return retval;
 }
 
-static void
+void
 UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->publishCallbackId == 0)
         return;
@@ -634,70 +634,6 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup);
     UA_StatusCode res = (wg) ?
         UA_WriterGroupConfig_copy(&wg->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
-                            const UA_WriterGroupConfig *config) {
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(!config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    if(wg->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                              "Modify WriterGroup failed. WriterGroup is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
-    //The update functionality will be extended during the next PubSub batches.
-    //Currently is only a change of the publishing interval possible.
-    if(wg->config.maxEncapsulatedDataSetMessageCount != config->maxEncapsulatedDataSetMessageCount) {
-        wg->config.maxEncapsulatedDataSetMessageCount = config->maxEncapsulatedDataSetMessageCount;
-        if(wg->config.messageSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                                  "MaxEncapsulatedDataSetMessag need enabled "
-                                  "'PayloadHeader' within the message settings.");
-        }
-    }
-
-    if(wg->config.publishingInterval != config->publishingInterval) {
-        wg->config.publishingInterval = config->publishingInterval;
-        if(wg->config.rtLevel == UA_PUBSUB_RT_NONE &&
-           wg->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
-            UA_WriterGroup_removePublishCallback(server, wg);
-            res = UA_WriterGroup_addPublishCallback(server, wg);
-            if(res != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                                      "Modify WriterGroup failed. Adding publish callback failed"
-                                      "with status code %s", UA_StatusCode_name(res));
-                return res;
-            }
-        }
-    }
-
-    if(wg->config.priority != config->priority) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                              "Priority parameter is not yet "
-                              "supported for WriterGroup updates");
-    }
-
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroupIdentifier,
-                                  const UA_WriterGroupConfig *config) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdentifier);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroup_updateConfig(server, wg, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

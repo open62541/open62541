@@ -420,6 +420,12 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
 UA_Boolean
 UA_WriterGroup_canConnect(UA_WriterGroup *wg);
 
+void
+UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
+
+UA_StatusCode
+UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg);
+
 UA_StatusCode
 setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              UA_UInt32 securityTokenId,
@@ -446,10 +452,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
 void
 UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg);
-
-UA_StatusCode
-UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
-                            const UA_WriterGroupConfig *config);
 
 UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
