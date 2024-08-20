@@ -130,6 +130,7 @@ typedef struct {
     UA_PubSubComponentType componentType;
     UA_PubSubState state;
     UA_String logIdString; /* Precomputed logging prefix */
+    UA_Boolean transientState; /* We are in the middle of a state update */
 } UA_PubSubComponentHead;
 
 #define UA_LOG_PUBSUB_INTERNAL(LOGGER, LEVEL, COMPONENT, MSG, ...)      \
@@ -278,6 +279,9 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
 void
 UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
+
+UA_Boolean
+UA_PubSubConnection_canConnect(UA_PubSubConnection *c);
 
 UA_StatusCode
 UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
@@ -594,7 +598,11 @@ UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate);
+UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg,
+                       UA_Boolean validate);
+
+UA_Boolean
+UA_ReaderGroup_canConnect(UA_ReaderGroup *rg);
 
 void
 UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);

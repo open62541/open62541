@@ -819,9 +819,13 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Are we doing a top-level state update or recursively? */
+    UA_Boolean isTransient = wg->head.transientState;
+    wg->head.transientState = true;
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_PubSubConnection *connection = wg->linkedConnection;
     UA_PubSubState oldState = wg->head.state;
+    UA_PubSubConnection *connection = wg->linkedConnection;
 
     switch(targetState) {
         /* Disabled or Error */
@@ -844,9 +848,9 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
                                       "Cannot enable the WriterGroup "
                                       "while the server is not running");
             }
+            wg->head.state = UA_PUBSUBSTATE_PAUSED;
             UA_WriterGroup_disconnect(wg);
             UA_WriterGroup_removePublishCallback(server, wg);
-            wg->head.state = UA_PUBSUBSTATE_PAUSED;
             break;
         }
         }
@@ -858,15 +862,14 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
             break;
         }
 
-        ret = UA_WriterGroup_connect(server, wg, false);
-        if(ret != UA_STATUSCODE_GOOD)
-            break;
-
         wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
 
-        /* Not fully connected -> PreOperational */
-        if(UA_WriterGroup_canConnect(wg))
-            wg->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
+        /* Not fully connected -> connect */
+        if(UA_WriterGroup_canConnect(wg)) {
+            ret = UA_WriterGroup_connect(server, wg, false);
+            if(ret != UA_STATUSCODE_GOOD)
+                break;
+        }
 
         /* Security Mode not set-> PreOperational */
         if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE &&
@@ -890,6 +893,12 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(server, wg);
     }
+
+    /* Only the top-level state update (if recursive calls are happening)
+     * notifies the application and updates Reader and WriterGroups */
+    wg->head.transientState = isTransient;
+    if(wg->head.transientState)
+        return ret;
 
     if(wg->head.state != oldState) {
         /* Inform application about state change */
