@@ -37,13 +37,13 @@ UA_StatusCode
 addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
 
 UA_StatusCode
-addStandaloneSubscribedDataSetRepresentation(UA_Server *server, UA_StandaloneSubscribedDataSet *subscribedDataSet);
+addSubscribedDataSetRepresentation(UA_Server *server, UA_SubscribedDataSet *subscribedDataSet);
 
 UA_StatusCode
 addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
 
 UA_StatusCode
-connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId standaloneSdsId);
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 UA_StatusCode

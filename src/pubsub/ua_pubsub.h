@@ -199,33 +199,32 @@ UA_StatusCode
 getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config);
 
-/*******************************/
-/* StandaloneSubscribedDataSet */
-/*******************************/
+/*********************/
+/* SubscribedDataSet */
+/*********************/
 
-typedef struct UA_StandaloneSubscribedDataSet {
+typedef struct UA_SubscribedDataSet {
     UA_PubSubComponentHead head;
-    UA_StandaloneSubscribedDataSetConfig config;
-    TAILQ_ENTRY(UA_StandaloneSubscribedDataSet) listEntry;
+    TAILQ_ENTRY(UA_SubscribedDataSet) listEntry;
+    UA_SubscribedDataSetConfig config;
     UA_DataSetReader *connectedReader;
-} UA_StandaloneSubscribedDataSet;
+} UA_SubscribedDataSet;
 
 UA_StatusCode
-UA_StandaloneSubscribedDataSetConfig_copy(const UA_StandaloneSubscribedDataSetConfig *src,
-                                          UA_StandaloneSubscribedDataSetConfig *dst);
+UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
+                                UA_SubscribedDataSetConfig *dst);
 
-UA_StandaloneSubscribedDataSet *
-UA_StandaloneSubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
+UA_SubscribedDataSet *
+UA_SubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
 
-UA_StandaloneSubscribedDataSet *
-UA_StandaloneSubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
-
-void
-UA_StandaloneSubscribedDataSet_clear(UA_Server *server,
-                                     UA_StandaloneSubscribedDataSet *subscribedDataSet);
+UA_SubscribedDataSet *
+UA_SubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
 
 void
-UA_StandaloneSubscribedDataSet_remove(UA_Server *server, UA_StandaloneSubscribedDataSet *sds);
+UA_SubscribedDataSet_clear(UA_Server *server, UA_SubscribedDataSet *sds);
+
+void
+UA_SubscribedDataSet_remove(UA_Server *server, UA_SubscribedDataSet *sds);
 
 /**********************************************/
 /*               Connection                   */
@@ -735,7 +734,7 @@ struct UA_PubSubManager {
     TAILQ_HEAD(, UA_PublishedDataSet) publishedDataSets;
 
     size_t subscribedDataSetsSize;
-    TAILQ_HEAD(, UA_StandaloneSubscribedDataSet) subscribedDataSets;
+    TAILQ_HEAD(, UA_SubscribedDataSet) subscribedDataSets;
 
     size_t reserveIdsSize;
     UA_ReserveIdTree reserveIds;

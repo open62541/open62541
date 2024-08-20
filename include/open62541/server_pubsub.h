@@ -601,22 +601,25 @@ UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 /**
  * SubscribedDataSet
  * -----------------
- * SubscribedDataSet describes the processing of the received DataSet.
- * SubscribedDataSet defines which field in the DataSet is mapped to which
- * Variable in the OPC UA Application. SubscribedDataSet has two sub-types
- * called the TargetVariablesType and SubscribedDataSetMirrorType.
- * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is
- * set to TargetVariablesType and then the list of target Variables are created
- * in the Subscriber AddressSpace. TargetVariables are a list of variables that
- * are to be added in the Subscriber AddressSpace. It defines a list of Variable
- * mappings between received DataSet fields and added Variables in the
- * Subscriber AddressSpace. */
+ * With the OPC UA Part 14 1.0.5, the concept of StandaloneSubscribedDataSet
+ * (SSDS) was introduced. The SSDS is the counterpart to the PublishedDataSet
+ * and has its own lifecycle. The SSDS can be connected to exactly one
+ * DataSetReader. In general, the SSDS is optional and a DataSetReader can still
+ * be defined without referencing a SSDS.
+ *
+ * The SubscribedDataSet has two sub-types called the TargetVariablesType and
+ * SubscribedDataSetMirrorType. SubscribedDataSetMirrorType is currently not
+ * supported. SubscribedDataSet is set to TargetVariablesType and then the list
+ * of target Variables are created in the Subscriber AddressSpace.
+ * TargetVariables are a list of variables that are to be added in the
+ * Subscriber AddressSpace. It defines a list of Variable mappings between
+ * received DataSet fields and added Variables in the Subscriber
+ * AddressSpace. */
 
-/* SubscribedDataSetDataType Definition */
 typedef enum {
     UA_PUBSUB_SDS_TARGET,
     UA_PUBSUB_SDS_MIRROR
-} UA_SubscribedDataSetEnumType;
+} UA_SubscribedDataSetType;
 
 typedef struct {
     /* Standard-defined FieldTargetDataType */
@@ -649,11 +652,26 @@ typedef struct {
     UA_FieldTargetVariable *targetVariables;
 } UA_TargetVariables;
 
-/* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
+typedef struct {
+    UA_String name;
+    UA_SubscribedDataSetType subscribedDataSetType;
+    union {
+        /* datasetmirror is currently not implemented */
+        UA_TargetVariablesDataType target;
+    } subscribedDataSet;
+    UA_DataSetMetaDataType dataSetMetaData;
+} UA_SubscribedDataSetConfig;
+
+UA_EXPORT void
+UA_SubscribedDataSetConfig_clear(UA_SubscribedDataSetConfig *sdsConfig);
+
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server, const UA_NodeId dsrId,
-                                              size_t targetVariablesSize,
-                                              const UA_FieldTargetVariable *targetVariables);
+UA_Server_addSubscribedDataSet(UA_Server *server,
+                               const UA_SubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsId);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
 
 /* To Do:Implementation of SubscribedDataSetMirrorType
  * UA_StatusCode
@@ -691,7 +709,7 @@ typedef struct {
                                       * configured. */
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
-    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    UA_SubscribedDataSetType subscribedDataSetType;
     /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     union {
         UA_TargetVariables subscribedDataSetTarget;
@@ -733,35 +751,20 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setDataSetReaderTargetVariables(UA_Server *server,
+                                          const UA_NodeId dsrId,
+                                          size_t tvsSize,
+                                          const UA_FieldTargetVariable *tvs);
+
 /* Legacy API */
 #define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
     UA_Server_getDataSetReaderConfig(server, dsrId, config)
 #define UA_Server_DataSetReader_getState(server, dsrId, state) \
     UA_Server_getDataSetReaderState(server, dsrId, state)
-
-typedef struct {
-    UA_String name;
-    UA_SubscribedDataSetEnumType subscribedDataSetType;
-    union {
-        /* datasetmirror is currently not implemented */
-        UA_TargetVariablesDataType target;
-    } subscribedDataSet;
-    UA_DataSetMetaDataType dataSetMetaData;
-    UA_Boolean isConnected;
-} UA_StandaloneSubscribedDataSetConfig;
-
-void
-UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
-                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                                         UA_NodeId *sdsId);
-
-/* Remove StandaloneSubscribedDataSet, identified by the NodeId. */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server,
-                                            const UA_NodeId sdsId);
+#define UA_Server_DataSetReader_createTargetVariables(server, dsrId, \
+                                                      tvsSize, tvs)  \
+    UA_Server_setDataSetReaderTargetVariables(server, dsrId, tvsSize, tvs)
 
 /**
  * ReaderGroup
