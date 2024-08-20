@@ -395,7 +395,7 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
     TAILQ_FOREACH(c, &psm->connections, listEntry) {
         UA_WriterGroup *wg;
         LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            UA_WriterGroup_setPubSubState(sc->server, wg, UA_PUBSUBSTATE_DISABLED);
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         }
 
         UA_ReaderGroup *rg;

@@ -253,6 +253,8 @@ UA_StatusCode
 UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     if(wg->configurationFrozen) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
                               "Deleting the WriterGroup failed. "
@@ -273,7 +275,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
      * reconnect and triggers the deletion when the last open socket is
      * closed. */
     wg->deleteFlag = true;
-    UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
+    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
@@ -312,7 +314,6 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
     }
 
     /* Update the connection state */
-    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
@@ -526,11 +527,25 @@ UA_Server_enableWriterGroup(UA_Server *server,
 UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_Server *server,
                                  const UA_NodeId writerGroup) {
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(wg)
-        res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_OPERATIONAL);
-    return res;
+    return (wg) ?
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL)
+        : UA_STATUSCODE_BADNOTFOUND;
+}
+
+UA_StatusCode
+UA_WriterGroup_disableWriterGroup(UA_Server *server,
+                                  const UA_NodeId writerGroup) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
+    return (wg) ?
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED)
+        : UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_StatusCode
@@ -571,13 +586,10 @@ UA_Server_setWriterGroupActivateKey(UA_Server *server,
 #endif
 
 UA_StatusCode
-UA_Server_setWriterGroupDisabled(UA_Server *server,
-                                 const UA_NodeId writerGroup) {
+UA_Server_disableWriterGroup(UA_Server *server,
+                             const UA_NodeId writerGroup) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
-    if(wg)
-        res = UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
+    UA_StatusCode res = UA_WriterGroup_disableWriterGroup(server, writerGroup);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -747,6 +759,7 @@ setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
                              const UA_ByteString signingKey,
                              const UA_ByteString encryptingKey,
                              const UA_ByteString keyNonce) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroup);
     UA_StatusCode res = UA_STATUSCODE_BAD;
 
@@ -780,9 +793,8 @@ setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
             setSecurityKeys(wg->securityPolicyContext, &signingKey, &encryptingKey, &keyNonce);
     }
 
-    if(res != UA_STATUSCODE_GOOD)
-        return res;
-    return UA_WriterGroup_setPubSubState(server, wg, wg->head.state);
+    return (res == UA_STATUSCODE_GOOD) ?
+        UA_WriterGroup_setPubSubState(psm, wg, wg->head.state) : res;
 }
 
 UA_StatusCode
@@ -810,8 +822,9 @@ UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig) {
 }
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(wg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
@@ -840,8 +853,7 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
         /* Enabled */
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-    case UA_PUBSUBSTATE_OPERATIONAL: {
-        UA_PubSubManager *psm = getPSM(server);
+    case UA_PUBSUBSTATE_OPERATIONAL:
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
@@ -853,7 +865,6 @@ UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
             UA_WriterGroup_disconnect(wg);
             UA_WriterGroup_removePublishCallback(server, wg);
             break;
-        }
         }
 
         if(connection->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
@@ -996,8 +1007,8 @@ sendNetworkMessageBuffer(UA_Server *server, UA_WriterGroup *wg,
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Sending NetworkMessage failed");
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
         UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
         UA_PubSubConnection_setPubSubState(psm, connection, UA_PUBSUBSTATE_ERROR);
         return;
     }
@@ -1348,10 +1359,11 @@ sendNetworkMessage(UA_Server *server, UA_WriterGroup *wg, UA_PubSubConnection *c
 
     /* If sending failed, disable all writer of the writergroup */
     if(res != UA_STATUSCODE_GOOD) {
+        UA_PubSubManager *psm = getPSM(server);
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "PubSub Publish: Could not send a NetworkMessage "
                             "with status code %s", UA_StatusCode_name(res));
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
     }
 }
 
@@ -1370,7 +1382,8 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Publish failed. PubSubConnection invalid");
         UA_LOCK(&server->serviceMutex);
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }

@@ -266,7 +266,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     UA_WriterGroup *wg, *tmpWg;
     LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_DISABLED);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
         UA_WriterGroup_unfreezeConfiguration(server, wg);
     }
 
@@ -484,7 +484,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->head.state);
+        UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
     }
     return ret;
 }

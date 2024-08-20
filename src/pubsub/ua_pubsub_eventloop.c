@@ -452,6 +452,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Get the context pointers */
     UA_Server *server = (UA_Server*)application;
     UA_WriterGroup *wg = (UA_WriterGroup*)*connectionContext;
+    UA_PubSubManager *psm = getPSM(server);
 
     UA_LOCK(&server->serviceMutex);
 
@@ -479,7 +480,6 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
-        UA_PubSubManager *psm = getPSM(server);
         UA_PubSubManager_setState(psm, psm->sc.state);
 
         UA_UNLOCK(&server->serviceMutex);
@@ -496,7 +496,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     wg->sendChannel = connectionId;
 
     /* Connection open, set to operational if not already done */
-    UA_WriterGroup_setPubSubState(server, wg, wg->head.state);
+    UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
     
     /* Send-channels don't receive messages */
     UA_UNLOCK(&server->serviceMutex);
@@ -657,6 +657,8 @@ UA_StatusCode
 UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validate) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     /* Check if already connected or no WG TransportSettings */
     if(!UA_WriterGroup_canConnect(wg) && !validate)
         return UA_STATUSCODE_GOOD;
@@ -669,7 +671,7 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg, "No EventLoop configured");
-        UA_WriterGroup_setPubSubState(server, wg, UA_PUBSUBSTATE_ERROR);
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -685,7 +687,6 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     if(!cm || (c->cm && cm != c->cm)) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c,
                             "The requested protocol is not supported");
-        UA_PubSubManager *psm = getPSM(server);
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
