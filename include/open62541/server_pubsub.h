@@ -870,19 +870,19 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
  * SecurityGroup
  * -------------
  *
- * A SecurityGroup is an abstraction that represents the message security settings and
- * security keys for a subset of NetworkMessages exchanged between Publishers and
- * Subscribers. The SecurityGroup objects are created on a Security Key Service (SKS). The
- * SKS manages the access to the keys based on the role permission for a user assigned to
- * a SecurityGroup Object. A SecurityGroup is identified with a unique identifier called
- * the SecurityGroupId. It is unique within the SKS.
+ * A SecurityGroup is an abstraction that represents the message security
+ * settings and security keys for a subset of NetworkMessages exchanged between
+ * Publishers and Subscribers. The SecurityGroup objects are created on a
+ * Security Key Service (SKS). The SKS manages the access to the keys based on
+ * the role permission for a user assigned to a SecurityGroup Object. A
+ * SecurityGroup is identified with a unique identifier called the
+ * SecurityGroupId. It is unique within the SKS.
  *
- * .. note:: The access to the SecurityGroup and therefore the securitykeys managed by SKS
- *           requires management of Roles and Permissions in the SKS. The Role Permission
- *           model is not supported at the time of writing. However, the access control plugin can
- *           be used to create and manage role permission on SecurityGroup object.
- */
-
+ * .. note:: The access to the SecurityGroup and therefore the securitykeys
+ *           managed by SKS requires management of Roles and Permissions in the
+ *           SKS. The Role Permission model is not supported at the time of
+ *           writing. However, the access control plugin can be used to create
+ *           and manage role permission on SecurityGroup object. */
 typedef struct {
     UA_String securityGroupName;
     UA_Duration keyLifeTime;
@@ -892,85 +892,94 @@ typedef struct {
 } UA_SecurityGroupConfig;
 
 /**
- * @brief Creates a SecurityGroup object and add it to the list in PubSub Manager. If the
- * information model is enabled then the SecurityGroup object Node is also created in the
- * server. A keyStorage with initial list of keys is created with a SecurityGroup. A
- * callback is added to new SecurityGroup which updates the keys periodically at each
- * KeyLifeTime expire.
+ * @brief Creates a SecurityGroup object and add it to the list in PubSub
+ * Manager. If the information model is enabled then the SecurityGroup object
+ * Node is also created in the server. A keyStorage with initial list of keys is
+ * created with a SecurityGroup. A callback is added to new SecurityGroup which
+ * updates the keys periodically at each KeyLifeTime expire.
  *
  * @param server The server instance
- * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It must be of
- * SecurityGroupFolderType
+ * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It
+ *        must be of SecurityGroupFolderType
  * @param securityGroupConfig The security settings of a SecurityGroup
  * @param securityGroupNodeId The output nodeId of the new SecurityGroup
- * @return UA_StatusCode The return status code
- */
+ * @return UA_StatusCode The return status code */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+UA_Server_addSecurityGroup(UA_Server *server,
+                           UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId);
 
 /**
- * @brief Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
- * associated with the SecurityGroup from the server.
+ * @brief Removes the SecurityGroup from PubSub Manager. It removes the
+ * KeyStorage associated with the SecurityGroup from the server.
  *
  * @param server The server instance
  * @param securityGroup The nodeId of the securityGroup to be removed
- * @return UA_StatusCode The returned status code.
- */
+ * @return UA_StatusCode The returned status code. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
+UA_Server_removeSecurityGroup(UA_Server *server,
+                              const UA_NodeId securityGroup);
 
 /**
- * @brief This is a repeated callback which is triggered on each iteration of SKS Pull request.
- * The server uses this callback to notify user about the status of current Pull request iteration.
- * The period is calculated based on the KeylifeTime of specified in the SecurityGroup object node on
- * the SKS server.
+ * @brief This is a repeated callback which is triggered on each iteration of
+ * SKS Pull request. The server uses this callback to notify user about the
+ * status of current Pull request iteration. The period is calculated based on
+ * the KeylifeTime of specified in the SecurityGroup object node on the SKS
+ * server.
  *
  * @param server The server instance managing the publisher/subscriber.
  * @param sksPullRequestStatus The current status of sks pull request.
- * @param context The pointer to user defined data passed to this callback.
- */
+ * @param context The pointer to user defined data passed to this callback. */
 typedef void
-(*UA_Server_sksPullRequestCallback)(UA_Server *server, UA_StatusCode sksPullRequestStatus, void* context);
+(*UA_Server_sksPullRequestCallback)(UA_Server *server,
+                                    UA_StatusCode sksPullRequestStatus,
+                                    void* context);
 
 /**
- * @brief Sets the SKS client config used to call the GetSecurityKeys Method on SKS and get the
- * initial set of keys for a SecurityGroupId and adds timedCallback for the next GetSecurityKeys
- * method Call. This uses async Client API for SKS Pull request. The SKS Client instance is created and destroyed at
- * runtime on each iteration of SKS Pull request by the server. The key Rollover mechanism will check if the new
- * keys are needed then it will call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
- * iteration, the sks client will be deleted by a delayed callback (in next server iteration).
+ * @brief Sets the SKS client config used to call the GetSecurityKeys Method on
+ * SKS and get the initial set of keys for a SecurityGroupId and adds
+ * timedCallback for the next GetSecurityKeys method Call. This uses async
+ * Client API for SKS Pull request. The SKS Client instance is created and
+ * destroyed at runtime on each iteration of SKS Pull request by the server. The
+ * key Rollover mechanism will check if the new keys are needed then it will
+ * call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
+ * iteration, the sks client will be deleted by a delayed callback (in next
+ * server iteration).
  *
- * @note It is be called before setting Reader/Writer Group into Operational because this also allocates
- * a channel context for the pubsub security policy.
+ * @note It is be called before setting Reader/Writer Group into Operational
+ * because this also allocates a channel context for the pubsub security policy.
  *
- * @note the stateCallback of sksClientConfig will be overwritten by an internal callback.
+ * @note the stateCallback of sksClientConfig will be overwritten by an internal
+ * callback.
  *
  * @param server the server instance
- * @param clientConfig holds the required configuration to make encrypted connection with
- * SKS Server. The input client config takes the lifecycle as long as SKS request are made.
- * It is deleted with its plugins when the server is deleted or the last Reader/Writer
- * Group of the securityGroupId is deleted. The input config is copied to an internal
- * config object and the content of input config object will be reset to zero.
+ * @param clientConfig holds the required configuration to make encrypted
+ *        connection with SKS Server. The input client config takes the
+ *        lifecycle as long as SKS request are made. It is deleted with its
+ *        plugins when the server is deleted or the last Reader/Writer Group of
+ *        the securityGroupId is deleted. The input config is copied to an
+ *        internal config object and the content of input config object will be
+ *        reset to zero.
  * @param endpointUrl holds the endpointUrl of the SKS server
  * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
- * reader/writergroups
- * @param callback the user defined callback to notify the user about the status of SKS
- * Pull request.
+ *        reader/writergroups
+ * @param callback the user defined callback to notify the user about the status
+ *        of SKS Pull request.
  * @param context passed to the callback function
- * @return UA_StatusCode the retuned status
- */
+ * @return UA_StatusCode the retuned status */
 UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,
                        UA_Server_sksPullRequestCallback callback, void *context);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupActivateKey(UA_Server *server, const UA_NodeId readerGroupId);
+UA_Server_setReaderGroupActivateKey(UA_Server *server,
+                                    const UA_NodeId readerGroupId);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
-UA_Server_setWriterGroupActivateKey(UA_Server *server, const UA_NodeId writerGroup);
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setWriterGroupActivateKey(UA_Server *server,
+                                    const UA_NodeId writerGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 
