@@ -317,6 +317,10 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
                           UA_NodeId *connectionId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NetworkAddressUrlDataType networkAddressUrl;
     memset(&networkAddressUrl, 0, sizeof(networkAddressUrl));
@@ -343,7 +347,7 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
 
     retVal |= UA_PublisherId_fromVariant(&connectionConfig.publisherId,
                                          &pubsubConnection->publisherId);
-    retVal |= UA_PubSubConnection_create(server, &connectionConfig, connectionId);
+    retVal |= UA_PubSubConnection_create(psm, &connectionConfig, connectionId);
     UA_NetworkAddressUrlDataType_clear(&networkAddressUrl);
     return retVal;
 }

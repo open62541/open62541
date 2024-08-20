@@ -62,7 +62,8 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
 
     //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
     ck_assert(pubSubConnection != NULL);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
@@ -113,12 +114,14 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     dataSetReaderConfig.name = UA_STRING("DataSetReader 3");
     retVal |= UA_Server_addDataSetReader(server, readerGroup2, &dataSetReaderConfig, &dataSetReader3);
 
+    UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(server, readerGroup1);
     UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(server, readerGroup2);
     UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
     UA_DataSetReader *dataSetReader_2 = UA_ReaderGroup_findDSRbyId(server, dataSetReader2);
     UA_DataSetReader *dataSetReader_3 = UA_ReaderGroup_findDSRbyId(server, dataSetReader3);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
+
     //freeze configuration of both RG
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);

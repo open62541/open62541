@@ -422,9 +422,9 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
-    UA_PubSubConnection *tmpConnection1, *tmpConnection2;
-    TAILQ_FOREACH_SAFE(tmpConnection1, &psm->connections, listEntry, tmpConnection2) {
-        UA_PubSubConnection_delete(server, tmpConnection1);
+    UA_PubSubConnection *c, *tmpC;
+    TAILQ_FOREACH_SAFE(c, &psm->connections, listEntry, tmpC) {
+        UA_PubSubConnection_delete(psm, c);
     }
 
     /* Remove the DataSets */

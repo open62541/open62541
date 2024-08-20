@@ -158,14 +158,9 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *cc,
+UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
-    if(!server || !cc)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_Server *server = psm->sc.server;
 
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection*)
@@ -200,12 +195,11 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection created");
 
     /* Validate-connect to check the parameters */
-    ret = UA_PubSubConnection_connect(server, c, true);
+    ret = UA_PubSubConnection_connect(psm, c, true);
     if(ret != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c,
                             "Could not validate connection parameters");
-        UA_PubSubConnection_delete(server, c);
-        return ret;
+        goto cleanup;
     }
 
     /* Make the connection operational */
@@ -217,28 +211,33 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
      * numerical NodeId. */
     if(cId)
         UA_NodeId_copy(&c->head.identifier, cId);
+    return ret;
 
  cleanup:
-    if(ret != UA_STATUSCODE_GOOD)
-        UA_PubSubConnection_delete(server, c);
+    UA_PubSubConnection_delete(psm, c);
     return ret;
 }
 
 UA_StatusCode
 UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *cc,
                               UA_NodeId *cId) {
+    if(!cc)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_PubSubConnection_create(server, cc, cId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        UA_PubSubConnection_create(psm, cc, cId) : UA_STATUSCODE_BADINTERNALERROR;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 static void
 delayedPubSubConnection_delete(void *application, void *context) {
-    UA_Server *server = (UA_Server*)application;
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubConnection_delete(server, c);
+    UA_PubSubConnection_delete(psm, c);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -246,10 +245,9 @@ delayedPubSubConnection_delete(void *application, void *context) {
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
 void
-UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
+UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    UA_PubSubManager *psm = getPSM(server);
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -290,7 +288,7 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
         c->dc.callback = delayedPubSubConnection_delete;
-        c->dc.application = server;
+        c->dc.application = psm;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
         return;
@@ -326,14 +324,16 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         return UA_STATUSCODE_BADNOTFOUND;
     }
     UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
-    UA_PubSubConnection_delete(server, c);
+    UA_PubSubConnection_delete(psm, c);
     UA_UNLOCK(&server->serviceMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_ByteString msg) {
+    UA_Server *server = psm->sc.server;
+
     /* Process RT ReaderGroups */
     UA_ReaderGroup *rg;
     UA_Boolean processed = false;
@@ -440,7 +440,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
              * ReaderGroup or WriterGroup is attached. If not, then we don't
              * open any connections. */
             if(UA_PubSubConnection_canConnect(c))
-                ret = UA_PubSubConnection_connect(server, c, false);
+                ret = UA_PubSubConnection_connect(psm, c, false);
             break;
 
             /* Unknown case */
