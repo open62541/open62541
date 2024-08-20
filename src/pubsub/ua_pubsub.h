@@ -442,7 +442,7 @@ UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_Server *server, UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_setPubSubState(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState);
 UA_StatusCode
 UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg);
@@ -458,6 +458,10 @@ UA_WriterGroup_updateConfig(UA_Server *server, UA_WriterGroup *wg,
 UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_Server *server,
                                  const UA_NodeId writerGroup);
+
+UA_StatusCode
+UA_WriterGroup_disableWriterGroup(UA_Server *server,
+                                  const UA_NodeId writerGroup);
 
 /**********************************************/
 /*               DataSetField                 */
