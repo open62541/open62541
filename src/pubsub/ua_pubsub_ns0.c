@@ -76,8 +76,11 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
 
     switch(nodeContext->parentClassifier){
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
+        UA_PubSubManager *psm = getPSM(server);
+        if(!psm)
+            return;
         UA_PubSubConnection *pubSubConnection =
-            UA_PubSubConnection_findConnectionbyId(server, *myNodeId);
+            UA_PubSubConnection_findConnectionbyId(psm, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
             UA_PublisherId_toVariant(&pubSubConnection->config.publisherId, &value);

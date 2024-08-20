@@ -150,6 +150,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Get the context pointers */
     UA_Server *server = (UA_Server*)application;
     UA_PubSubConnection *psc = (UA_PubSubConnection*)*connectionContext;
+    UA_PubSubManager *psm = getPSM(server);
 
     UA_LOCK(&server->serviceMutex);
 
@@ -175,7 +176,6 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
-        UA_PubSubManager *psm = getPSM(server);
         UA_PubSubManager_setState(psm, psm->sc.state);
 
         UA_UNLOCK(&server->serviceMutex);
@@ -196,7 +196,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Connection open, set to operational if not already done */
-    UA_PubSubConnection_setPubSubState(server, psc, psc->head.state);
+    UA_PubSubConnection_setPubSubState(psm, psc, psc->head.state);
 
     /* Message received */
     if(UA_LIKELY(recv && msg.length > 0))
@@ -684,7 +684,8 @@ UA_WriterGroup_connect(UA_Server *server, UA_WriterGroup *wg, UA_Boolean validat
     if(!cm || (c->cm && cm != c->cm)) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, c,
                             "The requested protocol is not supported");
-        UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_ERROR);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

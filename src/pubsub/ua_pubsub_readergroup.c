@@ -112,9 +112,13 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     if(!rgc)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     /* Search the connection by the given connectionIdentifier */
     UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+        UA_PubSubConnection_findConnectionbyId(psm, connectionId);
     if(!connection)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -204,7 +208,7 @@ UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
     }
 
     /* Trigger the connection */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
+    UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 
     /* Copying a numeric NodeId always succeeds */
     if(readerGroupId)
@@ -287,7 +291,8 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Update the connection state */
-    UA_PubSubConnection_setPubSubState(server, connection, connection->head.state);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
 }
