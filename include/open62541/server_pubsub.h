@@ -709,11 +709,6 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 UA_EXPORT void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
 
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_updateConfig(UA_Server *server, const UA_NodeId dsrId,
-                                     UA_NodeId readerGroupIdentifier,
-                                     const UA_DataSetReaderConfig *config);
-
 /* Get the configuration (deep copy) of the DataSetReader */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_DataSetReader_getConfig(UA_Server *server, const UA_NodeId dsrId,
