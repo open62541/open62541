@@ -62,7 +62,9 @@ START_TEST(EthernetSendWithoutVLANTag) {
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_findConnectionbyId(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;
@@ -94,7 +96,9 @@ START_TEST(EthernetSendWithVLANTag) {
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
     connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
-    connection = UA_PubSubConnection_findConnectionbyId(server, connection_test);
+
+    UA_PubSubManager *psm = getPSM(server);
+    connection = UA_PubSubConnection_findConnectionbyId(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;

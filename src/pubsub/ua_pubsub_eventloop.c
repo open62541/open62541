@@ -162,7 +162,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
-            UA_PubSubConnection_delete(server, psc);
+            UA_PubSubConnection_delete(psm, psc);
             UA_UNLOCK(&server->serviceMutex);
             return;
         }
@@ -172,7 +172,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
          * several send or recv channels, then the connection is only reopened if
          * all of them close - which is usually the case. */
         if(psc->head.state == UA_PUBSUBSTATE_OPERATIONAL)
-            UA_PubSubConnection_connect(server, psc, false);
+            UA_PubSubConnection_connect(psm, psc, false);
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
@@ -200,7 +200,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Message received */
     if(UA_LIKELY(recv && msg.length > 0))
-        UA_PubSubConnection_process(server, psc, msg);
+        UA_PubSubConnection_process(psm, psc, msg);
     
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -390,8 +390,9 @@ UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);

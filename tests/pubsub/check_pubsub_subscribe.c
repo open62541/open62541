@@ -155,59 +155,65 @@ static void checkReceived(void) {
 }
 
 START_TEST(AddReaderGroupWithValidConfiguration) {
-        /* To test if ReaderGroup has been added to the connection with valid configuration */
-        UA_StatusCode retVal;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        UA_NodeId localreaderGroup;
-        retVal =  UA_Server_addReaderGroup(server, connectionId,
-                                           &readerGroupConfig, &localreaderGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        size_t readerGroupCount = 0;
-        UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
-            readerGroupCount++;
-        }
-        /* Check readerGroup count */
-        ck_assert_uint_eq(readerGroupCount, 1);
-        /* To Do: RemoveReaderGroup operation should be carried out when UA_Server_delete has been called */
-        UA_Server_removeReaderGroup(server, localreaderGroup);
-    } END_TEST
+    /* To test if ReaderGroup has been added to the connection with valid configuration */
+    UA_StatusCode retVal;
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup Test");
+    UA_NodeId localreaderGroup;
+    retVal =  UA_Server_addReaderGroup(server, connectionId,
+                                       &readerGroupConfig, &localreaderGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    size_t readerGroupCount = 0;
+    UA_ReaderGroup *readerGroup;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
+        readerGroupCount++;
+    }
+    /* Check readerGroup count */
+    ck_assert_uint_eq(readerGroupCount, 1);
+    /* To Do: RemoveReaderGroup operation should be carried out when UA_Server_delete has been called */
+    UA_Server_removeReaderGroup(server, localreaderGroup);
+} END_TEST
 
 START_TEST(AddReaderGroupWithNullConfig) {
-        /* Check the status of adding ReaderGroup when NULL configuration is given */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        retVal |=  UA_Server_addReaderGroup(server, connectionId, NULL, NULL);
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-        size_t readerGroupCount = 0;
-        UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
-            readerGroupCount++;
-        }
-        /* Check readerGroup count */
-        ck_assert_uint_eq(readerGroupCount, 0);
-    } END_TEST
+    /* Check the status of adding ReaderGroup when NULL configuration is given */
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    retVal |=  UA_Server_addReaderGroup(server, connectionId, NULL, NULL);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    size_t readerGroupCount = 0;
+    UA_ReaderGroup *readerGroup;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
+        readerGroupCount++;
+    }
+    /* Check readerGroup count */
+    ck_assert_uint_eq(readerGroupCount, 0);
+} END_TEST
 
 START_TEST(AddReaderGroupWithInvalidConnectionId) {
-        /* Check status of adding ReaderGroup with invalid connection identifier */
-        UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name = UA_STRING("ReaderGroup Test");
-        retVal |=  UA_Server_addReaderGroup(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &readerGroupConfig, NULL);
-        ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-        size_t readerGroupCount = 0;
-        UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
-            readerGroupCount++;
-        }
-        /* Check readerGroup count */
-        ck_assert_uint_eq(readerGroupCount, 0);
-    } END_TEST
+    /* Check status of adding ReaderGroup with invalid connection identifier */
+    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup Test");
+    retVal |=  UA_Server_addReaderGroup(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &readerGroupConfig, NULL);
+    ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+
+    UA_PubSubManager *psm = getPSM(server);
+    size_t readerGroupCount = 0;
+    UA_ReaderGroup *readerGroup;
+    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
+        readerGroupCount++;
+    }
+    /* Check readerGroup count */
+    ck_assert_uint_eq(readerGroupCount, 0);
+} END_TEST
 
 START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
         /* Check status of removing ReaderGroup when giving invalid ReaderGroup identifier */
@@ -221,9 +227,11 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
         /* Delete the added readerGroup */
         retVal |= UA_Server_removeReaderGroup(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX));
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
+
+        UA_PubSubManager *psm = getPSM(server);
         size_t readerGroupCount = 0;
         UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
         LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
             readerGroupCount++;
         }
@@ -244,9 +252,11 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         /* Remove added ReaderGroup */
         retVal |= UA_Server_removeReaderGroup(server, localReaderGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+        UA_PubSubManager *psm = getPSM(server);
         size_t readerGroupCount = 0;
         UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(server, connectionId);
+        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
         LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
             readerGroupCount++;
         }

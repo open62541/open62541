@@ -273,7 +273,7 @@ UA_PubSubConnection_findConnectionbyId(UA_PubSubManager *psm,
                                        UA_NodeId connectionId);
 
 UA_StatusCode
-UA_PubSubConnection_create(UA_Server *server,
+UA_PubSubConnection_create(UA_PubSubManager *psm,
                            const UA_PubSubConnectionConfig *connectionConfig,
                            UA_NodeId *connectionIdentifier);
 
@@ -281,17 +281,17 @@ void
 UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 
 void
-UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
 UA_Boolean
 UA_PubSubConnection_canConnect(UA_PubSubConnection *c);
 
 UA_StatusCode
-UA_PubSubConnection_connect(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate);
 
 void
-UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_ByteString msg);
 
 void

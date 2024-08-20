@@ -95,7 +95,7 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(dataSetWriter != NULL);
 
     //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
     ck_assert(pubSubConnection != NULL);
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
@@ -165,7 +165,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         ck_assert(dataSetWriter != NULL);
 
         //get internal PubSubConnection Pointer
-        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
 
         ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
         //Lock the with the freeze function
@@ -236,7 +236,7 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
     UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);

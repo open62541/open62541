@@ -191,6 +191,9 @@ createComponentsForConnection(UA_Server *server,
 static UA_StatusCode
 createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *connParams,
                        UA_UInt32 pdsCount, UA_NodeId *pdsIdent) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubConnectionConfig config;
@@ -235,7 +238,7 @@ createPubSubConnection(UA_Server *server, const UA_PubSubConnectionDataType *con
 
     /* Load connection config into server: */
     UA_NodeId connectionIdent;
-    res = UA_PubSubConnection_create(server, &config, &connectionIdent);
+    res = UA_PubSubConnection_create(psm, &config, &connectionIdent);
     if(res == UA_STATUSCODE_GOOD) {
         /* Configuration of all Components that belong to this connection: */
         res = createComponentsForConnection(server, connParams, connectionIdent,

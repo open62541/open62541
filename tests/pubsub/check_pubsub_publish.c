@@ -55,6 +55,8 @@ START_TEST(AddWriterGroupWithValidConfiguration){
         retVal = UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &localWriterGroup);
         UA_Server_enableWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection1);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
         LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
@@ -76,9 +78,11 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         retVal |= UA_Server_removeWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection1);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 0);
@@ -86,7 +90,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         UA_Server_enableWriterGroup(server, localWriterGroup);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         writerGroupCount = 0;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 1);
@@ -94,7 +98,7 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         UA_Server_enableWriterGroup(server, localWriterGroup);
         writerGroupCount = 0;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 2);
@@ -103,9 +107,11 @@ START_TEST(AddRemoveAddWriterGroupWithMinimalValidConfiguration){
 START_TEST(AddWriterGroupWithNullConfig){
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
         retVal |= UA_Server_addWriterGroup(server, connection1, NULL, NULL);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection1);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 0);
@@ -114,6 +120,8 @@ START_TEST(AddWriterGroupWithNullConfig){
 
 START_TEST(AddWriterGroupWithInvalidConnectionId){
         UA_StatusCode retVal = UA_STATUSCODE_GOOD;
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection1);
         UA_WriterGroupConfig writerGroupConfig;
         memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
         writerGroupConfig.name = UA_STRING("WriterGroup 1");
@@ -121,7 +129,7 @@ START_TEST(AddWriterGroupWithInvalidConnectionId){
         retVal |= UA_Server_addWriterGroup(server, UA_NODEID_NUMERIC(0, UA_UINT32_MAX), &writerGroupConfig, NULL);
         size_t writerGroupCount = 0;
         UA_WriterGroup *writerGroup;
-        LIST_FOREACH(writerGroup, &UA_PubSubConnection_findConnectionbyId(server, connection1)->writerGroups, listEntry){
+        LIST_FOREACH(writerGroup, &c->writerGroups, listEntry){
             writerGroupCount++;
         }
         ck_assert_uint_eq(writerGroupCount, 0);
