@@ -460,6 +460,10 @@ createReaderGroup(UA_Server *server,
                   UA_NodeId connectionIdent) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_ReaderGroupConfig config;
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
 
@@ -490,7 +494,7 @@ createReaderGroup(UA_Server *server,
 
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
     if(res == UA_STATUSCODE_GOOD && rg)
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
     return res;
 }

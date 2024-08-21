@@ -233,6 +233,8 @@ UA_StatusCode
 UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     if(rg->configurationFrozen) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
                               "Remove ReaderGroup failed. "
@@ -253,7 +255,7 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
      * reconnect and triggers the deletion when the last open socket is
      * closed. */
     rg->deleteFlag = true;
-    UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED);
+    UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetReader *dsr, *tmp_dsr;
     LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
@@ -291,7 +293,6 @@ UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     /* Update the connection state */
-    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 
     return UA_STATUSCODE_GOOD;
@@ -338,8 +339,9 @@ UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
 }
 
 UA_StatusCode
-UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     if(rg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
@@ -368,8 +370,7 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
         /* Enabled */
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
-    case UA_PUBSUBSTATE_OPERATIONAL: {
-        UA_PubSubManager *psm = getPSM(server);
+    case UA_PUBSUBSTATE_OPERATIONAL:
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
@@ -380,7 +381,6 @@ UA_ReaderGroup_setPubSubState(UA_Server *server, UA_ReaderGroup *rg,
             rg->head.state = UA_PUBSUBSTATE_PAUSED;
             UA_ReaderGroup_disconnect(rg);
             break;
-        }
         }
 
         /* Connection is not operational -> ReaderGroup paused */
@@ -467,10 +467,15 @@ UA_Server_setReaderGroupActivateKey(UA_Server *server,
 UA_StatusCode
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(rg)
-        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_StatusCode ret = (rg) ?
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL) :
+        UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -478,10 +483,15 @@ UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
 UA_StatusCode
 UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
-    if(rg)
-        ret = UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED);
+    UA_StatusCode ret = (rg) ?
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED) :
+        UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -642,7 +652,8 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
 
     /* Set the current state again. This can move the state from Operational to
      * PreOperational. */
-    return UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+    UA_PubSubManager *psm = getPSM(server);
+    return UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
 }
 
 UA_StatusCode
@@ -697,6 +708,8 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
 UA_Boolean
 UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm) {
+    UA_PubSubManager *psm = getPSM(server);
+
     /* Check if the ReaderGroup is enabled */
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
@@ -704,7 +717,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Set to operational if required */
     rg->hasReceived = true;
-    UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
 
     /* Safe iteration. The current Reader might be deleted in the ReaderGroup
      * _setPubSubState callback. */
@@ -724,7 +737,7 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
         /* Update the ReaderGroup state if this is the first received message */
         if(!rg->hasReceived) {
             rg->hasReceived = true;
-            UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+            UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
         }
 
         /* The message was processed by at least one reader */
@@ -754,11 +767,13 @@ UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
 UA_Boolean
 UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
                                   UA_ByteString buf) {
+    UA_PubSubManager *psm = getPSM(server);
+
     /* Received a (first) message for the ReaderGroup.
      * Transition from PreOperational to Operational. */
     rg->hasReceived = true;
     if(rg->head.state == UA_PUBSUBSTATE_PREOPERATIONAL)
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
     /* Set up the decoding context */
     Ctx ctx;
