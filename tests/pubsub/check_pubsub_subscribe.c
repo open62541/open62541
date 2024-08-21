@@ -1570,7 +1570,7 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     UA_Server_run_iterate(server,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(server,true);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, readerIdentifier);
     ck_assert_ptr_ne(dsr, NULL);
 
     UA_fakeSleep(100);

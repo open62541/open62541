@@ -522,7 +522,7 @@ addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
         }
 
         UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsReaderIdent);
+        UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsReaderIdent);
         if(dsr)
             res = DataSetReader_createTargetVariables(server, dsr,
                                                       tmpTargetVars->targetVariablesSize,

@@ -57,7 +57,7 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetReaderConfig, 0, sizeof(dataSetReaderConfig));
     dataSetReaderConfig.name = UA_STRING("DataSetReader 1");
     retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
+    UA_DataSetReader *dataSetReader = UA_DataSetReader_findDSRbyId(server, dataSetReader1);
     ck_assert(dataSetReader != NULL);
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
 
@@ -117,9 +117,9 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(server, readerGroup1);
     UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(server, readerGroup2);
-    UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
-    UA_DataSetReader *dataSetReader_2 = UA_ReaderGroup_findDSRbyId(server, dataSetReader2);
-    UA_DataSetReader *dataSetReader_3 = UA_ReaderGroup_findDSRbyId(server, dataSetReader3);
+    UA_DataSetReader *dataSetReader_1 = UA_DataSetReader_findDSRbyId(server, dataSetReader1);
+    UA_DataSetReader *dataSetReader_2 = UA_DataSetReader_findDSRbyId(server, dataSetReader2);
+    UA_DataSetReader *dataSetReader_3 = UA_DataSetReader_findDSRbyId(server, dataSetReader3);
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
 
     //freeze configuration of both RG
@@ -238,7 +238,7 @@ START_TEST(CreateLockAndEditConfiguration) {
         targetVars[i].targetVariable.targetNodeId = newNode;
     }
 
-    UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
+    UA_DataSetReader *dataSetReader_1 = UA_DataSetReader_findDSRbyId(server, dataSetReader1);
     ck_assert(dataSetReader_1 != NULL);
     ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
 
