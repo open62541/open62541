@@ -575,7 +575,8 @@ START_TEST(AddValidSksClientwithReaderGroup) {
     ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(subscriberApp, readerGroupId);
+    UA_PubSubManager *psm = getPSM(subscriberApp);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
     ck_assert(rg != NULL);
 
     retval = UA_Server_enableReaderGroup(subscriberApp, writerGroupId);
@@ -819,7 +820,8 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
     UA_fakeSleep(100 + 1);
     UA_Server_run_iterate(publisherApp, true);
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(publisherApp, readerGroupId);
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
     ck_assert(rg->securityPolicyContext != NULL);
     UA_Variant *publishedNodeData = UA_Variant_new();
     retval = UA_Server_readValue(

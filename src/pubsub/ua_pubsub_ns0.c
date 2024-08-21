@@ -94,7 +94,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_READERGROUPTYPE: {
-        UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, *myNodeId);
+        UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(psm, *myNodeId);
         if(!readerGroup)
             return;
         switch(nodeContext->elementClassiefier) {
@@ -457,10 +457,14 @@ addReaderGroupConfig(UA_Server *server, UA_NodeId connectionId,
                      UA_NodeId *readerGroupId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = readerGroup->name;
-    return UA_ReaderGroup_create(server, connectionId,
+    return UA_ReaderGroup_create(psm, connectionId,
                                  &readerGroupConfig, readerGroupId);
 }
 
@@ -784,11 +788,11 @@ addPubSubConnectionLocked(UA_Server *server,
 
         /* TODO: Need to handle the UA_Server_setReaderGroupOperational based on
          * the status variable in information model */
-        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupId);
+        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
         if(!rg)
             continue;
         if(pubSubConnection->enabled) {
-            UA_ReaderGroup_freezeConfiguration(server, rg);
+            UA_ReaderGroup_freezeConfiguration(psm, rg);
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
@@ -930,8 +934,12 @@ addDataSetReaderLocked(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, *objectId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, *objectId);
     if(rg->configurationFrozen) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader cannot be done because ReaderGroup config frozen");
@@ -1490,9 +1498,7 @@ removeGroupAction(UA_Server *server,
     if(UA_WriterGroup_findWGbyId(psm, nodeToRemove)) {
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     } else {
-        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, nodeToRemove);
-        if(rg->configurationFrozen)
-            UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
+        UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
         return UA_Server_removeReaderGroup(server, nodeToRemove);
     }
 }

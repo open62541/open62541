@@ -107,9 +107,13 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         UA_NodeId *readerIdentifier) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-	/* Search the reader group by the given readerGroupIdentifier */
-	UA_StatusCode retVal;
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroupIdentifier);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Search the reader group by the given readerGroupIdentifier */
+    UA_StatusCode retVal;
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(psm, readerGroupIdentifier);
     if(readerGroup == NULL)
         return UA_STATUSCODE_BADNOTFOUND;
 

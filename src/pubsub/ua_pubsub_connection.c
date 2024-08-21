@@ -261,7 +261,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     UA_ReaderGroup *rg, *tmpRg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
-        UA_ReaderGroup_unfreezeConfiguration(server, rg);
+        UA_ReaderGroup_unfreezeConfiguration(rg);
     }
 
     UA_WriterGroup *wg, *tmpWg;
@@ -272,7 +272,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
     /* Remove all ReaderGorups and WriterGroups */
     LIST_FOREACH_SAFE(rg, &c->readerGroups, listEntry, tmpRg) {
-        UA_ReaderGroup_remove(server, rg);
+        UA_ReaderGroup_remove(psm, rg);
     }
 
     LIST_FOREACH_SAFE(wg, &c->writerGroups, listEntry, tmpWg) {
@@ -346,7 +346,7 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
             nonRtRg = rg;
             continue;
         } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, msg);
+        processed |= UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
     }
 
     /* Any non-RT ReaderGroups? */
@@ -379,7 +379,7 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
             continue;
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
             continue;
-        processed |= UA_ReaderGroup_process(server, rg, &nm);
+        processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
     UA_NetworkMessage_clear(&nm);
 
