@@ -48,8 +48,10 @@ START_TEST(CreateAndLockConfiguration) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     //get internal RG Pointer
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(psm, readerGroup1);
     ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
@@ -62,7 +64,6 @@ START_TEST(CreateAndLockConfiguration) {
     ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
 
     //get internal PubSubConnection Pointer
-    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
     ck_assert(pubSubConnection != NULL);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
@@ -115,8 +116,8 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     retVal |= UA_Server_addDataSetReader(server, readerGroup2, &dataSetReaderConfig, &dataSetReader3);
 
     UA_PubSubManager *psm = getPSM(server);
-    UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(server, readerGroup2);
+    UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(psm, readerGroup1);
+    UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(psm, readerGroup2);
     UA_DataSetReader *dataSetReader_1 = UA_DataSetReader_findDSRbyId(server, dataSetReader1);
     UA_DataSetReader *dataSetReader_2 = UA_DataSetReader_findDSRbyId(server, dataSetReader2);
     UA_DataSetReader *dataSetReader_3 = UA_DataSetReader_findDSRbyId(server, dataSetReader3);
@@ -167,8 +168,10 @@ START_TEST(CreateLockAndEditConfiguration) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     //get internal RG Pointer
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(psm, readerGroup1);
     ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 

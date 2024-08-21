@@ -416,39 +416,40 @@ START_TEST(RemoveDataSetReaderWithInvalidIdentifier) {
     } END_TEST
 
 START_TEST(AddMultipleDataSetReaderWithValidConfiguration) {
-        UA_StatusCode retVal    = UA_STATUSCODE_GOOD;
-        UA_ReaderGroupConfig readerGroupConfig;
-        memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
-        readerGroupConfig.name  = UA_STRING("ReaderGroup 1");
-        UA_NodeId localReaderGroup;
-        UA_NodeId localReaderGroup2;
-        /* DataSetReader configuration */
-        UA_DataSetReaderConfig readerConfig;
-        memset (&readerConfig, 0, sizeof(readerConfig));
-        readerConfig.name       = UA_STRING("DataSet Reader 1");
-        UA_NodeId dataSetReader;
-        /* Add ReaderGroup */
-        retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup2);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_ReaderGroup *readerGroupIdent1 = UA_ReaderGroup_findRGbyId(server, localReaderGroup);
-        UA_ReaderGroup *readerGroupIdent2 = UA_ReaderGroup_findRGbyId(server, localReaderGroup2);
-        /* Add DataSetReaders to first ReaderGroup */
-        retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(readerGroupIdent1->readersCount, 1);
-        retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(readerGroupIdent1->readersCount, 2);
-        /* Add DataSetReaders to second ReaderGroup */
-        retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(readerGroupIdent2->readersCount, 1);
-        retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        ck_assert_int_eq(readerGroupIdent2->readersCount, 2);
-    } END_TEST
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode retVal    = UA_STATUSCODE_GOOD;
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(readerGroupConfig));
+    readerGroupConfig.name  = UA_STRING("ReaderGroup 1");
+    UA_NodeId localReaderGroup;
+    UA_NodeId localReaderGroup2;
+    /* DataSetReader configuration */
+    UA_DataSetReaderConfig readerConfig;
+    memset (&readerConfig, 0, sizeof(readerConfig));
+    readerConfig.name       = UA_STRING("DataSet Reader 1");
+    UA_NodeId dataSetReader;
+    /* Add ReaderGroup */
+    retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup2);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_ReaderGroup *readerGroupIdent1 = UA_ReaderGroup_findRGbyId(psm, localReaderGroup);
+    UA_ReaderGroup *readerGroupIdent2 = UA_ReaderGroup_findRGbyId(psm, localReaderGroup2);
+    /* Add DataSetReaders to first ReaderGroup */
+    retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(readerGroupIdent1->readersCount, 1);
+    retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(readerGroupIdent1->readersCount, 2);
+    /* Add DataSetReaders to second ReaderGroup */
+    retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(readerGroupIdent2->readersCount, 1);
+    retVal = UA_Server_addDataSetReader(server, localReaderGroup2, &readerConfig, &dataSetReader);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(readerGroupIdent2->readersCount, 2);
+} END_TEST
 
 START_TEST(GetDataSetReaderConfigWithValidConfiguration) {
         /* Check status of getting DataSetReader with Valid configuration */

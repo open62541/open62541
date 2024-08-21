@@ -598,15 +598,15 @@ struct UA_ReaderGroup {
 };
 
 UA_StatusCode
-UA_ReaderGroup_create(UA_Server *server, UA_NodeId connectionId,
+UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
                       UA_NodeId *readerGroupId);
 
 UA_StatusCode
-UA_ReaderGroup_remove(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_Boolean validate);
 
 UA_Boolean
@@ -616,7 +616,7 @@ void
 UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);
 
 UA_StatusCode
-setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
+setReaderGroupEncryptionKeys(UA_PubSubManager *psm, const UA_NodeId readerGroup,
                              UA_UInt32 securityTokenId,
                              const UA_ByteString signingKey,
                              const UA_ByteString encryptingKey,
@@ -629,24 +629,24 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 /* Prototypes for internal util functions - some functions maybe removed later
  * (currently moved from public to internal) */
 UA_ReaderGroup *
-UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
+UA_ReaderGroup_findRGbyId(UA_PubSubManager *psm, UA_NodeId identifier);
 
 UA_StatusCode
-UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_ReaderGroup_unfreezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
+UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg);
 
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState);
 
 UA_Boolean
-UA_ReaderGroup_decodeAndProcessRT(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                                   UA_ByteString buf);
 
 UA_Boolean
-UA_ReaderGroup_process(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm);
 
 /*********************************************************/

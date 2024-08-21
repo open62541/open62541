@@ -472,7 +472,7 @@ createReaderGroup(UA_Server *server,
 
     UA_NodeId readerGroupIdent;
     UA_StatusCode res =
-        UA_ReaderGroup_create(server, connectionIdent, &config, &readerGroupIdent);
+        UA_ReaderGroup_create(psm, connectionIdent, &config, &readerGroupIdent);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createReaderGroup] Adding ReaderGroup "
@@ -492,7 +492,7 @@ createReaderGroup(UA_Server *server,
         }
     }
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupIdent);
     if(res == UA_STATUSCODE_GOOD && rg)
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
 

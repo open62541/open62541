@@ -263,11 +263,15 @@ setPubSubGroupEncryptingKey(UA_Server *server, UA_NodeId PubSubGroupId,
                             UA_UInt32 securityTokenId, UA_ByteString signingKey,
                             UA_ByteString encryptingKey, UA_ByteString keyNonce) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retval =
         setWriterGroupEncryptionKeys(server, PubSubGroupId, securityTokenId,
                                      signingKey, encryptingKey, keyNonce);
     if(retval == UA_STATUSCODE_BADNOTFOUND)
-        retval = setReaderGroupEncryptionKeys(server, PubSubGroupId, securityTokenId,
+        retval = setReaderGroupEncryptionKeys(psm, PubSubGroupId, securityTokenId,
                                               signingKey, encryptingKey, keyNonce);
     return retval;
 }
@@ -307,7 +311,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
         UA_ReaderGroup *tmpReaderGroup;
         LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
             if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->head.identifier,
+                retval = setReaderGroupEncryptionKeys(psm, tmpReaderGroup->head.identifier,
                                                       securityTokenId, signingKey,
                                                       encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)

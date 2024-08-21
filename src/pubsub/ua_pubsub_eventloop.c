@@ -758,7 +758,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(rg->deleteFlag && rg->recvChannelsSize == 0) {
-            UA_ReaderGroup_remove(server, rg);
+            UA_ReaderGroup_remove(psm, rg);
             UA_UNLOCK(&server->serviceMutex);
             return;
         }
@@ -804,7 +804,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* ReaderGroup with realtime processing */
     if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
-        UA_ReaderGroup_decodeAndProcessRT(server, rg, msg);
+        UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
         UA_UNLOCK(&server->serviceMutex);
         return;
     }
@@ -829,7 +829,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Process the decoded message */
-    UA_ReaderGroup_process(server, rg, &nm);
+    UA_ReaderGroup_process(psm, rg, &nm);
     UA_NetworkMessage_clear(&nm);
     UA_UNLOCK(&server->serviceMutex);
 }
@@ -911,7 +911,8 @@ UA_ReaderGroup_canConnect(UA_ReaderGroup *rg) {
 }
 
 UA_StatusCode
-UA_ReaderGroup_connect(UA_Server *server, UA_ReaderGroup *rg, UA_Boolean validate) {
+UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Is this a ReaderGroup with custom TransportSettings beyond the

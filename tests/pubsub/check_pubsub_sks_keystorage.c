@@ -291,7 +291,7 @@ START_TEST(TestPubSubKeyStorage_MovetoNextKeyCallback){
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup);
     ck_assert_uint_eq(wg->securityTokenId, nextCurrentKey->keyID);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroup);
     ck_assert_uint_eq(rg->securityTokenId, nextCurrentKey->keyID);
 } END_TEST
 
@@ -330,7 +330,7 @@ START_TEST(TestPubSubKeystorage_ImportedKey){
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
 
     /*decrypt and verify with the imported key in the ReaderGroup*/
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroup);
     retval = rg->config.securityPolicy->setMessageNonce(rg->securityPolicyContext, &testMsgNonce);
     retval = rg->config.securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.verify(rg->securityPolicyContext, &buffer,&signature);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD, "Expected retval to be GOOD: Error Code %s", UA_StatusCode_name(retval));
@@ -355,9 +355,10 @@ START_TEST(TestPubSubKeyStorage_InitWithWriterGroup) {
 } END_TEST
 
 START_TEST(TestPubSubKeyStorage_InitWithReaderGroup){
+    UA_PubSubManager *psm = getPSM(server);
     addTestReaderGroup(SecurityGroupId);
     UA_LOCK(&server->serviceMutex);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroup);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, SecurityGroupId);
     ck_assert_ptr_ne(rg->keyStorage, NULL);
     ck_assert_ptr_eq(ks, rg->keyStorage);
@@ -375,7 +376,7 @@ START_TEST(TestAddingNewGroupToExistingKeyStorage){
     ck_assert_msg(ks->referenceCount == 2, "Expected the reference Count to be exactly 2 after adding second Group same SecurityGroupId");
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroup);
+    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroup);
     ck_assert_ptr_eq(ks, rg->keyStorage);
     ck_assert_ptr_eq(ks, wg->keyStorage);
     ck_assert_ptr_eq(rg->keyStorage, wg->keyStorage);
