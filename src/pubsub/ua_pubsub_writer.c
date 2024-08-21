@@ -52,12 +52,12 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
 }
 
 UA_StatusCode
-UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dataSetWriterIdentifier,
+UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
                                UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dataSetWriterIdentifier);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(dsw) {
         *state = dsw->head.state;

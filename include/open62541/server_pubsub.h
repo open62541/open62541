@@ -588,18 +588,22 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
                                  UA_DataSetWriterConfig *config);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dswId,
-                                 UA_PubSubState *state);
+UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
+                                UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId);
+
+/* Legacy API */
+#define UA_Server_DataSetWriter_getState(server, dswId, state) \
+    UA_Server_getDataSetWriterState(server, dswId, state)
 
 /**
  * SubscribedDataSet
