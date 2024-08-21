@@ -81,6 +81,26 @@ UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
+UA_DataSetReader *
+UA_DataSetReader_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return NULL;
+
+    UA_ReaderGroup *rg;
+    UA_PubSubConnection *psc;
+    UA_DataSetReader *tmpReader;
+    TAILQ_FOREACH(psc, &psm->connections, listEntry) {
+        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
+            LIST_FOREACH(tmpReader, &rg->readers, listEntry) {
+                if(UA_NodeId_equal(&tmpReader->head.identifier, &identifier))
+                    return tmpReader;
+            }
+        }
+    }
+    return NULL;
+}
+
 UA_StatusCode
 UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
                         const UA_DataSetReaderConfig *dataSetReaderConfig,
@@ -282,7 +302,7 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
 UA_StatusCode
 UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, readerIdentifier);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, readerIdentifier);
     if(!dsr) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -299,7 +319,7 @@ UA_Server_getDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsrId);
     if(dsr)
         res = UA_DataSetReaderConfig_copy(&dsr->config, config);
     UA_UNLOCK(&server->serviceMutex);
@@ -369,7 +389,7 @@ UA_Server_getDataSetReaderState(UA_Server *server, const UA_NodeId dsrId,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsrId);
     if(dsr) {
         res = UA_STATUSCODE_GOOD;
         *state = dsr->head.state;
@@ -381,7 +401,7 @@ UA_Server_getDataSetReaderState(UA_Server *server, const UA_NodeId dsrId,
 UA_StatusCode
 UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsrId);
     if(!dsr) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -397,7 +417,7 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
 UA_StatusCode
 UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsrId);
     if(!dsr) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -530,7 +550,7 @@ UA_StatusCode
 UA_Server_setDataSetReaderTargetVariables(UA_Server *server, const UA_NodeId dsrId,
                                           size_t tvsSize, const UA_FieldTargetVariable *tvs) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dsrId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsrId);
     UA_StatusCode res = (dsr) ?
         DataSetReader_createTargetVariables(server, dsr, tvsSize, tvs) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);

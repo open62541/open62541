@@ -60,26 +60,6 @@ UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier) {
     return NULL;
 }
 
-UA_DataSetReader *
-UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier) {
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return NULL;
-
-    UA_ReaderGroup *rg;
-    UA_PubSubConnection *psc;
-    UA_DataSetReader *tmpReader;
-    TAILQ_FOREACH(psc, &psm->connections, listEntry) {
-        LIST_FOREACH(rg, &psc->readerGroups, listEntry) {
-            LIST_FOREACH(tmpReader, &rg->readers, listEntry) {
-                if(UA_NodeId_equal(&tmpReader->head.identifier, &identifier))
-                    return tmpReader;
-            }
-        }
-    }
-    return NULL;
-}
-
 /* ReaderGroup Config Handling */
 
 UA_StatusCode

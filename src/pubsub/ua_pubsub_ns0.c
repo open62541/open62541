@@ -109,7 +109,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_DATASETREADERTYPE: {
-        UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, *myNodeId);
+        UA_DataSetReader *dataSetReader = UA_DataSetReader_findDSRbyId(server, *myNodeId);
         if(!dataSetReader)
             return;
 
@@ -531,7 +531,7 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
                           NULL, &targetVarsData[i].targetVariable.targetNodeId);
 
     }
-    UA_DataSetReader *dsr = UA_ReaderGroup_findDSRbyId(server, dataSetReaderId);
+    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dataSetReaderId);
     if(dsr) {
         retVal = DataSetReader_createTargetVariables(server, dsr,
                                                      targetVars->targetVariablesSize,

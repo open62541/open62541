@@ -514,6 +514,9 @@ struct UA_DataSetReader {
     UA_UInt64 msgRcvTimeoutTimerId;
 };
 
+UA_DataSetReader *
+UA_DataSetReader_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+
 /* Process Network Message using DataSetReader */
 void
 UA_DataSetReader_process(UA_Server *server,
@@ -627,9 +630,6 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
  * (currently moved from public to internal) */
 UA_ReaderGroup *
 UA_ReaderGroup_findRGbyId(UA_Server *server, UA_NodeId identifier);
-
-UA_DataSetReader *
-UA_ReaderGroup_findDSRbyId(UA_Server *server, UA_NodeId identifier);
 
 UA_StatusCode
 UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg);
