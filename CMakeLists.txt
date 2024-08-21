@@ -1019,13 +1019,16 @@ if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
 
-    # Set the full Nodeset for NS0
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml CACHE INTERNAL "")
+    # Set the full Nodeset for NS0.
+    # Use a new variable UA_FILE_NS0_INTERNAL so we don't pollute the options.
+    if(UA_FILE_NS0)
+        set(UA_FILE_NS0_INTERNAL ${UA_FILE_NS0})
+    else()
+        set(UA_FILE_NS0_INTERNAL ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml CACHE INTERNAL "")
     endif()
 
     # Check that the submodule was checked out or manually downloaded into the folder
-    if(NOT EXISTS "${UA_FILE_NS0}")
+    if(NOT EXISTS "${UA_FILE_NS0_INTERNAL}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
                         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -1038,9 +1041,12 @@ else()
     # Directory with the schema files for installation
     set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
 
-    # Set the reduced Nodeset for NS0
-    if(NOT UA_FILE_NS0)
-        set(UA_FILE_NS0 ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
+    # Set the reduced Nodeset for NS0.
+    # Use a new variable UA_FILE_NS0_INTERNAL so we don't pollute the options.
+    if(UA_FILE_NS0)
+        set(UA_FILE_NS0_INTERNAL ${UA_FILE_NS0})
+    else()
+        set(UA_FILE_NS0_INTERNAL ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
     endif()
 
     # Set feature-specific datatypes definitions and nodesets
@@ -1090,7 +1096,7 @@ else()
     endif()
 endif()
 
-list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0}")
+list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0_INTERNAL}")
 set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
 set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
 set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
