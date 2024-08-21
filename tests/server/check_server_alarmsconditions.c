@@ -128,7 +128,7 @@ conditionRetain (UA_Server *server, UA_NodeId condition)
     return retain;
 }
 
-START_TEST(createDelete) {
+START_TEST(createMultiple) {
     UA_StatusCode retval;
 
     UA_ConditionProperties conditionProperties;
@@ -148,13 +148,14 @@ START_TEST(createDelete) {
             fns,
             NULL,
             &conditionInstance
-                                            );
+        );
+        UA_Server_Condition_enable(acserver, conditionInstance, true);
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
         ck_assert_msg(!UA_NodeId_isNull(&conditionInstance), "ConditionId is null");
     }
 } END_TEST
 
-START_TEST(createMultiple) {
+START_TEST(createDelete) {
     UA_StatusCode retval;
 
     UA_ConditionProperties conditionProperties;
