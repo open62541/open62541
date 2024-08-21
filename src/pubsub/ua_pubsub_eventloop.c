@@ -15,23 +15,23 @@
 /********************/
 
 static UA_StatusCode
-UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate);
 
 static UA_StatusCode
-UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate);
 
 static UA_StatusCode
-UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                            UA_Boolean validate);
 
 static UA_StatusCode
-UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_Boolean validate);
 
 static UA_StatusCode
-UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_Boolean validate);
 
 #define UA_PUBSUB_PROFILES_SIZE 4
@@ -40,11 +40,11 @@ typedef struct  {
     UA_String profileURI;
     UA_String protocol;
     UA_Boolean json;
-    UA_StatusCode (*connect)(UA_Server *server, UA_PubSubConnection *c,
+    UA_StatusCode (*connect)(UA_PubSubManager *psm, UA_PubSubConnection *c,
                              UA_Boolean validate);
-    UA_StatusCode (*connectWriterGroup)(UA_Server *server, UA_WriterGroup *wg,
+    UA_StatusCode (*connectWriterGroup)(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                         UA_Boolean validate);
-    UA_StatusCode (*connectReaderGroup)(UA_Server *server, UA_ReaderGroup *rg,
+    UA_StatusCode (*connectReaderGroup)(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                                         UA_Boolean validate);
 } ProfileMapping;
 
@@ -148,9 +148,9 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
 
     /* Get the context pointers */
-    UA_Server *server = (UA_Server*)application;
     UA_PubSubConnection *psc = (UA_PubSubConnection*)*connectionContext;
-    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
 
     UA_LOCK(&server->serviceMutex);
 
@@ -224,8 +224,9 @@ PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -288,7 +289,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
     /* Open a recv connection */
     if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
         UA_UNLOCK(&server->serviceMutex);
-        res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(server->config.logging, c,
@@ -308,7 +309,7 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
     if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
-        res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(server->config.logging, c,
@@ -321,8 +322,9 @@ UA_PubSubConnection_connectUDP(UA_Server *server, UA_PubSubConnection *c,
 }
 
 static UA_StatusCode
-UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -356,7 +358,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     /* Open recv channels */
     if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
         UA_UNLOCK(&server->serviceMutex);
-        res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubRecvChannelCallback);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(server->config.logging, c,
@@ -369,7 +371,7 @@ UA_PubSubConnection_connectETH(UA_Server *server, UA_PubSubConnection *c,
     if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
         listen = false;
         UA_UNLOCK(&server->serviceMutex);
-        res = c->cm->openConnection(c->cm, &kvm, server, c, PubSubSendChannelCallback);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(server->config.logging, c,
@@ -434,7 +436,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
         return UA_STATUSCODE_GOOD;
 
     /* The state gets set to OPERATIONAL in the netowrk callback */
-    return profile->connect(server, c, validate);
+    return profile->connect(psm, c, validate);
 }
 
 /***************/
@@ -450,9 +452,9 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
 
     /* Get the context pointers */
-    UA_Server *server = (UA_Server*)application;
     UA_WriterGroup *wg = (UA_WriterGroup*)*connectionContext;
-    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
 
     UA_LOCK(&server->serviceMutex);
 
@@ -503,8 +505,9 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
                                  UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Already connected? */
@@ -574,7 +577,7 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
     /* Connect */
     UA_ConnectionManager *cm = wg->linkedConnection->cm;
     UA_UNLOCK(&server->serviceMutex);
-    res = cm->openConnection(cm, &kvm, server, wg, WriterGroupChannelCallback);
+    res = cm->openConnection(cm, &kvm, psm, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
@@ -584,8 +587,9 @@ UA_WriterGroup_connectUDPUnicast(UA_Server *server, UA_WriterGroup *wg,
 }
 
 static UA_StatusCode
-UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
+UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
                            UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubConnection *c = wg->linkedConnection;
@@ -634,7 +638,7 @@ UA_WriterGroup_connectMQTT(UA_Server *server, UA_WriterGroup *wg,
 
     /* Connect */
     UA_UNLOCK(&server->serviceMutex);
-    res = c->cm->openConnection(c->cm, &kvm, server, wg, WriterGroupChannelCallback);
+    res = c->cm->openConnection(c->cm, &kvm, psm, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
@@ -695,9 +699,8 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     c->json = profile->json;
 
     /* Connect */
-    if(profile->connectWriterGroup)
-        return profile->connectWriterGroup(server, wg, validate);
-    return UA_STATUSCODE_GOOD;
+    return (profile->connectWriterGroup) ?
+        profile->connectWriterGroup(psm, wg, validate) : UA_STATUSCODE_GOOD;
 }
 
 /***************/
@@ -744,9 +747,9 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
 
     /* Get the context pointers */
-    UA_Server *server = (UA_Server*)application;
     UA_ReaderGroup *rg = (UA_ReaderGroup*)*connectionContext;
-    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
 
     UA_LOCK(&server->serviceMutex);
 
@@ -835,8 +838,9 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 static UA_StatusCode
-UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
+UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                            UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_PubSubConnection *c = rg->linkedConnection;
@@ -885,7 +889,7 @@ UA_ReaderGroup_connectMQTT(UA_Server *server, UA_ReaderGroup *rg,
 
     /* Connect */
     UA_UNLOCK(&server->serviceMutex);
-    res = c->cm->openConnection(c->cm, &kvm, server, rg, ReaderGroupChannelCallback);
+    res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, rg,
@@ -944,13 +948,10 @@ UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean val
     c->cm = cm;
     c->json = profile->json;
 
-    /* No ReaderGroup-specific connections.
-     * The ReaderGroup is set to operational when we return. */
-    if(!profile->connectReaderGroup)
-        return UA_STATUSCODE_GOOD;
-
-    /* Connect */
-    return profile->connectReaderGroup(server, rg, validate);
+    /* If no ReaderGroup-specific connections, the ReaderGroup is set to
+     * operational when we return. */
+    return (profile->connectReaderGroup) ?
+        profile->connectReaderGroup(psm, rg, validate) : UA_STATUSCODE_GOOD;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
