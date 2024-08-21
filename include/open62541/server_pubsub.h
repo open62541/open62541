@@ -486,7 +486,6 @@ typedef struct {
 void UA_EXPORT
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig);
 
-/* Add a new WriterGroup to an existing Connection */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
@@ -498,15 +497,17 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
                                UA_WriterGroupConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId wgId,
-                               UA_PubSubState *state);
+UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
+                              UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId wgId);
+UA_Server_triggerWriterGroupPublish(UA_Server *server,
+                                    const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId wgId,
-                                    UA_DateTime *timestamp);
+UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
+                                             const UA_NodeId wgId,
+                                             UA_DateTime *timestamp);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId wgId);
@@ -525,12 +526,6 @@ UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId wgId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableWriterGroup(UA_Server *server, const UA_NodeId wgId);
 
-#define UA_Server_setWriterGroupOperational(server, wgId)   \
-    UA_Server_enableWriterGroup(server, wgId)
-
-#define UA_Server_setWriterGroupDisabled(server, wgId)          \
-    UA_Server_disableWriterGroup(server, wgId)
-
 /* Set the group key for the message encryption */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId wgId,
@@ -538,6 +533,18 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId wgId,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce);
+
+/* Legacy API */
+#define UA_Server_setWriterGroupOperational(server, wgId) \
+    UA_Server_enableWriterGroup(server, wgId)
+#define UA_Server_setWriterGroupDisabled(server, wgId) \
+    UA_Server_disableWriterGroup(server, wgId)
+#define UA_Server_WriterGroup_getState(server, wgId, state) \
+    UA_Server_getWriterGroupState(server, wgId, state)
+#define UA_WriterGroup_lastPublishTimestamp(server, wgId, timestamp) \
+    UA_Server_getWriterGroupLastPublishTimestamp(server, wgId, timestamp)
+#define UA_Server_WriterGroup_publish(server, wgId) \
+    UA_Server_triggerWriterGroupPublish(server, wgId)
 
 /**
  * .. _dsw:
