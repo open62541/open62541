@@ -533,13 +533,13 @@ START_TEST(AddValidSksClientwithWriterGroup) {
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
     UA_PubSubManager *psm = getPSM(publisherApp);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupId);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupId);
     ck_assert(wg != NULL);
     
     ck_assert(wg->keyStorage->keyListSize > 0);
     UA_LOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *sksKsItr =
-        UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
+        UA_PubSubKeyStorage_find(sksServer, securityGroupId)
             ->currentItem;
     UA_UNLOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
@@ -576,7 +576,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
     UA_PubSubManager *psm = getPSM(subscriberApp);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     ck_assert(rg != NULL);
 
     retval = UA_Server_enableReaderGroup(subscriberApp, writerGroupId);
@@ -586,7 +586,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
     ck_assert(rg->keyStorage->keyListSize > 0);
     UA_LOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *sksKsItr =
-        UA_PubSubKeyStorage_findKeyStorage(sksServer, securityGroupId)
+        UA_PubSubKeyStorage_find(sksServer, securityGroupId)
             ->currentItem;
     UA_UNLOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
@@ -821,7 +821,7 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
     UA_Server_run_iterate(publisherApp, true);
 
     UA_PubSubManager *psm = getPSM(publisherApp);
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     ck_assert(rg->securityPolicyContext != NULL);
     UA_Variant *publishedNodeData = UA_Variant_new();
     retval = UA_Server_readValue(
@@ -894,12 +894,10 @@ START_TEST(FetchNextbatchOfKeys) {
     ck_assert(retryCnt < MAX_RETRIES);
 
     UA_LOCK(&publisherApp->serviceMutex);
-    UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_findKeyStorage(
-        publisherApp, securityGroupId);
+    UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_find(publisherApp, securityGroupId);
     UA_UNLOCK(&publisherApp->serviceMutex);
     UA_LOCK(&subscriberApp->serviceMutex);
-    UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_findKeyStorage(
-        subscriberApp, securityGroupId);
+    UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_find(subscriberApp, securityGroupId);
     UA_UNLOCK(&subscriberApp->serviceMutex);
 
     sksPullStatus = UA_STATUSCODE_BAD;

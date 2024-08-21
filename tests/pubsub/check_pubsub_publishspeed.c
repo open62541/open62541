@@ -69,7 +69,7 @@ START_TEST(PublishSpeedTest) {
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
 
     printf("start sending 8000 publish messages via UDP\n");
 

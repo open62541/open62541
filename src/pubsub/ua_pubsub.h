@@ -178,10 +178,10 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst);
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier);
+UA_PublishedDataSet_find(UA_Server *server, const UA_NodeId id);
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name);
+UA_PublishedDataSet_findByName(UA_Server *server, const UA_String name);
 
 UA_AddPublishedDataSetResult
 UA_PublishedDataSet_create(UA_Server *server,
@@ -215,10 +215,10 @@ UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
                                 UA_SubscribedDataSetConfig *dst);
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier);
+UA_SubscribedDataSet_find(UA_Server *server, const UA_NodeId id);
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier);
+UA_SubscribedDataSet_findByName(UA_Server *server, const UA_String name);
 
 void
 UA_SubscribedDataSet_clear(UA_Server *server, UA_SubscribedDataSet *sds);
@@ -268,8 +268,7 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
                                UA_PubSubConnectionConfig *dst);
 
 UA_PubSubConnection *
-UA_PubSubConnection_findConnectionbyId(UA_PubSubManager *psm,
-                                       UA_NodeId connectionId);
+UA_PubSubConnection_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_StatusCode
 UA_PubSubConnection_create(UA_PubSubManager *psm,
@@ -338,7 +337,7 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
                             UA_DataSetWriterConfig *dst);
 
 UA_DataSetWriter *
-UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier);
+UA_DataSetWriter_find(UA_Server *server, const UA_NodeId id);
 
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
@@ -438,7 +437,7 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst);
 
 UA_WriterGroup *
-UA_WriterGroup_findWGbyId(UA_PubSubManager *psm, UA_NodeId identifier);
+UA_WriterGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_StatusCode
 UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg);
@@ -481,7 +480,7 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                            UA_DataSetFieldConfig *dst);
 
 UA_DataSetField *
-UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier);
+UA_DataSetField_find(UA_Server *server, const UA_NodeId id);
 
 UA_DataSetFieldResult
 UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField);
@@ -515,7 +514,7 @@ struct UA_DataSetReader {
 };
 
 UA_DataSetReader *
-UA_DataSetReader_findDSRbyId(UA_Server *server, UA_NodeId identifier);
+UA_DataSetReader_find(UA_Server *server, const UA_NodeId id);
 
 /* Process Network Message using DataSetReader */
 void
@@ -626,10 +625,8 @@ UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
                           UA_ReaderGroupConfig *dst);
 
-/* Prototypes for internal util functions - some functions maybe removed later
- * (currently moved from public to internal) */
 UA_ReaderGroup *
-UA_ReaderGroup_findRGbyId(UA_PubSubManager *psm, UA_NodeId identifier);
+UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_StatusCode
 UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg);
@@ -688,13 +685,11 @@ UA_StatusCode
 UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
                             UA_SecurityGroupConfig *dst);
 
-/* finds the SecurityGroup within the server by SecurityGroup Name/Id*/
 UA_SecurityGroup *
-UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName);
+UA_SecurityGroup_findByName(UA_Server *server, const UA_String name);
 
-/* finds the SecurityGroup within the server by NodeId*/
 UA_SecurityGroup *
-UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier);
+UA_SecurityGroup_find(UA_Server *server, const UA_NodeId id);
 
 void
 UA_SecurityGroup_delete(UA_SecurityGroup *sg);

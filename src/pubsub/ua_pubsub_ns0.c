@@ -79,10 +79,9 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     UA_Variant_init(&value);
     UA_Boolean isConnected;
 
-    switch(nodeContext->parentClassifier){
+    switch(nodeContext->parentClassifier) {
     case UA_NS0ID_PUBSUBCONNECTIONTYPE: {
-        UA_PubSubConnection *pubSubConnection =
-            UA_PubSubConnection_findConnectionbyId(psm, *myNodeId);
+        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, *myNodeId);
         switch(nodeContext->elementClassiefier) {
         case UA_NS0ID_PUBSUBCONNECTIONTYPE_PUBLISHERID:
             UA_PublisherId_toVariant(&pubSubConnection->config.publisherId, &value);
@@ -94,7 +93,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_READERGROUPTYPE: {
-        UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(psm, *myNodeId);
+        UA_ReaderGroup *readerGroup = UA_ReaderGroup_find(psm, *myNodeId);
         if(!readerGroup)
             return;
         switch(nodeContext->elementClassiefier) {
@@ -109,7 +108,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_DATASETREADERTYPE: {
-        UA_DataSetReader *dataSetReader = UA_DataSetReader_findDSRbyId(server, *myNodeId);
+        UA_DataSetReader *dataSetReader = UA_DataSetReader_find(server, *myNodeId);
         if(!dataSetReader)
             return;
 
@@ -128,7 +127,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_WRITERGROUPTYPE: {
-        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, *myNodeId);
+        UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, *myNodeId);
         if(!writerGroup)
             return;
         switch(nodeContext->elementClassiefier){
@@ -147,7 +146,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_DATASETWRITERTYPE: {
-        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, *myNodeId);
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, *myNodeId);
         if(!dataSetWriter)
             return;
 
@@ -167,7 +166,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
-        publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, *myNodeId);
+        publishedDataSet = UA_PublishedDataSet_find(server, *myNodeId);
         if(!publishedDataSet)
             return;
         switch(nodeContext->elementClassiefier) {
@@ -206,7 +205,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
     }    
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
         UA_SubscribedDataSet *sds =
-            UA_SubscribedDataSet_findSDSbyId(server, *myNodeId);
+            UA_SubscribedDataSet_find(server, *myNodeId);
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
                 isConnected = (sds->connectedReader != NULL);
@@ -263,7 +262,7 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
             //no runtime writable attributes
             break;
         case UA_NS0ID_WRITERGROUPTYPE: {
-            writerGroup = UA_WriterGroup_findWGbyId(psm, npc->parentNodeId);
+            writerGroup = UA_WriterGroup_find(psm, npc->parentNodeId);
             if(!writerGroup) {
                 res = UA_STATUSCODE_BADNOTFOUND;
                 break;
@@ -535,7 +534,7 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
                           NULL, &targetVarsData[i].targetVariable.targetNodeId);
 
     }
-    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dataSetReaderId);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(server, dataSetReaderId);
     if(dsr) {
         retVal = DataSetReader_createTargetVariables(server, dsr,
                                                      targetVars->targetVariablesSize,
@@ -752,7 +751,7 @@ addPubSubConnectionLocked(UA_Server *server,
 
         /* TODO: Need to handle the UA_Server_setWriterGroupOperational based on
          * the status variable in information model */
-        UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupId);
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupId);
         if(!wg)
             continue;
         if(pubSubConnection->enabled) {
@@ -788,7 +787,7 @@ addPubSubConnectionLocked(UA_Server *server,
 
         /* TODO: Need to handle the UA_Server_setReaderGroupOperational based on
          * the status variable in information model */
-        UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupId);
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
         if(!rg)
             continue;
         if(pubSubConnection->enabled) {
@@ -939,7 +938,7 @@ addDataSetReaderLocked(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, *objectId);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, *objectId);
     if(rg->configurationFrozen) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader cannot be done because ReaderGroup config frozen");
@@ -1495,7 +1494,7 @@ removeGroupAction(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_NodeId nodeToRemove = *((UA_NodeId *)input->data);
-    if(UA_WriterGroup_findWGbyId(psm, nodeToRemove)) {
+    if(UA_WriterGroup_find(psm, nodeToRemove)) {
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     } else {
         UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
@@ -1888,7 +1887,7 @@ addDataSetWriterLocked(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, *objectId);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, *objectId);
     if(!wg) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Not a WriterGroup");
@@ -1990,7 +1989,7 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_Duration msKeyLifeTime = *(UA_Duration *)input[6].data;
 
     UA_PubSubKeyStorage *ks =
-        UA_PubSubKeyStorage_findKeyStorage(server, *securityGroupId);
+        UA_PubSubKeyStorage_find(server, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -2084,12 +2083,12 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_UInt32 requestedKeyCount = *(UA_UInt32 *)input[2].data;
 
     UA_PubSubKeyStorage *ks =
-        UA_PubSubKeyStorage_findKeyStorage(server, *securityGroupId);
+        UA_PubSubKeyStorage_find(server, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_Boolean executable = false;
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyName(server, *securityGroupId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_findByName(server, *securityGroupId);
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(

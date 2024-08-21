@@ -119,7 +119,7 @@ START_TEST(SinglePublishDataSetField) {
     UA_Server_setWriterGroupEncryptionKeys(server, writerGroup3, 1, sk, ek, kn);
 
     UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup3);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup3);
     UA_WriterGroup_publishCallback(server, wg);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST

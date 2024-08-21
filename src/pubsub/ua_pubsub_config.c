@@ -329,7 +329,7 @@ createWriterGroup(UA_Server *server,
     /* Load config into server: */
     UA_NodeId writerGroupIdent;
     res = UA_WriterGroup_create(psm, connectionIdent, &config, &writerGroupIdent);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdent);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
     if(wg)
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
     if(res != UA_STATUSCODE_GOOD) {
@@ -492,7 +492,7 @@ createReaderGroup(UA_Server *server,
         }
     }
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(psm, readerGroupIdent);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
     if(res == UA_STATUSCODE_GOOD && rg)
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
 
@@ -522,7 +522,7 @@ addSubscribedDataSet(UA_Server *server, const UA_NodeId dsReaderIdent,
         }
 
         UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, dsReaderIdent);
+        UA_DataSetReader *dsr = UA_DataSetReader_find(server, dsReaderIdent);
         if(dsr)
             res = DataSetReader_createTargetVariables(server, dsr,
                                                       tmpTargetVars->targetVariablesSize,

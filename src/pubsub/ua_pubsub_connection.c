@@ -129,7 +129,7 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
-    UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connection);
     UA_StatusCode res = (c) ?
         UA_PubSubConnectionConfig_copy(&c->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
@@ -137,11 +137,11 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
 }
 
 UA_PubSubConnection *
-UA_PubSubConnection_findConnectionbyId(UA_PubSubManager *psm,
-                                       UA_NodeId connectionId) {
+UA_PubSubConnection_find(UA_PubSubManager *psm,
+                         const UA_NodeId id) {
     UA_PubSubConnection *c;
     TAILQ_FOREACH(c, &psm->connections, listEntry){
-        if(UA_NodeId_equal(&connectionId, &c->head.identifier))
+        if(UA_NodeId_equal(&id, &c->head.identifier))
             break;
     }
     return c;
@@ -318,7 +318,7 @@ UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) 
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connection);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connection);
     if(!c) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -491,14 +491,14 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
 
 static UA_StatusCode
 enablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
-    UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
     return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL)
         : UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
 disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
-    UA_PubSubConnection *c = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
     return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
         : UA_STATUSCODE_BADNOTFOUND;
 }

@@ -384,7 +384,7 @@ START_TEST(requestCurrentKeyWithFutureKeys) {
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(sksServer, sgNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(sksServer, sgNodeId);
     UA_Variant *output = response.results->outputArguments;
 
     UA_UInt32 firstTokenId = *(UA_UInt32 *) output[1].data;
@@ -426,7 +426,7 @@ START_TEST(requestCurrentKeyOnly) {
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(sksServer, sgNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(sksServer, sgNodeId);
     UA_Variant *output = response.results->outputArguments;
 
     UA_UInt32 firstTokenId = *(UA_UInt32 *)output[1].data;
@@ -468,7 +468,7 @@ START_TEST(requestPastKey) {
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(sksServer, sgNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(sksServer, sgNodeId);
     UA_Variant *output = response.results->outputArguments;
 
     UA_UInt32 firstTokenId = *(UA_UInt32 *)output[1].data;
@@ -508,7 +508,7 @@ START_TEST(requestUnknownStartingTokenId){
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(sksServer, sgNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(sksServer, sgNodeId);
     UA_Variant *output = response.results->outputArguments;
 
     UA_UInt32 firstTokenId = *(UA_UInt32 *)output[1].data;
@@ -548,7 +548,7 @@ START_TEST(requestMaxFutureKeys) {
                   UA_StatusCode_name(response.results->statusCode));
     ck_assert_uint_eq(response.results->outputArgumentsSize, 5);
 
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(sksServer, sgNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(sksServer, sgNodeId);
     UA_Variant *output = response.results->outputArguments;
 
     UA_UInt32 firstTokenId = *(UA_UInt32 *)output[1].data;

@@ -156,7 +156,7 @@ START_TEST(AddSecurityGroupWithvalidConfig) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     ck_assert(UA_NodeId_equal(&sg->securityGroupNodeId, &securityGroupNodeId) == UA_TRUE);
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -248,14 +248,14 @@ START_TEST(RemoveSecurityGroup) {
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
     UA_UNLOCK(&server->serviceMutex);
 
     UA_Server_removeSecurityGroup(server, securityGroupNodeId);
 
     UA_LOCK(&server->serviceMutex);
-    sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    sg = UA_SecurityGroup_find(server, securityGroupNodeId);
     ck_assert_ptr_eq(sg, NULL);
     UA_UNLOCK(&server->serviceMutex);
 } END_TEST
@@ -279,9 +279,9 @@ START_TEST(AddSecurityGroupWithKeyManagement){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, sg->securityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
     ck_assert_uint_eq(ks->keyListSize, 1 + config.maxFutureKeyCount);
     UA_UInt32 expectKeyId = 1;
@@ -315,9 +315,9 @@ START_TEST(SecurityGroupPeriodicInsertNewKeys){
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroupNodeId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(server, securityGroupNodeId);
     ck_assert_ptr_ne(sg, NULL);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, sg->securityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
 
     UA_UInt32 expectKeyId = 1;
