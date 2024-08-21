@@ -680,10 +680,7 @@ UA_Server_addSubscribedDataSet(UA_Server *server,
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
 
-/* To Do:Implementation of SubscribedDataSetMirrorType
- * UA_StatusCode
- * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
- * UA_SubscribedDataSetMirrorDataType* mirror) */
+/* TODO: Implementation of SubscribedDataSetMirrorType */
 
 /**
  * DataSetReader
@@ -791,7 +788,6 @@ UA_Server_setDataSetReaderTargetVariables(UA_Server *server,
  *   network message and only decodes the necessary offsets stored in an offset
  *   buffer. */
 
-/* ReaderGroup configuration */
 typedef struct {
     UA_String name;
 
