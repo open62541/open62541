@@ -639,8 +639,8 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
 }
 
 UA_StatusCode
-UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId writerGroupIdentifier,
-                               UA_PubSubState *state) {
+UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
+                              UA_PubSubState *state) {
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
@@ -649,28 +649,26 @@ UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId writerGroupIde
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdentifier);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, wgId);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(wg) {
+    if(wg)
         *state = wg->head.state;
-    } else {
+    else
         res = UA_STATUSCODE_BADNOTFOUND;
-    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
-UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIdentifier) {
+UA_Server_triggerWriterGroupPublish(UA_Server *server,
+                                    const UA_NodeId wgId) {
     UA_LOCK(&server->serviceMutex);
-
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupIdentifier);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, wgId);
     if(!wg) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -681,16 +679,16 @@ UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId writerGroupIden
 }
 
 UA_StatusCode
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGroupId,
-                                    UA_DateTime *timestamp) {
+UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
+                                             const UA_NodeId wgId,
+                                             UA_DateTime *timestamp) {
     UA_LOCK(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupId);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, wgId);
     if(!wg) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -701,13 +699,13 @@ UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId writerGro
 }
 
 UA_WriterGroup *
-UA_WriterGroup_findWGbyId(UA_PubSubManager *psm, UA_NodeId identifier) {
-    UA_PubSubConnection *tmpConnection;
-    TAILQ_FOREACH(tmpConnection, &psm->connections, listEntry) {
-        UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &tmpConnection->writerGroups, listEntry) {
-            if(UA_NodeId_equal(&identifier, &tmpWriterGroup->head.identifier))
-                return tmpWriterGroup;
+UA_WriterGroup_findWGbyId(UA_PubSubManager *psm, UA_NodeId wgId) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_NodeId_equal(&wgId, &wg->head.identifier))
+                return wg;
         }
     }
     return NULL;
@@ -729,7 +727,8 @@ setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
         return UA_STATUSCODE_BADNOTFOUND;
     if(wg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
-                              "JSON encoding is enabled. The message security is only defined for the UADP message mapping.");
+                              "JSON encoding is enabled. The message security "
+                              "iis only defined for the UADP message mapping.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     if(!wg->config.securityPolicy) {

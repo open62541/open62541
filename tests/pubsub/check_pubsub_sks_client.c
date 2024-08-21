@@ -532,7 +532,8 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     ck_assert_msg(sksPullStatus == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(publisherApp, writerGroupId);
+    UA_PubSubManager *psm = getPSM(publisherApp);
+    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroupId);
     ck_assert(wg != NULL);
     
     ck_assert(wg->keyStorage->keyListSize > 0);
