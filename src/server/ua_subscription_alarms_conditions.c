@@ -1916,6 +1916,7 @@ static UA_StatusCode removeConditionBranch (UA_Server *server, UA_ConditionBranc
 static UA_StatusCode removeCondition (UA_Server *server, UA_Condition *condition)
 {
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    ZIP_REMOVE(UA_ConditionTree, &server->conditions ,condition);
     condition->mainBranch = NULL;
     UA_ConditionBranch *branch = NULL;
     UA_ConditionBranch *tmp= NULL;
@@ -1923,7 +1924,6 @@ static UA_StatusCode removeCondition (UA_Server *server, UA_Condition *condition
     {
         ret |= removeConditionBranch (server, branch);
     }
-    ZIP_REMOVE(UA_ConditionTree, &server->conditions ,condition);
     if (condition->unshelveCallbackId) removeCallback(server, condition->unshelveCallbackId);
     if (condition->onDelayCallbackId) removeCallback (server, condition->onDelayCallbackId);
     if (condition->offDelayCallbackId) removeCallback (server, condition->offDelayCallbackId);
@@ -1961,7 +1961,11 @@ newConditionBranchEntry (
     ZIP_INSERT (UA_ConditionBranchTree, &server->conditionBranches, branch);
     //add the condition branch to the conditions branch list
     LIST_INSERT_HEAD(&condition->branches, branch, listEntry);
-    if (branch->isMainBranch) condition->mainBranch = branch;
+    if (branch->isMainBranch)
+    {
+        condition->mainBranch = branch;
+        ZIP_INSERT (UA_ConditionTree, &server->conditions, condition);
+    }
     else
         UA_ConditionBranch_triggerEvent(branch, server, NULL);
 
@@ -1988,7 +1992,6 @@ newConditionEntry (UA_Server *server, const UA_NodeId *conditionNodeId,
     if (status != UA_STATUSCODE_GOOD) goto fail;
     condition->fns = conditionFns;
     condition->canBranch = conditionProperties->canBranch;
-    ZIP_INSERT (UA_ConditionTree, &server->conditions, condition);
     *out = condition;
     return UA_STATUSCODE_GOOD;
 fail:
