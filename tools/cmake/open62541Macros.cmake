@@ -664,10 +664,10 @@ function(ua_generate_nodeset_and_datatypes)
 
     # Create a list of nodesets on which this nodeset depends on
     if (NOT UA_GEN_DEPENDS OR "${UA_GEN_DEPENDS}" STREQUAL "" )
-        if(NOT UA_FILE_NS0)
+        if(NOT UA_FILE_NS0_INTERNAL)
             set(NODESET_DEPENDS "${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml")
         else()
-            set(NODESET_DEPENDS "${UA_FILE_NS0}")
+            set(NODESET_DEPENDS "${UA_FILE_NS0_INTERNAL}")
         endif()
         set(TYPES_DEPENDS "UA_TYPES")
     else()
