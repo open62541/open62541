@@ -64,7 +64,7 @@ START_TEST(EthernetSendWithoutVLANTag) {
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
 
     UA_PubSubManager *psm = getPSM(server);
-    connection = UA_PubSubConnection_findConnectionbyId(psm, connection_test);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;
@@ -98,7 +98,7 @@ START_TEST(EthernetSendWithVLANTag) {
     UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
 
     UA_PubSubManager *psm = getPSM(server);
-    connection = UA_PubSubConnection_findConnectionbyId(psm, connection_test);
+    connection = UA_PubSubConnection_find(psm, connection_test);
     /* Remove the connection if invalid*/
     if(!connection) {
         return;

@@ -43,7 +43,7 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(dsw)
         res = UA_DataSetWriterConfig_copy(&dsw->config, config);
@@ -57,7 +57,7 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(dsw) {
         *state = dsw->head.state;
@@ -69,7 +69,7 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
 }
 
 UA_DataSetWriter *
-UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
+UA_DataSetWriter_find(UA_Server *server, const UA_NodeId id) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
@@ -80,7 +80,7 @@ UA_DataSetWriter_findDSWbyId(UA_Server *server, UA_NodeId identifier) {
         LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry) {
             UA_DataSetWriter *tmpWriter;
             LIST_FOREACH(tmpWriter, &tmpWriterGroup->writers, listEntry) {
-                if(UA_NodeId_equal(&tmpWriter->head.identifier, &identifier))
+                if(UA_NodeId_equal(&id, &tmpWriter->head.identifier))
                     return tmpWriter;
             }
         }
@@ -100,7 +100,7 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
 UA_StatusCode
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
     if(!dsw) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -115,7 +115,7 @@ UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
 UA_StatusCode
 UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
     if(!dsw) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -191,7 +191,7 @@ UA_DataSetWriter_create(UA_Server *server,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(psm, writerGroup);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     if(!wg)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -212,7 +212,7 @@ UA_DataSetWriter_create(UA_Server *server,
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
-        pds = UA_PublishedDataSet_findPDSbyId(server, dataSet);
+        pds = UA_PublishedDataSet_find(server, dataSet);
         if(!pds)
             return UA_STATUSCODE_BADNOTFOUND;
 
@@ -493,7 +493,7 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_findDSWbyId(server, dswId);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
     if(!dsw) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;

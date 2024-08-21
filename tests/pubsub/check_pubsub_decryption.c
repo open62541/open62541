@@ -149,7 +149,7 @@ hexstr_to_char(const char *hexstr) {
 //         UA_Server_removeDataSetReader(uaServer, dataSetReader->identifier);
 //     }
 //     UA_PubSubConnection* pConn =
-//         UA_PubSubConnection_findConnectionbyId(uaServer, readerGroup->linkedConnection);
+//         UA_PubSubConnection_find(uaServer, readerGroup->linkedConnection);
 //     if(pConn != NULL)
 //         pConn->readerGroupsSize--;
 //
@@ -330,8 +330,7 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -369,8 +368,7 @@ START_TEST(InvalidSignature) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -400,8 +398,7 @@ END_TEST
 START_TEST(InvalidSecurityModeInsufficientSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_NONE);
     UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -432,8 +429,7 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
     UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }

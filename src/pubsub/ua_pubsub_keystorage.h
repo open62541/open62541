@@ -222,7 +222,7 @@ typedef struct UA_PubSubKeyStorage {
  * @return Pointer to the keystorage on success, null pointer on failure
  */
 UA_PubSubKeyStorage *
-UA_PubSubKeyStorage_findKeyStorage(UA_Server *server, UA_String securityGroupId);
+UA_PubSubKeyStorage_find(UA_Server *server, UA_String securityGroupId);
 
 /**
  * @brief retreives the security policy pointer from the PubSub configuration by

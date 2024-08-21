@@ -65,12 +65,12 @@ START_TEST(CreateAndLockConfiguration) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-    UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
+    UA_DataSetField *dataSetField = UA_DataSetField_find(server, dataSetField1);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
     //get internal WG Pointer
     UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetMetaDataType dataSetMetaDataType;
@@ -92,11 +92,11 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
     //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
     ck_assert(pubSubConnection != NULL);
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
@@ -151,23 +151,23 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-        UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
+        UA_DataSetField *dataSetField = UA_DataSetField_find(server, dataSetField1);
         ck_assert(dataSetField->configurationFrozen == UA_FALSE);
 
         //get internal WG Pointer
         UA_PubSubManager *psm = getPSM(server);
-        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+        UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
         ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
         ck_assert(dataSetWriter != NULL);
 
         //get internal PubSubConnection Pointer
-        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
+        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
 
         ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
         //Lock the with the freeze function
@@ -224,7 +224,7 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-    UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
+    UA_DataSetField *dataSetField = UA_DataSetField_find(server, dataSetField1);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -236,10 +236,10 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     retVal |= UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
 
     UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(psm, writerGroup1);
-    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(psm, writerGroup2);
-    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(psm, connection1);
+    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_find(psm, writerGroup1);
+    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_find(psm, writerGroup2);
+    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_find(server, publishedDataSet1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
@@ -300,14 +300,14 @@ START_TEST(CreateLockAndEditConfiguration) {
 
     //get internal WG Pointer
     UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(psm, writerGroup1);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);

@@ -498,8 +498,7 @@ static void PublishSubscribeWithWriteCallback_Helper(
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     ck_assert(addMinimalPubSubConfiguration() == UA_STATUSCODE_GOOD);
     UA_PubSubManager *psm = getPSM(server);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(psm, connectionIdentifier);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionIdentifier);
     ck_assert(connection != 0);
 
     /* Data Set Field */

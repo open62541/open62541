@@ -72,7 +72,7 @@ getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
                           UA_PublishedDataSetConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
+    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPDS)
         res = UA_PublishedDataSetConfig_copy(&currentPDS->config, config);
@@ -94,7 +94,7 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
     if(!metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
+    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentPDS)
         res = UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
@@ -103,21 +103,21 @@ UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
 }
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findPDSbyId(UA_Server *server, UA_NodeId identifier) {
+UA_PublishedDataSet_find(UA_Server *server, const UA_NodeId id) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
 
     UA_PublishedDataSet *tmpPDS = NULL;
     TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
-        if(UA_NodeId_equal(&tmpPDS->head.identifier, &identifier))
+        if(UA_NodeId_equal(&id, &tmpPDS->head.identifier))
             break;
     }
     return tmpPDS;
 }
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findPDSbyName(UA_Server *server, UA_String name) {
+UA_PublishedDataSet_findByName(UA_Server *server, const UA_String name) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
@@ -324,7 +324,7 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     UA_PublishedDataSet *currDS =
-        UA_PublishedDataSet_findPDSbyId(server, publishedDataSet);
+        UA_PublishedDataSet_find(server, publishedDataSet);
     if(!currDS) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
@@ -437,7 +437,7 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
     memset(&result, 0, sizeof(UA_DataSetFieldResult));
 
     UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_findPDSbyId(server, currentField->publishedDataSet);
+        UA_PublishedDataSet_find(server, currentField->publishedDataSet);
     if(!pds) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
@@ -524,7 +524,7 @@ UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_LOCK(&server->serviceMutex);
     UA_DataSetFieldResult res;
     memset(&res, 0, sizeof(UA_DataSetFieldResult));
-    UA_DataSetField *field = UA_DataSetField_findDSFbyId(server, dsf);
+    UA_DataSetField *field = UA_DataSetField_find(server, dsf);
     if(!field) {
         res.result = UA_STATUSCODE_BADNOTFOUND;
         UA_UNLOCK(&server->serviceMutex);
@@ -557,7 +557,7 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetField *currentDataSetField = UA_DataSetField_findDSFbyId(server, dsf);
+    UA_DataSetField *currentDataSetField = UA_DataSetField_find(server, dsf);
     UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
     if(currentDataSetField)
         res = UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
@@ -566,7 +566,7 @@ UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
 }
 
 UA_DataSetField *
-UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
+UA_DataSetField_find(UA_Server *server, UA_NodeId id) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
@@ -575,7 +575,7 @@ UA_DataSetField_findDSFbyId(UA_Server *server, UA_NodeId identifier) {
     TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         UA_DataSetField *tmpField;
         TAILQ_FOREACH(tmpField, &tmpPDS->fields, listEntry) {
-            if(UA_NodeId_equal(&tmpField->identifier, &identifier))
+            if(UA_NodeId_equal(&id, &tmpField->identifier))
                 return tmpField;
         }
     }
@@ -644,7 +644,7 @@ UA_PublishedDataSet_create(UA_Server *server,
         return result;
     }
 
-    if(UA_PublishedDataSet_findPDSbyName(server, publishedDataSetConfig->name)) {
+    if(UA_PublishedDataSet_findByName(server, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
@@ -804,7 +804,7 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
 UA_StatusCode
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
     UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_findPDSbyId(server, pds);
+    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
     if(!currentPDS) {
         UA_UNLOCK(&server->serviceMutex);
         return UA_STATUSCODE_BADNOTFOUND;
@@ -815,28 +815,26 @@ UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
 }
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_findSDSbyId(UA_Server *server, UA_NodeId identifier) {
+UA_SubscribedDataSet_find(UA_Server *server, const UA_NodeId id) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
-
     UA_SubscribedDataSet *sds;
     TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
-        if(UA_NodeId_equal(&identifier, &sds->head.identifier))
+        if(UA_NodeId_equal(&id, &sds->head.identifier))
             return sds;
     }
     return NULL;
 }
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_findSDSbyName(UA_Server *server, UA_String identifier) {
+UA_SubscribedDataSet_findByName(UA_Server *server, const UA_String name) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
-
     UA_SubscribedDataSet *sds;
     TAILQ_FOREACH(sds, &psm->subscribedDataSets, listEntry) {
-        if(UA_String_equal(&identifier, &sds->config.name))
+        if(UA_String_equal(&name, &sds->config.name))
             return sds;
     }
     return NULL;
@@ -973,7 +971,7 @@ UA_StatusCode
 UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findSDSbyId(server, sdsId);
+    UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(server, sdsId);
     if(sds)
         UA_SubscribedDataSet_remove(server, sds);
     else

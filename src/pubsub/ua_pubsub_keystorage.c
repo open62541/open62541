@@ -17,7 +17,7 @@
 #include "client/ua_client_internal.h"
 
 UA_PubSubKeyStorage *
-UA_PubSubKeyStorage_findKeyStorage(UA_Server *server, UA_String securityGroupId) {
+UA_PubSubKeyStorage_find(UA_Server *server, UA_String securityGroupId) {
     if(!server || UA_String_isEmpty(&securityGroupId))
         return NULL;
 
@@ -330,7 +330,7 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_Server *server, UA_NodeId pub
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_PubSubKeyStorage *ks =
-        UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+        UA_PubSubKeyStorage_find(server, securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -732,7 +732,7 @@ UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
 
     UA_StatusCode retval = UA_STATUSCODE_BADNOTFOUND;
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, securityGroupId);
     if(!ks) {
         UA_UNLOCK(&server->serviceMutex);
         return retval;

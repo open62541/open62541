@@ -168,7 +168,7 @@ START_TEST(AddReaderGroupWithValidConfiguration) {
     UA_PubSubManager *psm = getPSM(server);
     size_t readerGroupCount = 0;
     UA_ReaderGroup *readerGroup;
-    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionId);
     LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
         readerGroupCount++;
     }
@@ -187,7 +187,7 @@ START_TEST(AddReaderGroupWithNullConfig) {
     UA_PubSubManager *psm = getPSM(server);
     size_t readerGroupCount = 0;
     UA_ReaderGroup *readerGroup;
-    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionId);
     LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
         readerGroupCount++;
     }
@@ -207,7 +207,7 @@ START_TEST(AddReaderGroupWithInvalidConnectionId) {
     UA_PubSubManager *psm = getPSM(server);
     size_t readerGroupCount = 0;
     UA_ReaderGroup *readerGroup;
-    UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+    UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionId);
     LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
         readerGroupCount++;
     }
@@ -231,7 +231,7 @@ START_TEST(RemoveReaderGroupWithInvalidIdentifier) {
         UA_PubSubManager *psm = getPSM(server);
         size_t readerGroupCount = 0;
         UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+        UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionId);
         LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
             readerGroupCount++;
         }
@@ -256,7 +256,7 @@ START_TEST(AddRemoveMultipleAddReaderGroupWithValidConfiguration) {
         UA_PubSubManager *psm = getPSM(server);
         size_t readerGroupCount = 0;
         UA_ReaderGroup *readerGroup;
-        UA_PubSubConnection *conn = UA_PubSubConnection_findConnectionbyId(psm, connectionId);
+        UA_PubSubConnection *conn = UA_PubSubConnection_find(psm, connectionId);
         LIST_FOREACH(readerGroup, &conn->readerGroups, listEntry) {
             readerGroupCount++;
         }
@@ -433,8 +433,8 @@ START_TEST(AddMultipleDataSetReaderWithValidConfiguration) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     retVal |= UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, &localReaderGroup2);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_ReaderGroup *readerGroupIdent1 = UA_ReaderGroup_findRGbyId(psm, localReaderGroup);
-    UA_ReaderGroup *readerGroupIdent2 = UA_ReaderGroup_findRGbyId(psm, localReaderGroup2);
+    UA_ReaderGroup *readerGroupIdent1 = UA_ReaderGroup_find(psm, localReaderGroup);
+    UA_ReaderGroup *readerGroupIdent2 = UA_ReaderGroup_find(psm, localReaderGroup2);
     /* Add DataSetReaders to first ReaderGroup */
     retVal = UA_Server_addDataSetReader(server, localReaderGroup, &readerConfig, &dataSetReader);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -1571,7 +1571,7 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     UA_Server_run_iterate(server,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(server,true);
-    UA_DataSetReader *dsr = UA_DataSetReader_findDSRbyId(server, readerIdentifier);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(server, readerIdentifier);
     ck_assert_ptr_ne(dsr, NULL);
 
     UA_fakeSleep(100);
@@ -1971,10 +1971,10 @@ START_TEST(ValidDataSetConfigurationAddAndRemove) {
     UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_SubscribedDataSet *ssds = NULL;
-    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
+    ssds = UA_SubscribedDataSet_find(server, ret);
     ck_assert_ptr_ne(ssds, NULL);
     ssds = NULL;
-    ssds = UA_SubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findByName(server, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_ne(ssds, NULL);
     UA_SubscribedDataSetConfig ssds_config;
     memset(&ssds_config, 0, sizeof(UA_SubscribedDataSetConfig));
@@ -1983,9 +1983,9 @@ START_TEST(ValidDataSetConfigurationAddAndRemove) {
     UA_SubscribedDataSetConfig_clear(&ssds_config);
     retVal = UA_Server_removeSubscribedDataSet(server, ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ssds = UA_SubscribedDataSet_findSDSbyName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findByName(server, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_eq(ssds, NULL);
-    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
+    ssds = UA_SubscribedDataSet_find(server, ret);
     ck_assert_ptr_eq(ssds, NULL);
 
 } END_TEST
@@ -2022,7 +2022,7 @@ START_TEST(AddAndRemoveReaderUsingDataSet) {
     UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_SubscribedDataSet *ssds = NULL;
-    ssds = UA_SubscribedDataSet_findSDSbyId(server, ret);
+    ssds = UA_SubscribedDataSet_find(server, ret);
     ck_assert_ptr_ne(ssds, NULL);
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;

@@ -17,13 +17,13 @@
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
 
 UA_SecurityGroup *
-UA_SecurityGroup_findSGbyName(UA_Server *server, UA_String securityGroupName) {
+UA_SecurityGroup_findByName(UA_Server *server, const UA_String name) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
     UA_SecurityGroup *tmpSG;
     TAILQ_FOREACH(tmpSG, &psm->securityGroups, listEntry) {
-        if(UA_String_equal(&securityGroupName, &tmpSG->config.securityGroupName))
+        if(UA_String_equal(&name, &tmpSG->config.securityGroupName))
             return tmpSG;
     }
     return NULL;
@@ -215,7 +215,7 @@ addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
        UA_String_isEmpty(&securityGroupConfig->securityPolicyUri))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    if(UA_SecurityGroup_findSGbyName(server, securityGroupConfig->securityGroupName))
+    if(UA_SecurityGroup_findByName(server, securityGroupConfig->securityGroupName))
         return UA_STATUSCODE_BADNODEIDEXISTS;
 
     UA_PubSubSecurityPolicy *policy =
@@ -291,13 +291,13 @@ UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeI
 }
 
 UA_SecurityGroup *
-UA_SecurityGroup_findSGbyId(UA_Server *server, UA_NodeId identifier) {
+UA_SecurityGroup_find(UA_Server *server, const UA_NodeId id) {
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
         return NULL;
     UA_SecurityGroup *tmpSG;
     TAILQ_FOREACH(tmpSG, &psm->securityGroups, listEntry) {
-        if(UA_NodeId_equal(&identifier, &tmpSG->securityGroupNodeId))
+        if(UA_NodeId_equal(&id, &tmpSG->securityGroupNodeId))
             return tmpSG;
     }
     return NULL;
@@ -354,7 +354,7 @@ removeSecurityGroup(UA_Server *server, UA_SecurityGroup *sg) {
 UA_StatusCode
 UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup) {
     UA_LOCK(&server->serviceMutex);
-    UA_SecurityGroup *sg = UA_SecurityGroup_findSGbyId(server, securityGroup);
+    UA_SecurityGroup *sg = UA_SecurityGroup_find(server, securityGroup);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     if(sg) {
         removeSecurityGroup(server, sg);
