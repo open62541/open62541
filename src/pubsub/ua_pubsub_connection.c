@@ -260,7 +260,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
      * to remove the Connection.*/
     UA_ReaderGroup *rg, *tmpRg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, rg, UA_PUBSUBSTATE_DISABLED);
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
         UA_ReaderGroup_unfreezeConfiguration(server, rg);
     }
 
@@ -480,7 +480,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
      * non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->head.state);
+        UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {

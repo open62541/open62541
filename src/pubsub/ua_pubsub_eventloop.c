@@ -746,6 +746,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Get the context pointers */
     UA_Server *server = (UA_Server*)application;
     UA_ReaderGroup *rg = (UA_ReaderGroup*)*connectionContext;
+    UA_PubSubManager *psm = getPSM(server);
 
     UA_LOCK(&server->serviceMutex);
 
@@ -763,11 +764,10 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         }
 
         /* Reconnect if still operational */
-        UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
 
         /* Switch the psm state from stopping to stopped once the last
          * connection has closed */
-        UA_PubSubManager *psm = getPSM(server);
         UA_PubSubManager_setState(psm, psm->sc.state);
 
         UA_UNLOCK(&server->serviceMutex);
@@ -787,7 +787,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* The connection has opened - set the ReaderGroup to operational */
-    UA_ReaderGroup_setPubSubState(server, rg, rg->head.state);
+    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
 
     /* No message received */
     if(msg.length == 0) {

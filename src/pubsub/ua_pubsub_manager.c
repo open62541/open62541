@@ -400,7 +400,7 @@ UA_PubSubManager_stop(UA_ServerComponent *sc) {
 
         UA_ReaderGroup *rg;
         LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-            UA_ReaderGroup_setPubSubState(sc->server, rg, UA_PUBSUBSTATE_DISABLED);
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
         }
 
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
