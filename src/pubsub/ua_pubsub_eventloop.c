@@ -721,7 +721,9 @@ UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
     if(wg->sendChannel == 0)
         return;
     UA_PubSubConnection *c = wg->linkedConnection;
-    c->cm->closeConnection(c->cm, c->sendChannel);
+    if(!c || !c->cm)
+        return;
+    c->cm->closeConnection(c->cm, wg->sendChannel);
 }
 
 UA_StatusCode
