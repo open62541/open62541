@@ -430,7 +430,7 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
     /* Remove the DataSets */
     UA_PublishedDataSet *tmpPDS1, *tmpPDS2;
     TAILQ_FOREACH_SAFE(tmpPDS1, &psm->publishedDataSets, listEntry, tmpPDS2) {
-        UA_PublishedDataSet_remove(server, tmpPDS1);
+        UA_PublishedDataSet_remove(psm, tmpPDS1);
     }
 
     /* Remove the ReserveIds*/

@@ -303,14 +303,15 @@ START_TEST(AddPDSDuplicatedName){
 START_TEST(FindPDS){
         setupDataSetWriterTestEnvironment();
         setupPublishedDataSetTestEnvironment();
-        UA_PublishedDataSet *pdsById = UA_PublishedDataSet_find(server, publishedDataSet1);
+        UA_PubSubManager *psm = getPSM(server);
+        UA_PublishedDataSet *pdsById = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pdsById, NULL);
-        UA_PublishedDataSet *pdsByName = UA_PublishedDataSet_findByName(server, UA_STRING(publishedDataSet1Name));
+        UA_PublishedDataSet *pdsByName = UA_PublishedDataSet_findByName(psm, UA_STRING(publishedDataSet1Name));
         ck_assert_ptr_ne(pdsByName, NULL);
         ck_assert_ptr_eq(pdsById, pdsByName);
-        pdsById = UA_PublishedDataSet_find(server, publishedDataSet2);
+        pdsById = UA_PublishedDataSet_find(psm, publishedDataSet2);
         ck_assert_ptr_ne(pdsById, NULL);
-        pdsByName = UA_PublishedDataSet_findByName(server, UA_STRING(publishedDataSet2Name));
+        pdsByName = UA_PublishedDataSet_findByName(psm, UA_STRING(publishedDataSet2Name));
         ck_assert_ptr_ne(pdsByName, NULL);
         ck_assert_ptr_eq(pdsById, pdsByName);
         UA_Server_removePublishedDataSet(server, publishedDataSet1);
@@ -332,6 +333,7 @@ static void setupDataSetFieldTestEnvironment(void){
 }
 
 START_TEST(AddDataSetFieldWithValidConfiguration){
+        UA_PubSubManager *psm = getPSM(server);
         setupPublishedDataSetTestEnvironment();
         setupDataSetFieldTestEnvironment();
         UA_StatusCode retVal;
@@ -342,7 +344,7 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId localDataSetField;
-        UA_PublishedDataSet *pds = UA_PublishedDataSet_find(server, publishedDataSet1);
+        UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds, NULL);
         ck_assert_uint_eq(pds->fieldSize, 0);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
@@ -351,6 +353,7 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
     } END_TEST
 
 START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
+        UA_PubSubManager *psm = getPSM(server);
         setupPublishedDataSetTestEnvironment();
         setupDataSetFieldTestEnvironment();
         UA_StatusCode retVal;
@@ -360,7 +363,7 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         UA_NodeId localDataSetField;
-        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(server, publishedDataSet1);
+        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
         ck_assert_uint_eq(pds1->fieldSize, 0);
 
@@ -396,7 +399,7 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 3);
 
-        UA_PublishedDataSet *pds2 = UA_PublishedDataSet_find(server, publishedDataSet2);
+        UA_PublishedDataSet *pds2 = UA_PublishedDataSet_find(psm, publishedDataSet2);
         ck_assert_ptr_ne(pds2, NULL);
 
         // Add "field 1"
@@ -407,17 +410,19 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
     } END_TEST
 
 START_TEST(AddDataSetFieldWithNullConfig){
+        UA_PubSubManager *psm = getPSM(server);
         UA_StatusCode retVal;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, NULL, NULL).result;
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
         setupPublishedDataSetTestEnvironment();
         setupDataSetFieldTestEnvironment();
-        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(server, publishedDataSet1);
+        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
         ck_assert_uint_eq(pds1->fieldSize, 0);
     } END_TEST
 
 START_TEST(AddDataSetFieldWithInvalidPDSId){
+        UA_PubSubManager *psm = getPSM(server);
         UA_StatusCode retVal;
         UA_DataSetFieldConfig fieldConfig;
         memset(&fieldConfig, 0, sizeof(UA_DataSetFieldConfig));
@@ -429,7 +434,7 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
         setupPublishedDataSetTestEnvironment();
         setupDataSetFieldTestEnvironment();
         ck_assert_int_ne(retVal, UA_STATUSCODE_GOOD);
-        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(server, publishedDataSet1);
+        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
         ck_assert_uint_eq(pds1->fieldSize, 0);
     } END_TEST

@@ -178,26 +178,18 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
                                UA_PublishedDataSetConfig *dst);
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_find(UA_Server *server, const UA_NodeId id);
+UA_PublishedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findByName(UA_Server *server, const UA_String name);
+UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
 
 UA_AddPublishedDataSetResult
-UA_PublishedDataSet_create(UA_Server *server,
+UA_PublishedDataSet_create(UA_PubSubManager *psm,
                            const UA_PublishedDataSetConfig *publishedDataSetConfig,
                            UA_NodeId *pdsIdentifier);
 
-void
-UA_PublishedDataSet_clear(UA_Server *server,
-                          UA_PublishedDataSet *publishedDataSet);
-
 UA_StatusCode
-UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
-
-UA_StatusCode
-getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
-                          UA_PublishedDataSetConfig *config);
+UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds);
 
 /*********************/
 /* SubscribedDataSet */
@@ -480,13 +472,13 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                            UA_DataSetFieldConfig *dst);
 
 UA_DataSetField *
-UA_DataSetField_find(UA_Server *server, const UA_NodeId id);
+UA_DataSetField_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_DataSetFieldResult
-UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField);
+UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField);
 
 UA_DataSetFieldResult
-UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
+UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
                        const UA_DataSetFieldConfig *fieldConfig,
                        UA_NodeId *fieldIdentifier);
 

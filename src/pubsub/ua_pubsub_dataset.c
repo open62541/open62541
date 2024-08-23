@@ -68,46 +68,33 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
 }
 
 UA_StatusCode
-getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
-                          UA_PublishedDataSetConfig *config) {
-    if(!config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(currentPDS)
-        res = UA_PublishedDataSetConfig_copy(&currentPDS->config, config);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pds,
+UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
                                     UA_PublishedDataSetConfig *config) {
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = getPublishedDataSetConfig(server, pds, config);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_PublishedDataSetConfig_copy(&pds->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
-UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pds,
+UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pdsId,
                                       UA_DataSetMetaDataType *metaData) {
     if(!metaData)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(currentPDS)
-        res = UA_DataSetMetaDataType_copy(&currentPDS->dataSetMetaData, metaData);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_DataSetMetaDataType_copy(&pds->dataSetMetaData, metaData) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_find(UA_Server *server, const UA_NodeId id) {
-    UA_PubSubManager *psm = getPSM(server);
+UA_PublishedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
-
     UA_PublishedDataSet *tmpPDS = NULL;
     TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         if(UA_NodeId_equal(&id, &tmpPDS->head.identifier))
@@ -117,17 +104,14 @@ UA_PublishedDataSet_find(UA_Server *server, const UA_NodeId id) {
 }
 
 UA_PublishedDataSet *
-UA_PublishedDataSet_findByName(UA_Server *server, const UA_String name) {
-    UA_PubSubManager *psm = getPSM(server);
+UA_PublishedDataSet_findByName(UA_PubSubManager *psm, const UA_String name) {
     if(!psm)
         return NULL;
-
     UA_PublishedDataSet *tmpPDS = NULL;
     TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         if(UA_String_equal(&name, &tmpPDS->config.name))
             break;
     }
-
     return tmpPDS;
 }
 
@@ -151,32 +135,6 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
         default:
             break;
     }
-}
-
-void
-UA_PublishedDataSet_clear(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
-    UA_DataSetField *field, *tmpField;
-    TAILQ_FOREACH_SAFE(field, &publishedDataSet->fields, listEntry, tmpField) {
-        /* Code in this block is a duplication of similar code in UA_DataSetField_remove, but
-         * this is intentional. We don't want to call UA_DataSetField_remove here as that
-         * function regenerates DataSetMetaData, which is not necessary if we want to
-         * clear the whole PDS anyway. */
-        if(field->configurationFrozen) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, publishedDataSet,
-                                  "Clearing a frozen field.");
-        }
-        field->fieldMetaData.arrayDimensions = NULL;
-        field->fieldMetaData.properties = NULL;
-        field->fieldMetaData.name = UA_STRING_NULL;
-        field->fieldMetaData.description.locale = UA_STRING_NULL;
-        field->fieldMetaData.description.text = UA_STRING_NULL;
-        UA_DataSetField_clear(field);
-        TAILQ_REMOVE(&publishedDataSet->fields, field, listEntry);
-        UA_free(field);
-    }
-    UA_PublishedDataSetConfig_clear(&publishedDataSet->config);
-    UA_DataSetMetaDataType_clear(&publishedDataSet->dataSetMetaData);
-    UA_PubSubComponentHead_clear(&publishedDataSet->head);
 }
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
@@ -313,7 +271,7 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
 }
 
 UA_DataSetFieldResult
-UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
+UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
                        const UA_DataSetFieldConfig *fieldConfig,
                        UA_NodeId *fieldIdentifier) {
     UA_DataSetFieldResult result;
@@ -324,11 +282,14 @@ UA_DataSetField_create(UA_Server *server, const UA_NodeId publishedDataSet,
     }
 
     UA_PublishedDataSet *currDS =
-        UA_PublishedDataSet_find(server, publishedDataSet);
+        UA_PublishedDataSet_find(psm, publishedDataSet);
     if(!currDS) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
     }
+
+    /* If currDS was found, psm != NULL */
+    UA_Server *server = psm->sc.server;
 
     if(currDS->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, currDS,
@@ -426,22 +387,29 @@ UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
                           UA_NodeId *fieldIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_DataSetFieldResult res =
-        UA_DataSetField_create(server, publishedDataSet, fieldConfig, fieldIdentifier);
+        UA_DataSetField_create(getPSM(server), publishedDataSet, fieldConfig, fieldIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_DataSetFieldResult
-UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
+UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
     UA_DataSetFieldResult result;
     memset(&result, 0, sizeof(UA_DataSetFieldResult));
 
+    if(!currentField) {
+        result.result = UA_STATUSCODE_BADNOTFOUND;
+        return result;
+    }
+
     UA_PublishedDataSet *pds =
-        UA_PublishedDataSet_find(server, currentField->publishedDataSet);
+        UA_PublishedDataSet_find(psm, currentField->publishedDataSet);
     if(!pds) {
         result.result = UA_STATUSCODE_BADNOTFOUND;
         return result;
     }
+
+    UA_Server *server = psm->sc.server;
 
     if(currentField->configurationFrozen) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
@@ -522,15 +490,9 @@ UA_DataSetField_remove(UA_Server *server, UA_DataSetField *currentField) {
 UA_DataSetFieldResult
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetFieldResult res;
-    memset(&res, 0, sizeof(UA_DataSetFieldResult));
-    UA_DataSetField *field = UA_DataSetField_find(server, dsf);
-    if(!field) {
-        res.result = UA_STATUSCODE_BADNOTFOUND;
-        UA_UNLOCK(&server->serviceMutex);
-        return res;
-    }
-    res = UA_DataSetField_remove(server, field);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetField *field = UA_DataSetField_find(psm, dsf);
+    UA_DataSetFieldResult res = UA_DataSetField_remove(psm, field);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -552,25 +514,22 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
 }
 
 UA_StatusCode
-UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsf,
+UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsfId,
                                 UA_DataSetFieldConfig *config) {
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetField *currentDataSetField = UA_DataSetField_find(server, dsf);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(currentDataSetField)
-        res = UA_DataSetFieldConfig_copy(&currentDataSetField->config, config);
+    UA_DataSetField *dsf = UA_DataSetField_find(getPSM(server), dsfId);
+    UA_StatusCode res = (dsf) ?
+        UA_DataSetFieldConfig_copy(&dsf->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_DataSetField *
-UA_DataSetField_find(UA_Server *server, UA_NodeId id) {
-    UA_PubSubManager *psm = getPSM(server);
+UA_DataSetField_find(UA_PubSubManager *psm, UA_NodeId id) {
     if(!psm)
         return NULL;
-
     UA_PublishedDataSet *tmpPDS;
     TAILQ_FOREACH(tmpPDS, &psm->publishedDataSets, listEntry) {
         UA_DataSetField *tmpField;
@@ -619,12 +578,18 @@ UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
 }
 
 UA_AddPublishedDataSetResult
-UA_PublishedDataSet_create(UA_Server *server,
+UA_PublishedDataSet_create(UA_PubSubManager *psm,
                            const UA_PublishedDataSetConfig *publishedDataSetConfig,
                            UA_NodeId *pdsIdentifier) {
+    UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
+    if(!psm) {
+        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        return result;
+    }
+
+    UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_AddPublishedDataSetResult result = {UA_STATUSCODE_BADINVALIDARGUMENT, 0, NULL, {0, 0}};
     if(!publishedDataSetConfig){
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. No config passed in.");
@@ -644,17 +609,11 @@ UA_PublishedDataSet_create(UA_Server *server,
         return result;
     }
 
-    if(UA_PublishedDataSet_findByName(server, publishedDataSetConfig->name)) {
+    if(UA_PublishedDataSet_findByName(psm, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
-        return result;
-    }
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
     }
 
@@ -756,22 +715,19 @@ UA_Server_addPublishedDataSet(UA_Server *server,
                               UA_NodeId *pdsIdentifier) {
     UA_LOCK(&server->serviceMutex);
     UA_AddPublishedDataSetResult res =
-        UA_PublishedDataSet_create(server, publishedDataSetConfig, pdsIdentifier);
+        UA_PublishedDataSet_create(getPSM(server), publishedDataSetConfig, pdsIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_StatusCode
-UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedDataSet) {
-    if(publishedDataSet->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, publishedDataSet,
+UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
+    UA_Server *server = psm->sc.server;
+    if(pds->configurationFreezeCounter > 0) {
+        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
                               "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Search for referenced writers -> delete this writers. (Standard: writer
      * must be connected with PDS) */
@@ -781,35 +737,57 @@ UA_PublishedDataSet_remove(UA_Server *server, UA_PublishedDataSet *publishedData
         LIST_FOREACH(wg, &conn->writerGroups, listEntry) {
             UA_DataSetWriter *dsw, *tmpWriter;
             LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, tmpWriter) {
-                if(dsw->connectedDataSet == publishedDataSet)
+                if(dsw->connectedDataSet == pds)
                     UA_DataSetWriter_remove(server, dsw);
             }
         }
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, publishedDataSet->head.identifier, true);
+    deleteNode(server, pds->head.identifier, true);
 #endif
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, publishedDataSet, "DataSet deleted");
+    UA_LOG_INFO_PUBSUB(server->config.logging, pds, "DataSet deleted");
 
-    TAILQ_REMOVE(&psm->publishedDataSets, publishedDataSet, listEntry);
+    /* Unlink from the server */
+    TAILQ_REMOVE(&psm->publishedDataSets, pds, listEntry);
     psm->publishedDataSetsSize--;
-    UA_PublishedDataSet_clear(server, publishedDataSet);
-    UA_free(publishedDataSet);
+
+    /* Clean up the PublishedDataSet */
+    UA_DataSetField *field, *tmpField;
+    TAILQ_FOREACH_SAFE(field, &pds->fields, listEntry, tmpField) {
+        /* Code in this block is a duplication of similar code in UA_DataSetField_remove, but
+         * this is intentional. We don't want to call UA_DataSetField_remove here as that
+         * function regenerates DataSetMetaData, which is not necessary if we want to
+         * clear the whole PDS anyway. */
+        if(field->configurationFrozen) {
+            UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                                  "Clearing a frozen field.");
+        }
+        field->fieldMetaData.arrayDimensions = NULL;
+        field->fieldMetaData.properties = NULL;
+        field->fieldMetaData.name = UA_STRING_NULL;
+        field->fieldMetaData.description.locale = UA_STRING_NULL;
+        field->fieldMetaData.description.text = UA_STRING_NULL;
+        UA_DataSetField_clear(field);
+        TAILQ_REMOVE(&pds->fields, field, listEntry);
+        UA_free(field);
+    }
+    UA_PublishedDataSetConfig_clear(&pds->config);
+    UA_DataSetMetaDataType_clear(&pds->dataSetMetaData);
+    UA_PubSubComponentHead_clear(&pds->head);
+    UA_free(pds);
 
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pds) {
+UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId) {
     UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *currentPDS = UA_PublishedDataSet_find(server, pds);
-    if(!currentPDS) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_StatusCode res = UA_PublishedDataSet_remove(server, currentPDS);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_PublishedDataSet_remove(psm, pds) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
