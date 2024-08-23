@@ -374,7 +374,8 @@ addDataSetWriterWithPdsReference(UA_Server *server, UA_NodeId writerGroupIdent,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t pds = 0; pds < pdsCount && res == UA_STATUSCODE_GOOD; pds++) {
-        res = getPublishedDataSetConfig(server, pdsIdent[pds], &pdsConfig);
+        UA_PublishedDataSet *ds = UA_PublishedDataSet_find(getPSM(server), pdsIdent[pds]);
+        res = (ds) ? UA_PublishedDataSetConfig_copy(&ds->config, &pdsConfig) : UA_STATUSCODE_BADNOTFOUND;
         /* members of pdsConfig must be deleted manually */
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -642,7 +643,7 @@ createPublishedDataSet(UA_Server *server,
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    res = UA_PublishedDataSet_create(server, &config, pdsIdent).addResult;
+    res = UA_PublishedDataSet_create(getPSM(server), &config, pdsIdent).addResult;
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "[UA_PubSubManager_createPublishedDataSet] "
@@ -689,7 +690,7 @@ addDataSetFieldVariables(UA_Server *server, const UA_NodeId *pdsIdent,
         fc.field.variable.publishParameters = pdItems->publishedData[i];
 
         UA_NodeId fieldIdent;
-        UA_StatusCode res = UA_DataSetField_create(server, *pdsIdent, &fc, &fieldIdent).result;
+        UA_StatusCode res = UA_DataSetField_create(getPSM(server), *pdsIdent, &fc, &fieldIdent).result;
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                          "[UA_PubSubManager_addDataSetFieldVariables] "

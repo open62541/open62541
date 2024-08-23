@@ -212,7 +212,7 @@ UA_DataSetWriter_create(UA_Server *server,
     UA_PublishedDataSet *pds = NULL;
 
     if(!UA_NodeId_isNull(&dataSet)) {
-        pds = UA_PublishedDataSet_find(server, dataSet);
+        pds = UA_PublishedDataSet_find(psm, dataSet);
         if(!pds)
             return UA_STATUSCODE_BADNOTFOUND;
 

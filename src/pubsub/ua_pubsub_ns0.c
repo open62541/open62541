@@ -166,7 +166,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_PUBLISHEDDATAITEMSTYPE: {
-        publishedDataSet = UA_PublishedDataSet_find(server, *myNodeId);
+        publishedDataSet = UA_PublishedDataSet_find(psm, *myNodeId);
         if(!publishedDataSet)
             return;
         switch(nodeContext->elementClassiefier) {
