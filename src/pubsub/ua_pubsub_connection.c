@@ -475,9 +475,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
         }
     }
 
-    /* Update Reader and WriterGroups. This will set them to PAUSED (if
-     * they were operational) as the Connection is now
-     * non-operational. */
+    /* Update Reader and WriterGroups state. This will set them to PAUSED (if
+     * they were operational) as the Connection is now non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
         UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
@@ -486,6 +485,11 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
         UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
     }
+
+    /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
+     * the last socket has closed. */
+    UA_PubSubManager_setState(psm, psm->sc.state);
+
     return ret;
 }
 

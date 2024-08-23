@@ -886,10 +886,15 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         }
     }
 
+    /* Update the attached DataSetWriters */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
         UA_DataSetWriter_setPubSubState(server, writer, writer->head.state);
     }
+
+    /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
+     * the last socket has closed. */
+    UA_PubSubManager_setState(psm, psm->sc.state);
 
     return ret;
 }

@@ -428,6 +428,10 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                                         UA_STATUSCODE_GOOD);
     }
 
+    /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
+     * the last socket has closed. */
+    UA_PubSubManager_setState(psm, psm->sc.state);
+
     return ret;
 }
 
