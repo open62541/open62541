@@ -84,15 +84,22 @@ getCM(UA_EventLoop *el, UA_String protocol) {
 }
 
 static void
-UA_PubSubConnection_removeConnection(UA_PubSubConnection *c,
+UA_PubSubConnection_removeConnection(UA_PubSubManager *psm,
+                                     UA_PubSubConnection *c,
                                      uintptr_t connectionId) {
     if(c->sendChannel == connectionId) {
+        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
+                           "Detach send-connection with id %u",
+                           (unsigned)connectionId);
         c->sendChannel = 0;
         return;
     }
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] != connectionId)
             continue;
+        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
+                           "Detach receive-connection with id %u",
+                           (unsigned)connectionId);
         c->recvChannels[i] = 0;
         c->recvChannelsSize--;
         return;
@@ -100,16 +107,21 @@ UA_PubSubConnection_removeConnection(UA_PubSubConnection *c,
 }
 
 static UA_StatusCode
-UA_PubSubConnection_addSendConnection(UA_PubSubConnection *c,
+UA_PubSubConnection_addSendConnection(UA_PubSubManager *psm,
+                                      UA_PubSubConnection *c,
                                       uintptr_t connectionId) {
     if(c->sendChannel != 0 && c->sendChannel != connectionId)
         return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
+                       "Attach send-connection with id %u",
+                       (unsigned)connectionId);
     c->sendChannel = connectionId;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-UA_PubSubConnection_addRecvConnection(UA_PubSubConnection *c,
+UA_PubSubConnection_addRecvConnection(UA_PubSubManager *psm,
+                                      UA_PubSubConnection *c,
                                       uintptr_t connectionId) {
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] == connectionId)
@@ -120,6 +132,9 @@ UA_PubSubConnection_addRecvConnection(UA_PubSubConnection *c,
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] != 0)
             continue;
+        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
+                           "Attach receive-connection with id %u",
+                           (unsigned)connectionId);
         c->recvChannels[i] = connectionId;
         c->recvChannelsSize++;
         break;
@@ -158,7 +173,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
      * from that connection. Clean up the SecureChannel in the client. */
     if(state == UA_CONNECTIONSTATE_CLOSING) {
         /* Reset the connection identifiers */
-        UA_PubSubConnection_removeConnection(psc, connectionId);
+        UA_PubSubConnection_removeConnection(psm, psc, connectionId);
 
         /* PSC marked for deletion and the last EventLoop connection has closed */
         if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
@@ -184,8 +199,8 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Store the connectionId (if a new connection) */
     UA_StatusCode res = (recv) ?
-        UA_PubSubConnection_addRecvConnection(psc, connectionId) :
-        UA_PubSubConnection_addSendConnection(psc, connectionId);
+        UA_PubSubConnection_addRecvConnection(psm, psc, connectionId) :
+        UA_PubSubConnection_addSendConnection(psm, psc, connectionId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, psc,
                               "No more space for an additional EventLoop connection");
