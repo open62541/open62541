@@ -225,7 +225,6 @@ stopServerComponent(void *_, UA_ServerComponent *sc) {
 /* ZIP_ITER returns NULL only if all components are stopped */
 static void *
 checkServerComponent(void *_, UA_ServerComponent *sc) {
-    sc->stop(sc);
     return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
 }
 
