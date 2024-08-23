@@ -204,8 +204,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }    
     case UA_NS0ID_STANDALONESUBSCRIBEDDATASETREFDATATYPE: {
-        UA_SubscribedDataSet *sds =
-            UA_SubscribedDataSet_find(server, *myNodeId);
+        UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, *myNodeId);
         switch(nodeContext->elementClassiefier) {
             case UA_NS0ID_STANDALONESUBSCRIBEDDATASETTYPE_ISCONNECTED: {
                 isConnected = (sds->connectedReader != NULL);

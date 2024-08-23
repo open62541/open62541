@@ -1940,6 +1940,7 @@ addTargetVariable(void) {
 }
 
 START_TEST(ValidDataSetConfigurationAddAndRemove) {
+    UA_PubSubManager *psm = getPSM(server);
     addTargetVariable();
     UA_SubscribedDataSetConfig cfg;
     UA_NodeId ret;
@@ -1971,10 +1972,10 @@ START_TEST(ValidDataSetConfigurationAddAndRemove) {
     UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_SubscribedDataSet *ssds = NULL;
-    ssds = UA_SubscribedDataSet_find(server, ret);
+    ssds = UA_SubscribedDataSet_find(psm, ret);
     ck_assert_ptr_ne(ssds, NULL);
     ssds = NULL;
-    ssds = UA_SubscribedDataSet_findByName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findByName(psm, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_ne(ssds, NULL);
     UA_SubscribedDataSetConfig ssds_config;
     memset(&ssds_config, 0, sizeof(UA_SubscribedDataSetConfig));
@@ -1983,14 +1984,15 @@ START_TEST(ValidDataSetConfigurationAddAndRemove) {
     UA_SubscribedDataSetConfig_clear(&ssds_config);
     retVal = UA_Server_removeSubscribedDataSet(server, ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    ssds = UA_SubscribedDataSet_findByName(server, UA_STRING("DemoStandaloneSDS"));
+    ssds = UA_SubscribedDataSet_findByName(psm, UA_STRING("DemoStandaloneSDS"));
     ck_assert_ptr_eq(ssds, NULL);
-    ssds = UA_SubscribedDataSet_find(server, ret);
+    ssds = UA_SubscribedDataSet_find(psm, ret);
     ck_assert_ptr_eq(ssds, NULL);
 
 } END_TEST
 
 START_TEST(AddAndRemoveReaderUsingDataSet) {
+    UA_PubSubManager *psm = getPSM(server);
     addTargetVariable();
     UA_SubscribedDataSetConfig cfg;
     UA_NodeId ret;
@@ -2022,7 +2024,7 @@ START_TEST(AddAndRemoveReaderUsingDataSet) {
     UA_StatusCode retVal = UA_Server_addSubscribedDataSet(server, &cfg, &ret);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_SubscribedDataSet *ssds = NULL;
-    ssds = UA_SubscribedDataSet_find(server, ret);
+    ssds = UA_SubscribedDataSet_find(psm, ret);
     ck_assert_ptr_ne(ssds, NULL);
     /* Reader Group */
     UA_ReaderGroupConfig readerGroupConfig;

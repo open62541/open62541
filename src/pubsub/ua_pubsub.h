@@ -207,16 +207,13 @@ UA_SubscribedDataSetConfig_copy(const UA_SubscribedDataSetConfig *src,
                                 UA_SubscribedDataSetConfig *dst);
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_find(UA_Server *server, const UA_NodeId id);
+UA_SubscribedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_SubscribedDataSet *
-UA_SubscribedDataSet_findByName(UA_Server *server, const UA_String name);
+UA_SubscribedDataSet_findByName(UA_PubSubManager *psm, const UA_String name);
 
 void
-UA_SubscribedDataSet_clear(UA_Server *server, UA_SubscribedDataSet *sds);
-
-void
-UA_SubscribedDataSet_remove(UA_Server *server, UA_SubscribedDataSet *sds);
+UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds);
 
 /**********************************************/
 /*               Connection                   */

@@ -168,7 +168,7 @@ UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
 
     UA_String sdsName = newDataSetReader->config.linkedStandaloneSubscribedDataSetName;
     if(!UA_String_isEmpty(&sdsName)) {
-        UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findByName(server, sdsName);
+        UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findByName(psm, sdsName);
         if(sds) {
             if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
                 UA_LOG_ERROR_PUBSUB(server->config.logging, newDataSetReader,
@@ -275,7 +275,8 @@ UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr) {
     /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
     if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
         UA_SubscribedDataSet *sds =
-            UA_SubscribedDataSet_findByName(server, dsr->config.linkedStandaloneSubscribedDataSetName);
+            UA_SubscribedDataSet_findByName(getPSM(server),
+                                            dsr->config.linkedStandaloneSubscribedDataSetName);
         if(sds)
             sds->connectedReader = NULL;
     }
