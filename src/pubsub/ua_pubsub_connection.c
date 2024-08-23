@@ -124,12 +124,7 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;;
-    }
-    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connection);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(getPSM(server), connection);
     UA_StatusCode res = (c) ?
         UA_PubSubConnectionConfig_copy(&c->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
@@ -139,8 +134,10 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connectio
 UA_PubSubConnection *
 UA_PubSubConnection_find(UA_PubSubManager *psm,
                          const UA_NodeId id) {
+    if(!psm)
+        return NULL;
     UA_PubSubConnection *c;
-    TAILQ_FOREACH(c, &psm->connections, listEntry){
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
         if(UA_NodeId_equal(&id, &c->head.identifier))
             break;
     }
@@ -314,10 +311,6 @@ UA_StatusCode
 UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
     UA_LOCK(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
     UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connection);
     if(!c) {
         UA_UNLOCK(&server->serviceMutex);
