@@ -447,11 +447,8 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     c->json = profile->json;
 
     /* Some protocols (such as MQTT) don't connect at this level */
-    if(!profile->connect)
-        return UA_STATUSCODE_GOOD;
-
-    /* The state gets set to OPERATIONAL in the netowrk callback */
-    return profile->connect(psm, c, validate);
+    return (profile->connect) ?
+        profile->connect(psm, c, validate) : UA_STATUSCODE_GOOD;
 }
 
 /***************/
