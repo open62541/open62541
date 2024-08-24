@@ -767,7 +767,7 @@ UA_PubSubManager_generateUniqueNodeId(UA_PubSubManager *psm, UA_NodeId *nodeId);
 #endif
 
 UA_Guid
-UA_PubSubManager_generateUniqueGuid(UA_Server *server);
+UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm);
 
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);

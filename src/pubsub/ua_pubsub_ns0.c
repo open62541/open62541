@@ -2371,8 +2371,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
                                   size_t outputSize, UA_Variant *output) {
     if(inputSize == 1) {
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
-        UA_StatusCode res = UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
-        return res;
+        return UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
     } else if(inputSize > 1) {
         return UA_STATUSCODE_BADTOOMANYARGUMENTS;
     } else {

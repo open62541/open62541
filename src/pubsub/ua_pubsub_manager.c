@@ -307,13 +307,13 @@ UA_PubSubManager_generateUniqueNodeId(UA_PubSubManager *psm, UA_NodeId *nodeId) 
 #endif
 
 UA_Guid
-UA_PubSubManager_generateUniqueGuid(UA_Server *server) {
+UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm) {
     while(true) {
         UA_NodeId testId = UA_NODEID_GUID(1, UA_Guid_random());
-        const UA_Node *testNode = UA_NODESTORE_GET(server, &testId);
+        const UA_Node *testNode = UA_NODESTORE_GET(psm->sc.server, &testId);
         if(!testNode)
             return testId.identifier.guid;
-        UA_NODESTORE_RELEASE(server, testNode);
+        UA_NODESTORE_RELEASE(psm->sc.server, testNode);
     }
 }
 

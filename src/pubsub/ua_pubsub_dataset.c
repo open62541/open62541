@@ -139,13 +139,13 @@ UA_PublishedDataSetConfig_clear(UA_PublishedDataSetConfig *pdsConfig) {
 
 /* The fieldMetaData variable has to be cleaned up external in case of an error */
 static UA_StatusCode
-generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
+generateFieldMetaData(UA_PubSubManager *psm, UA_PublishedDataSet *pds,
                       UA_DataSetField *field, UA_FieldMetaData *fieldMetaData) {
     if(field->config.dataSetFieldType != UA_PUBSUB_DATASETFIELD_VARIABLE)
         return UA_STATUSCODE_BADNOTSUPPORTED;
 
     /* Set the field identifier */
-    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(server);
+    fieldMetaData->dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
 
     /* Set the description */
     fieldMetaData->description = UA_LOCALIZEDTEXT_ALLOC("", "");
@@ -185,10 +185,10 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     const UA_PublishedVariableDataType *pp = &var->publishParameters;
     UA_Variant value;
     UA_Variant_init(&value);
-    res = readWithReadValue(server, &pp->publishedVariable,
+    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_ARRAYDIMENSIONS, &value);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "PubSub meta data generation: Reading the array dimensions failed");
         return res;
     }
@@ -206,10 +206,10 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     UA_Variant_clear(&value);
 
     /* Set the DataType */
-    res = readWithReadValue(server, &pp->publishedVariable,
+    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_DATATYPE, &fieldMetaData->dataType);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "PubSub meta data generation: Reading the datatype failed");
         return res;
     }
@@ -217,9 +217,9 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
     if(!UA_NodeId_isNull(&fieldMetaData->dataType)) {
         const UA_DataType *currentDataType =
             UA_findDataTypeWithCustom(&fieldMetaData->dataType,
-                                      server->config.customDataTypes);
+                                      psm->sc.server->config.customDataTypes);
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-        UA_LOG_DEBUG_PUBSUB(server->config.logging, pds,
+        UA_LOG_DEBUG_PUBSUB(psm->logging, pds,
                             "MetaData creation: Found DataType %s",
                             currentDataType->typeName);
 #endif
@@ -233,21 +233,21 @@ generateFieldMetaData(UA_Server *server, UA_PublishedDataSet *pds,
             currentDataType->typeKind == UA_DATATYPEKIND_LOCALIZEDTEXT) {
                 fieldMetaData->maxStringLength = field->config.field.variable.maxStringLength;
             } else {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                                       "PubSub meta data generation: MaxStringLength with incompatible DataType configured.");
             }
         }
     } else {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "PubSub meta data generation: DataType is UA_NODEID_NULL");
     }
 
     /* Set the ValueRank */
     UA_Int32 valueRank;
-    res = readWithReadValue(server, &pp->publishedVariable,
+    res = readWithReadValue(psm->sc.server, &pp->publishedVariable,
                             UA_ATTRIBUTEID_VALUERANK, &valueRank);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "PubSub meta data generation: Reading the value rank failed");
         return res;
     }
@@ -325,7 +325,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     /* Initialize the field metadata. Also generates a FieldId */
     UA_FieldMetaData fmd;
     UA_FieldMetaData_init(&fmd);
-    result.result = generateFieldMetaData(server, currDS, newField, &fmd);
+    result.result = generateFieldMetaData(psm, currDS, newField, &fmd);
     if(result.result != UA_STATUSCODE_GOOD) {
         UA_FieldMetaData_clear(&fmd);
         UA_DataSetFieldConfig_clear(&newField->config);
@@ -463,7 +463,7 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
         UA_DataSetField *tmpDSF;
         size_t counter = 0;
         TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
-            result.result = generateFieldMetaData(server, pds, tmpDSF, &fieldMetaData[counter]);
+            result.result = generateFieldMetaData(psm, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
                 UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
