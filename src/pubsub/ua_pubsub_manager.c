@@ -472,6 +472,9 @@ UA_PubSubManager_new(UA_Server *server) {
     psm->sc.stop = UA_PubSubManager_stop;
     psm->sc.clear = (UA_StatusCode (*)(UA_ServerComponent *))UA_PubSubManager_clear;
 
+    /* Set the logging shortcut */
+    psm->logging = server->config.logging;
+
     /* TODO: Using the Mac address to generate the defaultPublisherId.
      * In the future, this can be retrieved from the Eventloop. */
     psm->defaultPublisherId = generateRandomUInt64();

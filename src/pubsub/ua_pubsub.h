@@ -710,6 +710,8 @@ typedef ZIP_HEAD(UA_ReserveIdTree, UA_ReserveId) UA_ReserveIdTree;
 struct UA_PubSubManager {
     UA_ServerComponent sc;
 
+    UA_Logger *logging; /* shortcut to sc->server.logging */
+
     UA_UInt64 defaultPublisherId;
     /* Connections and PublishedDataSets can exist alone (own lifecycle) -> top
      * level components */
