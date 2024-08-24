@@ -378,7 +378,7 @@ addDataSetWriterWithPdsReference(UA_PubSubManager *psm, UA_NodeId writerGroupIde
                         (const char *)pdsConfig.name.data,
                         dsWriterConfig->dataSetName.length)) {
             /* DSWriter will only be created, if a matching PDS is found: */
-            res = UA_DataSetWriter_create(psm->sc.server, writerGroupIdent, pdsIdent[pds],
+            res = UA_DataSetWriter_create(psm, writerGroupIdent, pdsIdent[pds],
                                           dsWriterConfig, &dataSetWriterIdent);
             if(res != UA_STATUSCODE_GOOD) {
                 UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,

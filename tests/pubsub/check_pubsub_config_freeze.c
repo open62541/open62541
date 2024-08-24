@@ -93,7 +93,7 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
     //get internal PubSubConnection Pointer
@@ -165,7 +165,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert(dataSetWriter != NULL);
 
         //get internal PubSubConnection Pointer
@@ -310,7 +310,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, dataSetWriter1);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);

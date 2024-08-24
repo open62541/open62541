@@ -738,7 +738,7 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
             UA_DataSetWriter *dsw, *tmpWriter;
             LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, tmpWriter) {
                 if(dsw->connectedDataSet == pds)
-                    UA_DataSetWriter_remove(server, dsw);
+                    UA_DataSetWriter_remove(psm, dsw);
             }
         }
     }

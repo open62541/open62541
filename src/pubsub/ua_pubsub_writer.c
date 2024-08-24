@@ -11,7 +11,6 @@
  */
 
 #include "ua_pubsub.h"
-#include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -43,10 +42,9 @@ UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
     if(!config)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(dsw)
-        res = UA_DataSetWriterConfig_copy(&dsw->config, config);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
+    UA_StatusCode res = (dsw) ?
+        UA_DataSetWriterConfig_copy(&dsw->config, config) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -57,31 +55,28 @@ UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
     if((server == NULL) || (state == NULL))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(getPSM(server), dswId);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;;
     if(dsw) {
         *state = dsw->head.state;
-    } else {
-        res = UA_STATUSCODE_BADNOTFOUND;
+        res = UA_STATUSCODE_GOOD;
     }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 UA_DataSetWriter *
-UA_DataSetWriter_find(UA_Server *server, const UA_NodeId id) {
-    UA_PubSubManager *psm = getPSM(server);
+UA_DataSetWriter_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
-
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &psm->connections, listEntry) {
-        UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &pubSubConnection->writerGroups, listEntry) {
-            UA_DataSetWriter *tmpWriter;
-            LIST_FOREACH(tmpWriter, &tmpWriterGroup->writers, listEntry) {
-                if(UA_NodeId_equal(&id, &tmpWriter->head.identifier))
-                    return tmpWriter;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                if(UA_NodeId_equal(&id, &dsw->head.identifier))
+                    return dsw;
             }
         }
     }
@@ -100,14 +95,11 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
 UA_StatusCode
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
-    if(!dsw) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    UA_StatusCode ret =
-        UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    UA_StatusCode ret = (dsw) ?
+        UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL) :
+        UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -115,20 +107,17 @@ UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
 UA_StatusCode
 UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
-    if(!dsw) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    UA_StatusCode ret =
-        UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_DISABLED);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    UA_StatusCode ret = (dsw) ?
+        UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED) :
+        UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
 
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
+UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
@@ -163,13 +152,13 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
 
     /* Inform application about state change */
     if(dsw->head.state != oldState) {
-        UA_ServerConfig *config = &server->config;
-        UA_LOG_INFO_PUBSUB(config->logging, dsw, "State change: %s -> %s",
+        UA_Server *server = psm->sc.server;
+        UA_LOG_INFO_PUBSUB(psm->logging, dsw, "State change: %s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsw->head.state));
-        if(config->pubSubConfig.stateChangeCallback != 0) {
+        if(server->config.pubSubConfig.stateChangeCallback != 0) {
             UA_UNLOCK(&server->serviceMutex);
-            config->pubSubConfig.
+            server->config.pubSubConfig.
                 stateChangeCallback(server, dsw->head.identifier, dsw->head.state, res);
             UA_LOCK(&server->serviceMutex);
         }
@@ -179,17 +168,13 @@ UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
 }
 
 UA_StatusCode
-UA_DataSetWriter_create(UA_Server *server,
+UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
                         const UA_DataSetWriterConfig *dataSetWriterConfig,
                         UA_NodeId *writerIdentifier) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
     if(!dataSetWriterConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
-
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     if(!wg)
@@ -197,14 +182,14 @@ UA_DataSetWriter_create(UA_Server *server,
 
     /* Make checks for a heartbeat */
     if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Adding DataSetWriter failed: DataSet can be null only for "
                               "a heartbeat in which case KeyFrameCount shall be 1");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     if(wg->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Adding DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -217,7 +202,7 @@ UA_DataSetWriter_create(UA_Server *server,
             return UA_STATUSCODE_BADNOTFOUND;
 
         if(pds->configurationFreezeCounter > 0) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+            UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                                   "Adding DataSetWriter failed: PublishedDataSet is frozen");
             return UA_STATUSCODE_BADCONFIGURATIONERROR;
         }
@@ -227,7 +212,7 @@ UA_DataSetWriter_create(UA_Server *server,
             TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
                 if(!tmpDSF->config.field.variable.rtValueSource.rtFieldSourceEnabled &&
                    !tmpDSF->config.field.variable.rtValueSource.rtInformationModelNode) {
-                    UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                    UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                                           "Adding DataSetWriter failed: "
                                           "Fields in PDS are not RT capable");
                     return UA_STATUSCODE_BADCONFIGURATIONERROR;
@@ -254,7 +239,7 @@ UA_DataSetWriter_create(UA_Server *server,
         newDataSetWriter->connectedDataSetVersion =
             pds->dataSetMetaData.configurationVersion;
 
-        if(server->config.pubSubConfig.enableDeltaFrames) {
+        if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
             /* Initialize the queue for the last values */
             if(pds->fieldSize > 0) {
                 newDataSetWriter->lastSamples = (UA_DataSetWriterSample*)
@@ -286,9 +271,9 @@ UA_DataSetWriter_create(UA_Server *server,
 
     /* Add to the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res |= addDataSetWriterRepresentation(server, newDataSetWriter);
+    res |= addDataSetWriterRepresentation(psm->sc.server, newDataSetWriter);
 #else
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
+    UA_PubSubManager_generateUniqueNodeId(psm,
                                           &newDataSetWriter->head.identifier);
 #endif
 
@@ -299,10 +284,10 @@ UA_DataSetWriter_create(UA_Server *server,
                 newDataSetWriter->head.identifier);
     newDataSetWriter->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, newDataSetWriter, "Writer created");
+    UA_LOG_INFO_PUBSUB(psm->logging, newDataSetWriter, "Writer created");
 
     /* Enable, depending on the state of the WriterGroup */
-    UA_DataSetWriter_setPubSubState(server, newDataSetWriter,
+    UA_DataSetWriter_setPubSubState(psm, newDataSetWriter,
                                     UA_PUBSUBSTATE_OPERATIONAL);
 
     if(writerIdentifier)
@@ -323,52 +308,50 @@ UA_Server_addDataSetWriter(UA_Server *server,
     }
     /* Delete the reserved IDs if the related session no longer exists. */
     UA_PubSubManager_freeIds(psm);
-    UA_StatusCode res = UA_DataSetWriter_create(server, writerGroup, dataSet,
+    UA_StatusCode res = UA_DataSetWriter_create(psm, writerGroup, dataSet,
                                                 dataSetWriterConfig, writerIdentifier);
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
 void
-UA_DataSetWriter_freezeConfiguration(UA_Server *server,
-                                     UA_DataSetWriter *dsw) {
-    UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(pds) { /* Skip for heartbeat writers */
-        pds->configurationFreezeCounter++;
-        UA_DataSetField *dsf;
-        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-            dsf->configurationFrozen = true;
-        }
-    }
+UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
     dsw->configurationFrozen = true;
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
+    if(!pds) /* Skip for heartbeat writers */
+        return;
+    pds->configurationFreezeCounter++;
+    UA_DataSetField *dsf;
+    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+        dsf->configurationFrozen = true;
+    }
 }
 
 void
-UA_DataSetWriter_unfreezeConfiguration(UA_Server *server,
-                                       UA_DataSetWriter *dsw) {
+UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
+    dsw->configurationFrozen = false;
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(pds) { /* Skip for heartbeat writers */
-        pds->configurationFreezeCounter--;
-        if(pds->configurationFreezeCounter == 0) {
-            UA_DataSetField *dsf;
-            TAILQ_FOREACH(dsf, &pds->fields, listEntry){
-                dsf->configurationFrozen = false;
-            }
+    if(!pds) /* Skip for heartbeat writers */
+        return;
+    pds->configurationFreezeCounter--;
+    if(pds->configurationFreezeCounter == 0) {
+        UA_DataSetField *dsf;
+        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
+            dsf->configurationFrozen = false;
         }
-        dsw->configurationFrozen = false;
     }
 }
 
 UA_StatusCode
-UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
+UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm) {
     /* No PublishedDataSet defined -> Heartbeat messages only */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds) {
-        res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
+        res = UA_DataSetWriter_generateDataSetMessage(psm, dsm, dsw);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                                   "PubSub-RT configuration fail: "
                                   "Heartbeat DataSetMessage creation failed");
         }
@@ -381,7 +364,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
     /* Promoted Fields not allowed if RT is enabled */
     if(wg->config.rtLevel > UA_PUBSUB_RT_NONE &&
        pds->promotedFieldsCount > 0) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                               "PubSub-RT configuration fail: "
                               "PDS contains promoted fields");
         return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -395,22 +378,22 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
 
         /* Check that the target is a VariableNode */
         const UA_VariableNode *rtNode = (const UA_VariableNode*)
-            UA_NODESTORE_GET(server, publishedVariable);
+            UA_NODESTORE_GET(psm->sc.server, publishedVariable);
         if(rtNode && rtNode->head.nodeClass != UA_NODECLASS_VARIABLE) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, dsw,
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
                                 "PubSub-RT configuration fail: "
                                 "PDS points to a node that is not a variable");
-            UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+            UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *)rtNode);
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
-        UA_NODESTORE_RELEASE(server, (const UA_Node *)rtNode);
+        UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *)rtNode);
 
         /* TODO: Get the External Value Source from the node instead of from the config */
 
         /* If direct-value-access is enabled, the pointers need to be set */
         if(wg->config.rtLevel & UA_PUBSUB_RT_DIRECT_VALUE_ACCESS &&
            !dsf->config.field.variable.rtValueSource.rtFieldSourceEnabled) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, dsw,
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsw,
                                 "PubSub-RT configuration fail: PDS published-variable "
                                 "does not have an external data source");
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -423,7 +406,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                 UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                                 &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
                dsf->fieldMetaData.maxStringLength == 0) {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+                UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                                       "PubSub-RT configuration fail: "
                                       "PDS contains String/ByteString with dynamic length");
                 return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -431,7 +414,7 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
                           UA_findDataType(&dsf->fieldMetaData.dataType)) &&
                       !UA_NodeId_equal(&dsf->fieldMetaData.dataType,
                                        &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+                UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                                       "PubSub-RT configuration fail: "
                                       "PDS contains variable with dynamic size");
                 return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -440,9 +423,9 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
     }
 
     /* Generate the DSM */
-    res = UA_DataSetWriter_generateDataSetMessage(server, dsm, dsw);
+    res = UA_DataSetWriter_generateDataSetMessage(psm, dsm, dsw);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                               "PubSub-RT configuration fail: "
                               "DataSetMessage buffering failed");
     }
@@ -451,19 +434,19 @@ UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
 }
 
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     /* Frozen? */
     if(dsw->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                               "Remove DataSetWriter failed: WriterGroup is frozen");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, dsw->head.identifier, true);
+    deleteNode(psm->sc.server, dsw->head.identifier, true);
 #endif
 
     /* Remove DataSetWriter from group */
@@ -471,11 +454,11 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw) {
     LIST_REMOVE(dsw, listEntry);
     linkedWriterGroup->writersCount--;
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, dsw, "Writer deleted");
+    UA_LOG_INFO_PUBSUB(psm->logging, dsw, "Writer deleted");
 
     UA_DataSetWriterConfig_clear(&dsw->config);
 
-    if(server->config.pubSubConfig.enableDeltaFrames) {
+    if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
         /* Delete lastSamples store */
         for(size_t i = 0; i < dsw->lastSamplesCount; i++) {
             UA_DataValue_clear(&dsw->lastSamples[i].value);
@@ -493,12 +476,10 @@ UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw) {
 UA_StatusCode
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId) {
     UA_LOCK(&server->serviceMutex);
-    UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dswId);
-    if(!dsw) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_StatusCode res = UA_DataSetWriter_remove(server, dsw);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dswId);
+    UA_StatusCode res = (dsw) ?
+        UA_DataSetWriter_remove(psm, dsw) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -561,7 +542,7 @@ valueChangedVariant(UA_Variant *oldValue, UA_Variant *newValue) {
 }
 
 static UA_StatusCode
-UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
+UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
                                                UA_DataSetMessage *dataSetMessage,
                                                UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
@@ -599,7 +580,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 
         /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
-        UA_PubSubDataSetField_sampleValue(server, dsf, dfv);
+        UA_PubSubDataSetField_sampleValue(psm->sc.server, dsf, dfv);
 
         /* Deactivate statuscode? */
         if(((u64)dsw->config.dataSetFieldContentMask &
@@ -620,7 +601,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
             (u64)UA_DATASETFIELDCONTENTMASK_SERVERPICOSECONDS) == 0)
             dfv->hasServerPicoseconds = false;
 
-        if(server->config.pubSubConfig.enableDeltaFrames) {
+        if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
             /* Update lastValue store */
             UA_DataValue_clear(&dsw->lastSamples[counter].value);
             UA_DataValue_copy(dfv, &dsw->lastSamples[counter].value);
@@ -633,7 +614,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_Server *server,
 /* the input message is already initialized and that the method 
  * must not be called twice for the same message */
 static UA_StatusCode
-UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
+UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
                                                  UA_DataSetMessage *dsm,
                                                  UA_DataSetWriter *dsw) {
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
@@ -652,7 +633,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
         /* Sample the value */
         UA_DataValue value;
         UA_DataValue_init(&value);
-        UA_PubSubDataSetField_sampleValue(server, dsf, &value);
+        UA_PubSubDataSetField_sampleValue(psm->sc.server, dsf, &value);
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
@@ -720,14 +701,14 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_Server *server,
 
 /* Generate a DataSetMessage for the given writer. */
 UA_StatusCode
-UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
+UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
                                         UA_DataSetMessage *dataSetMessage,
                                         UA_DataSetWriter *dsw) {
     /* Heartbeat message if no pds is connected */
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
 
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm->sc.server, wg->linkedConnection);
 
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));
@@ -771,7 +752,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         /* Sanity-test the configuration */
         if(dsm->networkMessageNumber != 0 || dsm->dataSetOffset != 0 ||
            dsm->configuredSize != 0) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, dsw,
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
                                   "Static DSM configuration not supported, using defaults");
             dsm->networkMessageNumber = 0;
             dsm->dataSetOffset = 0;
@@ -887,7 +868,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
 
     /* JSON does not differ between deltaframes and keyframes, only keyframes
      * are currently used. */
-    if(dsm && server->config.pubSubConfig.enableDeltaFrames) {
+    if(dsm && psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
         /* Check if the PublishedDataSet version has changed -> if yes flush the
          * lastValue store and send a KeyFrame */
         if(dsw->connectedDataSetVersion.majorVersion !=
@@ -911,8 +892,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
 
             dsw->connectedDataSetVersion =
                 pds->dataSetMetaData.configurationVersion;
-            UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
-                                                           dsw);
+            UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
             dsw->deltaFrameCounter = 0;
             return UA_STATUSCODE_GOOD;
         }
@@ -922,8 +902,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
          * field. */
         if(pds->fieldSize > 1 && dsw->deltaFrameCounter > 0 &&
            dsw->deltaFrameCounter <= dsw->config.keyFrameCount) {
-            UA_PubSubDataSetWriter_generateDeltaFrameMessage(server, dataSetMessage,
-                                                             dsw);
+            UA_PubSubDataSetWriter_generateDeltaFrameMessage(psm, dataSetMessage, dsw);
             dsw->deltaFrameCounter++;
             return UA_STATUSCODE_GOOD;
         }
@@ -931,8 +910,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         dsw->deltaFrameCounter = 1;
     }
 
-    return UA_PubSubDataSetWriter_generateKeyFrameMessage(server, dataSetMessage,
-                                                          dsw);
+    return UA_PubSubDataSetWriter_generateKeyFrameMessage(psm, dataSetMessage, dsw);
 }
 
 #endif /* UA_ENABLE_PUBSUB */
