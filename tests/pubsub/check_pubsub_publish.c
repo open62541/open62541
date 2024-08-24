@@ -198,9 +198,9 @@ START_TEST(AddDataSetWriterWithValidConfiguration){
     UA_NodeId localDataSetWriter;
     retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &localDataSetWriter);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    UA_DataSetWriter *dsw1 = UA_DataSetWriter_find(server, localDataSetWriter);
-    ck_assert_ptr_ne(dsw1, NULL);
     UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetWriter *dsw1 = UA_DataSetWriter_find(psm, localDataSetWriter);
+    ck_assert_ptr_ne(dsw1, NULL);
     UA_WriterGroup *wg1 = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert_ptr_ne(wg1, NULL);
     ck_assert_uint_eq(wg1->writersCount, 1);
@@ -528,7 +528,7 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         UA_PubSubManager *psm = getPSM(server);
         UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
         wg->config.maxEncapsulatedDataSetMessageCount = 3;
-        UA_DataSetWriter *dsw = UA_DataSetWriter_find(server, dataSetWriter1);
+        UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
         dsw->config.keyFrameCount = 3;
 
         UA_WriterGroup_publishCallback(server, wg);

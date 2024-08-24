@@ -279,7 +279,7 @@ UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg) {
 
     UA_DataSetWriter *dsw, *dsw_tmp;
     LIST_FOREACH_SAFE(dsw, &wg->writers, listEntry, dsw_tmp) {
-        UA_DataSetWriter_remove(server, dsw);
+        UA_DataSetWriter_remove(psm, dsw);
     }
 
     if(wg->config.securityPolicy && wg->securityPolicyContext) {
@@ -346,7 +346,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     /* Freeze the DataSetWriter */
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_DataSetWriter_freezeConfiguration(server, dsw);
+        UA_DataSetWriter_freezeConfiguration(dsw);
     }
 
     /* Offset table enabled? */
@@ -377,7 +377,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     size_t dsmCount = 0;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
-        res = UA_DataSetWriter_prepareDataSet(server, dsw, &dsmStore[dsmCount]);
+        res = UA_DataSetWriter_prepareDataSet(psm, dsw, &dsmStore[dsmCount]);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup_dsm;
         dsmCount++;
@@ -499,7 +499,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     /* DataSetWriter unfreeze */
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_DataSetWriter_unfreezeConfiguration(psm->sc.server, dsw);
+        UA_DataSetWriter_unfreezeConfiguration(dsw);
     }
 
     UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
@@ -855,7 +855,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Update the attached DataSetWriters */
     UA_DataSetWriter *writer;
     LIST_FOREACH(writer, &wg->writers, listEntry) {
-        UA_DataSetWriter_setPubSubState(server, writer, writer->head.state);
+        UA_DataSetWriter_setPubSubState(psm, writer, writer->head.state);
     }
 
     /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
@@ -1305,6 +1305,7 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg) {
     UA_assert(wg != NULL);
     UA_assert(server != NULL);
 
+    UA_PubSubManager *psm = getPSM(server);
     UA_LOG_DEBUG_PUBSUB(server->config.logging, wg, "Publish Callback");
 
     /* Find the connection associated with the writer */
@@ -1313,7 +1314,6 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
                             "Publish failed. PubSubConnection invalid");
         UA_LOCK(&server->serviceMutex);
-        UA_PubSubManager *psm = getPSM(server);
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -1360,11 +1360,11 @@ UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg) {
         /* Generate the DSM */
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         UA_StatusCode res =
-            UA_DataSetWriter_generateDataSetMessage(server, &dsmStore[dsmCount], dsw);
+            UA_DataSetWriter_generateDataSetMessage(psm, &dsmStore[dsmCount], dsw);
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(server->config.logging, dsw,
                                 "PubSub Publish: DataSetMessage creation failed");
-            UA_DataSetWriter_setPubSubState(server, dsw, UA_PUBSUBSTATE_ERROR);
+            UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_ERROR);
             continue;
         }
 

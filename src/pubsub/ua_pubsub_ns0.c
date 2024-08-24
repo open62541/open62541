@@ -146,7 +146,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_DATASETWRITERTYPE: {
-        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(server, *myNodeId);
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, *myNodeId);
         if(!dataSetWriter)
             return;
 
@@ -438,7 +438,7 @@ addDataSetWriterConfig(UA_Server *server, const UA_NodeId *writerGroupId,
     dataSetWriterConfig.dataSetWriterId = dataSetWriter->dataSetWriterId;
     dataSetWriterConfig.keyFrameCount = dataSetWriter->keyFrameCount;
     dataSetWriterConfig.dataSetFieldContentMask =  dataSetWriter->dataSetFieldContentMask;
-    return UA_DataSetWriter_create(server, *writerGroupId, publishedDataSetId,
+    return UA_DataSetWriter_create(psm, *writerGroupId, publishedDataSetId,
                                    &dataSetWriterConfig, dataSetWriterId);
 }
 

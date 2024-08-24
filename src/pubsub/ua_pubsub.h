@@ -326,36 +326,32 @@ UA_DataSetWriterConfig_copy(const UA_DataSetWriterConfig *src,
                             UA_DataSetWriterConfig *dst);
 
 UA_DataSetWriter *
-UA_DataSetWriter_find(UA_Server *server, const UA_NodeId id);
+UA_DataSetWriter_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 UA_StatusCode
-UA_DataSetWriter_setPubSubState(UA_Server *server, UA_DataSetWriter *dsw,
+UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState);
 
 UA_StatusCode
-UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
+UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
                                         UA_DataSetMessage *dsm,
                                         UA_DataSetWriter *dsw);
 
 UA_StatusCode
-UA_DataSetWriter_prepareDataSet(UA_Server *server, UA_DataSetWriter *dsw,
+UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm);
 
-void
-UA_DataSetWriter_freezeConfiguration(UA_Server *server, UA_DataSetWriter *dsw);
-
-void
-UA_DataSetWriter_unfreezeConfiguration(UA_Server *server, UA_DataSetWriter *dsw);
+void UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw);
+void UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw);
 
 UA_StatusCode
-UA_DataSetWriter_create(UA_Server *server,
+UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
                         const UA_DataSetWriterConfig *dataSetWriterConfig,
                         UA_NodeId *writerIdentifier);
 
-
 UA_StatusCode
-UA_DataSetWriter_remove(UA_Server *server, UA_DataSetWriter *dsw);
+UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw);
 
 /**********************************************/
 /*               WriterGroup                  */
