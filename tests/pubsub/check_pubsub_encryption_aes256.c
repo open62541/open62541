@@ -120,7 +120,7 @@ START_TEST(SinglePublishDataSetField) {
 
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup3);
-    UA_WriterGroup_publishCallback(server, wg);
+    UA_WriterGroup_publishCallback(psm, wg);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 

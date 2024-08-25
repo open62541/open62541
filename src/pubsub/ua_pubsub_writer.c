@@ -580,7 +580,7 @@ UA_PubSubDataSetWriter_generateKeyFrameMessage(UA_PubSubManager *psm,
 
         /* Sample the value */
         UA_DataValue *dfv = &dataSetMessage->data.keyFrameData.dataSetFields[counter];
-        UA_PubSubDataSetField_sampleValue(psm->sc.server, dsf, dfv);
+        UA_PubSubDataSetField_sampleValue(psm, dsf, dfv);
 
         /* Deactivate statuscode? */
         if(((u64)dsw->config.dataSetFieldContentMask &
@@ -633,7 +633,7 @@ UA_PubSubDataSetWriter_generateDeltaFrameMessage(UA_PubSubManager *psm,
         /* Sample the value */
         UA_DataValue value;
         UA_DataValue_init(&value);
-        UA_PubSubDataSetField_sampleValue(psm->sc.server, dsf, &value);
+        UA_PubSubDataSetField_sampleValue(psm, dsf, &value);
 
         /* Check if the value has changed */
         UA_DataSetWriterSample *ls = &dsw->lastSamples[counter];
@@ -708,7 +708,7 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
 
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
-    UA_EventLoop *el = UA_PubSubConnection_getEL(psm->sc.server, wg->linkedConnection);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
 
     /* Reset the message */
     memset(dataSetMessage, 0, sizeof(UA_DataSetMessage));

@@ -280,8 +280,8 @@ onWriteLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContex
                     }
                     writerGroup->config.publishingInterval = interval;
                     if(writerGroup->head.state == UA_PUBSUBSTATE_OPERATIONAL) {
-                        UA_WriterGroup_removePublishCallback(server, writerGroup);
-                        UA_WriterGroup_addPublishCallback(server, writerGroup);
+                        UA_WriterGroup_removePublishCallback(psm, writerGroup);
+                        UA_WriterGroup_addPublishCallback(psm, writerGroup);
                     }
                     break;
                 default:

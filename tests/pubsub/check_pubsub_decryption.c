@@ -346,7 +346,7 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -383,7 +383,7 @@ START_TEST(InvalidSignature) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -413,7 +413,7 @@ START_TEST(InvalidSecurityModeInsufficientSig) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
 
     UA_NetworkMessage_clear(&msg);
@@ -443,7 +443,7 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);

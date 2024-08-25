@@ -287,7 +287,7 @@ UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
 /* Returns either the eventloop configured in the connection or, in its absence,
  * for the server */
 UA_EventLoop *
-UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c);
+UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
@@ -392,7 +392,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       UA_NodeId *writerGroupIdentifier);
 
 UA_StatusCode
-UA_WriterGroup_remove(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 void
 UA_WriterGroup_disconnect(UA_WriterGroup *wg);
@@ -405,17 +405,17 @@ UA_Boolean
 UA_WriterGroup_canConnect(UA_WriterGroup *wg);
 
 void
-UA_WriterGroup_removePublishCallback(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
-setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
-                             UA_UInt32 securityTokenId,
-                             const UA_ByteString signingKey,
-                             const UA_ByteString encryptingKey,
-                             const UA_ByteString keyNonce);
+UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                                 UA_UInt32 securityTokenId,
+                                 const UA_ByteString signingKey,
+                                 const UA_ByteString encryptingKey,
+                                 const UA_ByteString keyNonce);
 
 UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
@@ -435,7 +435,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
                               UA_PubSubState targetState);
 
 void
-UA_WriterGroup_publishCallback(UA_Server *server, UA_WriterGroup *wg);
+UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
@@ -476,7 +476,8 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
                        UA_NodeId *fieldIdentifier);
 
 void
-UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
+UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm,
+                                  UA_DataSetField *field,
                                   UA_DataValue *value);
 
 /**********************************************/
@@ -600,11 +601,11 @@ void
 UA_ReaderGroup_disconnect(UA_ReaderGroup *rg);
 
 UA_StatusCode
-setReaderGroupEncryptionKeys(UA_PubSubManager *psm, const UA_NodeId readerGroup,
-                             UA_UInt32 securityTokenId,
-                             const UA_ByteString signingKey,
-                             const UA_ByteString encryptingKey,
-                             const UA_ByteString keyNonce);
+UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                                 UA_UInt32 securityTokenId,
+                                 const UA_ByteString signingKey,
+                                 const UA_ByteString encryptingKey,
+                                 const UA_ByteString keyNonce);
 
 UA_StatusCode
 UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
@@ -643,8 +644,9 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                UA_ReaderGroup *rg);
 
 UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
-                                         UA_Server *server, UA_ByteString buffer,
+UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
+                                         UA_PubSubConnection *connection,
+                                         UA_ByteString buffer,
                                          UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
