@@ -237,7 +237,7 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     UA_DataSetReader *dsr, *tmp_dsr;
     LIST_FOREACH_SAFE(dsr, &rg->readers, listEntry, tmp_dsr) {
-        UA_DataSetReader_remove(server, dsr);
+        UA_DataSetReader_remove(psm, dsr);
     }
 
     if(rg->config.securityPolicy && rg->securityPolicyContext) {
@@ -412,7 +412,7 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Update the attached DataSetReaders */
     UA_DataSetReader *dsr;
     LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        UA_DataSetReader_setPubSubState(server, dsr, dsr->head.state,
+        UA_DataSetReader_setPubSubState(psm, dsr, dsr->head.state,
                                         UA_STATUSCODE_GOOD);
     }
 
@@ -685,8 +685,6 @@ UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
 UA_Boolean
 UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm) {
-    UA_Server *server = psm->sc.server;
-
     /* Check if the ReaderGroup is enabled */
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
        rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
@@ -701,7 +699,7 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_Boolean processed = false;
     UA_DataSetReader *reader, *reader_tmp;
     LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
-        UA_StatusCode res = UA_DataSetReader_checkIdentifier(server, nm,
+        UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, nm,
                                                              reader, rg->config);
         if(res != UA_STATUSCODE_GOOD)
             continue;
@@ -723,7 +721,7 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         /* No payload header. The message ontains a single DataSetMessage that
          * is processed by every Reader. */
         if(!nm->payloadHeaderEnabled) {
-            UA_DataSetReader_process(server, reader,
+            UA_DataSetReader_process(psm, reader,
                                      nm->payload.dataSetPayload.dataSetMessages);
             continue;
         }
@@ -732,7 +730,7 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         UA_DataSetPayloadHeader *ph = &nm->payloadHeader.dataSetPayloadHeader;
         for(UA_Byte i = 0; i < ph->count; i++) {
             if(reader->config.dataSetWriterId == ph->dataSetWriterIds[i]) {
-                UA_DataSetReader_process(server, reader,
+                UA_DataSetReader_process(psm, reader,
                                          &nm->payload.dataSetPayload.dataSetMessages[i]);
             }
         }
@@ -801,7 +799,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
             continue;
 
         /* Check the identifier */
-        rv = UA_DataSetReader_checkIdentifier(server, &currentNetworkMessage,
+        rv = UA_DataSetReader_checkIdentifier(psm, &currentNetworkMessage,
                                               dsr, rg->config);
         if(rv != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_PUBSUB(server->config.logging, dsr,
@@ -810,7 +808,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         }
 
         /* Process the message */
-        UA_DataSetReader_decodeAndProcessRT(server, dsr, buf);
+        UA_DataSetReader_decodeAndProcessRT(psm, dsr, buf);
         processed = true;
     }
 

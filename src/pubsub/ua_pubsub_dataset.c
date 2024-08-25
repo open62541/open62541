@@ -918,7 +918,7 @@ UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
                 /* TODO: What if the reader is still operational?
                  * This should be checked before calling _remove. */
                 if(dsr == sds->connectedReader)
-                    UA_DataSetReader_remove(server, dsr);
+                    UA_DataSetReader_remove(psm, dsr);
             }
         }
     }
