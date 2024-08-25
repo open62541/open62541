@@ -499,21 +499,21 @@ struct UA_DataSetReader {
 };
 
 UA_DataSetReader *
-UA_DataSetReader_find(UA_Server *server, const UA_NodeId id);
+UA_DataSetReader_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 /* Process Network Message using DataSetReader */
 void
-UA_DataSetReader_process(UA_Server *server,
+UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetReader *dataSetReader,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
-UA_DataSetReader_checkIdentifier(UA_Server *server, UA_NetworkMessage *msg,
+UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_NetworkMessage *msg,
                                  UA_DataSetReader *reader,
                                  UA_ReaderGroupConfig readerGroupConfig);
 
 UA_StatusCode
-UA_DataSetReader_create(UA_Server *server, UA_NodeId readerGroupIdentifier,
+UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                         const UA_DataSetReaderConfig *dataSetReaderConfig,
                         UA_NodeId *readerIdentifier);
 
@@ -522,11 +522,11 @@ UA_DataSetReader_prepareOffsetBuffer(Ctx *ctx, UA_DataSetReader *reader,
                                      UA_ByteString *buf);
 
 void
-UA_DataSetReader_decodeAndProcessRT(UA_Server *server, UA_DataSetReader *dsr,
+UA_DataSetReader_decodeAndProcessRT(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                     UA_ByteString buf);
 
 UA_StatusCode
-UA_DataSetReader_remove(UA_Server *server, UA_DataSetReader *dsr);
+UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr);
 
 /* Copy the configuration of Target Variables */
 UA_StatusCode UA_TargetVariables_copy(const UA_TargetVariables *src,
@@ -540,13 +540,13 @@ UA_StatusCode UA_FieldTargetVariable_copy(const UA_FieldTargetVariable *src,
                                           UA_FieldTargetVariable *dst);
 
 UA_StatusCode
-DataSetReader_createTargetVariables(UA_Server *server, UA_DataSetReader *dsr,
+DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                     size_t targetVariablesSize,
                                     const UA_FieldTargetVariable *targetVariables);
 
 /* Returns an error reason if the target state is `Error` */
 UA_StatusCode
-UA_DataSetReader_setPubSubState(UA_Server *server, UA_DataSetReader *dsr,
+UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState,
                                 UA_StatusCode errorReason);
 

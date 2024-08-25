@@ -108,7 +108,7 @@ onReadLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessionContext
         break;
     }
     case UA_NS0ID_DATASETREADERTYPE: {
-        UA_DataSetReader *dataSetReader = UA_DataSetReader_find(server, *myNodeId);
+        UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, *myNodeId);
         if(!dataSetReader)
             return;
 
@@ -477,6 +477,10 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
                        UA_DataSetMetaDataType *pMetaData) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ExtensionObject *eoTargetVar = &dataSetReader->subscribedDataSet;
     if(eoTargetVar->encoding != UA_EXTENSIONOBJECT_DECODED ||
@@ -533,9 +537,9 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId,
                           NULL, &targetVarsData[i].targetVariable.targetNodeId);
 
     }
-    UA_DataSetReader *dsr = UA_DataSetReader_find(server, dataSetReaderId);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dataSetReaderId);
     if(dsr) {
-        retVal = DataSetReader_createTargetVariables(server, dsr,
+        retVal = DataSetReader_createTargetVariables(psm, dsr,
                                                      targetVars->targetVariablesSize,
                                                      targetVarsData);
     } else {
@@ -561,6 +565,9 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
                        UA_NodeId *dataSetReaderId) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_DataSetReaderConfig readerConfig;
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
@@ -589,7 +596,7 @@ addDataSetReaderConfig(UA_Server *server, UA_NodeId readerGroupId,
         pMetaData->fields[i].valueRank = dataSetReader->dataSetMetaData.fields[i].valueRank;
     }
 
-    retVal |= UA_DataSetReader_create(server, readerGroupId,
+    retVal |= UA_DataSetReader_create(psm, readerGroupId,
                                       &readerConfig, dataSetReaderId);
     UA_PublisherId_clear(&readerConfig.publisherId);
     if(retVal != UA_STATUSCODE_GOOD) {

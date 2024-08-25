@@ -508,9 +508,9 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
         }
 
         UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-        UA_DataSetReader *dsr = UA_DataSetReader_find(psm->sc.server, dsReaderIdent);
+        UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsReaderIdent);
         if(dsr)
-            res = DataSetReader_createTargetVariables(psm->sc.server, dsr,
+            res = DataSetReader_createTargetVariables(psm, dsr,
                                                       tmpTargetVars->targetVariablesSize,
                                                       targetVars);
         if(res != UA_STATUSCODE_GOOD) {
@@ -567,7 +567,7 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
         return res;
 
     UA_NodeId dsReaderIdent;
-    res = UA_DataSetReader_create(psm->sc.server, readerGroupIdent, &config, &dsReaderIdent);
+    res = UA_DataSetReader_create(psm, readerGroupIdent, &config, &dsReaderIdent);
     if(res == UA_STATUSCODE_GOOD)
         res = addSubscribedDataSet(psm, dsReaderIdent,
                                    &dsrParams->subscribedDataSet);

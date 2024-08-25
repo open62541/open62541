@@ -1493,6 +1493,8 @@ START_TEST(SinglePublishSubscribewithValidIdentifiers) {
 } END_TEST
 
 START_TEST(SinglePublishSubscribeHeartbeat) {
+    UA_PubSubManager *psm = getPSM(server);
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_NodeId dataSetWriter;
     UA_NodeId readerIdentifier;
@@ -1571,7 +1573,7 @@ START_TEST(SinglePublishSubscribeHeartbeat) {
     UA_Server_run_iterate(server,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(server,true);
-    UA_DataSetReader *dsr = UA_DataSetReader_find(server, readerIdentifier);
+    UA_DataSetReader *dsr = UA_DataSetReader_find(psm, readerIdentifier);
     ck_assert_ptr_ne(dsr, NULL);
 
     UA_fakeSleep(100);

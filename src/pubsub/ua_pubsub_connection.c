@@ -52,7 +52,7 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
         UA_DataSetReader *reader;
         LIST_FOREACH(reader, &rg->readers, listEntry) {
             UA_StatusCode retval =
-                UA_DataSetReader_checkIdentifier(server, nm, reader, rg->config);
+                UA_DataSetReader_checkIdentifier(getPSM(server), nm, reader, rg->config);
             if(retval != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
