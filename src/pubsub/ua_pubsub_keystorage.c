@@ -267,13 +267,17 @@ setPubSubGroupEncryptingKey(UA_Server *server, UA_NodeId PubSubGroupId,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval =
-        setWriterGroupEncryptionKeys(server, PubSubGroupId, securityTokenId,
-                                     signingKey, encryptingKey, keyNonce);
-    if(retval == UA_STATUSCODE_BADNOTFOUND)
-        retval = setReaderGroupEncryptionKeys(psm, PubSubGroupId, securityTokenId,
-                                              signingKey, encryptingKey, keyNonce);
-    return retval;
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, PubSubGroupId);
+    if(wg)
+        return UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId, signingKey,
+                                                encryptingKey, keyNonce);
+
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, PubSubGroupId);
+    if(rg)
+        return UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId, signingKey,
+                                                encryptingKey, keyNonce);
+
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
@@ -284,8 +288,6 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
                                                       UA_ByteString encryptingKey,
                                                       UA_ByteString keyNonce) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
-    UA_PubSubConnection *tmpPubSubConnections;
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm)
@@ -294,26 +296,26 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
      * securityGroupId*/
-    TAILQ_FOREACH(tmpPubSubConnections, &psm->connections, listEntry) {
+    UA_StatusCode retval = UA_STATUSCODE_BAD;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
         /* For each writerGroup in server with matching SecurityGroupId */
-        UA_WriterGroup *tmpWriterGroup;
-        LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
-            if(UA_String_equal(&tmpWriterGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->head.identifier,
-                                                      securityTokenId, signingKey,
-                                                      encryptingKey, keyNonce);
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            if(UA_String_equal(&wg->config.securityGroupId, &securityGroupId)) {
+                retval = UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId,
+                                                          signingKey, encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }
         }
 
         /* For each readerGroup in server with matching SecurityGroupId */
-        UA_ReaderGroup *tmpReaderGroup;
-        LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
-            if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setReaderGroupEncryptionKeys(psm, tmpReaderGroup->head.identifier,
-                                                      securityTokenId, signingKey,
-                                                      encryptingKey, keyNonce);
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            if(UA_String_equal(&rg->config.securityGroupId, &securityGroupId)) {
+                retval = UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId,
+                                                          signingKey, encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
                     return retval;
             }

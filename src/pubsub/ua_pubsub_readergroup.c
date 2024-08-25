@@ -470,14 +470,12 @@ UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId readerGroupId){
 }
 
 UA_StatusCode
-setReaderGroupEncryptionKeys(UA_PubSubManager *psm, const UA_NodeId readerGroup,
-                             UA_UInt32 securityTokenId,
-                             const UA_ByteString signingKey,
-                             const UA_ByteString encryptingKey,
-                             const UA_ByteString keyNonce) {
+UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                                 UA_UInt32 securityTokenId,
+                                 const UA_ByteString signingKey,
+                                 const UA_ByteString encryptingKey,
+                                 const UA_ByteString keyNonce) {
     UA_Server *server = psm->sc.server;
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroup);
-    UA_CHECK_MEM(rg, return UA_STATUSCODE_BADNOTFOUND);
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
         UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
                               "JSON encoding is enabled. The message security is "
@@ -518,13 +516,11 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
                                        const UA_ByteString keyNonce) {
     UA_LOCK(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_StatusCode res = setReaderGroupEncryptionKeys(psm, readerGroup,
-                                                     securityTokenId, signingKey,
-                                                     encryptingKey, keyNonce);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), readerGroup);
+    UA_StatusCode res =
+        (rg) ? UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId, signingKey,
+                                                encryptingKey, keyNonce)
+             : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

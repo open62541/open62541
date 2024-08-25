@@ -552,24 +552,24 @@ UA_DataSetFieldConfig_clear(UA_DataSetFieldConfig *dataSetFieldConfig) {
 /* Obtain the latest value for a specific DataSetField. This method is currently
  * called inside the DataSetMessage generation process. */
 void
-UA_PubSubDataSetField_sampleValue(UA_Server *server, UA_DataSetField *field,
+UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm, UA_DataSetField *field,
                                   UA_DataValue *value) {
     UA_PublishedVariableDataType *params = &field->config.field.variable.publishParameters;
 
     /* Read the value */
     if(field->config.field.variable.rtValueSource.rtInformationModelNode) {
         const UA_VariableNode *rtNode = (const UA_VariableNode *)
-            UA_NODESTORE_GET(server, &params->publishedVariable);
+            UA_NODESTORE_GET(psm->sc.server, &params->publishedVariable);
         *value = **rtNode->valueBackend.backend.external.value;
         value->value.storageType = UA_VARIANT_DATA_NODELETE;
-        UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
+        UA_NODESTORE_RELEASE(psm->sc.server, (const UA_Node *) rtNode);
     } else if(field->config.field.variable.rtValueSource.rtFieldSourceEnabled == false){
         UA_ReadValueId rvid;
         UA_ReadValueId_init(&rvid);
         rvid.nodeId = params->publishedVariable;
         rvid.attributeId = params->attributeId;
         rvid.indexRange = params->indexRange;
-        *value = readWithSession(server, &server->adminSession,
+        *value = readWithSession(psm->sc.server, &psm->sc.server->adminSession,
                                  &rvid, UA_TIMESTAMPSTORETURN_BOTH);
     } else {
         *value = **field->config.field.variable.rtValueSource.staticValueSource;
@@ -587,31 +587,28 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         return result;
     }
 
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
-    if(!publishedDataSetConfig){
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+    if(!publishedDataSetConfig) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. No config passed in.");
         return result;
     }
 
     if(publishedDataSetConfig->publishedDataSetType != UA_PUBSUB_DATASET_PUBLISHEDITEMS){
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Unsupported PublishedDataSet type.");
         return result;
     }
 
     if(UA_String_isEmpty(&publishedDataSetConfig->name)) {
         // DataSet has to have a valid name
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Invalid name.");
         return result;
     }
 
     if(UA_PublishedDataSet_findByName(psm, publishedDataSetConfig->name)) {
         // DataSet name has to be unique in the publisher
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. DataSet with the same name already exists.");
         result.addResult = UA_STATUSCODE_BADBROWSENAMEDUPLICATED;
         return result;
@@ -621,7 +618,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     UA_PublishedDataSet *newPDS = (UA_PublishedDataSet *)
         UA_calloc(1, sizeof(UA_PublishedDataSet));
     if(!newPDS) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Out of Memory.");
         result.addResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return result;
@@ -636,7 +633,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     UA_StatusCode res = UA_PublishedDataSetConfig_copy(publishedDataSetConfig, newConfig);
     if(res != UA_STATUSCODE_GOOD){
         UA_free(newPDS);
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PublishedDataSet creation failed. Configuration copy failed.");
         result.addResult = UA_STATUSCODE_BADINTERNALERROR;
         return result;
@@ -647,7 +644,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     }
 
     /* Fill the DataSetMetaData */
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     result.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     result.configurationVersion.minorVersion =
@@ -690,10 +687,10 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Create representation and unique id */
-    addPublishedDataItemsRepresentation(server, newPDS);
+    addPublishedDataItemsRepresentation(psm->sc.server, newPDS);
 #else
     /* Generate unique nodeId */
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager, &newPDS->identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &newPDS->identifier);
 #endif
 
     /* Cache the log string */
@@ -701,7 +698,7 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     mp_snprintf(tmpLogIdStr, 128, "PublishedDataset %N\t| ", newPDS->head.identifier);
     newPDS->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, newPDS, "DataSet created");
+    UA_LOG_INFO_PUBSUB(psm->logging, newPDS, "DataSet created");
 
     /* Return the created identifier */
     if(pdsIdentifier)
@@ -722,9 +719,8 @@ UA_Server_addPublishedDataSet(UA_Server *server,
 
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
-    UA_Server *server = psm->sc.server;
     if(pds->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -744,10 +740,10 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, pds->head.identifier, true);
+    deleteNode(psm->sc.server, pds->head.identifier, true);
 #endif
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, pds, "DataSet deleted");
+    UA_LOG_INFO_PUBSUB(psm->logging, pds, "DataSet deleted");
 
     /* Unlink from the server */
     TAILQ_REMOVE(&psm->publishedDataSets, pds, listEntry);
@@ -760,10 +756,8 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
          * this is intentional. We don't want to call UA_DataSetField_remove here as that
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
-        if(field->configurationFrozen) {
-            UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
-                                  "Clearing a frozen field.");
-        }
+        if(field->configurationFrozen)
+            UA_LOG_WARNING_PUBSUB(psm->logging, pds, "Clearing a frozen field.");
         field->fieldMetaData.arrayDimensions = NULL;
         field->fieldMetaData.properties = NULL;
         field->fieldMetaData.name = UA_STRING_NULL;
@@ -845,11 +839,10 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     if(!sdsConfig) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "SubscribedDataSet creation failed. No config passed in.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -859,7 +852,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     UA_StatusCode res = UA_SubscribedDataSetConfig_copy(sdsConfig,
                                                         &tmpSubscribedDataSetConfig);
     if(res != UA_STATUSCODE_GOOD){
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "SubscribedDataSet creation failed. Configuration copy failed.");
         return res;
     }
@@ -869,7 +862,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
             UA_calloc(1, sizeof(UA_SubscribedDataSet));
     if(!newSubscribedDataSet) {
         UA_SubscribedDataSetConfig_clear(&tmpSubscribedDataSetConfig);
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "SubscribedDataSet creation failed. Out of Memory.");
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
@@ -882,7 +875,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     psm->subscribedDataSetsSize++;
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    addSubscribedDataSetRepresentation(server, newSubscribedDataSet);
+    addSubscribedDataSetRepresentation(psm->sc.server, newSubscribedDataSet);
 #else
     UA_PubSubManager_generateUniqueNodeId(psm, &newSubscribedDataSet->identifier);
 #endif
@@ -905,9 +898,6 @@ UA_Server_addSubscribedDataSet(UA_Server *server,
 
 void
 UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     /* Search for referenced readers */
     UA_PubSubConnection *conn;
     TAILQ_FOREACH(conn, &psm->connections, listEntry) {
@@ -924,7 +914,7 @@ UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
     }
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, sds->head.identifier, true);
+    deleteNode(psm->sc.server, sds->head.identifier, true);
 #endif
 
     /* Unlink from the server */

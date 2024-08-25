@@ -218,7 +218,7 @@ START_TEST(SinglePublishSubscribeDateTime){
         while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
 
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
 
         /*---------------------------------------------------------------------*/
 

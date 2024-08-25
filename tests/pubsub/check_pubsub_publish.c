@@ -531,11 +531,11 @@ START_TEST(PublishDataSetFieldAsDeltaFrame){
         UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriter1);
         dsw->config.keyFrameCount = 3;
 
-        UA_WriterGroup_publishCallback(server, wg);
-        UA_WriterGroup_publishCallback(server, wg);
-        UA_WriterGroup_publishCallback(server, wg);
-        UA_WriterGroup_publishCallback(server, wg);
-        UA_WriterGroup_publishCallback(server, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
+        UA_WriterGroup_publishCallback(psm, wg);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 

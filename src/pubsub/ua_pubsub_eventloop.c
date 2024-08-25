@@ -88,8 +88,7 @@ UA_PubSubConnection_removeConnection(UA_PubSubManager *psm,
                                      UA_PubSubConnection *c,
                                      uintptr_t connectionId) {
     if(c->sendChannel == connectionId) {
-        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
-                           "Detach send-connection with id %u",
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Detach send-connection with id %u",
                            (unsigned)connectionId);
         c->sendChannel = 0;
         return;
@@ -97,8 +96,7 @@ UA_PubSubConnection_removeConnection(UA_PubSubManager *psm,
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] != connectionId)
             continue;
-        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
-                           "Detach receive-connection with id %u",
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Detach receive-connection with id %u",
                            (unsigned)connectionId);
         c->recvChannels[i] = 0;
         c->recvChannelsSize--;
@@ -112,8 +110,7 @@ UA_PubSubConnection_addSendConnection(UA_PubSubManager *psm,
                                       uintptr_t connectionId) {
     if(c->sendChannel != 0 && c->sendChannel != connectionId)
         return UA_STATUSCODE_BADINTERNALERROR;
-    UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
-                       "Attach send-connection with id %u",
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "Attach send-connection with id %u",
                        (unsigned)connectionId);
     c->sendChannel = connectionId;
     return UA_STATUSCODE_GOOD;
@@ -132,8 +129,7 @@ UA_PubSubConnection_addRecvConnection(UA_PubSubManager *psm,
     for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
         if(c->recvChannels[i] != 0)
             continue;
-        UA_LOG_INFO_PUBSUB(psm->sc.server->config.logging, c,
-                           "Attach receive-connection with id %u",
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Attach receive-connection with id %u",
                            (unsigned)connectionId);
         c->recvChannels[i] = connectionId;
         c->recvChannelsSize++;
@@ -202,7 +198,7 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         UA_PubSubConnection_addRecvConnection(psm, psc, connectionId) :
         UA_PubSubConnection_addSendConnection(psm, psc, connectionId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, psc,
+        UA_LOG_WARNING_PUBSUB(psm->logging, psc,
                               "No more space for an additional EventLoop connection");
         if(psc->cm)
             psc->cm->closeConnection(psc->cm, connectionId);
@@ -252,8 +248,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_UInt16 port;
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "Could not parse the UDP network URL");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the UDP network URL");
         return res;
     }
 
@@ -307,7 +302,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, c,
+            UA_LOG_ERROR_PUBSUB(psm->logging, c,
                                 "Could not open an UDP channel for receiving");
             return res;
         }
@@ -315,7 +310,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
     /* Receive all -- sending is handled in the DataSetWriter */
     if(receive_all) {
-        UA_LOG_INFO_PUBSUB(server->config.logging, c,
+        UA_LOG_INFO_PUBSUB(psm->logging, c,
                            "Localhost address - don't open UDP send connection");
         return UA_STATUSCODE_GOOD;
     }
@@ -327,8 +322,7 @@ UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                                "Could not open an UDP recv channel");
+            UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an UDP recv channel");
             return res;
         }
     }
@@ -350,8 +344,7 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_String vidPCP = UA_STRING_NULL;
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, NULL, &vidPCP);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "Could not parse the ETH network URL");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the ETH network URL");
         return res;
     }
 
@@ -376,8 +369,7 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                                "Could not open an ETH recv channel");
+            UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an ETH recv channel");
             return res;
         }
     }
@@ -389,8 +381,7 @@ UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
         res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
         UA_LOCK(&server->serviceMutex);
         if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                                "Could not open an ETH channel for sending");
+            UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an ETH channel for sending");
         }
     }
 
@@ -412,9 +403,9 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     UA_Server *server = psm->sc.server;
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
     if(!el) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c, "No EventLoop configured");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
 
@@ -422,14 +413,13 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     ProfileMapping *profile = getProfile(c->config.transportProfileUri);
     UA_ConnectionManager *cm = (profile) ? getCM(el, profile->protocol) : NULL;
     if(!cm) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "The requested protocol is not supported");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The requested protocol is not supported");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Are we changing the protocol after the initial connect? */
     if(c->cm && cm != c->cm) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
                             "The connection is configured for a different protocol already");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -437,7 +427,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
     /* Check the configuration address type */
     if(!UA_Variant_hasScalarType(&c->config.address,
                                  &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c, "No NetworkAddressUrlDataType "
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "No NetworkAddressUrlDataType "
                             "for the address configuration");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -479,7 +469,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
             /* PSC marked for deletion and the last EventLoop connection has closed */
             if(wg->deleteFlag) {
-                UA_WriterGroup_remove(server, wg);
+                UA_WriterGroup_remove(psm, wg);
                 UA_UNLOCK(&server->serviceMutex);
                 return;
             }
@@ -502,7 +492,7 @@ WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* Store the connectionId (if a new connection) */
     if(wg->sendChannel && wg->sendChannel != connectionId) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "WriterGroup is already bound to a different channel");
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -538,7 +528,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
         wg->config.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        wg->config.transportSettings.content.decoded.type !=
        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Invalid TransportSettings for a UDP Connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -550,7 +540,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if((ts->address.encoding != UA_EXTENSIONOBJECT_DECODED &&
         ts->address.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->address.content.decoded.type != &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Invalid TransportSettings Address for a UDP Connection");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -562,7 +552,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
     UA_UInt16 port;
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
                             "Could not parse the UDP network URL");
         return res;
     }
@@ -592,8 +582,7 @@ UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
     res = cm->openConnection(cm, &kvm, psm, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
-                            "Could not open a UDP send channel");
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open a UDP send channel");
     }
     return res;
 }
@@ -614,8 +603,7 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
         ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->content.decoded.type !=
        &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
-                            "Wrong TransportSettings type for MQTT");
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Wrong TransportSettings type for MQTT");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     UA_BrokerWriterGroupTransportDataType *transportSettings =
@@ -626,8 +614,7 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
     UA_UInt16 port = 1883; /* Default */
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "Could not parse the MQTT network URL");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
         return res;
     }
 
@@ -653,8 +640,7 @@ UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
     res = c->cm->openConnection(c->cm, &kvm, psm, wg, WriterGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg,
-                            "Could not open the MQTT connection");
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open the MQTT connection");
     }
     return res;
 }
@@ -684,9 +670,9 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
     if(!el) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, wg, "No EventLoop configured");
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "No EventLoop configured");
         UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;;
     }
@@ -701,8 +687,7 @@ UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(profile)
         cm = getCM(el, profile->protocol);
     if(!cm || (c->cm && cm != c->cm)) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "The requested protocol is not supported");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The requested protocol is not supported");
         UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_ERROR);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -792,7 +777,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Store the connectionId (if a new connection) */
     UA_StatusCode res = UA_ReaderGroup_addRecvConnection(rg, connectionId);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "No more space for an additional EventLoop connection");
         UA_PubSubConnection *c = rg->linkedConnection;
         if(c && c->cm)
@@ -811,7 +796,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Received a messaage for a non-operational ReaderGroup");
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -828,7 +813,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        res = UA_PubSubConnection_decodeNetworkMessage(rg->linkedConnection, server, msg, &nm);
+        res = UA_PubSubConnection_decodeNetworkMessage(psm, rg->linkedConnection, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
@@ -837,7 +822,7 @@ ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 #endif
     }
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, rg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Verify, decrypt and decode network message failed");
         UA_UNLOCK(&server->serviceMutex);
         return;
@@ -865,7 +850,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
         ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
        ts->content.decoded.type !=
        &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, rg,
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "Wrong TransportSettings type for MQTT");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -877,8 +862,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_UInt16 port = 1883; /* Default */
     UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "Could not parse the MQTT network URL");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
         return res;
     }
 
@@ -904,8 +888,7 @@ UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
     UA_LOCK(&server->serviceMutex);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, rg,
-                            "Could not open the MQTT connection");
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Could not open the MQTT connection");
     }
     return res;
 }
@@ -936,7 +919,7 @@ UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean val
     if(rg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
         return UA_STATUSCODE_GOOD;
 
-    UA_EventLoop *el = UA_PubSubConnection_getEL(server, rg->linkedConnection);
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, rg->linkedConnection);
     if(!el) {
         UA_LOG_ERROR_PUBSUB(server->config.logging, rg, "No EventLoop configured");
         return UA_STATUSCODE_BADINTERNALERROR;;
@@ -952,8 +935,7 @@ UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean val
     if(profile)
         cm = getCM(el, profile->protocol);
     if(!cm || (c->cm && cm != c->cm)) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "The requested protocol is not supported");
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "The requested protocol is not supported");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 

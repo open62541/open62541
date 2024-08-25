@@ -5,6 +5,7 @@
  * Copyright (c) 2019 Fraunhofer IOSB (Author: Andreas Ebner)
  */
 
+#include <open62541/common.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
