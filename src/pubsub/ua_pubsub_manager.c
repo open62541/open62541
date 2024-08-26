@@ -191,7 +191,7 @@ UA_ReserveId_createId(UA_PubSubManager *psm,  UA_NodeId sessionId,
         next_id++;
     }
     if(!is_free) {
-        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PubSub ReserveId creation failed. No free ID could be found.");
         return 0;
     }
@@ -271,7 +271,7 @@ UA_PubSubManager_reserveIds(UA_PubSubManager *psm, UA_NodeId sessionId, UA_UInt1
     if(!UA_String_equal(&transportProfileUri, &profile_1) &&
        !UA_String_equal(&transportProfileUri, &profile_2) &&
        !UA_String_equal(&transportProfileUri, &profile_3)) {
-        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "PubSub ReserveId creation failed. No valid transport profile uri.");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
@@ -378,7 +378,7 @@ static UA_StatusCode
 UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
     if(psm->sc.state == UA_LIFECYCLESTATE_STOPPING) {
-        UA_LOG_ERROR(psm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "The PubSubManager is still stopping");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -413,7 +413,7 @@ UA_StatusCode
 UA_PubSubManager_clear(UA_PubSubManager *psm) {
     UA_Server *server = psm->sc.server;
     if(psm->sc.state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "Cannot delete the PubSubManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
