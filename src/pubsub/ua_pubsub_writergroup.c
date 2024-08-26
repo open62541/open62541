@@ -124,7 +124,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
         return UA_STATUSCODE_BADNOTFOUND;
 
     if(c->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
                        "Adding WriterGroup failed. PubSubConnection is frozen.");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
@@ -246,22 +246,6 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 }
 
 UA_StatusCode
-UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
-                         const UA_WriterGroupConfig *writerGroupConfig,
-                         UA_NodeId *writerGroupIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    UA_StatusCode res = UA_WriterGroup_create(psm, connection, writerGroupConfig,
-                                              writerGroupIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->configurationFrozen) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
@@ -328,19 +312,8 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 }
 
 UA_StatusCode
-UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ? UA_WriterGroup_remove(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
 UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     if(wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
@@ -364,7 +337,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Offset table only possible for binary encoding */
     if(wg->config.encodingMimeType != UA_PUBSUB_ENCODING_UADP) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, wg,
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "PubSub-RT configuration fail: Non-RT capable encoding.");
         return UA_STATUSCODE_BADNOTSUPPORTED;
     }
@@ -485,18 +458,6 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 }
 
 UA_StatusCode
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroup_freezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
 UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     /* Already unfrozen */
     if(!wg->configurationFrozen)
@@ -518,16 +479,6 @@ UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) 
 }
 
 UA_StatusCode
-UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup)  {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_StatusCode res = (psm) ?
-        UA_WriterGroup_enableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
 UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
                                  const UA_NodeId writerGroup) {
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
@@ -546,50 +497,6 @@ UA_WriterGroup_disableWriterGroup(UA_PubSubManager *psm,
 }
 
 UA_StatusCode
-UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroup_unfreezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-#ifdef UA_ENABLE_PUBSUB_SKS
-UA_StatusCode
-UA_Server_setWriterGroupActivateKey(UA_Server *server,
-                                    const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    if(wg) {
-        if(wg->keyStorage && wg->keyStorage->currentItem) {
-            res = UA_PubSubKeyStorage_activateKeyToChannelContext(
-                psm, wg->head.identifier, wg->config.securityGroupId);
-        } else {
-            res = UA_STATUSCODE_BADINTERNALERROR;
-        }
-    }
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-#endif
-
-UA_StatusCode
-UA_Server_disableWriterGroup(UA_Server *server,
-                             const UA_NodeId writerGroup) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_StatusCode res = (psm) ?
-        UA_WriterGroup_disableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
 UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
                           UA_WriterGroupConfig *dst) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -602,66 +509,6 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
     if(res != UA_STATUSCODE_GOOD)
         UA_WriterGroupConfig_clear(dst);
     return res;
-}
-
-UA_StatusCode
-UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
-                               UA_WriterGroupConfig *config) {
-    if(!config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroupConfig_copy(&wg->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
-                              UA_PubSubState *state) {
-    if((server == NULL) || (state == NULL))
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_WriterGroup *wg = UA_WriterGroup_find(getPSM(server), wgId);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(wg)
-        *state = wg->head.state;
-    else
-        res = UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_triggerWriterGroupPublish(UA_Server *server,
-                                    const UA_NodeId wgId) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
-    if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_UNLOCK(&server->serviceMutex);
-    UA_WriterGroup_publishCallback(psm, wg);
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
-                                             const UA_NodeId wgId,
-                                             UA_DateTime *timestamp) {
-    UA_LOCK(&server->serviceMutex);
-    UA_WriterGroup *wg = UA_WriterGroup_find(getPSM(server), wgId);
-    if(!wg) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    *timestamp = wg->lastPublishTimeStamp;
-    UA_UNLOCK(&server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_WriterGroup *
@@ -718,23 +565,6 @@ UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     return (res == UA_STATUSCODE_GOOD) ?
         UA_WriterGroup_setPubSubState(psm, wg, wg->head.state) : res;
-}
-
-UA_StatusCode
-UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
-                                       UA_UInt32 securityTokenId,
-                                       const UA_ByteString signingKey,
-                                       const UA_ByteString encryptingKey,
-                                       const UA_ByteString keyNonce) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res =
-        (wg) ? UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId,
-                                                 signingKey, encryptingKey, keyNonce)
-              : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
 }
 
 void
@@ -1397,6 +1227,199 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 
     UA_UNLOCK(&psm->sc.server->serviceMutex);
+}
+
+/**************/
+/* Server API */
+/**************/
+
+UA_StatusCode
+UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
+                         const UA_WriterGroupConfig *writerGroupConfig,
+                         UA_NodeId *writerGroupIdentifier) {
+    if(!server || !writerGroupConfig)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_StatusCode res = UA_WriterGroup_create(psm, connection, writerGroupConfig,
+                                              writerGroupIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res = (wg) ? UA_WriterGroup_remove(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
+                                         const UA_NodeId writerGroup) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res = (wg) ?
+        UA_WriterGroup_freezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
+                                           const UA_NodeId writerGroup) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res = (wg) ?
+        UA_WriterGroup_unfreezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup)  {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        UA_WriterGroup_enableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_disableWriterGroup(UA_Server *server,
+                             const UA_NodeId writerGroup) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        UA_WriterGroup_disableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+UA_Server_setWriterGroupActivateKey(UA_Server *server,
+                                    const UA_NodeId writerGroup) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    if(wg) {
+        if(wg->keyStorage && wg->keyStorage->currentItem) {
+            res = UA_PubSubKeyStorage_activateKeyToChannelContext(
+                psm, wg->head.identifier, wg->config.securityGroupId);
+        } else {
+            res = UA_STATUSCODE_BADINTERNALERROR;
+        }
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+#endif
+
+UA_StatusCode
+UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId writerGroup,
+                               UA_WriterGroupConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res = (wg) ?
+        UA_WriterGroupConfig_copy(&wg->config, config) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
+                              UA_PubSubState *state) {
+    if(!server || !state)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_WriterGroup *wg = UA_WriterGroup_find(getPSM(server), wgId);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+    if(wg)
+        *state = wg->head.state;
+    else
+        res = UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_triggerWriterGroupPublish(UA_Server *server,
+                                    const UA_NodeId wgId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, wgId);
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    UA_WriterGroup_publishCallback(psm, wg);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
+                                             const UA_NodeId wgId,
+                                             UA_DateTime *timestamp) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_WriterGroup *wg = UA_WriterGroup_find(getPSM(server), wgId);
+    if(!wg) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    *timestamp = wg->lastPublishTimeStamp;
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId writerGroup,
+                                       UA_UInt32 securityTokenId,
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res =
+        (wg) ? UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId,
+                                                 signingKey, encryptingKey, keyNonce)
+              : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 #endif /* UA_ENABLE_PUBSUB */
