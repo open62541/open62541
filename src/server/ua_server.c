@@ -693,67 +693,89 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+typedef struct UpdateCertInfo {
+    UA_Server *server;
+    const UA_NodeId *certificateTypeId;
+} UpdateCertInfo;
+
 static void
-notifySecureChannelsStopped(struct UA_ServerComponent *sc,
-                            UA_LifecycleState state) {
-    if(sc->state == UA_LIFECYCLESTATE_STOPPED &&
-       sc->server->state == UA_LIFECYCLESTATE_STARTED) {
-        sc->notifyState = NULL; /* remove the callback */
-        sc->start(sc, sc->server);
+secureChannel_delayedClose(void *application, void *context) {
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
+    UpdateCertInfo *info = (UpdateCertInfo*)application;
+
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &info->server->channels, serverEntry) {
+        const UA_SecurityPolicy *policy = channel->securityPolicy;
+        if(UA_NodeId_equal(&policy->certificateTypeId, info->certificateTypeId))
+            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
+    UA_free(info);
+    UA_free(dc);
 }
 
 UA_StatusCode
 UA_Server_updateCertificate(UA_Server *server,
-                            const UA_ByteString *oldCertificate,
-                            const UA_ByteString *newCertificate,
-                            const UA_ByteString *newPrivateKey,
-                            UA_Boolean closeSessions,
-                            UA_Boolean closeSecureChannels) {
-    UA_CHECK(server && oldCertificate && newCertificate && newPrivateKey,
-             return UA_STATUSCODE_BADINTERNALERROR);
+                            const UA_NodeId certificateGroupId,
+                            const UA_NodeId certificateTypeId,
+                            const UA_ByteString certificate,
+                            const UA_ByteString *privateKey) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(closeSessions) {
-        session_list_entry *current;
-        LIST_FOREACH(current, &server->sessions, pointers) {
-            UA_Session *session = &current->session;
-            if(!session->channel)
-                continue;
-            if(!UA_ByteString_equal(oldCertificate,
-                                    &session->channel->securityPolicy->localCertificate))
-                continue;
+    if(server->transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
+        return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-            UA_LOCK(&server->serviceMutex);
-            UA_Server_removeSessionByToken(server, &session->authenticationToken,
-                                           UA_SHUTDOWNREASON_CLOSE);
-            UA_UNLOCK(&server->serviceMutex);
-        }
+    /* The server currently only supports the DefaultApplicationGroup */
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    /* The server currently only supports the following certificate types */
+    UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaMin) &&
+       !UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+    if(privateKey) {
+        if(UA_CertificateUtils_ckeckKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        newPrivateKey = *privateKey;
     }
 
-    /* Gracefully close all SecureChannels. And restart the
-     * BinaryProtocolManager once it has fully stopped. */
-    if(closeSecureChannels) {
-        UA_ServerComponent *binaryProtocolManager =
-            getServerComponentByName(server, UA_STRING("binary"));
-        if(binaryProtocolManager) {
-            binaryProtocolManager->notifyState = notifySecureChannelsStopped;
-            binaryProtocolManager->stop(binaryProtocolManager);
-        }
-    }
-
-    size_t i = 0;
-    while(i < server->config.endpointsSize) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < server->config.endpointsSize; i++) {
         UA_EndpointDescription *ed = &server->config.endpoints[i];
-        if(UA_ByteString_equal(&ed->serverCertificate, oldCertificate)) {
-            UA_String_clear(&ed->serverCertificate);
-            UA_String_copy(newCertificate, &ed->serverCertificate);
-            UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
+        UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
                             &server->config.endpoints[i].securityPolicyUri);
-            UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
-            sp->updateCertificateAndPrivateKey(sp, *newCertificate, *newPrivateKey);
-        }
-        i++;
+        UA_CHECK_MEM(sp, return UA_STATUSCODE_BADINTERNALERROR);
+
+        if(!UA_NodeId_equal(&sp->certificateTypeId, &certificateTypeId))
+            continue;
+
+        retval = sp->updateCertificateAndPrivateKey(sp, certificate, newPrivateKey);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+
+        UA_String_clear(&ed->serverCertificate);
+        UA_String_copy(&certificate, &ed->serverCertificate);
     }
+
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
+    if(!dc)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    UpdateCertInfo *certInfo = (UpdateCertInfo*)UA_calloc(1, sizeof(UpdateCertInfo));
+    certInfo->server = server;
+    certInfo->certificateTypeId = &certificateTypeId;
+
+    dc->callback = secureChannel_delayedClose;
+    dc->application = certInfo;
+    dc->context = dc;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
 
     return UA_STATUSCODE_GOOD;
 }
