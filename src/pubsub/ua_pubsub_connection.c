@@ -13,10 +13,6 @@
 #include "ua_pubsub.h"
 #include "server/ua_server_internal.h"
 
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-#include "ua_pubsub_ns0.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
 UA_StatusCode

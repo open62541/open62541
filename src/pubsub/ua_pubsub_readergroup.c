@@ -15,11 +15,6 @@
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-#include "ua_pubsub_networkmessage.h"
-#include "ua_pubsub_ns0.h"
-#endif
-
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
 #endif

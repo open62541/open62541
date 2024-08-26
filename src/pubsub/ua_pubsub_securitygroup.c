@@ -11,7 +11,6 @@
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
 #include "ua_pubsub.h"
-#include "ua_pubsub_ns0.h"
 #include "ua_pubsub_keystorage.h"
 #include "server/ua_server_internal.h"
 
