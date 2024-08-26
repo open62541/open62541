@@ -673,25 +673,31 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString thumbpr = UA_BYTESTRING_NULL;
-    UA_ByteString_allocBuffer(&thumbpr, UA_SHA1_LENGTH);
+    // prepare temporary to hold the binary thumbprint
+    UA_Byte buf[UA_SHA1_LENGTH];
+    UA_ByteString thumbpr = {
+        /*.length =*/ sizeof(buf),
+        /*.data =*/ buf
+    };
 
     retval = mbedtls_thumbprint_sha1(certificate, &thumbpr);
 
-    UA_String thumb = UA_STRING_NULL;
-    thumb.length = (UA_SHA1_LENGTH * 2) + 1;
-    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumb.length);
-
-    /* Create a string containing a hex representation */
-    char *p = (char*)thumb.data;
-    for (size_t i = 0; i < thumbpr.length; i++) {
-        p += sprintf(p, "%.2X", thumbpr.data[i]);
+    // convert to hexadecimal string representation
+    size_t t = 0u;
+    for (size_t i = 0u; i < thumbpr.length; i++) {
+        UA_Byte shift = 4u;
+        // byte consists of two nibbles: AAAABBBB
+        const UA_Byte curByte = thumbpr.data[i];
+        // convert AAAA first then BBBB
+        for(size_t n = 0u; n < 2u; n++) {
+            UA_Byte curNibble = (curByte >> shift) & 0x0Fu;
+            if(curNibble >= 10u)
+                thumbprint->data[t++] = (65u + (curNibble - 10u));  // 65 == 'A'
+            else
+                thumbprint->data[t++] = (48u + curNibble);          // 48 == '0'
+            shift -= 4u;
+        }
     }
-
-    memcpy(thumbprint->data, thumb.data, thumbprint->length);
-
-    UA_ByteString_clear(&thumbpr);
-    UA_ByteString_clear(&thumb);
 
     return retval;
 }
