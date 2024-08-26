@@ -781,7 +781,7 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
 
         /* Check the user token signature */
         response->responseHeader.serviceResult =
-            checkSignature(server, channel->securityPolicy, tempChannelContext,
+            checkSignature(server, securityPolicy, tempChannelContext,
                            &session->serverNonce, &request->userTokenSignature);
 
         /* Delete the temporary channel context */
