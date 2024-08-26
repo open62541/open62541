@@ -10,9 +10,8 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "open62541/plugin/eventloop.h"
+#include <open62541/server_pubsub.h>
 #include "ua_pubsub.h"
-#include "ua_pubsub_ns0.h"
 #include "server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */

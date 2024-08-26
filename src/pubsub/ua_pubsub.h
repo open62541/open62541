@@ -766,6 +766,46 @@ UA_PubSubManager_generateUniqueGuid(UA_PubSubManager *psm);
 UA_UInt32
 UA_PubSubConfigurationVersionTimeDifference(UA_DateTime now);
 
+/************************************/
+/* Information Model Representation */
+/************************************/
+
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
+
+UA_StatusCode
+initPubSubNS0(UA_Server *server);
+
+UA_StatusCode
+addPubSubConnectionRepresentation(UA_Server *server, UA_PubSubConnection *connection);
+
+UA_StatusCode
+addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup);
+
+UA_StatusCode
+addReaderGroupRepresentation(UA_Server *server, UA_ReaderGroup *readerGroup);
+
+UA_StatusCode
+addDataSetWriterRepresentation(UA_Server *server, UA_DataSetWriter *dataSetWriter);
+
+UA_StatusCode
+addPublishedDataItemsRepresentation(UA_Server *server, UA_PublishedDataSet *publishedDataSet);
+
+UA_StatusCode
+addSubscribedDataSetRepresentation(UA_Server *server, UA_SubscribedDataSet *subscribedDataSet);
+
+UA_StatusCode
+addDataSetReaderRepresentation(UA_Server *server, UA_DataSetReader *dataSetReader);
+
+UA_StatusCode
+connectDataSetReaderToDataSet(UA_Server *server, UA_NodeId dsrId, UA_NodeId sdsId);
+
+#ifdef UA_ENABLE_PUBSUB_SKS
+UA_StatusCode
+addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGroup);
+#endif /* UA_ENABLE_PUBSUB_SKS */
+
+#endif /* UA_ENABLE_PUBSUB_INFORMATIONMODEL */
+
 #endif /* UA_ENABLE_PUBSUB */
 
 _UA_END_DECLS
