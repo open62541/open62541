@@ -18,6 +18,10 @@
 
 #include "ua_pubsub_networkmessage.h"
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include "ua_pubsub_keystorage.h"
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #include "ua_pubsub_ns0.h"
 #endif
@@ -205,7 +209,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
            writerGroupConfig->securityPolicy) {
             /* Does the key storage already exist? */
             newWriterGroup->keyStorage =
-                UA_PubSubKeyStorage_find(psm->sc.server, writerGroupConfig->securityGroupId);
+                UA_PubSubKeyStorage_find(psm, writerGroupConfig->securityGroupId);
 
             if(!newWriterGroup->keyStorage) {
                 /* Create a new key storage */
@@ -215,7 +219,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                     UA_WriterGroup_remove(psm, newWriterGroup);
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 }
-                res = UA_PubSubKeyStorage_init(psm->sc.server, newWriterGroup->keyStorage,
+                res = UA_PubSubKeyStorage_init(psm, newWriterGroup->keyStorage,
                                                &writerGroupConfig->securityGroupId,
                                                writerGroupConfig->securityPolicy, 0, 0);
                 if(res != UA_STATUSCODE_GOOD) {
@@ -293,7 +297,7 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(wg->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(psm->sc.server, wg->keyStorage);
+        UA_PubSubKeyStorage_detachKeyStorage(psm, wg->keyStorage);
         wg->keyStorage = NULL;
     }
 #endif
@@ -564,7 +568,7 @@ UA_Server_setWriterGroupActivateKey(UA_Server *server,
     if(wg) {
         if(wg->keyStorage && wg->keyStorage->currentItem) {
             res = UA_PubSubKeyStorage_activateKeyToChannelContext(
-                server, wg->head.identifier, wg->config.securityGroupId);
+                psm, wg->head.identifier, wg->config.securityGroupId);
         } else {
             res = UA_STATUSCODE_BADINTERNALERROR;
         }

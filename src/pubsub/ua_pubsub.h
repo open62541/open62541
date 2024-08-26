@@ -23,10 +23,6 @@
 #include "ua_pubsub_networkmessage.h"
 #include "../server/ua_server_internal.h"
 
-#ifdef UA_ENABLE_PUBSUB_SKS
-#include "ua_pubsub_keystorage.h"
-#endif
-
 /**
  * PubSub State Machine
  * --------------------
@@ -112,6 +108,9 @@ typedef struct UA_DataSetReader UA_DataSetReader;
 
 struct UA_PubSubManager;
 typedef struct UA_PubSubManager UA_PubSubManager;
+
+struct UA_PubSubKeyStorage;
+typedef struct UA_PubSubKeyStorage UA_PubSubKeyStorage;
 
 const char *
 UA_PubSubState_name(UA_PubSubState state);
@@ -673,16 +672,13 @@ UA_SecurityGroupConfig_copy(const UA_SecurityGroupConfig *src,
                             UA_SecurityGroupConfig *dst);
 
 UA_SecurityGroup *
-UA_SecurityGroup_findByName(UA_Server *server, const UA_String name);
+UA_SecurityGroup_findByName(UA_PubSubManager *psm, const UA_String name);
 
 UA_SecurityGroup *
-UA_SecurityGroup_find(UA_Server *server, const UA_NodeId id);
+UA_SecurityGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
 
 void
-UA_SecurityGroup_delete(UA_SecurityGroup *sg);
-
-void
-removeSecurityGroup(UA_Server *server, UA_SecurityGroup *sg);
+UA_SecurityGroup_remove(UA_PubSubManager *psm, UA_SecurityGroup *sg);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 

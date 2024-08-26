@@ -12,6 +12,10 @@
 #include "ua_pubsub_ns0.h"
 #include "ua_pubsub.h"
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include "ua_pubsub_keystorage.h"
+#endif
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL /* conditional compilation */
 
 typedef struct {
@@ -1994,8 +1998,9 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_Duration msTimeToNextKey = *(UA_Duration *)input[5].data;
     UA_Duration msKeyLifeTime = *(UA_Duration *)input[6].data;
 
+    UA_PubSubManager *psm = getPSM(server);
     UA_PubSubKeyStorage *ks =
-        UA_PubSubKeyStorage_find(server, *securityGroupId);
+        UA_PubSubKeyStorage_find(psm, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
@@ -2003,20 +2008,20 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     if(ks->keyListSize == 0) {
-        retval = UA_PubSubKeyStorage_storeSecurityKeys(server, ks, currentKeyId,
+        retval = UA_PubSubKeyStorage_storeSecurityKeys(ks, currentKeyId,
                                                        currentKey, futureKeys, futureKeySize,
             msKeyLifeTime);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     } else {
-        retval = UA_PubSubKeyStorage_update(server, ks, currentKey, currentKeyId,
+        retval = UA_PubSubKeyStorage_update(ks, currentKey, currentKeyId,
                                             futureKeySize, futureKeys, msKeyLifeTime);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    retval = UA_PubSubKeyStorage_activateKeyToChannelContext(server, UA_NODEID_NULL,
-                                                           ks->securityGroupID);
+    retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
+                                                             ks->securityGroupID);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_INFO(
             server->config.logging, UA_LOGCATEGORY_SERVER,
@@ -2031,8 +2036,8 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
 
     /*move to setSecurityKeysAction*/
     retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
-        server, ks, (UA_ServerCallback)UA_PubSubKeyStorage_keyRolloverCallback, callbackTime,
-        &ks->callBackId);
+        psm, ks, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
+        callbackTime, &ks->callBackId);
     return retval;
 }
 
@@ -2088,13 +2093,13 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     UA_UInt32 startingTokenId = *(UA_UInt32 *)input[1].data;
     UA_UInt32 requestedKeyCount = *(UA_UInt32 *)input[2].data;
 
-    UA_PubSubKeyStorage *ks =
-        UA_PubSubKeyStorage_find(server, *securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, *securityGroupId);
     if(!ks)
         return UA_STATUSCODE_BADNOTFOUND;
 
     UA_Boolean executable = false;
-    UA_SecurityGroup *sg = UA_SecurityGroup_findByName(server, *securityGroupId);
+    UA_SecurityGroup *sg = UA_SecurityGroup_findByName(psm, *securityGroupId);
     void *sgNodeCtx;
     getNodeContext(server, sg->securityGroupNodeId, (void **)&sgNodeCtx);
     executable = server->config.accessControl.getUserExecutableOnObject(
