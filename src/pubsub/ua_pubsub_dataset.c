@@ -67,30 +67,6 @@ UA_PublishedDataSetConfig_copy(const UA_PublishedDataSetConfig *src,
     return res;
 }
 
-UA_StatusCode
-UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
-                                    UA_PublishedDataSetConfig *config) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
-    UA_StatusCode res = (pds) ?
-        UA_PublishedDataSetConfig_copy(&pds->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pdsId,
-                                      UA_DataSetMetaDataType *metaData) {
-    if(!metaData)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
-    UA_StatusCode res = (pds) ?
-        UA_DataSetMetaDataType_copy(&pds->dataSetMetaData, metaData) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 UA_PublishedDataSet *
 UA_PublishedDataSet_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
@@ -289,10 +265,8 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     }
 
     /* If currDS was found, psm != NULL */
-    UA_Server *server = psm->sc.server;
-
     if(currDS->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, currDS,
+        UA_LOG_WARNING_PUBSUB(psm->logging, currDS,
                               "Adding DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -370,7 +344,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     }
 
     /* Update major version of parent published data set */
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     currDS->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
@@ -379,17 +353,6 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     result.configurationVersion.minorVersion =
         currDS->dataSetMetaData.configurationVersion.minorVersion;
     return result;
-}
-
-UA_DataSetFieldResult
-UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
-                          const UA_DataSetFieldConfig *fieldConfig,
-                          UA_NodeId *fieldIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_DataSetFieldResult res =
-        UA_DataSetField_create(getPSM(server), publishedDataSet, fieldConfig, fieldIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
 }
 
 UA_DataSetFieldResult
@@ -409,17 +372,15 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
         return result;
     }
 
-    UA_Server *server = psm->sc.server;
-
     if(currentField->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "Remove DataSetField failed: DataSetField is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
 
     if(pds->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                               "Remove DataSetField failed: PublishedDataSet is frozen");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
@@ -431,7 +392,7 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
     pds->fieldSize--;
 
     /* Update major version of PublishedDataSet */
-    UA_EventLoop *el = server->config.eventLoop;
+    UA_EventLoop *el = psm->sc.server->config.eventLoop;
     pds->dataSetMetaData.configurationVersion.majorVersion =
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
 
@@ -466,7 +427,7 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
             result.result = generateFieldMetaData(psm, pds, tmpDSF, &fieldMetaData[counter]);
             if(result.result != UA_STATUSCODE_GOOD) {
                 UA_FieldMetaData_clear(&fieldMetaData[counter]);
-                UA_LOG_WARNING_PUBSUB(server->config.logging, pds,
+                UA_LOG_WARNING_PUBSUB(psm->logging, pds,
                                       "PubSub MetaData regeneration failed "
                                       "after removing a field!");
                 break;
@@ -487,16 +448,6 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
     return result;
 }
 
-UA_DataSetFieldResult
-UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_DataSetField *field = UA_DataSetField_find(psm, dsf);
-    UA_DataSetFieldResult res = UA_DataSetField_remove(psm, field);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 UA_StatusCode
 UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                            UA_DataSetFieldConfig *dst) {
@@ -510,19 +461,6 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
                                              &dst->field.variable.publishParameters);
     if(res != UA_STATUSCODE_GOOD)
         UA_DataSetFieldConfig_clear(dst);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsfId,
-                                UA_DataSetFieldConfig *config) {
-    if(!config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_DataSetField *dsf = UA_DataSetField_find(getPSM(server), dsfId);
-    UA_StatusCode res = (dsf) ?
-        UA_DataSetFieldConfig_copy(&dsf->config, config) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
     return res;
 }
 
@@ -706,17 +644,6 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
     return result;
 }
 
-UA_AddPublishedDataSetResult
-UA_Server_addPublishedDataSet(UA_Server *server,
-                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
-                              UA_NodeId *pdsIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_AddPublishedDataSetResult res =
-        UA_PublishedDataSet_create(getPSM(server), publishedDataSetConfig, pdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 UA_StatusCode
 UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     if(pds->configurationFreezeCounter > 0) {
@@ -773,17 +700,6 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     UA_free(pds);
 
     return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
-    UA_StatusCode res = (pds) ?
-        UA_PublishedDataSet_remove(psm, pds) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
 }
 
 UA_SubscribedDataSet *
@@ -886,16 +802,6 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
-UA_Server_addSubscribedDataSet(UA_Server *server,
-                               const UA_SubscribedDataSetConfig *sdsConfig,
-                               UA_NodeId *sdsIdentifier) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = addSubscribedDataSet(getPSM(server), sdsConfig, sdsIdentifier);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 void
 UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
     /* Search for referenced readers */
@@ -927,16 +833,134 @@ UA_SubscribedDataSet_remove(UA_PubSubManager *psm, UA_SubscribedDataSet *sds) {
     UA_free(sds);
 }
 
+/**************/
+/* Server API */
+/**************/
+
+UA_StatusCode
+UA_Server_getPublishedDataSetConfig(UA_Server *server, const UA_NodeId pdsId,
+                                    UA_PublishedDataSetConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_PublishedDataSetConfig_copy(&pds->config, config) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getPublishedDataSetMetaData(UA_Server *server, const UA_NodeId pdsId,
+                                      UA_DataSetMetaDataType *metaData) {
+    if(!server || !metaData)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(getPSM(server), pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_DataSetMetaDataType_copy(&pds->dataSetMetaData, metaData) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_DataSetFieldResult
+UA_Server_addDataSetField(UA_Server *server, const UA_NodeId publishedDataSet,
+                          const UA_DataSetFieldConfig *fieldConfig,
+                          UA_NodeId *fieldIdentifier) {
+    UA_DataSetFieldResult res;
+    if(!server || !fieldConfig) {
+        memset(&res, 0, sizeof(UA_DataSetFieldResult));
+        res.result = UA_STATUSCODE_BADINVALIDARGUMENT;
+        return res;
+    }
+    UA_LOCK(&server->serviceMutex);
+    res = UA_DataSetField_create(getPSM(server), publishedDataSet, fieldConfig, fieldIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_DataSetFieldResult
+UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsf) {
+    UA_DataSetFieldResult res;
+    if(!server) {
+        memset(&res, 0, sizeof(UA_DataSetFieldResult));
+        res.result = UA_STATUSCODE_BADINVALIDARGUMENT;
+        return res;
+    }
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_DataSetField *field = UA_DataSetField_find(psm, dsf);
+    res = UA_DataSetField_remove(psm, field);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_getDataSetFieldConfig(UA_Server *server, const UA_NodeId dsfId,
+                                UA_DataSetFieldConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_DataSetField *dsf = UA_DataSetField_find(getPSM(server), dsfId);
+    UA_StatusCode res = (dsf) ?
+        UA_DataSetFieldConfig_copy(&dsf->config, config) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_AddPublishedDataSetResult
+UA_Server_addPublishedDataSet(UA_Server *server,
+                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                              UA_NodeId *pdsIdentifier) {
+    UA_AddPublishedDataSetResult res;
+    if(!server || !publishedDataSetConfig) {
+        memset(&res, 0, sizeof(UA_AddPublishedDataSetResult));
+        res.addResult = UA_STATUSCODE_BADINTERNALERROR;
+        return res;
+    }
+    UA_LOCK(&server->serviceMutex);
+    res = UA_PublishedDataSet_create(getPSM(server), publishedDataSetConfig, pdsIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, pdsId);
+    UA_StatusCode res = (pds) ?
+        UA_PublishedDataSet_remove(psm, pds) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addSubscribedDataSet(UA_Server *server,
+                               const UA_SubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsIdentifier) {
+    if(!server || !sdsConfig)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = addSubscribedDataSet(getPSM(server), sdsConfig, sdsIdentifier);
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 UA_StatusCode
 UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId) {
+    if(!server)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_SubscribedDataSet *sds = UA_SubscribedDataSet_find(psm, sdsId);
-    if(sds)
+    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
+    if(sds) {
         UA_SubscribedDataSet_remove(psm, sds);
-    else
-        res = UA_STATUSCODE_BADNOTFOUND;
+        res = UA_STATUSCODE_GOOD;
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
