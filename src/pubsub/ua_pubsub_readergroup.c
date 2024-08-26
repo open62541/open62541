@@ -20,6 +20,10 @@
 #include "ua_pubsub_ns0.h"
 #endif
 
+#ifdef UA_ENABLE_PUBSUB_SKS
+#include "ua_pubsub_keystorage.h"
+#endif
+
 #define MALLOCMEMBUFSIZE 256
 
 typedef struct {
@@ -128,8 +132,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
        rgc->securityMode == UA_MESSAGESECURITYMODE_SIGNANDENCRYPT) {
         if(!UA_String_isEmpty(&rgc->securityGroupId) && rgc->securityPolicy) {
             /* Does the key storage already exist? */
-            newGroup->keyStorage =
-                UA_PubSubKeyStorage_find(server, rgc->securityGroupId);
+            newGroup->keyStorage = UA_PubSubKeyStorage_find(psm, rgc->securityGroupId);
 
             if(!newGroup->keyStorage) {
                 /* Create a new key storage */
@@ -139,7 +142,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                     UA_ReaderGroup_remove(psm, newGroup);
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 }
-                retval = UA_PubSubKeyStorage_init(server, newGroup->keyStorage,
+                retval = UA_PubSubKeyStorage_init(psm, newGroup->keyStorage,
                                                   &rgc->securityGroupId,
                                                   rgc->securityPolicy, 0, 0);
                 if(retval != UA_STATUSCODE_GOOD) {
@@ -247,7 +250,7 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
 #ifdef UA_ENABLE_PUBSUB_SKS
     if(rg->keyStorage) {
-        UA_PubSubKeyStorage_detachKeyStorage(server, rg->keyStorage);
+        UA_PubSubKeyStorage_detachKeyStorage(psm, rg->keyStorage);
         rg->keyStorage = NULL;
     }
 #endif
@@ -428,12 +431,13 @@ UA_StatusCode
 UA_Server_setReaderGroupActivateKey(UA_Server *server,
                                     const UA_NodeId readerGroupId) {
     UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
     UA_StatusCode ret = UA_STATUSCODE_BADNOTFOUND;
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), readerGroupId);
     if(rg) {
         if(rg->keyStorage && rg->keyStorage->currentItem) {
             UA_StatusCode retval = UA_PubSubKeyStorage_activateKeyToChannelContext(
-                server, rg->head.identifier, rg->config.securityGroupId);
+                psm, rg->head.identifier, rg->config.securityGroupId);
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_UNLOCK(&server->serviceMutex);
                 return retval;

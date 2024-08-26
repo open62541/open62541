@@ -538,8 +538,9 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     
     ck_assert(wg->keyStorage->keyListSize > 0);
     UA_LOCK(&sksServer->serviceMutex);
+    UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
-        UA_PubSubKeyStorage_find(sksServer, securityGroupId)
+        UA_PubSubKeyStorage_find(sksPsm, securityGroupId)
             ->currentItem;
     UA_UNLOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *wgKsItr = TAILQ_FIRST(&wg->keyStorage->keyList);
@@ -585,8 +586,9 @@ START_TEST(AddValidSksClientwithReaderGroup) {
                   UA_StatusCode_name(retval));
     ck_assert(rg->keyStorage->keyListSize > 0);
     UA_LOCK(&sksServer->serviceMutex);
+    UA_PubSubManager *sksPsm = getPSM(sksServer);
     UA_PubSubKeyListItem *sksKsItr =
-        UA_PubSubKeyStorage_find(sksServer, securityGroupId)
+        UA_PubSubKeyStorage_find(sksPsm, securityGroupId)
             ->currentItem;
     UA_UNLOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *rgKsItr = TAILQ_FIRST(&rg->keyStorage->keyList);
@@ -894,10 +896,12 @@ START_TEST(FetchNextbatchOfKeys) {
     ck_assert(retryCnt < MAX_RETRIES);
 
     UA_LOCK(&publisherApp->serviceMutex);
-    UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_find(publisherApp, securityGroupId);
+    UA_PubSubManager *pubPsm = getPSM(publisherApp);
+    UA_PubSubKeyStorage *pubKs = UA_PubSubKeyStorage_find(pubPsm, securityGroupId);
     UA_UNLOCK(&publisherApp->serviceMutex);
     UA_LOCK(&subscriberApp->serviceMutex);
-    UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_find(subscriberApp, securityGroupId);
+    UA_PubSubManager *subPsm = getPSM(publisherApp);
+    UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_find(subPsm, securityGroupId);
     UA_UNLOCK(&subscriberApp->serviceMutex);
 
     sksPullStatus = UA_STATUSCODE_BAD;

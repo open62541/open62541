@@ -283,7 +283,8 @@ START_TEST(TestSetSecurityKeys_GOOD) {
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -311,7 +312,8 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -334,7 +336,8 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -367,7 +370,8 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
