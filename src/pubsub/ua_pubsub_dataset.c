@@ -266,7 +266,7 @@ UA_DataSetField_create(UA_PubSubManager *psm, const UA_NodeId publishedDataSet,
     /* If currDS was found, psm != NULL */
     if(currDS->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_PUBSUB(psm->logging, currDS,
-                              "Adding DataSetField failed: PublishedDataSet is frozen");
+                              "Adding DataSetField failed: PublishedDataSet already in use");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -371,16 +371,9 @@ UA_DataSetField_remove(UA_PubSubManager *psm, UA_DataSetField *currentField) {
         return result;
     }
 
-    if(currentField->configurationFrozen) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "Remove DataSetField failed: DataSetField is frozen");
-        result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
-        return result;
-    }
-
     if(pds->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "Remove DataSetField failed: PublishedDataSet is frozen");
+                              "Remove DataSetField failed: PublishedDataSet is in use");
         result.result = UA_STATUSCODE_BADCONFIGURATIONERROR;
         return result;
     }
@@ -647,7 +640,7 @@ UA_StatusCode
 UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     if(pds->configurationFreezeCounter > 0) {
         UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                              "Remove PublishedDataSet failed. PublishedDataSet is frozen.");
+                              "Cannot remove PublishedDataSet failed while in use");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -669,7 +662,7 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
     deleteNode(psm->sc.server, pds->head.identifier, true);
 #endif
 
-    UA_LOG_INFO_PUBSUB(psm->logging, pds, "DataSet deleted");
+    UA_LOG_INFO_PUBSUB(psm->logging, pds, "PublishedDataSet deleted");
 
     /* Unlink from the server */
     TAILQ_REMOVE(&psm->publishedDataSets, pds, listEntry);
@@ -682,8 +675,6 @@ UA_PublishedDataSet_remove(UA_PubSubManager *psm, UA_PublishedDataSet *pds) {
          * this is intentional. We don't want to call UA_DataSetField_remove here as that
          * function regenerates DataSetMetaData, which is not necessary if we want to
          * clear the whole PDS anyway. */
-        if(field->configurationFrozen)
-            UA_LOG_WARNING_PUBSUB(psm->logging, pds, "Clearing a frozen field.");
         field->fieldMetaData.arrayDimensions = NULL;
         field->fieldMetaData.properties = NULL;
         field->fieldMetaData.name = UA_STRING_NULL;

@@ -239,10 +239,6 @@ UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
     if(!pds) /* Skip for heartbeat writers */
         return;
     pds->configurationFreezeCounter++;
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-        dsf->configurationFrozen = true;
-    }
 }
 
 void
@@ -254,12 +250,6 @@ UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
     if(!pds) /* Skip for heartbeat writers */
         return;
     pds->configurationFreezeCounter--;
-    if(pds->configurationFreezeCounter == 0) {
-        UA_DataSetField *dsf;
-        TAILQ_FOREACH(dsf, &pds->fields, listEntry) {
-            dsf->configurationFrozen = false;
-        }
-    }
 }
 
 UA_StatusCode

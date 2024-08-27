@@ -67,10 +67,6 @@ START_TEST(CreateAndLockConfiguration) {
 
     UA_PubSubManager *psm = getPSM(server);
 
-    UA_DataSetField *dataSetField = UA_DataSetField_find(psm, dataSetField1);
-    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-
-    //get internal WG Pointer
     UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
@@ -104,13 +100,8 @@ START_TEST(CreateAndLockConfiguration) {
     //Lock the writer group and the child pubsub entities
     UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
-    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
     UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-        ck_assert(dsf->configurationFrozen == UA_TRUE);
-    }
     //set state to disabled and implicit unlock the configuration
     UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
 } END_TEST
@@ -152,9 +143,6 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
 
         UA_PubSubManager *psm = getPSM(server);
 
-        UA_DataSetField *dataSetField = UA_DataSetField_find(psm, dataSetField1);
-        ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-
         //get internal WG Pointer
         UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
         ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
@@ -173,13 +161,8 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         //Lock the with the freeze function
         UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
-        ck_assert(dataSetField->configurationFrozen == UA_TRUE);
         UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
         ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-        UA_DataSetField *dsf;
-        TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-            ck_assert(dsf->configurationFrozen == UA_TRUE);
-        }
         //set state to disabled and implicit unlock the configuration
         UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     } END_TEST
@@ -249,13 +232,11 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
-    retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
+    UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
+    UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
-    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 

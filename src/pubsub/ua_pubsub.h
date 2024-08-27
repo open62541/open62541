@@ -463,7 +463,6 @@ typedef struct UA_DataSetField {
     UA_FieldMetaData fieldMetaData; /* contains the dataSetFieldId */
     UA_UInt64 sampleCallbackId;
     UA_Boolean sampleCallbackIsRegistered;
-    UA_Boolean configurationFrozen;
 } UA_DataSetField;
 
 UA_StatusCode
