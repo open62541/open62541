@@ -115,6 +115,15 @@ typedef struct UA_PubSubKeyStorage UA_PubSubKeyStorage;
 const char *
 UA_PubSubState_name(UA_PubSubState state);
 
+/* A component is considered enabled if it is not in the DISABLED or ERROR
+ * state. All other states (also PAUSED) can lead to automatic recovery into
+ * OPERATIONAL. */
+static UA_INLINE UA_Boolean
+UA_PubSubState_isEnabled(UA_PubSubState state) {
+    return (state != UA_PUBSUBSTATE_DISABLED &&
+            state != UA_PUBSUBSTATE_ERROR);
+}
+
 /* All PubSubComponents share the same header structure */
 
 typedef enum  {
