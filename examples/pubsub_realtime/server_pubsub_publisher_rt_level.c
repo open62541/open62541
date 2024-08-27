@@ -158,9 +158,7 @@ int main(void) {
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
                                &dataSetWriterConfig, &dataSetWriterIdent);
 
-    /* Freeze the PubSub configuration and enable */
-    UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 
     /* Add a callback that updates the value */
     UA_UInt64 callbackId;

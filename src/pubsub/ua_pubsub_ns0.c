@@ -764,7 +764,6 @@ addPubSubConnectionLocked(UA_Server *server,
         if(!wg)
             continue;
         if(pubSubConnection->enabled) {
-            UA_WriterGroup_freezeConfiguration(psm, wg);
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);

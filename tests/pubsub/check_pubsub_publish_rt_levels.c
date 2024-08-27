@@ -158,7 +158,6 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
 
         /* DataSetWriter muste be added AFTER addDataSetField otherwize lastSamples will be uninitialized */
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
         UA_Server_run_iterate(server, false);
 } END_TEST
@@ -201,7 +200,6 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
         UA_Server_run_iterate(server, false);
     } END_TEST
@@ -282,8 +280,6 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
 
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-
         /* run server - publisher and subscriber */
         UA_fakeSleep(PUBLISH_INTERVAL + 1);
         rtEventLoop->run(rtEventLoop, 100);
@@ -339,8 +335,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-
         UA_Server_run_iterate(server, false);
 } END_TEST
 
@@ -382,7 +376,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
         /* run server - publisher and subscriber */
         UA_fakeSleep(PUBLISH_INTERVAL + 1);
@@ -541,10 +534,8 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             //dsfConfig.field.variable.staticValueSource.value = variantRT;
             ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, dsf[i]).result == UA_STATUSCODE_GOOD);
         }
-        ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
         ck_assert(UA_Server_setWriterGroupDisabled(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         for (size_t j = 0; j < 3; ++j) {
             UA_Variant variant;
             UA_Variant_init(&variant);

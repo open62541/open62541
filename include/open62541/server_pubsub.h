@@ -507,14 +507,6 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId wgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId wgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE

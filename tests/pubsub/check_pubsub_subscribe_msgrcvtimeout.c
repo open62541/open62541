@@ -1819,7 +1819,6 @@ START_TEST(Test_fast_path) {
     ck_assert(state == UA_PUBSUBSTATE_PAUSED);
 
     /* freeze WriterGroup and set it operational */
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     expectedState = UA_PUBSUBSTATE_OPERATIONAL;
     ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
@@ -1971,7 +1970,6 @@ START_TEST(Test_fast_path) {
     ServerDoProcess("5", (UA_UInt32) (PublishingInterval_Conn1WG1), 4);
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, RGId_Conn2_RG1) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
 
     UA_DataValue_clear(pFastPathPublisherValue);
     UA_DataValue_delete(pFastPathPublisherValue);
