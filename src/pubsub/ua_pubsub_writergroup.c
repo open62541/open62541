@@ -119,12 +119,6 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     if(!c)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(c->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING(psm->logging, UA_LOGCATEGORY_PUBSUB,
-                       "Adding WriterGroup failed. PubSubConnection is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
     /* Validate messageSettings type */
     const UA_ExtensionObject *ms = &writerGroupConfig->messageSettings;
     if(ms->content.decoded.type) {
@@ -252,12 +246,6 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
-    if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Deleting the WriterGroup failed. "
-                              "PubSubConnection is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -314,10 +302,6 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
-    /* Increase PubSubConnection freezeCounter */
-    UA_PubSubConnection *pubSubConnection =  wg->linkedConnection;
-    pubSubConnection->configurationFreezeCounter++;
-
     /* Freeze the WriterGroup */
     wg->configurationFrozen = true;
 
@@ -363,7 +347,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Generate the NetworkMessage */
     memset(&networkMessage, 0, sizeof(networkMessage));
-    res = generateNetworkMessage(pubSubConnection, wg, dsmStore, dsWriterIds,
+    res = generateNetworkMessage(wg->linkedConnection, wg, dsmStore, dsWriterIds,
                                  (UA_Byte) dsmCount, &wg->config.messageSettings,
                                  &wg->config.transportSettings, &networkMessage);
     if(res != UA_STATUSCODE_GOOD)
@@ -458,9 +442,6 @@ UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     /* Already unfrozen */
     if(!wg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
-
-    UA_PubSubConnection *c = wg->linkedConnection;
-    c->configurationFreezeCounter--;
 
     /* DataSetWriter unfreeze */
     UA_DataSetWriter *dsw;

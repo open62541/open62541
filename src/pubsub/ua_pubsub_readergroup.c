@@ -94,13 +94,6 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     if(!c)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(c->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                              "Adding ReaderGroup failed. "
-                              "Connection configuration is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
-
     /* Allocate memory for new reader group and add settings */
     UA_ReaderGroup *newGroup = (UA_ReaderGroup *)UA_calloc(1, sizeof(UA_ReaderGroup));
     if(!newGroup)
@@ -203,12 +196,6 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
-    if(connection->configurationFreezeCounter > 0) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Deleting the ReaderGroup failed. "
-                              "PubSubConnection is frozen.");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -417,24 +404,15 @@ UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     if(rg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
 
-    /* PubSubConnection freezeCounter++ */
-    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
-    pubSubConnection->configurationFreezeCounter++;
-
     /* ReaderGroup freeze */
-    /* TODO: Clarify on the freeze functionality in multiple DSR, multiple
-     * networkMessage conf in a RG */
     rg->configurationFrozen = true;
 
     /* DataSetReader freeze */
     UA_DataSetReader *dsr;
     UA_UInt16 dsrCount = 0;
-    LIST_FOREACH(dsr, &rg->readers, listEntry){
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
         dsr->configurationFrozen = true;
         dsrCount++;
-        /* TODO: Configuration frozen for subscribedDataSet once
-         * UA_Server_DataSetReader_addTargetVariables API modified to support
-         * adding target variable one by one or in a group stored in a list. */
     }
 
     /* Not rt, we don't have to adjust anything */
@@ -516,10 +494,6 @@ UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
     /* Already unfrozen */
     if(!rg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
-
-    /* PubSubConnection freezeCounter-- */
-    UA_PubSubConnection *pubSubConnection = rg->linkedConnection;
-    pubSubConnection->configurationFreezeCounter--;
 
     /* ReaderGroup unfreeze */
     rg->configurationFrozen = false;
