@@ -9,7 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
-#include "ua_types_encoding_json.h"
+#include "../ua_types_encoding_json.h"
 
 /* Json keys for dsm */
 const char * UA_DECODEKEY_MESSAGES = "Messages";

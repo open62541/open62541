@@ -12,7 +12,7 @@
  */
 
 #include "ua_pubsub.h"
-#include "server/ua_server_internal.h"
+#include "../server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 

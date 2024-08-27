@@ -13,8 +13,8 @@
 
 #define UA_REQ_CURRENT_TOKEN 0
 
-#include "server/ua_server_internal.h"
-#include "client/ua_client_internal.h"
+#include "../server/ua_server_internal.h"
+#include "../client/ua_client_internal.h"
 
 UA_PubSubKeyStorage *
 UA_PubSubKeyStorage_find(UA_PubSubManager *psm, UA_String securityGroupId) {

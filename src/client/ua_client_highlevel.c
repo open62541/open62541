@@ -13,7 +13,7 @@
 
 #include <open62541/client_highlevel.h>
 #include <open62541/client_highlevel_async.h>
-#include "util/ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 
 /* The highlevel client API is an "outer onion layer". This file does not
  * include ua_client_internal.h on purpose. */

@@ -20,9 +20,12 @@ endif()
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
+include_directories("${PROJECT_SOURCE_DIR}/deps")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
-include_directories("${PROJECT_SOURCE_DIR}/arch/common")
+include_directories("${PROJECT_SOURCE_DIR}/src/pubsub")
+include_directories("${PROJECT_SOURCE_DIR}/src/client")
+include_directories("${PROJECT_SOURCE_DIR}/src/util")
 # testing_clock.h
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
