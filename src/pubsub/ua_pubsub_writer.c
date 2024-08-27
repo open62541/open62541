@@ -142,12 +142,6 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         if(!pds)
             return UA_STATUSCODE_BADNOTFOUND;
 
-        if(pds->configurationFreezeCounter > 0) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, pds,
-                                  "Adding DataSetWriter failed: PublishedDataSet is frozen");
-            return UA_STATUSCODE_BADCONFIGURATIONERROR;
-        }
-
         if(wg->config.rtLevel != UA_PUBSUB_RT_NONE) {
             UA_DataSetField *tmpDSF;
             TAILQ_FOREACH(tmpDSF, &pds->fields, listEntry) {
