@@ -238,6 +238,8 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
 void
 UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
+    if(dsw->configurationFrozen)
+        return;
     dsw->configurationFrozen = true;
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds) /* Skip for heartbeat writers */
@@ -251,6 +253,8 @@ UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
 
 void
 UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
+    if(!dsw->configurationFrozen)
+        return;
     dsw->configurationFrozen = false;
     UA_PublishedDataSet *pds = dsw->connectedDataSet;
     if(!pds) /* Skip for heartbeat writers */
