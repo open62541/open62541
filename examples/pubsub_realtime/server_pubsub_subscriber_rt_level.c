@@ -21,10 +21,10 @@
  * PubSub-configuration will invalidate the buffered frames, the PubSub
  * configuration must be frozen after the configuration phase.
  *
- * After the PubSub-configuration freeze, the NetworkMessages and
- * DataSetMessages will be calculated and buffered. During the subscribe cycle,
- * decoding will happen only to the necessary offsets and the buffered
- * NetworkMessage will only be updated.
+ * After enabling the subscriber (and when the first message is received), the
+ * NetworkMessages and DataSetMessages will be calculated and buffered. During
+ * the subscribe cycle, decoding will happen only to the necessary offsets and
+ * the buffered NetworkMessage will only be updated.
  */
 
 UA_NodeId connectionIdentifier;

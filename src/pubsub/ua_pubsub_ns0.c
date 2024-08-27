@@ -799,7 +799,6 @@ addPubSubConnectionLocked(UA_Server *server,
         if(!rg)
             continue;
         if(pubSubConnection->enabled) {
-            UA_ReaderGroup_freezeConfiguration(psm, rg);
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
         } else {
             UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
@@ -1505,7 +1504,6 @@ removeGroupAction(UA_Server *server,
     if(UA_WriterGroup_find(psm, nodeToRemove)) {
         return UA_Server_removeWriterGroup(server, nodeToRemove);
     } else {
-        UA_Server_unfreezeReaderGroupConfiguration(server, nodeToRemove);
         return UA_Server_removeReaderGroup(server, nodeToRemove);
     }
 }

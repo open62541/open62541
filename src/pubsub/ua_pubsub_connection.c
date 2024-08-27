@@ -220,13 +220,11 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     c->deleteFlag = true;
     UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
 
-    /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
-     * Connection. Do this before removing them because we need to unfreeze all
-     * to remove the Connection.*/
+    /* Stop and all ReaderGroupds and WriterGroups attached to the Connection.
+     * We need to disable all to remove the Connection.*/
     UA_ReaderGroup *rg, *tmpRg;
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
         UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
-        UA_ReaderGroup_unfreezeConfiguration(rg);
     }
 
     UA_WriterGroup *wg, *tmpWg;

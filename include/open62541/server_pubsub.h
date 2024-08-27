@@ -811,12 +811,6 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId rgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId rgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE

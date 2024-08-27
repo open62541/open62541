@@ -248,10 +248,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
 
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, readerGroupIdentifier));
 
     while(true) {
@@ -270,7 +266,6 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
             break;
     }
     UA_DataValue_delete(dataValue);
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     UA_free(subValue);
     UA_free(subDataValueRT);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, publishedDataSetIdent));
@@ -408,14 +403,8 @@ START_TEST(SetupInvalidPubSubConfigReader) {
         UA_free(readerConfig.dataSetMetaData.fields);
         // UA_Variant_clear(&variant);
 
-        ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTIMPLEMENTED); // Multiple DSR not supported
-
-        ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
         retVal = UA_Server_removeDataSetReader(server, readerIdentifier2);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-        ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTSUPPORTED); // DateTime not supported
-        ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, publishedDataSetIdent));
     } END_TEST
@@ -624,7 +613,6 @@ static void PublishSubscribeWithWriteCallback_Helper(
     }
     UA_free(pMetaData->fields);
 
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier));
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableReaderGroup(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 
@@ -658,8 +646,6 @@ static void PublishSubscribeWithWriteCallback_Helper(
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, writerGroupIdent));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, readerGroupIdentifier));
-
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier));
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, connectionIdentifier));
 
