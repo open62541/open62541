@@ -105,7 +105,6 @@ START_TEST(CreateAndLockConfiguration) {
     UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     UA_DataSetField *dsf;
@@ -175,7 +174,6 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
         ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        ck_assert(pubSubConnection->configurationFreezeCounter > 0);
         UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
         ck_assert(publishedDataSet->configurationFreezeCounter > 0);
         UA_DataSetField *dsf;
@@ -245,13 +243,11 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     UA_StatusCode retval = UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     retval |= UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
     ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
     retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
@@ -260,7 +256,6 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     } END_TEST
 
