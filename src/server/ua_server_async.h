@@ -17,7 +17,7 @@
 #include <open62541/server.h>
 
 #include "open62541_queue.h"
-#include "util/ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
