@@ -15,6 +15,11 @@
 #include "test_helpers.h"
 #include "certificates.h"
 
+#ifdef __linux__
+#include "mp_printf.h"
+#include <linux/limits.h>
+#endif
+
 UA_Server *server;
 
 static void setup(void) {
@@ -43,8 +48,9 @@ static void setup2(void) {
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
 
-    char storePathDir[4096];
-    getcwd(storePathDir, 4096);
+    char storePathDir[PATH_MAX];
+    getcwd(storePathDir, PATH_MAX - 4);
+    mp_snprintf(storePathDir, PATH_MAX, "%s/pki", storePathDir);
 
     const UA_String storePath = UA_STRING(storePathDir);
     server =
