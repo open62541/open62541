@@ -143,6 +143,7 @@ endfunction()
 
 ua_add_test(check_types_builtin.c)
 ua_add_test(check_ziptree.c)
+ua_add_test(check_mp_printf.c)
 
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
