@@ -597,6 +597,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         wg->head.state = targetState;
+        UA_WriterGroup_unfreezeConfiguration(psm, wg);
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(psm, wg);
         break;
@@ -605,6 +606,12 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
+        /* Freeze the configuration */
+        ret = UA_WriterGroup_freezeConfiguration(psm, wg);
+        if(ret != UA_STATUSCODE_GOOD)
+            break;
+
+        /* PAUSED has no open connections and periodic callbacks */
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
@@ -652,7 +659,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Failure */
     if(ret != UA_STATUSCODE_GOOD) {
-        wg->head.state = UA_PUBSUBSTATE_ERROR;
+        wg->head.state = UA_PUBSUBSTATE_ERROR;;
+        UA_WriterGroup_unfreezeConfiguration(psm, wg);
         UA_WriterGroup_disconnect(wg);
         UA_WriterGroup_removePublishCallback(psm, wg);
     }
@@ -663,8 +671,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     if(wg->head.transientState)
         return ret;
 
+    /* Inform the application about state change */
     if(wg->head.state != oldState) {
-        /* Inform application about state change */
         UA_ServerConfig *pConfig = &psm->sc.server->config;
         UA_LOG_INFO_PUBSUB(psm->logging, wg, "State change: %s -> %s",
                            UA_PubSubState_name(oldState),
@@ -1255,34 +1263,6 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
     UA_StatusCode res = (wg) ? UA_WriterGroup_remove(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId writerGroup) {
-    if(!server)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroup_freezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId writerGroup) {
-    if(!server)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ?
-        UA_WriterGroup_unfreezeConfiguration(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

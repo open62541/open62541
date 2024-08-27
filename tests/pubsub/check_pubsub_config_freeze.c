@@ -102,7 +102,7 @@ START_TEST(CreateAndLockConfiguration) {
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+    UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
@@ -113,8 +113,7 @@ START_TEST(CreateAndLockConfiguration) {
         ck_assert(dsf->configurationFrozen == UA_TRUE);
     }
     //set state to disabled and implicit unlock the configuration
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
 } END_TEST
 
 START_TEST(CreateAndLockConfigurationWithExternalAPI) {
@@ -173,7 +172,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
 
         ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
         //Lock the with the freeze function
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+        UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
         ck_assert(dataSetField->configurationFrozen == UA_TRUE);
         ck_assert(pubSubConnection->configurationFreezeCounter > 0);
@@ -184,8 +183,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
             ck_assert(dsf->configurationFrozen == UA_TRUE);
         }
         //set state to disabled and implicit unlock the configuration
-        retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+        UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     } END_TEST
 
 START_TEST(CreateAndReleaseMultiplePDSLocks) {
@@ -248,18 +246,18 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
-    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
+    UA_StatusCode retval = UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
+    retval |= UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
     ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
     ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
+    retval |= UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup2));
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
     ck_assert(dataSetField->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
@@ -315,12 +313,12 @@ START_TEST(CreateLockAndEditConfiguration) {
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+    UA_WriterGroup_freezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     //call not allowed configuration methods
     UA_DataSetFieldResult fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_BADCONFIGURATIONERROR);
     ck_assert(UA_Server_removePublishedDataSet(server, publishedDataSet1) == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    UA_WriterGroup_unfreezeConfiguration(psm, UA_WriterGroup_find(psm, writerGroup1));
     fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);

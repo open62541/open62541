@@ -321,7 +321,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setMinimal(config, 4801, NULL);
 
-    /* API calls */
     /* Add PubSubConnection */
     retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);
     if (retval != UA_STATUSCODE_GOOD)
@@ -337,12 +336,11 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     if (retval != UA_STATUSCODE_GOOD)
         return EXIT_FAILURE;
 
-    /* Freeze the PubSub configuration (and start implicitly the subscribe callback) */
-    UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
+    /* Enable the ReaderGroup */
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
 
     retval = UA_Server_runUntilInterrupt(server);
 
-    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier);
     UA_Server_delete(server);
 
     for(UA_Int32 i = 0; i < PUBSUB_CONFIG_FIELD_COUNT; i++) {

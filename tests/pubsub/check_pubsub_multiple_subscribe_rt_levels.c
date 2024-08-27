@@ -262,8 +262,6 @@ START_TEST(SubscribeMultipleMessagesRT) {
     UA_free(readerConfig.dataSetMetaData.fields);
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
 
@@ -287,8 +285,6 @@ START_TEST(SubscribeMultipleMessagesRT) {
     }
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);
     UA_free(subValue);
     UA_free(subDataValueRT);
@@ -455,13 +451,9 @@ START_TEST(SubscribeMultipleMessagesWithoutRT) {
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
 
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_Server_run_iterate(server, false);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent1) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);
 } END_TEST
 
@@ -617,9 +609,7 @@ START_TEST(SetupInvalidPubSubConfig) {
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTSUPPORTED); // DateTime not supported
-    ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_BADNOTSUPPORTED); // Static value source only supported
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_unfreezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 } END_TEST
 
 int main(void) {
