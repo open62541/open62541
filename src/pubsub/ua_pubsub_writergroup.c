@@ -237,10 +237,9 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 
 UA_StatusCode
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    if(wg->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Deleting the WriterGroup failed. "
-                              "WriterGroup is frozen.");
+                              "Deleting the WriterGroup failed while still enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
