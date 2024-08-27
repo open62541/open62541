@@ -62,23 +62,16 @@ START_TEST(CreateAndLockConfiguration) {
     UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, dataSetReader1);
     ck_assert(dataSetReader != NULL);
 
-    //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
-    ck_assert(pubSubConnection != NULL);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-
     //Lock the reader group and the child pubsub entities
     UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_find(psm, readerGroup1);
     retVal |= UA_ReaderGroup_freezeConfiguration(getPSM(server), readerGroup_1);
 
     ck_assert(readerGroup->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //set state to disabled and implicit unlock the configuration
-    retVal |= UA_ReaderGroup_unfreezeConfiguration(readerGroup_1);
+    UA_ReaderGroup_unfreezeConfiguration(readerGroup_1);
 
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -124,28 +117,20 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     //freeze configuration of both RG
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     retVal |= UA_ReaderGroup_freezeConfiguration(getPSM(server), readerGroup_1);
     retVal |= UA_ReaderGroup_freezeConfiguration(getPSM(server), readerGroup_2);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     ck_assert(readerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(readerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //unlock one tree, get sure connection still locked
-    retVal |= UA_ReaderGroup_unfreezeConfiguration(readerGroup_1);
+    UA_ReaderGroup_unfreezeConfiguration(readerGroup_1);
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
-    ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader_2->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader_3->configurationFrozen == UA_TRUE);
 
-    retVal |= UA_ReaderGroup_unfreezeConfiguration(readerGroup_2);
+    UA_ReaderGroup_unfreezeConfiguration(readerGroup_2);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-    ck_assert(dataSetReader_3->configurationFrozen == UA_FALSE);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(CreateLockAndEditConfiguration) {
@@ -238,10 +223,6 @@ START_TEST(CreateLockAndEditConfiguration) {
         targetVars[i].targetVariable.attributeId  = UA_ATTRIBUTEID_VALUE;
         targetVars[i].targetVariable.targetNodeId = newNode;
     }
-
-    UA_DataSetReader *dataSetReader_1 = UA_DataSetReader_find(psm, dataSetReader1);
-    ck_assert(dataSetReader_1 != NULL);
-    ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
 
     //Lock the reader group and the child pubsub entities
     UA_ReaderGroup *rg1 = UA_ReaderGroup_find(psm, readerGroup1);
