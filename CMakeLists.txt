@@ -1152,10 +1152,17 @@ if(UA_ENABLE_AMALGAMATION)
                                                      ${PROJECT_BINARY_DIR}/open62541.h)
 endif()
 
+# Generated NS0
 ua_generate_nodeset(NAME "ns0" FILE ${UA_FILE_NODESETS}
                     INTERNAL BLACKLIST ${UA_FILE_NS0_BLACKLIST}
                     IGNORE "${PROJECT_SOURCE_DIR}/tools/nodeset_compiler/NodeID_NS0_Base.txt"
                     DEPENDS_TARGET "open62541-generator-types")
+
+# Stack protector and optimization are disabled for the huge ns0 file to speed up the compilation
+if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
+    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
+                                PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
+endif()
 
 if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
@@ -1173,57 +1180,39 @@ if(UA_ENABLE_NODESET_INJECTOR)
     set(UA_NODESETINJECTOR_TEST_NAMES "")
 endif()
 
-#####################
-# Build the Library #
-#####################
-
-assign_source_group(${exported_headers})
-assign_source_group(${lib_headers} ${lib_sources})
-assign_source_group(${plugin_headers} ${plugin_sources})
-
-# When building packages, include the source in the library name to enable parallel
-# installation of multiple versions. We may break the ABI between minor releases!
-
-add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
-target_include_directories(open62541-object PRIVATE ${PROJECT_SOURCE_DIR}/src)
-
+# Group the code generation targets into one target
 add_custom_target(open62541-code-generation DEPENDS open62541-generator-types
                                                     open62541-generator-transport
                                                     open62541-generator-statuscode
                                                     open62541-generator-namespace)
-
 if(UA_ENABLE_NODESET_INJECTOR)
     add_dependencies(open62541-code-generation open62541-generator-nodesetinjector)
 endif()
 
-# stack protector and optimization are disabled for the huge ns0 file
-if(UA_NAMESPACE_ZERO STREQUAL "FULL" AND NOT MSVC)
-    set_source_files_properties(${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.c
-                                PROPERTIES COMPILE_FLAGS "-fno-stack-protector -O0")
-endif()
+#####################
+# Build the Library #
+#####################
 
-add_library(open62541-plugins OBJECT ${plugin_sources} ${exported_headers})
-add_dependencies(open62541-plugins open62541-generator-types open62541-generator-transport open62541-generator-namespace)
-target_include_directories(open62541-plugins PRIVATE ${PROJECT_SOURCE_DIR}/plugins)
-target_include_directories(open62541-plugins PRIVATE ${PROJECT_BINARY_DIR}/src_generated)
-target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
+# Assign source files to groups (for the Visual Studio project folder)
+assign_source_group(${exported_headers})
+assign_source_group(${lib_headers} ${lib_sources})
+assign_source_group(${plugin_headers} ${plugin_sources})
 
+# Define the target libraries
+add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
+
+add_dependencies(open62541-object open62541-code-generation)
+add_dependencies(open62541-plugins open62541-code-generation)
+
+# Define which code we want to coverage-track
 if(UA_ENABLE_COVERAGE)
     add_coverage(open62541-object)
     add_coverage(open62541-plugins)
 endif()
 
-add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
-
-if(UA_ENABLE_ENCRYPTION_LIBRESSL)
-    # Prevent Wincrypt override warning.
-    target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
-    target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
-    target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
-endif()
-
-# Declare include directories
+# Private include directories
 function(include_directories_private)
     foreach(_include_dir IN ITEMS ${ARGN})
         target_include_directories(open62541-object PRIVATE ${_include_dir})
@@ -1231,26 +1220,7 @@ function(include_directories_private)
     endforeach()
 endfunction()
 
-function(include_directories_public)
-    include_directories_private(${ARGN})
-    foreach(_include_dir IN ITEMS ${ARGN})
-        target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
-    endforeach()
-endfunction()
-
-# Public includes
-include_directories_public("${PROJECT_SOURCE_DIR}/include"
-                           "${PROJECT_SOURCE_DIR}/plugins/include"
-                           "${PROJECT_SOURCE_DIR}/deps"
-                           "${PROJECT_SOURCE_DIR}/src/pubsub"
-                           "${PROJECT_BINARY_DIR}/src_generated")
-
-if(UA_ENABLE_NODESETLOADER)
-    include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
-endif()
-
-# Private includes
-include_directories_private("${PROJECT_BINARY_DIR}")
+include_directories_private("${PROJECT_SOURCE_DIR}/deps")
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
@@ -1265,20 +1235,44 @@ if(UA_ENABLE_NODESETLOADER)
     include_directories_private(${NODESETLOADER_PRIVATE_INCLUDES})
 endif()
 
-add_dependencies(open62541-object open62541-code-generation)
+# Public include directories
+function(include_directories_public)
+    include_directories_private(${ARGN})
+    foreach(_include_dir IN ITEMS ${ARGN})
+        target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${_include_dir}>)
+    endforeach()
+endfunction()
+
+include_directories_public("${PROJECT_SOURCE_DIR}/include"
+                           "${PROJECT_SOURCE_DIR}/plugins/include"
+                           "${PROJECT_BINARY_DIR}/src_generated")
+
+if(UA_ENABLE_NODESETLOADER)
+    include_directories_public(${NODESETLOADER_PUBLIC_INCLUDES})
+endif()
 
 # Ensure that the open62541::open62541 alias can be used inside open62541's build
 add_library(open62541::open62541 ALIAS open62541)
 
-# Export Symbols
+# Export public symbols during build
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
+target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 if(UA_ENABLE_DISCOVERY_MULTICAST)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
 
-# Generate properly versioned shared library links on Linux
+# Prevent Wincrypt override warning.
+if(UA_ENABLE_ENCRYPTION_LIBRESSL)
+    target_compile_definitions(open62541-plugins PUBLIC NOCRYPT=1)
+    target_compile_definitions(open62541-object PUBLIC NOCRYPT=1)
+    target_compile_definitions(open62541 PUBLIC NOCRYPT=1)
+endif()
+
+# Generate properly versioned shared library links on Linux.
+# When building packages, include the source in the library name to enable parallel
+# installation of multiple major versions.
 SET_TARGET_PROPERTIES(open62541 PROPERTIES
                       SOVERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}"
                       VERSION "${OPEN62541_VER_MAJOR}.${OPEN62541_VER_MINOR}.${OPEN62541_VER_PATCH}")
@@ -1426,7 +1420,6 @@ set(BASE_PATH_MAIN "${PROJECT_SOURCE_DIR}/include/open62541")
 set(BASE_PATH_PLUGINS "${PROJECT_SOURCE_DIR}/plugins/include/open62541")
 set(BASE_PATH_ARCH "${PROJECT_SOURCE_DIR}/arch")
 set(BASE_PATH_GENERATED "${PROJECT_BINARY_DIR}/src_generated/open62541")
-set(BASE_PATH_DEPS "${PROJECT_SOURCE_DIR}/deps")
 
 foreach ( file ${FILES_TO_INSTALL} )
     # Construct a relative path by replacing any occurence of the absolute path
@@ -1435,16 +1428,8 @@ foreach ( file ${FILES_TO_INSTALL} )
     string(REPLACE ${BASE_PATH_PLUGINS} "" file ${file})
     string(REPLACE ${BASE_PATH_ARCH} "" file ${file})
     string(REPLACE ${BASE_PATH_GENERATED} "" file ${file})
-    string(REPLACE ${BASE_PATH_DEPS} "" file ${file})
-
     get_filename_component(dir ${file} DIRECTORY)
-
-    string(FIND "${full_path}" "${BASE_PATH_DEPS}" has_base_path)
-    if("${has_base_path}" EQUAL 0)
-        install(FILES ${full_path} DESTINATION include${dir})
-    else()
-        install(FILES ${full_path} DESTINATION include/open62541${dir})
-    endif()
+    install(FILES ${full_path} DESTINATION include/open62541${dir})
 endforeach()
 
 ##################################
@@ -1456,6 +1441,7 @@ set_property(GLOBAL PROPERTY PREDEFINED_TARGETS_FOLDER "_CmakePredifinedTargets"
 
 set_target_properties(open62541 PROPERTIES FOLDER "open62541/lib")
 set_target_properties(open62541-object PROPERTIES FOLDER "open62541/lib")
+set_target_properties(open62541-plugins PROPERTIES FOLDER "open62541/lib")
 
 set_target_properties(open62541-generator-namespace PROPERTIES FOLDER "open62541/generators")
 set_target_properties(open62541-generator-statuscode PROPERTIES FOLDER "open62541/generators")
