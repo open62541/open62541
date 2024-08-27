@@ -490,7 +490,6 @@ UA_PubSubDataSetField_sampleValue(UA_PubSubManager *psm,
 /*               DataSetReader                */
 /**********************************************/
 
-/* DataSetReader Type definition */
 struct UA_DataSetReader {
     UA_PubSubComponentHead head;
     LIST_ENTRY(UA_DataSetReader) listEntry;
@@ -498,7 +497,6 @@ struct UA_DataSetReader {
     UA_DataSetReaderConfig config;
     UA_ReaderGroup *linkedReaderGroup;
 
-    UA_Boolean configurationFrozen;
     UA_NetworkMessageOffsetBuffer bufferedMessage;
 
     /* MessageReceiveTimeout handling */

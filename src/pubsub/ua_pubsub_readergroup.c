@@ -407,18 +407,15 @@ UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     /* ReaderGroup freeze */
     rg->configurationFrozen = true;
 
-    /* DataSetReader freeze */
-    UA_DataSetReader *dsr;
-    UA_UInt16 dsrCount = 0;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        dsr->configurationFrozen = true;
-        dsrCount++;
-    }
-
     /* Not rt, we don't have to adjust anything */
     if((rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
         return UA_STATUSCODE_GOOD;
 
+    UA_DataSetReader *dsr;
+    UA_UInt16 dsrCount = 0;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        dsrCount++;
+    }
     if(dsrCount > 1) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
                               "Multiple DSR in a readerGroup not supported in RT "
@@ -501,7 +498,6 @@ UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
     /* DataSetReader unfreeze */
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-        dataSetReader->configurationFrozen = false;
         UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
     }
 

@@ -108,9 +108,9 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(!rg)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    if(rg->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Add DataSetReader failed, Subscriber configuration is frozen");
+                              "Cannot add a DataSetReader while the ReaderGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -131,7 +131,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     retVal = addDataSetReaderRepresentation(psm->sc.server, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
-                            "Add DataSetReader failed, addDataSetReaderRepresentation failed");
+                            "Adding the DataSetReader to the information model failed");
         UA_DataSetReaderConfig_clear(&dsr->config);
         UA_free(dsr);
         dsr = 0;
@@ -237,10 +237,9 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    if(dsr->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(dsr->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "Remove DataSetReader failed, "
-                              "Subscriber configuration is frozen");
+                              "Cannot remove DataSetReader -- still enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -257,8 +256,8 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
             sds->connectedReader = NULL;
     }
 
-    /* Delete DataSetReader config */
     UA_DataSetReaderConfig_clear(&dsr->config);
+    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
 
     /* Get the ReaderGroup. This must succeed since all Readers are removed from
      * the group before it is deleted in UA_ReaderGroup_remove.*/
@@ -268,9 +267,6 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     /* Remove DataSetReader from group */
     LIST_REMOVE(dsr, listEntry);
     rg->readersCount--;
-
-    /* THe offset buffer is only set when the dsr is frozen
-     * UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage); */
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader deleted");
 
@@ -421,10 +417,10 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
                                     size_t tvsSize, const UA_FieldTargetVariable *tvs) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
-    if(dsr->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(dsr->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "Create Target Variables failed. "
-                              "Subscriber configuration is frozen.");
+                              "Cannot create Target Variables failed while "
+                              "the DataSetReader is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 

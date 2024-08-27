@@ -61,7 +61,6 @@ START_TEST(CreateAndLockConfiguration) {
     retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
     UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, dataSetReader1);
     ck_assert(dataSetReader != NULL);
-    ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
 
     //get internal PubSubConnection Pointer
     UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
@@ -73,14 +72,12 @@ START_TEST(CreateAndLockConfiguration) {
     retVal |= UA_ReaderGroup_freezeConfiguration(getPSM(server), readerGroup_1);
 
     ck_assert(readerGroup->configurationFrozen == UA_TRUE);
-    ck_assert(dataSetReader->configurationFrozen == UA_TRUE);
     ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //set state to disabled and implicit unlock the configuration
     retVal |= UA_ReaderGroup_unfreezeConfiguration(readerGroup_1);
 
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
     ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
