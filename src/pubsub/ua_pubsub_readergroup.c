@@ -281,6 +281,7 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
         rg->head.state = targetState;
+        UA_ReaderGroup_unfreezeConfiguration(rg);
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
         break;
@@ -289,6 +290,11 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     case UA_PUBSUBSTATE_PAUSED:
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
+        /* Freeze the configuration */
+        ret = UA_ReaderGroup_freezeConfiguration(psm, rg);
+        if(ret != UA_STATUSCODE_GOOD)
+            break;
+
         if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
@@ -326,6 +332,7 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Failure */
     if(ret != UA_STATUSCODE_GOOD) {
         rg->head.state = UA_PUBSUBSTATE_ERROR;
+        UA_ReaderGroup_unfreezeConfiguration(rg);
         UA_ReaderGroup_disconnect(rg);
         rg->hasReceived = false;
     }
@@ -501,10 +508,7 @@ UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
      * settings which headers are present, etc. Until then the ReaderGroup is
      * "PreOperational". */
     UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
-
-    /* Set the current state again. This can move the state from Operational to
-     * PreOperational. */
-    return UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -914,33 +918,6 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server,
     UA_StatusCode res = (rg) ?
         UA_ReaderGroup_setEncryptionKeys(psm, rg, securityTokenId, signingKey,
                                          encryptingKey, keyNonce) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_freezeReaderGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId readerGroupId) {
-    if(!server)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubManager *psm = getPSM(server);
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupId);
-    UA_StatusCode res = (rg) ?
-        UA_ReaderGroup_freezeConfiguration(psm, rg) : UA_STATUSCODE_BADNOTFOUND;
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId readerGroupId) {
-    if(!server)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(getPSM(server), readerGroupId);
-    UA_StatusCode res = (rg) ?
-        UA_ReaderGroup_unfreezeConfiguration(rg) : UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

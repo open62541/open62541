@@ -411,28 +411,20 @@ static void DoTest_1_Connection(UA_PublisherId publisherId) {
     AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", publisherId, 1, 1,
         &subscriberVarIds[0], &fastPathSubscriberDataValues[0], &DSRId_Conn1_RG1_DSR1);
 
-    /* freeze groups if fast-path is enabled */
-    if(UseFastPath) {
-        if(publisherId.idType != UA_PUBLISHERIDTYPE_STRING) {
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-        } else {
-            /* string PublisherId is not supported with fast-path */
-            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "test case: STRING publisherId with fast-path");
-            ck_assert_int_eq(UA_STATUSCODE_BADNOTSUPPORTED, UA_Server_freezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
+    /* string PublisherId is not supported with fast-path */
+    if(UseFastPath && publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "test case: STRING publisherId with fast-path");
 
-            /* cleanup and continue with other tests */
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
-            ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
-            for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
-                UA_DataValue_clear(fastPathPublisherDataValues[i]);
-                UA_DataValue_delete(fastPathPublisherDataValues[i]);
-                UA_DataValue_clear(fastPathSubscriberDataValues[i]);
-                UA_DataValue_delete(fastPathSubscriberDataValues[i]);
-            }
-            return;
+        /* cleanup and continue with other tests */
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
+        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePubSubConnection(server, ConnId_1));
+        for (UA_UInt32 i = 0; i < DOTEST_1_CONNECTION_MAX_VARS; i++) {
+            UA_DataValue_clear(fastPathPublisherDataValues[i]);
+            UA_DataValue_delete(fastPathPublisherDataValues[i]);
+            UA_DataValue_clear(fastPathSubscriberDataValues[i]);
+            UA_DataValue_delete(fastPathSubscriberDataValues[i]);
         }
+        return;
     }
 
     /* set groups operational */
@@ -454,12 +446,6 @@ static void DoTest_1_Connection(UA_PublisherId publisherId) {
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, RGId_Conn1_RG1));
-
-    /* unfreeze groups if fast-path is enabled */
-    if (UseFastPath) {
-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "unfreeze groups");
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, RGId_Conn1_RG1));
-    }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PDS");
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_removePublishedDataSet(server, PDSId_Conn1_WG1_PDS1));
@@ -846,9 +832,6 @@ static void DoTest_multiple_Connections(void) {
                      &fastPathSubscriberDataValues[4], &DSRId_Conn6_RG1_DSR1);
     ReaderGroupIds[5] = RGId_Conn6_RG1;
 
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, ReaderGroupIds[i]));
@@ -879,12 +862,6 @@ static void DoTest_multiple_Connections(void) {
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD,
                          UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
-    }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_CONNECTIONS_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD,
-                         UA_Server_unfreezeReaderGroupConfiguration(server,
-                                                                    ReaderGroupIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -1196,10 +1173,6 @@ static void DoTest_string_PublisherId(void) {
     }   /* end of configuration scope -> string PublisherIds are deallocated from stack
             deep copy of string PublisherId is done by UA_Server_addPubSubConnection() */
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
@@ -1240,10 +1213,6 @@ static void DoTest_string_PublisherId(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
-    }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_STRING_PUBLISHERID_MAX_COMPONENTS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -1837,10 +1806,6 @@ static void DoTest_multiple_Groups(void) {
         &subscriberVarIds[5], &fastPathSubscriberDataValues[5], &DSRId_Conn3_RG2_DSR1);
     ReaderGroupIds[7] = RGId_Conn3_RG2;
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_WRITERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
@@ -1866,10 +1831,6 @@ static void DoTest_multiple_Groups(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
-    }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_GROUPS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");
@@ -2110,10 +2071,6 @@ static void DoTest_multiple_DataSets(void) {
                      Conn2_PublisherId, WG_Id, Conn1_WG1_DSW2_Id,
         &subscriberVarIds[5], &fastPathSubscriberDataValues[5], &DSRId_Conn2_RG1_DSR4);
 
-    /* freeze all Groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
-    }
     /* set groups operational */
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_WRITERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableWriterGroup(server, WriterGroupIds[i]));
@@ -2139,10 +2096,6 @@ static void DoTest_multiple_DataSets(void) {
     }
     for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
         ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupDisabled(server, ReaderGroupIds[i]));
-    }
-    /* unfreeze groups */
-    for (UA_UInt32 i = 0; i < DOTEST_MULTIPLE_DATASETS_MAX_READERGROUPS; i++) {
-        ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_unfreezeReaderGroupConfiguration(server, ReaderGroupIds[i]));
     }
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "remove PublishedDataSets");

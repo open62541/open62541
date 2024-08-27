@@ -274,14 +274,8 @@ START_TEST(SetupInvalidPubSubConfig) {
     UA_free(readerConfig.dataSetMetaData.fields);
     UA_Variant_clear(&variant);
 
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTIMPLEMENTED); // Multiple DSR not supported
-
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     retVal = UA_Server_removeDataSetReader(server, readerIdentifier2);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_BADNOTSUPPORTED); // DateTime not supported
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
@@ -442,13 +436,8 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
 
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_enableReaderGroup(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, readerGroupIdentifier));
 
     while(true) {
         UA_fakeSleep(50);
@@ -466,7 +455,6 @@ START_TEST(PublishAndSubscribeSingleFieldWithFixedOffsets) {
             break;
     }
 
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     UA_DataValue_delete(dataValue);
     UA_free(subValue);
     UA_free(subDataValueRT);
@@ -736,10 +724,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
     UA_free(readerConfig.subscribedDataSet.subscribedDataSetTarget.targetVariables);
     UA_free(readerConfig.dataSetMetaData.fields);
 
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, readerGroupIdentifier));
 
     while(true) {
@@ -765,7 +749,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndSubscribeFixedSize) {
     ck_assert((*(UA_UInt32 *)subscribedNodeData1->data) == 2000);
     UA_Variant_clear(subscribedNodeData1);
     UA_free(subscribedNodeData1);
-    ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     UA_Server_deleteNode(server, pubNodeId1, UA_TRUE);
     UA_NodeId_clear(&pubNodeId);
     UA_Server_deleteNode(server, pubNodeId1, UA_TRUE);
