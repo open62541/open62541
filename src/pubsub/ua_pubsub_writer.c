@@ -129,9 +129,9 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(wg->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Adding DataSetWriter failed: WriterGroup is frozen");
+                              "Adding DataSetWriter failed while the WriterGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -347,10 +347,9 @@ UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
-    /* Frozen? */
-    if(dsw->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(dsw->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Remove DataSetWriter failed: WriterGroup is frozen");
+                              "Removal of DataSetWriter failed while the WriterGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 

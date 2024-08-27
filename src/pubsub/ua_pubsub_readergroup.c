@@ -187,10 +187,9 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
-    if(rg->configurationFrozen) {
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Remove ReaderGroup failed. "
-                              "Subscriber configuration is frozen.");
+                              "Deleting the ReaderGroup failed while still enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 

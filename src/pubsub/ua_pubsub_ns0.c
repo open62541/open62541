@@ -940,21 +940,11 @@ addDataSetReaderLocked(UA_Server *server,
                        size_t inputSize, const UA_Variant *input,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, *objectId);
-    if(rg->configurationFrozen) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "AddDataSetReader cannot be done because ReaderGroup config frozen");
-        return UA_STATUSCODE_BAD;
-    }
 
     UA_NodeId dataSetReaderId;
     UA_DataSetReaderDataType *dataSetReader= (UA_DataSetReaderDataType *) input[0].data;
-    retVal |= addDataSetReaderConfig(server, *objectId, dataSetReader, &dataSetReaderId);
+    UA_StatusCode retVal =
+        addDataSetReaderConfig(server, *objectId, dataSetReader, &dataSetReaderId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "AddDataSetReader failed");
@@ -1888,26 +1878,10 @@ addDataSetWriterLocked(UA_Server *server,
                        size_t outputSize, UA_Variant *output) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_PubSubManager *psm = getPSM(server);
-    if(!psm)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, *objectId);
-    if(!wg) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Not a WriterGroup");
-        return UA_STATUSCODE_BAD;
-    }
-    if(wg->configurationFrozen) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "addDataSetWriter cannot be done because writergroup config frozen");
-        return UA_STATUSCODE_BAD;
-    }
-
     UA_NodeId dataSetWriterId;
     UA_DataSetWriterDataType *dataSetWriterData = (UA_DataSetWriterDataType *)input->data;
-    retVal |= addDataSetWriterConfig(server, objectId, dataSetWriterData, &dataSetWriterId);
+    UA_StatusCode retVal =
+        addDataSetWriterConfig(server, objectId, dataSetWriterData, &dataSetWriterId);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
                      "addDataSetWriter failed");
