@@ -3,6 +3,12 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub Configuration freezing
+
+The configuration is now "frozen" automatically when the state machine switches
+to an enabled state (PAUSED / OPERATIONAL / PREOPERATIONAL). The freezing
+mechanism is no longer exposed in the public API.
+
 ### Timer Simplification
 
 For timed callbacks that are not repeated, use the same API
