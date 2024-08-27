@@ -486,22 +486,16 @@ UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+void
 UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
-    /* Already unfrozen */
     if(!rg->configurationFrozen)
-        return UA_STATUSCODE_GOOD;
-
-    /* ReaderGroup unfreeze */
+        return;
     rg->configurationFrozen = false;
 
-    /* DataSetReader unfreeze */
     UA_DataSetReader *dataSetReader;
     LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
         UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
     }
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_Boolean

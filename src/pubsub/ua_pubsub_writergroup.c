@@ -437,22 +437,18 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     return res;
 }
 
-UA_StatusCode
+void
 UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    /* Already unfrozen */
     if(!wg->configurationFrozen)
-        return UA_STATUSCODE_GOOD;
+        return;
+    wg->configurationFrozen = false;
 
-    /* DataSetWriter unfreeze */
     UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         UA_DataSetWriter_unfreezeConfiguration(dsw);
     }
 
     UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
-    wg->configurationFrozen = false;
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
