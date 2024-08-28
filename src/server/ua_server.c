@@ -50,7 +50,7 @@
 
 void
 setupNs1Uri(UA_Server *server) {
-    if(!server->namespaces[1].data) {
+    if(server->namespacesSize > 1 && !server->namespaces[1].data) {
         UA_String_copy(&server->config.applicationDescription.applicationUri,
                        &server->namespaces[1]);
     }
@@ -357,15 +357,6 @@ UA_Server_init(UA_Server *server) {
     server->adminSession.validTill = UA_INT64_MAX;
     server->adminSession.sessionName = UA_STRING_ALLOC("Administrator");
 
-    /* Create Namespaces 0 and 1
-     * Ns1 will be filled later with the uri from the app description */
-    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
-    UA_CHECK_MEM(server->namespaces, goto cleanup);
-
-    server->namespaces[0] = UA_STRING_ALLOC("http://opcfoundation.org/UA/");
-    server->namespaces[1] = UA_STRING_NULL;
-    server->namespacesSize = 2;
-
     /* Initialize Session Management */
     LIST_INIT(&server->sessions);
     server->sessionCount = 0;
@@ -382,9 +373,23 @@ UA_Server_init(UA_Server *server) {
     addServerComponent(server, UA_DiscoveryManager_new(server), NULL);
 #endif
 
+    /* Temporarily create just namespace 0 to be used by initNS0*/
+    UA_String namespace1String = UA_STRING ("http://opcfoundation.org/UA/");
+    server->namespaces = &namespace1String;
+    server->namespacesSize = 1;
+
     /* Initialize namespace 0*/
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
+
+    /* Create Namespaces 0 and 1
+     * Ns1 will be filled later with the uri from the app description */
+    server->namespaces = (UA_String *)UA_Array_new(2, &UA_TYPES[UA_TYPES_STRING]);
+    UA_CHECK_MEM(server->namespaces, goto cleanup);
+
+    UA_String_copy(&namespace1String, &server->namespaces[0]);
+    server->namespaces[1] = UA_STRING_NULL;
+    server->namespacesSize = 2;
 
 #ifdef UA_ENABLE_NODESET_INJECTOR
     UA_UNLOCK(&server->serviceMutex);
