@@ -19,7 +19,10 @@
 
 #include <stdio.h>
 #include <dirent.h>
+
+#ifndef __ANDROID__
 #include <bits/stdio_lim.h>
+#endif  // !__ANDROID__
 
 typedef struct FileCertStore {
     /* In-Memory security policy as a base */

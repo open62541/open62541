@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
 
+# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
+set(ANDROID_PLATFORM 24)
+
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
@@ -404,6 +407,11 @@ endif()
 option(UA_BUILD_OSS_FUZZ "Special build switch used in oss-fuzz" OFF)
 mark_as_advanced(UA_BUILD_OSS_FUZZ)
 
+# Android platform message
+if(ANDROID_NDK_TOOLCHAIN_INCLUDED)
+	MESSAGE("Platform is ${CMAKE_SYSTEM_NAME}")
+endif()
+
 ##########################
 # Advanced Build Targets #
 ##########################
@@ -438,10 +446,10 @@ set(open62541_LIBRARIES "")
 set(open62541_PUBLIC_LIBRARIES "")
 if("${UA_ARCHITECTURE}" STREQUAL "posix")
     list(APPEND open62541_LIBRARIES "m")
-    if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS)
+    if(UA_MULTITHREADING GREATER_EQUAL 100 OR UA_BUILD_UNIT_TESTS AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_PUBLIC_LIBRARIES "pthread")
     endif()
-    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD"))
+    if(NOT APPLE AND (NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD") AND NOT ANDROID_NDK_TOOLCHAIN_INCLUDED)
         list(APPEND open62541_LIBRARIES "rt")
     endif()
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
