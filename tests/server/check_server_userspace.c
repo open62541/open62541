@@ -30,7 +30,7 @@ START_TEST(Server_Namespace1_check) {
 
     ck_assert(UA_String_equal(&out, &config->applicationDescription.applicationUri));
     UA_String_clear(&out);
-
+    UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
 END_TEST
