@@ -19,6 +19,7 @@ START_TEST(Server_Namespace1_check) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
     const char *namespace1 = "http://namespace1";
+    UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri = UA_STRING_ALLOC(namespace1);
 
     UA_Server_run_startup(server);
@@ -28,6 +29,7 @@ START_TEST(Server_Namespace1_check) {
     ck_assert(status == UA_STATUSCODE_GOOD);
 
     ck_assert(UA_String_equal(&out, &config->applicationDescription.applicationUri));
+    UA_String_clear(&out);
 
     UA_Server_delete(server);
 }
