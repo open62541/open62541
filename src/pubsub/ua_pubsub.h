@@ -347,9 +347,6 @@ UA_StatusCode
 UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_DataSetMessage *dsm);
 
-void UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw);
-void UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw);
-
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
@@ -429,12 +426,6 @@ UA_WriterGroupConfig_copy(const UA_WriterGroupConfig *src,
 
 UA_WriterGroup *
 UA_WriterGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
-
-UA_StatusCode
-UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg);
-
-void
-UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
@@ -616,12 +607,6 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
 
 UA_ReaderGroup *
 UA_ReaderGroup_find(UA_PubSubManager *psm, const UA_NodeId id);
-
-UA_StatusCode
-UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg);
-
-void
-UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg);
 
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
