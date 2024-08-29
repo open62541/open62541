@@ -769,20 +769,6 @@ void
 UA_PubSubManager_generateUniqueNodeId(UA_PubSubManager *psm, UA_NodeId *nodeId);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
-/* Decodes the information from the ByteString. If the decoded content is a
- * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
- * current PubSub configuration from the server. */
-UA_StatusCode
-UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
-                                                const UA_ByteString buffer);
-
-/* Saves the current PubSub configuration of a server in a byteString. */
-UA_StatusCode
-UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
-                                               UA_ByteString *buffer);
-#endif
-
 UA_Guid
 UA_PubSubManager_generateUniqueGuid(UA_Server *server);
 
