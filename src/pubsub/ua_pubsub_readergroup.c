@@ -180,18 +180,9 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+void
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
-    if(!psm || !rg)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
-
-    if(UA_PubSubState_isEnabled(rg->head.state)) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Deleting the ReaderGroup failed while still enabled");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
@@ -239,8 +230,6 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -781,9 +770,13 @@ UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId groupIdentifier) 
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, groupIdentifier);
-    UA_StatusCode res = (rg) ? UA_ReaderGroup_remove(psm, rg) : UA_STATUSCODE_BADNOTFOUND;
+    if(rg)
+        UA_ReaderGroup_remove(psm, rg);
+    else
+        res = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
