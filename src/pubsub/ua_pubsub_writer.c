@@ -65,12 +65,13 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
     UA_assert(wg);
 
     UA_PubSubState oldState = dsw->head.state;
-    dsw->head.state = targetState;
 
-    switch(dsw->head.state) {
+    switch(targetState) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
+        dsw->head.state = targetState;
+        UA_DataSetWriter_unfreezeConfiguration(dsw);
         break;
 
         /* Enabled */
@@ -83,11 +84,13 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
         } else {
             dsw->head.state = wg->head.state; /* WG is enabled -> same state */
         }
+        UA_DataSetWriter_freezeConfiguration(dsw);
         break;
 
     default:
         dsw->head.state = UA_PUBSUBSTATE_ERROR;
         res = UA_STATUSCODE_BADINTERNALERROR;
+        UA_DataSetWriter_unfreezeConfiguration(dsw);
         break;
     }
 

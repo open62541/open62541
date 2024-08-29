@@ -298,12 +298,6 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     /* Freeze the WriterGroup */
     wg->configurationFrozen = true;
 
-    /* Freeze the DataSetWriter */
-    UA_DataSetWriter *dsw;
-    LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_DataSetWriter_freezeConfiguration(dsw);
-    }
-
     /* Offset table enabled? */
     if((wg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
         return UA_STATUSCODE_GOOD;
@@ -330,6 +324,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Validate the DataSetWriters and generate their DataSetMessage */
     size_t dsmCount = 0;
+    UA_DataSetWriter *dsw;
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         dsWriterIds[dsmCount] = dsw->config.dataSetWriterId;
         res = UA_DataSetWriter_prepareDataSet(psm, dsw, &dsmStore[dsmCount]);
@@ -435,11 +430,6 @@ UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     if(!wg->configurationFrozen)
         return;
     wg->configurationFrozen = false;
-
-    UA_DataSetWriter *dsw;
-    LIST_FOREACH(dsw, &wg->writers, listEntry) {
-        UA_DataSetWriter_unfreezeConfiguration(dsw);
-    }
 
     UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
 }
