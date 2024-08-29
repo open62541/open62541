@@ -288,7 +288,7 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 }
 
-UA_StatusCode
+static UA_StatusCode
 UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
@@ -425,7 +425,7 @@ UA_WriterGroup_freezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     return res;
 }
 
-void
+static void
 UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     if(!wg->configurationFrozen)
         return;

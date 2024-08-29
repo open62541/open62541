@@ -232,6 +232,107 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
 }
 
+static UA_StatusCode
+UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+
+    if(rg->configurationFrozen)
+        return UA_STATUSCODE_GOOD;
+
+    /* ReaderGroup freeze */
+    rg->configurationFrozen = true;
+
+    /* Not rt, we don't have to adjust anything */
+    if((rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
+        return UA_STATUSCODE_GOOD;
+
+    UA_DataSetReader *dsr;
+    UA_UInt16 dsrCount = 0;
+    LIST_FOREACH(dsr, &rg->readers, listEntry) {
+        dsrCount++;
+    }
+    if(dsrCount > 1) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "Multiple DSR in a readerGroup not supported in RT "
+                              "fixed size configuration");
+        return UA_STATUSCODE_BADNOTIMPLEMENTED;
+    }
+
+    dsr = LIST_FIRST(&rg->readers);
+
+    /* Support only to UADP encoding */
+    if(dsr->config.messageSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "PubSub-RT configuration fail: Non-RT capable encoding.");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    /* Don't support string PublisherId for the fast-path (at this time) */
+    if(dsr->config.publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "PubSub-RT configuration fail: String PublisherId");
+        return UA_STATUSCODE_BADNOTSUPPORTED;
+    }
+
+    size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+    for(size_t i = 0; i < fieldsSize; i++) {
+        /* TODO: Use the datasource from the node */
+        /* UA_FieldTargetVariable *tv = */
+        /*     &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i]; */
+        /* const UA_VariableNode *rtNode = (const UA_VariableNode *) */
+        /*     UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId); */
+        /* if(!rtNode || */
+        /*    rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) { */
+        /*     UA_LOG_WARNING_PUBSUB(server->config.logging, dsr, */
+        /*                           "PubSub-RT configuration fail: PDS contains field " */
+        /*                           "without external data source."); */
+        /*     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
+        /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
+        /* } */
+
+        /* /\* Set the external data source in the tv *\/ */
+        /* tv->externalDataValue = rtNode->valueBackend.backend.external.value; */
+
+        /* UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
+
+        UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
+        if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
+            UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
+           field->maxStringLength == 0) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains String/ByteString with dynamic length.");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
+                  !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                                  "PubSub-RT configuration fail: "
+                                  "PDS contains variable with dynamic size.");
+            return UA_STATUSCODE_BADNOTSUPPORTED;
+        }
+    }
+
+    /* Reset the OffsetBuffer. The OffsetBuffer for a frozen configuration is
+     * generated when the first message is received. So we know the exact
+     * settings which headers are present, etc. Until then the ReaderGroup is
+     * "PreOperational". */
+    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
+    if(!rg->configurationFrozen)
+        return;
+    rg->configurationFrozen = false;
+
+    UA_DataSetReader *dataSetReader;
+    LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
+        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
+    }
+}
+
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState) {
@@ -381,109 +482,6 @@ UA_ReaderGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     return rg->config.securityPolicy->
         setSecurityKeys(rg->securityPolicyContext, &signingKey,
                         &encryptingKey, &keyNonce);
-}
-
-/* Freezing of the configuration */
-
-UA_StatusCode
-UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
-
-    if(rg->configurationFrozen)
-        return UA_STATUSCODE_GOOD;
-
-    /* ReaderGroup freeze */
-    rg->configurationFrozen = true;
-
-    /* Not rt, we don't have to adjust anything */
-    if((rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) == 0)
-        return UA_STATUSCODE_GOOD;
-
-    UA_DataSetReader *dsr;
-    UA_UInt16 dsrCount = 0;
-    LIST_FOREACH(dsr, &rg->readers, listEntry) {
-        dsrCount++;
-    }
-    if(dsrCount > 1) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                              "Multiple DSR in a readerGroup not supported in RT "
-                              "fixed size configuration");
-        return UA_STATUSCODE_BADNOTIMPLEMENTED;
-    }
-
-    dsr = LIST_FIRST(&rg->readers);
-
-    /* Support only to UADP encoding */
-    if(dsr->config.messageSettings.content.decoded.type !=
-       &UA_TYPES[UA_TYPES_UADPDATASETREADERMESSAGEDATATYPE]) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "PubSub-RT configuration fail: Non-RT capable encoding.");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
-    /* Don't support string PublisherId for the fast-path (at this time) */
-    if(dsr->config.publisherId.idType == UA_PUBLISHERIDTYPE_STRING) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "PubSub-RT configuration fail: String PublisherId");
-        return UA_STATUSCODE_BADNOTSUPPORTED;
-    }
-
-    size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
-    for(size_t i = 0; i < fieldsSize; i++) {
-        /* TODO: Use the datasource from the node */
-        /* UA_FieldTargetVariable *tv = */
-        /*     &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i]; */
-        /* const UA_VariableNode *rtNode = (const UA_VariableNode *) */
-        /*     UA_NODESTORE_GET(server, &tv->targetVariable.targetNodeId); */
-        /* if(!rtNode || */
-        /*    rtNode->valueBackend.backendType != UA_VALUEBACKENDTYPE_EXTERNAL) { */
-        /*     UA_LOG_WARNING_PUBSUB(server->config.logging, dsr, */
-        /*                           "PubSub-RT configuration fail: PDS contains field " */
-        /*                           "without external data source."); */
-        /*     UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
-        /*     return UA_STATUSCODE_BADNOTSUPPORTED; */
-        /* } */
-
-        /* /\* Set the external data source in the tv *\/ */
-        /* tv->externalDataValue = rtNode->valueBackend.backend.external.value; */
-
-        /* UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode); */
-
-        UA_FieldMetaData *field = &dsr->config.dataSetMetaData.fields[i];
-        if((UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_STRING].typeId) ||
-            UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BYTESTRING].typeId)) &&
-           field->maxStringLength == 0) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                                  "PubSub-RT configuration fail: "
-                                  "PDS contains String/ByteString with dynamic length.");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        } else if(!UA_DataType_isNumeric(UA_findDataType(&field->dataType)) &&
-                  !UA_NodeId_equal(&field->dataType, &UA_TYPES[UA_TYPES_BOOLEAN].typeId)) {
-            UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                                  "PubSub-RT configuration fail: "
-                                  "PDS contains variable with dynamic size.");
-            return UA_STATUSCODE_BADNOTSUPPORTED;
-        }
-    }
-
-    /* Reset the OffsetBuffer. The OffsetBuffer for a frozen configuration is
-     * generated when the first message is received. So we know the exact
-     * settings which headers are present, etc. Until then the ReaderGroup is
-     * "PreOperational". */
-    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
-    if(!rg->configurationFrozen)
-        return;
-    rg->configurationFrozen = false;
-
-    UA_DataSetReader *dataSetReader;
-    LIST_FOREACH(dataSetReader, &rg->readers, listEntry) {
-        UA_NetworkMessageOffsetBuffer_clear(&dataSetReader->bufferedMessage);
-    }
 }
 
 UA_Boolean

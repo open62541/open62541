@@ -57,6 +57,28 @@ UA_DataSetWriterConfig_clear(UA_DataSetWriterConfig *pdsConfig) {
     memset(pdsConfig, 0, sizeof(UA_DataSetWriterConfig));
 }
 
+static void
+UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
+    if(dsw->configurationFrozen)
+        return;
+    dsw->configurationFrozen = true;
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
+    if(!pds) /* Skip for heartbeat writers */
+        return;
+    pds->configurationFreezeCounter++;
+}
+
+static void
+UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
+    if(!dsw->configurationFrozen)
+        return;
+    dsw->configurationFrozen = false;
+    UA_PublishedDataSet *pds = dsw->connectedDataSet;
+    if(!pds) /* Skip for heartbeat writers */
+        return;
+    pds->configurationFreezeCounter--;
+}
+
 UA_StatusCode
 UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
                                 UA_PubSubState targetState) {
@@ -227,28 +249,6 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->head.identifier, writerIdentifier);
     return res;
-}
-
-void
-UA_DataSetWriter_freezeConfiguration(UA_DataSetWriter *dsw) {
-    if(dsw->configurationFrozen)
-        return;
-    dsw->configurationFrozen = true;
-    UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(!pds) /* Skip for heartbeat writers */
-        return;
-    pds->configurationFreezeCounter++;
-}
-
-void
-UA_DataSetWriter_unfreezeConfiguration(UA_DataSetWriter *dsw) {
-    if(!dsw->configurationFrozen)
-        return;
-    dsw->configurationFrozen = false;
-    UA_PublishedDataSet *pds = dsw->connectedDataSet;
-    if(!pds) /* Skip for heartbeat writers */
-        return;
-    pds->configurationFreezeCounter--;
 }
 
 UA_StatusCode
