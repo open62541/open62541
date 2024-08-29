@@ -218,9 +218,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                 UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
                                     "Add DataSetReader failed. MaxStringLength must be "
                                     "set in MetaData when using RawData field encoding.");
-                UA_DataSetReaderConfig_clear(&dsr->config);
-                UA_free(dsr);
-                dsr = NULL;
+                UA_DataSetReader_remove(psm, dsr);
                 return UA_STATUSCODE_BADCONFIGURATIONERROR;
             }
         }
@@ -234,11 +232,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    if(UA_PubSubState_isEnabled(dsr->head.state)) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
-                              "Cannot remove DataSetReader -- still enabled");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
+    UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
+                                    UA_STATUSCODE_BADSHUTDOWN);
 
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(psm->sc.server, dsr->head.identifier, true);
