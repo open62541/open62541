@@ -10,6 +10,7 @@
 
 #include "server/ua_services.h"
 #include "client/ua_client_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -28,9 +29,8 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
     UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
@@ -43,8 +43,7 @@ static void teardown(void) {
 }
 
 START_TEST(Session_close_before_activate) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connectSecureChannel(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
@@ -88,9 +87,9 @@ START_TEST(Session_init_ShallWork) {
     UA_ApplicationDescription_init(&tmpAppDescription);
     UA_DateTime tmpDateTime = 0;
     ck_assert_int_eq(session.activated, false);
-    ck_assert_int_eq(session.header.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
+    ck_assert_int_eq(session.authenticationToken.identifier.numeric, tmpNodeId.identifier.numeric);
     ck_assert_int_eq(session.availableContinuationPoints, UA_MAXCONTINUATIONPOINTS);
-    ck_assert_ptr_eq(session.header.channel, NULL);
+    ck_assert_ptr_eq(session.channel, NULL);
     ck_assert_ptr_eq(session.clientDescription.applicationName.locale.data, NULL);
     ck_assert_ptr_eq(session.continuationPoints, NULL);
     ck_assert_int_eq(session.maxRequestMessageSize, 0);
@@ -105,9 +104,10 @@ END_TEST
 START_TEST(Session_updateLifetime_ShallWork) {
     UA_Session session;
     UA_Session_init(&session);
+    UA_DateTime now = UA_DateTime_now();
     UA_DateTime tmpDateTime;
     tmpDateTime = session.validTill;
-    UA_Session_updateLifetime(&session);
+    UA_Session_updateLifetime(&session, now, tmpDateTime);
 
     UA_Int32 result = (session.validTill >= tmpDateTime);
     ck_assert_int_gt(result,0);

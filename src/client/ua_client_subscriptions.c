@@ -55,9 +55,11 @@ ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
                         UA_CreateSubscriptionResponse *response) {
     UA_LOCK_ASSERT(&client->clientMutex, 1);
 
+    UA_EventLoop *el = client->config.eventLoop;
+
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
-    newSub->lastActivity = UA_DateTime_nowMonotonic();
+    newSub->lastActivity = el->dateTime_nowMonotonic(el);
     newSub->publishingInterval = response->revisedPublishingInterval;
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     ZIP_INIT(&newSub->monitoredItems);
@@ -1255,7 +1257,8 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
         return;
     }
 
-    sub->lastActivity = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = client->config.eventLoop;
+    sub->lastActivity = el->dateTime_nowMonotonic(el);
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
     if(__nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
@@ -1320,7 +1323,7 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
 }
 
 void
-__Client_Subscriptions_clean(UA_Client *client) {
+__Client_Subscriptions_clear(UA_Client *client) {
     UA_Client_NotificationsAckNumber *n;
     UA_Client_NotificationsAckNumber *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -1347,14 +1350,17 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     if(client->currentlyOutStandingPublishRequests == 0)
         return;
 
+    UA_EventLoop *el = client->config.eventLoop;
+    UA_DateTime nowm = el->dateTime_nowMonotonic(el);
+
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         UA_DateTime maxSilence = (UA_DateTime)
             ((sub->publishingInterval * sub->maxKeepAliveCount) +
              client->config.timeout) * UA_DATETIME_MSEC;
-        if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic()) {
+        if(maxSilence + sub->lastActivity < nowm) {
             /* Reset activity */
-            sub->lastActivity = UA_DateTime_nowMonotonic();
+            sub->lastActivity = nowm;
 
             if(client->config.subscriptionInactivityCallback) {
                 void *subC = sub->context;

@@ -240,12 +240,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Return an error if the session has no subscription */
-    if(TAILQ_EMPTY(&session->subscriptions)) {
-        sendServiceFault(session->header.channel, requestId,
-                         request->requestHeader.requestHandle,
-                         UA_STATUSCODE_BADNOSUBSCRIPTION);
+    if(TAILQ_EMPTY(&session->subscriptions))
         return UA_STATUSCODE_BADNOSUBSCRIPTION;
-    }
 
     /* Handle too many subscriptions to free resources before trying to allocate
      * resources for the new publish request. If the limit has been reached the
@@ -255,12 +251,8 @@ Service_Publish(UA_Server *server, UA_Session *session,
     /* Allocate the response to store it in the retransmission queue */
     UA_PublishResponseEntry *entry = (UA_PublishResponseEntry *)
         UA_malloc(sizeof(UA_PublishResponseEntry));
-    if(!entry) {
-        sendServiceFault(session->header.channel, requestId,
-                         request->requestHeader.requestHandle,
-                         UA_STATUSCODE_BADOUTOFMEMORY);
+    if(!entry)
         return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
 
     /* Prepare the response */
     entry->requestId = requestId;
@@ -275,9 +267,6 @@ Service_Publish(UA_Server *server, UA_Session *session,
                          &UA_TYPES[UA_TYPES_STATUSCODE]);
         if(!response->results) {
             UA_free(entry);
-            sendServiceFault(session->header.channel, requestId,
-                             request->requestHeader.requestHandle,
-                             UA_STATUSCODE_BADOUTOFMEMORY);
             return UA_STATUSCODE_BADOUTOFMEMORY;
         }
         response->resultsSize = request->subscriptionAcknowledgementsSize;
@@ -489,8 +478,8 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
         if(!server->config.accessControl.
            allowTransferSubscription(server, &server->config.accessControl,
                                      oldSession ? &oldSession->sessionId : NULL,
-                                     oldSession ? oldSession->sessionHandle : NULL,
-                                     &session->sessionId, session->sessionHandle)) {
+                                     oldSession ? oldSession->context : NULL,
+                                     &session->sessionId, session->context)) {
             UA_LOCK(&server->serviceMutex);
             result->statusCode = UA_STATUSCODE_BADUSERACCESSDENIED;
             return;
@@ -555,9 +544,9 @@ Operation_TransferSubscription(UA_Server *server, UA_Session *session,
     /* Move over the notification queue */
     TAILQ_INIT(&newSub->notificationQueue);
     UA_Notification *nn, *nn_tmp;
-    TAILQ_FOREACH_SAFE(nn, &sub->notificationQueue, globalEntry, nn_tmp) {
-        TAILQ_REMOVE(&sub->notificationQueue, nn, globalEntry);
-        TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, globalEntry);
+    TAILQ_FOREACH_SAFE(nn, &sub->notificationQueue, subEntry, nn_tmp) {
+        TAILQ_REMOVE(&sub->notificationQueue, nn, subEntry);
+        TAILQ_INSERT_TAIL(&newSub->notificationQueue, nn, subEntry);
     }
     sub->notificationQueueSize = 0;
     sub->dataChangeNotifications = 0;

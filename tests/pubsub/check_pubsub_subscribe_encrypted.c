@@ -8,10 +8,11 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/types_generated_handling.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
+#include "testing_clock.h"
 
 #include <check.h>
 #include <time.h>
@@ -49,10 +50,9 @@ UA_NodeId publishedDataSetTest;
 static void setup(void) {
     /*Add setup by creating new server with valid configuration */
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
     config = UA_Server_getConfig(server);
-    retVal |= UA_ServerConfig_setMinimal(config, UA_SUBSCRIBER_PORT, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -71,8 +71,8 @@ static void setup(void) {
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     retVal |= UA_Server_addPubSubConnection(server, &connectionConfig, &connection_test);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
@@ -117,7 +117,7 @@ START_TEST(SinglePublishSubscribeDateTime) {
         writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
-        UA_Server_setWriterGroupOperational(server, writerGroup);
+        UA_Server_enableWriterGroup(server, writerGroup);
         /* DataSetWriter */
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -132,7 +132,6 @@ START_TEST(SinglePublishSubscribeDateTime) {
         readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
         retVal |=  UA_Server_addReaderGroup (server, connection_test, &readerGroupConfig, &readerGroupTest);
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-        UA_Server_setReaderGroupOperational(server, readerGroupTest);
         /* Data Set Reader */
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
@@ -279,6 +278,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         writerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
         retVal |= UA_Server_addWriterGroup(server, connection_test, &writerGroupConfig, &writerGroup);
+        retVal |= UA_Server_enableWriterGroup(server, writerGroup);
 
 
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
@@ -296,6 +296,10 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_Server_setWriterGroupEncryptionKeys(server, writerGroup, 1, sk, ek, kn);
         /* set the encryption keys for writergroup */
 
+        /* Iterate to push writer to operational state */
+        UA_fakeSleep(15);
+        UA_Server_run_iterate(server,true);
+
         /* Reader Group */
         UA_ReaderGroupConfig readerGroupConfig;
         memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
@@ -306,7 +310,7 @@ START_TEST(SinglePublishSubscribeInt32) {
         readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
         retVal |=  UA_Server_addReaderGroup(server, connection_test, &readerGroupConfig, &readerGroupTest);
-
+        retVal |= UA_Server_enableReaderGroup(server, readerGroupTest);
         /* Add the encryption key informaton for readergroup */
         // TODO security token not necessary for readergroup (extracted from security-header)
         UA_Server_setReaderGroupEncryptionKeys(server, readerGroupTest, 1, sk, ek, kn);
@@ -317,8 +321,8 @@ START_TEST(SinglePublishSubscribeInt32) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name             = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = WRITER_GROUP_ID;
         readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
         /* Setting up Meta data configuration in DataSetReader */
@@ -386,9 +390,11 @@ START_TEST(SinglePublishSubscribeInt32) {
         UA_FieldTargetDataType_clear(&targetVar.targetVariable);
         UA_free(pMetaData->fields);
 
-        /* run callbacks - publisher and subscriber */
-        UA_Server_setWriterGroupOperational(server, writerGroup);
-        UA_Server_setReaderGroupOperational(server, readerGroupTest);
+        /* run server - publisher and subscriber */
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
+        UA_fakeSleep(PUBLISH_INTERVAL + 1);
+        UA_Server_run_iterate(server,true);
 
         UA_Server_run_iterate(server, true);
 

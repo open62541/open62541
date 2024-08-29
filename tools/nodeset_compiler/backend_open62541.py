@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 ### This Source Code Form is subject to the terms of the Mozilla Public
 ### License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11,7 +10,6 @@
 ###    Copyright 2021 (c) Wind River Systems, Inc.
 
 
-from __future__ import print_function
 from os.path import basename
 import logging
 import codecs
@@ -20,12 +18,6 @@ try:
     from StringIO import StringIO
 except ImportError:
     from io import StringIO
-
-import sys
-if sys.version_info[0] >= 3:
-    # strings are already parsed to unicode
-    def unicode(s):
-        return s
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +44,7 @@ def sortNodes(nodeset):
     in_degree = {id: 0 for id in R.keys()}
     for u in R.values(): # for each node
         for ref in u.references:
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -73,7 +65,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -91,7 +83,7 @@ def sortNodes(nodeset):
         del R[u.id]
 
         for ref in sorted(u.references, key=lambda r: str(r.target)):
-            if not ref.referenceType in relevant_refs:
+            if ref.referenceType not in relevant_refs:
                 continue
             if nodeset.nodes[ref.target].hidden:
                 continue
@@ -130,10 +122,10 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     outfilec = StringIO()
 
     def writeh(line):
-        print(unicode(line), end='\n', file=outfileh)
+        print(line, end='\n', file=outfileh)
 
     def writec(line):
-        print(unicode(line), end='\n', file=outfilec)
+        print(line, end='\n', file=outfilec)
 
     additionalHeaders = ""
     if len(typesArray) > 0:
@@ -149,53 +141,11 @@ def generateOpen62541Code(nodeset, outfilename, internal_headers=False, typesArr
     writeh("""/* WARNING: This is a generated file.
  * Any manual changes will be overwritten. */
 
-#ifndef %s_H_
-#define %s_H_
-""" % (outfilebase.upper(), outfilebase.upper()))
-    if internal_headers:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-
-/* The following declarations are in the open62541.c file so here's needed when compiling nodesets externally */
-
-# ifndef UA_INTERNAL //this definition is needed to hide this code in the amalgamated .c file
-
-typedef UA_StatusCode (*UA_exchangeEncodeBuffer)(void *handle, UA_Byte **bufPos,
-                                                 const UA_Byte **bufEnd);
-
-UA_StatusCode
-UA_encodeBinary(const void *src, const UA_DataType *type,
-                UA_Byte **bufPos, const UA_Byte **bufEnd,
-                UA_exchangeEncodeBuffer exchangeCallback,
-                void *exchangeHandle) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-UA_StatusCode
-UA_decodeBinary(const UA_ByteString *src, size_t *offset, void *dst,
-                const UA_DataType *type, size_t customTypesSize,
-                const UA_DataType *customTypes) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
-
-size_t
-UA_calcSizeBinary(void *p, const UA_DataType *type);
-
-const UA_DataType *
-UA_findDataTypeByBinary(const UA_NodeId *typeId);
-
-# endif // UA_INTERNAL
-
-#else // UA_ENABLE_AMALGAMATION
-# include <open62541/server.h>
-#endif
-
-%s
-""" % (additionalHeaders))
-    else:
-        writeh("""
-#ifdef UA_ENABLE_AMALGAMATION
-# include "open62541.h"
-#else
-# include <open62541/server.h>
-#endif
+#ifndef {}_H_
+#define {}_H_
+""".format(outfilebase.upper(), outfilebase.upper()))
+    writeh("""
+#include <open62541/server.h>
 %s
 """ % (additionalHeaders))
     writeh("""
@@ -263,7 +213,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         writec("\nstatic UA_StatusCode function_" + outfilebase + "_" + str(functionNumber) + "_finish(UA_Server *server, UA_UInt16* ns) {")
 
@@ -274,7 +224,7 @@ _UA_END_DECLS
             writec("#else")
             writec("return UA_STATUSCODE_GOOD;")
             writec("#endif /* UA_ENABLE_METHODCALLS */")
-        writec("}");
+        writec("}")
 
         # ReferenceTypeNodes have to be _finished immediately. The _begin phase
         # of other nodes might depend on the subtyping information of the
@@ -333,17 +283,17 @@ UA_StatusCode retVal = UA_STATUSCODE_GOOD;""" % (outfilebase))
 
     if functionNumber > 0:
         for i in range(0, functionNumber):
-            writec("if((retVal = function_{outfilebase}_{idx}_begin(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                outfilebase=outfilebase, idx=str(i)))
+            writec("retVal |= function_{outfilebase}_{idx}_begin(server, ns);". \
+                   format(outfilebase=outfilebase, idx=str(i)))
             if i in reftypes_functionNumbers:
-                writec("if((retVal = function_{outfilebase}_{idx}_finish(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                    outfilebase=outfilebase, idx=str(i)))
+                writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+                       format(outfilebase=outfilebase, idx=str(i)))
 
         for i in reversed(range(0, functionNumber)):
             if i in reftypes_functionNumbers:
                 continue
-            writec("if((retVal = function_{outfilebase}_{idx}_finish(server, ns)) != UA_STATUSCODE_GOOD) return retVal;".format(
-                outfilebase=outfilebase, idx=str(i)))
+            writec("retVal |= function_{outfilebase}_{idx}_finish(server, ns);". \
+                   format(outfilebase=outfilebase, idx=str(i)))
 
     writec("return retVal;\n}")
     outfileh.flush()

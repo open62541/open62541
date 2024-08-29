@@ -70,7 +70,7 @@ LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
 
     // Enable the mDNS announce and response functionality
     config->mdnsEnabled = true;
-    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample Multicast Server");
+    config->mdnsConfig.mdnsServerName = UA_String_fromChars("Sample-Multicast-Server");
 
     retval = UA_Server_run_startup(server);
     if(retval != UA_STATUSCODE_GOOD) {

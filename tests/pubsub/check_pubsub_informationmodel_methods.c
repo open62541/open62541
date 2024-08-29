@@ -11,6 +11,7 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 
+#include "test_helpers.h"
 #include "check.h"
 #include "thread_wrapper.h"
 
@@ -31,13 +32,9 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-
-    UA_StatusCode retVal = UA_ServerConfig_setDefault(config);
-    retVal |= UA_Server_run_startup(server);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_Server_run_startup(server);
     THREAD_CREATE(server_thread, serverloop);
 }
 
@@ -219,8 +216,7 @@ static UA_StatusCode CallReserveIds(UA_Client *client, UA_String *transportProfi
 
 START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -331,8 +327,7 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
 
 START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -434,8 +429,7 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
 
 START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -467,8 +461,7 @@ START_TEST(AddNewPubSubConnectionUsingTheInformationModelMethod){
 
 START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -556,8 +549,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingServer){
 
 START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -663,8 +655,7 @@ START_TEST(AddAndRemovePublishedDataSetFoldersUsingClient){
 
 START_TEST(AddAndRemovePublishedDataSetItemsUsingServer){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -718,8 +709,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingServer){
 
 START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -797,8 +787,7 @@ START_TEST(AddAndRemovePublishedDataSetItemsUsingClient){
 
 START_TEST(AddAndRemoveWriterGroupsUsingServer){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -846,8 +835,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingServer){
 
 START_TEST(AddAndRemoveWriterGroupsUsingClient){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -916,8 +904,7 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
 
 START_TEST(AddNewPubSubConnectionWithReaderGroup){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -989,8 +976,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
 
 START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -1128,8 +1114,7 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
 
 START_TEST(AddandRemoveReaderGroup){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -1195,8 +1180,7 @@ START_TEST(AddandRemoveReaderGroup){
 
 START_TEST(ReserveIdsMultipleTimes){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);
@@ -1324,8 +1308,7 @@ START_TEST(ReserveIdsMultipleTimes){
 
 START_TEST(ReserveIdsInvalidTransportUri){
         UA_StatusCode retVal;
-        UA_Client *client = UA_Client_new();
-        UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+        UA_Client *client = UA_Client_newForUnitTest();
         retVal = UA_Client_connect(client, "opc.tcp://localhost:4840");
         if(retVal != UA_STATUSCODE_GOOD) {
             UA_Client_delete(client);

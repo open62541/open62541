@@ -6,7 +6,7 @@
  */
 
 #include <open62541/plugin/log_stdout.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -136,8 +136,7 @@ addSecurityGroup(UA_Server *server, UA_NodeId *outNodeId) {
     UA_UInt32 maxFutureKeyCount = DEMO_MAXFUTUREKEYCOUNT;
     UA_UInt32 maxPastKeyCount = DEMO_MAXPASTKEYCOUNT;
     char *securityGroupName = DEMO_SECURITYGROUPNAME;
-    UA_NodeId securityGroupParent =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_PUBLISHSUBSCRIBE_SECURITYGROUPS);
+    UA_NodeId securityGroupParent = UA_NS0ID(PUBLISHSUBSCRIBE_SECURITYGROUPS);
 
     UA_SecurityGroupConfig config;
     memset(&config, 0, sizeof(UA_SecurityGroupConfig));
@@ -251,9 +250,7 @@ main(int argc, char **argv) {
     UA_ByteString revocationList[100];
     size_t revocationListSize = 0;
 #else
-    const char *trustlistFolder = NULL;
-    const char *issuerlistFolder = NULL;
-    const char *revocationlistFolder = NULL;
+    char *pkiFolder = NULL;
 #endif /* __linux__ */
 
 #endif /* UA_ENABLE_ENCRYPTION */
@@ -362,33 +359,13 @@ main(int argc, char **argv) {
             continue;
         }
 #else  /* __linux__ */
-        if(strcmp(argv[pos], "--trustlistFolder") == 0) {
+        if(strcmp(argv[pos], "--pkiFolder") == 0) {
             filetype = 't';
             continue;
         }
 
-        if(strcmp(argv[pos], "--issuerlistFolder") == 0) {
-            filetype = 'l';
-            continue;
-        }
-
-        if(strcmp(argv[pos], "--revocationlistFolder") == 0) {
-            filetype = 'r';
-            continue;
-        }
-
         if(filetype == 't') {
-            trustlistFolder = argv[pos];
-            continue;
-        }
-
-        if(filetype == 'l') {
-            issuerlistFolder = argv[pos];
-            continue;
-        }
-
-        if(filetype == 'r') {
-            revocationlistFolder = argv[pos];
+            pkiFolder = argv[pos];
             continue;
         }
 #endif /* __linux__ */
@@ -408,26 +385,16 @@ main(int argc, char **argv) {
         issuerListSize, revocationList, revocationListSize);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
-#else /* On Linux we can monitor the certs folder and reload when changes are made */
-    UA_StatusCode res = UA_ServerConfig_setDefaultWithSecurityPolicies(
-        &config, port, &certificate, &privateKey, NULL, 0, NULL, 0, NULL, 0);
-    if(res != UA_STATUSCODE_GOOD)
+#else /* On Linux we can monitor the pki folder and reload when changes are made */
+    if(!pkiFolder) {
+        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                                 "Path to the Pki folder must be specified.");
         goto cleanup;
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
-    res |= UA_CertificateVerification_CertFolders(&config.secureChannelPKI,
-                                                  trustlistFolder, issuerlistFolder,
-                                                  revocationlistFolder, NULL);
-    res |= UA_CertificateVerification_CertFolders(&config.sessionPKI,
-                                                 trustlistFolder, issuerlistFolder,
-                                                 revocationlistFolder, NULL);
-#else
-    res |= UA_CertificateVerification_CertFolders(&config.secureChannelPKI,
-                                                  trustlistFolder, issuerlistFolder,
-                                                  revocationlistFolder);
-    res |= UA_CertificateVerification_CertFolders(&config.sessionPKI,
-                                                  trustlistFolder, issuerlistFolder,
-                                                  revocationlistFolder);
-#endif
+    }
+    UA_String pkiStoreFolder = UA_STRING(pkiFolder);
+    UA_StatusCode res = UA_ServerConfig_setDefaultWithFilestore(
+        &config, port, &certificate, &privateKey, pkiStoreFolder);
+    UA_String_clear(&pkiStoreFolder);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
 #endif /* __linux__ */
@@ -515,7 +482,7 @@ cleanup:
     if(server)
         UA_Server_delete(server);
     else
-        UA_ServerConfig_clean(&config);
+        UA_ServerConfig_clear(&config);
 
     UA_ByteString_clear(&certificate);
 #if defined(UA_ENABLE_ENCRYPTION)

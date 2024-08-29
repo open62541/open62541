@@ -3,7 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <open62541/types.h>
-#include <open62541/types_generated_handling.h>
+#include "test_helpers.h"
 #include "open62541/util.h"
 
 #include <stdlib.h>
@@ -154,40 +154,73 @@ START_TEST(parseExpandedNodeIdIntegerFailNSU2) {
 
 START_TEST(parseRelativePath) {
     UA_RelativePath rp;
-    UA_StatusCode res = UA_RelativePath_parse(&rp, UA_STRING(""));
+    UA_String ex = UA_STRING("");
+    UA_String exout = UA_STRING_NULL;
+    UA_StatusCode res = UA_RelativePath_parse(&rp, ex);
+    res |= UA_RelativePath_print(&rp, &exout);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 0);
+    ck_assert(UA_String_equal(&ex, &exout));
+    UA_String_clear(&exout);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("/2:Block&.Output"));
+    UA_String ex1 = UA_STRING("/2:Block&.Output");
+    UA_String ex1out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex1);
+    res |= UA_RelativePath_print(&rp, &ex1out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex1, &ex1out));
+    UA_String_clear(&ex1out);
 
     /* Paths with no BrowseName */
-    res = UA_RelativePath_parse(&rp, UA_STRING("//"));
+    UA_String ex2 = UA_STRING("//");
+    UA_String ex2out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex2);
+    res |= UA_RelativePath_print(&rp, &ex2out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 2);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex2, &ex2out));
+    UA_String_clear(&ex2out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("/."));
+    UA_String ex3 = UA_STRING("/.");
+    UA_String ex3out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex3);
+    res |= UA_RelativePath_print(&rp, &ex3out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 2);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex3, &ex3out));
+    UA_String_clear(&ex3out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HierachicalReferences>2:Wheel"));
+    UA_String ex4 = UA_STRING("<HierachicalReferences>2:Wheel");
+    UA_String ex4out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex4);
+    res |= UA_RelativePath_print(&rp, &ex4out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 2);
     UA_RelativePath_clear(&rp);
+    //ck_assert(UA_String_equal(&ex4, &ex4out)); // <HierachicalReferences> -> /
+    UA_String_clear(&ex4out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasComponent>1:Boiler/1:HeatSensor"));
+    UA_String ex5 = UA_STRING("<HasComponent>1:Boiler/1:HeatSensor");
+    UA_String ex5out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex5);
+    res |= UA_RelativePath_print(&rp, &ex5out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 2);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
     ck_assert_int_eq(rp.elements[1].targetName.namespaceIndex, 1);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex5, &ex5out));
+    UA_String_clear(&ex5out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING(".1:Boiler/1:HeatSensor/"));
+    UA_String ex6 = UA_STRING(".1:Boiler/1:HeatSensor/");
+    UA_String ex6out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex6);
+    res |= UA_RelativePath_print(&rp, &ex6out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 3);
     ck_assert_int_eq(rp.elements[0].targetName.namespaceIndex, 1);
@@ -195,18 +228,131 @@ START_TEST(parseRelativePath) {
     UA_String tmp = UA_STRING("HeatSensor");
     ck_assert(UA_String_equal(&tmp, &rp.elements[1].targetName.name));
     ck_assert_int_eq(rp.elements[2].targetName.namespaceIndex, 0);
+    ck_assert(UA_String_equal(&ex6, &ex6out));
     UA_RelativePath_clear(&rp);
+    UA_String_clear(&ex6out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("<!HasChild>Truck"));
+    UA_String ex7 = UA_STRING("<!HasChild>Truck");
+    UA_String ex7out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex7);
+    res |= UA_RelativePath_print(&rp, &ex7out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     ck_assert_int_eq(rp.elements[0].isInverse, true);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex7, &ex7out));
+    UA_String_clear(&ex7out);
 
-    res = UA_RelativePath_parse(&rp, UA_STRING("<0:HasChild>"));
+    UA_String ex8 = UA_STRING("<HasChild>");
+    UA_String ex8out = UA_STRING_NULL;
+    res = UA_RelativePath_parse(&rp, ex8);
+    res |= UA_RelativePath_print(&rp, &ex8out);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 1);
     UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex8, &ex8out));
+    UA_String_clear(&ex8out);
+
+    UA_String ex9 = UA_STRING("/1:Boiler<ns=1;i=345>1:HeatSensor");
+    UA_String ex9out = UA_STRING_NULL;
+    UA_NodeId testRef = UA_NODEID_NUMERIC(1, 345);
+    res = UA_RelativePath_parse(&rp, ex9);
+    res |= UA_RelativePath_print(&rp, &ex9out);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &testRef));
+    UA_RelativePath_clear(&rp);
+    ck_assert(UA_String_equal(&ex9, &ex9out));
+    UA_String_clear(&ex9out);
+} END_TEST
+
+START_TEST(parseRelativePathWithServer) {
+    UA_Server *server = UA_Server_newForUnitTest();
+
+    /* Add a custom non-hierarchical reference type */
+	UA_NodeId refTypeId;
+	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+	refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
+	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
+	UA_StatusCode res =
+        UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
+                                       UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),
+                                       browseName, refattr, NULL, &refTypeId);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    /* Use the browse name in the path string. Expect the NodeId of the reference type */
+    UA_RelativePath rp;
+    res = UA_RelativePath_parseWithServer(server, &rp,
+                                          UA_STRING("/1:Boiler<1:MyRef>1:HeatSensor"));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(rp.elementsSize, 2);
+    ck_assert(UA_NodeId_equal(&rp.elements[1].referenceTypeId, &refTypeId));
+    UA_RelativePath_clear(&rp);
+
+    UA_Server_delete(server);
+} END_TEST
+
+START_TEST(parseSimpleAttributeOperand) {
+    UA_String sao1_str = UA_STRING("");
+    UA_SimpleAttributeOperand sao1;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&sao1, sao1_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String sao2_str = UA_STRING("#Value");
+    UA_SimpleAttributeOperand sao2;
+    res = UA_SimpleAttributeOperand_parse(&sao2, sao2_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+
+    UA_String sao3_str = UA_STRING("[1:2]");
+    UA_SimpleAttributeOperand sao3;
+    res = UA_SimpleAttributeOperand_parse(&sao3, sao3_str);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao3);
+
+    UA_String sao4_str = UA_STRING("ns=1;s=1&&23/1:& Boiler/Temperature#BrowseName[0:5]");
+    UA_SimpleAttributeOperand sao4;
+    UA_String cmp1 = UA_STRING("1&23");
+    UA_String cmp2 = UA_STRING(" Boiler");
+    res = UA_SimpleAttributeOperand_parse(&sao4, sao4_str);
+    ck_assert(UA_String_equal(&sao4.typeDefinitionId.identifier.string, &cmp1));
+    ck_assert(UA_String_equal(&sao4.browsePath[0].name, &cmp2));
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao4);
+
+    UA_String sao5_str = UA_STRING("///");
+    UA_SimpleAttributeOperand sao5;
+    res = UA_SimpleAttributeOperand_parse(&sao5, sao5_str);
+    ck_assert(sao5.browsePathSize == 3);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    UA_SimpleAttributeOperand_clear(&sao5);
+} END_TEST
+
+START_TEST(printSimpleAttributeOperand) {
+    UA_QualifiedName browsePath[2];
+    browsePath[0] = UA_QUALIFIEDNAME(1, "Boiler");
+    browsePath[1] = UA_QUALIFIEDNAME(0, "Temperature");
+
+    UA_SimpleAttributeOperand sao;
+    UA_SimpleAttributeOperand_init(&sao);
+    sao.typeDefinitionId = UA_NODEID("ns=1;i=123");
+    sao.browsePath = browsePath;
+    sao.browsePathSize = 2;
+    sao.attributeId = UA_ATTRIBUTEID_BROWSENAME;
+    sao.indexRange = UA_STRING("0:5");
+
+    UA_String encoding = UA_STRING_NULL;
+    UA_SimpleAttributeOperand_print(&sao, &encoding);
+    UA_String expected = UA_STRING("ns=1;i=123/1:Boiler/Temperature#BrowseName[0:5]");
+    ck_assert(UA_String_equal(&encoding, &expected));
+    UA_String_clear(&encoding);
+
+    UA_SimpleAttributeOperand sao2;
+    UA_StatusCode res = UA_SimpleAttributeOperand_parse(&sao2, expected);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    ck_assert(UA_SimpleAttributeOperand_equal(&sao, &sao2));
+    UA_SimpleAttributeOperand_clear(&sao2);
 } END_TEST
 
 int main(void) {
@@ -226,6 +372,9 @@ int main(void) {
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU);
     tcase_add_test(tc, parseExpandedNodeIdIntegerFailNSU2);
     tcase_add_test(tc, parseRelativePath);
+    tcase_add_test(tc, parseRelativePathWithServer);
+    tcase_add_test(tc, parseSimpleAttributeOperand);
+    tcase_add_test(tc, printSimpleAttributeOperand);
     suite_add_tcase(s, tc);
 
     SRunner *sr = srunner_create(s);

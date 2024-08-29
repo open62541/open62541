@@ -434,6 +434,10 @@ UA_INLINABLE(UA_NodeId
     return id;
 })
 
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0ID(ID) UA_NODEID_NUMERIC(0, UA_NS0ID_##ID)
+
 UA_INLINABLE(UA_NodeId
              UA_NODEID_STRING(UA_UInt16 nsIndex, char *chars), {
     UA_NodeId id;
@@ -537,11 +541,16 @@ UA_INLINABLE(UA_ExpandedNodeId
 #endif
 
 /** The following functions are shorthand for creating ExpandedNodeIds. */
+
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID_NUMERIC(UA_UInt16 nsIndex, UA_UInt32 identifier), {
     UA_ExpandedNodeId id; id.nodeId = UA_NODEID_NUMERIC(nsIndex, identifier);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 })
+
+/* Shorthand for standard-defined NodeIds in Namespace 0.
+ * See the generated nodeids.h for the full list. */
+#define UA_NS0EXID(ID) UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_##ID)
 
 UA_INLINABLE(UA_ExpandedNodeId
              UA_EXPANDEDNODEID_STRING(UA_UInt16 nsIndex, char *chars), {
@@ -1154,16 +1163,13 @@ UA_INLINABLE(void
 UA_StatusCode UA_EXPORT
 UA_copy(const void *src, void *dst, const UA_DataType *type);
 
-/* Deletes the dynamically allocated content of a variable (e.g. resets all
- * arrays to undefined arrays). Afterwards, the variable can be safely deleted
- * without causing memory leaks. But the variable is not initialized and may
- * contain old data that is not memory-relevant.
+/* Deletes the dynamically allocated content of a variable (e.g. deallocates all
+ * arrays in the variable). Also initializes the variable to default values.
+ * Afterwards, the variable can be safely deleted without causing memory leaks.
  *
  * @param p The memory location of the variable
  * @param type The datatype description of the variable */
 void UA_EXPORT UA_clear(void *p, const UA_DataType *type);
-
-#define UA_deleteMembers(p, type) UA_clear(p, type)
 
 /* Frees a variable and all of its content.
  *
@@ -1239,8 +1245,13 @@ UA_encodeBinary(const void *p, const UA_DataType *type,
  * Zero-out the entire structure initially to ensure code-compatibility when
  * more fields are added in a later release. */
 typedef struct {
-    const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
-                                          * datatype definitions */
+    /* Begin of a linked list with custom datatype definitions */
+    const UA_DataTypeArray *customTypes;
+
+    /* Override calloc for arena-based memory allocation. Note that allocated
+     * memory is not freed if decoding fails afterwards. */
+    void *callocContext;
+    void * (*calloc)(void *callocContext, size_t nelem, size_t elsize);
 } UA_DecodeBinaryOptions;
 
 /* Decodes a data structure from the input buffer in the binary format. It is
@@ -1318,6 +1329,10 @@ typedef struct {
     size_t serverUrisSize;
     const UA_DataTypeArray *customTypes; /* Begin of a linked list with custom
                                           * datatype definitions */
+    size_t *decodedLength; /* If non-NULL, the length of the decoded input is
+                            * stored to the pointer. When this is set, decoding
+                            * succeeds also if there is more content after the
+                            * first JSON element in the input string. */
 } UA_DecodeJsonOptions;
 
 /* Decodes a scalar value described by type from json encoding.
@@ -1328,7 +1343,7 @@ typedef struct {
  *        decoding fails, members are deleted and the value is reset (zeroed)
  *        again.
  * @param type The value type. Must not be NULL.
- * @param options The options struct for decoding, currently unused
+ * @param options The options struct for decoding.
  * @return Returns a statuscode whether decoding succeeded. */
 UA_StatusCode UA_EXPORT
 UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
@@ -1503,7 +1518,6 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 #endif
 
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
 _UA_END_DECLS
 

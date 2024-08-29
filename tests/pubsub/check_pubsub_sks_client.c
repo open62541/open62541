@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
@@ -62,7 +63,7 @@ typedef struct {
     UA_UsernamePasswordLogin *usernamePasswordLogin;
     UA_UsernamePasswordLoginCallback loginCallback;
     void *loginContext;
-    UA_CertificateVerification verifyX509;
+    UA_CertificateGroup verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
@@ -155,11 +156,11 @@ skssetup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 
-    sksServer = UA_Server_new();
+    sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                             trustList, trustListSize,
+                                                             issuerList, issuerListSize,
+                                                             revocationList, revocationListSize);
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(
-        config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
         UA_STRING_ALLOC("urn:unconfigured:application");
@@ -187,7 +188,7 @@ skssetup(void) {
 static void
 publishersetup(void) {
     running = true;
-    publisherApp = UA_Server_new();
+    publisherApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(publisherApp);
     retVal |= UA_ServerConfig_setMinimal(config, 4841, NULL);
@@ -207,8 +208,8 @@ publishersetup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
     retVal |= UA_Server_addPubSubConnection(publisherApp, &connectionConfig, &publisherConnection);
     retVal |= UA_Server_run_startup(publisherApp);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -217,7 +218,7 @@ publishersetup(void) {
 static void
 subscribersetup(void) {
     running = true;
-    subscriberApp = UA_Server_new();
+    subscriberApp = UA_Server_newForUnitTest();
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     UA_ServerConfig *config = UA_Server_getConfig(subscriberApp);
     retVal |= UA_ServerConfig_setMinimal(config, 4842, NULL);
@@ -372,8 +373,8 @@ addSubscriber(UA_Server *server) {
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId = DATASET_WRITER_ID;
 
@@ -488,8 +489,22 @@ newEncryptedClientConfig(const char *username, const char *password) {
 UA_StatusCode sksPullStatus = UA_STATUSCODE_BAD;
 
 static void
-sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
+sksPullRequestCallback_publisher(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
     sksPullStatus = sksPullRequestStatus;
+    UA_Server_setWriterGroupActivateKey(server, writerGroupId);
+}
+
+static void
+sksPullRequestCallback_subscriber(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
+    sksPullStatus = sksPullRequestStatus;
+    UA_Server_setReaderGroupActivateKey(server, readerGroupId);
+}
+
+static void
+sksPullRequestCallback_pubsub(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
+    sksPullStatus = sksPullRequestStatus;
+    UA_Server_setWriterGroupActivateKey(server, writerGroupId);
+    UA_Server_setReaderGroupActivateKey(server, readerGroupId);
 }
 
 START_TEST(AddValidSksClientwithWriterGroup) {
@@ -498,9 +513,15 @@ START_TEST(AddValidSksClientwithWriterGroup) {
     UA_ClientConfig *config = newEncryptedClientConfig("user1", "password");
     retval = addPublisher(publisherApp);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
-                  "Expected Statuscode to be Good but failed with: %s ",
+                  "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
-    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
+    ck_assert_msg(retval == UA_STATUSCODE_GOOD,
+                  "Expected Statuscode to be Good, but failed with: %s ",
+                  UA_StatusCode_name(retval));
+
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback_publisher, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -513,10 +534,7 @@ START_TEST(AddValidSksClientwithWriterGroup) {
                   UA_StatusCode_name(sksPullStatus), retryCnt);
     UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(publisherApp, writerGroupId);
     ck_assert(wg != NULL);
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
-    ck_assert_msg(retval == UA_STATUSCODE_GOOD,
-                  "Expected Statuscode to be Good, but failed with: %s ",
-                  UA_StatusCode_name(retval));
+    
     ck_assert(wg->keyStorage->keyListSize > 0);
     UA_LOCK(&sksServer->serviceMutex);
     UA_PubSubKeyListItem *sksKsItr =
@@ -544,7 +562,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good but failed with: %s ",
                   UA_StatusCode_name(retval));
-    retval = UA_Server_setSksClient(subscriberApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+    retval = UA_Server_setSksClient(subscriberApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback_subscriber, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -559,7 +577,7 @@ START_TEST(AddValidSksClientwithReaderGroup) {
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(subscriberApp, readerGroupId);
     ck_assert(rg != NULL);
 
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
+    retval = UA_Server_enableReaderGroup(subscriberApp, writerGroupId);
     ck_assert_msg(retval == UA_STATUSCODE_GOOD,
                   "Expected Statuscode to be Good, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -585,10 +603,10 @@ END_TEST
 
 START_TEST(SetInvalidSKSClient) {
     addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
     int retryCnt = 0;
-    UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+    UA_Server_setSksClient(publisherApp, securityGroupId, config, testingSKSEndpointUrl, sksPullRequestCallback_pubsub, NULL);
     sksPullStatus = UA_STATUSCODE_GOOD;
     while(UA_StatusCode_isGood(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
         UA_Server_run_iterate(publisherApp, true);
@@ -603,11 +621,9 @@ END_TEST
 START_TEST(SetInvalidSKSEndpointUrl) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     retval = addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
-
-    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp:[invalid:host]:4840", sksPullRequestCallback, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp:[invalid:host]:4840", sksPullRequestCallback_publisher, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADTCPENDPOINTURLINVALID,
                   "Expected Statuscode to be BADTCPENDPOINTURLINVALID, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -618,11 +634,9 @@ END_TEST
 START_TEST(SetWrongSKSEndpointUrl) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     retval = addPublisher(publisherApp);
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
-
-    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp://WrongHost:4840", sksPullRequestCallback, NULL);
+    retval = UA_Server_setSksClient(publisherApp, securityGroupId, config, "opc.tcp://WrongHost:4840", sksPullRequestCallback_publisher, NULL);
     ck_assert_msg(retval == UA_STATUSCODE_BADCONNECTIONCLOSED,
                   "Expected Statuscode to be BADCONNECTIONCLOSED, but failed with: %s ",
                   UA_StatusCode_name(retval));
@@ -638,9 +652,14 @@ START_TEST(CheckPublishedValuesInUserLand) {
     retval = addSubscriber(subscriberApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableReaderGroup(subscriberApp, readerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+
     UA_ClientConfig *pubSksClientConfig = newEncryptedClientConfig("user1", "password");
     retval =
-        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_publisher, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     sksPullStatus = UA_STATUSCODE_BAD;
     while(UA_StatusCode_isBad(sksPullStatus) && (retryCnt++ < MAX_RETRIES)) {
@@ -653,7 +672,7 @@ START_TEST(CheckPublishedValuesInUserLand) {
 
     UA_ClientConfig *subSksClientConfig = newEncryptedClientConfig("user1", "password");
     retval =
-        UA_Server_setSksClient(subscriberApp, securityGroupId, subSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(subscriberApp, securityGroupId, subSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_subscriber, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
     sksPullStatus = UA_STATUSCODE_BAD;
     retryCnt = 0;
@@ -663,10 +682,13 @@ START_TEST(CheckPublishedValuesInUserLand) {
     }
     ck_assert(retryCnt < MAX_RETRIES);
 
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
+    /* run server - publisher and subscriber */
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
+    UA_Server_run_iterate(subscriberApp, true);
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
+    UA_Server_run_iterate(subscriberApp, true);
 
     UA_Variant *publishedNodeData = UA_Variant_new();
     retval = UA_Server_readValue(publisherApp,
@@ -703,9 +725,14 @@ START_TEST(PublisherSubscriberTogethor) {
      retval = addPublisher(publisherApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    retval = UA_Server_enableReaderGroup(publisherApp, readerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+    
     UA_ClientConfig *pubSksClientConfig = newEncryptedClientConfig("user1", "password");
     retval =
-        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_pubsub, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
@@ -721,6 +748,12 @@ START_TEST(PublisherSubscriberTogethor) {
     retval = UA_Server_setReaderGroupOperational(publisherApp, readerGroupId);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
+    /* run server - publisher and subscriber */
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
+    
     UA_Variant *publishedNodeData = UA_Variant_new();
     retval = UA_Server_readValue(publisherApp,
                                  UA_NODEID_NUMERIC(1, PUBLISHVARIABLE_NODEID),
@@ -760,8 +793,14 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
     retval = addSubscriber(publisherApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_enableReaderGroup(publisherApp, readerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+
     retval =
-        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_pubsub, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
@@ -773,11 +812,12 @@ START_TEST(PublisherDelayedSubscriberTogethor) {
                   "Expected Statuscode to be Good, but failed with: %s (%u retries)",
                   UA_StatusCode_name(sksPullStatus), retryCnt);
 
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
+    /* run server - publisher and subscriber */
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
+    UA_fakeSleep(100 + 1);
+    UA_Server_run_iterate(publisherApp, true);
 
-    retval = UA_Server_setReaderGroupOperational(publisherApp, readerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
     UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(publisherApp, readerGroupId);
     ck_assert(rg->securityPolicyContext != NULL);
     UA_Variant *publishedNodeData = UA_Variant_new();
@@ -815,7 +855,7 @@ START_TEST(FetchNextbatchOfKeys) {
 
     UA_ClientConfig *pubSksClientConfig = newEncryptedClientConfig("user1", "password");
     retval =
-        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(publisherApp, securityGroupId, pubSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_publisher, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
@@ -830,10 +870,16 @@ START_TEST(FetchNextbatchOfKeys) {
     retval = addSubscriber(subscriberApp);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
+    retval = UA_Server_enableWriterGroup(publisherApp, writerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+
+    retval = UA_Server_enableReaderGroup(subscriberApp, readerGroupId);
+    ck_assert(retval == UA_STATUSCODE_GOOD);
+
     UA_ClientConfig *subSksClientConfig = newEncryptedClientConfig("user1", "password");
 
     retval =
-        UA_Server_setSksClient(subscriberApp, securityGroupId, subSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback, NULL);
+        UA_Server_setSksClient(subscriberApp, securityGroupId, subSksClientConfig, testingSKSEndpointUrl, sksPullRequestCallback_subscriber, NULL);
     ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
@@ -852,11 +898,6 @@ START_TEST(FetchNextbatchOfKeys) {
     UA_PubSubKeyStorage *subKs = UA_PubSubKeyStorage_findKeyStorage(
         subscriberApp, securityGroupId);
     UA_UNLOCK(&subscriberApp->serviceMutex);
-    retval = UA_Server_setWriterGroupOperational(publisherApp, writerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
-
-    retval = UA_Server_setReaderGroupOperational(subscriberApp, readerGroupId);
-    ck_assert(retval == UA_STATUSCODE_GOOD);
 
     sksPullStatus = UA_STATUSCODE_BAD;
     UA_UInt16 sksPullIteration = 0;

@@ -22,7 +22,7 @@
 #include <open62541/util.h>
 
 #include <open62541/plugin/log.h>
-#include <open62541/plugin/pki.h>
+#include <open62541/plugin/certificategroup.h>
 #include <open62541/plugin/nodestore.h>
 #include <open62541/plugin/eventloop.h>
 #include <open62541/plugin/accesscontrol.h>
@@ -126,6 +126,8 @@ struct UA_ServerConfig {
      * zeroed-out value for empty VariableNodes when they are added. */
     UA_RuleHandling allowEmptyVariables;
 
+    UA_RuleHandling allowAllCertificateUris;
+
     /**
      * Custom Data Types
      * ^^^^^^^^^^^^^^^^^
@@ -207,8 +209,8 @@ struct UA_ServerConfig {
     UA_Boolean allowNonePolicyPassword;
 
     /* Different sets of certificates are trusted for SecureChannel / Session */
-    UA_CertificateVerification secureChannelPKI;
-    UA_CertificateVerification sessionPKI;
+    UA_CertificateGroup secureChannelPKI;
+    UA_CertificateGroup sessionPKI;
 
     /**
      * See the section for :ref:`access-control
@@ -255,6 +257,12 @@ struct UA_ServerConfig {
 
     /* Limits for Requests */
     UA_UInt32 maxReferencesPerNode;
+
+#ifdef UA_ENABLE_ENCRYPTION
+    /* Limits for TrustList */
+    UA_UInt32 maxTrustListSize; /* in bytes, 0 => unlimited */
+    UA_UInt32 maxRejectedListSize; /* 0 => unlimited */
+#endif
 
     /**
      * Async Operations
@@ -395,7 +403,12 @@ struct UA_ServerConfig {
 };
 
 void UA_EXPORT
-UA_ServerConfig_clean(UA_ServerConfig *config);
+UA_ServerConfig_clear(UA_ServerConfig *config);
+
+UA_DEPRECATED static UA_INLINE void
+UA_ServerConfig_clean(UA_ServerConfig *config) {
+	UA_ServerConfig_clear(config);
+}
 
 /**
  * .. _server-lifecycle:
@@ -475,7 +488,7 @@ UA_Server_run_startup(UA_Server *server);
  *
  * @param server The server object.
  * @param waitInternal Should we wait for messages in the networklayer?
- *        Otherwise, the timouts for the networklayers are set to zero.
+ *        Otherwise, the timeouts for the networklayers are set to zero.
  *        The default max wait time is 200ms.
  * @return Returns how long we can wait until the next scheduled
  *         callback (in ms) */
@@ -634,145 +647,145 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Server_read(UA_Server *server, const UA_NodeId *nodeId,
                  UA_AttributeId attributeId, void *v);
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readNodeId(UA_Server *server, const UA_NodeId nodeId,
-                     UA_NodeId *outNodeId) {
+                     UA_NodeId *outNodeId) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_NODEID, outNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readNodeClass(UA_Server *server, const UA_NodeId nodeId,
-                        UA_NodeClass *outNodeClass) {
+                        UA_NodeClass *outNodeClass) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_NODECLASS,
                             outNodeClass);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readBrowseName(UA_Server *server, const UA_NodeId nodeId,
-                         UA_QualifiedName *outBrowseName) {
+                         UA_QualifiedName *outBrowseName) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
                             outBrowseName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readDisplayName(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outDisplayName) {
+                          UA_LocalizedText *outDisplayName) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
                             outDisplayName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readDescription(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outDescription) {
+                          UA_LocalizedText *outDescription) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
                             outDescription);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readWriteMask(UA_Server *server, const UA_NodeId nodeId,
-                        UA_UInt32 *outWriteMask) {
+                        UA_UInt32 *outWriteMask) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
                             outWriteMask);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readIsAbstract(UA_Server *server, const UA_NodeId nodeId,
-                         UA_Boolean *outIsAbstract) {
+                         UA_Boolean *outIsAbstract) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
                             outIsAbstract);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readSymmetric(UA_Server *server, const UA_NodeId nodeId,
-                        UA_Boolean *outSymmetric) {
+                        UA_Boolean *outSymmetric) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_SYMMETRIC,
                             outSymmetric);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readInverseName(UA_Server *server, const UA_NodeId nodeId,
-                          UA_LocalizedText *outInverseName) {
+                          UA_LocalizedText *outInverseName) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
                             outInverseName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readContainsNoLoops(UA_Server *server, const UA_NodeId nodeId,
-                              UA_Boolean *outContainsNoLoops) {
+                              UA_Boolean *outContainsNoLoops) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_CONTAINSNOLOOPS,
                             outContainsNoLoops);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readEventNotifier(UA_Server *server, const UA_NodeId nodeId,
-                            UA_Byte *outEventNotifier) {
+                            UA_Byte *outEventNotifier) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
                             outEventNotifier);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readValue(UA_Server *server, const UA_NodeId nodeId,
-                    UA_Variant *outValue) {
+                    UA_Variant *outValue) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUE, outValue);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readDataType(UA_Server *server, const UA_NodeId nodeId,
-                       UA_NodeId *outDataType) {
+                       UA_NodeId *outDataType) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                             outDataType);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readValueRank(UA_Server *server, const UA_NodeId nodeId,
-                        UA_Int32 *outValueRank) {
+                        UA_Int32 *outValueRank) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
                             outValueRank);
-}
+})
 
 /* Returns a variant with an int32 array */
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
-                              UA_Variant *outArrayDimensions) {
+                              UA_Variant *outArrayDimensions) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
                             outArrayDimensions);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                          UA_Byte *outAccessLevel) {
+                          UA_Byte *outAccessLevel) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                             outAccessLevel);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
-                            UA_UInt32 *outAccessLevelEx) {
+                            UA_UInt32 *outAccessLevelEx), {
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
                             outAccessLevelEx);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
-                                      UA_Double *outMinimumSamplingInterval) {
+                                      UA_Double *outMinimumSamplingInterval) ,{
     return __UA_Server_read(server, &nodeId,
                             UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                             outMinimumSamplingInterval);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readHistorizing(UA_Server *server, const UA_NodeId nodeId,
-                          UA_Boolean *outHistorizing) {
+                          UA_Boolean *outHistorizing) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_HISTORIZING,
                             outHistorizing);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_readExecutable(UA_Server *server, const UA_NodeId nodeId,
-                         UA_Boolean *outExecutable) {
+                         UA_Boolean *outExecutable) ,{
     return __UA_Server_read(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
                             outExecutable);
-}
+})
 
 /**
  * The following node attributes cannot be changed once a node has been created:
@@ -810,130 +823,138 @@ __UA_Server_write(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId,
                   const UA_DataType *attr_type, const void *attr);
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeBrowseName(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_QualifiedName browseName) {
+                          const UA_QualifiedName browseName) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_BROWSENAME,
                              &UA_TYPES[UA_TYPES_QUALIFIEDNAME], &browseName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeDisplayName(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText displayName) {
+                           const UA_LocalizedText displayName) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DISPLAYNAME,
                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &displayName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeDescription(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText description) {
+                           const UA_LocalizedText description) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DESCRIPTION,
                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &description);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeWriteMask(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_UInt32 writeMask) {
+                         const UA_UInt32 writeMask) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_WRITEMASK,
                              &UA_TYPES[UA_TYPES_UINT32], &writeMask);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeIsAbstract(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean isAbstract) {
+                          const UA_Boolean isAbstract) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ISABSTRACT,
                              &UA_TYPES[UA_TYPES_BOOLEAN], &isAbstract);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeInverseName(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_LocalizedText inverseName) {
+                           const UA_LocalizedText inverseName) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_INVERSENAME,
                              &UA_TYPES[UA_TYPES_LOCALIZEDTEXT], &inverseName);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeEventNotifier(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_Byte eventNotifier) {
+                             const UA_Byte eventNotifier) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EVENTNOTIFIER,
                              &UA_TYPES[UA_TYPES_BYTE], &eventNotifier);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+/**
+ * Writes an UA_Variant to a variable/variableType node.
+ * StatusCode is set to ``UA_STATUSCODE_GOOD``, sourceTimestamp and
+ * serverTimestamp are set to UA_DateTime_now()
+ */
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeValue(UA_Server *server, const UA_NodeId nodeId,
-                     const UA_Variant value) {
+                     const UA_Variant value) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
                              &UA_TYPES[UA_TYPES_VARIANT], &value);
-}
+})
 
-/* Writes an UA_DataValue to a variable/variableType node. In contrast to
- * UA_Server_writeValue, this functions can also write SourceTimestamp,
- * ServerTimestamp and StatusCode. */
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+/**
+ * Writes an UA_DataValue to a variable/variableType node.
+ * In contrast to UA_Server_writeValue, this functions can also write
+ * sourceTimestamp, serverTimestamp and statusCode.
+ */
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeDataValue(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_DataValue value) {
+                     const UA_DataValue value) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUE,
                              &UA_TYPES[UA_TYPES_DATAVALUE], &value);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeDataType(UA_Server *server, const UA_NodeId nodeId,
-                        const UA_NodeId dataType) {
+                        const UA_NodeId dataType) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_DATATYPE,
                              &UA_TYPES[UA_TYPES_NODEID], &dataType);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeValueRank(UA_Server *server, const UA_NodeId nodeId,
-                         const UA_Int32 valueRank) {
+                         const UA_Int32 valueRank) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_VALUERANK,
                              &UA_TYPES[UA_TYPES_INT32], &valueRank);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeArrayDimensions(UA_Server *server, const UA_NodeId nodeId,
-                               const UA_Variant arrayDimensions) {
+                               const UA_Variant arrayDimensions) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ARRAYDIMENSIONS,
                              &UA_TYPES[UA_TYPES_VARIANT], &arrayDimensions);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeAccessLevel(UA_Server *server, const UA_NodeId nodeId,
-                           const UA_Byte accessLevel) {
+                           const UA_Byte accessLevel) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVEL,
                              &UA_TYPES[UA_TYPES_BYTE], &accessLevel);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeAccessLevelEx(UA_Server *server, const UA_NodeId nodeId,
-                             const UA_UInt32 accessLevelEx) {
+                             const UA_UInt32 accessLevelEx), {
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_ACCESSLEVELEX,
                              &UA_TYPES[UA_TYPES_UINT32], &accessLevelEx);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeMinimumSamplingInterval(UA_Server *server, const UA_NodeId nodeId,
-                                       const UA_Double miniumSamplingInterval) {
+                                       const UA_Double miniumSamplingInterval) ,{
     return __UA_Server_write(server, &nodeId,
                              UA_ATTRIBUTEID_MINIMUMSAMPLINGINTERVAL,
                              &UA_TYPES[UA_TYPES_DOUBLE],
                              &miniumSamplingInterval);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeHistorizing(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean historizing) {
+                          const UA_Boolean historizing) ,{
     return __UA_Server_write(server, &nodeId,
                              UA_ATTRIBUTEID_HISTORIZING,
                              &UA_TYPES[UA_TYPES_BOOLEAN],
                              &historizing);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_writeExecutable(UA_Server *server, const UA_NodeId nodeId,
-                          const UA_Boolean executable) {
+                          const UA_Boolean executable) ,{
     return __UA_Server_write(server, &nodeId, UA_ATTRIBUTEID_EXECUTABLE,
-                             &UA_TYPES[UA_TYPES_BOOLEAN], &executable); }
+                             &UA_TYPES[UA_TYPES_BOOLEAN], &executable); 
+})
 
 /**
  * Browsing
@@ -1145,34 +1166,44 @@ UA_Server_setVariableNode_valueBackend(UA_Server *server,
  * MonitoredItems are used with the Subscription mechanism of OPC UA to
  * transported notifications for data changes and events. MonitoredItems can
  * also be registered locally. Notifications are then forwarded to a
- * user-defined callback instead of a remote client. */
+ * user-defined callback instead of a remote client.
+ *
+ * Local MonitoredItems are delivered asynchronously. That is, the notification
+ * is inserted as a *Delayed Callback* for the EventLoop. The callback is then
+ * triggered when the control flow next returns to the EventLoop. */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
+
+/* Delete a local MonitoredItem. Used for both DataChange- and
+ * Event-MonitoredItems. */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
 
 typedef void (*UA_Server_DataChangeNotificationCallback)
     (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
      const UA_NodeId *nodeId, void *nodeContext, UA_UInt32 attributeId,
      const UA_DataValue *value);
 
-typedef void (*UA_Server_EventNotificationCallback)
-    (UA_Server *server, UA_UInt32 monId, void *monContext,
-     size_t nEventFields, const UA_Variant *eventFields);
+/**
+ * DataChange MonitoredItem use a sampling interval and filter criteria to
+ * notify the userland about value changes. Note that the sampling interval can
+ * also be zero to be notified about changes "right away". For this we hook the
+ * MonitoredItem into the observed Node and check the filter after every call of
+ * the Write-Service. */
 
-/* Create a local MonitoredItem with a sampling interval that detects data
- * changes.
+/* Create a local MonitoredItem to detect data changes.
  *
  * @param server The server executing the MonitoredItem
- * @timestampsToReturn Shall timestamps be added to the value for the callback?
- * @item The parameters of the new MonitoredItem. Note that the attribute of the
- *       ReadValueId (the node that is monitored) can not be
- *       ``UA_ATTRIBUTEID_EVENTNOTIFIER``. A different callback type needs to be
- *       registered for event notifications.
- * @monitoredItemContext A pointer that is forwarded with the callback
- * @callback The callback that is executed on detected data changes
- *
+ * @param timestampsToReturn Shall timestamps be added to the value for the
+ *        callback?
+ * @param item The parameters of the new MonitoredItem. Note that the attribute
+ *        of the ReadValueId (the node that is monitored) can not be
+ *        ``UA_ATTRIBUTEID_EVENTNOTIFIER``. See below for event notifications.
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed on detected data changes
  * @return Returns a description of the created MonitoredItem. The structure
- * also contains a StatusCode (in case of an error) and the identifier of the
- * new MonitoredItem. */
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
 UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
 UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           UA_TimestampsToReturn timestampsToReturn,
@@ -1180,14 +1211,75 @@ UA_Server_createDataChangeMonitoredItem(UA_Server *server,
           void *monitoredItemContext,
           UA_Server_DataChangeNotificationCallback callback);
 
-/* UA_MonitoredItemCreateResult UA_EXPORT */
-/* UA_Server_createEventMonitoredItem(UA_Server *server, */
-/*           UA_TimestampsToReturn timestampsToReturn, */
-/*           const UA_MonitoredItemCreateRequest item, void *context, */
-/*           UA_Server_EventNotificationCallback callback); */
+/**
+ * See the section on :ref`events` for how to emit events in the server.
+ *
+ * Event-MonitoredItems emit notifications with a list of "fields" (variants).
+ * The fields are specified as *SimpleAttributeOperands* in the select-clause of
+ * the MonitoredItem's event filter. For the local event callback, instead of
+ * using a list of variants, we use a key-value map for the event fields. They
+ * key names are generated with ``UA_SimpleAttributeOperand_print`` to get a
+ * human-readable representation.
+ *
+ * The received event-fields map could look like this::
+ *
+ *   0:/Severity   => UInt16(1000)
+ *   0:/Message    => LocalizedText("en-US", "My Event Message")
+ *   0:/EventType  => NodeId(i=50831)
+ *   0:/SourceNode => NodeId(i=2253)
+ *
+ * The order of the keys is identical to the order of SimpleAttributeOperands in
+ * the select-clause. This feature requires the build flag ``UA_ENABLE_PARSING``
+ * enabled. Otherwise the key-value map uses empty keys (the order of fields is
+ * still the same as the specified select-clauses). */
 
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_deleteMonitoredItem(UA_Server *server, UA_UInt32 monitoredItemId);
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
+typedef void (*UA_Server_EventNotificationCallback)
+    (UA_Server *server, UA_UInt32 monitoredItemId, void *monitoredItemContext,
+     const UA_KeyValueMap eventFields);
+
+/* Create a local MonitoredItem for Events. The API is simplifed compared to a
+ * UA_MonitoredItemCreateRequest. The unavailable options are not relevant for
+ * local MonitoredItems (e.g. the queue size) or not relevant for Event
+ * MonitoredItems (e.g. the sampling interval).
+ *
+ * @param server The server executing the MonitoredItem
+ * @param nodeId The node where events are collected. Note that events "bubble
+ *        up" to their parents (via hierarchical references).
+ * @param filter The filter defined which event fields are selected (select
+ *        clauses) and which events are considered for this particular
+ *        MonitoredItem (where clause).
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed for each event
+ * @return Returns a description of the created MonitoredItem. The structure
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Server_createEventMonitoredItem(UA_Server *server, const UA_NodeId nodeId,
+                                   const UA_EventFilter filter,
+                                   void *monitoredItemContext,
+                                   UA_Server_EventNotificationCallback callback);
+
+/* Extended version UA_Server_createEventMonitoredItem that allows setting of
+ * uncommon parameters (for local MonitoredItems) like the MonitoringMode and
+ * queue sizes.
+ *
+ * @param server The server executing the MonitoredItem
+ * @param item The description of the MonitoredItem. Must use
+ *        UA_ATTRIBUTEID_EVENTNOTIFIER and an EventFilter.
+ * @param monitoredItemContext A pointer that is forwarded with the callback
+ * @param callback The callback that is executed for each event
+ * @return Returns a description of the created MonitoredItem. The structure
+ *         also contains a StatusCode (in case of an error) and the identifier
+ *         of the new MonitoredItem. */
+UA_MonitoredItemCreateResult UA_EXPORT UA_THREADSAFE
+UA_Server_createEventMonitoredItemEx(UA_Server *server,
+                                     const UA_MonitoredItemCreateRequest item,
+                                     void *monitoredItemContext,
+                                     UA_Server_EventNotificationCallback callback);
+
+#endif
 
 #endif
 
@@ -1302,22 +1394,22 @@ __UA_Server_addNode(UA_Server *server, const UA_NodeClass nodeClass,
                     const UA_DataType *attributeType,
                     void *nodeContext, UA_NodeId *outNewNodeId);
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addVariableNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
                           const UA_NodeId referenceTypeId,
                           const UA_QualifiedName browseName,
                           const UA_NodeId typeDefinition,
                           const UA_VariableAttributes attr,
-                          void *nodeContext, UA_NodeId *outNewNodeId) {
+                          void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &typeDefinition, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VARIABLEATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addVariableTypeNode(UA_Server *server,
                               const UA_NodeId requestedNewNodeId,
                               const UA_NodeId parentNodeId,
@@ -1325,88 +1417,88 @@ UA_Server_addVariableTypeNode(UA_Server *server,
                               const UA_QualifiedName browseName,
                               const UA_NodeId typeDefinition,
                               const UA_VariableTypeAttributes attr,
-                              void *nodeContext, UA_NodeId *outNewNodeId) {
+                              void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_VARIABLETYPE,
                                &requestedNewNodeId, &parentNodeId, &referenceTypeId,
                                browseName, &typeDefinition,
                                (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VARIABLETYPEATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addObjectNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId,
                         const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName,
                         const UA_NodeId typeDefinition,
                         const UA_ObjectAttributes attr,
-                        void *nodeContext, UA_NodeId *outNewNodeId) {
+                        void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECT, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &typeDefinition, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addObjectTypeNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                             const UA_NodeId parentNodeId,
                             const UA_NodeId referenceTypeId,
                             const UA_QualifiedName browseName,
                             const UA_ObjectTypeAttributes attr,
-                            void *nodeContext, UA_NodeId *outNewNodeId) {
+                            void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_OBJECTTYPE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_OBJECTTYPEATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addViewNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                       const UA_NodeId parentNodeId,
                       const UA_NodeId referenceTypeId,
                       const UA_QualifiedName browseName,
                       const UA_ViewAttributes attr,
-                      void *nodeContext, UA_NodeId *outNewNodeId) {
+                      void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_VIEW, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_VIEWATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addReferenceTypeNode(UA_Server *server,
                                const UA_NodeId requestedNewNodeId,
                                const UA_NodeId parentNodeId,
                                const UA_NodeId referenceTypeId,
                                const UA_QualifiedName browseName,
                                const UA_ReferenceTypeAttributes attr,
-                               void *nodeContext, UA_NodeId *outNewNodeId) {
+                               void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_REFERENCETYPE,
                                &requestedNewNodeId, &parentNodeId, &referenceTypeId,
                                browseName, &UA_NODEID_NULL,
                                (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_REFERENCETYPEATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addDataTypeNode(UA_Server *server,
                           const UA_NodeId requestedNewNodeId,
                           const UA_NodeId parentNodeId,
                           const UA_NodeId referenceTypeId,
                           const UA_QualifiedName browseName,
                           const UA_DataTypeAttributes attr,
-                          void *nodeContext, UA_NodeId *outNewNodeId) {
+                          void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return __UA_Server_addNode(server, UA_NODECLASS_DATATYPE, &requestedNewNodeId,
                                &parentNodeId, &referenceTypeId, browseName,
                                &UA_NODEID_NULL, (const UA_NodeAttributes*)&attr,
                                &UA_TYPES[UA_TYPES_DATATYPEATTRIBUTES],
                                nodeContext, outNewNodeId);
-}
+})
 
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_addDataSourceVariableNode(UA_Server *server,
@@ -1442,14 +1534,14 @@ UA_Server_addMethodNodeEx(UA_Server *server, const UA_NodeId requestedNewNodeId,
                           UA_NodeId *outputArgumentsOutNewNodeId,
                           void *nodeContext, UA_NodeId *outNewNodeId);
 
-static UA_INLINE UA_THREADSAFE UA_StatusCode
+UA_INLINABLE( UA_THREADSAFE UA_StatusCode
 UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                         const UA_NodeId parentNodeId, const UA_NodeId referenceTypeId,
                         const UA_QualifiedName browseName, const UA_MethodAttributes attr,
                         UA_MethodCallback method,
                         size_t inputArgumentsSize, const UA_Argument *inputArguments,
                         size_t outputArgumentsSize, const UA_Argument *outputArguments,
-                        void *nodeContext, UA_NodeId *outNewNodeId) {
+                        void *nodeContext, UA_NodeId *outNewNodeId) ,{
     return UA_Server_addMethodNodeEx(server, requestedNewNodeId,  parentNodeId,
                                      referenceTypeId, browseName, attr, method,
                                      inputArgumentsSize, inputArguments,
@@ -1457,7 +1549,7 @@ UA_Server_addMethodNode(UA_Server *server, const UA_NodeId requestedNewNodeId,
                                      outputArgumentsSize, outputArguments,
                                      UA_NODEID_NULL, NULL,
                                      nodeContext, outNewNodeId);
-}
+})
 
 #endif
 
@@ -1807,6 +1899,18 @@ UA_Server_updateCertificate(UA_Server *server,
                             const UA_ByteString *newPrivateKey,
                             UA_Boolean closeSessions,
                             UA_Boolean closeSecureChannels);
+
+/**
+ * Creates a PKCS #10 DER encoded certificate request signed with the server's private key
+ * ---------------------------------------------------------------------------------------- */
+UA_StatusCode UA_EXPORT
+UA_Server_createSigningRequest(UA_Server *server,
+                               const UA_NodeId certificateGroupId,
+                               const UA_NodeId certificateTypeId,
+                               const UA_String *subjectName,
+                               const UA_Boolean *regenerateKey,
+                               const UA_ByteString *nonce,
+                               UA_ByteString *csr);
 
 /**
  * Utility Functions

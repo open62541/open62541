@@ -60,7 +60,7 @@ UA_DiscoveryManager_free(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    registeredServer_list_entry *rs, *rs_tmp;
+    registeredServer *rs, *rs_tmp;
     LIST_FOREACH_SAFE(rs, &dm->registeredServers, pointers, rs_tmp) {
         LIST_REMOVE(rs, pointers);
         UA_RegisteredServer_clear(&rs->registeredServer);
@@ -68,7 +68,7 @@ UA_DiscoveryManager_free(UA_Server *server,
     }
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    serverOnNetwork_list_entry *son, *son_tmp;
+    serverOnNetwork *son, *son_tmp;
     LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
         LIST_REMOVE(son, pointers);
         UA_ServerOnNetwork_clear(&son->serverOnNetwork);
@@ -98,17 +98,17 @@ UA_DiscoveryManager_free(UA_Server *server,
  * removed. If there is no semaphore file, then the registration will be removed
  * if it is older than 60 minutes. */
 static void
-UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
-                                    void *data) {
+UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
+    UA_EventLoop *el = server->config.eventLoop;
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)data;
 
     /* TimedOut gives the last DateTime at which we must have seen the
      * registered server. Otherwise it is timed out. */
-    UA_DateTime timedOut = UA_DateTime_nowMonotonic();
+    UA_DateTime timedOut = el->dateTime_nowMonotonic(el);
     if(server->config.discoveryCleanupTimeout)
         timedOut -= server->config.discoveryCleanupTimeout * UA_DATETIME_SEC;
 
-    registeredServer_list_entry *current, *temp;
+    registeredServer *current, *temp;
     LIST_FOREACH_SAFE(current, &dm->registeredServers, pointers, temp) {
         UA_Boolean semaphoreDeleted = false;
 
@@ -134,19 +134,15 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
             current->lastSeen < timedOut)) {
             if(semaphoreDeleted) {
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s is removed because "
-                            "the semaphore file '%.*s' was deleted",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data,
-                            (int)current->registeredServer.semaphoreFilePath.length,
-                            current->registeredServer.semaphoreFilePath.data);
+                            "Registration of server with URI %S is removed because "
+                            "the semaphore file '%S' was deleted",
+                            current->registeredServer.serverUri,
+                            current->registeredServer.semaphoreFilePath);
             } else {
                 // cppcheck-suppress unreadVariable
                 UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                            "Registration of server with URI %.*s has timed out "
-                            "and is removed",
-                            (int)current->registeredServer.serverUri.length,
-                            current->registeredServer.serverUri.data);
+                            "Registration of server with URI %S has timed out "
+                            "and is removed", current->registeredServer.serverUri);
             }
             LIST_REMOVE(current, pointers);
             UA_RegisteredServer_clear(&current->registeredServer);
@@ -157,7 +153,7 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server,
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     /* Send out multicast */
-    sendMulticastMessages(dm);
+    UA_DiscoveryManager_sendMulticastMessages(dm);
 #endif
 }
 
@@ -168,17 +164,17 @@ UA_DiscoveryManager_start(UA_Server *server,
         return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    UA_StatusCode res = addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
-                                            dm, 1000.0, &dm->discoveryCallbackId);
+    dm->server = server; /* Set the backpointer */
+
+    UA_StatusCode res =
+        addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
+                            dm, 1000.0, &dm->discoveryCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
-    dm->logging = server->config.logging;
-    dm->serverConfig = &server->config;
-
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
-        startMulticastDiscoveryServer(server);
+        UA_DiscoveryManager_startMulticast(dm);
 #endif
 
     UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STARTED);
@@ -203,7 +199,7 @@ UA_DiscoveryManager_stop(UA_Server *server,
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled)
-        stopMulticastDiscoveryServer(server);
+        UA_DiscoveryManager_stopMulticast(dm);
 #endif
 
     UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
@@ -217,7 +213,8 @@ UA_DiscoveryManager_new(UA_Server *server) {
         return NULL;
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    dm->serverOnNetworkRecordIdLastReset = UA_DateTime_now();
+    UA_EventLoop *el = server->config.eventLoop;
+    dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     dm->sc.name = UA_STRING("discovery");
@@ -261,7 +258,7 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 static void
 setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
                      UA_RegisteredServer *rs) {
-    UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_ServerConfig *sc = &ar->dm->server->config;
 
     rh->timeoutHint = 10000;
 
@@ -285,7 +282,7 @@ static void
 registerAsyncResponse(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = ar->dm->serverConfig;
+    const UA_ServerConfig *sc = &ar->dm->server->config;
     UA_Response *response = (UA_Response*)resp;
     const char *regtype = (ar->register2) ? "RegisterServer2" : "RegisterServer";
 
@@ -339,7 +336,7 @@ discoveryClientStateCallback(UA_Client *client,
                              UA_StatusCode connectStatus) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)
         UA_Client_getContext(client);
-    UA_ServerConfig *sc = ar->dm->serverConfig;
+    UA_ServerConfig *sc = &ar->dm->server->config;
 
     /* Connection failed */
     if(connectStatus != UA_STATUSCODE_GOOD) {
@@ -512,8 +509,7 @@ UA_Server_registerDiscovery(UA_Server *server, UA_ClientConfig *cc,
                             const UA_String discoveryServerUrl,
                             const UA_String semaphoreFilePath) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Registering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Registering at the DiscoveryServer: %S", discoveryServerUrl);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
         UA_Server_register(server, cc, false, discoveryServerUrl, semaphoreFilePath);
@@ -525,8 +521,7 @@ UA_StatusCode
 UA_Server_deregisterDiscovery(UA_Server *server, UA_ClientConfig *cc,
                               const UA_String discoveryServerUrl) {
     UA_LOG_INFO(server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Deregistering at the DiscoveryServer: %.*s",
-                (int)discoveryServerUrl.length, discoveryServerUrl.data);
+                "Deregistering at the DiscoveryServer: %S", discoveryServerUrl);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
         UA_Server_register(server, cc, true, discoveryServerUrl, UA_STRING_NULL);

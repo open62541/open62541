@@ -22,14 +22,14 @@
 static UA_StatusCode
 setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *request,
                                               UA_ApplicationDescription *target,
-                                              const UA_RegisteredServer *registeredServer) {
+                                              const UA_RegisteredServer *rs) {
     UA_ApplicationDescription_init(target);
     UA_StatusCode retval =
-        UA_String_copy(&registeredServer->serverUri, &target->applicationUri);
+        UA_String_copy(&rs->serverUri, &target->applicationUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    retval = UA_String_copy(&registeredServer->productUri, &target->productUri);
+    retval = UA_String_copy(&rs->productUri, &target->productUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -37,10 +37,10 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
     if(request->localeIdsSize) {
         UA_Boolean appNameFound = false;
         for(size_t i =0; i<request->localeIdsSize && !appNameFound; i++) {
-            for(size_t j =0; j<registeredServer->serverNamesSize; j++) {
+            for(size_t j =0; j<rs->serverNamesSize; j++) {
                 if(UA_String_equal(&request->localeIds[i],
-                                   &registeredServer->serverNames[j].locale)) {
-                    retval = UA_LocalizedText_copy(&registeredServer->serverNames[j],
+                                   &rs->serverNames[j].locale)) {
+                    retval = UA_LocalizedText_copy(&rs->serverNames[j],
                                                    &target->applicationName);
                     if(retval != UA_STATUSCODE_GOOD)
                         return retval;
@@ -52,34 +52,34 @@ setApplicationDescriptionFromRegisteredServer(const UA_FindServersRequest *reque
 
         // server does not have the requested local, therefore we can select the
         // most suitable one
-        if(!appNameFound && registeredServer->serverNamesSize) {
-            retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+        if(!appNameFound && rs->serverNamesSize) {
+            retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                            &target->applicationName);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
         }
-    } else if(registeredServer->serverNamesSize) {
+    } else if(rs->serverNamesSize) {
         // just take the first name
-        retval = UA_LocalizedText_copy(&registeredServer->serverNames[0],
+        retval = UA_LocalizedText_copy(&rs->serverNames[0],
                                        &target->applicationName);
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
     }
 
-    target->applicationType = registeredServer->serverType;
-    retval = UA_String_copy(&registeredServer->gatewayServerUri, &target->gatewayServerUri);
+    target->applicationType = rs->serverType;
+    retval = UA_String_copy(&rs->gatewayServerUri, &target->gatewayServerUri);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
     // TODO where do we get the discoveryProfileUri for application data?
 
-    target->discoveryUrlsSize = registeredServer->discoveryUrlsSize;
-    if(registeredServer->discoveryUrlsSize) {
-        size_t duSize = sizeof(UA_String) * registeredServer->discoveryUrlsSize;
+    target->discoveryUrlsSize = rs->discoveryUrlsSize;
+    if(rs->discoveryUrlsSize) {
+        size_t duSize = sizeof(UA_String) * rs->discoveryUrlsSize;
         target->discoveryUrls = (UA_String *)UA_malloc(duSize);
         if(!target->discoveryUrls)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        for(size_t i = 0; i < registeredServer->discoveryUrlsSize; i++) {
-            retval = UA_String_copy(&registeredServer->discoveryUrls[i],
+        for(size_t i = 0; i < rs->discoveryUrlsSize; i++) {
+            retval = UA_String_copy(&rs->discoveryUrls[i],
                                     &target->discoveryUrls[i]);
             if(retval != UA_STATUSCODE_GOOD)
                 return retval;
@@ -145,7 +145,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
         UA_ApplicationDescription_copy(&server->config.applicationDescription,
                                        &response->servers[pos++]);
 
-    registeredServer_list_entry* current;
+    registeredServer *current;
     LIST_FOREACH(current, &dm->registeredServers, pointers) {
         UA_Boolean usable = (request->serverUrisSize == 0);
         if(!usable) {
@@ -194,7 +194,7 @@ void Service_FindServers(UA_Server *server, UA_Session *session,
 static UA_Boolean
 entryMatchesCapabilityFilter(size_t serverCapabilityFilterSize,
                              UA_String *serverCapabilityFilter,
-                             serverOnNetwork_list_entry* current) {
+                             serverOnNetwork *current) {
     /* If the entry has less capabilities defined than the filter, there's no match */
     if(serverCapabilityFilterSize > current->serverOnNetwork.serverCapabilitiesSize)
         return false;
@@ -249,7 +249,7 @@ Service_FindServersOnNetwork(UA_Server *server, UA_Session *session,
     /* Iterate over all records and add to filtered list */
     UA_UInt32 filteredCount = 0;
     UA_STACKARRAY(UA_ServerOnNetwork*, filtered, recordCount);
-    serverOnNetwork_list_entry* current;
+    serverOnNetwork *current;
     LIST_FOREACH(current, &dm->serverOnNetwork, pointers) {
         if(filteredCount >= recordCount)
             break;
@@ -483,7 +483,7 @@ Service_GetEndpoints(UA_Server *server, UA_Session *session,
 
     /* Check if the ServerUrl is already present in the DiscoveryUrl array.
      * Add if not already there. */
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     for(size_t i = 0; i < server->config.applicationDescription.discoveryUrlsSize; i++) {
         if(UA_String_equal(&channel->endpointUrl,
                            &server->config.applicationDescription.discoveryUrls[i])) {
@@ -523,19 +523,16 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     if(!dm)
         return;
 
-    if(dm->serverConfig->applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER) {
+    if(server->config.applicationDescription.applicationType != UA_APPLICATIONTYPE_DISCOVERYSERVER) {
         responseHeader->serviceResult = UA_STATUSCODE_BADSERVICEUNSUPPORTED;
         return;
     }
 
     /* Find the server from the request in the registered list */
-    registeredServer_list_entry* current;
-    registeredServer_list_entry *registeredServer_entry = NULL;
-    LIST_FOREACH(current, &dm->registeredServers, pointers) {
-        if(UA_String_equal(&current->registeredServer.serverUri, &requestServer->serverUri)) {
-            registeredServer_entry = current;
+    registeredServer *rs = NULL;
+    LIST_FOREACH(rs, &dm->registeredServers, pointers) {
+        if(UA_String_equal(&rs->registeredServer.serverUri, &requestServer->serverUri))
             break;
-        }
     }
 
     UA_MdnsDiscoveryConfiguration *mdnsConfig = NULL;
@@ -588,7 +585,8 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
-        memcpy(filePath, requestServer->semaphoreFilePath.data, requestServer->semaphoreFilePath.length );
+        memcpy(filePath, requestServer->semaphoreFilePath.data,
+               requestServer->semaphoreFilePath.length );
         filePath[requestServer->semaphoreFilePath.length] = '\0';
         if(!UA_fileExists( filePath )) {
             responseHeader->serviceResult = UA_STATUSCODE_BADSEMPAHOREFILEMISSING;
@@ -606,11 +604,12 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
     if(server->config.mdnsEnabled) {
         for(size_t i = 0; i < requestServer->discoveryUrlsSize; i++) {
-            /* create TXT if is online and first index, delete TXT if is offline and last index */
+            /* create TXT if is online and first index, delete TXT if is offline
+             * and last index */
             UA_Boolean updateTxt = (requestServer->isOnline && i==0) ||
                 (!requestServer->isOnline && i==requestServer->discoveryUrlsSize);
-            UA_Discovery_updateMdnsForDiscoveryUrl(dm, mdnsServerName, mdnsConfig,
-                                                   &requestServer->discoveryUrls[i],
+            UA_Discovery_updateMdnsForDiscoveryUrl(dm, *mdnsServerName, mdnsConfig,
+                                                   requestServer->discoveryUrls[i],
                                                    requestServer->isOnline, updateTxt);
         }
     }
@@ -618,11 +617,11 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
     if(!requestServer->isOnline) {
         // server is shutting down. Remove it from the registered servers list
-        if(!registeredServer_entry) {
+        if(!rs) {
             // server not found, show warning
             UA_LOG_WARNING_SESSION(server->config.logging, session,
-                                   "Could not unregister server %.*s. Not registered.",
-                                   (int)requestServer->serverUri.length, requestServer->serverUri.data);
+                                   "Could not unregister server %S. Not registered.",
+                                   requestServer->serverUri);
             responseHeader->serviceResult = UA_STATUSCODE_BADNOTHINGTODO;
             return;
         }
@@ -635,38 +634,37 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
         }
 
         // server found, remove from list
-        LIST_REMOVE(registeredServer_entry, pointers);
-        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
-        UA_free(registeredServer_entry);
+        LIST_REMOVE(rs, pointers);
+        UA_RegisteredServer_clear(&rs->registeredServer);
+        UA_free(rs);
         dm->registeredServersSize--;
         responseHeader->serviceResult = UA_STATUSCODE_GOOD;
         return;
     }
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(!registeredServer_entry) {
+    if(!rs) {
         // server not yet registered, register it by adding it to the list
-        UA_LOG_DEBUG_SESSION(server->config.logging, session, "Registering new server: %.*s",
-                             (int)requestServer->serverUri.length, requestServer->serverUri.data);
+        UA_LOG_DEBUG_SESSION(server->config.logging, session,
+                             "Registering new server: %S",
+                             requestServer->serverUri);
 
-        registeredServer_entry =
-            (registeredServer_list_entry *)UA_malloc(sizeof(registeredServer_list_entry));
-        if(!registeredServer_entry) {
+        rs = (registeredServer*)UA_malloc(sizeof(registeredServer));
+        if(!rs) {
             responseHeader->serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
             return;
         }
 
-        LIST_INSERT_HEAD(&dm->registeredServers,
-                         registeredServer_entry, pointers);
+        LIST_INSERT_HEAD(&dm->registeredServers, rs, pointers);
         dm->registeredServersSize++;
     } else {
-        UA_RegisteredServer_clear(&registeredServer_entry->registeredServer);
+        UA_RegisteredServer_clear(&rs->registeredServer);
     }
 
-    // Always call the callback, if it is set.
-    // Previously we only called it if it was a new register call. It may be the case that this endpoint
-    // registered before, then crashed, restarts and registeres again. In that case the entry is not deleted
-    // and the callback would not be called.
+    // Always call the callback, if it is set. Previously we only called it if
+    // it was a new register call. It may be the case that this endpoint
+    // registered before, then crashed, restarts and registeres again. In that
+    // case the entry is not deleted and the callback would not be called.
     if(dm->registerServerCallback) {
         UA_UNLOCK(&server->serviceMutex);
         dm->registerServerCallback(requestServer,
@@ -675,8 +673,10 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
     }
 
     // copy the data from the request into the list
-    UA_RegisteredServer_copy(requestServer, &registeredServer_entry->registeredServer);
-    registeredServer_entry->lastSeen = UA_DateTime_nowMonotonic();
+    UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
+    UA_RegisteredServer_copy(requestServer, &rs->registeredServer);
+    rs->lastSeen = nowMonotonic;
     responseHeader->serviceResult = retval;
 }
 

@@ -165,7 +165,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_ExpandedNodeId *children = NULL;
     size_t childrenSize = 0;
     UA_ReferenceTypeSet refTypes;
-    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
 
     char subIdStr[32];
     itoaUnsigned(sub->subscriptionId, subIdStr, 10);
@@ -188,9 +188,9 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_VariableAttributes var_attr = UA_VariableAttributes_default;
     var_attr.displayName.text = UA_STRING(subIdStr);
     var_attr.dataType = UA_TYPES[UA_TYPES_SUBSCRIPTIONDIAGNOSTICSDATATYPE].typeId;
-    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, subIdStr);
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SUBSCRIPTIONDIAGNOSTICSTYPE);
+    UA_NodeId typeId = UA_NS0ID(SUBSCRIPTIONDIAGNOSTICSTYPE);
     /* Assign a random free NodeId */
     UA_StatusCode res = addNode(server, UA_NODECLASS_VARIABLE, UA_NODEID_NUMERIC(1, 0),
                                 bpr.targets[0].targetId.nodeId,
@@ -200,8 +200,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
     UA_CHECK_STATUS(res, goto cleanup);
 
     /* Add a second reference from the overall SubscriptionDiagnosticsArray variable */
-    const UA_NodeId subDiagArray =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
+    const UA_NodeId subDiagArray = UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SUBSCRIPTIONDIAGNOSTICSARRAY);
     res = addRefWithSession(server, session,  &subDiagArray, &refId, &sub->ns0Id, true);
     if(res != UA_STATUSCODE_GOOD)
         goto cleanup;
@@ -340,7 +339,7 @@ setSessionSecurityDiagnostics(UA_Session *session,
     UA_SessionSecurityDiagnosticsDataType_copy(&session->securityDiagnostics, sd);
     UA_NodeId_copy(&session->sessionId, &sd->sessionId);
     UA_String_copy(&session->clientUserIdOfSession, &sd->clientUserIdOfSession);
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(channel) {
         UA_ByteString_copy(&channel->remoteCertificate, &sd->clientCertificate);
         UA_String_copy(&channel->securityPolicy->policyUri, &sd->securityPolicyUri);
@@ -484,16 +483,16 @@ createSessionObject(UA_Server *server, UA_Session *session) {
     UA_ExpandedNodeId *children = NULL;
     size_t childrenSize = 0;
     UA_ReferenceTypeSet refTypes;
-    UA_NodeId hasComponent = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId hasComponent = UA_NS0ID(HASCOMPONENT);
 
     /* Create an object for the session. Instantiates all the mandatory children. */
     UA_ObjectAttributes object_attr = UA_ObjectAttributes_default;
     object_attr.displayName.text = session->sessionName;
-    UA_NodeId parentId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
-    UA_NodeId refId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT);
+    UA_NodeId parentId = UA_NS0ID(SERVER_SERVERDIAGNOSTICS_SESSIONSDIAGNOSTICSSUMMARY);
+    UA_NodeId refId = UA_NS0ID(HASCOMPONENT);
     UA_QualifiedName browseName = UA_QUALIFIEDNAME(0, "");
     browseName.name = session->sessionName; /* shallow copy */
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SESSIONDIAGNOSTICSOBJECTTYPE);
+    UA_NodeId typeId = UA_NS0ID(SESSIONDIAGNOSTICSOBJECTTYPE);
     UA_StatusCode res = addNode(server, UA_NODECLASS_OBJECT, session->sessionId,
                                 parentId, refId, browseName, typeId, &object_attr,
                                 &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, NULL);
@@ -540,8 +539,9 @@ readDiagnostics(UA_Server *server, const UA_NodeId *sessionId, void *sessionCont
     }
 
     if(sourceTimestamp) {
+        UA_EventLoop *el = server->config.eventLoop;
         value->hasSourceTimestamp = true;
-        value->sourceTimestamp = UA_DateTime_now();
+        value->sourceTimestamp = el->dateTime_now(el);
     }
 
     UA_assert(nodeId->identifierType == UA_NODEIDTYPE_NUMERIC);

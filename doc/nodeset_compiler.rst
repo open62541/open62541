@@ -8,7 +8,7 @@ Note that the nodeset compiler you can find in the *tools/nodeset_compiler* subf
 Getting started
 ...............
 
-We take the following information model snippet as the starting point of the following tutorial. A more detailed tutorial on how to create your own information model and NodeSet2.xml can be found in this blog post: https://opcua.rocks/custom-information-models/
+We take the following information model snippet as the starting point of the following tutorial. A more detailed tutorial on how to create your own information model and NodeSet2.xml can be found in this blog post: https://profanter.medium.com/how-to-create-custom-opc-ua-information-models-1e9a461f5b58
 
 .. code-block:: xml
 

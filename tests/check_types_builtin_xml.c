@@ -4,7 +4,6 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 #include <open62541/util.h>
 
 #include "ua_types_encoding_xml.h"
@@ -1667,7 +1666,7 @@ START_TEST(UA_Float_xml_nan_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_FLOAT], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || (!defined(__aarch64__) && !defined(__amd64__)))
+#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
     // gcc 32-bit and linux clang specific
     // 0 11111111 10000000000000000000000
     // 7f c0 00 00
@@ -1804,10 +1803,10 @@ START_TEST(UA_Double_nan_xml_decode) {
     UA_StatusCode retval = UA_decodeXml(&buf, &out, &UA_TYPES[UA_TYPES_DOUBLE], NULL);
 
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-#if !defined(__TINYC__) && (defined(__clang__) || (!defined(__aarch64__) && !defined(__amd64__)))
+#if !defined(__TINYC__) && (defined(__clang__) || ((!defined(__aarch64__) && !defined(__amd64__)) && ((defined(__GNUC__) && __GNUC__ < 11))))
     // gcc 32-bit and linux clang specific
     // 0 11111111111 1000000000000000000000000000000000000000000000000000
-    // ff f8 00 00 00 00 00 00
+    // 7f f8 00 00 00 00 00 00
     ck_assert_int_eq(((u8*)&out)[0], 0x00);
     ck_assert_int_eq(((u8*)&out)[1], 0x00);
     ck_assert_int_eq(((u8*)&out)[2], 0x00);

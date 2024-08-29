@@ -7,12 +7,12 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 #include <open62541/types.h>
-
-#include "server/ua_services.h"
-#include "client/ua_client_internal.h"
-#include <open62541/plugin/pki.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup.h>
+#include <open62541/plugin/certificategroup_default.h>
 #include <open62541/plugin/accesscontrol_default.h>
+
+#include "test_helpers.h"
+#include "thread_wrapper.h"
 
 #if defined(__OpenBSD__) || defined(__linux__)
 #include <pwd.h>
@@ -21,8 +21,6 @@
 
 #include <stdlib.h>
 #include <check.h>
-
-#include "thread_wrapper.h"
 
 UA_Server *server;
 UA_Boolean running;
@@ -140,10 +138,9 @@ THREAD_CALLBACK(serverloop) {
 
 static void setup(void) {
     running = true;
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert_msg(server, "UA_Server_new");
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_String policy = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_UsernamePasswordLogin login[] = {
         { UA_STRING_STATIC("user"),
@@ -195,10 +192,9 @@ ClientConfig_setUsernamePassword(UA_ClientConfig *config,
 }
 
 START_TEST(Password_good) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_msg(client, "UA_Client_new");
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
 
     UA_String user = UA_STRING_STATIC("user");
     UA_String pass = UA_STRING_STATIC("pass");
@@ -210,10 +206,9 @@ START_TEST(Password_good) {
 } END_TEST
 
 START_TEST(Password_bad) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_msg(client, "UA_Client_new");
     UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
 
     UA_String user = UA_STRING_STATIC("user");
     UA_String pass = UA_STRING_STATIC("bad");
@@ -225,10 +220,8 @@ START_TEST(Password_bad) {
 } END_TEST
 
 START_TEST(Password_none) {
-    UA_Client *client = UA_Client_new();
+    UA_Client *client = UA_Client_newForUnitTest();
     ck_assert_msg(client, "UA_Client_new");
-    UA_ClientConfig *config = UA_Client_getConfig(client);
-    UA_ClientConfig_setDefault(config);
 
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYTOKENINVALID);

@@ -7,15 +7,43 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-20.04, ubuntu-22.04]
+        build_name: [
+          "Debug Build & Unit Tests (gcc)",
+          "Debug Build & Unit Tests (gcc, 32bit)",
+          "Debug Build & Unit Tests without Subscriptions (gcc)",
+          "Debug Build & Unit Tests with Diagnostics (gcc)",
+          "Debug Build & Unit Tests with multithreading (gcc)",
+          "Debug Build & Unit Tests with Alarms&Conditions (gcc)",
+          "Debug Build & Unit Tests (clang-11)",
+          "Debug Build & Unit Tests (clang-15)",
+          "Debug Build & Unit Tests (tcc)",
+          "Encryption (MbedTLS) Build & Unit Tests (gcc)",
+          "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)",
+          "PubSub SKS Build & Unit Tests (gcc)",
+          "Encryption (OpenSSL) Build & Unit Tests (gcc)",
+          "Encryption (LibreSSL) Build & Unit Tests (gcc)",
+          "TPM Tool Build 20.04",
+          "TPM Tool Build 22.04",
+          "Release Build",
+          "Amalgamation Build",
+          "Amalgamation Build with Multithreading",
+          "Valgrind Build & Unit Tests with MbedTLS (gcc)",
+          "Valgrind Build & Unit Tests with OpenSSL (gcc)",
+          "Valgrind Examples with MbedTLS (gcc)",
+          "Valgrind Examples with OpenSSL (gcc)",
+          "Clang Static Analyzer",
+          "Build All Companion Specifications"
+        ]
         include:
           - build_name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
           - build_name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
-                sudo dpkg --add-architecture i386
-                sudo apt-get update
-                sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
+              sudo dpkg --add-architecture i386
+              sudo apt-get update
+              sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
             cmd_action: unit_tests_32
           - build_name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_deps: ""
@@ -29,9 +57,14 @@ jobs:
           - build_name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_alarms
-          - build_name: "Debug Build & Unit Tests (clang)"
+          - build_name: "Debug Build & Unit Tests (clang-11)"
+            runs_on: "ubuntu-20.04"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+          - build_name: "Debug Build & Unit Tests (clang-15)"
+            runs_on: "ubuntu-22.04"
+            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
+            cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
@@ -50,19 +83,20 @@ jobs:
           - build_name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
                 sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.7.2.tar.gz --output libressl.tar.gz
+                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
                 tar -xvz -f libressl.tar.gz
-                cd libressl-3.7.2
+                cd libressl-3.9.1
                 ./configure
                 sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
-          - build_name: "TPM Tool Build"
+          - build_name: "TPM Tool Build 20.04"
+            runs_on: "ubuntu-20.04"
             cmd_deps: |
                 sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
-                git checkout 2.4.6
+                git checkout 3.2.2
                 ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
                 make -j$(nproc)
                 sudo make install
@@ -72,7 +106,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-pkcs11.git
                 cd ${HOME}/tpm2-pkcs11
-                git checkout 1.6.0
+                git checkout 1.7.0
                 ./bootstrap && ./configure
                 make -j$(nproc)
                 sudo make install
@@ -82,13 +116,40 @@ jobs:
                 sudo pip3 install pyasn1_modules
                 pip3 install .
             cmd_action: build_tpm_tool
+          - build_name: "TPM Tool Build 22.04"
+            runs_on: "ubuntu-22.04"
+            cmd_deps: |
+              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-tss.git
+              cd ${HOME}/tpm2-tss
+              git checkout 3.2.2
+              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo udevadm control --reload-rules && sudo udevadm trigger
+              sudo apt-get install -y -qq tpm2-tools opensc
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+              cd ${HOME}/tpm2-pkcs11
+              git checkout 1.7.0
+              ./bootstrap && ./configure
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+              cd ${HOME}/tpm2-pkcs11/tools/
+              sudo pip3 install pyasn1_modules
+              pip3 install .
+            cmd_action: build_tpm_tool
           - build_name: "Release Build"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: build_release
-          - build_name: Amalgamation Build
+          - build_name: "Amalgamation Build"
             cmd_deps: ""
             cmd_action: build_amalgamation
-          - build_name: Amalgamation Build with Multithreading
+          - build_name: "Amalgamation Build with Multithreading"
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
           - build_name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
@@ -109,18 +170,21 @@ jobs:
           - build_name: "Build All Companion Specifications"
             cmd_deps: ""
             cmd_action: build_all_companion_specs
-    name: ${{matrix.build_name}}
-    runs-on: ubuntu-20.04
+
+    name: ${{matrix.os}}-${{matrix.build_name}}
+    runs-on: ${{matrix.os}}
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: true
-    - name: Install Dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y -qq python3-sphinx graphviz check
-        ${{ matrix.cmd_deps }}
-    - name: ${{matrix.build_name}}
-      run: source tools/ci.sh && ${{matrix.cmd_action}}
-      env:
-        ETHERNET_INTERFACE: eth0
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Install Dependencies
+        if: ${{ matrix.runs_on == '' || matrix.runs_on == matrix.os }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y -qq python3-sphinx graphviz check
+          ${{ matrix.cmd_deps }}
+      - name: ${{matrix.build_name}}
+        if: ${{ matrix.runs_on == '' || matrix.runs_on == matrix.os }}
+        run: source tools/ci.sh && ${{matrix.cmd_action}}
+        env:
+          ETHERNET_INTERFACE: eth0

@@ -84,7 +84,6 @@ endfunction()
 # The resulting files will be put into OUTPUT_DIR with the names:
 # - NAME_generated.c
 # - NAME_generated.h
-# - NAME_generated_handling.h
 # - NAME_generated.rst (optional)
 #
 # The cmake resulting cmake target will be named like this:
@@ -127,7 +126,7 @@ function(ua_generate_datatypes)
 
     set(options BUILTIN INTERNAL AUTOLOAD GEN_DOC)
     set(oneValueArgs NAME TARGET_SUFFIX TARGET_PREFIX OUTPUT_DIR FILE_XML FILE_CSV)
-    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED NAMESPACE_MAP)
+    set(multiValueArgs FILES_BSD IMPORT_BSD FILES_SELECTED)
     cmake_parse_arguments(UA_GEN_DT "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -219,7 +218,6 @@ function(ua_generate_datatypes)
 
     add_custom_command(OUTPUT ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
         ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-        ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h
         PRE_BUILD
         COMMAND ${ARG_CONV_EXCL_ENV} ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/generate_datatypes.py
         ${NAMESPACE_MAP_TMP}
@@ -241,8 +239,7 @@ function(ua_generate_datatypes)
     if(NOT TARGET ${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX})
         add_custom_target(${UA_GEN_DT_TARGET_PREFIX}-${UA_GEN_DT_TARGET_SUFFIX} DEPENDS
                           ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c
-                          ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h
-                          ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h)
+                          ${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h)
     endif()
 
     if(UA_GEN_DT_AUTOLOAD AND UA_ENABLE_NODESET_INJECTOR)
@@ -254,7 +251,7 @@ function(ua_generate_datatypes)
 
     string(TOUPPER "${UA_GEN_DT_NAME}" GEN_NAME_UPPER)
     set(UA_${GEN_NAME_UPPER}_SOURCES "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.c" CACHE INTERNAL "${UA_GEN_DT_NAME} source files")
-    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h;${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated_handling.h"
+    set(UA_${GEN_NAME_UPPER}_HEADERS "${UA_GEN_DT_OUTPUT_DIR}/${UA_GEN_DT_NAME}_generated.h"
         CACHE INTERNAL "${UA_GEN_DT_NAME} header files")
 endfunction()
 
@@ -439,7 +436,7 @@ function(ua_generate_nodeset)
                 add_dependencies(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX} open62541-generator-nodesetinjector)
                 add_custom_target(${UA_GEN_NS_TARGET_PREFIX}-${TARGET_SUFFIX}-autoinjection
                                   COMMAND ${Python3_EXECUTABLE} ${open62541_TOOLS_DIR}/nodeset_injector/generate_nodesetinjector_content.py
-                                  ${CMAKE_BINARY_DIR}/src_generated/open62541/nodesetinjector
+                                  ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector
                                   "namespace${FILE_SUFFIX}"
                                   DEPENDS
                                   ${UA_GEN_NS_OUTPUT_DIR}/namespace${FILE_SUFFIX}.c
@@ -496,7 +493,7 @@ endfunction()
 # This is a combination of the ua_generate_datatypes, ua_generate_nodeset, and
 # ua_generate_nodeid_header macros.
 # This function can also be used to just create a nodeset without datatypes by
-# omitting the CSV, BSD, and NAMESPACE_MAP parameter.
+# omitting the CSV and BSD parameter.
 # If only one of the previous parameters is given, all of them are required.
 #
 # It is possible to define dependencies of nodesets by using the DEPENDS argument.
@@ -544,7 +541,7 @@ function(ua_generate_nodeset_and_datatypes)
 
     set(options INTERNAL AUTOLOAD)
     set(oneValueArgs NAME FILE_NS FILE_CSV FILE_BSD OUTPUT_DIR TARGET_PREFIX BLACKLIST)
-    set(multiValueArgs DEPENDS IMPORT_BSD NAMESPACE_MAP)
+    set(multiValueArgs DEPENDS IMPORT_BSD)
     cmake_parse_arguments(UA_GEN "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN} )
 
     if(NOT DEFINED open62541_TOOLS_DIR)
@@ -626,7 +623,6 @@ function(ua_generate_nodeset_and_datatypes)
             NAME "types_${UA_GEN_NAME}"
             TARGET_PREFIX "${UA_GEN_TARGET_PREFIX}"
             TARGET_SUFFIX "types-${UA_GEN_NAME}"
-            NAMESPACE_MAP "${NAMESPACE_MAP_DEPENDS}"
             FILE_XML "${UA_GEN_FILE_NS}"
             FILE_CSV "${UA_GEN_FILE_CSV}"
             FILES_BSD "${UA_GEN_FILE_BSD}"

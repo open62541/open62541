@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -18,10 +19,8 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
@@ -50,7 +49,7 @@ START_TEST(CreateAndLockConfiguration) {
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    ck_assert(readerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
     UA_DataSetReaderConfig dataSetReaderConfig;
@@ -166,7 +165,7 @@ START_TEST(CreateLockAndEditConfiguration) {
 
     //get internal RG Pointer
     UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    ck_assert(readerGroup->state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
     UA_DataSetReaderConfig dataSetReaderConfig;

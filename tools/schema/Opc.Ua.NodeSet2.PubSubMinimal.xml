@@ -1225,6 +1225,7 @@
     <DisplayName>PubSubGroupType</DisplayName>
     <References>
       <Reference ReferenceType="HasProperty">i=15927</Reference>
+      <Reference ReferenceType="HasComponent">i=15265</Reference> <!-- Status-->
 <!--
       <Reference ReferenceType="HasProperty">i=15926</Reference> SecurityMode
       <Reference ReferenceType="HasProperty">i=15928</Reference> SecurityKeyServices
@@ -1251,18 +1252,24 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=14232</Reference>
     </References>
   </UAVariable>
-<!--  <UAObject NodeId="i=15265" BrowseName="Status" ParentNodeId="i=14232">
+
+  <UAObject NodeId="i=15265" BrowseName="Status" ParentNodeId="i=14232">
     <DisplayName>Status</DisplayName>
     <References>
-&lt;!&ndash;
       <Reference ReferenceType="HasComponent">i=15266</Reference>
       <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
-
-&ndash;&gt;
       <Reference ReferenceType="HasModellingRule">i=78</Reference>
       <Reference ReferenceType="HasComponent" IsForward="false">i=14232</Reference>
     </References>
-  </UAObject>-->
+  </UAObject>
+  <UAVariable NodeId="i=15266" BrowseName="State" ParentNodeId="i=15265" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15265</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=17725" BrowseName="WriterGroupType">
     <DisplayName>WriterGroupType</DisplayName>
     <References>
@@ -1439,6 +1446,23 @@
       <Reference ReferenceType="HasProperty" IsForward="false">i=17306</Reference>
     </References>
   </UAVariable>
+  <UAObject NodeId="i=15299" BrowseName="Status" ParentNodeId="i=15298">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=15300</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15298</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=15300" BrowseName="State" ParentNodeId="i=15299" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15299</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=15298" BrowseName="DataSetWriterType">
     <DisplayName>DataSetWriterType</DisplayName>
     <References>
@@ -1447,6 +1471,7 @@
       <Reference ReferenceType="HasProperty">i=21094</Reference> <!--KeyFrameCount-->
       <Reference ReferenceType="HasProperty">i=17493</Reference> <!--DataSetWriterProperties-->
       <Reference ReferenceType="HasComponent">i=15303</Reference> <!--TransportSettings-->
+      <Reference ReferenceType="HasComponent">i=15299</Reference> <!-- Status -->
 <!--      <Reference ReferenceType="HasComponent">i=21095</Reference> MessageSettings
       <Reference ReferenceType="HasComponent">i=15299</Reference> Status
       <Reference ReferenceType="HasComponent">i=19550</Reference>  Diagnostics-->
@@ -1493,6 +1518,23 @@
       <Reference ReferenceType="HasComponent" IsForward="false">i=15298</Reference>
     </References>
   </UAObject>
+  <UAObject NodeId="i=15307" BrowseName="Status" ParentNodeId="i=15306">
+    <DisplayName>Status</DisplayName>
+    <References>
+      <Reference ReferenceType="HasComponent">i=15308</Reference>
+      <Reference ReferenceType="HasTypeDefinition">i=14643</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15306</Reference>
+    </References>
+  </UAObject>
+  <UAVariable NodeId="i=15308" BrowseName="State" ParentNodeId="i=15307" DataType="i=14647">
+    <DisplayName>State</DisplayName>
+    <References>
+      <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+      <Reference ReferenceType="HasModellingRule">i=78</Reference>
+      <Reference ReferenceType="HasComponent" IsForward="false">i=15307</Reference>
+    </References>
+  </UAVariable>
   <UAObjectType NodeId="i=23795" BrowseName="SubscribedDataSetFolderType">
     <DisplayName>SubscribedDataSetFolderType</DisplayName>
     <Category>PubSub Model SubscribedDataSet Standalone</Category>
@@ -2627,7 +2669,7 @@
       <Reference ReferenceType="HasProperty">i=17494</Reference> <!--DataSetReaderProperties-->
       <Reference ReferenceType="HasComponent">i=15311</Reference> <!--TransportSettings-->
       <Reference ReferenceType="HasComponent">i=21103</Reference> <!-- MessageSettings-->
-      <!-- <Reference ReferenceType="HasComponent">i=15307</Reference> Status-->
+      <Reference ReferenceType="HasComponent">i=15307</Reference> <!-- Status-->
       <!-- <Reference ReferenceType="HasComponent">i=19609</Reference> Diagnostics-->
       <Reference ReferenceType="HasComponent">i=15316</Reference> <!-- SubscribedDataSet-->
       <!-- <Reference ReferenceType="HasComponent">i=17386</Reference> CreateTargetVariables-->

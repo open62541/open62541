@@ -9,13 +9,13 @@
 
 #include "server/ua_services.h"
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
 
 #include <check.h>
 #include <stdlib.h>
 #include <time.h>
 #include <stdio.h>
 
+#include "test_helpers.h"
 #include "testing_networklayers.h"
 #include "testing_policy.h"
 
@@ -26,7 +26,7 @@ static UA_Server *server;
 static UA_NodeId readNodeIds[READNODES];
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
 }
 
@@ -124,8 +124,8 @@ START_TEST(readSpeedWithEncoding) {
         UA_assert(retval == UA_STATUSCODE_GOOD);
     }
 
-    UA_ByteString request_msg;
-    retval |= UA_ByteString_allocBuffer(&request_msg, 1000);
+    UA_ByteString request_buffer;
+    retval |= UA_ByteString_allocBuffer(&request_buffer, 1000);
     UA_ByteString response_msg;
     retval |= UA_ByteString_allocBuffer(&response_msg, 1000);
     UA_assert(retval == UA_STATUSCODE_GOOD);
@@ -151,24 +151,24 @@ START_TEST(readSpeedWithEncoding) {
         /* Set the NodeId */
         rvi.nodeId = readNodeIds[i % READNODES];
 
+        /* The request gets longer when the nodeid string length increases.
+         * So we need to reset to the original length in every iteration. */
+        UA_ByteString request_msg = request_buffer;
+
         /* Encode the request */
-        UA_Byte *pos = request_msg.data;
-        const UA_Byte *end = &request_msg.data[request_msg.length];
-        retval |= UA_encodeBinaryInternal(&request, &UA_TYPES[UA_TYPES_READREQUEST], &pos, &end, NULL, NULL);
+        retval = UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg);
         ck_assert(retval == UA_STATUSCODE_GOOD);
 
         /* Decode the request */
-        size_t offset = 0;
-        retval |= UA_decodeBinaryInternal(&request_msg, &offset, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
+        retval = UA_decodeBinary(&request_msg, &req, &UA_TYPES[UA_TYPES_READREQUEST], NULL);
+        ck_assert(retval == UA_STATUSCODE_GOOD);
 
         UA_LOCK(&server->serviceMutex);
         Service_Read(server, &server->adminSession, &req, &res);
         UA_UNLOCK(&server->serviceMutex);
 
-        UA_Byte *rpos = response_msg.data;
-        const UA_Byte *rend = &response_msg.data[response_msg.length];
-        retval |= UA_encodeBinaryInternal(&res, &UA_TYPES[UA_TYPES_READRESPONSE],
-                                  &rpos, &rend, NULL, NULL);
+        retval = UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg);
+        ck_assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadRequest_clear(&req);
         UA_ReadResponse_clear(&res);
@@ -181,7 +181,7 @@ START_TEST(readSpeedWithEncoding) {
     printf("duration with encoding was %f s\n", time_spent);
     printf("retval is %s\n", UA_StatusCode_name(retval));
 
-    UA_ByteString_clear(&request_msg);
+    UA_ByteString_clear(&request_buffer);
     UA_ByteString_clear(&response_msg);
 
     for(size_t i = 0; i < READNODES; i++)

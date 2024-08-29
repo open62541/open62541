@@ -210,9 +210,9 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
 
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
-    UA_DateTime dateTimeToNextKey = UA_DateTime_nowMonotonic() +
-        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
     UA_EventLoop *el = server->config.eventLoop;
+    UA_DateTime dateTimeToNextKey = el->dateTime_nowMonotonic(el) +
+        (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
     return el->addTimedCallback(el, (UA_Callback)callback, server, keyStorage,
                                 dateTimeToNextKey, callbackID);
 }
@@ -288,7 +288,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
         UA_WriterGroup *tmpWriterGroup;
         LIST_FOREACH(tmpWriterGroup, &tmpPubSubConnections->writerGroups, listEntry) {
             if(UA_String_equal(&tmpWriterGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->identifier,
+                retval = setWriterGroupEncryptionKeys(server, tmpWriterGroup->head.identifier,
                                                       securityTokenId, signingKey,
                                                       encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
@@ -300,7 +300,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_Server *server,
         UA_ReaderGroup *tmpReaderGroup;
         LIST_FOREACH(tmpReaderGroup, &tmpPubSubConnections->readerGroups, listEntry) {
             if(UA_String_equal(&tmpReaderGroup->config.securityGroupId, &securityGroupId)) {
-                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->identifier,
+                retval = setReaderGroupEncryptionKeys(server, tmpReaderGroup->head.identifier,
                                                       securityTokenId, signingKey,
                                                       encryptingKey, keyNonce);
                 if(retval != UA_STATUSCODE_GOOD)
@@ -378,9 +378,8 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                                                    keyStorage->keyLifeTime, &keyStorage->callBackId);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                     (int)keyStorage->securityGroupID.length,
-                     keyStorage->securityGroupID.data, UA_StatusCode_name(retval));
+                     "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                     keyStorage->securityGroupID, UA_StatusCode_name(retval));
     }
 
     if(keyStorage->currentItem != TAILQ_LAST(&keyStorage->keyList, keyListItems)) {
@@ -390,12 +389,12 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_Server *server, UA_PubSubKeyStorage *
                                                                  keyStorage->securityGroupID);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "Failed to update keys for security group id '%.*s'. Reason: '%s'.",
-                         (int)keyStorage->securityGroupID.length, keyStorage->securityGroupID.data,
-                         UA_StatusCode_name(retval));
+                         "Failed to update keys for security group id '%S'. Reason: '%s'.",
+                         keyStorage->securityGroupID, UA_StatusCode_name(retval));
         }
     } else if(keyStorage->sksConfig.endpointUrl && keyStorage->sksConfig.reqId == 0) {
-        UA_DateTime now = UA_DateTime_nowMonotonic();
+        UA_EventLoop *el = server->config.eventLoop;
+        UA_DateTime now = el->dateTime_nowMonotonic(el);
         /*Publishers using a central SKS shall call GetSecurityKeys at a period of half the KeyLifetime */
         UA_Duration msTimeToNextGetSecurityKeys = keyStorage->keyLifeTime / 2;
         UA_DateTime dateTimeToNextGetSecurityKeys =

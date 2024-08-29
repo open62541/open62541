@@ -148,8 +148,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD)
         return retval;
@@ -170,6 +170,7 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_DETERMINISTIC;
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
@@ -196,11 +197,10 @@ addSubscribedVariables (UA_Server *server) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode(server, UA_NODEID_NULL,
-                            UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                            UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                            folderBrowseName, UA_NODEID_NUMERIC (0,
-                            UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr,
+                            NULL, &folderId);
 
     /* Set the subscribed data to TargetVariable type */
     readerConfig.subscribedDataSetType = UA_PUBSUB_SDS_TARGET;
@@ -225,9 +225,9 @@ addSubscribedVariables (UA_Server *server) {
         UA_Variant_setScalar(&value, &intValue, &UA_TYPES[UA_TYPES_UINT32]);
         vAttr.value = value;
         retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId, UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           folderId, UA_NS0ID(HASCOMPONENT),
                                            UA_QUALIFIEDNAME(1, "Subscribed UInt32"),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           UA_NS0ID(BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newnodeId);
         repeatedFieldValues[i] = 0;
         repeatedDataValueRT[i] = UA_DataValue_new();
@@ -275,8 +275,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -339,7 +339,6 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
 
     /* Freeze the PubSub configuration (and start implicitly the subscribe callback) */
     UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
 
     retval = UA_Server_runUntilInterrupt(server);
 
@@ -375,6 +374,9 @@ int main(int argc, char **argv) {
             printf ("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);

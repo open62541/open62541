@@ -7,8 +7,7 @@
  */
 
 #include <open62541/config.h>
-#include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
+#include <open62541/types.h>
 
 #ifdef UA_ENABLE_JSON_ENCODING
 
@@ -228,8 +227,7 @@ writeJsonKey(CtxJson *ctx, const char* key) {
     ret |= writeChars(ctx, key, strlen(key));
     if(!ctx->unquotedKeys)
         ret |= writeChar(ctx, '\"');
-    if(!ctx->unquotedKeys)
-        ret |= writeChar(ctx, ':');
+    ret |= writeChar(ctx, ':');
     if(ctx->prettyPrint)
         ret |= writeChar(ctx, ' ');
     return ret;
@@ -1077,16 +1075,23 @@ ENCODE_JSON(Variant) {
     UA_Boolean wrapEO = !isBuiltin;
     if(src->type == &UA_TYPES[UA_TYPES_VARIANT] && !isArray)
         wrapEO = true;
+    if(ctx->prettyPrint)
+        wrapEO = false; /* Don't wrap values in ExtensionObjects for pretty-printing */
 
     status ret = writeJsonObjStart(ctx);
 
     /* Write the type NodeId */
     if(ctx->useReversible) {
-        UA_UInt32 typeId = src->type->typeId.identifier.numeric;
-        if(wrapEO)
-            typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
         ret |= writeJsonKey(ctx, UA_JSONKEY_TYPE);
-        ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        if(ctx->prettyPrint) {
+            ret |= writeChars(ctx, src->type->typeName, strlen(src->type->typeName));
+        } else {
+            /* Write the NodeId for the reversible form */
+            UA_UInt32 typeId = src->type->typeId.identifier.numeric;
+            if(wrapEO)
+                typeId = UA_TYPES[UA_TYPES_EXTENSIONOBJECT].typeId.identifier.numeric;
+            ret |= ENCODE_DIRECT_JSON(&typeId, UInt32);
+        }
     }
 
     /* Write the Variant body */
@@ -1459,13 +1464,13 @@ DECODE_JSON(Boolean) {
     GET_TOKEN;
 
     if(tokenSize == 4 &&
-       tokenData[0] == 't' && tokenData[1] == 'r' &&
-       tokenData[2] == 'u' && tokenData[3] == 'e') {
+       (tokenData[0] | 32) == 't' && (tokenData[1] | 32) == 'r' &&
+       (tokenData[2] | 32) == 'u' && (tokenData[3] | 32) == 'e') {
         *dst = true;
     } else if(tokenSize == 5 &&
-              tokenData[0] == 'f' && tokenData[1] == 'a' &&
-              tokenData[2] == 'l' && tokenData[3] == 's' &&
-              tokenData[4] == 'e') {
+              (tokenData[0] | 32) == 'f' && (tokenData[1] | 32) == 'a' &&
+              (tokenData[2] | 32) == 'l' && (tokenData[3] | 32) == 's' &&
+              (tokenData[4] | 32) == 'e') {
         *dst = false;
     } else {
         return UA_STATUSCODE_BADDECODINGERROR;
@@ -2818,10 +2823,13 @@ const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
 };
 
 status
-tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
+tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
+         size_t *decodedLength) {
     /* Tokenize */
+    cj5_options options;
+    options.stop_early = (decodedLength != NULL);
     cj5_result r = cj5_parse((char*)src->data, (unsigned int)src->length,
-                             ctx->tokens, (unsigned int)tokensSize, NULL);
+                             ctx->tokens, (unsigned int)tokensSize, &options);
 
     /* Handle overflow error by allocating the number of tokens the parser would
      * have needed */
@@ -2831,12 +2839,15 @@ tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize) {
             UA_malloc(sizeof(cj5_token) * r.num_tokens);
         if(!ctx->tokens)
             return UA_STATUSCODE_BADOUTOFMEMORY;
-        return tokenize(ctx, src, r.num_tokens);
+        return tokenize(ctx, src, r.num_tokens, decodedLength);
     }
 
     /* Cannot recover from other errors */
     if(r.error != CJ5_ERROR_NONE)
         return UA_STATUSCODE_BADDECODINGERROR;
+
+    if(decodedLength)
+        *decodedLength = ctx->tokens[0].end + 1;
 
     /* Set up the context */
     ctx->json5 = (char*)src->data;
@@ -2867,7 +2878,8 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     }
 
     /* Decode */
-    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT);
+    status ret = tokenize(&ctx, src, UA_JSON_MAXTOKENCOUNT,
+                          options ? options->decodedLength : NULL);
     if(ret != UA_STATUSCODE_GOOD)
         goto cleanup;
 

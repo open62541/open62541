@@ -66,7 +66,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
@@ -75,10 +74,9 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    return retval;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
+    return UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
 }
 
 /* Add ReaderGroup to the created connection */
@@ -94,7 +92,8 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+
+    retval |= UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     return retval;
 }
 
@@ -114,8 +113,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier      = 2234;
-    readerConfig.publisherId.type      = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data      = &publisherIdentifier;
+    readerConfig.publisherId.idType    = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId         = 100;
     readerConfig.dataSetWriterId       = 62541;
     readerConfig.messageReceiveTimeout = 200.0; /* Timeout must be greater than publishing interval of corresponding WriterGroup */
@@ -151,11 +150,9 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                             folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
     /* Create the TargetVariables with respect to DataSetMetaData fields */
     UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
@@ -171,10 +168,9 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
 
         UA_NodeId newNode;
         retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           folderId, UA_NS0ID(HASCOMPONENT),
                                            UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           UA_NS0ID(BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newNode);
 
         /* For creating Targetvariables */
@@ -504,7 +500,6 @@ int main(int argc, char **argv) {
                 printf("Error: UADP/ETH needs an interface name\n");
                 return EXIT_FAILURE;
             }
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else {
             printf ("Error: unknown URI\n");
@@ -514,6 +509,9 @@ int main(int argc, char **argv) {
         if (strcmp(argv[argc-1], "-UseCustomMonitoring") == 0) {
             useCustomMonitoring = UA_TRUE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
     return run(&transportProfile, &networkAddressUrl, &useCustomMonitoring);
 }

@@ -38,7 +38,6 @@ int main(int argc, char* argv[]) {
                      "Missing arguments. Arguments are "
                      "<server-certificate.der> <private-key.der> "
                      "[<trustlist1.crl>, ...]");
-#if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                     "Trying to create a certificate.");
         UA_String subject[3] = {UA_STRING_STATIC("C=DE"),
@@ -65,9 +64,6 @@ int main(int argc, char* argv[]) {
                 UA_StatusCode_name(statusCertGen));
             return EXIT_SUCCESS;
         }
-#else
-        return EXIT_SUCCESS;
-#endif
     }
 
 

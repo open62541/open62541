@@ -7,13 +7,17 @@
 
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
 #include <stdlib.h>
 
 #define TEST_MQTT_SERVER "opc.mqtt://localhost:1883"
+//#define TEST_MQTT_SERVER "opc.mqtt://test.mosquitto.org:1883"
+
 #define MQTT_CLIENT_ID               "TESTCLIENTPUBSUBMQTT"
 #define CONNECTIONOPTION_NAME        "mqttClientId"
 #define SUBSCRIBE_TOPIC              "customTopic"
@@ -32,10 +36,8 @@ UA_NodeId writerGroupIdent;
 UA_DataSetReaderConfig readerConfig;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
     //add connection
@@ -52,8 +54,8 @@ static void setup(void) {
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     /* Changed to static publisherId from random generation to identify
      * the publisher on Subscriber side */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
     const int connectionOptionsCount = 1;
@@ -188,7 +190,7 @@ START_TEST(SinglePublishSubscribeDateTime){
         writerGroupConfig.transportSettings = transportSettings;
         retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
@@ -205,13 +207,13 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        retval = UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_WriterGroup *wg = UA_WriterGroup_findWGbyId(server, writerGroupIdent);
         ck_assert(wg != 0);
 
-        while(wg->state != UA_PUBSUBSTATE_OPERATIONAL)
+        while(wg->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             UA_Server_run_iterate(server, false);
 
         UA_WriterGroup_publishCallback(server, wg);
@@ -244,15 +246,15 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                           &readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_setReaderGroupOperational(server, readerGroupIdent);
+        retval = UA_Server_enableReaderGroup(server, readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         // add DataSetReader
         memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING("DataSet Reader 1");
         UA_UInt16 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;
 

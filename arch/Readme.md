@@ -1,15 +1,15 @@
 # open62541 Architecture Support
 
-This folder contains all the architecture-specific code for different operating systems.
-The arch-specific code covers:
+This folder contains all the architecture-specific code for different operating
+systems. The arch-specific functionality covers:
 
 - System clock
-- EventLoop (Networking, Interrupt handling (optional))
+- EventLoop (Networking, Timed events, Interrupt handling (optional))
 
-Currently open62541 supports
+Currently open62541 supports the architectures
 
-- Windows
 - POSIX (Linux, BSD, Mac, etc.)
+- Windows
 
 Previously (until v1.3) there was additional support for:
 
@@ -18,28 +18,32 @@ Previously (until v1.3) there was additional support for:
 - WEC7
 - eCos
 
-We strive to recover support for these.
-The main effort of porting is forking the EventLoop implementation.
+We strive to recover support for these going forward and also include their
+coverage to the CI.
 
 ## Adding new architectures
 
-To port to a new architecture you should follow these steps:
+To port open62541 to a new architecture, follow these steps:
 
-1. Create a ua_clock.c file that implements the following functions defined in open62541/types.h:
+1. Modify clock.c file that implements the following functions defined in
+   open62541/types.h:
 
-   * UA_DateTime UA_DateTime_now(void);
+   - UA_DateTime UA_DateTime_now(void);
    
-   * UA_Int64 UA_DateTime_localTimeUtcOffset(void);
+   - UA_Int64 UA_DateTime_localTimeUtcOffset(void);
    
-   * UA_DateTime UA_DateTime_nowMonotonic(void);
+   - UA_DateTime UA_DateTime_nowMonotonic(void);
 
-2. Fork the EventLoop code (the default is POSIX) and adjust to your architecture
+2. Fork the EventLoop code (the default is POSIX) and adjust it to your
+   architecture. Note that it is not necessary to port all networking subsystems
+   (and interrupts). The library will detect when a certain protocol (e.g. UDP,
+   ETH) is not available. TCP support is however mandatory.
 
-3. Add your architecture to the list in /include/open62541/config.h.in
+You have to link in your custom clock and EventLoop implementation only for the
+final binary. To prevent the parallel build of Win32/POSIX versions, set
+UA_ARCHITECTURE=none in the cmake setting. To use CMake for the entire build,
+including a new architecture, do the following:
 
-4. Add the architecture and the new files to /CMakeLists.txt
+- Add your architecture to the list in /include/open62541/config.h.in
 
-You can also use a custom architecture implementation outside of the library build.
-For that, set UA_ARCHITECTURE=none in the cmake setting.
-Then no architecture-specific code will be included in the open62541 library itself.
-You have to link in your custom clock and EventLoop implementation only for the final binary.
+- Add the architecture and the new files to /CMakeLists.txt

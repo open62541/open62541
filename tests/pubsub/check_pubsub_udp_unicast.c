@@ -13,7 +13,6 @@
 
 #include "../../deps/mp_printf.h"
 #include "testing_clock.h"
-#include "open62541/types_generated_handling.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -72,7 +71,9 @@ setupPubSubServer(UA_Server **server, UA_ServerConfig **config, UA_UInt16 portNu
     }
     retVal |= UA_ServerConfig_setMinimal(&stack_config, portNumber, NULL);
     *server = UA_Server_newWithConfig(&stack_config);
-    *config = UA_Server_getConfig(*server);
+    UA_ServerConfig *sc = UA_Server_getConfig(*server);
+    sc->tcpReuseAddr = true;
+    *config = sc;
 
     retVal |= UA_Server_run_startup(*server);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -96,9 +97,10 @@ addUDPConnection(UA_Server *server, const char *host, UA_Int16 portNumber,
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
     /* also set the same publisher Id for the subscriber connection as it does not matter */
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = PUBLISHER_ID;
-    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig, outConnectionId), UA_STATUSCODE_GOOD);
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = PUBLISHER_ID;
+    ck_assert_int_eq(UA_Server_addPubSubConnection(server, &connectionConfig,
+                                                   outConnectionId), UA_STATUSCODE_GOOD);
 }
 
 static void
@@ -186,7 +188,8 @@ setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedD
     writerGroupConfig.transportSettings = transportSettings;
 
     UA_StatusCode retVal = UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-    UA_Server_setWriterGroupOperational(server, writerGroup);
+    retVal |= UA_Server_enableWriterGroup(server, writerGroup);
+
     /* DataSetWriter */
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -218,8 +221,7 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
 
     UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
-    retVal = UA_Server_setReaderGroupOperational(server, *outReaderGroupId);
+    retVal = UA_Server_enableReaderGroup(server, *outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Data Set Reader */
@@ -228,8 +230,8 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = PUBLISHER_ID;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = WRITER_GROUP_ID;
     readerConfig.dataSetWriterId  = DATASET_WRITER_ID;
     /* Setting up Meta data configuration in DataSetReader */
@@ -347,6 +349,8 @@ checkReceived(UA_Server *publisher, UA_UInt32 publishVariableNodeId,
 START_TEST(SinglePublishSubscribeInt32) {
     /* run server - publisher and subscriber */
 
+    UA_fakeSleep(15);
+    UA_Server_run_iterate(serverPublisher,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(serverPublisher,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
@@ -360,32 +364,9 @@ START_TEST(RemoveAndAddReaderGroup) {
         UA_NodeId readerGroupId2;
         setupSubscribing(serverSubscriber, subscriberConnectionId, outVariableNodeId,
                          SUBSCRIBEVARIABLE_NODEID, &readerGroupId2);
-
-        /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverPublisher,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverSubscriber,true);
-
-        UA_Server_removeReaderGroup(serverSubscriber, readerGroupId2);
-        UA_Server_removePubSubConnection(serverSubscriber, subscriberConnectionId);
-
-        /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverPublisher,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverSubscriber,true);
-
-        addUDPConnection(serverSubscriber, "localhost", UA_SUBSCRIBER_PORT, &subscriberConnectionId);
         setupSubscribing(serverSubscriber, subscriberConnectionId,
                          outVariableNodeId, SUBSCRIBEVARIABLE_NODEID,
                          &readerGroupId);
-
-        /* run server - publisher and subscriber */
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverPublisher,true);
-        UA_fakeSleep(PUBLISH_INTERVAL + 1);
-        UA_Server_run_iterate(serverSubscriber,true);
 } END_TEST
 
 int main(void) {

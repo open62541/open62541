@@ -56,8 +56,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     retval |=
         UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if(retval != UA_STATUSCODE_GOOD) {
@@ -69,10 +69,10 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 
 static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
-    if(sksPullRequestStatus == UA_STATUSCODE_GOOD)
-        UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
     if(sksPullRequestStatus != UA_STATUSCODE_GOOD)
         running = false;
+
+    UA_Server_setReaderGroupActivateKey(server, readerGroupIdentifier);
 }
 
 /**
@@ -104,7 +104,7 @@ addReaderGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
 
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-
+    retval |= UA_Server_enableReaderGroup(server, readerGroupIdentifier);
     /* We need to set the sks client before setting Reader/Writer Group into operational
      * because it will fetch the initial set of keys. The sks client is required to set
      * once per security group on publisher/subscriber application.*/
@@ -138,8 +138,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId = 100;
     readerConfig.dataSetWriterId = 62541;
 
@@ -176,10 +176,10 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId) {
         folderBrowseName = UA_QUALIFIEDNAME(1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode(
-        server, UA_NODEID_NULL, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), folderBrowseName,
-        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL, UA_NS0ID(OBJECTSFOLDER),
+                            UA_NS0ID(ORGANIZES), folderBrowseName,
+                            UA_NS0ID(BASEOBJECTTYPE),
+                            oAttr, NULL, &folderId);
 
     /**
      * **TargetVariables**
@@ -203,9 +203,9 @@ addSubscribedVariables(UA_Server *server, UA_NodeId dataSetReaderId) {
         UA_NodeId newNode;
         retval |= UA_Server_addVariableNode(
             server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000), folderId,
-            UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+            UA_NS0ID(HASCOMPONENT),
             UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-            UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
+            UA_NS0ID(BASEDATAVARIABLETYPE), vAttr, NULL, &newNode);
 
         /* For creating Targetvariables */
         UA_FieldTargetDataType_init(&targetVars[i].targetVariable);

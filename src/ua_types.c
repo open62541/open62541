@@ -17,9 +17,8 @@
 
 #include <open62541/types.h>
 #include <open62541/types_generated.h>
-#include <open62541/types_generated_handling.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
 #include "libc_time.h"
@@ -97,11 +96,13 @@ UA_cleanupDataTypeWithCustom(const UA_DataTypeArray *customTypes) {
         if (customTypes->cleanup) {
             for(size_t i = 0; i < customTypes->typesSize; ++i) {
                 const UA_DataType *type = &customTypes->types[i];
+#ifdef UA_ENABLE_TYPEDESCRIPTION
                 UA_free((void*)(uintptr_t)type->typeName);
                 for(size_t j = 0; j < type->membersSize; ++j) {
                     const UA_DataTypeMember *m = &type->members[j];
                     UA_free((void*)(uintptr_t)m->memberName);
                 }
+#endif
                 UA_free((void*)type->members);
             }
             UA_free((void*)(uintptr_t)customTypes->types);
@@ -2023,11 +2024,12 @@ UA_Array_resize(void **p, size_t *size, size_t newSize,
 
     /* Clear removed members or initialize the new ones. Note that deleteMembers
      * depends on type->pointerFree. */
-    if(newSize > *size)
+    if(newSize > *size) {
         memset((void*)((uintptr_t)newP + (*size * type->memSize)), 0,
                (newSize - *size) * type->memSize);
-    else if(deleteMembers)
+    } else if(deleteMembers) {
         UA_Array_delete(deleteMembers, *size - newSize, type);
+    }
 
     /* Set the new array */
     *p = newP;

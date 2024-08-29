@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 #include "../common.h"
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -18,11 +19,8 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
-
     UA_Server_run_startup(server);
 }
 
@@ -36,7 +34,6 @@ START_TEST(AddPublisherUsingBinaryFile) {
     ck_assert(publisherConfiguration.length > 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, publisherConfiguration);
-    UA_UNLOCK(&server->serviceMutex);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
@@ -60,6 +57,7 @@ START_TEST(AddPublisherUsingBinaryFile) {
             }
         }
     }
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(connectionCount, 1);
     ck_assert_uint_eq(writerGroupCount, 1);
     ck_assert_uint_eq(dataSetWriterCount, 1);
@@ -71,7 +69,6 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     ck_assert(subscriberConfiguration.length > 0);
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, subscriberConfiguration);
-    UA_UNLOCK(&server->serviceMutex);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_ReaderGroup *readerGroup;
@@ -95,6 +92,7 @@ START_TEST(AddSubscriberUsingBinaryFile) {
             }
         }
     }
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert_uint_eq(connectionCount, 1);
     ck_assert_uint_eq(readerGroupCount, 1);
     ck_assert_uint_eq(dataSetReaderCount, 1);

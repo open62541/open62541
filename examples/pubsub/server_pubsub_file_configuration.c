@@ -56,15 +56,14 @@ int main(int argc, char** argv) {
 
     /* 3. Add variable nodes to the server */
     UA_VariableAttributes attr;
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_NodeId pubSubVariableObjectId = UA_NODEID_STRING(1, "PubSubObject");
 
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
     oAttr.displayName = UA_LOCALIZEDTEXT("en-US", "PubSubVariables");
-    UA_Server_addObjectNode(server, pubSubVariableObjectId,
-                            UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                            parentReferenceNodeId,
-                            UA_QUALIFIEDNAME(1, "PubSubVariables"), UA_NODEID_NUMERIC(0, UA_NS0ID_BASEOBJECTTYPE),
+    UA_Server_addObjectNode(server, pubSubVariableObjectId, UA_NS0ID(OBJECTSFOLDER),
+                            parentReferenceNodeId, UA_QUALIFIEDNAME(1, "PubSubVariables"),
+                            UA_NS0ID(BASEOBJECTTYPE),
                             oAttr, NULL, NULL);
 
     attr = UA_VariableAttributes_default;
@@ -78,7 +77,7 @@ int main(int argc, char** argv) {
     UA_QualifiedName myBoolName = UA_QUALIFIEDNAME(1, "BoolToggle");
     UA_Server_addVariableNode(server, myBoolNodeId, pubSubVariableObjectId,
                               parentReferenceNodeId, myBoolName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 
     attr = UA_VariableAttributes_default;
     UA_Int32 myInteger = 0;
@@ -91,7 +90,7 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, "Int32");
     UA_Server_addVariableNode(server, myIntegerNodeId, pubSubVariableObjectId,
                               parentReferenceNodeId, myIntegerName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 
     attr = UA_VariableAttributes_default;
     UA_Int32 myIntegerFast = 24;
@@ -104,7 +103,7 @@ int main(int argc, char** argv) {
     UA_QualifiedName myIntegerFastName = UA_QUALIFIEDNAME(1, "Int32Fast");
     UA_Server_addVariableNode(server, myIntegerFastNodeId, pubSubVariableObjectId,
                               parentReferenceNodeId, myIntegerFastName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
 
     attr = UA_VariableAttributes_default;
     UA_DateTime myDate = UA_DateTime_now() + UA_DateTime_localTimeUtcOffset();
@@ -117,7 +116,7 @@ int main(int argc, char** argv) {
     UA_QualifiedName myDateName = UA_QUALIFIEDNAME(1, "DateTime");
     UA_Server_addVariableNode(server, myDateNodeId, pubSubVariableObjectId,
                               parentReferenceNodeId, myDateName,
-                              UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE), attr, NULL, NULL);
+                              UA_NS0ID(BASEDATAVARIABLETYPE), attr, NULL, NULL);
     /* 4. load configuration from file */
     if(loadPubSubFromFile) {
         UA_ByteString configuration = loadFile(argv[2]);

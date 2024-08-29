@@ -12,6 +12,7 @@
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
@@ -52,7 +53,7 @@ typedef struct {
     UA_UsernamePasswordLogin *usernamePasswordLogin;
     UA_UsernamePasswordLoginCallback loginCallback;
     void *loginContext;
-    UA_CertificateVerification verifyX509;
+    UA_CertificateGroup verifyX509;
 } AccessControlContext;
 
 #define ANONYMOUS_POLICY "open62541-anonymous-policy"
@@ -120,11 +121,12 @@ setup(void) {
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
-    sksServer = UA_Server_new();
+    sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
+                                                             trustList, trustListSize,
+                                                             issuerList, issuerListSize,
+                                                             revocationList, revocationListSize);
+
     UA_ServerConfig *config = UA_Server_getConfig(sksServer);
-    UA_ServerConfig_setDefaultWithSecurityPolicies(
-        config, 4840, &certificate, &privateKey, trustList, trustListSize, issuerList,
-        issuerListSize, revocationList, revocationListSize);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -174,11 +176,11 @@ static void
 cleanupSessionContext(void) {
     session_list_entry *current, *temp;
     LIST_FOREACH_SAFE(current, &sksServer->sessions, pointers, temp) {
-        if(current->session.sessionHandle) {
-            UA_ExtensionObject *handle = (UA_ExtensionObject*)current->session.sessionHandle;
+        if(current->session.context) {
+            UA_ExtensionObject *handle = (UA_ExtensionObject*)current->session.context;
             UA_ExtensionObject_clear(handle);
-            UA_free(current->session.sessionHandle);
-            current->session.sessionHandle = NULL;
+            UA_free(current->session.context);
+            current->session.context = NULL;
         }
     }
 }
@@ -245,9 +247,9 @@ callGetSecurityKeys(UA_Client *client, UA_String sksSecurityGroupId,
 }
 
 START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
-    UA_Client *client = UA_Client_new();
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_Client *client = UA_Client_newForUnitTest();
     encyrptedclientconnect(client);
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->securityMode = UA_MESSAGESECURITYMODE_SIGN;
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
@@ -267,7 +269,7 @@ START_TEST(getSecuritykeysBadSecurityModeInsufficient) {
 END_TEST
 
 START_TEST(getSecuritykeysBadNotFound) {
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -288,7 +290,7 @@ START_TEST(getSecuritykeysBadNotFound) {
 END_TEST
 
 START_TEST(getSecuritykeysBadUserAccessDenied) {
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user2", "password2");
@@ -314,7 +316,7 @@ END_TEST
 
 START_TEST(getSecuritykeysGoodAndValidOutput) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -365,7 +367,7 @@ END_TEST
 
 START_TEST(requestCurrentKeyWithFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -406,7 +408,7 @@ END_TEST
 
 START_TEST(requestCurrentKeyOnly) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -448,7 +450,7 @@ END_TEST
 START_TEST(requestPastKey) {
     /*wait for one keyLifeTime*/
     UA_fakeSleep(2000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -488,7 +490,7 @@ END_TEST
 START_TEST(requestUnknownStartingTokenId){
     UA_fakeSleep(1000);
     UA_realSleep(4000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");
@@ -528,7 +530,7 @@ START_TEST(requestUnknownStartingTokenId){
 
 START_TEST(requestMaxFutureKeys) {
     UA_fakeSleep(1000);
-    UA_Client *sksClient = UA_Client_new();
+    UA_Client *sksClient = UA_Client_newForUnitTest();
     encyrptedclientconnect(sksClient);
     /* Secure client connect */
     UA_StatusCode retval = UA_Client_connectUsername(sksClient, "opc.tcp://localhost:4840", "user1", "password");

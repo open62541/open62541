@@ -12,6 +12,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_pubsub.h"
+#include "test_helpers.h"
 
 #include <linux/if_packet.h>
 #include <netinet/ether.h>
@@ -35,10 +36,8 @@ UA_Server *server = NULL;
 UA_String ethernetInterface;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 

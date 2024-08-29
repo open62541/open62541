@@ -11,6 +11,11 @@
 
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
+
+#include "../arch/eventloop_posix/eventloop_posix.h"
+#include "test_helpers.h"
+#include "testing_clock.h"
+
 #include <check.h>
 #include <assert.h>
 #include <stdlib.h>
@@ -19,21 +24,15 @@ static UA_Server *server = NULL;
 
 /***************************************************************************************************/
 static void setup(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
-
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
 /***************************************************************************************************/
 static void teardown(void) {
-
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "teardown");
-
     UA_Server_run_shutdown(server);
     UA_Server_delete(server);
 }
@@ -60,8 +59,8 @@ static void AddConnection(
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = PublisherId;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = PublisherId;
 
     ck_assert(UA_Server_addPubSubConnection(server, &connectionConfig, opConnectionId) == UA_STATUSCODE_GOOD);
 }
@@ -191,7 +190,8 @@ static void AddDataSetReader(
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING(pName);
-    UA_Variant_setScalar(&readerConfig.publisherId, (UA_UInt32*) &PublisherId, &UA_TYPES[UA_TYPES_UINT32]);
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    readerConfig.publisherId.id.uint32 = PublisherId;
     readerConfig.writerGroupId    = (UA_UInt16) WriterGroupId;
     readerConfig.dataSetWriterId  = (UA_UInt16) DataSetWriterId;
     readerConfig.messageReceiveTimeout = MessageReceiveTimeout;
@@ -293,25 +293,31 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups operational");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable groups");
 
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
-    ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "enable Writer/Reader");
+
+    ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn1_RG1_DSR1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PREOPERATIONAL, state);
+
+    ck_assert(UA_Server_enableDataSetWriter(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "set groups disabled");
@@ -319,13 +325,13 @@ START_TEST(Test_normal_operation) {
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
     ck_assert(UA_Server_setReaderGroupDisabled(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
     ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_DISABLED, state);
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_normal_operation");
 
@@ -359,8 +365,6 @@ START_TEST(Test_corner_cases) {
     UA_Duration PublishingInterval_Conn1_WG1 = 500.0;
     AddWriterGroup(&ConnId_1, "Conn1_WG1", WGNo_Conn1_WG1, PublishingInterval_Conn1_WG1, &WGId_Conn1_WG1);
 
-    ck_assert(UA_Server_setWriterGroupOperational(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
-
     UA_NodeId DsWId_Conn1_WG1_DS1;
     UA_NodeId_init(&DsWId_Conn1_WG1_DS1);
     UA_NodeId VarId_Conn1_WG1_DS1;
@@ -371,18 +375,10 @@ START_TEST(Test_corner_cases) {
     AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", DSWNo_Conn1_WG1_DS1, &PDSId_Conn1_WG1_PDS1,
         &VarId_Conn1_WG1_DS1, &DsWId_Conn1_WG1_DS1);
 
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
-    /* DataSetWriter is should be operational as well */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
-    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
-
     /* setup Connection 1: reader */
     UA_NodeId RGId_Conn1_RG1;
     UA_NodeId_init(&RGId_Conn1_RG1);
     AddReaderGroup(&ConnId_1, "Conn1_RG1", &RGId_Conn1_RG1);
-
-    ck_assert(UA_Server_setReaderGroupOperational(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
 
     UA_NodeId DSRId_Conn1_RG1_DSR1;
     UA_NodeId_init(&DSRId_Conn1_RG1_DSR1);
@@ -392,11 +388,30 @@ START_TEST(Test_corner_cases) {
     AddDataSetReader(&RGId_Conn1_RG1, "Conn1_RG1_DSR1", PublisherNo_Conn1, WGNo_Conn1_WG1, DSWNo_Conn1_WG1_DS1,
         MessageReceiveTimeout_Conn1_RG1_DSR1, &VarId_Conn1_RG1_DSR1, &DSRId_Conn1_RG1_DSR1);
 
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
+    ck_assert(UA_Server_enableDataSetReader(server, DSRId_Conn1_RG1_DSR1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
+    
+    ck_assert(UA_Server_enableDataSetWriter(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
+
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
     /* DataSetReader should be operational as well */
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
     ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
+
+    ck_assert(UA_Server_enableReaderGroup(server, RGId_Conn1_RG1) == UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_ReaderGroup_getState(server, RGId_Conn1_RG1, &state));
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL);
+    /* DataSetReader should be operational or paused as well */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetReader_getState(server, DSRId_Conn1_RG1_DSR1, &state));
+    ck_assert(state == UA_PUBSUBSTATE_OPERATIONAL || state == UA_PUBSUBSTATE_PREOPERATIONAL ||
+              state == UA_PUBSUBSTATE_PAUSED);
 
     /* test wrong nodeIds */
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_DataSetReader_getState(server, RGId_Conn1_RG1, &state));
@@ -404,7 +419,102 @@ START_TEST(Test_corner_cases) {
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_ReaderGroup_getState(server, WGId_Conn1_WG1, &state));
     ck_assert(UA_STATUSCODE_GOOD != UA_Server_WriterGroup_getState(server, RGId_Conn1_RG1, &state));
 
+    /* test multiple calls to enable */
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
+    /* test if reversing the enable call for DSW and WriterGroup affects the final */
+    ck_assert(UA_Server_setWriterGroupDisabled(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
+    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
+
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
+    UA_fakeSleep(15);
+    UA_Server_run_iterate(server, true);
+
+    ck_assert(UA_Server_enableDataSetWriter(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "END: Test_corner_cases");
+
+} END_TEST
+
+/***************************************************************************************************/
+START_TEST(Test_error_case) {
+
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "\n\nSTART: Test_error_case");
+
+    /* setup Connection 1: 1 writergroup, 1 writer */
+    UA_NodeId ConnId_1;
+    UA_NodeId_init(&ConnId_1);
+    AddConnection("Conn1", 1, &ConnId_1);
+
+    UA_NodeId WGId_Conn1_WG1;
+    UA_NodeId_init(&WGId_Conn1_WG1);
+    UA_Duration PublishingInterval_Conn1WG1 = 300.0;
+    AddWriterGroup(&ConnId_1, "Conn1_WG1", 1, PublishingInterval_Conn1WG1, &WGId_Conn1_WG1);
+
+    UA_NodeId DsWId_Conn1_WG1_DS1;
+    UA_NodeId_init(&DsWId_Conn1_WG1_DS1);
+    UA_NodeId VarId_Conn1_WG1;
+    UA_NodeId_init(&VarId_Conn1_WG1);
+    UA_NodeId PDSId_Conn1_WG1_PDS1;
+    UA_NodeId_init(&PDSId_Conn1_WG1_PDS1);
+
+    AddPublishedDataSet(&WGId_Conn1_WG1, "Conn1_WG1_PDS1", "Conn1_WG1_DS1", 1, &PDSId_Conn1_WG1_PDS1,
+        &VarId_Conn1_WG1, &DsWId_Conn1_WG1_DS1);
+
+    UA_PubSubState state;
+    /* check WriterGroup and DataSetWriter state */
+    ck_assert(UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state) == UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_DISABLED);
+    ck_assert(UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state) == UA_STATUSCODE_GOOD);
+    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
+
+    /* enable WriterGroup two time*/
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
+    /* wait for the DSW to get operational */
+    UA_fakeSleep(15);
+    UA_Server_run_iterate(server, true);
+
+    /* enable DSW explictly to check if state is handled correctly: should not report error*/
+    ck_assert(UA_Server_enableDataSetWriter(server, DsWId_Conn1_WG1_DS1) == UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_OPERATIONAL, state);
+
+    /* close the connection socket to generate error*/
+    UA_PubSubConnection *tmpConnection;
+    TAILQ_FOREACH(tmpConnection, &server->pubSubManager.connections, listEntry) {
+       if(UA_NodeId_equal(&tmpConnection->head.identifier, &ConnId_1)) {
+            shutdown((int)tmpConnection->sendChannel, UA_SHUT_RDWR);
+       }
+    }
+
+    /* wait for the send */
+    UA_fakeSleep(300);
+    UA_Server_run_iterate(server, true);
+
+    /* send should fail and push the states of WriterGroup and DSW to error */
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_ERROR, state);
+
+    /* enable the WriterGroup again to check if error can be recovered */
+    ck_assert(UA_Server_enableWriterGroup(server, WGId_Conn1_WG1) == UA_STATUSCODE_GOOD);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_DataSetWriter_getState(server, DsWId_Conn1_WG1_DS1, &state));
+    ck_assert(state == UA_PUBSUBSTATE_PAUSED);
+
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_WriterGroup_getState(server, WGId_Conn1_WG1, &state));
+    ck_assert_int_eq(UA_PUBSUBSTATE_PAUSED, state);
 
 } END_TEST
 
@@ -419,9 +529,14 @@ int main(void) {
     tcase_add_checked_fixture(tc_corner_cases, setup, teardown);
     tcase_add_test(tc_corner_cases, Test_corner_cases);
 
+    TCase *tc_error_case = tcase_create("error case");
+    tcase_add_checked_fixture(tc_error_case, setup, teardown);
+    tcase_add_test(tc_error_case, Test_error_case);
+
     Suite *s = suite_create("PubSub getState test suite");
     suite_add_tcase(s, tc_normal_operation);
     suite_add_tcase(s, tc_corner_cases);
+    suite_add_tcase(s, tc_error_case);
 
     /* TODO: how to provoke and test an error state? */
 

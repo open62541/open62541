@@ -12,6 +12,7 @@
 #include <open62541/plugin/log.h>
 #include <open62541/types_generated.h>
 
+#include "test_helpers.h"
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 
@@ -24,10 +25,8 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 
 }
@@ -158,8 +157,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.address = address;
@@ -190,8 +189,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp");
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 3;
     connectionConf.address = address;

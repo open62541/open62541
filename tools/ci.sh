@@ -16,6 +16,9 @@ else
     MAKEOPTS="-j$(sysctl -n hw.ncpu)"
 fi
 
+# Allow to reuse TIME-WAIT sockets for new connections
+sudo echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+
 ###########
 # cpplint #
 ###########
@@ -96,13 +99,12 @@ function build_amalgamation {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_FORCE_WERROR=ON \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 function build_amalgamation_mt {
@@ -112,14 +114,13 @@ function build_amalgamation_mt {
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
-          -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
-          -DUA_FORCE_WERROR=ON \
           -DUA_MULTITHREADING=100 \
           ..
-    make ${MAKEOPTS}
+    make open62541-amalgamation ${MAKEOPTS}
+    gcc -Wall -Werror -c open62541.c
 }
 
 ############################
@@ -137,7 +138,6 @@ function unit_tests {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -158,7 +158,6 @@ function unit_tests_32 {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -179,7 +178,6 @@ function unit_tests_nosub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_HISTORIZING=OFF \
           -DUA_ENABLE_SUBSCRIPTIONS=OFF \
           -DUA_FORCE_WERROR=ON \
@@ -194,7 +192,6 @@ function unit_tests_diag {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_DIAGNOSTICS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -216,7 +213,6 @@ function unit_tests_mt {
           -DUA_MULTITHREADING=200 \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_FORCE_WERROR=ON \
           ..
@@ -230,7 +226,6 @@ function unit_tests_alarms {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_DA=ON \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -249,7 +244,6 @@ function unit_tests_encryption {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_FORCE_WERROR=ON \
           ..
@@ -263,9 +257,7 @@ function unit_tests_encryption_mbedtls_pubsub {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
-          -DUA_ENABLE_CERT_REJECTED_DIR=ON \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
@@ -283,7 +275,6 @@ function unit_tests_pubsub_sks {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
@@ -306,7 +297,6 @@ function unit_tests_with_coverage {
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_COVERAGE=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -333,7 +323,6 @@ function unit_tests_valgrind {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_UNIT_TESTS=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
@@ -367,7 +356,6 @@ function examples_valgrind {
 
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
-          -DUA_ENABLE_ALLOW_REUSEADDR=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS=ON \
@@ -417,7 +405,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_MONITORING=ON \
           -DUA_FORCE_WERROR=ON \
           ..
-    scan-build-11 --status-bugs make ${MAKEOPTS}
+    scan-build-11 --status-bugs --exclude ../src/util make ${MAKEOPTS}
 }
 
 ###################################################

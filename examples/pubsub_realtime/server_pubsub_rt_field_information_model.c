@@ -32,10 +32,10 @@ addVariable(UA_Server *server, char *name) {
     /* Add the variable node to the information model */
     UA_NodeId outNodeId;
     UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
-    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
-    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_NodeId parentNodeId = UA_NS0ID(OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NS0ID(ORGANIZES);
     UA_Server_addVariableNode(server, UA_NODEID_NULL, parentNodeId, parentReferenceNodeId,
-                              myIntegerName, UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                              myIntegerName, UA_NS0ID(BASEDATAVARIABLETYPE),
                               attr, NULL, &outNodeId);
     return outNodeId;
 }
@@ -91,8 +91,8 @@ int main(void){
         {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
     UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 
     /* Add one PublishedDataSet */

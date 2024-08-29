@@ -47,8 +47,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConfig.publisherId.uint32 = UA_UInt32_random();
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
     retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -76,7 +76,8 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
     retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
                                        &readerGroupIdentifier);
-    UA_Server_setReaderGroupOperational(server, readerGroupIdentifier);
+    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
+
     return retval;
 }
 
@@ -104,8 +105,8 @@ addDataSetReader(UA_Server *server) {
      * tutorial_pubsub_publish.c is being subscribed and is being updated in
      * the information model */
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
 
@@ -143,11 +144,9 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         folderBrowseName = UA_QUALIFIEDNAME (1, "Subscribed Variables");
     }
 
-    UA_Server_addObjectNode (server, UA_NODEID_NULL,
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_OBJECTSFOLDER),
-                             UA_NODEID_NUMERIC (0, UA_NS0ID_ORGANIZES),
-                             folderBrowseName, UA_NODEID_NUMERIC (0,
-                             UA_NS0ID_BASEOBJECTTYPE), oAttr, NULL, &folderId);
+    UA_Server_addObjectNode(server, UA_NODEID_NULL,
+                            UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                            folderBrowseName, UA_NS0ID(BASEOBJECTTYPE), oAttr, NULL, &folderId);
 
 /**
  * **TargetVariables**
@@ -169,10 +168,9 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
 
         UA_NodeId newNode;
         retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId,
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+                                           folderId, UA_NS0ID(HASCOMPONENT),
                                            UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                           UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                           UA_NS0ID(BASEDATAVARIABLETYPE),
                                            vAttr, NULL, &newNode);
 
         /* For creating Targetvariables */
@@ -307,12 +305,14 @@ int main(int argc, char **argv) {
                 return EXIT_FAILURE;
             }
 
-            networkAddressUrl.networkInterface = UA_STRING(argv[2]);
             networkAddressUrl.url = UA_STRING(argv[1]);
         } else {
             printf ("Error: unknown URI\n");
             return EXIT_FAILURE;
         }
+    }
+    if (argc > 2) {
+        networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
     return run(&transportProfile, &networkAddressUrl);

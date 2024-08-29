@@ -40,9 +40,9 @@ UA_SecurityPolicy_Basic256Sha256(UA_SecurityPolicy *policy,
 
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Aes128Sha256RsaOaep(UA_SecurityPolicy *policy,
-                                 const UA_ByteString localCertificate,
-                                 const UA_ByteString localPrivateKey,
-                                 const UA_Logger *logger);
+                                      const UA_ByteString localCertificate,
+                                      const UA_ByteString localPrivateKey,
+                                      const UA_Logger *logger);
 
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
@@ -50,9 +50,14 @@ UA_SecurityPolicy_Aes256Sha256RsaPss(UA_SecurityPolicy *policy,
                                      const UA_ByteString localPrivateKey,
                                      const UA_Logger *logger);
 
+#ifdef __linux__ /* Linux only so far */
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
+                            UA_SecurityPolicy *innerPolicy,
+                            const UA_String storePath);
 #endif
 
-#ifdef UA_ENABLE_PUBSUB_ENCRYPTION
+#endif
 
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
@@ -60,8 +65,6 @@ UA_PubSubSecurityPolicy_Aes128Ctr(UA_PubSubSecurityPolicy *policy,
 UA_EXPORT UA_StatusCode
 UA_PubSubSecurityPolicy_Aes256Ctr(UA_PubSubSecurityPolicy *policy,
                                   const UA_Logger *logger);
-
-#endif
 
 #ifdef UA_ENABLE_TPM2_SECURITY
 

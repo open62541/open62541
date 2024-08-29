@@ -38,14 +38,11 @@
  * Changing the feature options has no effect on a pre-compiled library. */
 
 #define UA_LOGLEVEL ${UA_LOGLEVEL}
-#ifndef UA_ENABLE_AMALGAMATION
 #cmakedefine UA_ENABLE_AMALGAMATION
-#endif
 #cmakedefine UA_ENABLE_METHODCALLS
 #cmakedefine UA_ENABLE_NODEMANAGEMENT
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS
 #cmakedefine UA_ENABLE_PUBSUB
-#cmakedefine UA_ENABLE_PUBSUB_ENCRYPTION
 #cmakedefine UA_ENABLE_PUBSUB_FILE_CONFIG
 #cmakedefine UA_ENABLE_PUBSUB_INFORMATIONMODEL
 #cmakedefine UA_ENABLE_DA
@@ -59,7 +56,6 @@
 #cmakedefine UA_ENABLE_NODESET_INJECTOR
 #cmakedefine UA_INFORMATION_MODEL_AUTOLOAD
 #cmakedefine UA_ENABLE_ENCRYPTION_MBEDTLS
-#cmakedefine UA_ENABLE_CERT_REJECTED_DIR
 #cmakedefine UA_ENABLE_TPM2_SECURITY
 #cmakedefine UA_ENABLE_ENCRYPTION_OPENSSL
 #cmakedefine UA_ENABLE_ENCRYPTION_LIBRESSL
@@ -69,7 +65,6 @@
 #cmakedefine UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
 /* Multithreading */
-#cmakedefine UA_ENABLE_IMMUTABLE_NODES
 #define UA_MULTITHREADING ${UA_MULTITHREADING}
 
 /* Advanced Options */
@@ -86,16 +81,12 @@
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO
 #cmakedefine UA_GENERATED_NAMESPACE_ZERO_FULL
 #cmakedefine UA_ENABLE_PUBSUB_MONITORING
-#cmakedefine UA_ENABLE_PUBSUB_BUFMALLOC
 #cmakedefine UA_ENABLE_PUBSUB_SKS
 
 /* Options for Debugging */
 #cmakedefine UA_DEBUG
 #cmakedefine UA_DEBUG_DUMP_PKGS
 #cmakedefine UA_DEBUG_FILE_LINE_INFO
-
-/* Options for Tests */
-#cmakedefine UA_ENABLE_ALLOW_REUSEADDR
 
 /**
  * Function Export
@@ -486,8 +477,8 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 # define UA_LIKELY(x) __builtin_expect((x), 1)
 # define UA_UNLIKELY(x) __builtin_expect((x), 0)
 #else
-# define UA_LIKELY(x) x
-# define UA_UNLIKELY(x) x
+# define UA_LIKELY(x) (x)
+# define UA_UNLIKELY(x) (x)
 #endif
 
 /**

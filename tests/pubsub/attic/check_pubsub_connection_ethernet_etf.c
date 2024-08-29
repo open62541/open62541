@@ -14,6 +14,7 @@
 #include "ua_pubsub.h"
 #include "ua_server_internal.h"
 #include "ua_pubsub_networkmessage.h"
+#include "test_helpers.h"
 
 /* Adjust your configuration globally for the ethernet tests here: */
 #include "ethernet_config.h"
@@ -24,10 +25,8 @@
 UA_Server *server = NULL;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
@@ -201,8 +200,8 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 5;
     connectionConf.address = address;
@@ -240,8 +239,8 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     connectionConf.name = UA_STRING("Ethernet ETF Connection");
     connectionConf.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI);
     connectionConf.enabled = true;
-    connectionConf.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
-    connectionConf.publisherId.uint32 = 223344;
+    connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
+    connectionConf.publisherId.id.uint32 = 223344;
     connectionConf.connectionProperties.map = connectionOptions;
     connectionConf.connectionProperties.mapSize = 5;
     connectionConf.address = address;

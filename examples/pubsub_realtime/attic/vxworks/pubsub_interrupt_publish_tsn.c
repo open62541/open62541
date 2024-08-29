@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *   Copyright (c) 2020, 2022 Wind River Systems, Inc.
+ *   Copyright (c) 2020, 2022, 2024 Wind River Systems, Inc.
  */
 
 #include <vxWorks.h>
@@ -127,6 +127,7 @@ addApplicationCallback(UA_Server *server, UA_NodeId identifier,
                        UA_ServerCallback callback,
                        void *data,
                        UA_Double interval_ms,
+                       UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                        UA_UInt64 *callbackId) {
     if(pubCallback) {
         UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -162,7 +163,8 @@ addApplicationCallback(UA_Server *server, UA_NodeId identifier,
 static UA_StatusCode
 changeApplicationCallbackInterval(UA_Server *server, UA_NodeId identifier,
                                   UA_UInt64 callbackId,
-                                  UA_Double interval_ms) {
+                                  UA_Double interval_ms,
+                                  UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
                 "Switching the publisher cycle to %lf milliseconds", interval_ms);
 
@@ -322,7 +324,7 @@ addPubSubConfiguration(UA_Server* server) {
                                &dataSetWriterConfig, &dataSetWriterIdent);
 
     UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
 }
 
 static void

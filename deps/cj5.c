@@ -1,7 +1,7 @@
 // MIT License
 //
 // Copyright (c) 2020 Sepehr Taghdisian
-// Copyright (c) 2022 Julius Pfrommer
+// Copyright (c) 2022, 2024 Julius Pfrommer
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -200,10 +200,14 @@ cj5__parse_primitive(cj5__parser* parser) {
     }
 
     // Fast comparison of bool, and null.
-    // We have to use memcpy here or we can get unaligned accesses
+    // Make the comparison case-insensitive.
     uint32_t fourcc = 0;
-    if(start + 4 < len)
-        memcpy(&fourcc, &json5[start], 4);
+    if(start + 3 < len) {
+        fourcc += json5[start] | 32;
+        fourcc += (json5[start+1] | 32) << 8;
+        fourcc += (json5[start+2] | 32) << 16;
+        fourcc += (json5[start+3] | 32) << 24;
+    }
     
     cj5_token_type type;
     if(fourcc == CJ5__NULL_FOURCC) {
@@ -215,7 +219,7 @@ cj5__parse_primitive(cj5__parser* parser) {
     } else if(fourcc == CJ5__FALSE_FOURCC) {
         // "false" has five characters
         type = CJ5_TOKEN_BOOL;
-        if(start + 4 >= len || json5[start+4] != 'e') {
+        if(start + 4 >= len || (json5[start+4] | 32) != 'e') {
             parser->error = CJ5_ERROR_INVALID;
             return;
         }

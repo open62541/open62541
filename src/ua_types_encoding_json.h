@@ -11,7 +11,7 @@
 
 #include <open62541/types.h>
 
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 #include "../deps/cj5.h"
 
@@ -105,7 +105,8 @@ extern const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS];
 extern const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS];
 
 UA_StatusCode lookAheadForKey(ParseCtx *ctx, const char *search, size_t *resultIndex);
-UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize);
+UA_StatusCode tokenize(ParseCtx *ctx, const UA_ByteString *src, size_t tokensSize,
+                       size_t *decodedLength);
 
 static UA_INLINE
 cj5_token_type currentTokenType(const ParseCtx *ctx) {

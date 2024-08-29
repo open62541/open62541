@@ -26,18 +26,14 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
     /* Get the session */
     UA_Session* session = getSessionById(server, &ar->sessionId);
     if(!session) {
-        UA_String sessionId = UA_STRING_NULL;
-        UA_NodeId_print(&ar->sessionId, &sessionId);
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                       "Async Service: Session %.*s no longer exists",
-                       (int)sessionId.length, sessionId.data);
-        UA_String_clear(&sessionId);
+                       "Async Service: Session %N no longer exists", ar->sessionId);
         UA_AsyncManager_removeAsyncResponse(&server->asyncManager, ar);
         return;
     }
 
     /* Check the channel */
-    UA_SecureChannel *channel = session->header.channel;
+    UA_SecureChannel *channel = session->channel;
     if(!channel) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
                                "Async Service Response cannot be sent. "
@@ -53,7 +49,7 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 
     /* Send the Response */
     UA_StatusCode res =
-        sendResponse(server, session, channel, ar->requestId,
+        sendResponse(server, channel, ar->requestId,
                      (UA_Response*)&ar->response, &UA_TYPES[UA_TYPES_CALLRESPONSE]);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_SESSION(server->config.logging, session,
@@ -124,8 +120,9 @@ checkTimeouts(UA_Server *server, void *_) {
     if(server->config.asyncOperationTimeout <= 0.0)
         return;
 
+    UA_EventLoop *el = server->config.eventLoop;
     UA_AsyncManager *am = &server->asyncManager;
-    const UA_DateTime tNow = UA_DateTime_now();
+    const UA_DateTime tNow = el->dateTime_nowMonotonic(el);
 
     UA_LOCK(&am->queueLock);
 
@@ -174,17 +171,23 @@ UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server) {
     TAILQ_INIT(&am->dispatchedQueue);
     TAILQ_INIT(&am->resultQueue);
     UA_LOCK_INIT(&am->queueLock);
+}
 
-    /* Add a regular callback for cleanup and sending finished responses at a
-     * 100s interval. */
+void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server) {
+    /* Add a regular callback for checking timeouts and sending finished
+     * responses at a 100ms interval. */
     addRepeatedCallback(server, (UA_ServerCallback)checkTimeouts,
                         NULL, 100.0, &am->checkTimeoutCallbackId);
 }
 
+void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server) {
+    /* Add a regular callback for checking timeouts and sending finished
+     * responses at a 100ms interval. */
+    removeCallback(server, am->checkTimeoutCallbackId);
+}
+
 void
 UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server) {
-    removeCallback(server, am->checkTimeoutCallbackId);
-
     UA_AsyncOperation *ar, *ar_tmp;
 
     /* Clean up queues */
@@ -229,10 +232,12 @@ UA_AsyncManager_createAsyncResponse(UA_AsyncManager *am, UA_Server *server,
         return res;
     }
 
+    UA_EventLoop *el = server->config.eventLoop;
+
     am->asyncResponsesCount += 1;
     newentry->requestId = requestId;
     newentry->requestHandle = requestHandle;
-    newentry->timeout = UA_DateTime_now();
+    newentry->timeout = el->dateTime_nowMonotonic(el);
     if(server->config.asyncOperationTimeout > 0.0)
         newentry->timeout += (UA_DateTime)
             (server->config.asyncOperationTimeout * (UA_DateTime)UA_DATETIME_MSEC);
@@ -344,16 +349,12 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
      *
      * TODO: Add a tree-structure for the dispatch queue. The linear lookup does
      * not scale. */
-    UA_Boolean found = false;
     UA_AsyncOperation *op = NULL;
     TAILQ_FOREACH(op, &am->dispatchedQueue, pointers) {
-        if(op == ao) {
-            found = true;
+        if(op == ao)
             break;
-        }
     }
-
-    if(!found) {
+    if(!op) {
         UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
                        "UA_Server_SetAsyncMethodResult: The operation has timed out");
         UA_UNLOCK(&am->queueLock);
@@ -383,22 +384,24 @@ UA_Server_setAsyncOperationResult(UA_Server *server,
 /* Server Methods */
 /******************/
 
-static UA_StatusCode
-setMethodNodeAsync(UA_Server *server, UA_Session *session,
-                   UA_Node *node, UA_Boolean *isAsync) {
-    if(node->head.nodeClass != UA_NODECLASS_METHOD)
-        return UA_STATUSCODE_BADNODECLASSINVALID;
-    node->methodNode.async = *isAsync;
-    return UA_STATUSCODE_GOOD;
-}
-
 UA_StatusCode
 UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res =
-        UA_Server_editNode(server, &server->adminSession, &id,
-                           (UA_EditNodeCallback)setMethodNodeAsync, &isAsync);
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, &id, UA_NODEATTRIBUTESMASK_NONE,
+                                        UA_REFERENCETYPESET_NONE,
+                                        UA_BROWSEDIRECTION_INVALID);
+    if(node) {
+        if(node->head.nodeClass == UA_NODECLASS_METHOD)
+            node->methodNode.async = isAsync;
+        else
+            res = UA_STATUSCODE_BADNODECLASSINVALID;
+        UA_NODESTORE_RELEASE(server, node);
+    } else {
+        res = UA_STATUSCODE_BADNODEIDINVALID;
+    }
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }

@@ -4,8 +4,7 @@
  * Copyright (c) 2021 Kalycito Infotech Private Limited
  */
 
-/* Note: Have to enable UA_ENABLE_PUBSUB_ENCRYPTION and UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE
-         to run the application */
+/* Note: Enable UA_ENABLE_ENCRYPTION_TPM2=KEYSTORE to run the application */
 
 #include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
@@ -65,11 +64,10 @@ addDataSetField(UA_Server *server) {
     UA_Int32 publisherData     = 42;
     UA_Variant_setScalar(&attr.value, &publisherData, &UA_TYPES[UA_TYPES_INT32]);
     UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, 1000),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
-                                                        UA_QUALIFIEDNAME(1, "Published Int32"),
-                                                        UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
-                                                        attr, NULL, &publisherNode);
+                              UA_NS0ID(OBJECTSFOLDER), UA_NS0ID(ORGANIZES),
+                              UA_QUALIFIEDNAME(1, "Published Int32"),
+                              UA_NS0ID(BASEDATAVARIABLETYPE),
+                              attr, NULL, &publisherNode);
 
     /* Data Set Field */
     UA_NodeId dataSetFieldIdent;
@@ -110,7 +108,7 @@ addWriterGroup(UA_Server *server) {
         (UA_UadpNetworkMessageContentMask)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER);
     writerGroupConfig.messageSettings.content.decoded.data = writerGroupMessage;
     UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_setWriterGroupOperational(server, writerGroupIdent);
+    UA_Server_enableWriterGroup(server, writerGroupIdent);
     UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
     /* Add the encryption key informaton */

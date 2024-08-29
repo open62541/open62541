@@ -8,6 +8,7 @@
 
 #include "server/ua_subscription.h"
 #include "ua_server_internal.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -17,9 +18,8 @@
 static UA_Server *server;
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig_setDefault(UA_Server_getConfig(server));
 }
 
 static void teardown(void) {
@@ -62,14 +62,16 @@ START_TEST(monitorIntegerNoChanges) {
 
     callbackCount = 0;
 
-    UA_MonitoredItem *mon = LIST_FIRST(&server->localMonitoredItems);
+    UA_MonitoredItem *mon = LIST_FIRST(&server->adminSubscription->monitoredItems);
 
     clock_t begin, finish;
     begin = clock();
 
+    UA_LOCK(&server->serviceMutex);
     for(int i = 0; i < 1000; i++) {
-        UA_MonitoredItem_sampleCallback(server, mon);
+        UA_MonitoredItem_sample(server, mon);
     }
+    UA_UNLOCK(&server->serviceMutex);
 
     finish = clock();
 

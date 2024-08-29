@@ -17,7 +17,7 @@
 #include <open62541/server.h>
 
 #include "open62541_queue.h"
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 _UA_BEGIN_DECLS
 
@@ -77,6 +77,8 @@ typedef struct {
 } UA_AsyncManager;
 
 void UA_AsyncManager_init(UA_AsyncManager *am, UA_Server *server);
+void UA_AsyncManager_start(UA_AsyncManager *am, UA_Server *server);
+void UA_AsyncManager_stop(UA_AsyncManager *am, UA_Server *server);
 void UA_AsyncManager_clear(UA_AsyncManager *am, UA_Server *server);
 
 UA_StatusCode

@@ -13,6 +13,7 @@
 #include "ua_pubsub.h"
 #include "ua_pubsub_networkmessage.h"
 #include "testing_clock.h"
+#include "test_helpers.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -48,8 +49,8 @@ addMinimalPubSubConfiguration(void){
     connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
-    connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT16;
-    connectionConfig.publisherId.uint16 = 2234;
+    connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    connectionConfig.publisherId.id.uint16 = 2234;
     retVal = UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
     if(retVal != UA_STATUSCODE_GOOD)
         return retVal;
@@ -65,10 +66,8 @@ addMinimalPubSubConfiguration(void){
 }
 
 static void setup(void) {
-    server = UA_Server_new();
+    server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
     UA_Server_run_startup(server);
 }
 
@@ -157,8 +156,8 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
     UA_DataSetReaderConfig readerConfig;
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING ("DataSetReader Test");
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 100;
     readerConfig.dataSetWriterId  = 62541;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -251,11 +250,11 @@ START_TEST(SubscribeSingleFieldWithFixedOffsets) {
 
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
-    ck_assert(UA_Server_setWriterGroupOperational(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
 
     ck_assert(UA_Server_unfreezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
     ck_assert(UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
+    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_enableReaderGroup(server, readerGroupIdentifier));
 
     while(true) {
         UA_fakeSleep(50);
@@ -326,8 +325,8 @@ START_TEST(SetupInvalidPubSubConfigReader) {
         memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
         readerConfig.name = UA_STRING ("DataSetReader Test");
         UA_UInt16 publisherIdentifier = 2234;
-        readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-        readerConfig.publisherId.data = &publisherIdentifier;
+        readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+        readerConfig.publisherId.id.uint16 = publisherIdentifier;
         readerConfig.writerGroupId    = 100;
         readerConfig.dataSetWriterId  = 62541;
         readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -563,8 +562,8 @@ static void PublishSubscribeWithWriteCallback_Helper(
     memset (&readerConfig, 0, sizeof (UA_DataSetReaderConfig));
     readerConfig.name             = UA_STRING ("DataSetReader Test");
     UA_UInt16 publisherIdentifier = 2234;
-    readerConfig.publisherId.type = &UA_TYPES[UA_TYPES_UINT16];
-    readerConfig.publisherId.data = &publisherIdentifier;
+    readerConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
+    readerConfig.publisherId.id.uint16 = publisherIdentifier;
     readerConfig.writerGroupId    = 1;
     readerConfig.dataSetWriterId  = 1;
     readerConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
@@ -630,9 +629,8 @@ static void PublishSubscribeWithWriteCallback_Helper(
 
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeReaderGroupConfiguration(server, readerGroupIdentifier));
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_freezeWriterGroupConfiguration(server, writerGroupIdent));
-
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setReaderGroupOperational(server, readerGroupIdentifier));
-    ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_setWriterGroupOperational(server, writerGroupIdent));
+    ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+    ck_assert(UA_Server_enableReaderGroup(server, readerGroupIdentifier) == UA_STATUSCODE_GOOD);
 
     for (i = 0; i < NUMVARS; i++) {
         /* run server - publisher and subscriber */

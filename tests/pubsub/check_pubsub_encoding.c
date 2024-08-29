@@ -36,22 +36,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    //if (rv == UA_STATUSCODE_GOOD) {
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -104,22 +97,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    //if (rv == UA_STATUSCODE_GOOD) {
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -178,21 +164,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -254,21 +234,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -327,21 +301,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueVariantDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -396,21 +364,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS1ValueDataValueDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -462,18 +424,14 @@ START_TEST(UA_PubSub_Encode_WithBufferTooSmallShallReturnError) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
 
     // to generate an error we make the buffer too small
     msgSize -= 5;
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
     UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
@@ -505,20 +463,15 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
     memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
     UA_ByteString buffer2;
     UA_ByteString_init(&buffer2);
     size_t shortLength = buffer.length - 4;
@@ -528,7 +481,7 @@ START_TEST(UA_PubSub_Decode_WithBufferTooSmallShallReturnError) {
         buffer2.data[i] = buffer.data[i];
     }
 
-    rv = UA_NetworkMessage_decodeBinary(&buffer2, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer2, &m2, NULL);
     ck_assert_int_ne(rv, UA_STATUSCODE_GOOD);
 
     UA_DataValue_clear(&dmkf.data.keyFrameData.dataSetFields[0]);
@@ -577,21 +530,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -673,21 +620,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrame) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -768,21 +709,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameGroupHeader) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -827,9 +762,9 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     m.version = 1;
     m.networkMessageType = UA_NETWORKMESSAGE_DATASET;
     m.publisherIdEnabled = true;
-    m.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
+    m.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     UA_UInt32 publisherId = 1469;
-    m.publisherId.uint32 = publisherId;
+    m.publisherId.id.uint32 = publisherId;
     m.dataSetClassIdEnabled = true;
     UA_Guid dataSetClassId = UA_Guid_random();
     m.dataSetClassId = dataSetClassId;
@@ -867,21 +802,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -892,8 +821,8 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantDeltaFramePublDSCID) {
     ck_assert(m.picosecondsEnabled == m2.picosecondsEnabled);
     ck_assert(m.promotedFieldsEnabled == m2.promotedFieldsEnabled);
     ck_assert(m.publisherIdEnabled == m2.publisherIdEnabled);
-    ck_assert_int_eq(m2.publisherIdType, m.publisherIdType);
-    ck_assert_uint_eq(m2.publisherId.uint32, publisherId);
+    ck_assert_int_eq(m2.publisherId.idType, m.publisherId.idType);
+    ck_assert_uint_eq(m2.publisherId.id.uint32, publisherId);
     ck_assert(m.securityEnabled == m2.securityEnabled);
     ck_assert(m.chunkMessage == m2.chunkMessage);
 
@@ -962,21 +891,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueKeyFramePH) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -1051,21 +974,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesVariantKeyFrameTSProm) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -1156,21 +1073,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn1DS2ValuesDataValueDeltaFrameGHProm2) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);
@@ -1278,21 +1189,15 @@ START_TEST(UA_PubSub_EnDecode_ShallWorkOn2DSVariant) {
 
     UA_StatusCode rv = UA_STATUSCODE_UNCERTAININITIALVALUE;
     UA_ByteString buffer;
-    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m, NULL);
+    size_t msgSize = UA_NetworkMessage_calcSizeBinary(&m);
     rv = UA_ByteString_allocBuffer(&buffer, msgSize);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
-    UA_Byte *bufPos = buffer.data;
-    memset(bufPos, 0, msgSize);
-    const UA_Byte *bufEnd = &(buffer.data[buffer.length]);
-    rv = UA_NetworkMessage_encodeBinary(&m, &bufPos, bufEnd, NULL);
-
+    rv = UA_NetworkMessage_encodeBinary(&m, &buffer);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
 
     UA_NetworkMessage m2;
-    memset(&m2, 0, sizeof(UA_NetworkMessage));
-    size_t offset = 0;
-    rv = UA_NetworkMessage_decodeBinary(&buffer, &offset, &m2, NULL);
+    rv = UA_NetworkMessage_decodeBinary(&buffer, &m2, NULL);
     ck_assert_int_eq(rv, UA_STATUSCODE_GOOD);
     ck_assert(m.version == m2.version);
     ck_assert(m.networkMessageType == m2.networkMessageType);

@@ -266,41 +266,20 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode,
     return UA_STATUSCODE_GOOD;
 }
 
-/* For mulithreading: make a copy of the node, edit and replace.
- * For singlethreading: edit the original */
+/* Get the node, make the changes and release */
 UA_StatusCode
-UA_Server_editNode(UA_Server *server, UA_Session *session,
-                   const UA_NodeId *nodeId, UA_EditNodeCallback callback,
-                   void *data) {
-#ifndef UA_ENABLE_IMMUTABLE_NODES
-    /* Get the node and process it in-situ */
-    const UA_Node *node = UA_NODESTORE_GET(server, nodeId);
+UA_Server_editNode(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId,
+                   UA_UInt32 attributeMask, UA_ReferenceTypeSet references,
+                   UA_BrowseDirection referenceDirections,
+                   UA_EditNodeCallback callback, void *data) {
+    UA_Node *node =
+        UA_NODESTORE_GET_EDIT_SELECTIVE(server, nodeId, attributeMask,
+                                        references, referenceDirections);
     if(!node)
         return UA_STATUSCODE_BADNODEIDUNKNOWN;
-    UA_StatusCode retval = callback(server, session, (UA_Node*)(uintptr_t)node, data);
+    UA_StatusCode retval = callback(server, session, node, data);
     UA_NODESTORE_RELEASE(server, node);
     return retval;
-#else
-    UA_StatusCode retval;
-    do {
-        /* Get an editable copy of the node */
-        UA_Node *node;
-        retval = UA_NODESTORE_GETCOPY(server, nodeId, &node);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-
-        /* Run the operation on the copy */
-        retval = callback(server, session, node, data);
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_NODESTORE_DELETE(server, node);
-            return retval;
-        }
-
-        /* Replace the node */
-        retval = UA_NODESTORE_REPLACE(server, node);
-    } while(retval != UA_STATUSCODE_GOOD);
-    return retval;
-#endif
 }
 
 UA_StatusCode

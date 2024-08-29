@@ -13,7 +13,7 @@
 
 #include <open62541/client_highlevel.h>
 #include <open62541/client_highlevel_async.h>
-#include "ua_util_internal.h"
+#include "util/ua_util_internal.h"
 
 /* The highlevel client API is an "outer onion layer". This file does not
  * include ua_client_internal.h on purpose. */
@@ -26,7 +26,7 @@ UA_Client_NamespaceGetIndex(UA_Client *client, UA_String *namespaceUri,
     UA_ReadValueId id;
     UA_ReadValueId_init(&id);
     id.attributeId = UA_ATTRIBUTEID_VALUE;
-    id.nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_NAMESPACEARRAY);
+    id.nodeId = UA_NS0ID(SERVER_NAMESPACEARRAY);
     request.nodesToRead = &id;
     request.nodesToReadSize = 1;
 
@@ -66,6 +66,8 @@ UA_Client_forEachChildNodeCall(UA_Client *client, UA_NodeId parentNodeId,
     UA_BrowseRequest_init(&bReq);
     bReq.requestedMaxReferencesPerNode = 0;
     bReq.nodesToBrowse = UA_BrowseDescription_new();
+    if(!bReq.nodesToBrowse)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
     bReq.nodesToBrowseSize = 1;
     UA_NodeId_copy(&parentNodeId, &bReq.nodesToBrowse[0].nodeId);
     bReq.nodesToBrowse[0].resultMask = UA_BROWSERESULTMASK_ALL; //return everything
