@@ -386,9 +386,6 @@ UA_Server_init(UA_Server *server) {
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
 
-    /*initNS0 will prematurely set namespace 1*/
-    UA_String_clear(&server->namespaces[1]);
-
 #ifdef UA_ENABLE_NODESET_INJECTOR
     UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
@@ -751,6 +748,7 @@ UA_Server_run_startup(UA_Server *server) {
                           "Could not create the server housekeeping task");
 
     /* Ensure that the uri for ns1 is set up from the app description */
+    UA_String_clear(&server->namespaces[1]);
     setupNs1Uri(server);
 
     /* At least one endpoint has to be configured */
