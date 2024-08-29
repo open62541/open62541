@@ -241,14 +241,13 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     deleteNode(psm->sc.server, dsr->head.identifier, true);
 #endif
 
-    /* Check if a Standalone-SubscribedDataSet is associated with this reader and disconnect it*/
-    if(!UA_String_isEmpty(&dsr->config.linkedStandaloneSubscribedDataSetName)) {
-        UA_SubscribedDataSet *sds =
-            UA_SubscribedDataSet_findByName(psm,
-                                            dsr->config.linkedStandaloneSubscribedDataSetName);
-        if(sds)
-            sds->connectedReader = NULL;
-    }
+    /* Check if a Standalone-SubscribedDataSet is associated with this reader
+     * and disconnect it*/
+    const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
+    UA_SubscribedDataSet *sds = (UA_String_isEmpty(&sdsName)) ?
+        NULL : UA_SubscribedDataSet_findByName(psm, sdsName);
+    if(sds && sds->connectedReader == dsr)
+        sds->connectedReader = NULL;
 
     UA_DataSetReaderConfig_clear(&dsr->config);
     UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
