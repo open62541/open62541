@@ -123,18 +123,24 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     dsr->head.componentType = UA_PUBSUBCOMPONENT_DATASETREADER;
     dsr->linkedReaderGroup = rg;
 
-    /* Copy the config into the new dataSetReader */
-    UA_DataSetReaderConfig_copy(dataSetReaderConfig, &dsr->config);
+    /* Add the new reader to the group */
+    LIST_INSERT_HEAD(&rg->readers, dsr, listEntry);
+    rg->readersCount++;
 
-    UA_StatusCode retVal;
+    /* Copy the config into the new dataSetReader */
+    UA_StatusCode retVal =
+        UA_DataSetReaderConfig_copy(dataSetReaderConfig, &dsr->config);
+    if(retVal != UA_STATUSCODE_GOOD) {
+        UA_DataSetReader_remove(psm, dsr);
+        return retVal;
+    }
+
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     retVal = addDataSetReaderRepresentation(psm->sc.server, dsr);
     if(retVal != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR_PUBSUB(psm->logging, rg,
                             "Adding the DataSetReader to the information model failed");
-        UA_DataSetReaderConfig_clear(&dsr->config);
-        UA_free(dsr);
-        dsr = 0;
+        UA_DataSetReader_remove(psm, dsr);
         return retVal;
     }
 #else
@@ -149,10 +155,6 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     dsr->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created");
-
-    /* Add the new reader to the group */
-    LIST_INSERT_HEAD(&rg->readers, dsr, listEntry);
-    rg->readersCount++;
 
     UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
     if(!UA_String_isEmpty(&sdsName)) {
