@@ -156,53 +156,53 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created");
 
-    UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
-    if(!UA_String_isEmpty(&sdsName)) {
-        UA_SubscribedDataSet *sds = UA_SubscribedDataSet_findByName(psm, sdsName);
-        if(sds) {
-            if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
-                UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                    "Not implemented! Currently only SubscribedDataSet as "
-                                    "TargetVariables is implemented");
-            } else {
-                if(sds->connectedReader) {
-                    UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
-                                        "SubscribedDataSet is already connected");
-                } else {
-                    UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
-                                        "Found SubscribedDataSet");
-                    UA_DataSetMetaDataType_copy(&sds->config.dataSetMetaData,
-                                                &dsr->config.dataSetMetaData);
-                    UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
-                        UA_calloc(sds->config.subscribedDataSet.target.targetVariablesSize,
-                                  sizeof(UA_FieldTargetVariable));
-                    for(size_t index = 0;
-                        index < sds->config.subscribedDataSet.target.targetVariablesSize;
-                        index++) {
-                        UA_FieldTargetDataType_copy(&sds->config.subscribedDataSet.target
-                                                    .targetVariables[index],
-                                                    &targetVars[index].targetVariable);
-                    }
+    /* Connect to StandaloneSubscribedDataSet if a name is defined */
+    const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;
+    UA_SubscribedDataSet *sds = (UA_String_isEmpty(&sdsName)) ?
+        NULL : UA_SubscribedDataSet_findByName(psm, sdsName);
+    if(sds) {
+        if(sds->config.subscribedDataSetType != UA_PUBSUB_SDS_TARGET) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                                "Not implemented! Currently only SubscribedDataSet as "
+                                "TargetVariables is implemented");
+        } else if(sds->connectedReader) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, dsr,
+                                "SubscribedDataSet is already connected");
+        } else {
+            UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
+                                "Found SubscribedDataSet");
 
-                    DataSetReader_createTargetVariables(psm, dsr,
-                                                        sds->config.subscribedDataSet.
-                                                        target.targetVariablesSize, targetVars);
-                    sds->connectedReader = dsr;
+            /* Use the MetaData from the sds */
+            UA_DataSetMetaDataType_clear(&dsr->config.dataSetMetaData);
+            UA_DataSetMetaDataType_copy(&sds->config.dataSetMetaData,
+                                        &dsr->config.dataSetMetaData);
 
-                    for(size_t index = 0;
-                        index < sds->config.subscribedDataSet.target.targetVariablesSize;
-                        index++) {
-                        UA_FieldTargetDataType_clear(&targetVars[index].targetVariable);
-                    }
-
-                    UA_free(targetVars);
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-                    connectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier,
-                                                  sds->head.identifier);
-#endif
-                }
+            /* Prepare the input for _createTargetVariables and call it */
+            UA_TargetVariablesDataType *tvs = &sds->config.subscribedDataSet.target;
+            UA_FieldTargetVariable *targetVars = (UA_FieldTargetVariable *)
+                UA_calloc(tvs->targetVariablesSize, sizeof(UA_FieldTargetVariable));
+            for(size_t i = 0; i < tvs->targetVariablesSize; i++) {
+                UA_FieldTargetDataType_copy(&tvs->targetVariables[i],
+                                            &targetVars[i].targetVariable);
             }
+
+            DataSetReader_createTargetVariables(psm, dsr, tvs->targetVariablesSize,
+                                                targetVars);
+
+            /* Clean up the temporary array */
+            for(size_t i = 0; i < tvs->targetVariablesSize; i++) {
+                UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
+            }
+            UA_free(targetVars);
+
+            /* Set the backpointer */
+            sds->connectedReader = dsr;
+
+            /* Make the connection visible in the information model */
+#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
+            connectDataSetReaderToDataSet(psm->sc.server, dsr->head.identifier,
+                                          sds->head.identifier);
+#endif
         }
     }
 
