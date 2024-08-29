@@ -343,11 +343,20 @@ UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
-    if(UA_PubSubState_isEnabled(dsw->head.state)) {
+    UA_WriterGroup *wg = dsw->linkedWriterGroup;
+    UA_assert(wg);
+
+    /* Check if the WriterGroup is enabled. Disallow removal in that case. The
+     * RT path might still have a pointer to the DataSetWriter. */
+    if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Removal of DataSetWriter failed while the WriterGroup is enabled");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
+                              "Removal of DataSetWriter not possible "
+                              "while the WriterGroup is enabled");
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
+
+    /* Disable and signal to the application */
+    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
 
     /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
@@ -355,9 +364,8 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 #endif
 
     /* Remove DataSetWriter from group */
-    UA_WriterGroup *linkedWriterGroup = dsw->linkedWriterGroup;
     LIST_REMOVE(dsw, listEntry);
-    linkedWriterGroup->writersCount--;
+    wg->writersCount--;
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsw, "Writer deleted");
 
