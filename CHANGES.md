@@ -3,6 +3,14 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub Components are disabled initially
+
+PubSubComponents (PubSubConnections, ReaderGroups, ...) are no longer enabled
+automatically after creating them. This makes the behavior uniform for all
+PubSubComponents. And the configuration can be finalized prior to enabling. A
+method UA_Server_enableAllPubSubComponents simplifies enabling the entire
+system of configured components.
+
 ### PubSub Configuration freezing
 
 The configuration is now "frozen" automatically when the state machine switches
