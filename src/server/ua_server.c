@@ -748,6 +748,7 @@ UA_Server_run_startup(UA_Server *server) {
                           "Could not create the server housekeeping task");
 
     /* Ensure that the uri for ns1 is set up from the app description */
+    UA_String_clear(&server->namespaces[1]);
     setupNs1Uri(server);
 
     /* At least one endpoint has to be configured */
