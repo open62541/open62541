@@ -229,10 +229,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(readerIdentifier)
         UA_NodeId_copy(&dsr->head.identifier, readerIdentifier);
 
-    /* Set the DataSetReader state after finalizing the configuration */
-    return UA_DataSetReader_setPubSubState(psm, dsr,
-                                           UA_PUBSUBSTATE_OPERATIONAL,
-                                           UA_STATUSCODE_GOOD);
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
