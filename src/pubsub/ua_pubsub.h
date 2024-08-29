@@ -397,7 +397,7 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                       const UA_WriterGroupConfig *writerGroupConfig,
                       UA_NodeId *writerGroupIdentifier);
 
-UA_StatusCode
+void
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 void

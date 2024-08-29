@@ -235,13 +235,9 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode
+void
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
-    if(UA_PubSubState_isEnabled(wg->head.state)) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Deleting the WriterGroup failed while still enabled");
-        return UA_STATUSCODE_BADCONFIGURATIONERROR;
-    }
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     UA_PubSubConnection *connection = wg->linkedConnection;
     UA_assert(connection);
@@ -290,8 +286,6 @@ UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg) {
 
     /* Update the connection state */
     UA_PubSubConnection_setPubSubState(psm, connection, connection->head.state);
-
-    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -1236,9 +1230,13 @@ UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId writerGroup) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    UA_StatusCode res = (wg) ? UA_WriterGroup_remove(psm, wg) : UA_STATUSCODE_BADNOTFOUND;
+    if(wg)
+        UA_WriterGroup_remove(psm, wg);
+    else
+        res = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
