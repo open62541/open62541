@@ -221,10 +221,6 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
     UA_LOG_INFO_PUBSUB(psm->logging, newDataSetWriter, "Writer created");
 
-    /* Enable, depending on the state of the WriterGroup */
-    UA_DataSetWriter_setPubSubState(psm, newDataSetWriter,
-                                    UA_PUBSUBSTATE_OPERATIONAL);
-
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->head.identifier, writerIdentifier);
     return res;
