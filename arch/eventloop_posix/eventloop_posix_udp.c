@@ -1044,7 +1044,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
     ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
                   GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
-    DWORD ret = GetAdaptersAddresses(AF_INET, flags, NULL, ifaddr, &outBufLen);
+    GetAdaptersAddresses(AF_INET, flags, NULL, ifaddr, &outBufLen);
     for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
         for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
             LPSOCKADDR addr = u->Address.lpSockaddr;
@@ -1055,7 +1055,7 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                            (const char *)&req.ipv4.imr_interface, sizeof(struct in_addr));
 #else
     struct ifaddrs *ifaddr;
-    int ret = getifaddrs(&ifaddr);
+    getifaddrs(&ifaddr);
     struct ifaddrs *ifa = NULL;
 
     for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
