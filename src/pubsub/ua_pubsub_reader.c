@@ -234,9 +234,25 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+
+    UA_ReaderGroup *rg = dsr->linkedReaderGroup;
+    UA_assert(rg);
+
+    /* Check if the ReaderGroup is enabled. Disallow removal in that case. The
+     * RT path might still have a pointer to the DataSetReader. */
+    if(UA_PubSubState_isEnabled(rg->head.state)) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, dsr,
+                              "Removal of DataSetReader not possible while "
+                              "the ReaderGroup is enabled");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Disable and signal to the application */
     UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
                                     UA_STATUSCODE_BADSHUTDOWN);
 
+    /* Remove from information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     deleteNode(psm->sc.server, dsr->head.identifier, true);
 #endif
@@ -251,11 +267,6 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
 
     UA_DataSetReaderConfig_clear(&dsr->config);
     UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
-
-    /* Get the ReaderGroup. This must succeed since all Readers are removed from
-     * the group before it is deleted in UA_ReaderGroup_remove.*/
-    UA_ReaderGroup *rg = dsr->linkedReaderGroup;
-    UA_assert(rg);
 
     /* Remove DataSetReader from group */
     LIST_REMOVE(dsr, listEntry);
