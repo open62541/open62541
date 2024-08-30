@@ -1106,10 +1106,6 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         return;
     }
 
-    /* Nothing to do? */
-    if(wg->writersCount == 0)
-        return;
-
     UA_LOCK(&psm->sc.server->serviceMutex);
 
     /* How many DSM can be sent in one NM? */
@@ -1127,11 +1123,15 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     UA_STACKARRAY(UA_UInt16, dsWriterIds, wg->writersCount);
     UA_STACKARRAY(UA_DataSetMessage, dsmStore, wg->writersCount);
 
+    size_t enabledWriters = 0;
+
     UA_DataSetWriter *dsw;
     UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
     LIST_FOREACH(dsw, &wg->writers, listEntry) {
         if(dsw->head.state != UA_PUBSUBSTATE_OPERATIONAL)
             continue;
+
+        enabledWriters++;
 
         /* PDS can be NULL -> Heartbeat */
         UA_PublishedDataSet *pds = dsw->connectedDataSet;
@@ -1166,6 +1166,14 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
         }
 
         dsmCount++;
+    }
+
+    /* No enabled Writers */
+    if(enabledWriters == 0) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                              "Cannot publish -- No Writers are enabled");
+        UA_UNLOCK(&psm->sc.server->serviceMutex);
+        return;
     }
 
     /* Send the NetworkMessages with batched DataSetMessages */
