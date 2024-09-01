@@ -317,9 +317,6 @@ createWriterGroup(UA_PubSubManager *psm,
     /* Load config */
     UA_NodeId writerGroupIdent;
     res = UA_WriterGroup_create(psm, connectionIdent, &config, &writerGroupIdent);
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
-    if(wg)
-        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createWriterGroup] "
@@ -338,6 +335,13 @@ createWriterGroup(UA_PubSubManager *psm,
             break;
         }
     }
+
+    if(config.enabled) {
+        UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
+        if(wg)
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+    }
+
     return res;
 }
 
@@ -353,7 +357,8 @@ createWriterGroup(UA_PubSubManager *psm,
 static UA_StatusCode
 addDataSetWriterWithPdsReference(UA_PubSubManager *psm, UA_NodeId writerGroupIdent,
                                  const UA_DataSetWriterConfig *dsWriterConfig,
-                                 UA_UInt32 pdsCount, const UA_NodeId *pdsIdent) {
+                                 UA_UInt32 pdsCount, const UA_NodeId *pdsIdent,
+                                 UA_Boolean enable) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     UA_NodeId dataSetWriterIdent;
@@ -386,6 +391,9 @@ addDataSetWriterWithPdsReference(UA_PubSubManager *psm, UA_NodeId writerGroupIde
                              "Adding DataSetWriter failed");
             } else {
                 pdsFound = true;
+                UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriterIdent);
+                if(dsw)
+                    UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
             }
 
             UA_PublishedDataSetConfig_clear(&pdsConfig);
@@ -428,8 +436,9 @@ createDataSetWriter(UA_PubSubManager *psm,
     config.dataSetWriterProperties.mapSize = dataSetWriterParameters->dataSetWriterPropertiesSize;
     config.dataSetWriterProperties.map = dataSetWriterParameters->dataSetWriterProperties;
 
-    UA_StatusCode res = addDataSetWriterWithPdsReference(psm, writerGroupIdent,
-                                                         &config, pdsCount, pdsIdent);
+    UA_StatusCode res = addDataSetWriterWithPdsReference(psm, writerGroupIdent, &config,
+                                                         pdsCount, pdsIdent,
+                                                         dataSetWriterParameters->enabled);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createDataSetWriter] "
@@ -478,11 +487,13 @@ createReaderGroup(UA_PubSubManager *psm,
         }
     }
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
-    if(res == UA_STATUSCODE_GOOD && rg)
-        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+    if(readerGroupParameters->enabled) {
+        UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
+        if(res == UA_STATUSCODE_GOOD && rg)
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+    }
 
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Creates TargetVariables or SubscribedDataSetMirror for a given DataSetReader
@@ -551,9 +562,9 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
                     UA_NodeId readerGroupIdent) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
+    /* Prepare the config parameters */
     UA_DataSetReaderConfig config;
     memset(&config, 0, sizeof(UA_DataSetReaderConfig));
-
     config.name = dsrParams->name;
     config.writerGroupId = dsrParams->writerGroupId;
     config.dataSetWriterId = dsrParams->dataSetWriterId;
@@ -566,19 +577,34 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     if(res != UA_STATUSCODE_GOOD)
         return res;
 
+    /* Create the Reader */
     UA_NodeId dsReaderIdent;
     res = UA_DataSetReader_create(psm, readerGroupIdent, &config, &dsReaderIdent);
-    if(res == UA_STATUSCODE_GOOD)
-        res = addSubscribedDataSet(psm, dsReaderIdent,
-                                   &dsrParams->subscribedDataSet);
+    UA_PublisherId_clear(&config.publisherId);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createDataSetReader] "
-                     "create subscribedDataSet failed");
+                     "Could not create the DataSetReader");
+        return res;
     }
 
-    UA_PublisherId_clear(&config.publisherId);
-    return res;
+    /* Create the SubscribedDataSet */
+    res = addSubscribedDataSet(psm, dsReaderIdent, &dsrParams->subscribedDataSet);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "[UA_PubSubManager_createDataSetReader] "
+                     "Create subscribedDataSet failed");
+        return res;
+    }
+
+    /* Enable the Reader */
+    if(dsrParams->enabled) {
+        UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsReaderIdent);
+        UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                        UA_STATUSCODE_GOOD);
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 /* Determines whether PublishedDataSet is of type PublishedItems or PublishedEvents.
