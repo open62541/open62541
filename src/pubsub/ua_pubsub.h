@@ -434,14 +434,6 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 void
 UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
-UA_StatusCode
-UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
-                                 const UA_NodeId writerGroup);
-
-UA_StatusCode
-UA_WriterGroup_disableWriterGroup(UA_PubSubManager *psm,
-                                  const UA_NodeId writerGroup);
-
 /**********************************************/
 /*               DataSetField                 */
 /**********************************************/
