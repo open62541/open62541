@@ -327,6 +327,81 @@ generateRandomUInt64(void) {
     return id;
 }
 
+UA_StatusCode
+UA_Server_enableAllPubSubComponents(UA_Server *server) {
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    if(!psm) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                res |= UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
+            }
+            res |= UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                                UA_STATUSCODE_GOOD);
+            }
+            res |= UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_OPERATIONAL);
+        }
+
+        res |= UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
+    }
+
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+static void
+disableAllPubSubComponents(UA_PubSubManager *psm) {
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        UA_WriterGroup *wg;
+        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+            UA_DataSetWriter *dsw;
+            LIST_FOREACH(dsw, &wg->writers, listEntry) {
+                UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_DISABLED);
+            }
+            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_ReaderGroup *rg;
+        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+            UA_DataSetReader *dsr;
+            LIST_FOREACH(dsr, &rg->readers, listEntry) {
+                UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
+                                                UA_STATUSCODE_BADSHUTDOWN);
+            }
+            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
+        }
+
+        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
+    }
+}
+
+void
+UA_Server_disableAllPubSubComponents(UA_Server *server) {
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    if(psm)
+        disableAllPubSubComponents(psm);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
 void
 UA_PubSubManager_setState(UA_PubSubManager *psm, UA_LifecycleState state) {
     if(state == UA_LIFECYCLESTATE_STOPPED)
@@ -390,21 +465,7 @@ UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
 static void
 UA_PubSubManager_stop(UA_ServerComponent *sc) {
     UA_PubSubManager *psm = (UA_PubSubManager*)sc;
-    UA_PubSubConnection *c;
-    TAILQ_FOREACH(c, &psm->connections, listEntry) {
-        UA_WriterGroup *wg;
-        LIST_FOREACH(wg, &c->writerGroups, listEntry) {
-            UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
-        }
-
-        UA_ReaderGroup *rg;
-        LIST_FOREACH(rg, &c->readerGroups, listEntry) {
-            UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
-        }
-
-        UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
-    }
-
+    disableAllPubSubComponents(psm);
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STOPPED);
 }
 

@@ -181,6 +181,15 @@ typedef struct {
     UA_PubSubSecurityPolicy *securityPolicies;
 } UA_PubSubConfiguration;
 
+/* Enable all PubSubComponents. Returns the ORed statuscodes for enabling each
+ * component individually. */
+UA_EXPORT UA_StatusCode
+UA_Server_enableAllPubSubComponents(UA_Server *server);
+
+/* Disable all PubSubComponents */
+UA_EXPORT void
+UA_Server_disableAllPubSubComponents(UA_Server *server);
+
 /**
  * PubSubConnection
  * ----------------
