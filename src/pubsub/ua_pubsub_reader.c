@@ -329,12 +329,12 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     UA_assert(rg);
 
     UA_PubSubState oldState = dsr->head.state;
-    dsr->head.state = targetState;
 
-    switch(dsr->head.state) {
+    switch(targetState) {
         /* Disabled */
     case UA_PUBSUBSTATE_DISABLED:
     case UA_PUBSUBSTATE_ERROR:
+        dsr->head.state = targetState;
         break;
 
         /* Enabled */
@@ -342,7 +342,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
         if(rg->head.state == UA_PUBSUBSTATE_DISABLED ||
-           rg->head.state == UA_PUBSUBSTATE_ERROR) {
+           rg->head.state == UA_PUBSUBSTATE_ERROR ||
+           rg->head.state == UA_PUBSUBSTATE_PAUSED) {
             dsr->head.state = UA_PUBSUBSTATE_PAUSED; /* RG is disabled -> paused */
         } else {
             dsr->head.state = rg->head.state; /* RG is enabled -> same state */

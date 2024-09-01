@@ -101,7 +101,8 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
     case UA_PUBSUBSTATE_PREOPERATIONAL:
     case UA_PUBSUBSTATE_OPERATIONAL:
         if(wg->head.state == UA_PUBSUBSTATE_DISABLED ||
-           wg->head.state == UA_PUBSUBSTATE_ERROR) {
+           wg->head.state == UA_PUBSUBSTATE_ERROR ||
+           wg->head.state == UA_PUBSUBSTATE_PAUSED) {
             dsw->head.state = UA_PUBSUBSTATE_PAUSED; /* WG is disabled -> paused */
         } else {
             dsw->head.state = wg->head.state; /* WG is enabled -> same state */
