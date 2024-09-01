@@ -432,26 +432,7 @@ UA_WriterGroup_unfreezeConfiguration(UA_PubSubManager *psm, UA_WriterGroup *wg) 
     if(!wg->configurationFrozen)
         return;
     wg->configurationFrozen = false;
-
     UA_NetworkMessageOffsetBuffer_clear(&wg->bufferedMessage);
-}
-
-UA_StatusCode
-UA_WriterGroup_enableWriterGroup(UA_PubSubManager *psm,
-                                 const UA_NodeId writerGroup) {
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    return (wg) ?
-        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL)
-        : UA_STATUSCODE_BADNOTFOUND;
-}
-
-UA_StatusCode
-UA_WriterGroup_disableWriterGroup(UA_PubSubManager *psm,
-                                  const UA_NodeId writerGroup) {
-    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
-    return (wg) ?
-        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED)
-        : UA_STATUSCODE_BADNOTFOUND;
 }
 
 UA_StatusCode
@@ -1247,8 +1228,10 @@ UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId writerGroup)  {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
-    UA_StatusCode res = (psm) ?
-        UA_WriterGroup_enableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res =
+        (wg) ? UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL)
+             :  UA_STATUSCODE_BADINTERNALERROR;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
@@ -1260,8 +1243,10 @@ UA_Server_disableWriterGroup(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
     UA_PubSubManager *psm = getPSM(server);
-    UA_StatusCode res = (psm) ?
-        UA_WriterGroup_disableWriterGroup(psm, writerGroup) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
+    UA_StatusCode res =
+        (wg) ? UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED)
+             :  UA_STATUSCODE_BADINTERNALERROR;
     UA_UNLOCK(&server->serviceMutex);
     return res;
 }
