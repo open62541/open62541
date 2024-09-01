@@ -157,7 +157,8 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
     if(UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Adding DataSetWriter failed while the WriterGroup is enabled");
+                              "Adding a DataSetWriter not possible "
+                              "while the WriterGroup is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -245,7 +246,9 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                 newDataSetWriter->head.identifier);
     newDataSetWriter->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newDataSetWriter, "Writer created");
+    UA_LOG_INFO_PUBSUB(psm->logging, newDataSetWriter,
+                       "DataSetWriter created (State: %s)",
+                       UA_PubSubState_name(newDataSetWriter->head.state));
 
     if(writerIdentifier)
         UA_NodeId_copy(&newDataSetWriter->head.identifier, writerIdentifier);

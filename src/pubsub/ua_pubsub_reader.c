@@ -154,7 +154,8 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
                 dsr->head.identifier);
     dsr->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created");
+    UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader created (State: %s)",
+                       UA_PubSubState_name(dsr->head.state));
 
     /* Connect to StandaloneSubscribedDataSet if a name is defined */
     const UA_String sdsName = dsr->config.linkedStandaloneSubscribedDataSetName;

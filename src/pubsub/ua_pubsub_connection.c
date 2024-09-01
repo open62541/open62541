@@ -171,7 +171,8 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created");
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
+                       UA_PubSubState_name(c->head.state));
 
     /* Validate-connect to check the parameters */
     ret = UA_PubSubConnection_connect(psm, c, true);

@@ -79,8 +79,6 @@ UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->securityGroupId);
 }
 
-/* ReaderGroup Lifecycle */
-
 UA_StatusCode
 UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                       const UA_ReaderGroupConfig *rgc,
@@ -159,7 +157,8 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
                 c->head.logIdString, newGroup->head.identifier);
     newGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created");
+    UA_LOG_INFO_PUBSUB(psm->logging, newGroup, "ReaderGroup created (State: %s)",
+                       UA_PubSubState_name(newGroup->head.state));
 
     /* Validate the connection settings */
     retval = UA_ReaderGroup_connect(psm, newGroup, true);

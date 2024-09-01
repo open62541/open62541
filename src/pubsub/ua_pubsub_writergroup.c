@@ -181,7 +181,9 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
                 c->head.logIdString, newWriterGroup->head.identifier);
     newWriterGroup->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newWriterGroup, "WriterGroup created");
+    UA_LOG_INFO_PUBSUB(psm->logging, newWriterGroup,
+                       "WriterGroup created (State: %s)",
+                       UA_PubSubState_name(newWriterGroup->head.state));
 
     /* Validate the connection settings */
     res = UA_WriterGroup_connect(psm, newWriterGroup, true);
