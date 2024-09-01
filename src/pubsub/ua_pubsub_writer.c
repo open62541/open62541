@@ -155,10 +155,11 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
-    if(UA_PubSubState_isEnabled(wg->head.state)) {
+    if(wg->config.rtLevel != UA_PUBSUB_RT_NONE &&
+       UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                              "Adding a DataSetWriter not possible "
-                              "while the WriterGroup is enabled");
+                              "Cannot add a DataSetWriter while the "
+                              "WriterGroup with realtime options is enabled");
         return UA_STATUSCODE_BADCONFIGURATIONERROR;
     }
 
@@ -353,12 +354,14 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
 
-    /* Check if the WriterGroup is enabled. Disallow removal in that case. The
-     * RT path might still have a pointer to the DataSetWriter. */
-    if(UA_PubSubState_isEnabled(wg->head.state)) {
+    /* Check if the WriterGroup is enabled with RT options. Disallow removal in
+     * that case. The RT path might still have a pointer to the DataSetWriter.
+     * Or we violate the fixed-size-message configuration.*/
+    if(wg->config.rtLevel != UA_PUBSUB_RT_NONE &&
+       UA_PubSubState_isEnabled(wg->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsw,
-                              "Removal of DataSetWriter not possible "
-                              "while the WriterGroup is enabled");
+                              "Removal of DataSetWriter not possible while "
+                              "the WriterGroup with realtime options is enabled");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
