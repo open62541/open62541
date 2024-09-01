@@ -321,7 +321,7 @@ UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg) {
     }
 }
 
-UA_StatusCode
+void
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState,
                                 UA_StatusCode errorReason) {
@@ -375,8 +375,6 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
             UA_LOCK(&psm->sc.server->serviceMutex);
         }
     }
-
-    return errorReason;
 }
 
 UA_StatusCode
@@ -837,11 +835,14 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    UA_StatusCode ret = (dsr) ?
+    if(dsr)
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
-                                        UA_STATUSCODE_GOOD) : UA_STATUSCODE_BADNOTFOUND;
+                                        UA_STATUSCODE_GOOD);
+    else
+        ret = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }
@@ -851,11 +852,14 @@ UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId) {
     if(!server)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     UA_LOCK(&server->serviceMutex);
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubManager *psm = getPSM(server);
     UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsrId);
-    UA_StatusCode ret = (dsr) ?
+    if(dsr)
         UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_DISABLED,
-                                        UA_STATUSCODE_GOOD) : UA_STATUSCODE_BADNOTFOUND;
+                                        UA_STATUSCODE_GOOD);
+    else
+        ret = UA_STATUSCODE_BADNOTFOUND;
     UA_UNLOCK(&server->serviceMutex);
     return ret;
 }

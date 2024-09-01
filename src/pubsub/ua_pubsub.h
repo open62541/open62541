@@ -540,7 +540,7 @@ DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr
                                     const UA_FieldTargetVariable *targetVariables);
 
 /* Returns an error reason if the target state is `Error` */
-UA_StatusCode
+void
 UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                 UA_PubSubState targetState,
                                 UA_StatusCode errorReason);
