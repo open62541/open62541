@@ -1113,7 +1113,8 @@ generatePubSubConfigurationDataType(UA_Server* server,
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     const UA_PubSubManager *manager = &server->pubSubManager;
-    memset(configDT, 0, sizeof(UA_PubSubConfigurationDataType));
+
+    UA_PubSubConfigurationDataType_init(configDT);
 
     configDT->publishedDataSets = (UA_PublishedDataSetDataType*)
         UA_calloc(manager->publishedDataSetsSize,
@@ -1163,7 +1164,7 @@ UA_StatusCode
 UA_Server_getEncodedPubSubConfiguration(UA_Server *server,
                                                UA_ByteString *buffer) {
     UA_PubSubConfigurationDataType config;
-    memset(&config, 0, sizeof(UA_PubSubConfigurationDataType));
+    UA_PubSubConfigurationDataType_init(&config);
 
     if(server == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
