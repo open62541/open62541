@@ -12,7 +12,8 @@ set(FILE_NS_DIRPREFIX ${PROJECT_SOURCE_DIR}/nodeset)
 
 if(NOT CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
     # needed or cmake doesn't recognize dependencies of generated files
-    set(PROJECT_BINARY_DIR ${CMAKE_BINARY_DIR})
+    get_target_property(OPEN62541_BIN_DIR open62541::open62541 BINARY_DIR)
+    set(PROJECT_BINARY_DIR ${OPEN62541_BIN_DIR})
 endif()
 
 # generate namespace from XML file
