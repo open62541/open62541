@@ -1093,6 +1093,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 								UA_UNLOCK(&el->elMutex);
 								UDP_shutdownConnection(cm, connectionId);
 								UA_ByteString_clear(buf);
+#ifndef _WIN32
+									freeifaddrs(ifaddr);
+#endif
 								return UA_STATUSCODE_BADCONNECTIONCLOSED;
 							}
 
@@ -1113,6 +1116,9 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 									UA_UNLOCK(&el->elMutex);
 									UDP_shutdownConnection(cm, connectionId);
 									UA_ByteString_clear(buf);
+#ifndef _WIN32
+									freeifaddrs(ifaddr);
+#endif
 									return UA_STATUSCODE_BADCONNECTIONCLOSED;
 								}
 							} while(poll_ret <= 0);
