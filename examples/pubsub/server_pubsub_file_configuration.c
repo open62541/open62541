@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
     if(loadPubSubFromFile) {
         /* 6. save current configuration to file */
         UA_ByteString buffer = UA_BYTESTRING_NULL;
-        statusCode = UA_Server_getEncodedPubSubConfiguration(server, &buffer);
+        statusCode = UA_Server_writePubSubConfigurationToByteString(server, &buffer);
         if(statusCode == UA_STATUSCODE_GOOD)
             statusCode = writeFile(argv[2], buffer);
 

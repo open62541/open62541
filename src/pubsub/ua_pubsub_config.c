@@ -732,7 +732,7 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+	UA_LOCK(&server->serviceMutex);
 
     res = UA_ExtensionObject_decodeBinary(&buffer, &offset, &decodedFile);
     if(res != UA_STATUSCODE_GOOD) {
@@ -759,7 +759,8 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
     }
 
  cleanup:
-    UA_ExtensionObject_clear(&decodedFile);
+	UA_UNLOCK(&server->serviceMutex);
+	UA_ExtensionObject_clear(&decodedFile);
     return res;
 }
 
@@ -1161,18 +1162,18 @@ generatePubSubConfigurationDataType(UA_Server* server,
 }
 
 UA_StatusCode
-UA_Server_getEncodedPubSubConfiguration(UA_Server *server,
+UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
                                                UA_ByteString *buffer) {
     UA_PubSubConfigurationDataType config;
     UA_PubSubConfigurationDataType_init(&config);
 
     if(server == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_Server_getEncodedPubSubConfiguration] Invalid argument");
+                     "[UA_Server_writePubSubConfigurationToByteString] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK(&server->serviceMutex, 1);
 
     UA_StatusCode res = generatePubSubConfigurationDataType(server, &config);
     if(res != UA_STATUSCODE_GOOD) {
@@ -1192,7 +1193,8 @@ UA_Server_getEncodedPubSubConfiguration(UA_Server *server,
                 "Saving PubSub config was successful");
 
  cleanup:
-    UA_PubSubConfigurationDataType_clear(&config);
+	UA_UNLOCK(&server->serviceMutex);
+	UA_PubSubConfigurationDataType_clear(&config);
     return res;
 }
 
