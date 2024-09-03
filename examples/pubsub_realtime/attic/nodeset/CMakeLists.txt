@@ -10,7 +10,8 @@ set(FILE_CSV_DIRPREFIX ${PROJECT_SOURCE_DIR}/pubsub_realtime/nodeset)
 set(FILE_BSD_DIRPREFIX ${PROJECT_SOURCE_DIR}/pubsub_realtime/nodeset)
 set(FILE_NS_DIRPREFIX ${PROJECT_SOURCE_DIR}/pubsub_realtime/nodeset)
 
-set(PROJECT_BINARY_DIR ${CMAKE_BINARY_DIR})
+get_target_property(OPEN62541_BIN_DIR open62541::open62541 BINARY_DIR)
+set(PROJECT_BINARY_DIR ${OPEN62541_BIN_DIR})
 
 # generate namespace from XML file
 ua_generate_nodeset_and_datatypes(
