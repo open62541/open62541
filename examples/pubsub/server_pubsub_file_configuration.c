@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
     /* 4. load configuration from file */
     if(loadPubSubFromFile) {
         UA_ByteString configuration = loadFile(argv[2]);
-        UA_PubSubManager_loadPubSubConfigFromByteString(server, configuration);
+        UA_Server_loadPubSubConfigFromByteString(server, configuration);
     }
 
     /* 5. start server */
@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
     if(loadPubSubFromFile) {
         /* 6. save current configuration to file */
         UA_ByteString buffer = UA_BYTESTRING_NULL;
-        statusCode = UA_PubSubManager_getEncodedPubSubConfiguration(server, &buffer);
+        statusCode = UA_Server_getEncodedPubSubConfiguration(server, &buffer);
         if(statusCode == UA_STATUSCODE_GOOD)
             statusCode = writeFile(argv[2], buffer);
 

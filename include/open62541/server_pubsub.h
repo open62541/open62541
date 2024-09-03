@@ -900,12 +900,12 @@ UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId reader
 * PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
 * current PubSub configuration from the server. */
 UA_EXPORT UA_StatusCode
-UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
+UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
 	const UA_ByteString buffer);
 
 /* Saves the current PubSub configuration of a server in a byteString. */
 UA_EXPORT UA_StatusCode
-UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
+UA_Server_getEncodedPubSubConfiguration(UA_Server *server,
 	UA_ByteString *buffer);
 #endif
 

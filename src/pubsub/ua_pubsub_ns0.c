@@ -2344,7 +2344,7 @@ UA_loadPubSubConfigMethodCallback(UA_Server *server,
     if(inputSize == 1) {
         UA_LOCK(&server->serviceMutex);
         UA_ByteString *inputStr = (UA_ByteString*)input->data;
-        UA_StatusCode res = UA_PubSubManager_loadPubSubConfigFromByteString(server, *inputStr);
+        UA_StatusCode res = UA_Server_loadPubSubConfigFromByteString(server, *inputStr);
         UA_UNLOCK(&server->serviceMutex);
         return res;
     } else if(inputSize > 1) {

@@ -720,7 +720,7 @@ createDataSetFields(UA_Server *server, const UA_NodeId *pdsIdent,
 }
 
 UA_StatusCode
-UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
+UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
                                                 const UA_ByteString buffer) {
     size_t offset = 0;
     UA_ExtensionObject decodedFile;
@@ -728,7 +728,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
 
     if(server == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_loadPubSubConfigFromByteString] Invalid argument");
+                     "[UA_Server_loadPubSubConfigFromByteString] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
@@ -745,7 +745,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
     res = extractPubSubConfigFromExtensionObject(server, &decodedFile, &pubSubConfig);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_loadPubSubConfigFromByteString] "
+                     "[UA_Server_loadPubSubConfigFromByteString] "
                      "Extracting PubSub Configuration failed");
         goto cleanup;
     }
@@ -753,7 +753,7 @@ UA_PubSubManager_loadPubSubConfigFromByteString(UA_Server *server,
     res = updatePubSubConfig(server, pubSubConfig);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_loadPubSubConfigFromByteString] "
+                     "[UA_Server_loadPubSubConfigFromByteString] "
                      "Loading PubSub configuration into server failed");
         goto cleanup;
     }
@@ -1160,14 +1160,14 @@ generatePubSubConfigurationDataType(UA_Server* server,
 }
 
 UA_StatusCode
-UA_PubSubManager_getEncodedPubSubConfiguration(UA_Server *server,
+UA_Server_getEncodedPubSubConfiguration(UA_Server *server,
                                                UA_ByteString *buffer) {
     UA_PubSubConfigurationDataType config;
     memset(&config, 0, sizeof(UA_PubSubConfigurationDataType));
 
     if(server == NULL) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "[UA_PubSubManager_getEncodedPubSubConfiguration] Invalid argument");
+                     "[UA_Server_getEncodedPubSubConfiguration] Invalid argument");
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
