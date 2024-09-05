@@ -603,6 +603,12 @@ updateCertificateAndPrivateKey_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securit
     Aes128Sha256PsaOaep_PolicyContext *pc =
             (Aes128Sha256PsaOaep_PolicyContext *) securityPolicy->policyContext;
 
+    UA_Boolean isLocalKey = false;
+    if(newPrivateKey.length <= 0) {
+        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
+            isLocalKey = true;
+    }
+
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
     UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
@@ -611,12 +617,19 @@ updateCertificateAndPrivateKey_sp_aes128sha256rsaoaep(UA_SecurityPolicy *securit
         return retval;
 
     /* Set the new private key */
-    mbedtls_pk_free(&pc->localPrivateKey);
-    mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
+    if(newPrivateKey.length > 0) {
+        mbedtls_pk_free(&pc->localPrivateKey);
+        mbedtls_pk_init(&pc->localPrivateKey);
+        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext)) {
+            retval = UA_STATUSCODE_BADNOTSUPPORTED;
+            goto error;
+        }
+    } else {
+        if(!isLocalKey) {
+            mbedtls_pk_free(&pc->localPrivateKey);
+            pc->localPrivateKey = pc->csrLocalPrivateKey;
+            mbedtls_pk_init(&pc->csrLocalPrivateKey);
+        }
     }
 
     retval = asym_makeThumbprint_sp_aes128sha256rsaoaep(securityPolicy,
