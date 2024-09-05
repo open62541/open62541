@@ -780,7 +780,7 @@ UA_Server_updateCertificate(UA_Server *server,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Server_createSigningRequest(UA_Server *server,
                                const UA_NodeId certificateGroupId,
                                const UA_NodeId certificateTypeId,
@@ -788,10 +788,10 @@ UA_Server_createSigningRequest(UA_Server *server,
                                const UA_Boolean *regenerateKey,
                                const UA_ByteString *nonce,
                                UA_ByteString *csr) {
-    UA_CHECK(server && csr, return UA_STATUSCODE_BADINTERNALERROR);
+    if(!server || !csr)
+        return UA_STATUSCODE_BADINTERNALERROR;
 
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     /* The server currently only supports the DefaultApplicationGroup */
     UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
@@ -834,6 +834,9 @@ UA_Server_createSigningRequest(UA_Server *server,
                 goto cleanup;
         }
     }
+
+    UA_ByteString_clear(&server->transaction.localCsrCertificate);
+    UA_ByteString_copy(csr, &server->transaction.localCsrCertificate);
 
 cleanup:
     if(newPrivateKey)
