@@ -244,8 +244,8 @@ MQTT_eventSourceStop(UA_ConnectionManager *cm) {
        cm->eventSource.state == UA_EVENTSOURCESTATE_STOPPED)
         return;
 
-    UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                "MQTT\t| Shutting down the ConnectionManager");
+    UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                 "MQTT\t| Shutting down the ConnectionManager");
 
     MQTTConnectionManager *mcm = (MQTTConnectionManager*)cm;
     if(LIST_EMPTY(&mcm->connections)) {
