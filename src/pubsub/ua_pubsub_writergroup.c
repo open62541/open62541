@@ -498,8 +498,9 @@ UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
                        &wg->securityPolicyContext);
     } else {
         /* Update the context */
-         res = wg->config.securityPolicy->
-            setSecurityKeys(wg->securityPolicyContext, &signingKey, &encryptingKey, &keyNonce);
+        res = wg->config.securityPolicy->
+            setSecurityKeys(wg->securityPolicyContext, &signingKey,
+                            &encryptingKey, &keyNonce);
     }
 
     return (res == UA_STATUSCODE_GOOD) ?
@@ -559,8 +560,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
                 UA_LOG_WARNING_PUBSUB(psm->logging, wg,
-                                      "Cannot enable the WriterGroup "
-                                      "while the server is not running");
+                                      "Cannot enable the WriterGroup while the "
+                                      "server is not running -> Paused State");
             }
             wg->head.state = UA_PUBSUBSTATE_PAUSED;
             UA_WriterGroup_disconnect(wg);
@@ -617,7 +618,7 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     /* Inform the application about state change */
     if(wg->head.state != oldState) {
         UA_ServerConfig *pConfig = &psm->sc.server->config;
-        UA_LOG_INFO_PUBSUB(psm->logging, wg, "State change: %s -> %s",
+        UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(wg->head.state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
@@ -781,80 +782,80 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount,
                        UA_ExtensionObject *messageSettings,
                        UA_ExtensionObject *transportSettings,
-                       UA_NetworkMessage *networkMessage) {
+                       UA_NetworkMessage *nm) {
     if(messageSettings->content.decoded.type !=
        &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
             messageSettings->content.decoded.data;
 
-    networkMessage->publisherIdEnabled =
+    nm->publisherIdEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PUBLISHERID) != 0;
-    networkMessage->groupHeaderEnabled =
+    nm->groupHeaderEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPHEADER) != 0;
-    networkMessage->groupHeader.writerGroupIdEnabled =
+    nm->groupHeader.writerGroupIdEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_WRITERGROUPID) != 0;
-    networkMessage->groupHeader.groupVersionEnabled =
+    nm->groupHeader.groupVersionEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_GROUPVERSION) != 0;
-    networkMessage->groupHeader.networkMessageNumberEnabled =
+    nm->groupHeader.networkMessageNumberEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_NETWORKMESSAGENUMBER) != 0;
-    networkMessage->groupHeader.sequenceNumberEnabled =
+    nm->groupHeader.sequenceNumberEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_SEQUENCENUMBER) != 0;
-    networkMessage->payloadHeaderEnabled =
+    nm->payloadHeaderEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PAYLOADHEADER) != 0;
-    networkMessage->timestampEnabled =
+    nm->timestampEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_TIMESTAMP) != 0;
-    networkMessage->picosecondsEnabled =
+    nm->picosecondsEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PICOSECONDS) != 0;
-    networkMessage->dataSetClassIdEnabled =
+    nm->dataSetClassIdEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_DATASETCLASSID) != 0;
-    networkMessage->promotedFieldsEnabled =
+    nm->promotedFieldsEnabled =
         ((u64)wgm->networkMessageContentMask &
          (u64)UA_UADPNETWORKMESSAGECONTENTMASK_PROMOTEDFIELDS) != 0;
 
     /* Set the SecurityHeader */
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
-        networkMessage->securityEnabled = true;
-        networkMessage->securityHeader.networkMessageSigned = true;
+        nm->securityEnabled = true;
+        nm->securityHeader.networkMessageSigned = true;
         if(wg->config.securityMode >= UA_MESSAGESECURITYMODE_SIGNANDENCRYPT)
-            networkMessage->securityHeader.networkMessageEncrypted = true;
-        networkMessage->securityHeader.securityTokenId = wg->securityTokenId;
+            nm->securityHeader.networkMessageEncrypted = true;
+        nm->securityHeader.securityTokenId = wg->securityTokenId;
 
         /* Generate the MessageNonce. Four random bytes followed by a four-byte
          * sequence number */
-        UA_ByteString nonce = {4, networkMessage->securityHeader.messageNonce};
+        UA_ByteString nonce = {4, nm->securityHeader.messageNonce};
         UA_StatusCode rv = wg->config.securityPolicy->symmetricModule.
             generateNonce(wg->config.securityPolicy->policyContext, &nonce);
         if(rv != UA_STATUSCODE_GOOD)
             return rv;
-        UA_Byte *pos = &networkMessage->securityHeader.messageNonce[4];
-        const UA_Byte *end = &networkMessage->securityHeader.messageNonce[8];
+        UA_Byte *pos = &nm->securityHeader.messageNonce[4];
+        const UA_Byte *end = &nm->securityHeader.messageNonce[8];
         UA_UInt32_encodeBinary(&wg->nonceSequenceNumber, &pos, end);
-        networkMessage->securityHeader.messageNonceSize = 8;
+        nm->securityHeader.messageNonceSize = 8;
     }
 
-    networkMessage->version = 1;
-    networkMessage->networkMessageType = UA_NETWORKMESSAGE_DATASET;
+    nm->version = 1;
+    nm->networkMessageType = UA_NETWORKMESSAGE_DATASET;
     /* shallow copy of the PublisherId from connection configuration
         -> the configuration needs to be stable during publishing process
         -> it must not be cleaned after network message has been sent */
-    networkMessage->publisherId = connection->config.publisherId;
+    nm->publisherId = connection->config.publisherId;
 
-    if(networkMessage->groupHeader.sequenceNumberEnabled)
-        networkMessage->groupHeader.sequenceNumber = wg->sequenceNumber;
+    if(nm->groupHeader.sequenceNumberEnabled)
+        nm->groupHeader.sequenceNumber = wg->sequenceNumber;
 
-    if(networkMessage->groupHeader.groupVersionEnabled)
-        networkMessage->groupHeader.groupVersion = wgm->groupVersion;
+    if(nm->groupHeader.groupVersionEnabled)
+        nm->groupHeader.groupVersion = wgm->groupVersion;
 
     /* Compute the length of the dsm separately for the header */
     UA_UInt16 *dsmLengths = (UA_UInt16 *) UA_calloc(dsmCount, sizeof(UA_UInt16));
@@ -863,19 +864,20 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
     for(UA_Byte i = 0; i < dsmCount; i++)
         dsmLengths[i] = (UA_UInt16) UA_DataSetMessage_calcSizeBinary(&dsm[i], NULL, 0);
 
-    networkMessage->payloadHeader.dataSetPayloadHeader.count = dsmCount;
-    networkMessage->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
-    networkMessage->groupHeader.writerGroupId = wg->config.writerGroupId;
+    nm->payloadHeader.dataSetPayloadHeader.count = dsmCount;
+    nm->payloadHeader.dataSetPayloadHeader.dataSetWriterIds = writerIds;
+    nm->groupHeader.writerGroupId = wg->config.writerGroupId;
     /* number of the NetworkMessage inside a PublishingInterval */
-    networkMessage->groupHeader.networkMessageNumber = 1;
-    networkMessage->payload.dataSetPayload.sizes = dsmLengths;
-    networkMessage->payload.dataSetPayload.dataSetMessages = dsm;
+    nm->groupHeader.networkMessageNumber = 1;
+    nm->payload.dataSetPayload.sizes = dsmLengths;
+    nm->payload.dataSetPayload.dataSetMessages = dsm;
     return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
-sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection, UA_WriterGroup *wg,
-                         UA_DataSetMessage *dsm, UA_UInt16 *writerIds, UA_Byte dsmCount) {
+sendNetworkMessageBinary(UA_PubSubManager *psm, UA_PubSubConnection *connection,
+                         UA_WriterGroup *wg, UA_DataSetMessage *dsm, UA_UInt16 *writerIds,
+                         UA_Byte dsmCount) {
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
 
@@ -1002,7 +1004,7 @@ publishWithOffsets(UA_PubSubManager *psm, UA_WriterGroup *wg,
                              wg->bufferedMessage.encryptBuffer.data,
                              wg->bufferedMessage.encryptBuffer.data + payloadOffset,
                              wg->bufferedMessage.encryptBuffer.data +
-                                 wg->bufferedMessage.encryptBuffer.length - sigSize);
+                             wg->bufferedMessage.encryptBuffer.length - sigSize);
 
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_ERROR_PUBSUB(psm->logging, wg, "PubSub Encryption failed");

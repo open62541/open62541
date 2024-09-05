@@ -365,8 +365,8 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
                 /* Avoid repeat warnings */
                 if(oldState != UA_PUBSUBSTATE_PAUSED) {
                     UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                                          "Cannot enable the connection "
-                                          "while the server is not running");
+                                          "Cannot enable the connection while the "
+                                          "server is not running -> Paused State");
                 }
                 c->head.state = UA_PUBSUBSTATE_PAUSED;
                 UA_PubSubConnection_disconnect(c);
@@ -403,7 +403,7 @@ UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c
     /* Inform application about state change */
     if(c->head.state != oldState) {
         UA_ServerConfig *config = &psm->sc.server->config;
-        UA_LOG_INFO_PUBSUB(psm->logging, c, "State change: %s -> %s",
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
         if(config->pubSubConfig.stateChangeCallback) {
