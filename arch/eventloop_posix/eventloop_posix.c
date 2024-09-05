@@ -124,8 +124,8 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "Starting the EventLoop");
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Starting the EventLoop");
 
     /* Setting the clock source */
     const UA_Int32 *cs = (const UA_Int32*)
@@ -245,8 +245,8 @@ checkClosed(UA_EventLoopPOSIX *el) {
     close(el->epollfd);
 #endif
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "The EventLoop has stopped");
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "The EventLoop has stopped");
 }
 
 static void
@@ -260,8 +260,8 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
         return;
     }
 
-    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "Stopping the EventLoop");
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                 "Stopping the EventLoop");
 
     /* Set to STOPPING to prevent "normal use" */
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
@@ -301,7 +301,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_FRESH ||
        el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Cannot iterate a stopped EventLoop");
+                       "Cannot run a stopped EventLoop");
         el->executing = false;
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
