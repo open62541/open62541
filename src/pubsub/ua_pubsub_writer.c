@@ -120,7 +120,7 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
     /* Inform application about state change */
     if(dsw->head.state != oldState) {
         UA_Server *server = psm->sc.server;
-        UA_LOG_INFO_PUBSUB(psm->logging, dsw, "State change: %s -> %s",
+        UA_LOG_INFO_PUBSUB(psm->logging, dsw, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsw->head.state));
         if(server->config.pubSubConfig.stateChangeCallback != 0) {
@@ -137,10 +137,10 @@ UA_DataSetWriter_setPubSubState(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 UA_StatusCode
 UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
-                        const UA_DataSetWriterConfig *dataSetWriterConfig,
+                        const UA_DataSetWriterConfig *dswConfig,
                         UA_NodeId *writerIdentifier) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
-    if(!dataSetWriterConfig)
+    if(!dswConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup);
@@ -148,7 +148,7 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         return UA_STATUSCODE_BADNOTFOUND;
 
     /* Make checks for a heartbeat */
-    if(UA_NodeId_isNull(&dataSet) && dataSetWriterConfig->keyFrameCount != 1) {
+    if(UA_NodeId_isNull(&dataSet) && dswConfig->keyFrameCount != 1) {
         UA_LOG_WARNING_PUBSUB(psm->logging, wg,
                               "Adding DataSetWriter failed: DataSet can be null only for "
                               "a heartbeat in which case KeyFrameCount shall be 1");
@@ -167,8 +167,12 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
 
     if(!UA_NodeId_isNull(&dataSet)) {
         pds = UA_PublishedDataSet_find(psm, dataSet);
-        if(!pds)
+        if(!pds) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                                  "Cannot add the DataSetWriter: "
+                                  "The PublishedDataSet was not found");
             return UA_STATUSCODE_BADNOTFOUND;
+        }
 
         if(wg->config.rtLevel != UA_PUBSUB_RT_NONE) {
             UA_DataSetField *tmpDSF;
@@ -184,75 +188,72 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
         }
     }
 
-    UA_DataSetWriter *newDataSetWriter = (UA_DataSetWriter *)
+    UA_DataSetWriter *dsw = (UA_DataSetWriter *)
         UA_calloc(1, sizeof(UA_DataSetWriter));
-    if(!newDataSetWriter)
+    if(!dsw)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    newDataSetWriter->head.componentType = UA_PUBSUBCOMPONENT_DATASETWRITER;
-    newDataSetWriter->linkedWriterGroup = wg;
+    dsw->head.componentType = UA_PUBSUBCOMPONENT_DATASETWRITER;
+    dsw->linkedWriterGroup = wg;
 
     /* Copy the config into the new dataSetWriter */
-    UA_StatusCode res =
-        UA_DataSetWriterConfig_copy(dataSetWriterConfig, &newDataSetWriter->config);
-    UA_CHECK_STATUS(res, UA_free(newDataSetWriter); return res);
+    UA_StatusCode res = UA_DataSetWriterConfig_copy(dswConfig, &dsw->config);
+    UA_CHECK_STATUS(res, UA_free(dsw); return res);
 
     if(pds) {
         /* Save the current version of the connected PublishedDataSet */
-        newDataSetWriter->connectedDataSetVersion =
-            pds->dataSetMetaData.configurationVersion;
+        dsw->connectedDataSetVersion = pds->dataSetMetaData.configurationVersion;
 
         if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
             /* Initialize the queue for the last values */
             if(pds->fieldSize > 0) {
-                newDataSetWriter->lastSamples = (UA_DataSetWriterSample*)
+                dsw->lastSamples = (UA_DataSetWriterSample*)
                     UA_calloc(pds->fieldSize, sizeof(UA_DataSetWriterSample));
-                if(!newDataSetWriter->lastSamples) {
-                    UA_DataSetWriterConfig_clear(&newDataSetWriter->config);
-                    UA_free(newDataSetWriter);
+                if(!dsw->lastSamples) {
+                    UA_DataSetWriterConfig_clear(&dsw->config);
+                    UA_free(dsw);
                     return UA_STATUSCODE_BADOUTOFMEMORY;
                 }
-                newDataSetWriter->lastSamplesCount = pds->fieldSize;
-                for(size_t i = 0; i < newDataSetWriter->lastSamplesCount; i++) {
-                    UA_DataValue_init(&newDataSetWriter->lastSamples[i].value);
-                    newDataSetWriter->lastSamples[i].valueChanged = false;
+                dsw->lastSamplesCount = pds->fieldSize;
+                for(size_t i = 0; i < dsw->lastSamplesCount; i++) {
+                    UA_DataValue_init(&dsw->lastSamples[i].value);
+                    dsw->lastSamples[i].valueChanged = false;
                 }
             }
         }
         /* Connect PublishedDataSet with DataSetWriter */
-        newDataSetWriter->connectedDataSet = pds;
+        dsw->connectedDataSet = pds;
     } else {
         /* If the dataSet is NULL, we are adding a heartbeat writer */
-        newDataSetWriter->connectedDataSetVersion.majorVersion = 0;
-        newDataSetWriter->connectedDataSetVersion.minorVersion = 0;
-        newDataSetWriter->connectedDataSet = NULL;
+        dsw->connectedDataSetVersion.majorVersion = 0;
+        dsw->connectedDataSetVersion.minorVersion = 0;
+        dsw->connectedDataSet = NULL;
     }
 
     /* Add the new writer to the group */
-    LIST_INSERT_HEAD(&wg->writers, newDataSetWriter, listEntry);
+    LIST_INSERT_HEAD(&wg->writers, dsw, listEntry);
     wg->writersCount++;
 
     /* Add to the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    res |= addDataSetWriterRepresentation(psm->sc.server, newDataSetWriter);
+    res |= addDataSetWriterRepresentation(psm->sc.server, dsw);
 #else
-    UA_PubSubManager_generateUniqueNodeId(psm,
-                                          &newDataSetWriter->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &dsw->head.identifier);
 #endif
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "%SDataSetWriter %N\t| ",
-                newDataSetWriter->linkedWriterGroup->head.logIdString,
-                newDataSetWriter->head.identifier);
-    newDataSetWriter->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
+                dsw->linkedWriterGroup->head.logIdString,
+                dsw->head.identifier);
+    dsw->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(psm->logging, newDataSetWriter,
+    UA_LOG_INFO_PUBSUB(psm->logging, dsw,
                        "DataSetWriter created (State: %s)",
-                       UA_PubSubState_name(newDataSetWriter->head.state));
+                       UA_PubSubState_name(dsw->head.state));
 
     if(writerIdentifier)
-        UA_NodeId_copy(&newDataSetWriter->head.identifier, writerIdentifier);
+        UA_NodeId_copy(&dsw->head.identifier, writerIdentifier);
     return res;
 }
 
@@ -379,8 +380,6 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsw, "Writer deleted");
 
-    UA_DataSetWriterConfig_clear(&dsw->config);
-
     if(psm->sc.server->config.pubSubConfig.enableDeltaFrames) {
         /* Delete lastSamples store */
         for(size_t i = 0; i < dsw->lastSamplesCount; i++) {
@@ -391,8 +390,10 @@ UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
         dsw->lastSamplesCount = 0;
     }
 
+    UA_DataSetWriterConfig_clear(&dsw->config);
     UA_PubSubComponentHead_clear(&dsw->head);
     UA_free(dsw);
+
     return UA_STATUSCODE_GOOD;
 }
 

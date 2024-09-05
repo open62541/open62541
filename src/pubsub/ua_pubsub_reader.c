@@ -362,7 +362,8 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     }
 
     /* Only keep the timeout callback if the reader is operational */
-    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL && dsr->msgRcvTimeoutTimerId != 0) {
+    if(dsr->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->msgRcvTimeoutTimerId != 0) {
         UA_EventLoop *el = UA_PubSubConnection_getEL(psm, rg->linkedConnection);
         el->removeTimer(el, dsr->msgRcvTimeoutTimerId);
         dsr->msgRcvTimeoutTimerId = 0;
@@ -371,7 +372,7 @@ UA_DataSetReader_setPubSubState(UA_PubSubManager *psm, UA_DataSetReader *dsr,
     /* Inform application about state change */
     if(dsr->head.state != oldState) {
         UA_ServerConfig *config = &psm->sc.server->config;
-        UA_LOG_INFO_PUBSUB(psm->logging, dsr, "State change: %s -> %s",
+        UA_LOG_INFO_PUBSUB(psm->logging, dsr, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(dsr->head.state));
         if(config->pubSubConfig.stateChangeCallback != 0) {

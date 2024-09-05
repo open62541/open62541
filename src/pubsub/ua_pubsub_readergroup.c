@@ -374,8 +374,8 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
             /* Avoid repeat warnings */
             if(oldState != UA_PUBSUBSTATE_PAUSED) {
                 UA_LOG_WARNING_PUBSUB(psm->logging, rg,
-                                      "Cannot enable the ReaderGroup "
-                                      "while the server is not running");
+                                      "Cannot enable the ReaderGroup while the "
+                                      "server is not running -> Paused State");
             }
             rg->head.state = UA_PUBSUBSTATE_PAUSED;
             UA_ReaderGroup_disconnect(rg);
@@ -421,7 +421,7 @@ UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     /* Inform application about state change */
     if(rg->head.state != oldState) {
         UA_ServerConfig *pConfig = &psm->sc.server->config;
-        UA_LOG_INFO_PUBSUB(psm->logging, rg, "State change: %s -> %s",
+        UA_LOG_INFO_PUBSUB(psm->logging, rg, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(rg->head.state));
         if(pConfig->pubSubConfig.stateChangeCallback != 0) {
@@ -500,8 +500,7 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_Boolean processed = false;
     UA_DataSetReader *reader, *reader_tmp;
     LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
-        UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, nm,
-                                                             reader, rg->config);
+        UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, nm, reader, rg->config);
         if(res != UA_STATUSCODE_GOOD)
             continue;
 
