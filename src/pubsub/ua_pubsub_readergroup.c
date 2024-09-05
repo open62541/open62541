@@ -716,7 +716,7 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
         rv = securityPolicy->symmetricModule.cryptoModule.signatureAlgorithm.
             verify(channelContext, &toBeVerified, &signature);
         UA_CHECK_STATUS_WARN(rv, return rv, logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                             "PubSub receive. Signature nvalid");
+                             "PubSub receive. Signature invalid");
 
         /* Remove the signature from the ctx->end. We do not want to decode that. */
         ctx->end -= sigSize;
