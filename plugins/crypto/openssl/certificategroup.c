@@ -797,6 +797,109 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2) {
+    if(certificate1 == NULL || certificate2 == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    BIO *dataBio1 = BIO_new_mem_buf(certificate1->data, certificate1->length);
+    if(!dataBio1)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    BIO *dataBio2 = BIO_new_mem_buf(certificate2->data, certificate2->length);
+    if(!dataBio2) {
+        BIO_free(dataBio1);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    X509 *cert1 = NULL;
+    X509 *cert2 = NULL;
+    X509_REQ *csr1 = NULL;
+    X509_REQ *csr2 = NULL;
+    /* Try to read the certificate as PEM first */
+    cert1 = PEM_read_bio_X509(dataBio1, NULL, 0, NULL);
+    if(!cert1) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(dataBio1);
+        cert1 = d2i_X509_bio(dataBio1, NULL);
+    }
+    /* Try to read as a csr */
+    if(!cert1) {
+        BIO_reset(dataBio1);
+        csr1 = PEM_read_bio_X509_REQ(dataBio1, NULL, 0, NULL);
+        if(!csr1) {
+            BIO_reset(dataBio1);
+            csr1 = d2i_X509_REQ_bio(dataBio1, NULL);
+        }
+    }
+    if(!cert1 && !csr1) {
+        BIO_free(dataBio1);
+        BIO_free(dataBio2);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    cert2 = PEM_read_bio_X509(dataBio2, NULL, 0, NULL);
+    if(!cert2) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(dataBio2);
+        cert2 = d2i_X509_bio(dataBio2, NULL);
+    }
+    /* Try to load as a csr */
+    if(!cert2) {
+        BIO_reset(dataBio2);
+        csr2 = PEM_read_bio_X509_REQ(dataBio2, NULL, 0, NULL);
+        if(!csr2) {
+            BIO_reset(dataBio2);
+            csr2 = d2i_X509_REQ_bio(dataBio2, NULL);
+        }
+    }
+    if(!cert2 && !csr2) {
+        X509_free(cert1);
+        X509_REQ_free(csr1);
+        BIO_free(dataBio1);
+        BIO_free(dataBio2);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    BIO_free(dataBio1);
+    BIO_free(dataBio2);
+
+    EVP_PKEY *pkey1 = cert1 ? X509_get_pubkey(cert1) : X509_REQ_get_pubkey(csr1);
+    EVP_PKEY *pkey2 = cert2 ? X509_get_pubkey(cert2) : X509_REQ_get_pubkey(csr2);
+
+    X509_free(cert1);
+    X509_free(cert2);
+    X509_REQ_free(csr1);
+    X509_REQ_free(csr2);
+
+    if(!pkey1 || !pkey2) {
+        EVP_PKEY_free(pkey1);
+        EVP_PKEY_free(pkey2);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+    int isEqual = EVP_PKEY_eq(pkey1, pkey2);
+    if(isEqual == 0)
+        retval = UA_STATUSCODE_BADNOMATCH;
+    if(isEqual < 0)
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+#else
+    int isEqual = EVP_PKEY_cmp(pkey1, pkey2);
+    if(isEqual == 0)
+        retval = UA_STATUSCODE_BADNOMATCH;
+    if(isEqual < 0)
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+#endif
+
+    EVP_PKEY_free(pkey1);
+    EVP_PKEY_free(pkey2);
+
+    return retval;
+}
+
 static int
 privateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
     (void) rwflag;
