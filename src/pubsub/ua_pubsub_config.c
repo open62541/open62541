@@ -1173,7 +1173,7 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_LOCK(&server->serviceMutex, 1);
+    UA_LOCK(&server->serviceMutex);
 
     UA_StatusCode res = generatePubSubConfigurationDataType(server, &config);
     if(res != UA_STATUSCODE_GOOD) {
