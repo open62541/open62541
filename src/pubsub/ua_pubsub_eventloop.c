@@ -166,6 +166,9 @@ PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_PubSubManager *psm = (UA_PubSubManager*)application;
     UA_Server *server = psm->sc.server;
 
+    UA_LOG_TRACE_PUBSUB(psm->logging, psc,
+                        "Connection Callback with state %i", state);
+
     UA_LOCK(&server->serviceMutex);
 
     /* The connection is closing in the EventLoop. This is the last callback

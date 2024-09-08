@@ -495,9 +495,8 @@ UA_DataSetReader_process(UA_PubSubManager *psm,
                          UA_DataSetMessage *dataSetMsg);
 
 UA_StatusCode
-UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_NetworkMessage *msg,
-                                 UA_DataSetReader *reader,
-                                 UA_ReaderGroupConfig readerGroupConfig);
+UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                                 UA_NetworkMessage *msg);
 
 UA_StatusCode
 UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,

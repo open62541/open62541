@@ -48,16 +48,12 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
     LIST_FOREACH(rg, &connection->readerGroups, listEntry) {
         UA_DataSetReader *reader;
         LIST_FOREACH(reader, &rg->readers, listEntry) {
-            UA_StatusCode retval =
-                UA_DataSetReader_checkIdentifier(psm, nm, reader, rg->config);
-            if(retval != UA_STATUSCODE_GOOD)
+            UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
+            if(res != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
             rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx, nm, rg);
             if(rv != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_PUBSUB(psm->logging, connection,
-                                      "Subscribe failed, verify and decrypt "
-                                      "network message failed.");
                 UA_NetworkMessage_clear(nm);
                 return rv;
             }
@@ -69,17 +65,11 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_INFO_PUBSUB(psm->logging, connection,
-                           "Dataset reader not found. Check PublisherId, "
-                           "WriterGroupId and DatasetWriterId");
-        /* Possible multicast scenario: there are multiple connections (with one
-         * or more ReaderGroups) within a multicast group every connection
-         * receives all network messages, even if some of them are not meant for
-         * the connection currently processed -> therefore it is ok if the
-         * connection does not have a DataSetReader for every received network
-         * message. We must not return an error here, but continue with the
-         * buffer decoding and see if we have a matching DataSetReader for the
-         * next network message. */
+        UA_LOG_WARNING_PUBSUB(psm->logging, connection,
+                              "Could not decode the received NetworkMessage "
+                              "-- No matching ReaderGroup");
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
@@ -166,6 +156,16 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     TAILQ_INSERT_HEAD(&psm->connections, c, listEntry);
     psm->connectionsSize++;
 
+    /* Validate-connect to check the parameters */
+    ret = UA_PubSubConnection_connect(psm, c, true);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "Could not create the PubSubConnection. "
+                     "The connection parameters did not validate.");
+        UA_PubSubConnection_delete(psm, c);
+        return ret;
+    }
+
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
@@ -174,23 +174,12 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
     UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
                        UA_PubSubState_name(c->head.state));
 
-    /* Validate-connect to check the parameters */
-    ret = UA_PubSubConnection_connect(psm, c, true);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(psm->logging, c,
-                            "Could not validate connection parameters");
-        goto cleanup;
-    }
-
     /* Copy the created NodeId to the output. Cannot fail as we create a
      * numerical NodeId. */
     if(cId)
         UA_NodeId_copy(&c->head.identifier, cId);
-    return ret;
 
- cleanup:
-    UA_PubSubConnection_delete(psm, c);
-    return ret;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
@@ -271,6 +260,8 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_ByteString msg) {
+    UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
+
     /* Process RT ReaderGroups */
     UA_ReaderGroup *rg;
     UA_Boolean processed = false;
@@ -299,15 +290,19 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Decoding the JSON network message failed");
+        }
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
+        UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                              "JSON support is not activated");
 #endif
     }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                              "Verify, decrypt and decode network message failed");
+
+    if(res != UA_STATUSCODE_GOOD)
         return;
-    }
 
     /* Process the received message for the non-RT ReaderGroups */
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {

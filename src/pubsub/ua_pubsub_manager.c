@@ -457,6 +457,9 @@ UA_PubSubManager_start(UA_ServerComponent *sc, UA_Server *server) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Re-cache for the case that the configuration has been updated */
+    psm->logging = server->config.logging;
+
     UA_PubSubManager_setState(psm, UA_LIFECYCLESTATE_STARTED);
 
     return UA_STATUSCODE_GOOD;
