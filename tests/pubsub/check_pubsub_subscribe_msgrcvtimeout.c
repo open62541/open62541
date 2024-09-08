@@ -52,7 +52,6 @@ AddConnection(char *pName, UA_UInt32 PublisherId, UA_NodeId *opConnectionId) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING(pName);
-    connectionConfig.enabled = UA_TRUE;
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
     UA_NetworkAddressUrlDataType networkAddressUrl =

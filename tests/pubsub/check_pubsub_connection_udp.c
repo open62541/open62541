@@ -197,7 +197,6 @@ START_TEST(AddSingleConnectionWithMaximalConfiguration){
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConf.name = UA_STRING("UADP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConf.enabled = true;
     connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
     connectionConf.publisherId.id.uint64 = 223344;
     connectionConf.connectionProperties.mapSize = 3;
@@ -229,7 +228,6 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     memset(&connectionConf, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConf.name = UA_STRING("UADP Connection");
     connectionConf.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConf.enabled = true;
     connectionConf.publisherId.idType = UA_PUBLISHERIDTYPE_UINT64;
     connectionConf.publisherId.id.uint64 = 223344;
     connectionConf.connectionProperties.mapSize = 3;

@@ -36,7 +36,6 @@ addMinimalPubSubConfiguration(void){
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.enabled = UA_TRUE;
     connectionConfig.eventLoop = rtEventLoop;
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl, &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
@@ -127,7 +126,6 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_DIRECT_VALUE_ACCESS;
@@ -171,7 +169,6 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_DIRECT_VALUE_ACCESS;
@@ -214,7 +211,6 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Test WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_DIRECT_VALUE_ACCESS;
@@ -252,7 +248,6 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
@@ -304,7 +299,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
@@ -355,7 +349,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;
@@ -496,7 +489,6 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
         writerGroupConfig.rtLevel = UA_PUBSUB_RT_FIXED_SIZE;

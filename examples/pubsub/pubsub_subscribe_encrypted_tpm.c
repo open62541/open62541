@@ -45,7 +45,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UDPMC Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
