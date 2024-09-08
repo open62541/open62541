@@ -59,8 +59,6 @@ START_TEST(SinglePublishDataSetField){
     UA_StatusCode retVal =
         UA_Server_addWriterGroup(server, connection1, &writerGroupConfig, &writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    retVal = UA_Server_enableWriterGroup(server, writerGroup1);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_PublishedDataSetConfig pdsConfig;
     memset(&pdsConfig, 0, sizeof(UA_PublishedDataSetConfig));
@@ -87,6 +85,12 @@ START_TEST(SinglePublishDataSetField){
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal = UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1,
                                         &dataSetWriterConfig, &dataSetWriter1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableDataSetWriter(server, dataSetWriter1);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+
+    retVal = UA_Server_enableWriterGroup(server, writerGroup1);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     UA_Server_WriterGroup_publish(server, writerGroup1);

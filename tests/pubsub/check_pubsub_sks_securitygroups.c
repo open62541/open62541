@@ -287,6 +287,12 @@ START_TEST(AddSecurityGroupWithKeyManagement){
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
     ck_assert_uint_eq(ks->keyListSize, 1 + config.maxFutureKeyCount);
+    UA_UNLOCK(&server->serviceMutex);
+
+    retval = UA_Server_enableAllPubSubComponents(server);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_LOCK(&server->serviceMutex);
     UA_UInt32 expectKeyId = 1;
     UA_PubSubKeyListItem *iterator = TAILQ_FIRST(&ks->keyList);
     for (size_t i = 0; i < ks->keyListSize; i++) {
@@ -299,7 +305,7 @@ START_TEST(AddSecurityGroupWithKeyManagement){
     UA_UNLOCK(&server->serviceMutex);
 } END_TEST
 
-START_TEST(SecurityGroupPeriodicInsertNewKeys){
+START_TEST(SecurityGroupPeriodicInsertNewKeys) {
     UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_NodeId securityGroupNodeId;
     UA_NodeId securityGroupParent =
@@ -323,18 +329,18 @@ START_TEST(SecurityGroupPeriodicInsertNewKeys){
     ck_assert_ptr_ne(sg, NULL);
     UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, sg->securityGroupId);
     ck_assert_ptr_ne(ks, NULL);
+    UA_UNLOCK(&server->serviceMutex);
 
     UA_UInt32 expectKeyId = 1;
     UA_PubSubKeyListItem *preLastItem = TAILQ_LAST(&ks->keyList, keyListItems);
-    UA_UNLOCK(&server->serviceMutex);
     for (size_t i = 0; i < ks->keyListSize; i++) {
         UA_fakeSleep(500);
+        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_Server_run_iterate(server, false);
         UA_PubSubKeyListItem *newlastItem = TAILQ_LAST(&ks->keyList, keyListItems);
         ck_assert_uint_eq(ks->keyListSize, config.maxPastKeyCount + 1 + config.maxFutureKeyCount);
         ck_assert_ptr_eq(preLastItem->keyListEntry.tqe_next, newlastItem);
-        ck_assert_uint_eq(preLastItem->keyID + 1 ,  newlastItem->keyID);
-        ck_assert(UA_ByteString_equal(&preLastItem->keyListEntry.tqe_next->key, &newlastItem->key) == UA_TRUE);
+        ck_assert_uint_eq(preLastItem->keyID + 1,  newlastItem->keyID);
         preLastItem = newlastItem;
         expectKeyId++;
     }
