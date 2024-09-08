@@ -6,14 +6,12 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
-
 UA_DataSetReaderConfig readerConfig;
 
 static void
@@ -70,14 +68,9 @@ addSubscribedDataSet(UA_Server *server) {
 }
 
 /* Add new connection to the server */
-static UA_StatusCode
+static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    if((server == NULL) || (transportProfile == NULL) || (networkAddressUrl == NULL)) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UDPMC Connection 1");
@@ -87,32 +80,22 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
     connectionConfig.publisherId.id.uint32 = UA_UInt32_random();
-    return UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
+    UA_Server_addPubSubConnection(server, &connectionConfig, &connectionIdentifier);
 }
 
 /* Add ReaderGroup to the created connection */
-static UA_StatusCode
+static void
 addReaderGroup(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig readerGroupConfig;
     memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
-    retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
-                                       &readerGroupIdentifier);
-    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
-    return retval;
+    UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
+                             &readerGroupIdentifier);
 }
 
 /* Add DataSetReader to the ReaderGroup */
-static UA_StatusCode
+static void
 addDataSetReader(UA_Server *server) {
-    if(server == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
@@ -128,43 +111,24 @@ addDataSetReader(UA_Server *server) {
     readerConfig.linkedStandaloneSubscribedDataSetName = UA_STRING("DemoStandaloneSDS");
 
     /* DataSetMetaData already contained in Standalone SDS no need to set up */
-    return UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                      &readerIdentifier);
+    UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
+                               &readerIdentifier);
 }
 
-UA_Boolean running = true;
 static void
-stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
-static int
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-    /* Return value initialized to Status Good */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setDefault(config);
 
     addTargetVariable(server);
     addSubscribedDataSet(server);
-
-    /* Add PubSub configuration */
     addPubSubConnection(server, transportProfile, networkAddressUrl);
+    addReaderGroup(server);
+    addDataSetReader(server);
 
-    /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
-
-    /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server);
-
-    retval |= UA_Server_run(server, &running);
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -202,5 +166,6 @@ main(int argc, char **argv) {
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

@@ -8,6 +8,7 @@
 #include <open62541/server_config_default.h>
 
 #include <stdlib.h>
+#include <signal.h>
 
 UA_NodeId publishedDataSetIdent, dataSetFieldIdent, writerGroupIdent, connectionIdentifier;
 UA_UInt32 *integerRTValue, *integerRTValue2;
@@ -86,7 +87,6 @@ int main(void){
     connectionConfig.name = UA_STRING("UDP-UADP Connection 1");
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
-    connectionConfig.enabled = UA_TRUE;
     UA_NetworkAddressUrlDataType networkAddressUrl =
         {UA_STRING_NULL , UA_STRING("opc.udp://224.0.0.22:4840/")};
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
@@ -109,7 +109,6 @@ int main(void){
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = 1000;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     UA_UadpWriterGroupMessageDataType writerGroupMessage;
@@ -178,7 +177,7 @@ int main(void){
     dsfConfig2.field.variable.fieldNameAlias = UA_STRING("Field 2");
     UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig2, NULL);
 
-    UA_Server_enableWriterGroup(server, writerGroupIdent);
+    UA_Server_enableAllPubSubComponents(server);
 
     UA_Server_addRepeatedCallback(server, cyclicValueUpdateCallback_UpdateToMemory,
                                   NULL, 1000, NULL);
