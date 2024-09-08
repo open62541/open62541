@@ -500,13 +500,13 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
     UA_Boolean processed = false;
     UA_DataSetReader *reader, *reader_tmp;
     LIST_FOREACH_SAFE(reader, &rg->readers, listEntry, reader_tmp) {
-        UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, nm, reader, rg->config);
-        if(res != UA_STATUSCODE_GOOD)
-            continue;
-
         /* Check if the reader is enabled */
         if(reader->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            reader->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
+            continue;
+
+        UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
+        if(res != UA_STATUSCODE_GOOD)
             continue;
 
         /* Update the ReaderGroup state if this is the first received message */
@@ -517,6 +517,8 @@ UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
 
         /* The message was processed by at least one reader */
         processed = true;
+
+        UA_LOG_TRACE_PUBSUB(psm->logging, rg, "Processing a NetworkMessage");
 
         /* No payload header. The message ontains a single DataSetMessage that
          * is processed by every Reader. */
@@ -597,8 +599,7 @@ UA_ReaderGroup_decodeAndProcessRT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
             continue;
 
         /* Check the identifier */
-        rv = UA_DataSetReader_checkIdentifier(psm, &currentNetworkMessage,
-                                              dsr, rg->config);
+        rv = UA_DataSetReader_checkIdentifier(psm, dsr, &currentNetworkMessage);
         if(rv != UA_STATUSCODE_GOOD) {
             UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
                                 "PubSub receive. Message intended for a different reader.");

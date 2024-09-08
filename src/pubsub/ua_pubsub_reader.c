@@ -34,46 +34,70 @@ publisherIdIsMatching(UA_NetworkMessage *msg, UA_PublisherId *idB) {
     return false;
 }
 
-UA_StatusCode
-UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_NetworkMessage *msg,
-                                 UA_DataSetReader *reader,
-                                 UA_ReaderGroupConfig readerGroupConfig) {
-    if(readerGroupConfig.encodingMimeType != UA_PUBSUB_ENCODING_JSON){
-        if(!publisherIdIsMatching(msg, &reader->config.publisherId)) {
-            return UA_STATUSCODE_BADNOTFOUND;
-        }
-        if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
-            if(reader->config.writerGroupId != msg->groupHeader.writerGroupId) {
-                UA_LOG_DEBUG_PUBSUB(psm->logging, reader,
-                                    "WriterGroupId doesn't match");
-                return UA_STATUSCODE_BADNOTFOUND;
-            }
-        }
-        if(msg->payloadHeaderEnabled) {
-            UA_Byte totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
-            UA_Byte iterator = 0;
-            for(iterator = 0; iterator < totalDataSets; iterator++) { 
-                UA_UInt32 dswId = msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[iterator];
-                if(reader->config.dataSetWriterId == dswId)
-                    return UA_STATUSCODE_GOOD;
-            }
-            if(iterator == totalDataSets) {
-                UA_LOG_DEBUG_PUBSUB(psm->logging, reader, "DataSetWriterId doesn't match");
-                return UA_STATUSCODE_BADNOTFOUND;
-            }
-        }
-        return UA_STATUSCODE_GOOD;
-    } else {
-        if(!publisherIdIsMatching(msg, &reader->config.publisherId))
-            return UA_STATUSCODE_BADNOTFOUND;
+#if UA_LOGLEVEL <= 200
+static void
+printPublisherId(char *out, size_t size, UA_PublisherId *id) {
+    switch(id->idType) {
+    case UA_PUBLISHERIDTYPE_BYTE:   mp_snprintf(out, size, "(b)%u", (unsigned)id->id.byte); break;
+    case UA_PUBLISHERIDTYPE_UINT16: mp_snprintf(out, size, "(u16)%u", (unsigned)id->id.uint16); break;
+    case UA_PUBLISHERIDTYPE_UINT32: mp_snprintf(out, size, "(u32)%u", (unsigned)id->id.uint32); break;
+    case UA_PUBLISHERIDTYPE_UINT64: mp_snprintf(out, size, "(u64)%lu", id->id.uint64); break;
+    case UA_PUBLISHERIDTYPE_STRING: mp_snprintf(out, size, "\"%S\"", id->id.string); break;
+    default: out[0] = 0; break;
+    }
+}
+#endif
 
-        if(reader->config.dataSetWriterId == *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
-            UA_LOG_DEBUG_PUBSUB(psm->logging, reader,
-                                "DataSetReader found. Process NetworkMessage");
+UA_StatusCode
+UA_DataSetReader_checkIdentifier(UA_PubSubManager *psm, UA_DataSetReader *dsr,
+                                 UA_NetworkMessage *msg) {
+    if(!publisherIdIsMatching(msg, &dsr->config.publisherId)) {
+#if UA_LOGLEVEL <= 200
+        char idAStr[512];
+        char idBStr[512];
+        printPublisherId(idAStr, 512, &dsr->config.publisherId);
+        printPublisherId(idBStr, 512, &msg->publisherId);
+        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "PublisherId does not match. "
+                            "Expected %s, received %s", idAStr, idBStr);
+#endif
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    UA_ReaderGroup *rg = dsr->linkedReaderGroup;
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) {
+        if(dsr->config.dataSetWriterId ==
+           *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds) {
             return UA_STATUSCODE_GOOD;
         }
+
+        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "DataSetWriterId does not match. "
+                            "Expected %u, received %u", dsr->config.dataSetWriterId,
+                            *msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds);
+        return UA_STATUSCODE_BADNOTFOUND;
     }
-    return UA_STATUSCODE_BADNOTFOUND;
+
+    if(msg->groupHeaderEnabled && msg->groupHeader.writerGroupIdEnabled) {
+        if(dsr->config.writerGroupId != msg->groupHeader.writerGroupId) {
+            UA_LOG_DEBUG_PUBSUB(psm->logging, dsr, "WriterGroupId does not match. "
+                                "Expected %u, received %u", dsr->config.writerGroupId,
+                                msg->groupHeader.writerGroupId);
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+    }
+
+    if(msg->payloadHeaderEnabled) {
+        UA_Byte totalDataSets = msg->payloadHeader.dataSetPayloadHeader.count;
+        for(size_t i = 0; i < totalDataSets; i++) {
+            UA_UInt32 dswId = msg->payloadHeader.dataSetPayloadHeader.dataSetWriterIds[i];
+            if(dsr->config.dataSetWriterId == dswId)
+                return UA_STATUSCODE_GOOD;
+        }
+        UA_LOG_DEBUG_PUBSUB(psm->logging, dsr,
+                            "DataSetWriterIds in the payload do not match");
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_DataSetReader *
@@ -270,17 +294,17 @@ UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
     if(sds && sds->connectedReader == dsr)
         sds->connectedReader = NULL;
 
-    UA_DataSetReaderConfig_clear(&dsr->config);
-    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
-
     /* Remove DataSetReader from group */
     LIST_REMOVE(dsr, listEntry);
     rg->readersCount--;
 
     UA_LOG_INFO_PUBSUB(psm->logging, dsr, "DataSetReader deleted");
 
+    UA_DataSetReaderConfig_clear(&dsr->config);
+    UA_NetworkMessageOffsetBuffer_clear(&dsr->bufferedMessage);
     UA_PubSubComponentHead_clear(&dsr->head);
     UA_free(dsr);
+
     return UA_STATUSCODE_GOOD;
 }
 
