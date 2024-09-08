@@ -138,7 +138,6 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -158,6 +157,9 @@ START_TEST(PublishSingleFieldWithStaticValueSource) {
 
         /* DataSetWriter muste be added AFTER addDataSetField otherwize lastSamples will be uninitialized */
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_enableDataSetWriter(server, dataSetWriterIdent) == UA_STATUSCODE_GOOD);
 
         UA_Server_run_iterate(server, false);
 } END_TEST
@@ -182,7 +184,6 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         UA_StatusCode res = UA_Server_addWriterGroup(server, connectionIdentifier,
                                                      &writerGroupConfig, &writerGroupIdent);
         ck_assert(res == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -200,6 +201,9 @@ START_TEST(PublishSingleFieldWithDifferentBinarySizes) {
         dsfConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_enableDataSetWriter(server, dataSetWriterIdent) == UA_STATUSCODE_GOOD);
 
         UA_Server_run_iterate(server, false);
     } END_TEST
@@ -221,7 +225,6 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -239,6 +242,8 @@ START_TEST(SetupInvalidPubSubConfigWithStaticValueSource) {
         UA_Server_addDataSetField(server, publishedDataSetIdent,
                                   &dataSetFieldConfig, &dataSetFieldIdent);
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_BADCONFIGURATIONERROR);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
     } END_TEST
 
 START_TEST(PublishSingleFieldWithFixedOffsets) {
@@ -258,7 +263,6 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -277,6 +281,10 @@ START_TEST(PublishSingleFieldWithFixedOffsets) {
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_enableDataSetWriter(server, dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
 
@@ -307,7 +315,6 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -333,6 +340,10 @@ START_TEST(PublishPDSWithMultipleFieldsAndFixedOffset) {
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, NULL).result == UA_STATUSCODE_GOOD);
 
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_enableDataSetWriter(server, dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
         UA_Server_run_iterate(server, false);
@@ -355,7 +366,6 @@ START_TEST(PublishSingleFieldInCustomCallback) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(UA_DataSetWriterConfig));
@@ -374,6 +384,10 @@ START_TEST(PublishSingleFieldInCustomCallback) {
         ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, &dataSetFieldIdent).result == UA_STATUSCODE_GOOD);
 
         ck_assert(UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent, &dataSetWriterConfig, &dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+        ck_assert(UA_Server_enableDataSetWriter(server, dataSetWriterIdent) == UA_STATUSCODE_GOOD);
+
         UA_fakeSleep(50 + 1);
         UA_Server_run_iterate(server, true);
 
@@ -493,7 +507,6 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE];
         writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
         ck_assert(UA_Server_addWriterGroup(server, connectionIdentifier, &writerGroupConfig, &writerGroupIdent) == UA_STATUSCODE_GOOD);
-        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(wgm);
 
         UA_DataValue *externalValueSources[3];
@@ -535,7 +548,9 @@ START_TEST(PubSubConfigWithMultipleInformationModelRTVariables) {
             ck_assert(UA_Server_addDataSetField(server, publishedDataSetIdent, &dsfConfig, dsf[i]).result == UA_STATUSCODE_GOOD);
         }
 
+        ck_assert(UA_Server_enableWriterGroup(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
         ck_assert(UA_Server_setWriterGroupDisabled(server, writerGroupIdent) == UA_STATUSCODE_GOOD);
+
         for (size_t j = 0; j < 3; ++j) {
             UA_Variant variant;
             UA_Variant_init(&variant);

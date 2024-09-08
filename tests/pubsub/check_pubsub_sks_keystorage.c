@@ -142,11 +142,16 @@ createKeyStoragewithkeys(UA_UInt32 currentTokenId, UA_UInt32 keysize,
         generateKeyData(server->config.pubSubConfig.securityPolicies, &futureKey[i]);
     }
 
-    retval = UA_PubSubKeyStorage_storeSecurityKeys(tKeyStorage,
-                                                   currentTokenId, &currentKey, futureKey,
-                                                   keysize, msKeyLifeTime);
+    UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_push(tKeyStorage, &currentKey, currentTokenId);
+    ck_assert_ptr_ne(item, NULL);
+
+    UA_PubSubKeyStorage_setCurrentKey(tKeyStorage, currentTokenId);
+
+    retval = UA_PubSubKeyStorage_addSecurityKeys(tKeyStorage, keysize, futureKey, currentTokenId);
     if(retval != UA_STATUSCODE_GOOD)
         return NULL;
+
+    tKeyStorage->keyLifeTime = msKeyLifeTime;
 
     retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                              tKeyStorage->securityGroupID);

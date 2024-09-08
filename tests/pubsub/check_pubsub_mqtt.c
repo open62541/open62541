@@ -47,7 +47,6 @@ static void setup(void) {
     connectionConfig.name = UA_STRING("Mqtt Connection");
     connectionConfig.transportProfileUri =
         UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp");
-    connectionConfig.enabled = UA_TRUE;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(TEST_MQTT_SERVER)};
@@ -158,7 +157,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
         writerGroupConfig.name = UA_STRING("Demo WriterGroup");
         writerGroupConfig.publishingInterval = SUBSCRIBE_INTERVAL;
-        writerGroupConfig.enabled = UA_FALSE;
         writerGroupConfig.writerGroupId = 100;
         UA_UadpWriterGroupMessageDataType *writerGroupMessage;
 
@@ -191,8 +189,6 @@ START_TEST(SinglePublishSubscribeDateTime){
         writerGroupConfig.transportSettings = transportSettings;
         retval = UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
-        ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
         UA_UadpWriterGroupMessageDataType_delete(writerGroupMessage);
 
         // add DataSetWriter
@@ -208,7 +204,7 @@ START_TEST(SinglePublishSubscribeDateTime){
                                             &dataSetWriterConfig, &dataSetWriterIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
-        retval = UA_Server_enableWriterGroup(server, writerGroupIdent);
+        retval = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         UA_PubSubManager *psm = getPSM(server);
@@ -248,7 +244,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
                                           &readerGroupIdent);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
-        retval = UA_Server_enableReaderGroup(server, readerGroupIdent);
+
+        retval = UA_Server_enableAllPubSubComponents(server);
         ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
 
         // add DataSetReader

@@ -155,7 +155,6 @@ setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedD
     memset(&writerGroupConfig, 0, sizeof(writerGroupConfig));
     writerGroupConfig.name = UA_STRING("WriterGroup Test");
     writerGroupConfig.publishingInterval = PUBLISH_INTERVAL;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = WRITER_GROUP_ID;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
 
@@ -188,7 +187,7 @@ setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedD
     writerGroupConfig.transportSettings = transportSettings;
 
     UA_StatusCode retVal = UA_Server_addWriterGroup(server, connectionId, &writerGroupConfig, &writerGroup);
-    retVal |= UA_Server_enableWriterGroup(server, writerGroup);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* DataSetWriter */
     UA_DataSetWriterConfig dataSetWriterConfig;
@@ -196,10 +195,10 @@ setupWrittenData(UA_Server *server, UA_NodeId connectionId, UA_NodeId publishedD
     dataSetWriterConfig.name = UA_STRING("DataSetWriter Test");
     dataSetWriterConfig.dataSetWriterId = DATASET_WRITER_ID;
     dataSetWriterConfig.keyFrameCount = 10;
-    retVal |= UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
-                                         &dataSetWriterConfig, &dataSetWriter);
-    UA_free(writerGroupMessage);
+    retVal = UA_Server_addDataSetWriter(server, writerGroup, publishedDataSetId,
+                                        &dataSetWriterConfig, &dataSetWriter);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    UA_free(writerGroupMessage);
 }
 
 static void
@@ -219,9 +218,8 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
     memset (&readerGroupConfig, 0, sizeof (UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING ("ReaderGroup Test");
 
-    UA_StatusCode retVal =  UA_Server_addReaderGroup(server, connectionId, &readerGroupConfig, outReaderGroupId);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    retVal = UA_Server_enableReaderGroup(server, *outReaderGroupId);
+    UA_StatusCode retVal = UA_Server_addReaderGroup(server, connectionId,
+                                                    &readerGroupConfig, outReaderGroupId);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     /* Data Set Reader */
@@ -257,7 +255,6 @@ setupSubscribing(UA_Server *server, UA_NodeId connectionId,
     retVal = UA_Server_addDataSetReader(server, *outReaderGroupId, &readerConfig,
                                          &readerIdentifier);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-
 
     UA_FieldTargetVariable targetVar;
     memset(&targetVar, 0, sizeof(UA_FieldTargetVariable));
@@ -307,6 +304,11 @@ static void setup(void) {
 
     setupSubscribing(serverSubscriber, subscriberConnectionId, outVariableNodeId,
                      SUBSCRIBEVARIABLE_NODEID, &readerGroupId);
+
+    retVal = UA_Server_enableAllPubSubComponents(serverPublisher);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
+    retVal = UA_Server_enableAllPubSubComponents(serverSubscriber);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 }
 
 /* teardown() is to delete the environment set for test cases */
@@ -351,6 +353,8 @@ START_TEST(SinglePublishSubscribeInt32) {
 
     UA_fakeSleep(15);
     UA_Server_run_iterate(serverPublisher,true);
+    UA_fakeSleep(PUBLISH_INTERVAL + 1);
+    UA_Server_run_iterate(serverSubscriber,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);
     UA_Server_run_iterate(serverPublisher,true);
     UA_fakeSleep(PUBLISH_INTERVAL + 1);

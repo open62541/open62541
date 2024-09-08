@@ -182,11 +182,6 @@ UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfi
         goto cleanup;
     }
 
-    /* Make the connection operational */
-    ret = UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto cleanup;
-
     /* Copy the created NodeId to the output. Cannot fail as we create a
      * numerical NodeId. */
     if(cId)
