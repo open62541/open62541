@@ -44,7 +44,7 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
     return NULL;
 }
 
-static void
+void
 UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
     if(TAILQ_EMPTY(&ks->keyList))
         return;
@@ -89,6 +89,8 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
     ks->maxKeyListSize = maxPastKeyCount + currentkeyCount + maxFutureKeyCount;
     ks->policy = policy;
 
+    TAILQ_INIT(&ks->keyList);
+
     /* Add this keystorage to the keystoragelist */
     LIST_INSERT_HEAD(&psm->pubSubKeyList, ks, keyStorageList);
 
@@ -96,83 +98,45 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks,
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_storeSecurityKeys(UA_PubSubKeyStorage *ks,
-                                      UA_UInt32 currentTokenId,
-                                      const UA_ByteString *currentKey,
-                                      UA_ByteString *futureKeys,
-                                      size_t futureKeyCount,
-                                      UA_Duration msKeyLifeTime) {
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
+UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *ks, size_t keysSize,
+                                    UA_ByteString *keys, UA_UInt32 currentKeyId) {
+    for(size_t i = 0; i < keysSize; ++i) {
+        currentKeyId++; /* Increase the keyId */
+        if(currentKeyId == 0)
+            currentKeyId = 1; /* Rollover the keyId */
 
-    if(futureKeyCount > 0 && !futureKeys) {
-        retval = UA_STATUSCODE_BADARGUMENTSMISSING;
-        goto error;
-    }
+        /* Search for an existing item matching the tokenId */
+        UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
 
-    size_t keyNumber = futureKeyCount;
-
-    if(currentKey && ks->keyListSize == 0) {
-        ks->keyListSize++;
-        UA_PubSubKeyListItem *keyItem =
-            (UA_PubSubKeyListItem *)UA_calloc(1, sizeof(UA_PubSubKeyListItem));
-        if(!keyItem)
-            goto error;
-        retval = UA_ByteString_copy(currentKey, &keyItem->key);
-        if(UA_StatusCode_isBad(retval))
-            goto error;
-
-        keyItem->keyID = currentTokenId;
-
-        TAILQ_INIT(&ks->keyList);
-        TAILQ_INSERT_HEAD(&ks->keyList, keyItem, keyListEntry);
-    }
-
-    UA_PubSubKeyListItem *keyListIterator = TAILQ_FIRST(&ks->keyList);
-    UA_UInt32 startingTokenID = currentTokenId + 1;
-    for(size_t i = 0; i < keyNumber; ++i) {
-        retval = UA_PubSubKeyStorage_getKeyByKeyID(
-            startingTokenID, ks, &keyListIterator);
-        /* Skipping key with matching KeyID in existing list */
-        if(retval == UA_STATUSCODE_BADNOTFOUND) {
-            keyListIterator = UA_PubSubKeyStorage_push(ks, &futureKeys[i], startingTokenID);
-            if(!keyListIterator)
-                goto error;
-
-            ks->keyListSize++;
+        /* Not found. Add it. */
+        if(!item) {
+            item = UA_PubSubKeyStorage_push(ks, &keys[i], currentKeyId);
+            if(!item)
+                return UA_STATUSCODE_BADOUTOFMEMORY;
         }
-        if(startingTokenID == UA_UINT32_MAX)
-            startingTokenID = 1;
-        else
-            ++startingTokenID;
     }
 
-    /* Update keystorage references */
-    retval = UA_PubSubKeyStorage_getKeyByKeyID(currentTokenId, ks, &ks->currentItem);
-    if (retval != UA_STATUSCODE_GOOD && !ks->currentItem)
-        goto error;
-
-    ks->keyLifeTime = msKeyLifeTime;
-    return retval;
-
-error:
-    if(ks)
-        UA_PubSubKeyStorage_clearKeyList(ks);
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
-UA_PubSubKeyStorage_getKeyByKeyID(const UA_UInt32 keyId, UA_PubSubKeyStorage *ks,
-                                  UA_PubSubKeyListItem **keyItem) {
-    if(!ks)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
+UA_PubSubKeyStorage_setCurrentKey(UA_PubSubKeyStorage *ks, UA_UInt32 keyId) {
+    UA_PubSubKeyListItem *item = UA_PubSubKeyStorage_getKeyByKeyId(ks, keyId);
+    if(!item)
+        return UA_STATUSCODE_BADNOTFOUND;
+    ks->currentItem = item;
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_PubSubKeyListItem *
+UA_PubSubKeyStorage_getKeyByKeyId(UA_PubSubKeyStorage *ks,
+                                  const UA_UInt32 keyId) {
     UA_PubSubKeyListItem *item;
     TAILQ_FOREACH(item, &ks->keyList, keyListEntry) {
-        if(item->keyID == keyId) {
-            *keyItem = item;
-            return UA_STATUSCODE_GOOD;
-        }
+        if(item->keyID == keyId)
+            return item;
     }
-    return UA_STATUSCODE_BADNOTFOUND;
+    return NULL;
 }
 
 UA_PubSubKeyListItem *
@@ -183,9 +147,14 @@ UA_PubSubKeyStorage_push(UA_PubSubKeyStorage *ks, const UA_ByteString *key,
     if(!newItem)
         return NULL;
     newItem->keyID = keyID;
-    UA_ByteString_copy(key, &newItem->key);
+    UA_StatusCode res = UA_ByteString_copy(key, &newItem->key);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_free(newItem);
+        return NULL;
+    }
     TAILQ_INSERT_TAIL(&ks->keyList, newItem, keyListEntry);
-    return TAILQ_LAST(&ks->keyList, keyListItems);
+    ks->keyListSize++;
+    return newItem;
 }
 
 UA_StatusCode
@@ -395,40 +364,6 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
     UA_UNLOCK(&psm->sc.server->serviceMutex);
 }
 
-UA_StatusCode
-UA_PubSubKeyStorage_update(UA_PubSubKeyStorage *ks,
-                           const UA_ByteString *currentKey, UA_UInt32 currentKeyID,
-                           const size_t futureKeySize, UA_ByteString *futureKeys,
-                           UA_Duration msKeyLifeTime) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    UA_PubSubKeyListItem *keyListIterator = NULL;
-
-    if(currentKeyID != 0) {
-        /* If currentKeyId is known then update keystorage currentItem */
-        retval = UA_PubSubKeyStorage_getKeyByKeyID(currentKeyID, ks,
-                                                   &keyListIterator);
-        if(retval == UA_STATUSCODE_GOOD && keyListIterator) {
-            ks->currentItem = keyListIterator;
-            /* Add new keys at the end of KeyList */
-            retval = UA_PubSubKeyStorage_storeSecurityKeys(ks, currentKeyID,
-                                                           NULL, futureKeys, futureKeySize,
-                                                           msKeyLifeTime);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        } else if(retval == UA_STATUSCODE_BADNOTFOUND) {
-            /* If the CurrentTokenId is unknown, the existing list shall be
-             * discarded and replaced by the fetched list */
-            UA_PubSubKeyStorage_clearKeyList(ks);
-            retval = UA_PubSubKeyStorage_storeSecurityKeys(ks, currentKeyID,
-                                                           currentKey, futureKeys,
-                                                           futureKeySize, msKeyLifeTime);
-            if(retval != UA_STATUSCODE_GOOD)
-                return retval;
-        }
-    }
-    return retval;
-}
-
 void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
     UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
@@ -530,18 +465,17 @@ storeFetchedKeys(UA_Client *client, void *userdata, UA_UInt32 requestId,
         goto cleanup;
     }
 
-    if(ks->keyListSize == 0) {
-        retval = UA_PubSubKeyStorage_storeSecurityKeys(ks, firstTokenId,
-                                                       currentKey, futureKeys,
-                                                       futureKeySize, msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
-    } else {
-        retval = UA_PubSubKeyStorage_update(ks, currentKey, firstTokenId,
-                                            futureKeySize, futureKeys, msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            goto cleanup;
+    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, firstTokenId);
+    if(!current) {
+        UA_PubSubKeyStorage_clearKeyList(ks);
+        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, firstTokenId)) ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    UA_PubSubKeyStorage_setCurrentKey(ks, firstTokenId);
+    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize, futureKeys, firstTokenId);
+    ks->keyLifeTime = msKeyLifeTime;
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* After a new batch of keys is fetched from SKS server, the key storage is
      * updated with new keys and new keylifetime. Also the remaining time for
