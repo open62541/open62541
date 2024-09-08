@@ -13,7 +13,6 @@
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include <stdio.h>
-#include <signal.h>
 #include <stdlib.h>
 
 char *userpin = NULL;
@@ -39,16 +38,9 @@ UA_DataSetReaderConfig readerConfig;
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
 /* Add new connection to the server */
-static UA_StatusCode
+static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    if((server == NULL) || (transportProfile == NULL) ||
-        (networkAddressUrl == NULL)) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    /* Configuration creation for the connection */
     UA_PubSubConnectionConfig connectionConfig;
     memset (&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UDPMC Connection 1");
@@ -58,12 +50,7 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherIdType = UA_PUBLISHERIDTYPE_UINT32;
     connectionConfig.publisherId.uint32 = UA_UInt32_random();
-    retval |= UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
-    if (retval != UA_STATUSCODE_GOOD) {
-        return retval;
-    }
-
-    return retval;
+    UA_Server_addPubSubConnection (server, &connectionConfig, &connectionIdentifier);
 }
 
 /**
@@ -73,13 +60,8 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
  * created within a PubSubConnection and automatically deleted if the connection
  * is removed. All network message related filters are only available in the DataSetReader. */
 /* Add ReaderGroup to the created connection */
-static UA_StatusCode
+static void
 addReaderGroup(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_ReaderGroupConfig readerGroupConfig;
     memset (&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
     readerGroupConfig.name = UA_STRING("ReaderGroup1");
@@ -89,14 +71,13 @@ addReaderGroup(UA_Server *server) {
     readerGroupConfig.securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
     readerGroupConfig.securityPolicy = &config->pubSubConfig.securityPolicies[0];
 
-    retval |= UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
-                                       &readerGroupIdentifier);
-    UA_Server_enableReaderGroup(server, readerGroupIdentifier);
-    UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
-    // TODO security token not necessary for readergroup (extracted from security-header)
-    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1, signingKey, encryptingKey, kn);
+    UA_Server_addReaderGroup(server, connectionIdentifier, &readerGroupConfig,
+                             &readerGroupIdentifier);
 
-    return retval;
+    UA_ByteString kn = {UA_AES128CTR_TPM_KEYNONCE_LENGTH, keyNonce};
+    UA_Server_setReaderGroupEncryptionKeys(server, readerGroupIdentifier, 1,
+                                           signingKey, encryptingKey, kn);
+
 }
 
 /**
@@ -107,15 +88,9 @@ addReaderGroup(UA_Server *server) {
  * the configuration necessary to receive and process DataSetMessages
  * on the Subscriber side. DataSetReader must be linked with a
  * SubscribedDataSet and be contained within a ReaderGroup. */
-/* Add DataSetReader to the ReaderGroup */
-static UA_StatusCode
+static void
 addDataSetReader(UA_Server *server) {
-    if(server == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    memset (&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
+    memset(&readerConfig, 0, sizeof(UA_DataSetReaderConfig));
     readerConfig.name = UA_STRING("DataSet Reader 1");
     /* Parameters to filter which DataSetMessage has to be processed
      * by the DataSetReader */
@@ -131,9 +106,8 @@ addDataSetReader(UA_Server *server) {
     /* Setting up Meta data configuration in DataSetReader */
     fillTestDataSetMetaData(&readerConfig.dataSetMetaData);
 
-    retval |= UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
-                                         &readerIdentifier);
-    return retval;
+    UA_Server_addDataSetReader(server, readerGroupIdentifier, &readerConfig,
+                               &readerIdentifier);
 }
 
 /**
@@ -141,12 +115,8 @@ addDataSetReader(UA_Server *server) {
  *
  * Set SubscribedDataSet type to TargetVariables data type.
  * Add subscribedvariables to the DataSetReader */
-static UA_StatusCode
+static void
 addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
-    if(server == NULL)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_NodeId folderId;
     UA_String folderName = readerConfig.dataSetMetaData.name;
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
@@ -185,11 +155,11 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         vAttr.dataType = readerConfig.dataSetMetaData.fields[i].dataType;
 
         UA_NodeId newNode;
-        retval |= UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
-                                           folderId, UA_NS0ID(HASCOMPONENT),
-                                           UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
-                                           UA_NS0ID(BASEDATAVARIABLETYPE),
-                                           vAttr, NULL, &newNode);
+        UA_Server_addVariableNode(server, UA_NODEID_NUMERIC(1, (UA_UInt32)i + 50000),
+                                  folderId, UA_NS0ID(HASCOMPONENT),
+                                  UA_QUALIFIEDNAME(1, (char *)readerConfig.dataSetMetaData.fields[i].name.data),
+                                  UA_NS0ID(BASEDATAVARIABLETYPE),
+                                  vAttr, NULL, &newNode);
 
         /* For creating Targetvariables */
         UA_FieldTargetDataType_init(&targetVars[i].targetVariable);
@@ -197,14 +167,14 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
         targetVars[i].targetVariable.targetNodeId = newNode;
     }
 
-    retval = UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
-                                                           readerConfig.dataSetMetaData.fieldsSize, targetVars);
+    UA_Server_DataSetReader_createTargetVariables(server, dataSetReaderId,
+                                                  readerConfig.dataSetMetaData.fieldsSize,
+                                                  targetVars);
     for(size_t i = 0; i < readerConfig.dataSetMetaData.fieldsSize; i++)
         UA_FieldTargetDataType_clear(&targetVars[i].targetVariable);
 
     UA_free(targetVars);
     UA_free(readerConfig.dataSetMetaData.fields);
-    return retval;
 }
 
 /**
@@ -216,10 +186,6 @@ addSubscribedVariables (UA_Server *server, UA_NodeId dataSetReaderId) {
  * and PublishedDataSetFields of Publisher */
 /* Define MetaData for TargetVariables */
 static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
-    if(pMetaData == NULL) {
-        return;
-    }
-
     UA_DataSetMetaDataType_init (pMetaData);
     pMetaData->name = UA_STRING ("DataSet 1");
 
@@ -263,27 +229,10 @@ static void fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
     pMetaData->fields[3].valueRank = -1; /* scalar */
 }
 
-/*
- * TODO: add something similary ass addDataSetMetadata for security configuration
- */
-
-/**
- * Followed by the main server code, making use of the above definitions */
-UA_Boolean running = true;
-static void stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
-static int
+static void
 run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-    /* Return value initialized to Status Good */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, 4801, NULL);
 
     /* Instantiate the PubSub SecurityPolicy */
     config->pubSubConfig.securityPolicies = (UA_PubSubSecurityPolicy*)
@@ -293,30 +242,15 @@ run(UA_String *transportProfile, UA_NetworkAddressUrlDataType *networkAddressUrl
     UA_PubSubSecurityPolicy_Aes128CtrTPM(config->pubSubConfig.securityPolicies, userpin, slotId,
                                          encryptionKeyLabel, signingKeyLabel, config->logging);
 
-    /* API calls */
-    /* Add PubSubConnection */
-    retval |= addPubSubConnection(server, transportProfile, networkAddressUrl);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+    addPubSubConnection(server, transportProfile, networkAddressUrl);
+    addReaderGroup(server);
+    addDataSetReader(server);
+    addSubscribedVariables(server, readerIdentifier);
 
-    /* Add ReaderGroup to the created PubSubConnection */
-    retval |= addReaderGroup(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
-    /* Add DataSetReader to the created ReaderGroup */
-    retval |= addDataSetReader(server);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
-
-    /* Add SubscribedVariables to the created DataSetReader */
-    retval |= addSubscribedVariables(server, readerIdentifier);
-    if (retval != UA_STATUSCODE_GOOD)
-        return EXIT_FAILURE;
-
-    retval = UA_Server_run(server, &running);
     UA_Server_delete(server);
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -359,5 +293,6 @@ int main(int argc, char **argv) {
         return EXIT_SUCCESS;
     }
 
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

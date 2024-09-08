@@ -8,50 +8,28 @@
 
 #include "ua_pubsub.h"
 
-#include <signal.h>
-
 #include "common.h"
-
-/* Global variables */
-volatile UA_Boolean g_running = true;
-
-/* Signal handler */
-static void stopHandler(int signum) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Exiting...\n");
-    g_running = false;
-}
 
 /* Function to give user information about correct usage */
 static void usage_info(void) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "USAGE: ./server_pubsub_file_configuration [port] [name of UA_Binary_Config_File]");
+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "USAGE: ./server_pubsub_file_configuration [name of UA_Binary_Config_File]");
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "Alternatively, Bin-files can be loaded via configuration method calls.");
 }
 
 int main(int argc, char** argv) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
-
     UA_Boolean loadPubSubFromFile = UA_FALSE;
-    UA_UInt16 port = 4840;
 
     /* 1. Check arguments and set name of PubSub configuration file*/
     switch(argc) {
         case 2:
-            port = (unsigned short)atoi(argv[1]);
-            break;
-        case 3:
-            port = (unsigned short)atoi(argv[1]);
             loadPubSubFromFile = UA_TRUE;
             break;
-
         default:
             usage_info();
     }
 
     /* 2. Initialize Server */
     UA_Server *server = UA_Server_new();
-    UA_ServerConfig *config = UA_Server_getConfig(server);
-    UA_ServerConfig_setMinimal(config, port, NULL); /* creates server on default port 4840 */
 
     /* 3. Add variable nodes to the server */
     UA_VariableAttributes attr;
@@ -124,7 +102,10 @@ int main(int argc, char** argv) {
 
     /* 5. start server */
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Starting server...");
-    UA_StatusCode statusCode = UA_Server_run(server, &g_running);
+
+    UA_StatusCode statusCode = UA_STATUSCODE_GOOD;
+    statusCode |= UA_Server_enableAllPubSubComponents(server);
+    statusCode |= UA_Server_runUntilInterrupt(server);
     if(statusCode != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Server stopped. Status code: 0x%x\n", statusCode);
         return(-1);
@@ -138,7 +119,8 @@ int main(int argc, char** argv) {
             statusCode = writeFile(argv[2], buffer);
 
         if(statusCode != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
+            UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                         "Saving PubSub configuration to file failed. StatusCode: 0x%x\n", statusCode);
 
         UA_ByteString_clear(&buffer);
     }
@@ -147,4 +129,3 @@ int main(int argc, char** argv) {
 
     return 0;
 }
-/******************************************************************************************************/
