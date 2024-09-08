@@ -538,7 +538,7 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_ServerComponent * UA_DiscoveryManager_new(void);
 #endif
 
-UA_ServerComponent * UA_BinaryProtocolManager_new(void);
+UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 
 
 #ifdef UA_ENABLE_PUBSUB
