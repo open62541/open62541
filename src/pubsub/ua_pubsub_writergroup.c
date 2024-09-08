@@ -36,7 +36,14 @@ generateNetworkMessage(UA_PubSubConnection *connection, UA_WriterGroup *wg,
                        UA_ExtensionObject *transportSettings,
                        UA_NetworkMessage *networkMessage);
 
-UA_Boolean
+static void
+UA_WriterGroup_disconnect(UA_WriterGroup *wg);
+
+static UA_StatusCode
+UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                       UA_Boolean validate);
+
+static UA_Boolean
 UA_WriterGroup_canConnect(UA_WriterGroup *wg) {
     /* Already connected */
     if(wg->sendChannel != 0)
@@ -1184,6 +1191,299 @@ UA_WriterGroup_publishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg) {
     }
 
     UA_UNLOCK(&psm->sc.server->serviceMutex);
+}
+
+/***********************/
+/* Connection Handling */
+/***********************/
+
+static UA_StatusCode
+UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                           UA_Boolean validate);
+
+static UA_StatusCode
+UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                                 UA_Boolean validate);
+
+typedef struct  {
+    UA_String profileURI;
+    UA_String protocol;
+    UA_Boolean json;
+    UA_StatusCode (*connectWriterGroup)(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                                        UA_Boolean validate);
+} WriterGroupProfileMapping;
+
+static WriterGroupProfileMapping writerGroupProfiles[UA_PUBSUB_PROFILES_SIZE] = {
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"),
+     UA_STRING_STATIC("udp"), false, UA_WriterGroup_connectUDPUnicast},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"),
+     UA_STRING_STATIC("mqtt"), false, UA_WriterGroup_connectMQTT},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"),
+     UA_STRING_STATIC("mqtt"), true, UA_WriterGroup_connectMQTT},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"),
+     UA_STRING_STATIC("eth"), false, NULL}
+};
+
+static void
+WriterGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_ConnectionState state, const UA_KeyValueMap *params,
+                          UA_ByteString msg) {
+    if(!connectionContext)
+        return;
+
+    /* Get the context pointers */
+    UA_WriterGroup *wg = (UA_WriterGroup*)*connectionContext;
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* The connection is closing in the EventLoop. This is the last callback
+     * from that connection. Clean up the SecureChannel in the client. */
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
+        if(wg->sendChannel == connectionId) {
+            /* Reset the connection channel */
+            wg->sendChannel = 0;
+
+            /* PSC marked for deletion and the last EventLoop connection has closed */
+            if(wg->deleteFlag) {
+                UA_WriterGroup_remove(psm, wg);
+                UA_UNLOCK(&server->serviceMutex);
+                return;
+            }
+        }
+
+        /* Reconnect automatically if the connection was operational. This sets
+         * the connection state if connecting fails. Attention! If there are
+         * several send or recv channels, then the connection is only reopened if
+         * all of them close - which is usually the case. */
+        if(wg->head.state == UA_PUBSUBSTATE_OPERATIONAL)
+            UA_WriterGroup_connect(psm, wg, false);
+
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Store the connectionId (if a new connection) */
+    if(wg->sendChannel && wg->sendChannel != connectionId) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, wg,
+                              "WriterGroup is already bound to a different channel");
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+    wg->sendChannel = connectionId;
+
+    /* Connection open, set to operational if not already done */
+    UA_WriterGroup_setPubSubState(psm, wg, wg->head.state);
+    
+    /* Send-channels don't receive messages */
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static UA_StatusCode
+UA_WriterGroup_connectUDPUnicast(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                                 UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Already connected? */
+    if(wg->sendChannel != 0 && !validate)
+        return UA_STATUSCODE_GOOD;
+
+    /* Check if address is available in TransportSettings */
+    if(((wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_DECODED ||
+         wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+        wg->config.transportSettings.content.decoded.type ==
+        &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORTDATATYPE]))
+        return UA_STATUSCODE_GOOD;
+
+    /* Unpack the TransportSettings */
+    if((wg->config.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        wg->config.transportSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       wg->config.transportSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_DATAGRAMWRITERGROUPTRANSPORT2DATATYPE]) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Invalid TransportSettings for a UDP Connection");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_DatagramWriterGroupTransport2DataType *ts =
+        (UA_DatagramWriterGroupTransport2DataType*)
+        wg->config.transportSettings.content.decoded.data;
+
+    /* Unpack the address */
+    if((ts->address.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        ts->address.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       ts->address.content.decoded.type != &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Invalid TransportSettings Address for a UDP Connection");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType *)
+        ts->address.content.decoded.data;
+
+    /* Extract hostname and port */
+    UA_String address;
+    UA_UInt16 port;
+    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg,
+                            "Could not parse the UDP network URL");
+        return res;
+    }
+
+    /* Set up the connection parameters */
+    UA_Boolean listen = false;
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {4, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&kvp[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&kvp[2].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!UA_String_isEmpty(&addressUrl->networkInterface)) {
+        kvp[4].key = UA_QUALIFIEDNAME(0, "interface");
+        UA_Variant_setScalar(&kvp[4].value, &addressUrl->networkInterface,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        kvm.mapSize++;
+    }
+
+    /* Connect */
+    UA_ConnectionManager *cm = wg->linkedConnection->cm;
+    UA_UNLOCK(&server->serviceMutex);
+    res = cm->openConnection(cm, &kvm, psm, wg, WriterGroupChannelCallback);
+    UA_LOCK(&server->serviceMutex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open a UDP send channel");
+    }
+    return res;
+}
+
+static UA_StatusCode
+UA_WriterGroup_connectMQTT(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                           UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_PubSubConnection *c = wg->linkedConnection;
+    UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
+        c->config.address.data;
+
+    /* Get the TransportSettings */
+    UA_ExtensionObject *ts = &wg->config.transportSettings;
+    if((ts->encoding != UA_EXTENSIONOBJECT_DECODED &&
+        ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       ts->content.decoded.type !=
+       &UA_TYPES[UA_TYPES_BROKERWRITERGROUPTRANSPORTDATATYPE]) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Wrong TransportSettings type for MQTT");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_BrokerWriterGroupTransportDataType *transportSettings =
+        (UA_BrokerWriterGroupTransportDataType*)ts->content.decoded.data;
+
+    /* Extract hostname and port */
+    UA_String address;
+    UA_UInt16 port = 1883; /* Default */
+    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
+        return res;
+    }
+
+    /* Set up the connection parameters.
+     * TODO: Complete the MQTT parameters. */
+    UA_Boolean listen = false;
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {5, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
+    UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&kvp[2].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&kvp[3].value, &transportSettings->queueName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* Connect */
+    UA_UNLOCK(&server->serviceMutex);
+    res = c->cm->openConnection(c->cm, &kvm, psm, wg, WriterGroupChannelCallback);
+    UA_LOCK(&server->serviceMutex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "Could not open the MQTT connection");
+    }
+    return res;
+}
+
+static void
+UA_WriterGroup_disconnect(UA_WriterGroup *wg) {
+    if(wg->sendChannel == 0)
+        return;
+    UA_PubSubConnection *c = wg->linkedConnection;
+    if(!c || !c->cm)
+        return;
+    c->cm->closeConnection(c->cm, wg->sendChannel);
+}
+
+static UA_StatusCode
+UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
+                       UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Check if already connected or no WG TransportSettings */
+    if(!UA_WriterGroup_canConnect(wg) && !validate)
+        return UA_STATUSCODE_GOOD;
+
+    /* Is this a WriterGroup with custom TransportSettings beyond the
+     * PubSubConnection? */
+    if(wg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, wg->linkedConnection);
+    if(!el) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, wg, "No EventLoop configured");
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_ERROR);
+        return UA_STATUSCODE_BADINTERNALERROR;;
+    }
+
+    UA_PubSubConnection *c = wg->linkedConnection;
+    if(!c)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Look up the connection manager for the connection */
+    WriterGroupProfileMapping *profile = NULL;
+    for(size_t i = 0; i < UA_PUBSUB_PROFILES_SIZE; i++) {
+        if(!UA_String_equal(&c->config.transportProfileUri,
+                            &writerGroupProfiles[i].profileURI))
+            continue;
+        profile = &writerGroupProfiles[i];
+        break;
+    }
+
+    UA_ConnectionManager *cm = (profile) ? getCM(el, profile->protocol) : NULL;
+    if(!cm || (c->cm && cm != c->cm)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The requested profile \"%S\"is not supported",
+                            c->config.transportProfileUri);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    c->cm = cm;
+    c->json = profile->json;
+
+    /* Connect */
+    return (profile->connectWriterGroup) ?
+        profile->connectWriterGroup(psm, wg, validate) : UA_STATUSCODE_GOOD;
 }
 
 /**************/

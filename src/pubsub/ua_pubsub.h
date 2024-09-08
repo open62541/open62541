@@ -94,6 +94,8 @@ _UA_BEGIN_DECLS
  * target host information. */
 #define UA_PUBSUB_MAXCHANNELS 8
 
+#define UA_PUBSUB_PROFILES_SIZE 4
+
 struct UA_WriterGroup;
 typedef struct UA_WriterGroup UA_WriterGroup;
 
@@ -111,6 +113,10 @@ typedef struct UA_PubSubManager UA_PubSubManager;
 
 struct UA_PubSubKeyStorage;
 typedef struct UA_PubSubKeyStorage UA_PubSubKeyStorage;
+
+/* Get the matching ConnectionManager from the EventLoop */
+UA_ConnectionManager *
+getCM(UA_EventLoop *el, UA_String protocol);
 
 const char *
 UA_PubSubState_name(UA_PubSubState state);
@@ -276,20 +282,6 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig);
 void
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c);
 
-UA_Boolean
-UA_PubSubConnection_canConnect(UA_PubSubConnection *c);
-
-UA_StatusCode
-UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_Boolean validate);
-
-void
-UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg);
-
-void
-UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
-
 /* Returns either the eventloop configured in the connection or, in its absence,
  * for the server */
 UA_EventLoop *
@@ -298,6 +290,13 @@ UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c);
 UA_StatusCode
 UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState);
+
+/* Also used by the ReaderGroup ... */
+UA_StatusCode
+UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
+                                         UA_PubSubConnection *connection,
+                                         UA_ByteString buffer,
+                                         UA_NetworkMessage *nm);
 
 /**********************************************/
 /*              DataSetWriter                 */
@@ -397,21 +396,12 @@ UA_WriterGroup_create(UA_PubSubManager *psm, const UA_NodeId connection,
 void
 UA_WriterGroup_remove(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
-void
-UA_WriterGroup_disconnect(UA_WriterGroup *wg);
-
+/* Exposed so we can change the publish interval without having to stop */
 UA_StatusCode
-UA_WriterGroup_connect(UA_PubSubManager *psm, UA_WriterGroup *wg,
-                       UA_Boolean validate);
-
-UA_Boolean
-UA_WriterGroup_canConnect(UA_WriterGroup *wg);
+UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 void
 UA_WriterGroup_removePublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
-
-UA_StatusCode
-UA_WriterGroup_addPublishCallback(UA_PubSubManager *psm, UA_WriterGroup *wg);
 
 UA_StatusCode
 UA_WriterGroup_setEncryptionKeys(UA_PubSubManager *psm, UA_WriterGroup *wg,
@@ -611,22 +601,12 @@ UA_Boolean
 UA_ReaderGroup_process(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                        UA_NetworkMessage *nm);
 
-/*********************************************************/
-/*               Reading Message handling                */
-/*********************************************************/
-
 /* The buffer is the entire message. The ctx->pos points after the decoded
  * header. The ctx->end is modified to remove padding, etc. */
 UA_StatusCode
 verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
                                Ctx *ctx, UA_NetworkMessage *nm,
                                UA_ReaderGroup *rg);
-
-UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
-                                         UA_PubSubConnection *connection,
-                                         UA_ByteString buffer,
-                                         UA_NetworkMessage *nm);
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 

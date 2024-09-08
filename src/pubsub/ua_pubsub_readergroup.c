@@ -743,6 +743,289 @@ verifyAndDecryptNetworkMessage(const UA_Logger *logger, UA_ByteString buffer,
     return UA_STATUSCODE_GOOD;
 }
 
+/***********************/
+/* Connection Handling */
+/***********************/
+
+static UA_StatusCode
+UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                           UA_Boolean validate);
+
+typedef struct  {
+    UA_String profileURI;
+    UA_String protocol;
+    UA_Boolean json;
+    UA_StatusCode (*connectReaderGroup)(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                                        UA_Boolean validate);
+} ReaderGroupProfileMapping;
+
+static ReaderGroupProfileMapping readerGroupProfiles[UA_PUBSUB_PROFILES_SIZE] = {
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"),
+     UA_STRING_STATIC("udp"), false, NULL},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"),
+     UA_STRING_STATIC("mqtt"), false, UA_ReaderGroup_connectMQTT},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"),
+     UA_STRING_STATIC("mqtt"), true, UA_ReaderGroup_connectMQTT},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"),
+     UA_STRING_STATIC("eth"), false, NULL}
+};
+
+static void
+UA_ReaderGroup_detachConnection(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                                UA_ConnectionManager *cm, uintptr_t connectionId) {
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(rg->recvChannels[i] != connectionId)
+            continue;
+        UA_LOG_INFO_PUBSUB(psm->logging, rg, "Detach receive-connection %S %u",
+                           cm->protocol, (unsigned)connectionId);
+        rg->recvChannels[i] = 0;
+        rg->recvChannelsSize--;
+        return;
+    }
+}
+
+static UA_StatusCode
+UA_ReaderGroup_attachRecvConnection(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                                    UA_ConnectionManager *cm, uintptr_t connectionId) {
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(rg->recvChannels[i] == connectionId)
+            return UA_STATUSCODE_GOOD;
+    }
+    if(rg->recvChannelsSize >= UA_PUBSUB_MAXCHANNELS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(rg->recvChannels[i] != 0)
+            continue;
+        UA_LOG_INFO_PUBSUB(psm->logging, rg, "Attach receive-connection %S %u",
+                           cm->protocol, (unsigned)connectionId);
+        rg->recvChannels[i] = connectionId;
+        rg->recvChannelsSize++;
+        break;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+ReaderGroupChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                          void *application, void **connectionContext,
+                          UA_ConnectionState state, const UA_KeyValueMap *params,
+                          UA_ByteString msg) {
+    if(!connectionContext)
+        return;
+
+    /* Get the context pointers */
+    UA_ReaderGroup *rg = (UA_ReaderGroup*)*connectionContext;
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* The connection is closing in the EventLoop. This is the last callback
+     * from that connection. Clean up the SecureChannel in the client. */
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
+        /* Reset the connection identifiers */
+        UA_ReaderGroup_detachConnection(psm, rg, cm, connectionId);
+
+        /* PSC marked for deletion and the last EventLoop connection has closed */
+        if(rg->deleteFlag && rg->recvChannelsSize == 0) {
+            UA_ReaderGroup_remove(psm, rg);
+            UA_UNLOCK(&server->serviceMutex);
+            return;
+        }
+
+        /* Reconnect if still operational */
+        UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Store the connectionId (if a new connection) */
+    UA_StatusCode res = UA_ReaderGroup_attachRecvConnection(psm, rg, cm, connectionId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "No more space for an additional EventLoop connection");
+        UA_PubSubConnection *c = rg->linkedConnection;
+        if(c && c->cm)
+            c->cm->closeConnection(c->cm, connectionId);
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* The connection has opened - set the ReaderGroup to operational */
+    UA_ReaderGroup_setPubSubState(psm, rg, rg->head.state);
+
+    /* No message received */
+    if(msg.length == 0) {
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "Received a messaage for a non-operational ReaderGroup");
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* ReaderGroup with realtime processing */
+    if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE) {
+        UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Decode message */
+    UA_NetworkMessage nm;
+    memset(&nm, 0, sizeof(UA_NetworkMessage));
+    if(rg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
+        res = UA_PubSubConnection_decodeNetworkMessage(psm, rg->linkedConnection, msg, &nm);
+    } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
+#ifdef UA_ENABLE_JSON_ENCODING
+        res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
+#else
+        res = UA_STATUSCODE_BADNOTSUPPORTED;
+#endif
+    }
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, rg,
+                              "Verify, decrypt and decode network message failed");
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Process the decoded message */
+    UA_ReaderGroup_process(psm, rg, &nm);
+    UA_NetworkMessage_clear(&nm);
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static UA_StatusCode
+UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
+                           UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_PubSubConnection *c = rg->linkedConnection;
+    UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
+        c->config.address.data;
+
+    /* Get the TransportSettings */
+    UA_ExtensionObject *ts = &rg->config.transportSettings;
+    if((ts->encoding != UA_EXTENSIONOBJECT_DECODED &&
+        ts->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       ts->content.decoded.type !=
+       &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg,
+                            "Wrong TransportSettings type for MQTT");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    UA_BrokerDataSetReaderTransportDataType *transportSettings =
+        (UA_BrokerDataSetReaderTransportDataType*)ts->content.decoded.data;
+
+    /* Extract hostname and port */
+    UA_String address;
+    UA_UInt16 port = 1883; /* Default */
+    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the MQTT network URL");
+        return res;
+    }
+
+    /* Set up the connection parameters.
+     * TODO: Complete the MQTT parameters. */
+    UA_Boolean listen = true;
+    UA_KeyValuePair kvp[5];
+    UA_KeyValueMap kvm = {5, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "subscribe");
+    UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&kvp[2].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "topic");
+    UA_Variant_setScalar(&kvp[3].value, &transportSettings->queueName,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[4].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* Connect */
+    UA_UNLOCK(&server->serviceMutex);
+    res = c->cm->openConnection(c->cm, &kvm, psm, rg, ReaderGroupChannelCallback);
+    UA_LOCK(&server->serviceMutex);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, rg, "Could not open the MQTT connection");
+    }
+    return res;
+}
+
+void
+UA_ReaderGroup_disconnect(UA_ReaderGroup *rg) {
+    UA_PubSubConnection *c = rg->linkedConnection;
+    if(!c)
+        return;
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(rg->recvChannels[i] != 0)
+            c->cm->closeConnection(c->cm, rg->recvChannels[i]);
+    }
+}
+
+UA_Boolean
+UA_ReaderGroup_canConnect(UA_ReaderGroup *rg) {
+    return rg->recvChannelsSize == 0;
+}
+
+UA_StatusCode
+UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    /* Is this a ReaderGroup with custom TransportSettings beyond the
+     * PubSubConnection? */
+    if(rg->config.transportSettings.encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY)
+        return UA_STATUSCODE_GOOD;
+
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, rg->linkedConnection);
+    if(!el) {
+        UA_LOG_ERROR_PUBSUB(server->config.logging, rg, "No EventLoop configured");
+        return UA_STATUSCODE_BADINTERNALERROR;;
+    }
+
+    UA_PubSubConnection *c = rg->linkedConnection;
+    if(!c)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Look up the connection manager for the connection */
+    ReaderGroupProfileMapping *profile = NULL;
+    for(size_t i = 0; i < UA_PUBSUB_PROFILES_SIZE; i++) {
+        if(!UA_String_equal(&c->config.transportProfileUri,
+                            &readerGroupProfiles[i].profileURI))
+            continue;
+        profile = &readerGroupProfiles[i];
+        break;
+    }
+
+    UA_ConnectionManager *cm = (profile) ? getCM(el, profile->protocol) : NULL;
+    if(!cm || (c->cm && cm != c->cm)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The requested profile \"%S\"is not supported",
+                            c->config.transportProfileUri);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    c->cm = cm;
+    c->json = profile->json;
+
+    /* If no ReaderGroup-specific connections, the ReaderGroup is set to
+     * operational when we return. */
+    return (profile->connectReaderGroup) ?
+        profile->connectReaderGroup(psm, rg, validate) : UA_STATUSCODE_GOOD;
+}
+
 /**************/
 /* Server API */
 /**************/
