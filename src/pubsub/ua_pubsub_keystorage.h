@@ -234,39 +234,39 @@ UA_PubSubKeyStorage_init(UA_PubSubManager *psm,
                          UA_PubSubSecurityPolicy *policy,
                          UA_UInt32 maxPastKeyCount, UA_UInt32 maxFutureKeyCount);
 
+void
+UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks);
+
 /**
- * @brief After Keystorage is initialized and added to the server, this method is called
- * to store the current Keys and futurekeys.
+ * @brief Add keys tot the key storage. Generates the keyId internally. They get
+ * appended to the end of the list. This method DOES NOT VALIDATE the
+ * maxKeyListSize property! Do this before.
  *
  * @param keyStorage pointer to the keyStorage
- * @param currentTokenId The token Id of the current key it starts with 1 and increaments
- * each time keylifetime expires
- * @param currentKey the key used for encrypt the current messages
- * @param futureKeys pointer to the future keys
- * @param futureKeyCount the number future keys provided
- * @param keyLifeTime the time period when the key expires and move to next future key in
- * milli seconds
+ * @param keysSize the number of keys provided
+ * @param keys pointer to the keys
+ * @param currentKeyId The new keyIds start at currentKeyId + 1
  * @return UA_StatusCode the return status
  */
 UA_StatusCode
-UA_PubSubKeyStorage_storeSecurityKeys(UA_PubSubKeyStorage *keyStorage,
-                                      UA_UInt32 currentTokenId,
-                                      const UA_ByteString *currentKey,
-                                      UA_ByteString *futureKeys,
-                                      size_t futureKeyCount,
-                                      UA_Duration msKeyLifeTime);
+UA_PubSubKeyStorage_addSecurityKeys(UA_PubSubKeyStorage *keyStorage, size_t keysSize,
+                                    UA_ByteString *keys, UA_UInt32 currentKeyId);
+
+/* Fetch the key from the list and set it as the current key */
+UA_StatusCode
+UA_PubSubKeyStorage_setCurrentKey(UA_PubSubKeyStorage *keyStorage,
+                                  UA_UInt32 keyId);
 
 /**
  * @brief Finds the KeyItem from the KeyList by KeyId
  *
- * @param keyId the identifier of the Key
  * @param keyStorage pointer to the keystorage
- * @param keyItem returned pointer to the keyItem in the KeyList
- * @return UA_StatusCode return status code
+ * @param keyId the identifier of the Key
+ * @return NULL or the found item
  */
-UA_StatusCode
-UA_PubSubKeyStorage_getKeyByKeyID(const UA_UInt32 keyId, UA_PubSubKeyStorage *keyStorage,
-                                  UA_PubSubKeyListItem **keyItem);
+UA_PubSubKeyListItem *
+UA_PubSubKeyStorage_getKeyByKeyId(UA_PubSubKeyStorage *keyStorage,
+                                  const UA_UInt32 keyId);
 
 /**
  * @brief Adds a new KeyItem at the end of the KeyList
@@ -326,26 +326,6 @@ UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
 void
 UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm,
                                         UA_PubSubKeyStorage *keyStorage);
-
-/**
- * @brief It updates/adds the current and future keys into the existing KeyStorage.
- * If the currentKeyID is known to existing keyStorage, then it is set as the currentKey
- * and any future keys are appended to the existing list. If the currentKeyId is not know
- * then, existing keyList is discarded and replaced with the new list.
- *
- * @param keyStorage pointer to the keystorage
- * @param currentKey the currentKey data
- * @param currentKeyID the identifier of the current Key
- * @param futureKeySize the size of the future key list
- * @param futureKeys the pointer to the future keys list
- * @param msKeyLifeTime the updated time to move to next key
- * @return UA_StatusCode the return status
- */
-UA_StatusCode
-UA_PubSubKeyStorage_update(UA_PubSubKeyStorage *keyStorage,
-                           const UA_ByteString *currentKey, UA_UInt32 currentKeyID,
-                           const size_t futureKeySize, UA_ByteString *futureKeys,
-                           UA_Duration msKeyLifeTime);
 
 /* KeyStorage must be referenced by atleast one PubSubGroup. This method reduces
  * the reference count by one. If no PubSubGroup uses the key storage, then it

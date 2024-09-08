@@ -1957,7 +1957,6 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         !UA_Variant_hasScalarType(&input[6], &UA_TYPES[UA_TYPES_DOUBLE]))) /*TimeToNextKey*/
         return UA_STATUSCODE_BADTYPEMISMATCH;
 
-    UA_StatusCode retval = UA_STATUSCODE_BAD;
     UA_Duration callbackTime;
     UA_String *securityGroupId = (UA_String *)input[0].data;
     UA_String *securityPolicyUri = (UA_String *)input[1].data;
@@ -1977,18 +1976,19 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
     if(!UA_String_equal(securityPolicyUri, &ks->policy->policyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
-    if(ks->keyListSize == 0) {
-        retval = UA_PubSubKeyStorage_storeSecurityKeys(ks, currentKeyId,
-                                                       currentKey, futureKeys, futureKeySize,
-            msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
-    } else {
-        retval = UA_PubSubKeyStorage_update(ks, currentKey, currentKeyId,
-                                            futureKeySize, futureKeys, msKeyLifeTime);
-        if(retval != UA_STATUSCODE_GOOD)
-            return retval;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_PubSubKeyListItem *current = UA_PubSubKeyStorage_getKeyByKeyId(ks, currentKeyId);
+    if(!current) {
+        UA_PubSubKeyStorage_clearKeyList(ks);
+        retval |= (UA_PubSubKeyStorage_push(ks, currentKey, currentKeyId)) ?
+            UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
     }
+    UA_PubSubKeyStorage_setCurrentKey(ks, currentKeyId);
+    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, futureKeySize,
+                                                  futureKeys, currentKeyId);
+    ks->keyLifeTime = msKeyLifeTime;
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     retval = UA_PubSubKeyStorage_activateKeyToChannelContext(psm, UA_NODEID_NULL,
                                                              ks->securityGroupID);
@@ -2005,10 +2005,9 @@ setSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         callbackTime = msTimeToNextKey;
 
     /*move to setSecurityKeysAction*/
-    retval = UA_PubSubKeyStorage_addKeyRolloverCallback(
+    return UA_PubSubKeyStorage_addKeyRolloverCallback(
         psm, ks, (UA_Callback)UA_PubSubKeyStorage_keyRolloverCallback,
         callbackTime, &ks->callBackId);
-    return retval;
 }
 
 static UA_StatusCode
@@ -2093,12 +2092,11 @@ getSecurityKeysLocked(UA_Server *server, const UA_NodeId *sessionId, void *sessi
         UA_assert(sg->keyStorage->currentItem != NULL);
         startingItem = sg->keyStorage->currentItem;
     } else {
-        retval = UA_PubSubKeyStorage_getKeyByKeyID(
-            startingTokenId, sg->keyStorage, &startingItem);
+        startingItem = UA_PubSubKeyStorage_getKeyByKeyId(sg->keyStorage, startingTokenId);
         /*If the StartingTokenId is unknown, the oldest (firstItem) available tokens are
          * returned. */
-        if(retval == UA_STATUSCODE_BADNOTFOUND)
-            startingItem =  TAILQ_FIRST(&sg->keyStorage->keyList);
+        if(!startingItem)
+            startingItem = TAILQ_FIRST(&sg->keyStorage->keyList);
     }
 
     /*SecurityPolicyUri*/

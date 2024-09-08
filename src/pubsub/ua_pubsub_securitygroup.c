@@ -148,7 +148,6 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
             UA_Byte_delete(newKey.data);
             return;
         }
-        keyStorage->keyListSize++;
     }
 
     UA_PubSubKeyListItem *nextCurrentItem = TAILQ_NEXT(keyStorage->currentItem, keyListEntry);
@@ -156,7 +155,8 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
         keyStorage->currentItem = nextCurrentItem;
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
-    sg->baseTime = el->dateTime_nowMonotonic(el);
+    el->modifyTimer(el, sg->callbackId, sg->config.keyLifeTime,
+                    NULL, UA_TIMERPOLICY_CURRENTTIME);
 
     /* We allocated memory for data with allocBuffer so now we free it */
     UA_ByteString_clear(&newKey);
@@ -201,17 +201,19 @@ initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
     }
 
     UA_UInt32 startingKeyId = 1;
-    retval = UA_PubSubKeyStorage_storeSecurityKeys(sg->keyStorage,
-                                                   startingKeyId, &currentKey, futurekeys,
-                                                   sg->config.maxFutureKeyCount,
-                                                   sg->config.keyLifeTime);
+    retval |= (UA_PubSubKeyStorage_push(ks, &currentKey, startingKeyId)) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_PubSubKeyStorage_setCurrentKey(ks, startingKeyId);
+    retval |= UA_PubSubKeyStorage_addSecurityKeys(ks, sg->config.maxFutureKeyCount,
+                                                  futurekeys, startingKeyId);
+    ks->keyLifeTime = sg->config.keyLifeTime;
     if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     retval = el->addTimer(el, (UA_Callback)updateSKSKeyStorage, psm,
                           sg, sg->config.keyLifeTime, NULL,
-                          UA_TIMERPOLICY_ONCE, &sg->callbackId);
+                          UA_TIMERPOLICY_CURRENTTIME, &sg->callbackId);
 
 cleanup:
     UA_Array_delete(futurekeys, sg->config.maxFutureKeyCount,
