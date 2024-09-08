@@ -29,15 +29,6 @@ UA_DataSetReaderConfig readerConfig;
 static void
 fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData);
 
-/**
- * Followed by the main server code, making use of the above definitions */
-UA_Boolean running = true;
-static void
-stopHandler(int sign) {
-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_SERVER, "received ctrl-c");
-    running = false;
-}
-
 static void
 addPubSubConnection(UA_Server *server, UA_String *transportProfile,
                     UA_NetworkAddressUrlDataType *networkAddressUrl) {
@@ -45,7 +36,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.name = UA_STRING("UDPMC Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT32;
@@ -55,9 +45,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
 
 static void
 sksPullRequestCallback(UA_Server *server, UA_StatusCode sksPullRequestStatus, void *data) {
-    if(sksPullRequestStatus != UA_STATUSCODE_GOOD)
-        running = false;
-
     UA_Server_setReaderGroupActivateKey(server, readerGroupIdentifier);
 }
 

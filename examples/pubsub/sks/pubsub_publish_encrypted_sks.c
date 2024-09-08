@@ -27,7 +27,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
@@ -75,7 +74,6 @@ addWriterGroup(UA_Server *server, UA_ClientConfig *sksClientConfig) {
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("Demo WriterGroup");
     writerGroupConfig.publishingInterval = 100;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.messageSettings.encoding = UA_EXTENSIONOBJECT_DECODED;

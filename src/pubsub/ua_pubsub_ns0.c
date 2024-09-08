@@ -349,9 +349,6 @@ addPubSubConnectionConfig(UA_Server *server, UA_PubSubConnectionDataType *pubsub
     memset(&connectionConfig, 0, sizeof(UA_PubSubConnectionConfig));
     connectionConfig.transportProfileUri = pubsubConnection->transportProfileUri;
     connectionConfig.name = pubsubConnection->name;
-    //TODO set real connection state
-    connectionConfig.enabled = pubsubConnection->enabled;
-    //connectionConfig.enabled = pubSubConnection.enabled;
     UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                          &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
 
@@ -382,7 +379,6 @@ addWriterGroupConfig(UA_Server *server, UA_NodeId connectionId,
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = writerGroup->name;
     writerGroupConfig.publishingInterval = writerGroup->publishingInterval;
-    writerGroupConfig.enabled = writerGroup->enabled;
     writerGroupConfig.writerGroupId = writerGroup->writerGroupId;
     //TODO remove hard coded UADP
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;

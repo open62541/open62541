@@ -192,7 +192,6 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
     memset(&config, 0, sizeof(UA_PubSubConnectionConfig));
 
     config.name =                       connParams->name;
-    config.enabled =                    connParams->enabled;
     config.transportProfileUri =        connParams->transportProfileUri;
     config.connectionProperties.map =   connParams->connectionProperties;
     config.connectionProperties.mapSize = connParams->connectionPropertiesSize;
@@ -239,6 +238,12 @@ createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType 
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_createPubSubConnection] "
                      "Connection creation failed");
+    }
+
+    if(connParams->enabled) {
+        UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionIdent);
+        if(c)
+            UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL);
     }
 
     UA_PublisherId_clear(&config.publisherId);
@@ -294,7 +299,6 @@ createWriterGroup(UA_PubSubManager *psm,
     UA_WriterGroupConfig config;
     memset(&config, 0, sizeof(UA_WriterGroupConfig));
     config.name =                  writerGroupParameters->name;
-    config.enabled =               writerGroupParameters->enabled;
     config.writerGroupId =         writerGroupParameters->writerGroupId;
     config.publishingInterval =    writerGroupParameters->publishingInterval;
     config.keepAliveTime =         writerGroupParameters->keepAliveTime;
@@ -336,7 +340,7 @@ createWriterGroup(UA_PubSubManager *psm,
         }
     }
 
-    if(config.enabled) {
+    if(writerGroupParameters->enabled) {
         UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroupIdent);
         if(wg)
             UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
@@ -392,7 +396,7 @@ addDataSetWriterWithPdsReference(UA_PubSubManager *psm, UA_NodeId writerGroupIde
             } else {
                 pdsFound = true;
                 UA_DataSetWriter *dsw = UA_DataSetWriter_find(psm, dataSetWriterIdent);
-                if(dsw)
+                if(enable && dsw)
                     UA_DataSetWriter_setPubSubState(psm, dsw, UA_PUBSUBSTATE_OPERATIONAL);
             }
 
@@ -600,8 +604,9 @@ createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrPa
     /* Enable the Reader */
     if(dsrParams->enabled) {
         UA_DataSetReader *dsr = UA_DataSetReader_find(psm, dsReaderIdent);
-        UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
-                                        UA_STATUSCODE_GOOD);
+        if(dsr)
+            UA_DataSetReader_setPubSubState(psm, dsr, UA_PUBSUBSTATE_OPERATIONAL,
+                                            UA_STATUSCODE_GOOD);
     }
 
     return UA_STATUSCODE_GOOD;
@@ -918,7 +923,6 @@ generateWriterGroupDataType(const UA_WriterGroup *src,
     memset(dst, 0, sizeof(UA_WriterGroupDataType));
 
     UA_String_copy(&src->config.name, &dst->name);
-    dst->enabled = src->config.enabled;
     dst->writerGroupId = src->config.writerGroupId;
     dst->publishingInterval = src->config.publishingInterval;
     dst->keepAliveTime = src->config.keepAliveTime;
@@ -1034,7 +1038,6 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
 
     UA_String_copy(&src->config.name, &dst->name);
     UA_String_copy(&src->config.transportProfileUri, &dst->transportProfileUri);
-    dst->enabled = src->config.enabled;
 
     UA_StatusCode res =
         UA_Array_copy(src->config.connectionProperties.map,

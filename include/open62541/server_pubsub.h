@@ -200,7 +200,6 @@ UA_Server_disableAllPubSubComponents(UA_Server *server);
 
 typedef struct {
     UA_String name;
-    UA_Boolean enabled;
     UA_PublisherId publisherId;
     UA_String transportProfileUri;
     UA_Variant address;
@@ -461,7 +460,6 @@ typedef struct {
 
 typedef struct {
     UA_String name;
-    UA_Boolean enabled;
     UA_UInt16 writerGroupId;
     UA_Duration publishingInterval;
     UA_Double keepAliveTime;
