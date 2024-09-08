@@ -777,7 +777,6 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 # pubsub
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_binary.c
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_eventloop.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_connection.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_dataset.c
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_writer.c

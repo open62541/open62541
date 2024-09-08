@@ -103,6 +103,18 @@ UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst) {
     }
 }
 
+UA_ConnectionManager *
+getCM(UA_EventLoop *el, UA_String protocol) {
+    for(UA_EventSource *es = el->eventSources; es != NULL; es = es->next) {
+        if(es->eventSourceType != UA_EVENTSOURCETYPE_CONNECTIONMANAGER)
+            continue;
+        UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
+        if(UA_String_equal(&protocol, &cm->protocol))
+            return cm;
+    }
+    return NULL;
+}
+
 static enum ZIP_CMP
 cmpReserveId(const void *a, const void *b) {
     const UA_ReserveId *aa = (const UA_ReserveId*)a;
