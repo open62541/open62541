@@ -388,7 +388,7 @@ UA_Server_init(UA_Server *server) {
 #endif
 
     /* Initialize the binay protocol support */
-    addServerComponent(server, UA_BinaryProtocolManager_new(), NULL);
+    addServerComponent(server, UA_BinaryProtocolManager_new(server), NULL);
 
     /* Initialized Discovery */
 #ifdef UA_ENABLE_DISCOVERY

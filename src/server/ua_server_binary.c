@@ -1289,9 +1289,6 @@ static UA_StatusCode
 UA_BinaryProtocolManager_start(UA_ServerComponent *sc, UA_Server *server) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)sc;
 
-    bpm->sc.server = server;
-    bpm->logging = server->config.logging;
-
     UA_ServerConfig *config = &server->config;
     
     UA_StatusCode retVal =
@@ -1422,7 +1419,7 @@ UA_BinaryProtocolManager_clear(UA_ServerComponent *sc) {
 }
 
 UA_ServerComponent *
-UA_BinaryProtocolManager_new() {
+UA_BinaryProtocolManager_new(UA_Server *server) {
     UA_BinaryProtocolManager *bpm = (UA_BinaryProtocolManager*)
         UA_calloc(1, sizeof(UA_BinaryProtocolManager));
     if(!bpm)
@@ -1434,6 +1431,9 @@ UA_BinaryProtocolManager_new() {
     bpm->sc.start = UA_BinaryProtocolManager_start;
     bpm->sc.stop = UA_BinaryProtocolManager_stop;
     bpm->sc.clear = UA_BinaryProtocolManager_clear;
+
+    bpm->sc.server = server;
+    bpm->logging = server->config.logging;
 
     return &bpm->sc;
 }
