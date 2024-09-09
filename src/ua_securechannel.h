@@ -1,6 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/MPL/2.0/. 
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  *    Copyright 2014-2020 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Florian Palm
@@ -141,8 +141,12 @@ void UA_SecureChannel_close(UA_SecureChannel *channel);
 /* Process the remote configuration in the HEL/ACK handshake. The connection
  * config is initialized with the local settings. */
 UA_StatusCode
-UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
-                               const UA_TcpAcknowledgeMessage *remoteConfig);
+UA_SecureChannel_clientProcessHELACK(UA_SecureChannel *channel,
+                                    const UA_TcpAcknowledgeMessage *remoteServerConfig);
+
+void
+UA_SecureChannel_serverProcessHELACK(UA_SecureChannel *channel,
+                                    const UA_TcpAcknowledgeMessage *remoteClientConfig);
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
