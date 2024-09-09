@@ -30,9 +30,7 @@
 # include <sys/socket.h>
 # include <sys/time.h> // for struct timeval
 # include <netinet/in.h> // for struct ip_mreq
-# if defined(UA_HAS_GETIFADDR)
-#  include <ifaddrs.h>
-# endif /* UA_HAS_GETIFADDR */
+# include <ifaddrs.h>
 # include <net/if.h> /* for IFF_RUNNING */
 # include <netdb.h> // for recvfrom in cygwin
 #endif
@@ -666,7 +664,17 @@ static void
 mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
                   UA_Boolean recv) {
     if(!recv) {
-        dm->mdnsSendConnection = connectionId;
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+            if(dm->mdnsSendConnections[i] == connectionId)
+                return;
+        }
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+            if(dm->mdnsSendConnections[i] != 0)
+                continue;
+            dm->mdnsSendConnections[i] = connectionId;
+            dm->mdnsSendConnectionsSize++;
+            break;
+        }
         return;
     }
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
@@ -686,9 +694,12 @@ mdnsAddConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
 static void
 mdnsRemoveConnection(UA_DiscoveryManager *dm, uintptr_t connectionId,
                      UA_Boolean recv) {
-    if(dm->mdnsSendConnection == connectionId) {
-        dm->mdnsSendConnection = 0;
-        return;
+    for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++) {
+        if(dm->mdnsSendConnections[i] != connectionId)
+            continue;
+        dm->mdnsSendConnections[i] = 0;
+        dm->mdnsSendConnectionsSize--;
+        break;
     }
     for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++) {
         if(dm->mdnsRecvConnections[i] != connectionId)
@@ -765,7 +776,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 void
 UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     UA_ConnectionManager *cm = dm->cm;
-    if(!dm->cm || dm->mdnsSendConnection == 0)
+    if(!dm->cm || dm->mdnsSendConnectionsSize == 0)
         return;
 
     struct sockaddr ip;
@@ -781,14 +792,16 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
         char* buf = (char*)message_packet(&mm);
         if(len <= 0)
             continue;
-        UA_ByteString sendBuf = UA_BYTESTRING_NULL;
-        UA_StatusCode rv = cm->allocNetworkBuffer(cm, dm->mdnsSendConnection,
-                                                  &sendBuf, (size_t)len);
-        if(rv != UA_STATUSCODE_GOOD)
-            continue;
-        memcpy(sendBuf.data, buf, sendBuf.length);
-        cm->sendWithConnection(cm, dm->mdnsSendConnection,
-                               &UA_KEYVALUEMAP_NULL, &sendBuf);
+		for(size_t i = 0; i < dm->mdnsSendConnectionsSize; i++) {
+            UA_ByteString sendBuf = UA_BYTESTRING_NULL;
+            UA_StatusCode rv = cm->allocNetworkBuffer(cm, dm->mdnsSendConnections[i],
+                                                      &sendBuf, (size_t)len);
+            if(rv != UA_STATUSCODE_GOOD)
+                continue;
+            memcpy(sendBuf.data, buf, sendBuf.length);
+            cm->sendWithConnection(cm, dm->mdnsSendConnections[i],
+                                   &UA_KEYVALUEMAP_NULL, &sendBuf);
+		}
     }
 }
 
@@ -845,6 +858,82 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
 #ifndef IN_ZERONET
 #define IN_ZERONET(addr) ((addr & IN_CLASSA_NET) == 0)
 #endif
+
+static bool
+#ifdef _WIN32
+isAddressValid(LPSOCKADDR addr) {
+    char sourceAddr[NI_MAXHOST];
+    if(addr->sa_family == AF_INET) {
+        inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
+                  sizeof(sourceAddr));
+#else
+isAddressValid(struct ifaddrs *ifa) {
+    char sourceAddr[NI_MAXHOST];
+    if(ifa->ifa_addr->sa_family == AF_INET) {
+        getnameinfo(ifa->ifa_addr,
+                    (ifa->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in)
+                                                          : sizeof(struct sockaddr_in6),
+                    sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+#endif
+        return !(sourceAddr[0] == '1' && sourceAddr[1] == '6' && sourceAddr[2] == '9' &&
+                 sourceAddr[3] == '.' && sourceAddr[4] == '2' && sourceAddr[5] == '5' &&
+                 sourceAddr[6] == '4');
+    }
+    return false;
+}
+
+static void
+discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
+                                 UA_KeyValuePair params[], UA_KeyValueMap kvm) {
+    char sourceAddr[NI_MAXHOST];
+    kvm.mapSize++;
+    params[5].key = UA_QUALIFIEDNAME(0, "interface");
+#ifdef _WIN32
+    ULONG outBufLen = 15000;
+    UA_STACKARRAY(char, addrBuf, 15000);
+    PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
+    ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
+                  GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
+    GetAdaptersAddresses(AF_INET, flags, NULL, ifaddr, &outBufLen);
+    for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
+        for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
+            LPSOCKADDR addr = u->Address.lpSockaddr;
+            if(isAddressValid(addr)) {
+                inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
+                          sizeof(sourceAddr));
+
+#else
+    struct ifaddrs *ifaddr;
+    getifaddrs(&ifaddr);
+    struct ifaddrs *ifa = NULL;
+
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_addr)
+            continue;
+        if(isAddressValid(ifa)) {
+            getnameinfo(ifa->ifa_addr,
+                        (ifa->ifa_addr->sa_family == AF_INET)
+                            ? sizeof(struct sockaddr_in)
+                            : sizeof(struct sockaddr_in6),
+                        sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+#endif
+                UA_String additionlconnection = UA_String_fromChars(sourceAddr);
+                UA_Variant_setScalar(&params[5].value, &additionlconnection,
+                                     &UA_TYPES[UA_TYPES_STRING]);
+                UA_StatusCode res = dm->cm->openConnection(
+                    dm->cm, &kvm, server, dm, MulticastDiscoverySendCallback);
+                if(res != UA_STATUSCODE_GOOD)
+                    UA_LOG_ERROR(
+                        dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Could not create the mdns UDP multicast send connection");
+            }
+        }
+#ifdef _WIN32
+    }
+#else
+    freeifaddrs(ifaddr);
+#endif
+}
 
 /* Create multicast 224.0.0.251:5353 socket */
 static void
@@ -912,12 +1001,18 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
 
     /* Open the send connection */
     listen = false;
-    if(dm->mdnsSendConnection == 0) {
-        res = dm->cm->openConnection(dm->cm, &kvm, dm->server, dm,
+    if(dm->mdnsSendConnectionsSize == 0) {
+		const UA_String *addrs = (const UA_String *)UA_KeyValueMap_getScalar(
+            &kvm, UA_QUALIFIEDNAME(0, "interface"), &UA_TYPES[UA_TYPES_STRING]);
+        if(!addrs) {
+            discovery_createMultiConnections(dm->server, dm, params, kvm);
+        } else {
+            res = dm->cm->openConnection(dm->cm, &kvm, dm->server, dm,
                                      MulticastDiscoverySendCallback);
-        if(res != UA_STATUSCODE_GOOD)
-            UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+            if(res != UA_STATUSCODE_GOOD)
+                UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                          "Could not create the mdns UDP multicast send connection");
+		}
     }
 }
 
@@ -934,9 +1029,9 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
 #endif
 
     /* Open the mdns listen socket */
-    if(dm->mdnsSendConnection == 0)
+    if(dm->mdnsSendConnectionsSize == 0)
         discovery_createMulticastSocket(dm);
-    if(dm->mdnsSendConnection == 0) {
+    if(dm->mdnsSendConnectionsSize == 0) {
         UA_LOG_ERROR(dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "Could not create multicast socket");
         return;
@@ -990,8 +1085,9 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
 
     /* Close the socket */
     if(dm->cm) {
-        if(dm->mdnsSendConnection)
-            dm->cm->closeConnection(dm->cm, dm->mdnsSendConnection);
+        for(size_t i = 0; i < UA_MAXMDNSSENDSOCKETS; i++)
+            if(dm->mdnsSendConnections[i] != 0)
+                dm->cm->closeConnection(dm->cm, dm->mdnsSendConnections[i]);
         for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++)
             if(dm->mdnsRecvConnections[i] != 0)
                 dm->cm->closeConnection(dm->cm, dm->mdnsRecvConnections[i]);
