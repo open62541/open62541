@@ -574,6 +574,8 @@ UA_NetworkMessage_decodeJson(const UA_ByteString *src,
         goto cleanup;
 
     ret = NetworkMessage_decodeJsonInternal(&ctx, dst);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_NetworkMessage_clear(dst);
 
  cleanup:
     /* Free token array on the heap */
