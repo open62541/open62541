@@ -113,10 +113,6 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     UA_PubSubManager *psm = getPSM(server);
     UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_find(psm, readerGroup1);
     UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_find(psm, readerGroup2);
-    UA_DataSetReader *dataSetReader_1 = UA_DataSetReader_find(psm, dataSetReader1);
-    UA_DataSetReader *dataSetReader_2 = UA_DataSetReader_find(psm, dataSetReader2);
-    UA_DataSetReader *dataSetReader_3 = UA_DataSetReader_find(psm, dataSetReader3);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
 
     //freeze configuration of both RG
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);

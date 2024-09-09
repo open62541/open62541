@@ -89,6 +89,7 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
     UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
@@ -154,6 +155,7 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
         UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert(dataSetWriter != NULL);
 
@@ -164,9 +166,6 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
 
         UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
         ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-
-        //get internal PubSubConnection Pointer
-        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
 
         //Lock the with the freeze function
         UA_LOCK(&psm->sc.server->serviceMutex);
@@ -218,8 +217,6 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
 
     UA_PubSubManager *psm = getPSM(server);
 
-    UA_DataSetField *dataSetField = UA_DataSetField_find(psm, dataSetField1);
-
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
@@ -229,10 +226,12 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 3");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
 
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+
     UA_WriterGroup *writerGroup_1 = UA_WriterGroup_find(psm, writerGroup1);
     UA_WriterGroup *writerGroup_2 = UA_WriterGroup_find(psm, writerGroup2);
     UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_find(psm, publishedDataSet1);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
+
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
