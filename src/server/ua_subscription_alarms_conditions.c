@@ -111,7 +111,6 @@ static UA_Condition *UA_Condition_new (void)
 
 static void UA_Condition_delete (UA_Condition *condition)
 {
-    UA_NodeId_clear (&condition->sourceId);
     UA_free (condition);
 }
 
@@ -469,11 +468,6 @@ getConditionBranchFromConditionAndEvent(
     if (!condition) return NULL;
     return UA_Condition_GetBranchWithEventId(condition, eventId);
 }
-
-static UA_StatusCode
-setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
-                     const UA_NodeId *conditionType,
-                     const UA_ConditionProperties *properties);
 
 static UA_StatusCode
 setConditionField(UA_Server *server, const UA_NodeId condition,
@@ -1827,67 +1821,6 @@ doesHasEventSourceReferenceExist(UA_Server *server, const UA_NodeId nodeToCheck)
     return false;
 }
 
-struct UA_SetupConditionContext
-{
-    UA_Server *server;
-    const UA_NodeId *conditionInstance;
-    const void* conditionSetupProperties;
-};
-
-static UA_StatusCode recurseConditionTypeInstanceSetup (UA_Server *server, const struct UA_SetupConditionContext *ctx, const UA_Node *conditionTypeNode);
-
-static void *
-setupConditionInstanceSubtypeOfCallback(void *context, UA_ReferenceTarget *t) {
-    if (!UA_NodePointer_isLocal(t->targetId)) return NULL;
-    struct UA_SetupConditionContext *ctx = (struct UA_SetupConditionContext *) context;
-    const UA_Node *node = UA_NODESTORE_GETFROMREF (ctx->server, t->targetId);
-    void *ret = recurseConditionTypeInstanceSetup (ctx->server, ctx, node) == UA_STATUSCODE_GOOD ? (void*)0x1 : NULL;
-    UA_NODESTORE_RELEASE(ctx->server, node);
-    return ret;
-}
-
-/**
- * Recurse upwards through the conditionType subtypes until we reach the base condition type.
- * Then call each of the conditions setup functions in order
- */
-static UA_StatusCode recurseConditionTypeInstanceSetup (UA_Server *server, const struct UA_SetupConditionContext *ctx, const UA_Node *conditionTypeNode)
-{
-    if (!conditionTypeNode) return UA_STATUSCODE_BADINTERNALERROR;
-    if (conditionTypeNode->head.nodeClass != UA_NODECLASS_OBJECTTYPE) return UA_STATUSCODE_BADINTERNALERROR;
-    const UA_NodeId conditionType = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    if (UA_NodeId_equal(&conditionTypeNode->head.nodeId, &conditionType)) return UA_STATUSCODE_GOOD;
-    for (size_t i = 0; i < conditionTypeNode->head.referencesSize; i++) {
-        UA_NodeReferenceKind *rk = &conditionTypeNode->head.references[i];
-        UA_Boolean isSubtypeOf = rk->referenceTypeIndex == UA_REFERENCETYPEINDEX_HASSUBTYPE && rk->isInverse == true;
-        if(!isSubtypeOf) continue;
-
-        const void *success = UA_NodeReferenceKind_iterate (rk, setupConditionInstanceSubtypeOfCallback, (void *) (uintptr_t) ctx);
-        if (!success) return UA_STATUSCODE_BAD;
-    }
-    UA_ConditionTypeSetupNodesFn setupFn = ((const UA_ObjectTypeNode *) conditionTypeNode)->_conditionNodeSetupFn;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if (!setupFn) return retval;
-    //call metadata constructor methods
-    return setupFn (server, ctx->conditionInstance, ctx->conditionSetupProperties);
-}
-
-
-static UA_StatusCode
-setupConditionInstance (UA_Server *server, const UA_NodeId *conditionId, const UA_NodeId *conditionType, const UA_ConditionProperties *properties, const void *conditionSetupProperties)
-{
-    UA_StatusCode retval = setupConditionNodes (server, conditionId, conditionType, properties);
-    if (retval != UA_STATUSCODE_GOOD) return retval;
-    const UA_Node* node = UA_NODESTORE_GET (server, conditionType);
-    struct UA_SetupConditionContext ctx = {
-        .server = server,
-        .conditionInstance = conditionId,
-        .conditionSetupProperties = conditionSetupProperties
-    };
-    retval = recurseConditionTypeInstanceSetup (server, &ctx, node);
-    UA_NODESTORE_RELEASE(server, node);
-    return retval;
-}
-
 static inline UA_Condition *getCondition (UA_Server *server, const UA_NodeId *conditionId)
 {
     UA_ConditionBranch dummy;
@@ -1977,7 +1910,7 @@ fail:
 
 static UA_StatusCode
 newConditionEntry (UA_Server *server, const UA_NodeId *conditionNodeId,
-                   const UA_ConditionProperties *conditionProperties, UA_ConditionFns conditionFns,
+                   const UA_CreateConditionProperties *conditionProperties, UA_ConditionFns conditionFns,
                    UA_Condition **out)
 {
     /*make sure entry doesn't exist*/
@@ -1988,7 +1921,7 @@ newConditionEntry (UA_Server *server, const UA_NodeId *conditionNodeId,
 
     UA_StatusCode status = UA_STATUSCODE_GOOD;
     UA_Condition *condition = UA_Condition_new();
-    status = UA_NodeId_copy (&conditionProperties->source, (UA_NodeId *) &condition->sourceId);
+    status = UA_NodeId_copy (&conditionProperties->sourceNode, (UA_NodeId *) &condition->sourceId);
     if (status != UA_STATUSCODE_GOOD) goto fail;
     condition->fns = conditionFns;
     condition->canBranch = conditionProperties->canBranch;
@@ -2000,7 +1933,7 @@ fail:
 }
 
 static UA_StatusCode
-newConditionInstanceEntry (UA_Server *server, const UA_NodeId *conditionNodeId, const UA_ConditionProperties *conditionProperties,
+newConditionInstanceEntry (UA_Server *server, const UA_NodeId *conditionNodeId, const UA_CreateConditionProperties *conditionProperties,
                            UA_ConditionFns conditionFns)
 {
     UA_Condition *condition = NULL;
@@ -2014,9 +1947,50 @@ newConditionInstanceEntry (UA_Server *server, const UA_NodeId *conditionNodeId, 
         removeCondition(server, condition);
     }
 
-
-
     return status;
+}
+
+static UA_StatusCode setConditionProperties (
+    UA_Server *server,
+    const UA_NodeId *conditionType,
+    const UA_NodeId *conditionId,
+    const UA_CreateConditionProperties *properties
+)
+{
+    UA_Variant value;
+    UA_Variant_setScalar(&value, (void*)(uintptr_t) conditionType, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode retval = setConditionField(server, *conditionId, &value,
+                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_EVENTTYPE));
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EventType Field failed",);
+
+    if (!UA_NodeId_isNull(&properties->sourceNode))
+    {
+        /* Get Condition SourceNode*/
+        const UA_Node *conditionSourceNode = UA_NODESTORE_GET(server, &properties->sourceNode);
+        if(!conditionSourceNode) {
+            UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
+                           "Couldn't find Condition SourceNode. StatusCode %s", UA_StatusCode_name(retval));
+            return UA_STATUSCODE_BADNOTFOUND;
+        }
+
+        /* Set SourceNode*/
+        UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.nodeId,
+                             &UA_TYPES[UA_TYPES_NODEID]);
+        retval = setConditionField(server, *conditionId, &value, fieldSourceNodeQN);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
+                         "Set SourceNode Field failed. StatusCode %s", UA_StatusCode_name(retval));
+            UA_NODESTORE_RELEASE(server, conditionSourceNode);
+            return retval;
+        }
+
+        UA_NODESTORE_RELEASE(server, conditionSourceNode);
+    }
+
+    /* Set EnabledState */
+    retval = setTwoStateVariable (server, conditionId, fieldEnabledStateQN, false, DISABLED_TEXT);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting initial Enabled state failed",);
+    return retval;
 }
 
 static UA_StatusCode
@@ -2024,54 +1998,62 @@ addCondition_finish(
     UA_Server *server,
     const UA_NodeId conditionId,
     const UA_NodeId *conditionType,
-    const UA_ConditionProperties *conditionProperties,
+    const UA_CreateConditionProperties *conditionProperties,
     UA_ConditionFns conditionFns,
-    const void *conditionSetupProperties
+    UA_ConditionTypeSetupFn setupNodesFn,
+    const void *setupNodesUserData
 ) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     UA_StatusCode retval = addNode_finish(server, &server->adminSession, &conditionId);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Finish node failed",);
 
-    /* Make sure the ConditionSource has HasEventSource or one of its SubTypes ReferenceType */
-    UA_NodeId serverObject = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
-    if(!doesHasEventSourceReferenceExist(server, conditionProperties->source) &&
-       !UA_NodeId_equal(&serverObject, &conditionProperties->source)) {
-         UA_NodeId hasHasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
-         retval = addRef(server, serverObject, hasHasEventSourceId, conditionProperties->source, true);
-          CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasHasEventSource Reference "
-                                         "to the Server Object failed",);
-    }
+    retval = setConditionProperties(server, conditionType, &conditionId, conditionProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
 
-    /* create HasCondition Reference (HasCondition should be forward from the
-     * ConditionSourceNode to the Condition. else, HasCondition should be
-     * forward from the ConditionSourceNode to the ConditionType Node) */
-    UA_NodeId hasCondition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
-    if(!UA_NodeId_isNull(&conditionProperties->hierarchialReferenceType)) {
-        /* Create hierarchical Reference to ConditionSource to expose the
-         * ConditionNode in Address Space */
-        // only Check hierarchialReferenceType
-        retval = addRef(server, conditionProperties->source, conditionProperties->hierarchialReferenceType, conditionId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating hierarchical Reference to "
-                                       "ConditionSource failed",);
+    UA_UNLOCK(&server->serviceMutex);
+    retval = setupNodesFn ? setupNodesFn (server, &conditionId, setupNodesUserData) : UA_STATUSCODE_GOOD;
+    UA_LOCK(&server->serviceMutex);
+    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setup Nodes failed",);
 
-        retval = addRef(server, conditionProperties->source, hasCondition, conditionId, true);
-        CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
-    } else {
-        retval = addRef(server, conditionProperties->source, hasCondition, *conditionType, true);
-        if(retval != UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
+    if (!UA_NodeId_isNull(&conditionProperties->sourceNode))
+    {
+        /* Make sure the ConditionSource has HasEventSource or one of its SubTypes ReferenceType. If the source has no
+         * reference type then create a has event source from the server to the source */
+        UA_NodeId serverObject = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER);
+        if (!UA_NodeId_equal(&serverObject, &conditionProperties->sourceNode) &&
+            !doesHasEventSourceReferenceExist(server, conditionProperties->sourceNode))
+        {
+            UA_NodeId hasEventSourceId = UA_NODEID_NUMERIC(0, UA_NS0ID_HASEVENTSOURCE);
+            retval = addRef(server, serverObject, hasEventSourceId, conditionProperties->sourceNode, true);
+            CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasHasEventSource Reference to the Server Object failed",);
+        }
+
+        /* create HasCondition Reference (HasCondition should be forward from the
+         * ConditionSourceNode to the Condition. else, HasCondition should be
+         * forward from the ConditionSourceNode to the ConditionType Node) */
+        UA_NodeId hasCondition = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCONDITION);
+        if(!UA_NodeId_isNull(&conditionProperties->hierarchialReferenceType)) {
+            retval = addRef(server, conditionProperties->sourceNode, hasCondition, conditionId, true);
             CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+        } else {
+            retval = addRef(server, conditionProperties->sourceNode, hasCondition, *conditionType, true);
+            if(retval != UA_STATUSCODE_GOOD && retval != UA_STATUSCODE_BADDUPLICATEREFERENCENOTALLOWED)
+            {
+                CONDITION_ASSERT_RETURN_RETVAL(retval, "Creating HasCondition Reference failed",);
+            }
+            retval = UA_STATUSCODE_GOOD;
+        }
     }
 
-    retval = setupConditionInstance (server, &conditionId, conditionType, conditionProperties, conditionSetupProperties);
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Setup Condition failed",);
     return newConditionInstanceEntry (server, &conditionId, conditionProperties, conditionFns);
 }
 
+
 static UA_StatusCode
 addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
                    const UA_NodeId conditionType,
-                   const UA_QualifiedName conditionName, UA_NodeId *outNodeId) {
+                   const UA_CreateConditionProperties *properties, UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "outNodeId cannot be NULL!");
@@ -2080,10 +2062,8 @@ addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
 
     /* Make sure the conditionType is a Subtype of ConditionType */
     UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
-    UA_LOCK(&server->serviceMutex);
     UA_Boolean found = isNodeInTree_singleRef(server, &conditionType, &conditionTypeId,
                                               UA_REFERENCETYPEINDEX_HASSUBTYPE);
-    UA_UNLOCK(&server->serviceMutex);
     if(!found) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
                      "Condition Type must be a subtype of ConditionType!");
@@ -2092,14 +2072,17 @@ addCondition_begin(UA_Server *server, const UA_NodeId conditionId,
 
     /* Create an ObjectNode which represents the condition */
     UA_ObjectAttributes oAttr = UA_ObjectAttributes_default;
-    oAttr.displayName.locale = UA_STRING("en");
-    oAttr.displayName.text = conditionName.name;
-    UA_StatusCode retval =
-        UA_Server_addNode_begin(server, UA_NODECLASS_OBJECT, conditionId,
-                                UA_NODEID_NULL, UA_NODEID_NULL, conditionName,
-                                conditionType, &oAttr, &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES],
-                                NULL, outNodeId);
+    oAttr.displayName = properties->displayName;
+    oAttr.description = properties->description;
+    UA_StatusCode retval = addNode_begin(
+        server, UA_NODECLASS_OBJECT, conditionId,
+        properties->parentNodeId, properties->hierarchialReferenceType,
+        properties->browseName, conditionType, &oAttr,
+        &UA_TYPES[UA_TYPES_OBJECTATTRIBUTES], NULL, outNodeId
+    );
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Adding Condition failed", );
+
+
     return UA_STATUSCODE_GOOD;
 }
 
@@ -2114,9 +2097,10 @@ UA_StatusCode
 __UA_Server_createCondition(UA_Server *server,
                           const UA_NodeId conditionId,
                           const UA_NodeId conditionType,
-                          const UA_ConditionProperties *conditionProperties,
+                          const UA_CreateConditionProperties *conditionProperties,
                           UA_ConditionFns conditionFns,
-                          const void *conditionSetupProperties,
+                          UA_ConditionTypeSetupFn setupFn,
+                          const void *setupData,
                           UA_NodeId *outNodeId) {
     if(!outNodeId) {
         UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
@@ -2124,14 +2108,16 @@ __UA_Server_createCondition(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
+    UA_LOCK(&server->serviceMutex);
     UA_StatusCode retval = addCondition_begin(server, conditionId, conditionType,
-                                              conditionProperties->name, outNodeId);
+                                              conditionProperties, outNodeId);
+    UA_UNLOCK(&server->serviceMutex);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
     UA_LOCK(&server->serviceMutex);
     retval = addCondition_finish(server, *outNodeId, &conditionType, conditionProperties,
-                                 conditionFns, conditionSetupProperties);
+                                 conditionFns, setupFn, setupData);
     UA_UNLOCK(&server->serviceMutex);
     return retval;
 }
@@ -3362,90 +3348,9 @@ done:
     return retval;
 }
 
-// ConditionType constructor implementation
 
 static UA_StatusCode
-setupConditionNodes (UA_Server *server, const UA_NodeId *condition,
-                     const UA_NodeId *conditionType,
-                     const UA_ConditionProperties *properties)
-{
-    /* Set Fields */
-    /* Set EventType */
-    UA_Variant value;
-    UA_Variant_setScalar(&value, (void*)(uintptr_t) conditionType, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_StatusCode retval = setConditionField(server, *condition, &value,
-                                             UA_QUALIFIEDNAME(0,CONDITION_FIELD_EVENTTYPE));
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set EventType Field failed",);
-
-    /* Set ConditionName */
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)&properties->name.name,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    retval = setConditionField(server, *condition, &value,
-                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_CONDITIONNAME));
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set ConditionName Field failed",);
-
-    /* Set EnabledState */
-    retval = setTwoStateVariable (server, condition, fieldEnabledStateQN, false, DISABLED_TEXT);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Setting initial Enabled state failed",);
-
-    /* Set Retain*/
-    UA_Boolean retain = false;
-    UA_Variant_setScalar(&value, &retain, &UA_TYPES[UA_TYPES_BOOLEAN]);
-    retval = setConditionField(server, *condition, &value, fieldRetainQN);
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Retain Field failed",);
-
-    /* Get ConditionSourceNode*/
-    const UA_Node *conditionSourceNode = UA_NODESTORE_GET(server, &properties->source);
-    if(!conditionSourceNode) {
-        UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_USERLAND,
-                       "Couldn't find ConditionSourceNode. StatusCode %s", UA_StatusCode_name(retval));
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    /* Set SourceName*/
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.browseName.name,
-                         &UA_TYPES[UA_TYPES_STRING]);
-    retval = setConditionField(server, *condition, &value,
-                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_SOURCENAME));
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
-                     "Set SourceName Field failed. StatusCode %s",
-                     UA_StatusCode_name(retval));
-        UA_NODESTORE_RELEASE(server, conditionSourceNode);
-        return retval;
-    }
-
-    /* Set SourceNode*/
-    UA_Variant_setScalar(&value, (void*)(uintptr_t)&conditionSourceNode->head.nodeId,
-                         &UA_TYPES[UA_TYPES_NODEID]);
-    retval = setConditionField(server, *condition, &value, fieldSourceNodeQN);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_USERLAND,
-                     "Set SourceNode Field failed. StatusCode %s", UA_StatusCode_name(retval));
-        UA_NODESTORE_RELEASE(server, conditionSourceNode);
-        return retval;
-    }
-
-    UA_NODESTORE_RELEASE(server, conditionSourceNode);
-
-    /* Set Quality (TODO not supported, thus set with Status Good) */
-    UA_StatusCode qualityValue = UA_STATUSCODE_GOOD;
-    UA_Variant_setScalar(&value, &qualityValue, &UA_TYPES[UA_TYPES_STATUSCODE]);
-    retval = setConditionField(server, *condition, &value,
-                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_QUALITY));
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Quality Field failed",);
-
-    /* Set Severity */
-    UA_UInt16 severityValue = 0;
-    UA_Variant_setScalar(&value, &severityValue, &UA_TYPES[UA_TYPES_UINT16]);
-    retval = setConditionField(server, *condition, &value,
-                               UA_QUALIFIEDNAME(0,CONDITION_FIELD_SEVERITY));
-    CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Severity Field failed",);
-    return retval;
-}
-
-static UA_StatusCode
-UA_Server_setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId *condition,
+setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId *condition,
                                               const UA_AcknowledgeableConditionProperties *properties)
 {
     UA_NodeId acknowledgeableConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE);
@@ -3468,6 +3373,16 @@ UA_Server_setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId
         CONDITION_ASSERT_RETURN_RETVAL(retval,
                                        "Adding HasComponent Reference to Confirm Method failed",);
     }
+    return retval;
+}
+
+UA_StatusCode UA_EXPORT
+UA_Server_setupAcknowledgeableConditionNodes (UA_Server *server, const UA_NodeId *conditionId,
+                                              const UA_AcknowledgeableConditionProperties *properties)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupAcknowledgeableConditionNodes(server, conditionId, properties);
+    UA_UNLOCK (&server->serviceMutex);
     return retval;
 }
 
@@ -3498,12 +3413,14 @@ done:
 }
 
 static UA_StatusCode
-UA_Server_setupAlarmConditionNodes (UA_Server *server, const UA_NodeId *condition,
+setupAlarmConditionNodes (UA_Server *server, const UA_NodeId *condition,
                                     const UA_AlarmConditionProperties *properties)
 {
+    UA_StatusCode retval = setupAcknowledgeableConditionNodes(server, condition, &properties->acknowledgeableConditionProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     UA_NodeId alarmConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ALARMCONDITIONTYPE);
     UA_Variant value;
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     setTwoStateVariable (server, condition, fieldActiveStateQN, false, INACTIVE_TEXT);
     if (!UA_NodeId_isNull(&properties->inputNode))
     {
@@ -3655,11 +3572,24 @@ UA_Server_setupAlarmConditionNodes (UA_Server *server, const UA_NodeId *conditio
     return retval;
 }
 
+UA_StatusCode
+UA_Server_setupAlarmConditionNodes (UA_Server *server, const UA_NodeId *conditionId,
+                                              const UA_AlarmConditionProperties *properties)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupAlarmConditionNodes (server, conditionId, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
 static UA_StatusCode
-UA_Server_setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                                       const UA_DiscrepancyAlarmProperties *properties)
 {
-    UA_StatusCode ret = writeObjectProperty_scalar(server, *condition, fieldExpectedTimeQN, &properties->expectedTime, &UA_TYPES[UA_TYPES_DURATION]);
+    UA_StatusCode ret = setupAlarmConditionNodes (server, condition, &properties->alarmConditionProperties);
+    if (ret != UA_STATUSCODE_GOOD) return ret;
+
+    ret = writeObjectProperty_scalar(server, *condition, fieldExpectedTimeQN, &properties->expectedTime, &UA_TYPES[UA_TYPES_DURATION]);
     CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting ExpectedTime value failed",);
 
     ret = writeObjectProperty_scalar(server, *condition, fieldTargetValueNodeQN, &properties->targetValue, &UA_TYPES[UA_TYPES_NODEID]);
@@ -3677,20 +3607,45 @@ UA_Server_setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condit
     return ret;
 }
 
+UA_StatusCode
+UA_Server_setupDiscrepancyAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+                            const UA_DiscrepancyAlarmProperties *properties)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupDiscrepancyAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
 static UA_StatusCode
-UA_Server_setupOffNormalAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+setupOffNormalAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                                     const UA_OffNormalAlarmProperties *properties)
 {
-    UA_StatusCode ret = writeObjectProperty_scalar(server, *condition, fieldNormalStateQN, &properties->normalState, &UA_TYPES[UA_TYPES_NODEID]);
+    UA_StatusCode ret = setupAlarmConditionNodes (server, condition, &properties->alarmConditionProperties);
+    if (ret != UA_STATUSCODE_GOOD) return ret;
+
+    ret = writeObjectProperty_scalar(server, *condition, fieldNormalStateQN, &properties->normalState, &UA_TYPES[UA_TYPES_NODEID]);
     CONDITION_ASSERT_RETURN_RETVAL(ret, "Setting NormalState value failed",);
     return ret;
 }
 
+UA_StatusCode
+UA_Server_setupOffNormalAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+                          const UA_OffNormalAlarmProperties *properties)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupOffNormalAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
 static UA_StatusCode
-UA_Server_setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                                                 const UA_CertificateExpirationAlarmProperties *properties)
 {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_StatusCode retval = setupOffNormalAlarmNodes (server, condition, &properties->offNormalAlarmProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     if (properties->expirationLimit)
     {
         UA_NodeId certificateConditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE);
@@ -3719,10 +3674,22 @@ UA_Server_setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_Node
     return retval;
 }
 
-static UA_StatusCode
-UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
+UA_StatusCode
+UA_Server_setupCertificateExpirationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+                                      const UA_CertificateExpirationAlarmProperties *properties)
 {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupCertificateExpirationAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
+static UA_StatusCode
+setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
+{
+    UA_StatusCode retval = setupAlarmConditionNodes (server, condition, &properties->alarmConditionProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     if (!properties->lowLimit && !properties->lowLowLimit && !properties->highLimit && !properties->highHighLimit)
     {
         CONDITION_LOG_ERROR (retval, "At least one limit field is mandatory");
@@ -3884,10 +3851,21 @@ UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, co
     return retval;
 }
 
-static UA_StatusCode
-UA_Server_setupNonExclusiveLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
+UA_StatusCode
+UA_Server_setupLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
 {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupLimitAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
+static UA_StatusCode
+setupNonExclusiveLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
+{
+    UA_StatusCode retval = setupLimitAlarmNodes (server, condition, properties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     if (!properties->lowLimit && !properties->highLimit)
     {
         CONDITION_LOG_ERROR (retval, "At least LowLimit or HighLimit must be provided");
@@ -3931,14 +3909,25 @@ UA_Server_setupNonExclusiveLimitAlarmNodes(UA_Server *server, const UA_NodeId *c
     return retval;
 }
 
+UA_StatusCode
+UA_Server_setupNonExclusiveLimitAlarmNodes(UA_Server *server, const UA_NodeId *condition, const UA_LimitAlarmProperties *properties)
+{
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupNonExclusiveLimitAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
+}
+
 static UA_StatusCode
 setupDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                           const UA_DeviationAlarmProperties *properties)
 {
+    UA_StatusCode retval = setupLimitAlarmNodes (server, condition, &properties->limitAlarmProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
 
     UA_Variant value;
     UA_Variant_setScalar(&value, (void *)(uintptr_t)&properties->setpointNode, &UA_TYPES[UA_TYPES_NODEID]);
-    UA_StatusCode retval = setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0, CONDITION_FIELD_SETPOINTNODE));
+    retval = setConditionField(server, *condition, &value, UA_QUALIFIEDNAME(0, CONDITION_FIELD_SETPOINTNODE));
     CONDITION_ASSERT_RETURN_RETVAL(retval, "Set SetpointNode Field failed",);
 
     if (properties->baseSetpointNode)
@@ -3955,26 +3944,24 @@ setupDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
     return UA_STATUSCODE_GOOD;
 }
 
-static UA_StatusCode
-UA_Server_setupExclusiveDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
-                                             const UA_DeviationAlarmProperties *properties)
+UA_StatusCode
+UA_Server_setupDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+                          const UA_DeviationAlarmProperties *properties)
 {
-    return setupDeviationAlarmNodes (server, condition, properties);
-}
-
-static UA_StatusCode
-UA_Server_setupNonExclusiveDeviationAlarmNodes (UA_Server *server, const UA_NodeId *condition,
-                                                const UA_DeviationAlarmProperties *properties)
-{
-    return setupDeviationAlarmNodes (server, condition, properties);
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupDeviationAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
 }
 
 static UA_StatusCode
 setupRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
                              const UA_RateOfChangeAlarmProperties *properties)
 {
+    UA_StatusCode retval = setupLimitAlarmNodes (server, condition, &properties->limitAlarmProperties);
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
     UA_NodeId RateOfChangeAlarmTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_EXCLUSIVERATEOFCHANGEALARMTYPE);
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if (properties->engineeringUnits)
     {
         retval = addOptionalField(server, *condition, RateOfChangeAlarmTypeId,
@@ -3989,37 +3976,15 @@ setupRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
     return retval;
 }
 
-
-static UA_StatusCode
-UA_Server_setupExclusiveRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
-                                                const UA_RateOfChangeAlarmProperties *properties)
+UA_StatusCode
+UA_Server_setupRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
+                             const UA_RateOfChangeAlarmProperties *properties)
 {
-    return setupRateOfChangeAlarmNodes (server, condition, properties);
+    UA_LOCK (&server->serviceMutex);
+    UA_StatusCode retval = setupRateOfChangeAlarmNodes (server, condition, properties);
+    UA_UNLOCK (&server->serviceMutex);
+    return retval;
 }
-
-static UA_StatusCode
-UA_Server_setupNonExclusiveRateOfChangeAlarmNodes (UA_Server *server, const UA_NodeId *condition,
-                                                   const UA_RateOfChangeAlarmProperties *properties)
-{
-    return setupRateOfChangeAlarmNodes (server, condition, properties);
-}
-
-static UA_StatusCode UA_Server_setConditionNodesSetupFn (UA_Server *server, const UA_NodeId *typeId, UA_ConditionTypeSetupNodesFn fn)
-{
-    const UA_Node *node = UA_NODESTORE_GET (server, typeId);
-    //TODO check if subtype of condition type
-    if (node->head.nodeClass != UA_NODECLASS_OBJECTTYPE) return UA_STATUSCODE_BADNODECLASSINVALID;
-    UA_ObjectTypeNode *object_node = (UA_ObjectTypeNode *) (uintptr_t) node;
-    object_node->_conditionNodeSetupFn = fn;
-    UA_NODESTORE_RELEASE(server, node);
-    return UA_STATUSCODE_GOOD;
-}
-
-struct UA_ConditionTypeMetaData
-{
-    UA_NodeId typeId;
-    UA_ConditionTypeSetupNodesFn nodeSetup;
-};
 
 void initNs0ConditionAndAlarms (UA_Server *server)
 {
@@ -4120,61 +4085,6 @@ void initNs0ConditionAndAlarms (UA_Server *server)
     if(inner) {
         writeIsAbstractAttribute(server, refreshStartEventTypeNodeId, false);
         writeIsAbstractAttribute(server, refreshEndEventTypeNodeId, false);
-    }
-
-    const struct UA_ConditionTypeMetaData conditions[] = {
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ACKNOWLEDGEABLECONDITIONTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupAcknowledgeableConditionNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_ALARMCONDITIONTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupAlarmConditionNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_DISCREPANCYALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn)UA_Server_setupDiscrepancyAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OFFNORMALALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupOffNormalAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_CERTIFICATEEXPIRATIONALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupCertificateExpirationAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_LIMITALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupLimitAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_NONEXCLUSIVELEVELALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupNonExclusiveLimitAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EXCLUSIVEDEVIATIONALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupExclusiveDeviationAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_NONEXCLUSIVEDEVIATIONALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupNonExclusiveDeviationAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_EXCLUSIVERATEOFCHANGEALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupExclusiveRateOfChangeAlarmNodes
-        },
-        {
-            .typeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_NONEXCLUSIVERATEOFCHANGEALARMTYPE}},
-            .nodeSetup = (UA_ConditionTypeSetupNodesFn) UA_Server_setupNonExclusiveRateOfChangeAlarmNodes
-        }
-    };
-    for (size_t i=0; i<sizeof(conditions)/sizeof(conditions[0]); i++)
-    {
-        if (UA_Server_setConditionNodesSetupFn (server, &conditions[i].typeId, conditions[i].nodeSetup) != UA_STATUSCODE_GOOD)
-        {
-            UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-                         "Error encountered when setting up the server's alarms and conditions");
-        }
     }
 }
 
@@ -4498,6 +4408,7 @@ limitAlarmCalculateEventInfo (UA_Server *server, const UA_NodeId *conditionId,
 UA_StatusCode UA_Server_exclusiveLimitAlarmEvaluate_default (
     UA_Server *server,
     const UA_NodeId *conditionId,
+    void *ctx,
     const UA_Double *input
 )
 {

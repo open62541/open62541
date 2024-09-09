@@ -134,11 +134,11 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
     callback.onWrite = afterInputNodeWrite;
     UA_Server_setVariableNode_valueCallback (server, inputNode, callback);
 
-    UA_ConditionProperties properties = {
-        .source = conditionSource,
-        .name = UA_QUALIFIEDNAME(0, "Exculsive Limit Alarm Condition "),
-        .hierarchialReferenceType =
-        UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT)
+    UA_CreateConditionProperties properties = {
+        .sourceNode = conditionSource,
+        .browseName= UA_QUALIFIEDNAME(0, "Exculsive Limit Alarm Condition "),
+        .hierarchialReferenceType = UA_NODEID_NUMERIC(0, UA_NS0ID_HASCOMPONENT),
+        .parentNodeId = conditionSource
     };
 
     UA_AlarmConditionProperties baseP = {
