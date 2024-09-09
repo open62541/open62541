@@ -433,11 +433,13 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
                 /* Fetch the Subject key identifier of the remote certificate */
                 remote_cert_keyid = X509_get0_subject_key_id(certificateX509);
 
-                /* Check remote certificate is present in the trust list */
-                cmpVal = ASN1_OCTET_STRING_cmp(trusted_cert_keyid, remote_cert_keyid);
-                if(cmpVal == 0) {
-                    ret = UA_STATUSCODE_GOOD;
-                    goto cleanup;
+                if(trusted_cert_keyid && remote_cert_keyid) {
+                    /* Check remote certificate is present in the trust list */
+                    cmpVal = ASN1_OCTET_STRING_cmp(trusted_cert_keyid, remote_cert_keyid);
+                    if(cmpVal == 0) {
+                        ret = UA_STATUSCODE_GOOD;
+                        goto cleanup;
+                    }
                 }
             }
         }
