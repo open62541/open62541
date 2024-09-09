@@ -997,29 +997,6 @@ UDP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     return UA_STATUSCODE_GOOD;
 }
 
-static bool
-#ifdef _WIN32
-isAddressValid(LPSOCKADDR addr) {
-    char sourceAddr[64];
-    if(addr->sa_family == AF_INET) {
-        inet_ntop(AF_INET, &((struct sockaddr_in *)addr)->sin_addr, sourceAddr,
-                  sizeof(sourceAddr));
-#else
-isAddressValid(struct ifaddrs *ifa) {
-    char sourceAddr[NI_MAXHOST];
-    if(ifa->ifa_addr->sa_family == AF_INET) {
-        getnameinfo(ifa->ifa_addr,
-                    (ifa->ifa_addr->sa_family == AF_INET) ? sizeof(struct sockaddr_in)
-                                             : sizeof(struct sockaddr_in6),
-                sourceAddr, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
-#endif
-        return !(sourceAddr[0] == '1' && sourceAddr[1] == '6' && sourceAddr[2] == '9' &&
-                 sourceAddr[3] == '.' && sourceAddr[4] == '2' && sourceAddr[5] == '5' &&
-                 sourceAddr[6] == '4');
-    }
-    return false;
-}
-
 static UA_StatusCode
 UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params,
@@ -1034,110 +1011,70 @@ UDP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UDP_FD *conn = (UDP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
-        UA_ByteString_clear(buf);
+        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-    MulticastRequest req;
-#ifdef _WIN32
-	ULONG outBufLen = ADDR_BUFFER_SIZE;
-    UA_STACKARRAY(char, addrBuf, ADDR_BUFFER_SIZE);
-    PIP_ADAPTER_ADDRESSES ifaddr = (IP_ADAPTER_ADDRESSES *)addrBuf;
-    ULONG flags = GAA_FLAG_SKIP_ANYCAST | GAA_FLAG_SKIP_MULTICAST |
-                  GAA_FLAG_SKIP_DNS_SERVER | GAA_FLAG_SKIP_FRIENDLY_NAME;
-    GetAdaptersAddresses(AF_INET, flags, NULL, ifaddr, &outBufLen);
-    for(PIP_ADAPTER_ADDRESSES ifa = ifaddr; ifa != NULL; ifa = ifa->Next) {
-        for(PIP_ADAPTER_UNICAST_ADDRESS u = ifa->FirstUnicastAddress; u; u = u->Next) {
-            LPSOCKADDR addr = u->Address.lpSockaddr;
-            if(isAddressValid(addr)) {
-                req.ipv4.imr_multiaddr = ((struct sockaddr_in *)addr)->sin_addr;
-                req.ipv4.imr_interface.s_addr = htonl(ifa->IfIndex);
-                setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
-                           (const char *)&req.ipv4.imr_interface, sizeof(struct in_addr));
-#else
-    struct ifaddrs *ifaddr;
-    getifaddrs(&ifaddr);
-    struct ifaddrs *ifa = NULL;
 
-    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
-        if(!ifa->ifa_addr)
-            continue;
-        if(isAddressValid(ifa)) {
-            req.ipv4.imr_multiaddr.s_addr = htonl(INADDR_ANY);
-            req.ipv4.imr_ifindex = UA_if_nametoindex(ifa->ifa_name);
-            req.ipv4.imr_address.s_addr = htonl(INADDR_ANY);
-            setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF, &req.ipv4, sizeof(req.ipv4));
-#endif
-				/* Send the full buffer. This may require several calls to send */
-				size_t nWritten = 0;
-				do {
-					ssize_t n = 0;
-					do {
-						UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-									 "UDP %u\t| Attempting to send", (unsigned)connectionId);
+    /* Send the full buffer. This may require several calls to send */
+    size_t nWritten = 0;
+    do {
+        ssize_t n = 0;
+        do {
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                         "UDP %u\t| Attempting to send", (unsigned)connectionId);
 
-						/* Prevent OS signals when sending to a closed socket */
-						int flags = MSG_NOSIGNAL;
-						size_t bytes_to_send = buf->length - nWritten;
-						n = UA_sendto((UA_FD)connectionId, (const char*)buf->data + nWritten,
-									  bytes_to_send, flags, (struct sockaddr*)&conn->sendAddr,
-									  conn->sendAddrLength);
-						if(n < 0) {
-							/* An error we cannot recover from? */
-							if(UA_ERRNO != UA_INTERRUPTED &&
-							   UA_ERRNO != UA_WOULDBLOCK &&
-							   UA_ERRNO != UA_AGAIN) {
-								UA_LOG_SOCKET_ERRNO_WRAP(
-								   UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-												"UDP %u\t| Send failed with error %s",
-												(unsigned)connectionId, errno_str));
-								UA_UNLOCK(&el->elMutex);
-								UDP_shutdownConnection(cm, connectionId);
-								UA_ByteString_clear(buf);
-#ifndef _WIN32
-									freeifaddrs(ifaddr);
-#endif
-								return UA_STATUSCODE_BADCONNECTIONCLOSED;
-							}
+            /* Prevent OS signals when sending to a closed socket */
+            int flags = MSG_NOSIGNAL;
+            size_t bytes_to_send = buf->length - nWritten;
+            n = UA_sendto((UA_FD)connectionId, (const char*)buf->data + nWritten,
+                          bytes_to_send, flags, (struct sockaddr*)&conn->sendAddr,
+                          conn->sendAddrLength);
+            if(n < 0) {
+                /* An error we cannot recover from? */
+                if(UA_ERRNO != UA_INTERRUPTED &&
+                   UA_ERRNO != UA_WOULDBLOCK &&
+                   UA_ERRNO != UA_AGAIN) {
+                    UA_LOG_SOCKET_ERRNO_WRAP(
+                       UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                                    "UDP %u\t| Send failed with error %s",
+                                    (unsigned)connectionId, errno_str));
+                    UA_UNLOCK(&el->elMutex);
+                    UDP_shutdownConnection(cm, connectionId);
+                    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+                    return UA_STATUSCODE_BADCONNECTIONCLOSED;
+                }
 
-							/* Poll for the socket resources to become available and retry
-							 * (blocking) */
-							int poll_ret;
-							struct pollfd tmp_poll_fd;
-							tmp_poll_fd.fd = (UA_FD)connectionId;
-							tmp_poll_fd.events = UA_POLLOUT;
-							do {
-								poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
-								if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
-									UA_LOG_SOCKET_ERRNO_WRAP(
-									   UA_LOG_ERROR(el->eventLoop.logger,
-													UA_LOGCATEGORY_NETWORK,
-													"UDP %u\t| Send failed with error %s",
-													(unsigned)connectionId, errno_str));
-									UA_UNLOCK(&el->elMutex);
-									UDP_shutdownConnection(cm, connectionId);
-									UA_ByteString_clear(buf);
-#ifndef _WIN32
-									freeifaddrs(ifaddr);
-#endif
-									return UA_STATUSCODE_BADCONNECTIONCLOSED;
-								}
-							} while(poll_ret <= 0);
-						}
-					} while(n < 0);
-					nWritten += (size_t)n;
-				} while(nWritten < buf->length);
-			}
-		}
-#ifdef _WIN32
-	}
-#else
-    freeifaddrs(ifaddr);
-#endif
+                /* Poll for the socket resources to become available and retry
+                 * (blocking) */
+                int poll_ret;
+                struct pollfd tmp_poll_fd;
+                tmp_poll_fd.fd = (UA_FD)connectionId;
+                tmp_poll_fd.events = UA_POLLOUT;
+                do {
+                    poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
+                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED) {
+                        UA_LOG_SOCKET_ERRNO_WRAP(
+                           UA_LOG_ERROR(el->eventLoop.logger,
+                                        UA_LOGCATEGORY_NETWORK,
+                                        "UDP %u\t| Send failed with error %s",
+                                        (unsigned)connectionId, errno_str));
+                        UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+                        UDP_shutdown(cm, &conn->rfd);
+                        UA_UNLOCK(&el->elMutex);
+                        return UA_STATUSCODE_BADCONNECTIONCLOSED;
+                    }
+                } while(poll_ret <= 0);
+            }
+        } while(n < 0);
+        nWritten += (size_t)n;
+    } while(nWritten < buf->length);
+
     /* Free the buffer */
     UA_UNLOCK(&el->elMutex);
-    UA_ByteString_clear(buf);
+    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 }
+
 static UA_StatusCode
 registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
