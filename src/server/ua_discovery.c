@@ -208,7 +208,7 @@ UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
 }
 
 UA_ServerComponent *
-UA_DiscoveryManager_new() {
+UA_DiscoveryManager_new(void) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         UA_calloc(1, sizeof(UA_DiscoveryManager));
     if(!dm)
