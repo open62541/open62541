@@ -532,6 +532,8 @@ UA_CertificateVerification_Verify (void *                verificationContext,
                 opensslRet = X509_STORE_CTX_get_error (storeCtx);
                 if (opensslRet == X509_V_ERR_UNABLE_TO_GET_CRL) {
                     ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+                } else {
+                    ret = UA_X509_Store_CTX_Error_To_UAError (opensslRet);
                 }
             }
         }
