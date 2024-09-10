@@ -20,9 +20,12 @@ endif()
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
 # ua_server_internal.h
+include_directories("${PROJECT_SOURCE_DIR}/deps")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
-include_directories("${PROJECT_SOURCE_DIR}/arch/common")
+include_directories("${PROJECT_SOURCE_DIR}/src/pubsub")
+include_directories("${PROJECT_SOURCE_DIR}/src/client")
+include_directories("${PROJECT_SOURCE_DIR}/src/util")
 # testing_clock.h
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/testing-plugins")
 # #include <src_generated/<...>.h>
@@ -143,6 +146,7 @@ endfunction()
 
 ua_add_test(check_types_builtin.c)
 ua_add_test(check_ziptree.c)
+ua_add_test(check_mp_printf.c)
 
 if(UA_ENABLE_JSON_ENCODING)
     ua_add_test(check_cj5.c)
@@ -281,9 +285,7 @@ if(UA_ENABLE_PUBSUB)
         endif()
     endif()
 
-    if(UA_ENABLE_PUBSUB_MONITORING)
-       ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
-    endif()
+    ua_add_test(pubsub/check_pubsub_subscribe_msgrcvtimeout.c)
 
     if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
         ua_add_test(pubsub/check_pubsub_connection_ethernet.c)

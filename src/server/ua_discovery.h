@@ -20,6 +20,11 @@ _UA_BEGIN_DECLS
 
 #ifdef UA_ENABLE_DISCOVERY
 
+#ifdef UA_ENABLE_DISCOVERY
+struct UA_DiscoveryManager;
+typedef struct UA_DiscoveryManager UA_DiscoveryManager;
+#endif
+
 typedef struct registeredServer {
     LIST_ENTRY(registeredServer) pointers;
     UA_RegisteredServer registeredServer;
@@ -80,8 +85,6 @@ struct UA_DiscoveryManager {
 
     UA_UInt64 discoveryCallbackId;
 
-    UA_Server *server; /* backpointer */
-
     /* Outstanding requests. So they can be cancelled during shutdown. */
     asyncRegisterRequest registerRequests[UA_MAXREGISTERREQUESTS];
 
@@ -119,8 +122,7 @@ struct UA_DiscoveryManager {
 };
 
 void
-UA_DiscoveryManager_setState(UA_Server *server,
-                             UA_DiscoveryManager *dm,
+UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
                              UA_LifecycleState state);
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST

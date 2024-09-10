@@ -9,7 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_pubsub_networkmessage.h"
-#include "ua_types_encoding_json.h"
+#include "../ua_types_encoding_json.h"
 
 /* Json keys for dsm */
 const char * UA_DECODEKEY_MESSAGES = "Messages";
@@ -574,6 +574,8 @@ UA_NetworkMessage_decodeJson(const UA_ByteString *src,
         goto cleanup;
 
     ret = NetworkMessage_decodeJsonInternal(&ctx, dst);
+    if(ret != UA_STATUSCODE_GOOD)
+        UA_NetworkMessage_clear(dst);
 
  cleanup:
     /* Free token array on the heap */

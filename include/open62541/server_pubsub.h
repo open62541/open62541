@@ -55,20 +55,7 @@ _UA_BEGIN_DECLS
  * can be used with broker based protocols like MQTT and AMQP or brokerless
  * implementations like UDP-Multicasting.
  *
- * The configuration model for PubSub uses the following components: */
-
-typedef enum  {
-    UA_PUBSUB_COMPONENT_CONNECTION,
-    UA_PUBSUB_COMPONENT_WRITERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETWRITER,
-    UA_PUBSUB_COMPONENT_READERGROUP,
-    UA_PUBSUB_COMPONENT_DATASETREADER,
-    UA_PUBSUB_COMPONENT_PUBLISHEDDATASET,
-    UA_PUBSUB_COMPONENT_SUBSCRIBEDDDATASET
-} UA_PubSubComponentEnumType;
-
-/**
- * The following figure shows how the PubSub components are related.
+ * The figure below shows how the PubSub components are related.
  * The PubSub Tutorials have more examples about the API usage::
  *
  *  +--------+
@@ -128,28 +115,19 @@ typedef enum  {
  * generated automatically. This feature can be enabled/disabled by changing the
  * UA_ENABLE_PUBSUB_INFORMATIONMODEL option.
  *
- * Connections
+ * PublisherId
  * -----------
- * The PubSub connections are the abstraction between the concrete transport protocol
- * and the PubSub functionality. It is possible to create multiple connections with
- * different transport protocols at runtime.
- */
-
-/* Valid PublisherId types are defined in Part 14, 7.2.2.2.2 NetworkMessage
- * Layout (bit range 0-2).
- *
- * - 000 Byte (default value if ExtendedFlags1 is omitted)
- * - 001 UInt16
- * - 010 UInt32
- * - 011 UInt64
- * - 100 String */
+ * Valid PublisherId types are defined in Part 14, 7.2.2.2.2 NetworkMessage. The
+ * PublisherId is sometimes encoded as a variant in the standard (e.g. in some
+ * configuration structures). We do however use our own tagged-union structure
+ * where we can. */
 
 typedef enum {
-    UA_PUBLISHERIDTYPE_BYTE   = 0,
-    UA_PUBLISHERIDTYPE_UINT16 = 1,
-    UA_PUBLISHERIDTYPE_UINT32 = 2,
-    UA_PUBLISHERIDTYPE_UINT64 = 3,
-    UA_PUBLISHERIDTYPE_STRING = 4
+    UA_PUBLISHERIDTYPE_BYTE   = 0, /* 000 Byte (default) */
+    UA_PUBLISHERIDTYPE_UINT16 = 1, /* 001 UInt16 */
+    UA_PUBLISHERIDTYPE_UINT32 = 2, /* 010 UInt32 */
+    UA_PUBLISHERIDTYPE_UINT64 = 3, /* 011 UInt64 */
+    UA_PUBLISHERIDTYPE_STRING = 4  /* 100 String */
 } UA_PublisherIdType;
 
 typedef struct {
@@ -177,59 +155,19 @@ UA_PublisherId_fromVariant(UA_PublisherId *p, const UA_Variant *src);
 UA_EXPORT void
 UA_PublisherId_toVariant(const UA_PublisherId *p, UA_Variant *dst);
 
+/**
+ * Server-wide PubSub Configuration
+ * --------------------------------
+ * The PubSub configuration is part of the server-config.
+ */
+
 typedef struct {
-    UA_String name;
-    UA_Boolean enabled;
-    UA_PublisherId publisherId;
-    UA_String transportProfileUri;
-    UA_Variant address;
-    UA_KeyValueMap connectionProperties;
-    UA_Variant connectionTransportSettings;
-
-    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
-                              * the server if this is NULL). Propagates to the
-                              * ReaderGroup/WriterGroup attached to the
-                              * Connection. */
-} UA_PubSubConnectionConfig;
-
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-
-typedef enum {
-    UA_PUBSUB_MONITORING_MESSAGE_RECEIVE_TIMEOUT
-    // extend as needed
-} UA_PubSubMonitoringType;
-
-/* PubSub monitoring interface */
-typedef struct {
-    UA_StatusCode (*createMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentEnumType eComponentType,
-                                      UA_PubSubMonitoringType eMonitoringType,
-                                      void *data, UA_ServerCallback callback);
-    UA_StatusCode (*startMonitoring)(UA_Server *server, UA_NodeId Id,
-                                     UA_PubSubComponentEnumType eComponentType,
-                                     UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*stopMonitoring)(UA_Server *server, UA_NodeId Id,
-                                    UA_PubSubComponentEnumType eComponentType,
-                                    UA_PubSubMonitoringType eMonitoringType, void *data);
-    UA_StatusCode (*updateMonitoringInterval)(UA_Server *server, UA_NodeId Id,
-                                              UA_PubSubComponentEnumType eComponentType,
-                                              UA_PubSubMonitoringType eMonitoringType,
-                                              void *data);
-    UA_StatusCode (*deleteMonitoring)(UA_Server *server, UA_NodeId Id,
-                                      UA_PubSubComponentEnumType eComponentType,
-                                      UA_PubSubMonitoringType eMonitoringType, void *data);
-} UA_PubSubMonitoringInterface;
-
-#endif /* UA_ENABLE_PUBSUB_MONITORING */
-
-/* General PubSub configuration */
-struct UA_PubSubConfiguration {
     /* Callback for PubSub component state changes: If provided this callback
      * informs the application about PubSub component state changes. E.g. state
      * change from operational to error in case of a DataSetReader
      * MessageReceiveTimeout. The status code provides additional
      * information. */
-    void (*stateChangeCallback)(UA_Server *server, UA_NodeId *id,
+    void (*stateChangeCallback)(UA_Server *server, const UA_NodeId id,
                                 UA_PubSubState state, UA_StatusCode status);
 
     UA_Boolean enableDeltaFrames;
@@ -241,11 +179,38 @@ struct UA_PubSubConfiguration {
     /* PubSub security policies */
     size_t securityPoliciesSize;
     UA_PubSubSecurityPolicy *securityPolicies;
+} UA_PubSubConfiguration;
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    UA_PubSubMonitoringInterface monitoringInterface;
-#endif
-};
+/* Enable all PubSubComponents. Returns the ORed statuscodes for enabling each
+ * component individually. */
+UA_EXPORT UA_StatusCode
+UA_Server_enableAllPubSubComponents(UA_Server *server);
+
+/* Disable all PubSubComponents */
+UA_EXPORT void
+UA_Server_disableAllPubSubComponents(UA_Server *server);
+
+/**
+ * PubSubConnection
+ * ----------------
+ * PubSubConnections are the abstraction between the concrete transport protocol
+ * and the PubSub functionality. It is possible to create multiple
+ * PubSubConnections with (possibly) different transport protocols at
+ * runtime. */
+
+typedef struct {
+    UA_String name;
+    UA_PublisherId publisherId;
+    UA_String transportProfileUri;
+    UA_Variant address;
+    UA_KeyValueMap connectionProperties;
+    UA_Variant connectionTransportSettings;
+
+    UA_EventLoop *eventLoop; /* Use an external EventLoop (use the EventLoop of
+                              * the server if this is NULL). Propagates to the
+                              * ReaderGroup/WriterGroup attached to the
+                              * Connection. */
+} UA_PubSubConnectionConfig;
 
 /* Add a new PubSub connection to the given server and open it.
  * @param server The server to add the connection to.
@@ -273,23 +238,21 @@ UA_Server_getPubSubConnectionConfig(UA_Server *server,
                                     const UA_NodeId connectionId,
                                     UA_PubSubConnectionConfig *config);
 
-/* Remove Connection, identified by the NodeId. Deletion of Connection
- * removes all contained WriterGroups and Writers. */
+/* Deletion of a PubSubConnection removes all "below" WriterGroups and
+ * ReaderGroups. This can fail if the PubSubConnection is enabled. */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connectionId);
+UA_Server_removePubSubConnection(UA_Server *server,
+                                 const UA_NodeId connectionId);
 
 /**
- * PublishedDataSets
- * -----------------
+ * PublishedDataSet
+ * ----------------
  * The PublishedDataSets (PDS) are containers for the published information. The
  * PDS contain the published variables and meta information. The metadata is
  * commonly autogenerated or given as constant argument as part of the template
  * functions. The template functions are standard defined and intended for
  * configuration tools. You should normally create an empty PDS and call the
  * functions to add new fields. */
-
-/* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members and
- * thus no dedicated config structure. */
 
 typedef enum {
     UA_PUBSUB_DATASET_PUBLISHEDITEMS,
@@ -322,8 +285,8 @@ typedef struct {
     UA_String name;
     UA_PublishedDataSetType publishedDataSetType;
     union {
-        /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional members
-         * and thus no dedicated config structure.*/
+        /* The UA_PUBSUB_DATASET_PUBLISHEDITEMS has currently no additional
+         * members and thus no dedicated config structure.*/
         UA_PublishedDataItemsTemplateConfig itemsTemplate;
         UA_PublishedEventConfig event;
         UA_PublishedEventTemplateConfig eventTemplate;
@@ -342,7 +305,7 @@ typedef struct {
 
 UA_EXPORT UA_AddPublishedDataSetResult UA_THREADSAFE
 UA_Server_addPublishedDataSet(UA_Server *server,
-                              const UA_PublishedDataSetConfig *publishedDataSetConfig,
+                              const UA_PublishedDataSetConfig *pdsConfig,
                               UA_NodeId *pdsId);
 
 /* Returns a deep copy of the config */
@@ -362,14 +325,14 @@ UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_removePublishedDataSet(UA_Server *server, const UA_NodeId pdsId);
 
 /**
- * DataSetFields
- * -------------
+ * DataSetField
+ * ------------
  * The description of published variables is named DataSetField. Each
  * DataSetField contains the selection of one information model node. The
  * DataSetField has additional parameters for the publishing, sampling and error
  * handling process. */
 
-typedef struct{
+typedef struct {
     UA_ConfigurationVersionDataType configurationVersion;
     UA_String fieldNameAlias;
     UA_Boolean promotedField;
@@ -378,15 +341,14 @@ typedef struct{
     /* non std. field */
     struct {
         UA_Boolean rtFieldSourceEnabled;
-        /* If the rtInformationModelNode is set, the nodeid in publishParameter must point
-         * to a node with external data source backend defined
-         * */
+        /* If the rtInformationModelNode is set, the nodeid in publishParameter
+         * must point to a node with external data source backend defined */
         UA_Boolean rtInformationModelNode;
-        //TODO -> decide if suppress C++ warnings and use 'UA_DataValue * * const staticValueSource;'
+        /* TODO: Decide if suppress C++ warnings and use 'UA_DataValue * * const
+         * staticValueSource;' */
         UA_DataValue ** staticValueSource;
     } rtValueSource;
     UA_UInt32 maxStringLength;
-
 } UA_DataSetVariableConfig;
 
 typedef enum {
@@ -425,31 +387,6 @@ UA_EXPORT UA_DataSetFieldResult UA_THREADSAFE
 UA_Server_removeDataSetField(UA_Server *server, const UA_NodeId dsfId);
 
 /**
- * Custom Callback Implementation
- * ------------------------------
- * The user can use his own callback implementation for publishing
- * and subscribing. The user must take care of the callback to call for
- * every publishing or subscibing interval */
-
-typedef struct {
-    /* User's callback implementation. The user configured base time and timer policy
-     * will be provided as an argument to this callback so that the user can
-     * implement his callback (thread) considering base time and timer policies */
-    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                       UA_ServerCallback callback,
-                                       void *data, UA_Double interval_ms,
-                                       UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
-                                       UA_UInt64 *callbackId);
-
-    UA_StatusCode (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
-                                          UA_UInt64 callbackId, UA_Double interval_ms,
-                                          UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
-
-    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier, UA_UInt64 callbackId);
-
-} UA_PubSub_CallbackLifecycle;
-
-/**
  * WriterGroup
  * -----------
  * All WriterGroups are created within a PubSubConnection and automatically
@@ -457,17 +394,8 @@ typedef struct {
  * container for :ref:`dsw` and network message settings. The WriterGroup can be
  * imagined as producer of the network messages. The creation of network
  * messages is controlled by parameters like the publish interval, which is e.g.
- * contained in the WriterGroup. */
-
-typedef enum {
-    UA_PUBSUB_ENCODING_UADP = 0,
-    UA_PUBSUB_ENCODING_JSON = 1,
-    UA_PUBSUB_ENCODING_BINARY = 2
-} UA_PubSubEncodingType;
-
-/**
- * WriterGroup
- * -----------
+ * contained in the WriterGroup.
+ *
  * The message publishing can be configured for realtime requirements. The RT-levels
  * go along with different requirements. The below listed levels can be configured:
  *
@@ -504,9 +432,34 @@ typedef enum {
     UA_PUBSUB_RT_DETERMINISTIC = 3,
 } UA_PubSubRTLevel;
 
+typedef enum {
+    UA_PUBSUB_ENCODING_UADP = 0,
+    UA_PUBSUB_ENCODING_JSON
+} UA_PubSubEncodingType;
+
+/**
+ * The user can define his own callback implementation for publishing and
+ * subscribing. The user must take care of the callback to call for every
+ * publishing or subscibing interval. The configured base time and timer policy
+ * are provided as an argument so that the user can implement his callback
+ * (thread) considering base time and timer policies */
+
+typedef struct {
+    UA_StatusCode (*addCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                                       UA_ServerCallback callback, void *data,
+                                       UA_Double interval_ms, UA_DateTime *baseTime,
+                                       UA_TimerPolicy timerPolicy,
+                                       UA_UInt64 *callbackId);
+    UA_StatusCode (*changeCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                                          UA_UInt64 callbackId, UA_Double interval_ms,
+                                          UA_DateTime *baseTime,
+                                          UA_TimerPolicy timerPolicy);
+    void (*removeCustomCallback)(UA_Server *server, UA_NodeId identifier,
+                                 UA_UInt64 callbackId);
+} UA_PubSub_CallbackLifecycle;
+
 typedef struct {
     UA_String name;
-    UA_Boolean enabled;
     UA_UInt16 writerGroupId;
     UA_Duration publishingInterval;
     UA_Double keepAliveTime;
@@ -534,7 +487,6 @@ typedef struct {
 void UA_EXPORT
 UA_WriterGroupConfig_clear(UA_WriterGroupConfig *writerGroupConfig);
 
-/* Add a new WriterGroup to an existing Connection */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addWriterGroup(UA_Server *server, const UA_NodeId connection,
                          const UA_WriterGroupConfig *writerGroupConfig,
@@ -546,42 +498,26 @@ UA_Server_getWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
                                UA_WriterGroupConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_updateWriterGroupConfig(UA_Server *server, const UA_NodeId wgId,
-                                  const UA_WriterGroupConfig *config);
+UA_Server_getWriterGroupState(UA_Server *server, const UA_NodeId wgId,
+                              UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_WriterGroup_getState(UA_Server *server, const UA_NodeId wgId,
-                               UA_PubSubState *state);
+UA_Server_triggerWriterGroupPublish(UA_Server *server,
+                                    const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_WriterGroup_publish(UA_Server *server, const UA_NodeId wgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_WriterGroup_lastPublishTimestamp(UA_Server *server, const UA_NodeId wgId,
-                                    UA_DateTime *timestamp);
+UA_Server_getWriterGroupLastPublishTimestamp(UA_Server *server,
+                                             const UA_NodeId wgId,
+                                             UA_DateTime *timestamp);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeWriterGroup(UA_Server *server, const UA_NodeId wgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_freezeWriterGroupConfiguration(UA_Server *server,
-                                         const UA_NodeId wgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_unfreezeWriterGroupConfiguration(UA_Server *server,
-                                           const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableWriterGroup(UA_Server *server, const UA_NodeId wgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableWriterGroup(UA_Server *server, const UA_NodeId wgId);
-
-#define UA_Server_setWriterGroupOperational(server, wgId)   \
-    UA_Server_enableWriterGroup(server, wgId)
-
-#define UA_Server_setWriterGroupDisabled(server, wgId)          \
-    UA_Server_disableWriterGroup(server, wgId)
 
 /* Set the group key for the message encryption */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
@@ -590,6 +526,18 @@ UA_Server_setWriterGroupEncryptionKeys(UA_Server *server, const UA_NodeId wgId,
                                        const UA_ByteString signingKey,
                                        const UA_ByteString encryptingKey,
                                        const UA_ByteString keyNonce);
+
+/* Legacy API */
+#define UA_Server_setWriterGroupOperational(server, wgId) \
+    UA_Server_enableWriterGroup(server, wgId)
+#define UA_Server_setWriterGroupDisabled(server, wgId) \
+    UA_Server_disableWriterGroup(server, wgId)
+#define UA_Server_WriterGroup_getState(server, wgId, state) \
+    UA_Server_getWriterGroupState(server, wgId, state)
+#define UA_WriterGroup_lastPublishTimestamp(server, wgId, timestamp) \
+    UA_Server_getWriterGroupLastPublishTimestamp(server, wgId, timestamp)
+#define UA_Server_WriterGroup_publish(server, wgId) \
+    UA_Server_triggerWriterGroupPublish(server, wgId)
 
 /**
  * .. _dsw:
@@ -633,38 +581,45 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_getDataSetWriterConfig(UA_Server *server, const UA_NodeId dswId,
                                  UA_DataSetWriterConfig *config);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
+UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetWriter_getState(UA_Server *server, const UA_NodeId dswId,
-                                 UA_PubSubState *state);
+UA_Server_getDataSetWriterState(UA_Server *server, const UA_NodeId dswId,
+                                UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeDataSetWriter(UA_Server *server, const UA_NodeId dswId);
 
+/* Legacy API */
+#define UA_Server_DataSetWriter_getState(server, dswId, state) \
+    UA_Server_getDataSetWriterState(server, dswId, state)
+
 /**
  * SubscribedDataSet
  * -----------------
- * SubscribedDataSet describes the processing of the received DataSet.
- * SubscribedDataSet defines which field in the DataSet is mapped to which
- * Variable in the OPC UA Application. SubscribedDataSet has two sub-types
- * called the TargetVariablesType and SubscribedDataSetMirrorType.
- * SubscribedDataSetMirrorType is currently not supported. SubscribedDataSet is
- * set to TargetVariablesType and then the list of target Variables are created
- * in the Subscriber AddressSpace. TargetVariables are a list of variables that
- * are to be added in the Subscriber AddressSpace. It defines a list of Variable
- * mappings between received DataSet fields and added Variables in the
- * Subscriber AddressSpace. */
+ * With the OPC UA Part 14 1.0.5, the concept of StandaloneSubscribedDataSet
+ * (SSDS) was introduced. The SSDS is the counterpart to the PublishedDataSet
+ * and has its own lifecycle. The SSDS can be connected to exactly one
+ * DataSetReader. In general, the SSDS is optional and a DataSetReader can still
+ * be defined without referencing a SSDS.
+ *
+ * The SubscribedDataSet has two sub-types called the TargetVariablesType and
+ * SubscribedDataSetMirrorType. SubscribedDataSetMirrorType is currently not
+ * supported. SubscribedDataSet is set to TargetVariablesType and then the list
+ * of target Variables are created in the Subscriber AddressSpace.
+ * TargetVariables are a list of variables that are to be added in the
+ * Subscriber AddressSpace. It defines a list of Variable mappings between
+ * received DataSet fields and added Variables in the Subscriber
+ * AddressSpace. */
 
-/* SubscribedDataSetDataType Definition */
 typedef enum {
     UA_PUBSUB_SDS_TARGET,
     UA_PUBSUB_SDS_MIRROR
-} UA_SubscribedDataSetEnumType;
+} UA_SubscribedDataSetType;
 
 typedef struct {
     /* Standard-defined FieldTargetDataType */
@@ -697,16 +652,28 @@ typedef struct {
     UA_FieldTargetVariable *targetVariables;
 } UA_TargetVariables;
 
-/* Return Status Code after creating TargetVariables in Subscriber AddressSpace */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_createTargetVariables(UA_Server *server, const UA_NodeId dsrId,
-                                              size_t targetVariablesSize,
-                                              const UA_FieldTargetVariable *targetVariables);
+typedef struct {
+    UA_String name;
+    UA_SubscribedDataSetType subscribedDataSetType;
+    union {
+        /* datasetmirror is currently not implemented */
+        UA_TargetVariablesDataType target;
+    } subscribedDataSet;
+    UA_DataSetMetaDataType dataSetMetaData;
+} UA_SubscribedDataSetConfig;
 
-/* To Do:Implementation of SubscribedDataSetMirrorType
- * UA_StatusCode
- * A_PubSubDataSetReader_createDataSetMirror(UA_Server *server, UA_NodeId dataSetReaderIdentifier,
- * UA_SubscribedDataSetMirrorDataType* mirror) */
+UA_EXPORT void
+UA_SubscribedDataSetConfig_clear(UA_SubscribedDataSetConfig *sdsConfig);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_addSubscribedDataSet(UA_Server *server,
+                               const UA_SubscribedDataSetConfig *sdsConfig,
+                               UA_NodeId *sdsId);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_removeSubscribedDataSet(UA_Server *server, const UA_NodeId sdsId);
+
+/* TODO: Implementation of SubscribedDataSetMirrorType */
 
 /**
  * DataSetReader
@@ -732,10 +699,14 @@ typedef struct {
     UA_UInt16 dataSetWriterId;
     UA_DataSetMetaDataType dataSetMetaData;
     UA_DataSetFieldContentMask dataSetFieldContentMask;
-    UA_Double messageReceiveTimeout;
+    UA_Double messageReceiveTimeout; /* The maximum interval (in milliseconds)
+                                      * after which we want to receive a
+                                      * message. Gets reset after every received
+                                      * message. If <= 0.0, then no timeout is
+                                      * configured. */
     UA_ExtensionObject messageSettings;
     UA_ExtensionObject transportSettings;
-    UA_SubscribedDataSetEnumType subscribedDataSetType;
+    UA_SubscribedDataSetType subscribedDataSetType;
     /* TODO UA_SubscribedDataSetMirrorDataType subscribedDataSetMirror */
     union {
         UA_TargetVariables subscribedDataSetTarget;
@@ -753,19 +724,23 @@ UA_DataSetReaderConfig_copy(const UA_DataSetReaderConfig *src,
 UA_EXPORT void
 UA_DataSetReaderConfig_clear(UA_DataSetReaderConfig *cfg);
 
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_updateConfig(UA_Server *server, const UA_NodeId dsrId,
-                                     UA_NodeId readerGroupIdentifier,
-                                     const UA_DataSetReaderConfig *config);
-
 /* Get the configuration (deep copy) of the DataSetReader */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_getConfig(UA_Server *server, const UA_NodeId dsrId,
-                                  UA_DataSetReaderConfig *config);
+UA_Server_getDataSetReaderConfig(UA_Server *server, const UA_NodeId dsrId,
+                                 UA_DataSetReaderConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_DataSetReader_getState(UA_Server *server, UA_NodeId dsrId,
-                                 UA_PubSubState *state);
+UA_Server_getDataSetReaderState(UA_Server *server, const UA_NodeId dsrId,
+                                UA_PubSubState *state);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
+                           const UA_DataSetReaderConfig *dataSetReaderConfig,
+                           UA_NodeId *readerIdentifier);
+
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
+
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
@@ -773,35 +748,25 @@ UA_Server_enableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableDataSetReader(UA_Server *server, const UA_NodeId dsrId);
 
-typedef struct {
-    UA_String name;
-    UA_SubscribedDataSetEnumType subscribedDataSetType;
-    union {
-        /* datasetmirror is currently not implemented */
-        UA_TargetVariablesDataType target;
-    } subscribedDataSet;
-    UA_DataSetMetaDataType dataSetMetaData;
-    UA_Boolean isConnected;
-} UA_StandaloneSubscribedDataSetConfig;
-
-void
-UA_StandaloneSubscribedDataSetConfig_clear(UA_StandaloneSubscribedDataSetConfig *sdsConfig);
-
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addStandaloneSubscribedDataSet(UA_Server *server,
-                                         const UA_StandaloneSubscribedDataSetConfig *sdsConfig,
-                                         UA_NodeId *sdsId);
+UA_Server_setDataSetReaderTargetVariables(UA_Server *server,
+                                          const UA_NodeId dsrId,
+                                          size_t tvsSize,
+                                          const UA_FieldTargetVariable *tvs);
 
-/* Remove StandaloneSubscribedDataSet, identified by the NodeId. */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server,
-                                            const UA_NodeId sdsId);
+/* Legacy API */
+#define UA_Server_DataSetReader_getConfig(server, dsrId, config) \
+    UA_Server_getDataSetReaderConfig(server, dsrId, config)
+#define UA_Server_DataSetReader_getState(server, dsrId, state) \
+    UA_Server_getDataSetReaderState(server, dsrId, state)
+#define UA_Server_DataSetReader_createTargetVariables(server, dsrId, \
+                                                      tvsSize, tvs)  \
+    UA_Server_setDataSetReaderTargetVariables(server, dsrId, tvsSize, tvs)
 
 /**
  * ReaderGroup
  * -----------
- *
- * ReaderGroup is used to group a list of DataSetReaders. All ReaderGroups are
+ * ReaderGroups contain a list of DataSetReaders. All ReaderGroups are
  * created within a PubSubConnection and automatically deleted if the connection
  * is removed. All network message related filters are only available in the
  * DataSetReader.
@@ -810,12 +775,11 @@ UA_Server_removeStandaloneSubscribedDataSet(UA_Server *server,
  * can be configured for a ReaderGroup.
  *
  * - UA_PUBSUB_RT_NONE: RT applied to this level
- * - PUBSUB_CONFIG_FASTPATH_FIXED_OFFSETS: Extends PubSub RT functionality and
- *   implements fast path message decoding in the Subscriber. Uses a buffered
- *   network message and only decodes the necessary offsets stored in an offset
+ * - UA_PUBSUB_RT_FIXED_SIZE: Extends PubSub RT functionality and implements
+ *   fast path message decoding in the Subscriber. Uses a buffered network
+ *   message and only decodes the necessary offsets stored in an offset
  *   buffer. */
 
-/* ReaderGroup configuration */
 typedef struct {
     UA_String name;
 
@@ -836,30 +800,14 @@ typedef struct {
 void UA_EXPORT
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig);
 
-/* Add DataSetReader to the ReaderGroup */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addDataSetReader(UA_Server *server, UA_NodeId readerGroupIdentifier,
-                           const UA_DataSetReaderConfig *dataSetReaderConfig,
-                           UA_NodeId *readerIdentifier);
-
-/* Remove DataSetReader from ReaderGroup */
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeDataSetReader(UA_Server *server, UA_NodeId readerIdentifier);
-
-/* To Do: Update Configuration of ReaderGroup
- * UA_StatusCode UA_EXPORT
- * UA_Server_ReaderGroup_updateConfig(UA_Server *server, UA_NodeId readerGroupIdentifier,
- *                                    const UA_ReaderGroupConfig *config);
- */
-
 /* Get configuration of ReaderGroup (deep copy) */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_ReaderGroup_getConfig(UA_Server *server, const UA_NodeId rgId,
-                                UA_ReaderGroupConfig *config);
+UA_Server_getReaderGroupConfig(UA_Server *server, const UA_NodeId rgId,
+                               UA_ReaderGroupConfig *config);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_ReaderGroup_getState(UA_Server *server, const UA_NodeId rgId,
-                               UA_PubSubState *state);
+UA_Server_getReaderGroupState(UA_Server *server, const UA_NodeId rgId,
+                              UA_PubSubState *state);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_addReaderGroup(UA_Server *server, const UA_NodeId connectionId,
@@ -870,50 +818,61 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_freezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId rgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_unfreezeReaderGroupConfiguration(UA_Server *server, const UA_NodeId rgId);
-
-UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_enableReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disableReaderGroup(UA_Server *server, const UA_NodeId rgId);
 
-#define UA_Server_setReaderGroupOperational(server, rgId) \
-    UA_Server_enableReaderGroup(server, rgId)
-
-#define UA_Server_setReaderGroupDisabled(server, rgId) \
-    UA_Server_disableReaderGroup(server, rgId)
-
 /* Set the group key for the message encryption */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, UA_NodeId readerGroup,
+UA_Server_setReaderGroupEncryptionKeys(UA_Server *server, const UA_NodeId readerGroup,
                                        UA_UInt32 securityTokenId,
-                                       UA_ByteString signingKey,
-                                       UA_ByteString encryptingKey,
-                                       UA_ByteString keyNonce);
+                                       const UA_ByteString signingKey,
+                                       const UA_ByteString encryptingKey,
+                                       const UA_ByteString keyNonce);
+
+#ifdef UA_ENABLE_PUBSUB_FILE_CONFIG
+/* Decodes the information from the ByteString. If the decoded content is a
+* PubSubConfiguration in a UABinaryFileDataType-object. It will overwrite the
+* current PubSub configuration from the server. */
+UA_EXPORT UA_StatusCode
+UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
+	                                     const UA_ByteString buffer);
+
+/* Saves the current PubSub configuration of a server in a byteString. */
+UA_EXPORT UA_StatusCode
+UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
+	                                           UA_ByteString *buffer);
+#endif
+
+/* Legacy API */
+#define UA_Server_ReaderGroup_getConfig(server, rgId, config) \
+    UA_Server_getReaderGroupConfig(server, rgId, config)
+#define UA_Server_ReaderGroup_getState(server, rgId, state) \
+    UA_Server_getReaderGroupState(server, rgId, state)
+#define UA_Server_setReaderGroupOperational(server, rgId) \
+    UA_Server_enableReaderGroup(server, rgId)
+#define UA_Server_setReaderGroupDisabled(server, rgId) \
+    UA_Server_disableReaderGroup(server, rgId)
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 
 /**
  * SecurityGroup
  * -------------
+ * A SecurityGroup is an abstraction that represents the message security
+ * settings and security keys for a subset of NetworkMessages exchanged between
+ * Publishers and Subscribers. The SecurityGroup objects are created on a
+ * Security Key Service (SKS). The SKS manages the access to the keys based on
+ * the role permission for a user assigned to a SecurityGroup Object. A
+ * SecurityGroup is identified with a unique identifier called the
+ * SecurityGroupId. It is unique within the SKS.
  *
- * A SecurityGroup is an abstraction that represents the message security settings and
- * security keys for a subset of NetworkMessages exchanged between Publishers and
- * Subscribers. The SecurityGroup objects are created on a Security Key Service (SKS). The
- * SKS manages the access to the keys based on the role permission for a user assigned to
- * a SecurityGroup Object. A SecurityGroup is identified with a unique identifier called
- * the SecurityGroupId. It is unique within the SKS.
- *
- * .. note:: The access to the SecurityGroup and therefore the securitykeys managed by SKS
- *           requires management of Roles and Permissions in the SKS. The Role Permission
- *           model is not supported at the time of writing. However, the access control plugin can
- *           be used to create and manage role permission on SecurityGroup object.
- */
-
+ * .. note:: The access to the SecurityGroup and therefore the securitykeys
+ *           managed by SKS requires management of Roles and Permissions in the
+ *           SKS. The Role Permission model is not supported at the time of
+ *           writing. However, the access control plugin can be used to create
+ *           and manage role permission on SecurityGroup object. */
 typedef struct {
     UA_String securityGroupName;
     UA_Duration keyLifeTime;
@@ -923,85 +882,94 @@ typedef struct {
 } UA_SecurityGroupConfig;
 
 /**
- * @brief Creates a SecurityGroup object and add it to the list in PubSub Manager. If the
- * information model is enabled then the SecurityGroup object Node is also created in the
- * server. A keyStorage with initial list of keys is created with a SecurityGroup. A
- * callback is added to new SecurityGroup which updates the keys periodically at each
- * KeyLifeTime expire.
+ * @brief Creates a SecurityGroup object and add it to the list in PubSub
+ * Manager. If the information model is enabled then the SecurityGroup object
+ * Node is also created in the server. A keyStorage with initial list of keys is
+ * created with a SecurityGroup. A callback is added to new SecurityGroup which
+ * updates the keys periodically at each KeyLifeTime expire.
  *
  * @param server The server instance
- * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It must be of
- * SecurityGroupFolderType
+ * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It
+ *        must be of SecurityGroupFolderType
  * @param securityGroupConfig The security settings of a SecurityGroup
  * @param securityGroupNodeId The output nodeId of the new SecurityGroup
- * @return UA_StatusCode The return status code
- */
+ * @return UA_StatusCode The return status code */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_addSecurityGroup(UA_Server *server, UA_NodeId securityGroupFolderNodeId,
+UA_Server_addSecurityGroup(UA_Server *server,
+                           UA_NodeId securityGroupFolderNodeId,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId);
 
 /**
- * @brief Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
- * associated with the SecurityGroup from the server.
+ * @brief Removes the SecurityGroup from PubSub Manager. It removes the
+ * KeyStorage associated with the SecurityGroup from the server.
  *
  * @param server The server instance
  * @param securityGroup The nodeId of the securityGroup to be removed
- * @return UA_StatusCode The returned status code.
- */
+ * @return UA_StatusCode The returned status code. */
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_removeSecurityGroup(UA_Server *server, const UA_NodeId securityGroup);
+UA_Server_removeSecurityGroup(UA_Server *server,
+                              const UA_NodeId securityGroup);
 
 /**
- * @brief This is a repeated callback which is triggered on each iteration of SKS Pull request.
- * The server uses this callback to notify user about the status of current Pull request iteration.
- * The period is calculated based on the KeylifeTime of specified in the SecurityGroup object node on
- * the SKS server.
+ * @brief This is a repeated callback which is triggered on each iteration of
+ * SKS Pull request. The server uses this callback to notify user about the
+ * status of current Pull request iteration. The period is calculated based on
+ * the KeylifeTime of specified in the SecurityGroup object node on the SKS
+ * server.
  *
  * @param server The server instance managing the publisher/subscriber.
  * @param sksPullRequestStatus The current status of sks pull request.
- * @param context The pointer to user defined data passed to this callback.
- */
+ * @param context The pointer to user defined data passed to this callback. */
 typedef void
-(*UA_Server_sksPullRequestCallback)(UA_Server *server, UA_StatusCode sksPullRequestStatus, void* context);
+(*UA_Server_sksPullRequestCallback)(UA_Server *server,
+                                    UA_StatusCode sksPullRequestStatus,
+                                    void* context);
 
 /**
- * @brief Sets the SKS client config used to call the GetSecurityKeys Method on SKS and get the
- * initial set of keys for a SecurityGroupId and adds timedCallback for the next GetSecurityKeys
- * method Call. This uses async Client API for SKS Pull request. The SKS Client instance is created and destroyed at
- * runtime on each iteration of SKS Pull request by the server. The key Rollover mechanism will check if the new
- * keys are needed then it will call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
- * iteration, the sks client will be deleted by a delayed callback (in next server iteration).
+ * @brief Sets the SKS client config used to call the GetSecurityKeys Method on
+ * SKS and get the initial set of keys for a SecurityGroupId and adds
+ * timedCallback for the next GetSecurityKeys method Call. This uses async
+ * Client API for SKS Pull request. The SKS Client instance is created and
+ * destroyed at runtime on each iteration of SKS Pull request by the server. The
+ * key Rollover mechanism will check if the new keys are needed then it will
+ * call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
+ * iteration, the sks client will be deleted by a delayed callback (in next
+ * server iteration).
  *
- * @note It is be called before setting Reader/Writer Group into Operational because this also allocates
- * a channel context for the pubsub security policy.
+ * @note It is be called before setting Reader/Writer Group into Operational
+ * because this also allocates a channel context for the pubsub security policy.
  *
- * @note the stateCallback of sksClientConfig will be overwritten by an internal callback.
+ * @note the stateCallback of sksClientConfig will be overwritten by an internal
+ * callback.
  *
  * @param server the server instance
- * @param clientConfig holds the required configuration to make encrypted connection with
- * SKS Server. The input client config takes the lifecycle as long as SKS request are made.
- * It is deleted with its plugins when the server is deleted or the last Reader/Writer
- * Group of the securityGroupId is deleted. The input config is copied to an internal
- * config object and the content of input config object will be reset to zero.
+ * @param clientConfig holds the required configuration to make encrypted
+ *        connection with SKS Server. The input client config takes the
+ *        lifecycle as long as SKS request are made. It is deleted with its
+ *        plugins when the server is deleted or the last Reader/Writer Group of
+ *        the securityGroupId is deleted. The input config is copied to an
+ *        internal config object and the content of input config object will be
+ *        reset to zero.
  * @param endpointUrl holds the endpointUrl of the SKS server
  * @param securityGroupId the SecurityGroupId of the securityGroup on SKS and
- * reader/writergroups
- * @param callback the user defined callback to notify the user about the status of SKS
- * Pull request.
+ *        reader/writergroups
+ * @param callback the user defined callback to notify the user about the status
+ *        of SKS Pull request.
  * @param context passed to the callback function
- * @return UA_StatusCode the retuned status
- */
+ * @return UA_StatusCode the retuned status */
 UA_StatusCode UA_EXPORT
 UA_Server_setSksClient(UA_Server *server, UA_String securityGroupId,
                        UA_ClientConfig *clientConfig, const char *endpointUrl,
                        UA_Server_sksPullRequestCallback callback, void *context);
 
 UA_EXPORT UA_StatusCode UA_THREADSAFE
-UA_Server_setReaderGroupActivateKey(UA_Server *server, const UA_NodeId readerGroupId);
+UA_Server_setReaderGroupActivateKey(UA_Server *server,
+                                    const UA_NodeId readerGroupId);
 
-UA_EXPORT UA_StatusCode  UA_THREADSAFE
-UA_Server_setWriterGroupActivateKey(UA_Server *server, const UA_NodeId writerGroup);
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_setWriterGroupActivateKey(UA_Server *server,
+                                    const UA_NodeId writerGroup);
 
 #endif /* UA_ENABLE_PUBSUB_SKS */
 

@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
+#include "ua_pubsub.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -47,8 +48,10 @@ START_TEST(CreateAndLockConfiguration) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     //get internal RG Pointer
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_find(psm, readerGroup1);
     ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
@@ -56,28 +59,23 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetReaderConfig, 0, sizeof(dataSetReaderConfig));
     dataSetReaderConfig.name = UA_STRING("DataSetReader 1");
     retVal |= UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader1);
-    UA_DataSetReader *dataSetReader = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
+    UA_DataSetReader *dataSetReader = UA_DataSetReader_find(psm, dataSetReader1);
     ck_assert(dataSetReader != NULL);
-    ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
-
-    //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
-    ck_assert(pubSubConnection != NULL);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
     //Lock the reader group and the child pubsub entities
-    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
+    UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_find(psm, readerGroup1);
+    UA_LOCK(&server->serviceMutex);
+    retVal |= UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_1, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&server->serviceMutex);
 
     ck_assert(readerGroup->configurationFrozen == UA_TRUE);
-    ck_assert(dataSetReader->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //set state to disabled and implicit unlock the configuration
-    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
+    UA_LOCK(&server->serviceMutex);
+    retVal |= UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_1, UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&server->serviceMutex);
 
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
@@ -112,38 +110,31 @@ START_TEST(CreateAndReleaseMultipleLocks) {
     dataSetReaderConfig.name = UA_STRING("DataSetReader 3");
     retVal |= UA_Server_addDataSetReader(server, readerGroup2, &dataSetReaderConfig, &dataSetReader3);
 
-    UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_findRGbyId(server, readerGroup1);
-    UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_findRGbyId(server, readerGroup2);
-    UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
-    UA_DataSetReader *dataSetReader_2 = UA_ReaderGroup_findDSRbyId(server, dataSetReader2);
-    UA_DataSetReader *dataSetReader_3 = UA_ReaderGroup_findDSRbyId(server, dataSetReader3);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *readerGroup_1 = UA_ReaderGroup_find(psm, readerGroup1);
+    UA_ReaderGroup *readerGroup_2 = UA_ReaderGroup_find(psm, readerGroup2);
+
     //freeze configuration of both RG
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
 
-    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
-    retVal |= UA_Server_freezeReaderGroupConfiguration(server, readerGroup2);
+    UA_LOCK(&server->serviceMutex);
+    retVal |= UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_1, UA_PUBSUBSTATE_OPERATIONAL);
+    retVal |= UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_2, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&server->serviceMutex);
+    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 
     ck_assert(readerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(readerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
 
     //unlock one tree, get sure connection still locked
-    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
+    UA_LOCK(&server->serviceMutex);
+    UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_1, UA_PUBSUBSTATE_DISABLED);
+    UA_ReaderGroup_setPubSubState(getPSM(server), readerGroup_2, UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&server->serviceMutex);
     ck_assert(readerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
-    ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader_2->configurationFrozen == UA_FALSE);
-    ck_assert(dataSetReader_3->configurationFrozen == UA_TRUE);
-
-    retVal |= UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup2);
     ck_assert(readerGroup_2->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-    ck_assert(dataSetReader_3->configurationFrozen == UA_FALSE);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 START_TEST(CreateLockAndEditConfiguration) {
     UA_NodeId connection1, readerGroup1, dataSetReader1, dataSetReader2;
@@ -163,8 +154,10 @@ START_TEST(CreateLockAndEditConfiguration) {
     readerGroupConfig.rtLevel = UA_PUBSUB_RT_NONE;
     retVal |= UA_Server_addReaderGroup(server, connection1, &readerGroupConfig, &readerGroup1);
 
+    UA_PubSubManager *psm = getPSM(server);
+
     //get internal RG Pointer
-    UA_ReaderGroup *readerGroup = UA_ReaderGroup_findRGbyId(server, readerGroup1);
+    UA_ReaderGroup *readerGroup = UA_ReaderGroup_find(psm, readerGroup1);
     ck_assert(readerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
     ck_assert(readerGroup->configurationFrozen == UA_FALSE);
 
@@ -234,24 +227,28 @@ START_TEST(CreateLockAndEditConfiguration) {
         targetVars[i].targetVariable.targetNodeId = newNode;
     }
 
-    UA_DataSetReader *dataSetReader_1 = UA_ReaderGroup_findDSRbyId(server, dataSetReader1);
-    ck_assert(dataSetReader_1 != NULL);
-    ck_assert(dataSetReader_1->configurationFrozen == UA_FALSE);
+    retVal = UA_Server_enableDataSetReader(server, dataSetReader1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
 
     //Lock the reader group and the child pubsub entities
-    UA_Server_freezeReaderGroupConfiguration(server, readerGroup1);
+    UA_ReaderGroup *rg1 = UA_ReaderGroup_find(psm, readerGroup1);
+    UA_LOCK(&server->serviceMutex);
+    UA_ReaderGroup_setPubSubState(getPSM(server), rg1, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&server->serviceMutex);
     //call not allowed configuration methods
-    retVal = UA_Server_addDataSetReader(server, readerGroup1, &dataSetReaderConfig, &dataSetReader2);
-    ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retVal = UA_Server_removeDataSetReader(server, dataSetReader1);
-    ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
     retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
                                                            dataSetReaderConfig.dataSetMetaData.fieldsSize,
                                                            targetVars);
     ck_assert(retVal == UA_STATUSCODE_BADCONFIGURATIONERROR);
 
     //unlock the reader group
-    UA_Server_unfreezeReaderGroupConfiguration(server, readerGroup1);
+    UA_LOCK(&server->serviceMutex);
+    UA_ReaderGroup_setPubSubState(getPSM(server), rg1, UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&server->serviceMutex);
+
+    retVal = UA_Server_disableDataSetReader(server, dataSetReader1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+
     retVal = UA_Server_DataSetReader_createTargetVariables(server, dataSetReader1,
                                                            dataSetReaderConfig.dataSetMetaData.fieldsSize,
                                                            targetVars);
@@ -265,7 +262,7 @@ START_TEST(CreateLockAndEditConfiguration) {
     ck_assert(retVal == UA_STATUSCODE_GOOD);
     retVal = UA_Server_removeDataSetReader(server, dataSetReader1);
     ck_assert(retVal == UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 int main(void) {
     TCase *tc_lock_configuration = tcase_create("Create and Lock");

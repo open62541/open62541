@@ -30,10 +30,11 @@ static void teardown(void) {
 }
 
 START_TEST(AddPublisherUsingBinaryFile) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_ByteString publisherConfiguration = loadFile("../../tests/pubsub/check_publisher_configuration.bin");
     ck_assert(publisherConfiguration.length > 0);
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, publisherConfiguration);
+    UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(psm, publisherConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_WriterGroup *writerGroup;
@@ -42,7 +43,7 @@ START_TEST(AddPublisherUsingBinaryFile) {
     size_t writerGroupCount = 0;
     size_t dataSetWriterCount = 0;
     UA_String tmp;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(connection, &psm->connections, listEntry) {
         connectionCount++;
         tmp = UA_STRING("UADP Connection 1");
         ck_assert(UA_String_equal(&tmp, &connection->config.name));
@@ -65,10 +66,11 @@ START_TEST(AddPublisherUsingBinaryFile) {
 } END_TEST
 
 START_TEST(AddSubscriberUsingBinaryFile) {
+    UA_PubSubManager *psm = getPSM(server);
     UA_ByteString subscriberConfiguration = loadFile("../../tests/pubsub/check_subscriber_configuration.bin");
     ck_assert(subscriberConfiguration.length > 0);
     UA_LOCK(&server->serviceMutex);
-    UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(server, subscriberConfiguration);
+    UA_StatusCode retVal = UA_PubSubManager_loadPubSubConfigFromByteString(psm, subscriberConfiguration);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
     UA_PubSubConnection *connection;
     UA_ReaderGroup *readerGroup;
@@ -77,7 +79,7 @@ START_TEST(AddSubscriberUsingBinaryFile) {
     size_t readerGroupCount = 0;
     size_t dataSetReaderCount = 0;
     UA_String tmp;
-    TAILQ_FOREACH(connection, &server->pubSubManager.connections, listEntry) {
+    TAILQ_FOREACH(connection, &psm->connections, listEntry) {
         connectionCount++;
         tmp = UA_STRING("UDPMC Connection 1");
         ck_assert(UA_String_equal(&tmp, &connection->config.name));

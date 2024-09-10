@@ -18,9 +18,9 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 
+#include "../ua_securechannel.h"
+#include "../util/ua_util_internal.h"
 #include "open62541_queue.h"
-#include "ua_securechannel.h"
-#include "util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS

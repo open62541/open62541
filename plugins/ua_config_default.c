@@ -499,6 +499,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
 #ifdef UA_ENABLE_PUBSUB
+    conf->pubsubEnabled = true;
     conf->pubSubConfig.enableDeltaFrames = true;
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     conf->pubSubConfig.enableInformationModelMethods = true;

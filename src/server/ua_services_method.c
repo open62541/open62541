@@ -290,8 +290,10 @@ callWithMethodAndObject(UA_Server *server, UA_Session *session,
         return;
     }
     UA_Variant mutableInputArgs[UA_MAX_METHOD_ARGUMENTS];
-    memcpy(mutableInputArgs, request->inputArguments,
-           sizeof(UA_Variant) * request->inputArgumentsSize);
+    if(request->inputArgumentsSize > 0) {
+        memcpy(mutableInputArgs, request->inputArguments,
+               sizeof(UA_Variant) * request->inputArgumentsSize);
+    }
 
     /* Allocate the inputArgumentResults array */
     result->inputArgumentResults = (UA_StatusCode*)

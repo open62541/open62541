@@ -5,7 +5,6 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -70,7 +69,6 @@ addPubSubConnection(UA_Server *server, UA_String *transportProfile,
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING("UADP Connection 1");
     connectionConfig.transportProfileUri = *transportProfile;
-    connectionConfig.enabled = UA_TRUE;
     UA_Variant_setScalar(&connectionConfig.address, networkAddressUrl,
         &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
     connectionConfig.publisherId.idType = UA_PUBLISHERIDTYPE_UINT16;
@@ -708,15 +706,9 @@ static void cleanup(void) {
     UA_NodeId_clear(&ds2UInt32ArrId);
 }
 
-UA_Boolean running = true;
-static void stopHandler(int sig) {
-    running = false;
-}
-
-static int run(UA_String *transportProfile,
+static void
+run(UA_String *transportProfile,
     UA_NetworkAddressUrlDataType *networkAddressUrl) {
-    signal(SIGINT, stopHandler);
-    signal(SIGTERM, stopHandler);
 
     UA_Server *server = UA_Server_new();
     UA_ServerConfig *config = UA_Server_getConfig(server);
@@ -739,15 +731,14 @@ static int run(UA_String *transportProfile,
     memset(&writerGroupConfig, 0, sizeof(UA_WriterGroupConfig));
     writerGroupConfig.name = UA_STRING("DataSet WriterGroup");
     writerGroupConfig.publishingInterval = 500;
-    writerGroupConfig.enabled = UA_FALSE;
     writerGroupConfig.writerGroupId = 100;
     writerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     writerGroupConfig.maxEncapsulatedDataSetMessageCount = 3;
 
     /* Add the new WriterGroup to an existing Connection. */
     UA_NodeId writerGroupIdent;
-    UA_Server_addWriterGroup(server, connectionIdent, &writerGroupConfig, &writerGroupIdent);
-    UA_Server_enableWriterGroup(server, writerGroupIdent);
+    UA_Server_addWriterGroup(server, connectionIdent,
+                             &writerGroupConfig, &writerGroupIdent);
 
     /* Create a new Writer and connect it with an existing PublishedDataSet */
     // DataSetWriter ID 1 with Variant Encoding
@@ -761,7 +752,7 @@ static int run(UA_String *transportProfile,
 
     UA_NodeId writerIdentifier;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent,
-        &dataSetWriterConfig, &writerIdentifier);
+                               &dataSetWriterConfig, &writerIdentifier);
 
     // Published DataSet 2
     UA_PublishedDataSetConfig publishedDataSetConfig2;
@@ -786,17 +777,17 @@ static int run(UA_String *transportProfile,
 
     UA_NodeId writerIdentifier2;
     UA_Server_addDataSetWriter(server, writerGroupIdent, publishedDataSetIdent2,
-        &dataSetWriterConfig2, &writerIdentifier2);
+                               &dataSetWriterConfig2, &writerIdentifier2);
 
     UA_UInt64 timerCallbackId = 0;
-    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)timerCallback, NULL, 1000, &timerCallbackId);
+    UA_Server_addRepeatedCallback(server, (UA_ServerCallback)timerCallback, NULL,
+                                  1000, &timerCallbackId);
 
-    UA_StatusCode retval = UA_Server_run(server, &running);
+    UA_Server_enableAllPubSubComponents(server);
+    UA_Server_runUntilInterrupt(server);
 
     UA_Server_delete(server);
     cleanup();
-
-    return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
 static void
@@ -836,5 +827,6 @@ int main(int argc, char **argv) {
         networkAddressUrl.networkInterface = UA_STRING(argv[2]);
     }
 
-    return run(&transportProfile, &networkAddressUrl);
+    run(&transportProfile, &networkAddressUrl);
+    return 0;
 }

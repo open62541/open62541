@@ -1,5 +1,6 @@
 get_property(open62541_BUILD_INCLUDE_DIRS TARGET open62541 PROPERTY INTERFACE_INCLUDE_DIRECTORIES)
 include_directories(${open62541_BUILD_INCLUDE_DIRS})
+include_directories("${PROJECT_SOURCE_DIR}/deps")
 include_directories("${PROJECT_SOURCE_DIR}/src")
 include_directories("${PROJECT_SOURCE_DIR}/src/server")
 include_directories("${PROJECT_SOURCE_DIR}/tests/testing-plugins")

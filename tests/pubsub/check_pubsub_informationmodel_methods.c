@@ -82,7 +82,6 @@ static UA_NodeId addPubSubConnection(void){
     UA_PubSubConnectionDataType pubSubConnection;
     UA_PubSubConnectionDataType_init(&pubSubConnection);
     pubSubConnection.name = UA_STRING("Model Connection 1");
-    pubSubConnection.enabled = UA_TRUE;
     pubSubConnection.publisherId = publisherId;
     pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
@@ -230,7 +229,6 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_PubSubConnectionDataType pubSubConnection;
         UA_PubSubConnectionDataType_init(&pubSubConnection);
         pubSubConnection.name = UA_STRING("Model Connection 2");
-        pubSubConnection.enabled = UA_TRUE;
         pubSubConnection.publisherId = publisherId;
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
@@ -261,7 +259,6 @@ START_TEST(AddandRemoveNewPubSubConnectionWithWriterGroup){
         UA_ExtensionObject extensionObjectWG;
         pubSubConnection.writerGroups->name = UA_STRING("WriterGroup 1");
         pubSubConnection.writerGroups->publishingInterval = 5;
-        pubSubConnection.writerGroups->enabled = UA_FALSE;
         pubSubConnection.writerGroups->writerGroupId = 150;
         /* Change message settings of writerGroup to send PublisherId,
         * WriterGroupId in GroupHeader and DataSetWriterId in PayloadHeader
@@ -342,7 +339,6 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_PubSubConnectionDataType pubSubConnection;
         UA_PubSubConnectionDataType_init(&pubSubConnection);
         pubSubConnection.name = UA_STRING("Model Connection 2");
-        pubSubConnection.enabled = UA_TRUE;
         pubSubConnection.publisherId = publisherId;
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
@@ -373,7 +369,6 @@ START_TEST(AddNewPubSubConnectionWithWriterGroupAndDataSetWriter){
         UA_ExtensionObject extensionObjectWG;
         pubSubConnection.writerGroups->name = UA_STRING("WriterGroup 1");
         pubSubConnection.writerGroups->publishingInterval = 5;
-        pubSubConnection.writerGroups->enabled = UA_FALSE;
         pubSubConnection.writerGroups->writerGroupId = 150;
         pubSubConnection.writerGroups->dataSetWritersSize = 1;
         /* Change message settings of writerGroup to send PublisherId,
@@ -799,7 +794,6 @@ START_TEST(AddAndRemoveWriterGroupsUsingServer){
         UA_WriterGroupDataType writerGroupDataType;
         UA_WriterGroupDataType_init(&writerGroupDataType);
         writerGroupDataType.name = UA_STRING("TestWriterGroup");
-        writerGroupDataType.enabled = UA_TRUE;
         writerGroupDataType.publishingInterval = 500;
         writerGroupDataType.writerGroupId = 1234;
         UA_Variant_setScalar(inputArgument, &writerGroupDataType, &UA_TYPES[UA_TYPES_WRITERGROUPDATATYPE]);
@@ -847,7 +841,6 @@ START_TEST(AddAndRemoveWriterGroupsUsingClient){
         UA_WriterGroupDataType writerGroupDataType;
         UA_WriterGroupDataType_init(&writerGroupDataType);
         writerGroupDataType.name = UA_STRING("TestWriterGroup");
-        writerGroupDataType.enabled = UA_TRUE;
         writerGroupDataType.publishingInterval = 500;
         writerGroupDataType.writerGroupId = 1234;
         UA_Variant_setScalar(inputArgument, &writerGroupDataType, &UA_TYPES[UA_TYPES_WRITERGROUPDATATYPE]);
@@ -918,7 +911,6 @@ START_TEST(AddNewPubSubConnectionWithReaderGroup){
         UA_PubSubConnectionDataType pubSubConnection;
         UA_PubSubConnectionDataType_init(&pubSubConnection);
         pubSubConnection.name = UA_STRING("Model Connection 2");
-        pubSubConnection.enabled = UA_TRUE;
         pubSubConnection.publisherId = publisherId;
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 
@@ -990,7 +982,6 @@ START_TEST(AddNewPubSubConnectionWithReaderGroupandDataSetReader){
         UA_PubSubConnectionDataType pubSubConnection;
         UA_PubSubConnectionDataType_init(&pubSubConnection);
         pubSubConnection.name = UA_STRING("Model Connection 2");
-        pubSubConnection.enabled = UA_TRUE;
         pubSubConnection.publisherId = publisherId;
         pubSubConnection.transportProfileUri = UA_STRING("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp");
 

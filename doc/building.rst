@@ -325,14 +325,6 @@ PubSub Build Options
    more details take a look at the following section `PubSub Information Model
    Representation`. Disabled by default.
 
-**UA_ENABLE_PUBSUB_MONITORING**
-   Enable the experimental PubSub monitoring. This feature provides a basic
-   framework to implement monitoring/timeout checks for PubSub components.
-   Initially the MessageReceiveTimeout check of a DataSetReader is provided. It
-   uses the internal server callback implementation. The monitoring backend can
-   be changed by the application to satisfy realtime requirements. Disabled by
-   default.
-
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
 

@@ -9,6 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
+#include "ua_pubsub.h"
 #include "test_helpers.h"
 
 #include <check.h>
@@ -64,11 +65,9 @@ START_TEST(CreateAndLockConfiguration) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-    UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
-    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
+    UA_PubSubManager *psm = getPSM(server);
 
-    //get internal WG Pointer
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetMetaDataType dataSetMetaDataType;
@@ -90,28 +89,25 @@ START_TEST(CreateAndLockConfiguration) {
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
 
     //get internal PubSubConnection Pointer
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_find(psm, connection1);
     ck_assert(pubSubConnection != NULL);
 
     ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+    UA_WriterGroup *wg = UA_WriterGroup_find(psm, writerGroup1);
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_DataSetWriter_setPubSubState(psm, dataSetWriter, UA_PUBSUBSTATE_OPERATIONAL);
     ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
-    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
+    UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
+    ck_assert(wg->configurationFrozen == UA_TRUE);
     UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
     ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    UA_DataSetField *dsf;
-    TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-        ck_assert(dsf->configurationFrozen == UA_TRUE);
-    }
-    //set state to disabled and implicit unlock the configuration
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
 } END_TEST
 
 START_TEST(CreateAndLockConfigurationWithExternalAPI) {
@@ -149,39 +145,37 @@ START_TEST(CreateAndLockConfigurationWithExternalAPI) {
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-        UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
-        ck_assert(dataSetField->configurationFrozen == UA_FALSE);
+        UA_PubSubManager *psm = getPSM(server);
 
         //get internal WG Pointer
-        UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+        UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
         ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
         UA_DataSetWriterConfig dataSetWriterConfig;
         memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
         dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
         retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+        ck_assert(retVal == UA_STATUSCODE_GOOD);
+        UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
         ck_assert(dataSetWriter != NULL);
 
-        //get internal PubSubConnection Pointer
-        UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
-
-        ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
-        //Lock the with the freeze function
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+        UA_LOCK(&psm->sc.server->serviceMutex);
+        UA_DataSetWriter_setPubSubState(psm, dataSetWriter, UA_PUBSUBSTATE_OPERATIONAL);
+        UA_UNLOCK(&psm->sc.server->serviceMutex);
         ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
-        ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-        ck_assert(pubSubConnection->configurationFreezeCounter > 0);
+
         UA_PublishedDataSet *publishedDataSet = dataSetWriter->connectedDataSet;
         ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-        UA_DataSetField *dsf;
-        TAILQ_FOREACH(dsf ,&publishedDataSet->fields , listEntry){
-            ck_assert(dsf->configurationFrozen == UA_TRUE);
-        }
+
+        //Lock the with the freeze function
+        UA_LOCK(&psm->sc.server->serviceMutex);
+        UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_OPERATIONAL);
+        UA_UNLOCK(&psm->sc.server->serviceMutex);
         //set state to disabled and implicit unlock the configuration
-        retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
-        ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+        UA_LOCK(&psm->sc.server->serviceMutex);
+        UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_DISABLED);
+        UA_UNLOCK(&psm->sc.server->serviceMutex);
+} END_TEST
 
 START_TEST(CreateAndReleaseMultiplePDSLocks) {
     //create config
@@ -221,7 +215,7 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetField1).result;
 
-    UA_DataSetField *dataSetField = UA_DataSetField_findDSFbyId(server, dataSetField1);
+    UA_PubSubManager *psm = getPSM(server);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
@@ -232,32 +226,33 @@ START_TEST(CreateAndReleaseMultiplePDSLocks) {
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 3");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup2, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter3);
 
-    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_findWGbyId(server, writerGroup1);
-    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_findWGbyId(server, writerGroup2);
-    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_findPDSbyId(server, publishedDataSet1);
-    UA_PubSubConnection *pubSubConnection = UA_PubSubConnection_findConnectionbyId(server, connection1);
+    ck_assert(retVal == UA_STATUSCODE_GOOD);
+
+    UA_WriterGroup *writerGroup_1 = UA_WriterGroup_find(psm, writerGroup1);
+    UA_WriterGroup *writerGroup_2 = UA_WriterGroup_find(psm, writerGroup2);
+    UA_PublishedDataSet *publishedDataSet = UA_PublishedDataSet_find(psm, publishedDataSet1);
+
     //freeze configuratoin of both WG
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
     ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
     ck_assert(publishedDataSet->configurationFreezeCounter == 0);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
-    retVal |= UA_Server_freezeWriterGroupConfiguration(server, writerGroup2);
+    
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_OPERATIONAL);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup2), UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
     ck_assert(writerGroup_1->configurationFrozen == UA_TRUE);
     ck_assert(writerGroup_2->configurationFrozen == UA_TRUE);
-    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    ck_assert(pubSubConnection->configurationFreezeCounter > 0);
     //unlock one tree, get sure pds still locked
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
     ck_assert(writerGroup_1->configurationFrozen == UA_FALSE);
-    ck_assert(publishedDataSet->configurationFreezeCounter > 0);
-    ck_assert(dataSetField->configurationFrozen == UA_TRUE);
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup2);
-    ck_assert(publishedDataSet->configurationFreezeCounter == 0);
-    ck_assert(dataSetField->configurationFrozen == UA_FALSE);
-    ck_assert(pubSubConnection->configurationFreezeCounter == 0);
-    ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup2), UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
+    ck_assert(writerGroup_2->configurationFrozen == UA_FALSE);
+} END_TEST
 
 START_TEST(CreateLockAndEditConfiguration) {
     UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;
@@ -295,28 +290,35 @@ START_TEST(CreateLockAndEditConfiguration) {
     retVal |= UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
 
     //get internal WG Pointer
-    UA_WriterGroup *writerGroup = UA_WriterGroup_findWGbyId(server, writerGroup1);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_WriterGroup *writerGroup = UA_WriterGroup_find(psm, writerGroup1);
     ck_assert(writerGroup->head.state == UA_PUBSUBSTATE_DISABLED);
 
     UA_DataSetWriterConfig dataSetWriterConfig;
     memset(&dataSetWriterConfig, 0, sizeof(dataSetWriterConfig));
     dataSetWriterConfig.name = UA_STRING("DataSetWriter 1");
     retVal |= UA_Server_addDataSetWriter(server, writerGroup1, publishedDataSet1, &dataSetWriterConfig, &dataSetWriter1);
-    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_findDSWbyId(server, dataSetWriter1);
+    UA_DataSetWriter *dataSetWriter = UA_DataSetWriter_find(psm, dataSetWriter1);
     ck_assert(dataSetWriter != NULL);
+    retVal |= UA_Server_enableDataSetWriter(server, dataSetWriter1);
+    ck_assert(dataSetWriter->configurationFrozen == UA_TRUE);
 
-    ck_assert(dataSetWriter->configurationFrozen == UA_FALSE);
     //Lock the writer group and the child pubsub entities
-        UA_Server_freezeWriterGroupConfiguration(server, writerGroup1);
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_OPERATIONAL);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
     //call not allowed configuration methods
     UA_DataSetFieldResult fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_BADCONFIGURATIONERROR);
     ck_assert(UA_Server_removePublishedDataSet(server, publishedDataSet1) == UA_STATUSCODE_BADCONFIGURATIONERROR);
-    retVal |= UA_Server_unfreezeWriterGroupConfiguration(server, writerGroup1);
+    UA_LOCK(&psm->sc.server->serviceMutex);
+    UA_WriterGroup_setPubSubState(psm, UA_WriterGroup_find(psm, writerGroup1), UA_PUBSUBSTATE_DISABLED);
+    UA_UNLOCK(&psm->sc.server->serviceMutex);
+    UA_Server_disableDataSetWriter(server, dataSetWriter1);
     fieldRemoveResult = UA_Server_removeDataSetField(server, localDataSetField);
     ck_assert(fieldRemoveResult.result == UA_STATUSCODE_GOOD);
     ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
-    } END_TEST
+} END_TEST
 
 START_TEST(CreateConfigWithStaticFieldSource) {
     UA_NodeId connection1, writerGroup1, publishedDataSet1, dataSetWriter1;

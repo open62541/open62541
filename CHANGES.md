@@ -3,6 +3,25 @@ refactorings and bug fixes are not reported here.
 
 # Development
 
+### PubSub Components are disabled initially
+
+PubSubComponents (PubSubConnections, ReaderGroups, ...) are no longer enabled
+automatically after creating them. This makes the behavior uniform for all
+PubSubComponents. And the configuration can be finalized prior to enabling. A
+method UA_Server_enableAllPubSubComponents simplifies enabling the entire
+system of configured components.
+
+### PubSub Configuration freezing
+
+The configuration is now "frozen" automatically when the state machine switches
+to an enabled state (PAUSED / OPERATIONAL / PREOPERATIONAL). The freezing
+mechanism is no longer exposed in the public API.
+
+### Timer Simplification
+
+For timed callbacks that are not repeated, use the same API
+but with the UA_TIMERPOLICY_ONCE TimerPolicy.
+
 ### EventLoop Canceling
 
 The `cancel` method of the EventLoop makes the (blocking) EventLoop `run` return

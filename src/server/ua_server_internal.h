@@ -26,19 +26,10 @@
 #include "ua_session.h"
 #include "ua_services.h"
 #include "ua_server_async.h"
-#include "util/ua_util_internal.h"
+#include "../util/ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
-
-#ifdef UA_ENABLE_PUBSUB
-#include "ua_pubsub.h"
-#endif
-
-#ifdef UA_ENABLE_DISCOVERY
-struct UA_DiscoveryManager;
-typedef struct UA_DiscoveryManager UA_DiscoveryManager;
-#endif
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
@@ -76,23 +67,22 @@ typedef struct UA_ServerComponent {
     UA_String name;
     ZIP_ENTRY(UA_ServerComponent) treeEntry;
     UA_LifecycleState state;
+    UA_Server *server; /* Every ServerComponent has a backpointer to the server */
 
     /* Starting fails if the server is not also already started */
-    UA_StatusCode (*start)(UA_Server *server,
-                           struct UA_ServerComponent *sc);
+    UA_StatusCode (*start)(struct UA_ServerComponent *sc, UA_Server *server);
 
     /* Stopping is asynchronous and might need a few iterations of the main-loop
      * to succeed. */
-    void (*stop)(UA_Server *server,
-                 struct UA_ServerComponent *sc);
+    void (*stop)(struct UA_ServerComponent *sc);
 
-    /* Clean up the ServerComponent. Can fail if it is not stopped. */
-    UA_StatusCode (*free)(UA_Server *server,
-                          struct UA_ServerComponent *sc);
+    /* Clean up the ServerComponent. Can fail if it is not stopped. This does
+     * not free the memory and does not remove from the ziptree. */
+    UA_StatusCode (*clear)(struct UA_ServerComponent *sc);
 
     /* To be set by the server. So the component can notify the server about
      * asynchronous state changes. */
-    void (*notifyState)(UA_Server *server, struct UA_ServerComponent *sc,
+    void (*notifyState)(struct UA_ServerComponent *sc,
                         UA_LifecycleState state);
 } UA_ServerComponent;
 
@@ -182,11 +172,6 @@ struct UA_Server {
     LIST_HEAD(, UA_ConditionSource) conditionSources;
     UA_NodeId refreshEvents[2];
 # endif
-#endif
-
-    /* Publish/Subscribe */
-#ifdef UA_ENABLE_PUBSUB
-    UA_PubSubManager pubSubManager;
 #endif
 
 #if UA_MULTITHREADING >= 100
@@ -550,12 +535,15 @@ addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId);
 
 #ifdef UA_ENABLE_DISCOVERY
-UA_ServerComponent *
-UA_DiscoveryManager_new(UA_Server *server);
+UA_ServerComponent * UA_DiscoveryManager_new(void);
 #endif
 
-UA_ServerComponent *
-UA_BinaryProtocolManager_new(UA_Server *server);
+UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
+
+
+#ifdef UA_ENABLE_PUBSUB
+UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
+#endif
 
 /***********/
 /* RefTree */

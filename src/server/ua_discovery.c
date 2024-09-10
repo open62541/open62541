@@ -20,8 +20,7 @@
 #ifdef UA_ENABLE_DISCOVERY
 
 void
-UA_DiscoveryManager_setState(UA_Server *server,
-                             UA_DiscoveryManager *dm,
+UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
                              UA_LifecycleState state) {
     /* Check if open connections remain */
     if(state == UA_LIFECYCLESTATE_STOPPING ||
@@ -45,16 +44,15 @@ UA_DiscoveryManager_setState(UA_Server *server,
     /* Set the new state and notify */
     dm->sc.state = state;
     if(dm->sc.notifyState)
-        dm->sc.notifyState(server, &dm->sc, state);
+        dm->sc.notifyState(&dm->sc, state);
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_free(UA_Server *server,
-                         struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
 
     if(sc->state != UA_LIFECYCLESTATE_STOPPED) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_ERROR(sc->server->config.logging, UA_LOGCATEGORY_SERVER,
                      "Cannot delete the DiscoveryManager because "
                      "it is not stopped");
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -89,7 +87,6 @@ UA_DiscoveryManager_free(UA_Server *server,
     }
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
-    UA_free(dm);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -158,13 +155,19 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
 }
 
 static UA_StatusCode
-UA_DiscoveryManager_start(UA_Server *server,
-                          struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
+                          UA_Server *server) {
     if(sc->state != UA_LIFECYCLESTATE_STOPPED)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    sc->server = server; /* Set the backpointer */
+
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    dm->server = server; /* Set the backpointer */
+
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_EventLoop *el = server->config.eventLoop;
+    dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
+#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     UA_StatusCode res =
         addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
@@ -177,18 +180,17 @@ UA_DiscoveryManager_start(UA_Server *server,
         UA_DiscoveryManager_startMulticast(dm);
 #endif
 
-    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STARTED);
+    UA_DiscoveryManager_setState(dm, UA_LIFECYCLESTATE_STARTED);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
-UA_DiscoveryManager_stop(UA_Server *server,
-                         struct UA_ServerComponent *sc) {
+UA_DiscoveryManager_stop(struct UA_ServerComponent *sc) {
     if(sc->state != UA_LIFECYCLESTATE_STARTED)
         return;
 
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)sc;
-    removeCallback(server, dm->discoveryCallbackId);
+    removeCallback(dm->sc.server, dm->discoveryCallbackId);
 
     /* Cancel all outstanding register requests */
     for(size_t i = 0; i < UA_MAXREGISTERREQUESTS; i++) {
@@ -198,29 +200,24 @@ UA_DiscoveryManager_stop(UA_Server *server,
     }
 
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    if(server->config.mdnsEnabled)
+    if(sc->server->config.mdnsEnabled)
         UA_DiscoveryManager_stopMulticast(dm);
 #endif
 
-    UA_DiscoveryManager_setState(server, dm, UA_LIFECYCLESTATE_STOPPED);
+    UA_DiscoveryManager_setState(dm, UA_LIFECYCLESTATE_STOPPED);
 }
 
 UA_ServerComponent *
-UA_DiscoveryManager_new(UA_Server *server) {
+UA_DiscoveryManager_new(void) {
     UA_DiscoveryManager *dm = (UA_DiscoveryManager*)
         UA_calloc(1, sizeof(UA_DiscoveryManager));
     if(!dm)
         return NULL;
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    UA_EventLoop *el = server->config.eventLoop;
-    dm->serverOnNetworkRecordIdLastReset = el->dateTime_now(el);
-#endif /* UA_ENABLE_DISCOVERY_MULTICAST */
-
     dm->sc.name = UA_STRING("discovery");
     dm->sc.start = UA_DiscoveryManager_start;
     dm->sc.stop = UA_DiscoveryManager_stop;
-    dm->sc.free = UA_DiscoveryManager_free;
+    dm->sc.clear = UA_DiscoveryManager_clear;
     return &dm->sc;
 }
 
@@ -229,8 +226,7 @@ UA_DiscoveryManager_new(UA_Server *server) {
 /********************************/
 
 static void
-asyncRegisterRequest_clear(void *app, void *context) {
-    UA_Server *server = (UA_Server*)app;
+asyncRegisterRequest_clear(void *_, void *context) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)context;
     UA_DiscoveryManager *dm = ar->dm;
 
@@ -240,7 +236,7 @@ asyncRegisterRequest_clear(void *app, void *context) {
     memset(ar, 0, sizeof(asyncRegisterRequest));
 
     /* The Discovery manager is fully stopped? */
-    UA_DiscoveryManager_setState(server, dm, dm->sc.state);
+    UA_DiscoveryManager_setState(dm, dm->sc.state);
 }
 
 static void
@@ -258,7 +254,7 @@ asyncRegisterRequest_clearAsync(asyncRegisterRequest *ar) {
 static void
 setupRegisterRequest(asyncRegisterRequest *ar, UA_RequestHeader *rh,
                      UA_RegisteredServer *rs) {
-    UA_ServerConfig *sc = &ar->dm->server->config;
+    UA_ServerConfig *sc = &ar->dm->sc.server->config;
 
     rh->timeoutHint = 10000;
 
@@ -282,7 +278,7 @@ static void
 registerAsyncResponse(UA_Client *client, void *userdata,
                       UA_UInt32 requestId, void *resp) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)userdata;
-    const UA_ServerConfig *sc = &ar->dm->server->config;
+    const UA_ServerConfig *sc = &ar->dm->sc.server->config;
     UA_Response *response = (UA_Response*)resp;
     const char *regtype = (ar->register2) ? "RegisterServer2" : "RegisterServer";
 
@@ -336,7 +332,7 @@ discoveryClientStateCallback(UA_Client *client,
                              UA_StatusCode connectStatus) {
     asyncRegisterRequest *ar = (asyncRegisterRequest*)
         UA_Client_getContext(client);
-    UA_ServerConfig *sc = &ar->dm->server->config;
+    UA_ServerConfig *sc = &ar->dm->sc.server->config;
 
     /* Connection failed */
     if(connectStatus != UA_STATUSCODE_GOOD) {

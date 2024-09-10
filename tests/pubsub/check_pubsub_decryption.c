@@ -149,7 +149,7 @@ hexstr_to_char(const char *hexstr) {
 //         UA_Server_removeDataSetReader(uaServer, dataSetReader->identifier);
 //     }
 //     UA_PubSubConnection* pConn =
-//         UA_PubSubConnection_findConnectionbyId(uaServer, readerGroup->linkedConnection);
+//         UA_PubSubConnection_find(uaServer, readerGroup->linkedConnection);
 //     if(pConn != NULL)
 //         pConn->readerGroupsSize--;
 //
@@ -329,8 +329,8 @@ END_TEST
 START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -346,7 +346,7 @@ START_TEST(DecodeAndVerifyEncryptedNetworkMessage) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_GOOD);
 
     const char *msg_dec_exp = MSG_HEADER MSG_PAYLOAD_DEC;
@@ -367,8 +367,8 @@ END_TEST
 START_TEST(InvalidSignature) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
         UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-        UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -383,7 +383,7 @@ START_TEST(InvalidSignature) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_NetworkMessage_clear(&msg);
@@ -396,41 +396,40 @@ START_TEST(InvalidSignature) {
 END_TEST
 
 START_TEST(InvalidSecurityModeInsufficientSig) {
-        UA_FieldMetaData *fields = newReaderGroupWithSecurity(
-            UA_MESSAGESECURITYMODE_NONE);
-        UA_PubSubConnection *connection =
-            UA_PubSubConnection_findConnectionbyId(server, connectionId);
-        if(!connection) {
-            ck_assert(false);
-        }
-
-        const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
-
-        UA_ByteString buffer;
-        buffer.length = MSG_LENGTH_ENCRYPTED;
-        buffer.data = hexstr_to_char(msg_enc);
-
-        UA_NetworkMessage msg;
-        memset(&msg, 0, sizeof(UA_NetworkMessage));
-
-        UA_StatusCode rv =
-            UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
-        ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
-
-        UA_NetworkMessage_clear(&msg);
-
-        UA_free(fields);
-        free(buffer.data);
-        // UA_Server_ReaderGroup_clear(server, rgWithoutSecurity);
-        // free(rgWithoutSecurity);
+    UA_FieldMetaData *fields = newReaderGroupWithSecurity(UA_MESSAGESECURITYMODE_NONE);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
+    if(!connection) {
+        ck_assert(false);
     }
+
+    const char * msg_enc = MSG_HEADER MSG_PAYLOAD_ENC MSG_SIG;
+
+    UA_ByteString buffer;
+    buffer.length = MSG_LENGTH_ENCRYPTED;
+    buffer.data = hexstr_to_char(msg_enc);
+
+    UA_NetworkMessage msg;
+    memset(&msg, 0, sizeof(UA_NetworkMessage));
+
+    UA_StatusCode rv =
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
+    ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEINSUFFICIENT);
+
+    UA_NetworkMessage_clear(&msg);
+
+    UA_free(fields);
+    free(buffer.data);
+    // UA_Server_ReaderGroup_clear(server, rgWithoutSecurity);
+    // free(rgWithoutSecurity);
+}
 END_TEST
 
 START_TEST(InvalidSecurityModeRejectedSig) {
     UA_FieldMetaData *fields = newReaderGroupWithSecurity(
             UA_MESSAGESECURITYMODE_SIGNANDENCRYPT);
-    UA_PubSubConnection *connection =
-    UA_PubSubConnection_findConnectionbyId(server, connectionId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *connection = UA_PubSubConnection_find(psm, connectionId);
     if(!connection) {
         ck_assert(false);
     }
@@ -444,7 +443,7 @@ START_TEST(InvalidSecurityModeRejectedSig) {
     memset(&msg, 0, sizeof(UA_NetworkMessage));
 
     UA_StatusCode rv =
-        UA_PubSubConnection_decodeNetworkMessage(connection, server, buffer, &msg);
+        UA_PubSubConnection_decodeNetworkMessage(psm, connection, buffer, &msg);
     ck_assert(rv == UA_STATUSCODE_BADSECURITYMODEREJECTED);
 
     UA_NetworkMessage_clear(&msg);

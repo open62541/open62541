@@ -45,17 +45,22 @@ typedef struct UA_InterruptManager UA_InterruptManager;
  *
  * Timer Policies
  * --------------
- * A timer comes with a cyclic interval in which a callback is executed. If an
+ * A timer comes with a periodic interval in which a callback is executed. If an
  * application is congested the interval can be missed. Two different policies
  * can be used when this happens. Either schedule the next execution after the
  * interval has elapsed again from the current time onwards or stay within the
  * regular interval with respect to the original basetime. */
 
 typedef enum {
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME = 0, /* deprecated */
-    UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME = 1,    /* deprecated */
-    UA_TIMERPOLICY_CURRENTTIME = 0,
-    UA_TIMERPOLICY_BASETIME = 1,
+    UA_TIMERPOLICY_ONCE = 0,        /* Execute the timer once and remove */
+    UA_TIMERPOLICY_CURRENTTIME = 1, /* Repeated timer. Upon cycle miss, execute
+                                     * "now" and wait exactly for the interval
+                                     * until the next execution (new basetime). */
+    UA_TIMERPOLICY_BASETIME = 2,    /* Repeated timer. Upon cycle miss, execute
+                                     * "now" and fall back into the regular
+                                     * cycle from the original basetime (the
+                                     * next execution might come after less
+                                     * delay than the interval defines). */
 } UA_TimerPolicy;
 
 /**
@@ -154,33 +159,30 @@ struct UA_EventLoop {
     UA_DateTime (*dateTime_nowMonotonic)(UA_EventLoop *el);
     UA_Int64    (*dateTime_localTimeUtcOffset)(UA_EventLoop *el);
 
-    /* Timed Callbacks
+    /* Timer Callbacks
      * ~~~~~~~~~~~~~~~
-     * Cyclic callbacks are executed regularly with an interval.
-     * A timed callback is executed only once. */
+     * Timer callbacks are executed at a defined time or regularly with a
+     * periodic interval. */
 
-    /* Time of the next cyclic callback. Returns the max DateTime if no cyclic
-     * callback is registered. */
-    UA_DateTime (*nextCyclicTime)(UA_EventLoop *el);
+    /* Time of the next timer. Returns the UA_DATETIME_MAX if no timer is
+     * registered. */
+    UA_DateTime (*nextTimer)(UA_EventLoop *el);
 
-    /* The execution interval is in ms. Returns the callbackId if the pointer is
-     * non-NULL. */
+    /* The execution interval is in ms. The first execution time is baseTime +
+     * interval. If baseTime is NULL, then the current time is used for the base
+     * time. The timerId is written if the pointer is non-NULL. */
     UA_StatusCode
-    (*addCyclicCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
-                         void *data, UA_Double interval_ms, UA_DateTime *baseTime,
-                         UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
+    (*addTimer)(UA_EventLoop *el, UA_Callback cb, void *application,
+                void *data, UA_Double interval_ms, UA_DateTime *baseTime,
+                UA_TimerPolicy timerPolicy, UA_UInt64 *timerId);
 
+    /* If baseTime is NULL, use the current time as the base. */
     UA_StatusCode
-    (*modifyCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId,
-                            UA_Double interval_ms, UA_DateTime *baseTime,
-                            UA_TimerPolicy timerPolicy);
+    (*modifyTimer)(UA_EventLoop *el, UA_UInt64 timerId,
+                   UA_Double interval_ms, UA_DateTime *baseTime,
+                   UA_TimerPolicy timerPolicy);
 
-    void (*removeCyclicCallback)(UA_EventLoop *el, UA_UInt64 callbackId);
-
-    /* Like a cyclic callback, but executed only once */
-    UA_StatusCode
-    (*addTimedCallback)(UA_EventLoop *el, UA_Callback cb, void *application,
-                        void *data, UA_DateTime date, UA_UInt64 *callbackId);
+    void (*removeTimer)(UA_EventLoop *el, UA_UInt64 timerId);
 
     /* Delayed Callbacks
      * ~~~~~~~~~~~~~~~~~
@@ -190,7 +192,7 @@ struct UA_EventLoop {
      * has no remaining users.
      *
      * The delayed callbacks are processed in each of the cycle of the EventLoop
-     * between the handling of timed cyclic callbacks and polling for (network)
+     * between the handling of periodic callbacks and polling for (network)
      * events. The memory for the delayed callback is *NOT* automatically freed
      * after the execution.
      *

@@ -5,6 +5,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
+#include <open62541/plugin/log.h>
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
@@ -283,7 +284,8 @@ START_TEST(TestSetSecurityKeys_GOOD) {
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -311,7 +313,8 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingList){
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -334,7 +337,8 @@ START_TEST(TestSetSecurityKeys_UpdateCurrentKeyFromExistingListAndAddNewFutureKe
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);
@@ -367,7 +371,8 @@ START_TEST(TestSetSecurityKeys_ReplaceExistingKeyListWithFetchedKeyList){
     UA_StatusCode retval = encyrptedclientconnect(client);
 
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_findKeyStorage(server, securityGroupId);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubKeyStorage *ks = UA_PubSubKeyStorage_find(psm, securityGroupId);
     UA_UNLOCK(&server->serviceMutex);
 
     retval = callSetSecurityKey(client, securityGroupId, currentTokenId, futureKeySize);

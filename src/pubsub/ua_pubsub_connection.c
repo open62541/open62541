@@ -11,17 +11,28 @@
  */
 
 #include "ua_pubsub.h"
-#include "server/ua_server_internal.h"
-
-#ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-#include "ua_pubsub_ns0.h"
-#endif
+#include "../server/ua_server_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
+static UA_Boolean
+UA_PubSubConnection_canConnect(UA_PubSubConnection *c);
+
+static UA_StatusCode
+UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                            UA_Boolean validate);
+
+static void
+UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                            UA_ByteString msg);
+
+static void
+UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
+
 UA_StatusCode
-UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
-                                         UA_Server *server, UA_ByteString buffer,
+UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
+                                         UA_PubSubConnection *connection,
+                                         UA_ByteString buffer,
                                          UA_NetworkMessage *nm) {
 #ifdef UA_DEBUG_DUMP_PKGS
     UA_dump_hex_pkg(buffer->data, buffer->length);
@@ -33,35 +44,30 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
     ctx.end = buffer.data + buffer.length;
     ctx.depth = 0;
     memset(&ctx.opts, 0, sizeof(UA_DecodeBinaryOptions));
-    ctx.opts.customTypes = server->config.customDataTypes;
+    ctx.opts.customTypes = psm->sc.server->config.customDataTypes;
 
     /* Decode the headers */
     UA_StatusCode rv = UA_NetworkMessage_decodeHeaders(&ctx, nm);
     if(rv != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
+        UA_LOG_WARNING_PUBSUB(psm->logging, connection,
                               "PubSub receive. decoding headers failed");
         UA_NetworkMessage_clear(nm);
         return rv;
     }
 
-    UA_Boolean processed = false;
-    UA_ReaderGroup *readerGroup;
-    UA_DataSetReader *reader;
-
     /* Choose a correct readergroup for decrypt/verify this message
      * (there could be multiple) */
-    LIST_FOREACH(readerGroup, &connection->readerGroups, listEntry) {
-        LIST_FOREACH(reader, &readerGroup->readers, listEntry) {
-            UA_StatusCode retval =
-                UA_DataSetReader_checkIdentifier(server, nm, reader, readerGroup->config);
-            if(retval != UA_STATUSCODE_GOOD)
+    UA_Boolean processed = false;
+    UA_ReaderGroup *rg;
+    LIST_FOREACH(rg, &connection->readerGroups, listEntry) {
+        UA_DataSetReader *reader;
+        LIST_FOREACH(reader, &rg->readers, listEntry) {
+            UA_StatusCode res = UA_DataSetReader_checkIdentifier(psm, reader, nm);
+            if(res != UA_STATUSCODE_GOOD)
                 continue;
             processed = true;
-            rv = verifyAndDecryptNetworkMessage(server->config.logging, buffer, &ctx, nm, readerGroup);
+            rv = verifyAndDecryptNetworkMessage(psm->logging, buffer, &ctx, nm, rg);
             if(rv != UA_STATUSCODE_GOOD) {
-                UA_LOG_WARNING_PUBSUB(server->config.logging, connection,
-                                      "Subscribe failed, verify and decrypt "
-                                      "network message failed.");
                 UA_NetworkMessage_clear(nm);
                 return rv;
             }
@@ -73,17 +79,11 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubConnection *connection,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_INFO_PUBSUB(server->config.logging, connection,
-                           "Dataset reader not found. Check PublisherId, "
-                           "WriterGroupId and DatasetWriterId");
-        /* Possible multicast scenario: there are multiple connections (with one
-         * or more ReaderGroups) within a multicast group every connection
-         * receives all network messages, even if some of them are not meant for
-         * the connection currently processed -> therefore it is ok if the
-         * connection does not have a DataSetReader for every received network
-         * message. We must not return an error here, but continue with the
-         * buffer decoding and see if we have a matching DataSetReader for the
-         * next network message. */
+        UA_LOG_WARNING_PUBSUB(psm->logging, connection,
+                              "Could not decode the received NetworkMessage "
+                              "-- No matching ReaderGroup");
+        UA_NetworkMessage_clear(nm);
+        return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     rv = UA_NetworkMessage_decodePayload(&ctx, nm);
@@ -119,29 +119,17 @@ UA_PubSubConnectionConfig_copy(const UA_PubSubConnectionConfig *src,
     return res;
 }
 
-UA_StatusCode
-UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connection,
-                                    UA_PubSubConnectionConfig *config) {
-    if(!config)
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubConnection *currentPubSubConnection =
-        UA_PubSubConnection_findConnectionbyId(server, connection);
-    UA_StatusCode res = UA_STATUSCODE_BADNOTFOUND;
-    if(currentPubSubConnection)
-        res = UA_PubSubConnectionConfig_copy(&currentPubSubConnection->config, config);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 UA_PubSubConnection *
-UA_PubSubConnection_findConnectionbyId(UA_Server *server, UA_NodeId connectionIdentifier) {
-    UA_PubSubConnection *pubSubConnection;
-    TAILQ_FOREACH(pubSubConnection, &server->pubSubManager.connections, listEntry){
-        if(UA_NodeId_equal(&connectionIdentifier, &pubSubConnection->head.identifier))
+UA_PubSubConnection_find(UA_PubSubManager *psm,
+                         const UA_NodeId id) {
+    if(!psm)
+        return NULL;
+    UA_PubSubConnection *c;
+    TAILQ_FOREACH(c, &psm->connections, listEntry) {
+        if(UA_NodeId_equal(&id, &c->head.identifier))
             break;
     }
-    return pubSubConnection;
+    return c;
 }
 
 void
@@ -155,18 +143,15 @@ UA_PubSubConnectionConfig_clear(UA_PubSubConnectionConfig *connectionConfig) {
 }
 
 UA_StatusCode
-UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *cc,
+UA_PubSubConnection_create(UA_PubSubManager *psm, const UA_PubSubConnectionConfig *cc,
                            UA_NodeId *cId) {
-    if(!server || !cc)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
     /* Allocate */
     UA_PubSubConnection *c = (UA_PubSubConnection*)
         UA_calloc(1, sizeof(UA_PubSubConnection));
     if(!c)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    c->head.componentType = UA_PUBSUB_COMPONENT_CONNECTION;
+    c->head.componentType = UA_PUBSUBCOMPONENT_CONNECTION;
 
     /* Copy the connection config */
     UA_StatusCode ret = UA_PubSubConnectionConfig_copy(cc, &c->config);
@@ -175,65 +160,49 @@ UA_PubSubConnection_create(UA_Server *server, const UA_PubSubConnectionConfig *c
     /* Assign the connection identifier */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
     /* Internally create a unique id */
-    addPubSubConnectionRepresentation(server, c);
+    addPubSubConnectionRepresentation(psm->sc.server, c);
 #else
     /* Create a unique NodeId that does not correspond to a Node */
-    UA_PubSubManager_generateUniqueNodeId(&server->pubSubManager,
-                                          &c->head.identifier);
+    UA_PubSubManager_generateUniqueNodeId(psm, &c->head.identifier);
 #endif
 
     /* Register */
-    UA_PubSubManager *pubSubManager = &server->pubSubManager;
-    TAILQ_INSERT_HEAD(&pubSubManager->connections, c, listEntry);
-    pubSubManager->connectionsSize++;
+    TAILQ_INSERT_HEAD(&psm->connections, c, listEntry);
+    psm->connectionsSize++;
+
+    /* Validate-connect to check the parameters */
+    ret = UA_PubSubConnection_connect(psm, c, true);
+    if(ret != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
+                     "Could not create the PubSubConnection. "
+                     "The connection parameters did not validate.");
+        UA_PubSubConnection_delete(psm, c);
+        return ret;
+    }
 
     /* Cache the log string */
     char tmpLogIdStr[128];
     mp_snprintf(tmpLogIdStr, 128, "PubSubConnection %N\t| ", c->head.identifier);
     c->head.logIdString = UA_STRING_ALLOC(tmpLogIdStr);
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection created");
-
-    /* Validate-connect to check the parameters */
-    ret = UA_PubSubConnection_connect(server, c, true);
-    if(ret != UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR_PUBSUB(server->config.logging, c,
-                            "Could not validate connection parameters");
-        UA_PubSubConnection_delete(server, c);
-        return ret;
-    }
-
-    /* Make the connection operational */
-    ret = UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_OPERATIONAL);
-    if(ret != UA_STATUSCODE_GOOD)
-        goto cleanup;
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection created (State: %s)",
+                       UA_PubSubState_name(c->head.state));
 
     /* Copy the created NodeId to the output. Cannot fail as we create a
      * numerical NodeId. */
     if(cId)
         UA_NodeId_copy(&c->head.identifier, cId);
 
- cleanup:
-    if(ret != UA_STATUSCODE_GOOD)
-        UA_PubSubConnection_delete(server, c);
-    return ret;
-}
-
-UA_StatusCode
-UA_Server_addPubSubConnection(UA_Server *server, const UA_PubSubConnectionConfig *cc,
-                              UA_NodeId *cId) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = UA_PubSubConnection_create(server, cc, cId);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
+    return UA_STATUSCODE_GOOD;
 }
 
 static void
 delayedPubSubConnection_delete(void *application, void *context) {
-    UA_Server *server = (UA_Server*)application;
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
     UA_PubSubConnection *c = (UA_PubSubConnection*)context;
     UA_LOCK(&server->serviceMutex);
-    UA_PubSubConnection_delete(server, c);
+    UA_PubSubConnection_delete(psm, c);
     UA_UNLOCK(&server->serviceMutex);
 }
 
@@ -241,37 +210,34 @@ delayedPubSubConnection_delete(void *application, void *context) {
  * immediately free. Otherwise we close the EventLoop connections and free in
  * the connection callback. */
 void
-UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
      * closed. */
     c->deleteFlag = true;
-    UA_PubSubConnection_setPubSubState(server, c, UA_PUBSUBSTATE_DISABLED);
+    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
 
-    /* Stop and unfreeze all ReaderGroupds and WriterGroups attached to the
-     * Connection. Do this before removing them because we need to unfreeze all
-     * to remove the Connection.*/
-    UA_ReaderGroup *readerGroup, *tmpReaderGroup;
-    LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, UA_PUBSUBSTATE_DISABLED);
-        UA_ReaderGroup_unfreezeConfiguration(server, readerGroup);
+    /* Stop and all ReaderGroupds and WriterGroups attached to the Connection.
+     * We need to disable all to remove the Connection.*/
+    UA_ReaderGroup *rg, *tmpRg;
+    LIST_FOREACH(rg, &c->readerGroups, listEntry) {
+        UA_ReaderGroup_setPubSubState(psm, rg, UA_PUBSUBSTATE_DISABLED);
     }
 
-    UA_WriterGroup *writerGroup, *tmpWriterGroup;
-    LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, UA_PUBSUBSTATE_DISABLED);
-        UA_WriterGroup_unfreezeConfiguration(server, writerGroup);
+    UA_WriterGroup *wg, *tmpWg;
+    LIST_FOREACH(wg, &c->writerGroups, listEntry) {
+        UA_WriterGroup_setPubSubState(psm, wg, UA_PUBSUBSTATE_DISABLED);
     }
 
     /* Remove all ReaderGorups and WriterGroups */
-    LIST_FOREACH_SAFE(readerGroup, &c->readerGroups, listEntry, tmpReaderGroup) {
-        UA_ReaderGroup_remove(server, readerGroup);
+    LIST_FOREACH_SAFE(rg, &c->readerGroups, listEntry, tmpRg) {
+        UA_ReaderGroup_remove(psm, rg);
     }
 
-    LIST_FOREACH_SAFE(writerGroup, &c->writerGroups, listEntry, tmpWriterGroup) {
-        UA_WriterGroup_remove(server, writerGroup);
+    LIST_FOREACH_SAFE(wg, &c->writerGroups, listEntry, tmpWg) {
+        UA_WriterGroup_remove(psm, wg);
     }
 
     /* Not all sockets are closed. This method will be called again */
@@ -281,9 +247,9 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
     /* The WriterGroups / ReaderGroups are not deleted. Try again in the next
      * iteration of the event loop.*/
     if(!LIST_EMPTY(&c->writerGroups) || !LIST_EMPTY(&c->readerGroups)) {
-        UA_EventLoop *el = UA_PubSubConnection_getEL(server, c);
+        UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
         c->dc.callback = delayedPubSubConnection_delete;
-        c->dc.application = server;
+        c->dc.application = psm;
         c->dc.context = c;
         el->addDelayedCallback(el, &c->dc);
         return;
@@ -291,38 +257,25 @@ UA_PubSubConnection_delete(UA_Server *server, UA_PubSubConnection *c) {
 
     /* Remove from the information model */
 #ifdef UA_ENABLE_PUBSUB_INFORMATIONMODEL
-    deleteNode(server, c->head.identifier, true);
+    deleteNode(psm->sc.server, c->head.identifier, true);
 #endif
 
     /* Unlink from the server */
-    TAILQ_REMOVE(&server->pubSubManager.connections, c, listEntry);
-    server->pubSubManager.connectionsSize--;
+    TAILQ_REMOVE(&psm->connections, c, listEntry);
+    psm->connectionsSize--;
 
-    UA_LOG_INFO_PUBSUB(server->config.logging, c, "Connection deleted");
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "Connection deleted");
 
     UA_PubSubConnectionConfig_clear(&c->config);
     UA_PubSubComponentHead_clear(&c->head);
     UA_free(c);
 }
 
-UA_StatusCode
-UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId connection) {
-    UA_LOCK(&server->serviceMutex);
-    UA_PubSubConnection *psc =
-        UA_PubSubConnection_findConnectionbyId(server, connection);
-    if(!psc) {
-        UA_UNLOCK(&server->serviceMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-    UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED);
-    UA_PubSubConnection_delete(server, psc);
-    UA_UNLOCK(&server->serviceMutex);
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
+static void
+UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_ByteString msg) {
+    UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
+
     /* Process RT ReaderGroups */
     UA_ReaderGroup *rg;
     UA_Boolean processed = false;
@@ -335,7 +288,7 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
             nonRtRg = rg;
             continue;
         } 
-        processed |= UA_ReaderGroup_decodeAndProcessRT(server, rg, msg);
+        processed |= UA_ReaderGroup_decodeAndProcessRT(psm, rg, msg);
     }
 
     /* Any non-RT ReaderGroups? */
@@ -347,19 +300,23 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
     UA_NetworkMessage nm;
     memset(&nm, 0, sizeof(UA_NetworkMessage));
     if(nonRtRg->config.encodingMimeType == UA_PUBSUB_ENCODING_UADP) {
-        res = UA_PubSubConnection_decodeNetworkMessage(c, server, msg, &nm);
+        res = UA_PubSubConnection_decodeNetworkMessage(psm, c, msg, &nm);
     } else { /* if(writerGroup->config.encodingMimeType == UA_PUBSUB_ENCODING_JSON) */
 #ifdef UA_ENABLE_JSON_ENCODING
         res = UA_NetworkMessage_decodeJson(&msg, &nm, NULL);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Decoding the JSON network message failed");
+        }
 #else
         res = UA_STATUSCODE_BADNOTSUPPORTED;
+        UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                              "JSON support is not activated");
 #endif
     }
-    if(res != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
-                              "Verify, decrypt and decode network message failed");
+
+    if(res != UA_STATUSCODE_GOOD)
         return;
-    }
 
     /* Process the received message for the non-RT ReaderGroups */
     LIST_FOREACH(rg, &c->readerGroups, listEntry) {
@@ -368,131 +325,607 @@ UA_PubSubConnection_process(UA_Server *server, UA_PubSubConnection *c,
             continue;
         if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
             continue;
-        processed |= UA_ReaderGroup_process(server, rg, &nm);
+        processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
     UA_NetworkMessage_clear(&nm);
 
  finish:
     if(!processed) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+        UA_LOG_WARNING_PUBSUB(psm->logging, c,
                               "Message received that could not be processed. "
                               "Check PublisherID, WriterGroupID and DatasetWriterID.");
     }
 }
 
 UA_StatusCode
-UA_PubSubConnection_setPubSubState(UA_Server *server, UA_PubSubConnection *c,
+UA_PubSubConnection_setPubSubState(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                    UA_PubSubState targetState) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
     if(c->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
-        UA_LOG_WARNING_PUBSUB(server->config.logging, c,
+        UA_LOG_WARNING_PUBSUB(psm->logging, c,
                               "The connection is being deleted. Can only be disabled.");
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    /* Are we doing a top-level state update or recursively? */
+    UA_Boolean isTransient = c->head.transientState;
+    c->head.transientState = true;
+
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = c->head.state;
 
- set_state:
-
     switch(targetState) {
+        /* Disabled or Error */
         case UA_PUBSUBSTATE_ERROR:
-        case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_DISABLED:
-            /* Close the EventLoop connection */
             UA_PubSubConnection_disconnect(c);
             c->head.state = targetState;
             break;
 
+        case UA_PUBSUBSTATE_PAUSED:
         case UA_PUBSUBSTATE_PREOPERATIONAL:
         case UA_PUBSUBSTATE_OPERATIONAL:
-            /* Called also if the connection is already operational. We might to
-             * open an additional recv connection, etc. Sets the new state
-             * internally. */
-            if(oldState == UA_PUBSUBSTATE_PREOPERATIONAL || oldState == UA_PUBSUBSTATE_OPERATIONAL)
-                c->head.state = UA_PUBSUBSTATE_OPERATIONAL;
-            else
-                c->head.state = UA_PUBSUBSTATE_PREOPERATIONAL;
-
-            /* This is the only place where UA_PubSubConnection_connect is
-             * called (other than to validate the parameters). So we handle the
-             * fallout of a failed connection here. */
-            ret = UA_PubSubConnection_connect(server, c, false);
-            if(ret != UA_STATUSCODE_GOOD) {
-                targetState = UA_PUBSUBSTATE_ERROR;
-                goto set_state;
+            /* Cannot go operational if the PubSubManager is not started */
+            if(psm->sc.state != UA_LIFECYCLESTATE_STARTED) {
+                /* Avoid repeat warnings */
+                if(oldState != UA_PUBSUBSTATE_PAUSED) {
+                    UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                          "Cannot enable the connection while the "
+                                          "server is not running -> Paused State");
+                }
+                c->head.state = UA_PUBSUBSTATE_PAUSED;
+                UA_PubSubConnection_disconnect(c);
+                break;
             }
+
+            c->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+            /* Whether the connection needs to connect depends on whether a
+             * ReaderGroup or WriterGroup is attached. If not, then we don't
+             * open any connections. */
+            if(UA_PubSubConnection_canConnect(c))
+                ret = UA_PubSubConnection_connect(psm, c, false);
             break;
+
+            /* Unknown case */
         default:
-            UA_LOG_WARNING_PUBSUB(server->config.logging, c,
-                                  "Received unknown PubSub state!");
-            return UA_STATUSCODE_BADINTERNALERROR;
+            ret = UA_STATUSCODE_BADINTERNALERROR;
+            break;
     }
+
+    /* Failure */
+    if(ret != UA_STATUSCODE_GOOD) {
+        c->head.state = UA_PUBSUBSTATE_ERROR;
+        UA_PubSubConnection_disconnect(c);
+    }
+
+    /* Only the top-level state update (if recursive calls are happening)
+     * notifies the application and updates Reader and WriterGroups */
+    c->head.transientState = isTransient;
+    if(c->head.transientState)
+        return ret;
 
     /* Inform application about state change */
     if(c->head.state != oldState) {
-        UA_ServerConfig *config = &server->config;
-        UA_LOG_INFO_PUBSUB(config->logging, c, "State change: %s -> %s",
+        UA_ServerConfig *config = &psm->sc.server->config;
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(c->head.state));
-        UA_UNLOCK(&server->serviceMutex);
-        if(config->pubSubConfig.stateChangeCallback)
-            config->pubSubConfig.stateChangeCallback(server, &c->head.identifier, targetState, ret);
-        UA_LOCK(&server->serviceMutex);
+        if(config->pubSubConfig.stateChangeCallback) {
+            UA_UNLOCK(&psm->sc.server->serviceMutex);
+            config->pubSubConfig.
+                stateChangeCallback(psm->sc.server, c->head.identifier, targetState, ret);
+            UA_LOCK(&psm->sc.server->serviceMutex);
+        }
     }
 
-    /* Update Reader and WriterGroups. This will set them to PAUSED (if
-     * they were operational) as the Connection is now
-     * non-operational. */
+    /* Update Reader and WriterGroups state. This will set them to PAUSED (if
+     * they were operational) as the Connection is now non-operational. */
     UA_ReaderGroup *readerGroup;
     LIST_FOREACH(readerGroup, &c->readerGroups, listEntry) {
-        UA_ReaderGroup_setPubSubState(server, readerGroup, readerGroup->head.state);
+        UA_ReaderGroup_setPubSubState(psm, readerGroup, readerGroup->head.state);
     }
     UA_WriterGroup *writerGroup;
     LIST_FOREACH(writerGroup, &c->writerGroups, listEntry) {
-        UA_WriterGroup_setPubSubState(server, writerGroup, writerGroup->head.state);
+        UA_WriterGroup_setPubSubState(psm, writerGroup, writerGroup->head.state);
     }
+
+    /* Update the PubSubManager state. It will go from STOPPING to STOPPED when
+     * the last socket has closed. */
+    UA_PubSubManager_setState(psm, psm->sc.state);
+
     return ret;
 }
 
 static UA_StatusCode
-enablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
-    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_OPERATIONAL)
+enablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_OPERATIONAL)
         : UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
-disablePubSubConnection(UA_Server *server, const UA_NodeId connectionId) {
-    UA_PubSubConnection *psc = UA_PubSubConnection_findConnectionbyId(server, connectionId);
-    return (psc) ? UA_PubSubConnection_setPubSubState(server, psc, UA_PUBSUBSTATE_DISABLED)
+disablePubSubConnection(UA_PubSubManager *psm, const UA_NodeId connectionId) {
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+    return (c) ? UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED)
         : UA_STATUSCODE_BADNOTFOUND;
 }
 
-UA_StatusCode
-UA_Server_enablePubSubConnection(UA_Server *server,
-                                 const UA_NodeId connectionId) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = enablePubSubConnection(server, connectionId);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
-UA_StatusCode
-UA_Server_disablePubSubConnection(UA_Server *server,
-                                  const UA_NodeId connectionId) {
-    UA_LOCK(&server->serviceMutex);
-    UA_StatusCode res = disablePubSubConnection(server, connectionId);
-    UA_UNLOCK(&server->serviceMutex);
-    return res;
-}
-
 UA_EventLoop *
-UA_PubSubConnection_getEL(UA_Server *server, UA_PubSubConnection *c) {
+UA_PubSubConnection_getEL(UA_PubSubManager *psm, UA_PubSubConnection *c) {
     if(c->config.eventLoop)
         return c->config.eventLoop;
-    return server->config.eventLoop;
+    return psm->sc.server->config.eventLoop;
+}
+
+/***********************/
+/* Connection Handling */
+/***********************/
+
+static UA_StatusCode
+UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                               UA_Boolean validate);
+
+static UA_StatusCode
+UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                               UA_Boolean validate);
+
+typedef struct  {
+    UA_String profileURI;
+    UA_String protocol;
+    UA_Boolean json;
+    UA_StatusCode (*connect)(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                             UA_Boolean validate);
+} ConnectionProfileMapping;
+
+static ConnectionProfileMapping connectionProfiles[UA_PUBSUB_PROFILES_SIZE] = {
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-udp-uadp"),
+     UA_STRING_STATIC("udp"), false, UA_PubSubConnection_connectUDP},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-uadp"),
+     UA_STRING_STATIC("mqtt"), false, NULL},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-mqtt-json"),
+     UA_STRING_STATIC("mqtt"), true, NULL},
+    {UA_STRING_STATIC("http://opcfoundation.org/UA-Profile/Transport/pubsub-eth-uadp"),
+     UA_STRING_STATIC("eth"), false, UA_PubSubConnection_connectETH}
+};
+
+static void
+UA_PubSubConnection_detachConnection(UA_PubSubManager *psm,
+                                     UA_ConnectionManager *cm,
+                                     UA_PubSubConnection *c,
+                                     uintptr_t connectionId) {
+    if(c->sendChannel == connectionId) {
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Detach send-connection %S %u",
+                           cm->protocol, (unsigned)connectionId);
+        c->sendChannel = 0;
+        return;
+    }
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(c->recvChannels[i] != connectionId)
+            continue;
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Detach receive-connection %S %u",
+                           cm->protocol, (unsigned)connectionId);
+        c->recvChannels[i] = 0;
+        c->recvChannelsSize--;
+        return;
+    }
+}
+
+static UA_StatusCode
+UA_PubSubConnection_attachSendConnection(UA_PubSubManager *psm,
+                                         UA_ConnectionManager *cm,
+                                         UA_PubSubConnection *c,
+                                         uintptr_t connectionId) {
+    if(c->sendChannel != 0 && c->sendChannel != connectionId)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOG_INFO_PUBSUB(psm->logging, c, "Attach send-connection %S %u",
+                       cm->protocol, (unsigned)connectionId);
+    c->sendChannel = connectionId;
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_PubSubConnection_attachRecvConnection(UA_PubSubManager *psm,
+                                         UA_ConnectionManager *cm,
+                                         UA_PubSubConnection *c,
+                                         uintptr_t connectionId) {
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(c->recvChannels[i] == connectionId)
+            return UA_STATUSCODE_GOOD;
+    }
+    if(c->recvChannelsSize >= UA_PUBSUB_MAXCHANNELS)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(c->recvChannels[i] != 0)
+            continue;
+        UA_LOG_INFO_PUBSUB(psm->logging, c, "Attach receive-connection %S %u",
+                           cm->protocol, (unsigned)connectionId);
+        c->recvChannels[i] = connectionId;
+        c->recvChannelsSize++;
+        break;
+    }
+    return UA_STATUSCODE_GOOD;
+}
+
+static void
+UA_PubSubConnection_disconnect(UA_PubSubConnection *c) {   
+    if(!c->cm)
+        return;
+    if(c->sendChannel != 0)
+        c->cm->closeConnection(c->cm, c->sendChannel);
+    for(size_t i = 0; i < UA_PUBSUB_MAXCHANNELS; i++) {
+        if(c->recvChannels[i] != 0)
+            c->cm->closeConnection(c->cm, c->recvChannels[i]);
+    }
+}
+
+static void
+PubSubChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                      void *application, void **connectionContext,
+                      UA_ConnectionState state, const UA_KeyValueMap *params,
+                      UA_ByteString msg, UA_Boolean recv) {
+    if(!connectionContext)
+        return;
+
+    /* Get the context pointers */
+    UA_PubSubConnection *psc = (UA_PubSubConnection*)*connectionContext;
+    UA_PubSubManager *psm = (UA_PubSubManager*)application;
+    UA_Server *server = psm->sc.server;
+
+    UA_LOG_TRACE_PUBSUB(psm->logging, psc,
+                        "Connection Callback with state %i", state);
+
+    UA_LOCK(&server->serviceMutex);
+
+    /* The connection is closing in the EventLoop. This is the last callback
+     * from that connection. Clean up the SecureChannel in the client. */
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
+        /* Reset the connection identifiers */
+        UA_PubSubConnection_detachConnection(psm, cm, psc, connectionId);
+
+        /* PSC marked for deletion and the last EventLoop connection has closed */
+        if(psc->deleteFlag && psc->recvChannelsSize == 0 && psc->sendChannel == 0) {
+            UA_PubSubConnection_delete(psm, psc);
+            UA_UNLOCK(&server->serviceMutex);
+            return;
+        }
+
+        /* Reconnect automatically if the connection was operational. This sets
+         * the connection state if connecting fails. Attention! If there are
+         * several send or recv channels, then the connection is only reopened if
+         * all of them close - which is usually the case. */
+        if(psc->head.state == UA_PUBSUBSTATE_OPERATIONAL)
+            UA_PubSubConnection_connect(psm, psc, false);
+
+        /* Switch the psm state from stopping to stopped once the last
+         * connection has closed */
+        UA_PubSubManager_setState(psm, psm->sc.state);
+
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Store the connectionId (if a new connection) */
+    UA_StatusCode res = (recv) ?
+        UA_PubSubConnection_attachRecvConnection(psm, cm, psc, connectionId) :
+        UA_PubSubConnection_attachSendConnection(psm, cm, psc, connectionId);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING_PUBSUB(psm->logging, psc,
+                              "No more space for an additional EventLoop connection");
+        if(psc->cm)
+            psc->cm->closeConnection(psc->cm, connectionId);
+        UA_UNLOCK(&server->serviceMutex);
+        return;
+    }
+
+    /* Connection open, set to operational if not already done */
+    UA_PubSubConnection_setPubSubState(psm, psc, psc->head.state);
+
+    /* Message received */
+    if(UA_LIKELY(recv && msg.length > 0))
+        UA_PubSubConnection_process(psm, psc, msg);
+    
+    UA_UNLOCK(&server->serviceMutex);
+}
+
+static void
+PubSubRecvChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                         void *application, void **connectionContext,
+                         UA_ConnectionState state, const UA_KeyValueMap *params,
+                         UA_ByteString msg) {
+    PubSubChannelCallback(cm, connectionId, application, connectionContext,
+                         state, params, msg, true);
+}
+
+static void
+PubSubSendChannelCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
+                         void *application, void **connectionContext,
+                         UA_ConnectionState state, const UA_KeyValueMap *params,
+                         UA_ByteString msg) {
+    PubSubChannelCallback(cm, connectionId, application, connectionContext,
+                         state, params, msg, false);
+}
+
+static UA_StatusCode
+UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                               UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
+        c->config.address.data;
+
+    /* Extract hostname and port */
+    UA_String address;
+    UA_UInt16 port;
+    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, &port, NULL);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the UDP network URL");
+        return res;
+    }
+
+    /* Detect a wildcard address for unicast receiving. The individual
+     * DataSetWriters then contain additional target hostnames for sending.
+     *
+     * "localhost" and the empty hostname are used as a special "receive all"
+     * wildcard for PubSub UDP. All other addresses (also the 127.0.0/8 and ::1
+     * range) are handled differently. For them we only receive messages that
+     * originate from these addresses.
+     *
+     * The EventLoop backend detects whether an address is multicast capable and
+     * registers it for the multicast group in the background. */
+    UA_String localhostAddr = UA_STRING_STATIC("localhost");
+    UA_Boolean receive_all =
+        (address.length == 0) || UA_String_equal(&localhostAddr, &address);
+
+    /* Set up the connection parameters */
+    UA_Boolean listen = true;
+    UA_Boolean reuse = true;
+    UA_Boolean loopback = true;
+    UA_KeyValuePair kvp[7];
+    UA_KeyValueMap kvm = {5, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "port");
+    UA_Variant_setScalar(&kvp[0].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[2].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "reuse");
+    UA_Variant_setScalar(&kvp[3].value, &reuse, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[4].key = UA_QUALIFIEDNAME(0, "loopback");
+    UA_Variant_setScalar(&kvp[4].value, &loopback, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    if(!receive_all) {
+        /* The "receive all" wildcard is different in the eventloop UDP layer.
+         * Omit the address entirely to receive all.*/
+        kvp[5].key = UA_QUALIFIEDNAME(0, "address");
+        UA_Variant_setScalar(&kvp[5].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+        kvm.mapSize++;
+    }
+    if(!UA_String_isEmpty(&addressUrl->networkInterface)) {
+        kvp[kvm.mapSize].key = UA_QUALIFIEDNAME(0, "interface");
+        UA_Variant_setScalar(&kvp[kvm.mapSize].value, &addressUrl->networkInterface,
+                             &UA_TYPES[UA_TYPES_STRING]);
+        kvm.mapSize++;
+    }
+
+    /* Open a recv connection */
+    if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
+        UA_UNLOCK(&server->serviceMutex);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
+        UA_LOCK(&server->serviceMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                                "Could not open an UDP channel for receiving");
+            return res;
+        }
+    }
+
+    /* Receive all -- sending is handled in the DataSetWriter */
+    if(receive_all) {
+        UA_LOG_INFO_PUBSUB(psm->logging, c,
+                           "Localhost address - don't open UDP send connection");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Open a send connection */
+    if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
+        listen = false;
+        UA_UNLOCK(&server->serviceMutex);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
+        UA_LOCK(&server->serviceMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an UDP recv channel");
+            return res;
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                               UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
+        c->config.address.data;
+
+    /* Extract hostname and port */
+    UA_String address;
+    UA_String vidPCP = UA_STRING_NULL;
+    UA_StatusCode res = UA_parseEndpointUrl(&addressUrl->url, &address, NULL, &vidPCP);
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not parse the ETH network URL");
+        return res;
+    }
+
+    /* Set up the connection parameters.
+     * TDOD: Complete the considered parameters. VID, PCP, etc. */
+    UA_Boolean listen = true;
+    UA_KeyValuePair kvp[4];
+    UA_KeyValueMap kvm = {4, kvp};
+    kvp[0].key = UA_QUALIFIEDNAME(0, "address");
+    UA_Variant_setScalar(&kvp[0].value, &address, &UA_TYPES[UA_TYPES_STRING]);
+    kvp[1].key = UA_QUALIFIEDNAME(0, "listen");
+    UA_Variant_setScalar(&kvp[1].value, &listen, &UA_TYPES[UA_TYPES_BOOLEAN]);
+    kvp[2].key = UA_QUALIFIEDNAME(0, "interface");
+    UA_Variant_setScalar(&kvp[2].value, &addressUrl->networkInterface,
+                         &UA_TYPES[UA_TYPES_STRING]);
+    kvp[3].key = UA_QUALIFIEDNAME(0, "validate");
+    UA_Variant_setScalar(&kvp[3].value, &validate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    /* Open recv channels */
+    if(validate || (c->recvChannelsSize == 0 && c->readerGroupsSize > 0)) {
+        UA_UNLOCK(&server->serviceMutex);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubRecvChannelCallback);
+        UA_LOCK(&server->serviceMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, c, "Could not open an ETH recv channel");
+            return res;
+        }
+    }
+
+    /* Open send channels */
+    if(validate || (c->sendChannel == 0 && c->writerGroupsSize > 0)) {
+        listen = false;
+        UA_UNLOCK(&server->serviceMutex);
+        res = c->cm->openConnection(c->cm, &kvm, psm, c, PubSubSendChannelCallback);
+        UA_LOCK(&server->serviceMutex);
+        if(res != UA_STATUSCODE_GOOD) {
+            UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                                "Could not open an ETH channel for sending");
+        }
+    }
+
+    return res;
+}
+
+static UA_Boolean
+UA_PubSubConnection_canConnect(UA_PubSubConnection *c) {
+    if(c->sendChannel == 0 && c->writerGroupsSize > 0)
+        return true;
+    if(c->recvChannelsSize == 0 && c->readerGroupsSize > 0)
+        return true;
+    return false;
+}
+
+static UA_StatusCode
+UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
+                            UA_Boolean validate) {
+    UA_Server *server = psm->sc.server;
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+
+    UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
+    if(!el) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "No EventLoop configured");
+        return UA_STATUSCODE_BADINTERNALERROR;;
+    }
+
+    /* Look up the connection manager for the connection */
+    ConnectionProfileMapping *profile = NULL;
+    for(size_t i = 0; i < UA_PUBSUB_PROFILES_SIZE; i++) {
+        if(!UA_String_equal(&c->config.transportProfileUri,
+                            &connectionProfiles[i].profileURI))
+            continue;
+        profile = &connectionProfiles[i];
+        break;
+    }
+
+    UA_ConnectionManager *cm = (profile) ? getCM(el, profile->protocol) : NULL;
+    if(!cm || (c->cm && cm != c->cm)) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c,
+                            "The requested profile \"%S\"is not supported",
+                            c->config.transportProfileUri);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Check the configuration address type */
+    if(!UA_Variant_hasScalarType(&c->config.address,
+                                 &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE])) {
+        UA_LOG_ERROR_PUBSUB(psm->logging, c, "No NetworkAddressUrlDataType "
+                            "for the address configuration");
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Update the connection settings from the profile information */
+    c->cm = cm;
+    c->json = profile->json;
+
+    /* Some protocols (such as MQTT) don't connect at this level */
+    return (profile->connect) ?
+        profile->connect(psm, c, validate) : UA_STATUSCODE_GOOD;
+}
+
+/**************/
+/* Server API */
+/**************/
+
+UA_StatusCode
+UA_Server_getPubSubConnectionConfig(UA_Server *server, const UA_NodeId connection,
+                                    UA_PubSubConnectionConfig *config) {
+    if(!server || !config)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(getPSM(server), connection);
+    UA_StatusCode res = (c) ?
+        UA_PubSubConnectionConfig_copy(&c->config, config) : UA_STATUSCODE_BADNOTFOUND;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_addPubSubConnection(UA_Server *server,
+                              const UA_PubSubConnectionConfig *cc,
+                              UA_NodeId *cId) {
+    if(!server || !cc)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        UA_PubSubConnection_create(psm, cc, cId) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_removePubSubConnection(UA_Server *server, const UA_NodeId cId) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_PubSubConnection *c = UA_PubSubConnection_find(psm, cId);
+    if(!c) {
+        UA_UNLOCK(&server->serviceMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
+    UA_PubSubConnection_setPubSubState(psm, c, UA_PUBSUBSTATE_DISABLED);
+    UA_PubSubConnection_delete(psm, c);
+    UA_UNLOCK(&server->serviceMutex);
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_enablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        enablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
+UA_StatusCode
+UA_Server_disablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_StatusCode res = (psm) ?
+        disablePubSubConnection(psm, cId) : UA_STATUSCODE_BADINTERNALERROR;
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
 }
 
 #endif /* UA_ENABLE_PUBSUB */

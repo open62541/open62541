@@ -11,7 +11,7 @@
 
 #include "ua_server_internal.h"
 #include "ua_subscription.h"
-#include "ua_types_encoding_binary.h"
+#include "../ua_types_encoding_binary.h"
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS /* conditional compilation */
 

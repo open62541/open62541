@@ -12,7 +12,7 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
+#include "../ua_types_encoding_binary.h"
 
 /*********************/
 /* ReferenceType Set */

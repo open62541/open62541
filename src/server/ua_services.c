@@ -286,7 +286,8 @@ UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
     /* Set the authenticationToken from the create session request to help
      * fuzzing cover more lines */
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    UA_NodeId *authenticationToken = &request->requestHeader.authenticationToken;
+    UA_NodeId *authenticationToken = (UA_NodeId *)(uintptr_t)
+        &request->requestHeader.authenticationToken;
     if(!UA_NodeId_isNull(authenticationToken) &&
        !UA_NodeId_isNull(&unsafe_fuzz_authenticationToken)) {
         UA_NodeId_clear(authenticationToken);
