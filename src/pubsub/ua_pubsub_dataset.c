@@ -457,7 +457,7 @@ UA_DataSetFieldConfig_copy(const UA_DataSetFieldConfig *src,
 }
 
 UA_DataSetField *
-UA_DataSetField_find(UA_PubSubManager *psm, UA_NodeId id) {
+UA_DataSetField_find(UA_PubSubManager *psm, const UA_NodeId id) {
     if(!psm)
         return NULL;
     UA_PublishedDataSet *tmpPDS;
