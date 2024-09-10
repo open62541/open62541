@@ -923,7 +923,7 @@ discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
                     dm->cm, &kvm, server, dm, MulticastDiscoverySendCallback);
                 if(res != UA_STATUSCODE_GOOD)
                     UA_LOG_ERROR(
-                        dm->server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                         "Could not create the mdns UDP multicast send connection");
             }
         }
