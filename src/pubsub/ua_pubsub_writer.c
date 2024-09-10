@@ -139,7 +139,7 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
                         const UA_DataSetWriterConfig *dswConfig,
                         UA_NodeId *writerIdentifier) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     if(!dswConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -350,7 +350,7 @@ UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);

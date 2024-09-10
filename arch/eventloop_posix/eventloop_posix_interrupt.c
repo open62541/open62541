@@ -50,7 +50,7 @@ static void
 handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
     (void)el;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     UA_RegisteredSignal *rs = (UA_RegisteredSignal*)rfd;
     struct signalfd_siginfo fdsi;
@@ -75,7 +75,7 @@ handlePOSIXInterruptEvent(UA_EventSource *es, UA_RegisteredFD *rfd, short event)
 static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     if(rs->active)
         return;
@@ -127,7 +127,7 @@ activateSignal(UA_RegisteredSignal *rs) {
 static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)rs->rfd.es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Only dectivate if active */
     if(!rs->active)
@@ -208,7 +208,7 @@ static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Register the signal on the OS level */
     if(rs->active)
@@ -231,7 +231,7 @@ static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Only dectivate if active */
     if(!rs->active)
@@ -386,7 +386,7 @@ static UA_StatusCode
 freePOSIXInterruptmanager(UA_EventSource *es) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)es->eventLoop;
     (void)el;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     if(es->state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(es->eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,

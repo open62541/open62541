@@ -494,7 +494,7 @@ UA_PubSubManager_clear(UA_PubSubManager *psm) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove Connections - this also remove WriterGroups and ReaderGroups */
     UA_PubSubConnection *c, *tmpC;

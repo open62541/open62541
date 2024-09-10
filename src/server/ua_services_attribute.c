@@ -77,7 +77,7 @@ getUserWriteMask(UA_Server *server, const UA_Session *session,
     if(session == &server->adminSession)
         return 0xFFFFFFFF; /* the local admin user has all rights */
     UA_UInt32 mask = head->writeMask;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_UNLOCK(&server->serviceMutex);
     mask &= server->config.accessControl.
         getUserRightsMask(server, &server->config.accessControl,
@@ -94,7 +94,7 @@ getUserAccessLevel(UA_Server *server, const UA_Session *session,
     if(session == &server->adminSession)
         return 0xFF; /* the local admin user has all rights */
     UA_Byte retval = node->accessLevel;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_UNLOCK(&server->serviceMutex);
     retval &= server->config.accessControl.
         getUserAccessLevel(server, &server->config.accessControl,
@@ -110,7 +110,7 @@ getUserExecutable(UA_Server *server, const UA_Session *session,
                   const UA_MethodNode *node) {
     if(session == &server->adminSession)
         return true; /* the local admin user has all rights */
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_UNLOCK(&server->serviceMutex);
     UA_Boolean userExecutable = node->executable;
     userExecutable &=
@@ -154,7 +154,7 @@ static UA_StatusCode
 readValueAttributeFromNode(UA_Server *server, UA_Session *session,
                            const UA_VariableNode *vn, UA_DataValue *v,
                            UA_NumericRange *rangeptr) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     /* Update the value by the user callback */
     if(vn->value.data.callback.onRead) {
         UA_UNLOCK(&server->serviceMutex);
@@ -194,7 +194,7 @@ readValueAttributeFromDataSource(UA_Server *server, UA_Session *session,
                                  const UA_VariableNode *vn, UA_DataValue *v,
                                  UA_TimestampsToReturn timestamps,
                                  UA_NumericRange *rangeptr) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(!vn->value.dataSource.read)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_Boolean sourceTimeStamp = (timestamps == UA_TIMESTAMPSTORETURN_SOURCE ||
@@ -638,7 +638,7 @@ void
 Service_Read(UA_Server *server, UA_Session *session,
              const UA_ReadRequest *request, UA_ReadResponse *response) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -659,7 +659,7 @@ Service_Read(UA_Server *server, UA_Session *session,
         return;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->responseHeader.serviceResult =
         UA_Server_processServiceOperations(server, session,
@@ -675,7 +675,7 @@ UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
                 UA_TimestampsToReturn timestampsToReturn) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -695,7 +695,7 @@ readWithSession(UA_Server *server, UA_Session *session,
 UA_StatusCode
 readWithReadValue(UA_Server *server, const UA_NodeId *nodeId,
                   const UA_AttributeId attributeId, void *v) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Call the read service */
     UA_ReadValueId item;
@@ -753,7 +753,7 @@ UA_StatusCode
 readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Create a BrowsePath to get the target NodeId */
     UA_RelativePathElement rpe;
@@ -1412,7 +1412,7 @@ writeNodeValueAttribute(UA_Server *server, UA_Session *session,
                         const UA_String *indexRange) {
     UA_assert(node != NULL);
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Parse the range */
     UA_NumericRange range;
@@ -1824,7 +1824,7 @@ Service_Write(UA_Server *server, UA_Session *session,
     UA_assert(session != NULL);
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing WriteRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->config.maxNodesPerWrite != 0 &&
        request->nodesToWriteSize > server->config.maxNodesPerWrite) {
@@ -1867,7 +1867,7 @@ UA_StatusCode
 writeAttribute(UA_Server *server, UA_Session *session,
                const UA_NodeId *nodeId, const UA_AttributeId attributeId,
                const void *attr, const UA_DataType *attr_type) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_WriteValue wvalue;
     UA_WriteValue_init(&wvalue);
@@ -1907,7 +1907,7 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
                     const UA_HistoryReadRequest *request,
                     UA_HistoryReadResponse *response) {
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     if(server->config.historyDatabase.context == NULL) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
@@ -2015,7 +2015,7 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
                     const UA_HistoryUpdateRequest *request,
                     UA_HistoryUpdateResponse *response) {
     UA_assert(session != NULL);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     response->resultsSize = request->historyUpdateDetailsSize;
     response->results = (UA_HistoryUpdateResult*)
@@ -2089,7 +2089,7 @@ UA_StatusCode
 writeObjectProperty(UA_Server *server, const UA_NodeId objectId,
                     const UA_QualifiedName propertyName,
                     const UA_Variant value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_RelativePathElement rpe;
     UA_RelativePathElement_init(&rpe);
     rpe.referenceTypeId = UA_NS0ID(HASPROPERTY);

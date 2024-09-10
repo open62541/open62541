@@ -40,7 +40,7 @@ static UA_StatusCode
 getEndpointsInternal(UA_Client *client, const UA_String endpointUrl,
                      size_t *endpointDescriptionsSize,
                      UA_EndpointDescription **endpointDescriptions) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);

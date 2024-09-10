@@ -745,7 +745,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(!sdsConfig) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,

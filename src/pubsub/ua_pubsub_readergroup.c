@@ -181,7 +181,7 @@ UA_ReaderGroup_create(UA_PubSubManager *psm, UA_NodeId connectionId,
 
 void
 UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnection *connection = rg->linkedConnection;
     UA_assert(connection);
@@ -233,7 +233,7 @@ UA_ReaderGroup_remove(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
 
 static UA_StatusCode
 UA_ReaderGroup_freezeConfiguration(UA_PubSubManager *psm, UA_ReaderGroup *rg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(rg->configurationFrozen)
         return UA_STATUSCODE_GOOD;
@@ -335,7 +335,7 @@ UA_ReaderGroup_unfreezeConfiguration(UA_ReaderGroup *rg) {
 UA_StatusCode
 UA_ReaderGroup_setPubSubState(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                               UA_PubSubState targetState) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(rg->deleteFlag && targetState != UA_PUBSUBSTATE_DISABLED) {
         UA_LOG_WARNING_PUBSUB(psm->logging, rg,
@@ -908,7 +908,7 @@ static UA_StatusCode
 UA_ReaderGroup_connectMQTT(UA_PubSubManager *psm, UA_ReaderGroup *rg,
                            UA_Boolean validate) {
     UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_PubSubConnection *c = rg->linkedConnection;
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
@@ -982,7 +982,7 @@ UA_ReaderGroup_canConnect(UA_ReaderGroup *rg) {
 UA_StatusCode
 UA_ReaderGroup_connect(UA_PubSubManager *psm, UA_ReaderGroup *rg, UA_Boolean validate) {
     UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Is this a ReaderGroup with custom TransportSettings beyond the
      * PubSubConnection? */

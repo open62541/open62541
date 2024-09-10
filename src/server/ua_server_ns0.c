@@ -906,7 +906,7 @@ addModellingRules(UA_Server *server) {
  * example server time. */
 UA_StatusCode
 initNS0(UA_Server *server) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Initialize base nodes which are always required an cannot be created
      * through the NS compiler */

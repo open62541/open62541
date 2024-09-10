@@ -281,7 +281,7 @@ UA_Boolean
 UA_Server_processRequest(UA_Server *server, UA_SecureChannel *channel,
                          UA_UInt32 requestId, UA_ServiceDescription *sd,
                          const UA_Request *request, UA_Response *response) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Set the authenticationToken from the create session request to help
      * fuzzing cover more lines */

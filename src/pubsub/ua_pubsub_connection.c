@@ -211,7 +211,7 @@ delayedPubSubConnection_delete(void *application, void *context) {
  * the connection callback. */
 void
 UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Disable (and disconnect) and set the deleteFlag. This prevents a
      * reconnect and triggers the deletion when the last open socket is
@@ -649,7 +649,7 @@ static UA_StatusCode
 UA_PubSubConnection_connectUDP(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
     UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -745,7 +745,7 @@ static UA_StatusCode
 UA_PubSubConnection_connectETH(UA_PubSubManager *psm, UA_PubSubConnection *c,
                                UA_Boolean validate) {
     UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_NetworkAddressUrlDataType *addressUrl = (UA_NetworkAddressUrlDataType*)
         c->config.address.data;
@@ -813,7 +813,7 @@ static UA_StatusCode
 UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
                             UA_Boolean validate) {
     UA_Server *server = psm->sc.server;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_EventLoop *el = UA_PubSubConnection_getEL(psm, c);
     if(!el) {
