@@ -339,41 +339,44 @@ extern UA_THREAD_LOCAL void * (*UA_reallocSingleton)(void *ptr, size_t size);
 # define UA_LOCK_DESTROY(lock)
 # define UA_LOCK(lock)
 # define UA_UNLOCK(lock)
-# define UA_LOCK_ASSERT(lock, num)
+# define UA_LOCK_ASSERT(lock)
 
 #elif defined(UA_ARCHITECTURE_WIN32)
 
 typedef struct {
     CRITICAL_SECTION mutex;
-    int mutexCounter;
+    bool flag; /* For assertions that we hold the mutex */
 } UA_Lock;
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     InitializeCriticalSection(&lock->mutex);
-    lock->mutexCounter = 0;
+    lock->flag = false;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(!lock->flag);
     DeleteCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     EnterCriticalSection(&lock->mutex);
-    UA_assert(++(lock->mutexCounter) == 1);
+    UA_assert(!lock->flag);
+    lock->flag = true;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(--(lock->mutexCounter) == 0);
+    UA_assert(lock->flag);
+    lock->flag = false;
     LeaveCriticalSection(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->flag);
 }
 
 #elif defined(UA_ARCHITECTURE_POSIX)
@@ -382,39 +385,40 @@ UA_LOCK_ASSERT(UA_Lock *lock, int num) {
 
 typedef struct {
     pthread_mutex_t mutex;
-    int mutexCounter;
+    bool flag; /* For assertions that we hold the mutex */
 } UA_Lock;
 
-#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, 0}
+#define UA_LOCK_STATIC_INIT {PTHREAD_MUTEX_INITIALIZER, false}
 
 static UA_INLINE void
 UA_LOCK_INIT(UA_Lock *lock) {
     pthread_mutex_init(&lock->mutex, NULL);
-    lock->mutexCounter = 0;
+    lock->flag = false;
 }
 
 static UA_INLINE void
 UA_LOCK_DESTROY(UA_Lock *lock) {
+    UA_assert(!lock->flag);
     pthread_mutex_destroy(&lock->mutex);
 }
 
 static UA_INLINE void
 UA_LOCK(UA_Lock *lock) {
     pthread_mutex_lock(&lock->mutex);
-    UA_assert(lock->mutexCounter == 0);
-    lock->mutexCounter++;
+    UA_assert(!lock->flag);
+    lock->flag = true;
 }
 
 static UA_INLINE void
 UA_UNLOCK(UA_Lock *lock) {
-    UA_assert(lock->mutexCounter == 1);
-    lock->mutexCounter--;
+    UA_assert(lock->flag);
+    lock->flag = false;
     pthread_mutex_unlock(&lock->mutex);
 }
 
 static UA_INLINE void
-UA_LOCK_ASSERT(UA_Lock *lock, int num) {
-    UA_assert(lock->mutexCounter == num);
+UA_LOCK_ASSERT(UA_Lock *lock) {
+    UA_assert(lock->flag);
 }
 
 #endif

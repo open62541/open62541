@@ -125,7 +125,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
     if(!psm || !dataSetReaderConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Search the reader group by the given readerGroupIdentifier */
     UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdentifier);
@@ -261,7 +261,7 @@ UA_DataSetReader_create(UA_PubSubManager *psm, UA_NodeId readerGroupIdentifier,
 
 UA_StatusCode
 UA_DataSetReader_remove(UA_PubSubManager *psm, UA_DataSetReader *dsr) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_ReaderGroup *rg = dsr->linkedReaderGroup;
     UA_assert(rg);
@@ -448,7 +448,7 @@ UA_TargetVariables_clear(UA_TargetVariables *tvs) {
 UA_StatusCode
 DataSetReader_createTargetVariables(UA_PubSubManager *psm, UA_DataSetReader *dsr,
                                     size_t tvsSize, const UA_FieldTargetVariable *tvs) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(UA_PubSubState_isEnabled(dsr->head.state)) {
         UA_LOG_WARNING_PUBSUB(psm->logging, dsr,

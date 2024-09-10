@@ -164,7 +164,7 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
 static UA_StatusCode
 initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubSecurityPolicy *policy =
         findPubSubSecurityPolicy(psm, &sg->config.securityPolicyUri);

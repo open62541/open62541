@@ -835,7 +835,7 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
     UA_Server *server = bpm->sc.server;
     UA_ServerConfig *config = &server->config;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Extract the protocol, hostname and port from the url */
     UA_String hostname = UA_STRING_NULL;
@@ -1025,7 +1025,7 @@ attemptReverseConnect(UA_BinaryProtocolManager *bpm, reverse_connect_context *co
     UA_ServerConfig *config = &server->config;
     UA_EventLoop *el = config->eventLoop;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Find a TCP ConnectionManager */
     UA_String tcpString = UA_STRING_STATIC("tcp");

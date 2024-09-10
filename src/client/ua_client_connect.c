@@ -667,7 +667,7 @@ sendOPNAsync(UA_Client *client, UA_Boolean renew) {
 
 UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_EventLoop *el = client->config.eventLoop;
     UA_DateTime now = el->dateTime_nowMonotonic(el);
@@ -753,7 +753,7 @@ responseActivateSession(UA_Client *client, void *userdata,
 
 static UA_StatusCode
 activateSessionAsync(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     if(client->sessionState != UA_SESSIONSTATE_CREATED &&
        client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
@@ -1087,7 +1087,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
 
 static UA_StatusCode
 requestGetEndpoints(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_GetEndpointsRequest request;
     UA_GetEndpointsRequest_init(&request);
@@ -1271,7 +1271,7 @@ createSessionCallback(UA_Client *client, void *userdata,
 
 static UA_StatusCode
 createSessionAsync(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     /* Generate the local nonce for the session */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -1352,7 +1352,7 @@ initSecurityPolicy(UA_Client *client) {
 
 static void
 connectActivity(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
     UA_LOG_TRACE(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Client connect iterate");
 
@@ -1639,7 +1639,7 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */
 static void
 initConnect(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
     if(client->channel.state != UA_SECURECHANNELSTATE_CLOSED) {
         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                        "Client connection already initiated");
@@ -1727,7 +1727,7 @@ initConnect(UA_Client *client) {
 
 void
 connectSync(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     /* EventLoop is started. Otherwise initConnect would have failed. */
     UA_EventLoop *el = client->config.eventLoop;
@@ -1774,7 +1774,7 @@ connectSync(UA_Client *client) {
 
 UA_StatusCode
 connectInternal(UA_Client *client, UA_Boolean async) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     /* Reset the connectStatus. This should be the only place where we can
      * recover from a bad connectStatus. */
@@ -1790,7 +1790,7 @@ connectInternal(UA_Client *client, UA_Boolean async) {
 
 UA_StatusCode
 connectSecureChannel(UA_Client *client, const char *endpointUrl) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     UA_ClientConfig *cc = UA_Client_getConfig(client);
     cc->noSession = true;
@@ -1809,7 +1809,7 @@ __UA_Client_connect(UA_Client *client, UA_Boolean async) {
 
 static UA_StatusCode
 activateSessionSync(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex, 1);
+    UA_LOCK_ASSERT(&client->clientMutex);
 
     /* EventLoop is started. Otherwise activateSessionAsync would have failed. */
     UA_EventLoop *el = client->config.eventLoop;

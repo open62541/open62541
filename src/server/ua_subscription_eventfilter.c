@@ -924,7 +924,7 @@ UA_StatusCode
 evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eventNode,
                     const UA_ContentFilter *contentFilter,
                     UA_ContentFilterResult *contentFilterResult) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* An empty filter always succeeds */
     if(contentFilter->elementsSize == 0)
@@ -970,7 +970,7 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
 static UA_Boolean
 isValidEvent(UA_Server *server, const UA_NodeId *validEventParent,
              const UA_NodeId *eventId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Find the eventType variableNode */
     UA_QualifiedName findName = UA_QUALIFIEDNAME(0, "EventType");
@@ -1022,7 +1022,7 @@ UA_StatusCode
 filterEvent(UA_Server *server, UA_Session *session,
             const UA_NodeId *eventNode, UA_EventFilter *filter,
             UA_EventFieldList *efl, UA_EventFilterResult *result) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(filter->selectClausesSize == 0)
         return UA_STATUSCODE_BADEVENTFILTERINVALID;

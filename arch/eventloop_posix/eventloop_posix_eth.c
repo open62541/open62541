@@ -246,7 +246,7 @@ ETH_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
 /* Test if the ConnectionManager can be stopped */
 static void
 ETH_checkStopped(UA_POSIXConnectionManager *pcm) {
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     if(pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
@@ -262,7 +262,7 @@ ETH_checkStopped(UA_POSIXConnectionManager *pcm) {
 static void
 ETH_close(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "ETH %u\t| Closing connection",
@@ -324,7 +324,7 @@ ETH_connectionSocketCallback(UA_ConnectionManager *cm, UA_RegisteredFD *rfd,
                              short event) {
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     ETH_FD *conn = (ETH_FD*)rfd;
     if(event == UA_FDEVENT_ERR) {
@@ -432,7 +432,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
                          const UA_KeyValueMap *params,
                          int ifindex, UA_UInt16 etherType,
                          UA_Boolean validate) {
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Bind the socket to interface and EtherType. Don't receive anything else. */
     struct sockaddr_ll sll;
@@ -516,7 +516,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
 static UA_StatusCode
 ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap *params,
                        UA_Byte source[ETHER_ADDR_LEN], int ifindex, UA_UInt16 etherType) {
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Parse the target address (has to exist) */
     const UA_String *address = (const UA_String*)
@@ -769,7 +769,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 static void
 ETH_shutdown(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex, 1);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     UA_DelayedCallback *dc = &conn->rfd.dc;
     if(dc->callback) {

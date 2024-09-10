@@ -89,7 +89,7 @@ extractPubSubConfigFromExtensionObject(UA_PubSubManager *psm,
 static UA_StatusCode
 updatePubSubConfig(UA_PubSubManager *psm,
                    const UA_PubSubConfigurationDataType *configurationParameters) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(configurationParameters == NULL) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
@@ -148,7 +148,7 @@ createComponentsForConnection(UA_PubSubManager *psm,
                               const UA_PubSubConnectionDataType *connParams,
                               UA_NodeId connectionIdent, UA_UInt32 pdsCount,
                               const UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* WriterGroups configuration */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -186,7 +186,7 @@ createComponentsForConnection(UA_PubSubManager *psm,
 static UA_StatusCode
 createPubSubConnection(UA_PubSubManager *psm, const UA_PubSubConnectionDataType *connParams,
                        UA_UInt32 pdsCount, UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConnectionConfig config;
     memset(&config, 0, sizeof(UA_PubSubConnectionConfig));
@@ -294,7 +294,7 @@ createWriterGroup(UA_PubSubManager *psm,
                   const UA_WriterGroupDataType *writerGroupParameters,
                   UA_NodeId connectionIdent, UA_UInt32 pdsCount,
                   const UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_WriterGroupConfig config;
     memset(&config, 0, sizeof(UA_WriterGroupConfig));
@@ -363,7 +363,7 @@ addDataSetWriterWithPdsReference(UA_PubSubManager *psm, UA_NodeId writerGroupIde
                                  const UA_DataSetWriterConfig *dsWriterConfig,
                                  UA_UInt32 pdsCount, const UA_NodeId *pdsIdent,
                                  UA_Boolean enable) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_NodeId dataSetWriterIdent;
     UA_PublishedDataSetConfig pdsConfig;
@@ -427,7 +427,7 @@ createDataSetWriter(UA_PubSubManager *psm,
                     const UA_DataSetWriterDataType *dataSetWriterParameters,
                     UA_NodeId writerGroupIdent, UA_UInt32 pdsCount,
                     const UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_DataSetWriterConfig config;
     memset(&config, 0, sizeof(UA_DataSetWriterConfig));
@@ -461,7 +461,7 @@ static UA_StatusCode
 createReaderGroup(UA_PubSubManager *psm,
                   const UA_ReaderGroupDataType *readerGroupParameters,
                   UA_NodeId connectionIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_ReaderGroupConfig config;
     memset(&config, 0, sizeof(UA_ReaderGroupConfig));
@@ -508,7 +508,7 @@ createReaderGroup(UA_PubSubManager *psm,
 static UA_StatusCode
 addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
                      const UA_ExtensionObject *subscribedDataSet) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(subscribedDataSet->content.decoded.type ==
        &UA_TYPES[UA_TYPES_TARGETVARIABLESDATATYPE]) {
@@ -564,7 +564,7 @@ addSubscribedDataSet(UA_PubSubManager *psm, const UA_NodeId dsReaderIdent,
 static UA_StatusCode
 createDataSetReader(UA_PubSubManager *psm, const UA_DataSetReaderDataType *dsrParams,
                     UA_NodeId readerGroupIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Prepare the config parameters */
     UA_DataSetReaderConfig config;
@@ -649,7 +649,7 @@ static UA_StatusCode
 createPublishedDataSet(UA_PubSubManager *psm,
                        const UA_PublishedDataSetDataType *pdsParams,
                        UA_NodeId *pdsIdent) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PublishedDataSetConfig config;
     memset(&config, 0, sizeof(UA_PublishedDataSetConfig));
@@ -687,7 +687,7 @@ createPublishedDataSet(UA_PubSubManager *psm,
 static UA_StatusCode
 addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
                          const UA_PublishedDataSetDataType *pdsParams) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PublishedDataItemsDataType *pdItems = (UA_PublishedDataItemsDataType *)
         pdsParams->dataSetSource.content.decoded.data;
@@ -727,7 +727,7 @@ addDataSetFieldVariables(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
 static UA_StatusCode
 createDataSetFields(UA_PubSubManager *psm, const UA_NodeId *pdsIdent,
                     const UA_PublishedDataSetDataType *pdsParams) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(pdsParams->dataSetSource.encoding != UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1146,7 +1146,7 @@ generatePubSubConnectionDataType(UA_PubSubManager *psm,
 static UA_StatusCode
 generatePubSubConfigurationDataType(UA_PubSubManager *psm,
                                     UA_PubSubConfigurationDataType *configDT) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubConfigurationDataType_init(configDT);
     configDT->publishedDataSets = (UA_PublishedDataSetDataType*)

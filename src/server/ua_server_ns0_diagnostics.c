@@ -240,7 +240,7 @@ createSubscriptionObject(UA_Server *server, UA_Session *session,
 static UA_StatusCode
 setSessionSubscriptionDiagnostics(UA_Server *server, UA_Session *session,
                                   UA_DataValue *value) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Get the current session */
     size_t sdSize = session->subscriptionsSize;

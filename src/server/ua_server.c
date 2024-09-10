@@ -470,7 +470,7 @@ UA_Server_addTimedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
                     void *data, UA_Double interval_ms, UA_UInt64 *callbackId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     return server->config.eventLoop->addTimer(
         server->config.eventLoop, (UA_Callback)callback, server, data, interval_ms, NULL,
         UA_TIMERPOLICY_CURRENTTIME, callbackId);
@@ -489,7 +489,7 @@ UA_Server_addRepeatedCallback(UA_Server *server, UA_ServerCallback callback,
 UA_StatusCode
 changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId,
                                UA_Double interval_ms) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     return server->config.eventLoop->
         modifyTimer(server->config.eventLoop, callbackId, interval_ms,
                     NULL, UA_TIMERPOLICY_CURRENTTIME);
@@ -507,7 +507,7 @@ UA_Server_changeRepeatedCallbackInterval(UA_Server *server, UA_UInt64 callbackId
 
 void
 removeCallback(UA_Server *server, UA_UInt64 callbackId) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_EventLoop *el = server->config.eventLoop;
     if(el)
         el->removeTimer(el, callbackId);
@@ -709,7 +709,7 @@ UA_Server_getStatistics(UA_Server *server) {
 
 void
 setServerLifecycleState(UA_Server *server, UA_LifecycleState state) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->state == state)
         return;
