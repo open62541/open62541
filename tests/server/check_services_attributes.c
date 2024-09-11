@@ -894,6 +894,58 @@ START_TEST(WriteSingleAttributeValueEnum) {
     UA_DataValue_clear(&resp);
 } END_TEST
 
+/* Writing a ByteString into a byte array */
+START_TEST(WriteSingleAttributeStringToByteArray) {
+    UA_WriteValue wValue;
+    UA_WriteValue_init(&wValue);
+
+    UA_VariableAttributes vattr = UA_VariableAttributes_default;
+    UA_Byte testArray[4] = {1,2,3,4};
+    UA_UInt32 testArrayDims[1] = {4};
+    UA_Variant_setArray(&vattr.value, testArray, 4, &UA_TYPES[UA_TYPES_BYTE]);
+    vattr.value.arrayDimensions = testArrayDims;
+    vattr.value.arrayDimensionsSize = 1;
+    vattr.description = UA_LOCALIZEDTEXT("locale","test array");
+    vattr.displayName = UA_LOCALIZEDTEXT("locale","test array");
+    vattr.valueRank = UA_VALUERANK_ONE_DIMENSION;
+    vattr.arrayDimensions = testArrayDims;
+    vattr.arrayDimensionsSize = 1;
+    vattr.dataType = UA_TYPES[UA_TYPES_BYTE].typeId;
+    UA_QualifiedName arrayName = UA_QUALIFIEDNAME(1, "test array");
+    UA_NodeId arrayNodeId = UA_NODEID_STRING(1, "test.array");
+    UA_NodeId parentNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    UA_NodeId parentReferenceNodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES);
+    UA_StatusCode retval =
+        UA_Server_addVariableNode(server, arrayNodeId, parentNodeId,
+                                  parentReferenceNodeId, arrayName,
+                                  UA_NODEID_NUMERIC(0, UA_NS0ID_BASEDATAVARIABLETYPE),
+                                  vattr, NULL, NULL);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_String testString = UA_STRING("open");
+    UA_Variant_setScalar(&wValue.value.value, &testString, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "test.array");
+    wValue.attributeId = UA_ATTRIBUTEID_VALUE;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "test.array");
+    rvi.attributeId = UA_ATTRIBUTEID_VALUE;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert_int_eq(resp.status, UA_STATUSCODE_GOOD);
+    ck_assert(resp.hasValue);
+    ck_assert(UA_Variant_hasArrayType(&resp.value, &UA_TYPES[UA_TYPES_BYTE]));
+
+    UA_Byte *arr = (UA_Byte*)resp.value.data;
+    arr[0] = 'o';
+    arr[1] = 'p';
+
+    UA_DataValue_clear(&resp);
+} END_TEST
+
 START_TEST(WriteSingleAttributeValueRangeFromScalar) {
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
@@ -1179,6 +1231,7 @@ static Suite * testSuite_services_attributes(void) {
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValue);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueWithServerTimestamp);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueEnum);
+    tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeStringToByteArray);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeDataType);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromScalar);
     tcase_add_test(tc_writeSingleAttributes, WriteSingleAttributeValueRangeFromArray);

@@ -42,8 +42,6 @@ adjustType(UA_Variant *value, const UA_DataType *targetType) {
         value->type = &UA_TYPES[UA_TYPES_BYTE];
         value->arrayLength = str->length;
         value->data = str->data;
-        if(value->storageType != UA_VARIANT_DATA_NODELETE)
-            UA_free(str);
         return;
     }
 
