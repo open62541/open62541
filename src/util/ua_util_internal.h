@@ -28,7 +28,12 @@ _UA_BEGIN_DECLS
 #define UA_MACRO_EXPAND(x) x
 
 /* Try if the type of the value can be adjusted "in situ" to the target type.
- * That can be done, for example, to map between int32 and an enum. */
+ * That can be done, for example, to map between int32 and an enum.
+ *
+ * This can also "unwrap" a type. For example: string -> array of bytes
+ *
+ * If value->data is changed during adjustType, free the pointer afterwards (if
+ * you did not keep the original variant for _clear). */
 void
 adjustType(UA_Variant *value, const UA_DataType *targetType);
 

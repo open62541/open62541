@@ -1103,7 +1103,7 @@ typedef struct UA_DataTypeArray {
  * If the member is an array, the offset points to the (size_t) length field.
  * (The array pointer comes after the length field without any padding.) */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-UA_Boolean
+UA_Boolean UA_EXPORT
 UA_DataType_getStructMember(const UA_DataType *type,
                             const char *memberName,
                             size_t *outOffset,
@@ -1114,7 +1114,7 @@ UA_DataType_getStructMember(const UA_DataType *type,
 /* Test if the data type is a numeric builtin data type (via the typeKind field
  * of UA_DataType). This includes integers and floating point numbers. Not
  * included are Boolean, DateTime, StatusCode and Enums. */
-UA_Boolean
+UA_Boolean UA_EXPORT
 UA_DataType_isNumeric(const UA_DataType *type);
 
 /**
