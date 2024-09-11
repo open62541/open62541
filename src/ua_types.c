@@ -2053,7 +2053,7 @@ UA_Array_append(void **p, size_t *size, void *newElem,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) {
     char scratch[512];

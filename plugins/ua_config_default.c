@@ -443,7 +443,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     conf->modellingRulesOnInstances = true;
 
     /* Limits for SecureChannels */
-    conf->maxSecureChannels = 40;
+    conf->maxSecureChannels = 100;
     conf->maxSecurityTokenLifetime = 10 * 60 * 1000; /* 10 minutes */
 
     /* Limits for Sessions */

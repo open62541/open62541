@@ -796,7 +796,7 @@ UA_Server_run_startup(UA_Server *server) {
 
     /* Are there enough SecureChannels possible for the max number of sessions? */
     if(config->maxSecureChannels != 0 &&
-       (config->maxSessions == 0 || config->maxSessions >= config->maxSecureChannels)) {
+       (config->maxSessions == 0 || config->maxSessions > config->maxSecureChannels)) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                        "Maximum SecureChannels count not enough for the "
                        "maximum Sessions count");
@@ -810,6 +810,7 @@ UA_Server_run_startup(UA_Server *server) {
                           "Could not create the server housekeeping task");
 
     /* Ensure that the uri for ns1 is set up from the app description */
+    UA_String_clear(&server->namespaces[1]);
     setupNs1Uri(server);
 
     /* At least one endpoint has to be configured */
