@@ -585,6 +585,10 @@ if(UA_ENABLE_ENCRYPTION)
     add_executable(check_client_encryption client/check_client_encryption.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
     target_link_libraries(check_client_encryption ${LIBS})
     add_test_valgrind(client_encryption ${TESTS_BINARY_DIR}/check_client_encryption)
+
+    add_executable(check_crl_validation encryption/check_crl_validation.c $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-testplugins>)
+    target_link_libraries(check_crl_validation ${LIBS})
+    add_test_valgrind(crl_validation ${TESTS_BINARY_DIR}/check_crl_validation)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
