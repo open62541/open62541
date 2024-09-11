@@ -1850,7 +1850,7 @@ UA_Array_append(void **p, size_t *size, void *newElem,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) {
     char scratch[512];
@@ -1882,7 +1882,7 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
 }
 
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-UA_Boolean UA_EXPORT
+UA_Boolean
 UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,
                             size_t *outOffset, const UA_DataType **outMemberType,
                             UA_Boolean *outIsArray) {
