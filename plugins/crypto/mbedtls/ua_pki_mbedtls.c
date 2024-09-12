@@ -375,7 +375,13 @@ certificateVerification_verify(void *verificationContext,
 
                 /* If the CRL file corresponding to the parent certificate is not present
                  * then return UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN */
-                if(!issuerKnown) {
+                if(issuerKnown) {
+                    flags = 0;
+                    mbedErr = mbedtls_x509_crt_verify_with_profile(parentCert,
+                                                                   &ci->certificateIssuerList,
+                                                                   &ci->certificateRevocationList,
+                                                                   &crtProfile, NULL, &flags, NULL, NULL);
+                } else {
                     return UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
                 }
 
@@ -417,8 +423,14 @@ certificateVerification_verify(void *verificationContext,
 
             /* If the CRL file corresponding to the parent certificate is not present
              * then return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN */
-            if(!issuerKnown) {
-                return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
+            if(issuerKnown) {
+                flags = 0;
+                mbedErr = mbedtls_x509_crt_verify_with_profile(parentCert,
+                                                               &ci->certificateIssuerList,
+                                                               &ci->certificateRevocationList,
+                                                               &crtProfile, NULL, &flags, NULL, NULL);
+            } else {
+                return UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
             }
 
         }
