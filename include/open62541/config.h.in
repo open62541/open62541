@@ -243,6 +243,20 @@ UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
 #endif
 }
 
+static UA_INLINE void *
+UA_atomic_load(void * volatile * addr) {
+#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
+    return InterlockedOr(addr, 0);
+#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+    return __sync_fetch_and_or(addr, (void*)0);
+#else
+# if UA_MULTITHREADING >= 100
+#  warning Atomic operations not implemented
+# endif
+    return *addr;
+#endif
+}
+
 /**
  * Memory Management
  * -----------------
