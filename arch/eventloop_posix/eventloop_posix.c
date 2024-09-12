@@ -60,31 +60,74 @@ void
 UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
                                      UA_DelayedCallback *dc) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
-    UA_DelayedCallback *old;
-    do {
-        old = el->delayedCallbacks;
-        dc->next = old;
-    } while(UA_atomic_cmpxchg((void * volatile *)&el->delayedCallbacks, old, dc) != old);
+    dc->next = NULL;
+
+    /* el->delayedTail points either to prev->next or to the head.
+     * We need to update two locations:
+     * 1: el->delayedTail = &dc->next;
+     * 2: *oldtail = dc; (equal to &dc->next)
+     *
+     * Once we have (1), we "own" the previous-to-last entry. No need to worry
+     * about (2), we can adjust it with a delay. This makes the queue
+     * "eventually consistent". */
+    UA_DelayedCallback **oldtail = (UA_DelayedCallback**)
+        UA_atomic_xchg((void**)&el->delayedTail, &dc->next);
+    UA_atomic_xchg((void**)oldtail, &dc->next);
+}
+
+/* Resets the delayed queue and returns the previous head and tail */
+static void
+resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
+                  UA_DelayedCallback **oldTail) {
+    if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
+       el->delayedHead2 <= (UA_DelayedCallback *)0x01)
+        return; /* The queue is empty */
+
+    UA_Boolean active1 = (el->delayedHead1 != (UA_DelayedCallback*)0x01);
+    UA_DelayedCallback **activeHead = (active1) ? &el->delayedHead1 : &el->delayedHead2;
+    UA_DelayedCallback **inactiveHead = (active1) ? &el->delayedHead2 : &el->delayedHead1;
+
+    /* Switch active/inactive by resetting the sentinel values. The (old) active
+     * head points to an element which we return. Parallel threads continue to
+     * add elements to the queue "below" the first element. */
+    UA_atomic_xchg((void**)inactiveHead, NULL);
+    *oldHead = (UA_DelayedCallback *)
+        UA_atomic_xchg((void**)activeHead, (void*)0x01);
+
+    /* Make the tail point to the (new) active head. Return the value of last
+     * tail. When iterating over the queue elements, we need to find this tail
+     * as the last element. If we find a NULL next-pointer before hitting the
+     * tail spinlock until the pointer updates (eventually consistent). */
+    *oldTail = (UA_DelayedCallback*)
+        UA_atomic_xchg((void**)&el->delayedTail, inactiveHead);
 }
 
 static void
 UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
-                                     UA_DelayedCallback *dc) {
+                                        UA_DelayedCallback *dc) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
     UA_LOCK(&el->elMutex);
-    UA_DelayedCallback **prev = &el->delayedCallbacks;
-    while(*prev) {
-        if(*prev == dc) {
-            *prev = (*prev)->next;
-            UA_UNLOCK(&el->elMutex);
-            return;
-        }
-        prev = &(*prev)->next;
+
+    /* Reset and get the old head and tail */
+    UA_DelayedCallback *cur = NULL, *tail = NULL;
+    resetDelayedQueue(el, &cur, &tail);
+
+    /* Loop until we reach the tail (or head and tail are both NULL) */
+    UA_DelayedCallback *next;
+    for(; cur; cur = next) {
+        /* Spin-loop until the next-pointer of cur is updated.
+         * The element pointed to by tail must appear eventually. */
+        next = cur->next;
+        while(!next && cur != tail)
+            next = (UA_DelayedCallback *)UA_atomic_load((void**)&cur->next);
+        if(cur == dc)
+            continue;
+        UA_EventLoopPOSIX_addDelayedCallback(public_el, cur);
     }
+
     UA_UNLOCK(&el->elMutex);
 }
 
-/* Process and then free registered delayed callbacks */
 static void
 processDelayed(UA_EventLoopPOSIX *el) {
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -92,16 +135,16 @@ processDelayed(UA_EventLoopPOSIX *el) {
 
     UA_LOCK_ASSERT(&el->elMutex);
 
-    /* First empty the linked list in the el. So a delayed callback can add
-     * (itself) to the list. New entries are then processed during the next
-     * iteration. */
-    UA_DelayedCallback *dc = el->delayedCallbacks, *next = NULL;
-    el->delayedCallbacks = NULL;
+    /* Reset and get the old head and tail */
+    UA_DelayedCallback *dc = NULL, *tail = NULL;
+    resetDelayedQueue(el, &dc, &tail);
 
+    /* Loop until we reach the tail (or head and tail are both NULL) */
+    UA_DelayedCallback *next;
     for(; dc; dc = next) {
         next = dc->next;
-        /* Delayed Callbacks might have no callback set. We don't return a
-         * StatusCode during "add" and don't validate. So test here. */
+        while(!next && dc != tail)
+            next = (UA_DelayedCallback *)UA_atomic_load((void**)&dc->next);
         if(!dc->callback)
             continue;
         UA_UNLOCK(&el->elMutex);
@@ -229,7 +272,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedCallbacks != NULL)
+    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
         return;
 
     /* Close the self-pipe when everything else is done */
@@ -329,7 +372,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
      * itself). In that case we don't want to wait (indefinitely) for an event
      * to happen. Process queued events but don't sleep. Then process the
      * delayed callbacks in the next iteration. */
-    if(el->delayedCallbacks != NULL)
+    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
         timeout = 0;
 
     /* Compute the remaining time */
@@ -515,6 +558,10 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 
     UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
+
+    /* Initialize the queue */
+    el->delayedTail = &el->delayedHead1;
+    el->delayedHead2 = (UA_DelayedCallback*)0x01; /* sentinel value */
 
 #ifdef _WIN32
     /* Start the WSA networking subsystem on Windows */

@@ -242,8 +242,19 @@ typedef struct {
     /* Timer */
     UA_Timer timer;
 
-    /* Linked List of Delayed Callbacks */
-    UA_DelayedCallback *delayedCallbacks;
+    /* Singly-linked FIFO queue (lock-free multi-producer single-consumer) of
+     * delayed callbacks. Insertion happens by chasing the tail-pointer. We
+     * "check out" the current queue and reset by switching the tail to the
+     * alternative head-pointer.
+     *
+     * This could be a simple singly-linked list. But we want to do in-order
+     * processing so we can wait until the worker jobs already in the queue get
+     * finished before.
+     *
+     * The currently unused head gets marked with the 0x01 sentinel. */
+    UA_DelayedCallback *delayedHead1;
+    UA_DelayedCallback *delayedHead2;
+    UA_DelayedCallback **delayedTail;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */

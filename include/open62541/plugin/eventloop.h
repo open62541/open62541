@@ -76,7 +76,7 @@ typedef void (*UA_Callback)(void *application, void *context);
 /* Delayed callbacks are executed not when they are registered, but in the
  * following EventLoop cycle */
 typedef struct UA_DelayedCallback {
-    struct UA_DelayedCallback *next; /* Singly-linked list */
+    struct UA_DelayedCallback *next;
     UA_Callback callback;
     void *application;
     void *context;
@@ -191,13 +191,16 @@ struct UA_EventLoop {
      * delay a resource cleanup to a point where it is known that the resource
      * has no remaining users.
      *
-     * The delayed callbacks are processed in each of the cycle of the EventLoop
+     * The delayed callbacks are processed in each cycle of the EventLoop
      * between the handling of periodic callbacks and polling for (network)
      * events. The memory for the delayed callback is *NOT* automatically freed
-     * after the execution.
+     * after the execution. But this can be done from within the callback.
      *
-     * addDelayedCallback is non-blocking and can be called from an interrupt
-     * context. removeDelayedCallback can take a mutex and is blocking. */
+     * Delayed callbacks are processed in the order in which they are added.
+     *
+     * The delayed callback API is thread-safe. addDelayedCallback is
+     * non-blocking and can be called from an interrupt context.
+     * removeDelayedCallback can take a mutex and is blocking. */
 
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
     void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
