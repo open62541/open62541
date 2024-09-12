@@ -605,8 +605,12 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_MQTT_TLS_OPENSSL)
     # use the OpenSSL encryption library
     # https://cmake.org/cmake/help/v3.0/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
-    list(APPEND open62541_LIBRARIES ${OPENSSL_LIBRARIES})
-    endif ()
+    list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
+    if(WIN32)
+        # Add bestcrypt for windows systems
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
+endif()
 
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
     # See https://github.com/libressl-portable/portable/blob/master/FindLibreSSL.cmake
@@ -624,6 +628,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_PUBSUB_ENCRYPTION)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+    if(WIN32)
+        # Add bestcrypt for windows systems
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
