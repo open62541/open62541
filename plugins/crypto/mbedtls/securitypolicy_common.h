@@ -23,14 +23,16 @@
 #define UA_SHA1_LENGTH 20
 #define UA_MAXSUBJECTLENGTH 512
 #define MBEDTLS_SAN_MAX_LEN    64
-#define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
-    do                                     \
-    {                                      \
-        if((ret = (f)) < 0)                \
-        goto cleanup;                      \
-        else                               \
-        (g) += ret;                        \
-    } while (0)
+#ifndef WIN32
+    #define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
+        do                                     \
+        {                                      \
+            if((ret = (f)) < 0)                \
+            goto cleanup;                      \
+            else                               \
+            (g) += ret;                        \
+        } while (0)
+#endif
 
 _UA_BEGIN_DECLS
 
