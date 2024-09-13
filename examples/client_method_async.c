@@ -164,7 +164,7 @@ stateCallback(UA_Client *client, UA_SecureChannelState channelState,
                         monResponse.monitoredItemId);
 #endif
 
-#ifdef UA_ENABLE_METHODCALLS		
+#ifdef UA_ENABLE_METHODCALLS
         UA_UInt32 reqId = 0;
         UA_Variant input;
         UA_Variant_init(&input);

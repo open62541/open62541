@@ -316,7 +316,7 @@ mbedtls_getSequenceListDeep(const mbedtls_x509_sequence *sanlist) {
 
 static UA_StatusCode
 mbedtls_x509write_csrSetSubjectAltName(mbedtls_x509write_csr *ctx, const mbedtls_x509_sequence* sanlist) {
-    int	ret = 0;
+    int ret = 0;
     const mbedtls_x509_sequence* cur = sanlist;
     unsigned char *buf;
     unsigned char *pc;

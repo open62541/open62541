@@ -467,7 +467,7 @@ static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist) {
 }
 
 int mbedtls_x509write_crt_set_subject_alt_name(mbedtls_x509write_cert *ctx, const mbedtls_write_san_list* sanlist) {
-    int	ret = 0;
+    int ret = 0;
     size_t sandeep = 0;
     const mbedtls_write_san_list* cur = sanlist;
     unsigned char* buf;

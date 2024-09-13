@@ -556,7 +556,7 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
 
     /* Store the structure for sendto */
     conn->sll.sll_ifindex = ifindex;
-	conn->sll.sll_halen = ETH_ALEN;
+    conn->sll.sll_halen = ETH_ALEN;
     memcpy(conn->sll.sll_addr, dest, ETHER_ADDR_LEN);
 
     /* Generate the Ethernet header */
