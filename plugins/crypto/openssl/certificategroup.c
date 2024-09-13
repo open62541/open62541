@@ -347,9 +347,9 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
         goto cleanup;
     }
 #if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
-	(void) X509_STORE_CTX_trusted_stack(storeCtx, context->trustedCertificates);
+    (void) X509_STORE_CTX_trusted_stack(storeCtx, context->trustedCertificates);
 #else
-	(void) X509_STORE_CTX_set0_trusted_stack(storeCtx, context->trustedCertificates);
+    (void) X509_STORE_CTX_set0_trusted_stack(storeCtx, context->trustedCertificates);
 #endif
 
     /* Set crls to ctx */

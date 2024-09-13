@@ -270,12 +270,12 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server *server = UA_Server_newForUnitTest();
 
     /* Add a custom non-hierarchical reference type */
-	UA_NodeId refTypeId;
-	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
-	refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
-	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
-	UA_StatusCode res =
+    UA_NodeId refTypeId;
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+    refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
+    UA_StatusCode res =
         UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),

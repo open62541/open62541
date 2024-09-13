@@ -945,8 +945,8 @@ void *subApp(void *arg) {
     UA_ReaderGroup*   currentReaderGroup;
     UA_ServerCallback subCallback;
     UA_UInt64         interval_ms;
-	struct timespec   nextnanosleeptimeSubApplication;
-	UA_UInt64 monotonicOffsetValue = 0;
+    struct timespec   nextnanosleeptimeSubApplication;
+    UA_UInt64 monotonicOffsetValue = 0;
 
     server             = threadArgPubSub1->server;
     currentReaderGroup = (UA_ReaderGroup*)threadArgPubSub1->subData;
