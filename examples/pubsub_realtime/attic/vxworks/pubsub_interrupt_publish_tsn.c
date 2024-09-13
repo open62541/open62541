@@ -444,7 +444,7 @@ static void open62541ServerTask(void) {
 
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
-	
+
     addServerNodes(server);
     addPubSubConfiguration(server);
 

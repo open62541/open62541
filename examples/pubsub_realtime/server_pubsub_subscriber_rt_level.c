@@ -121,7 +121,7 @@ fillTestDataSetMetaData(UA_DataSetMetaDataType *pMetaData) {
                          &UA_TYPES[UA_TYPES_FIELDMETADATA]);
 
     for(size_t i = 0; i < pMetaData->fieldsSize; i++) {
-    	/* UInt32 DataType */
+        /* UInt32 DataType */
         UA_FieldMetaData_init (&pMetaData->fields[i]);
         UA_NodeId_copy(&UA_TYPES[UA_TYPES_UINT32].typeId,
                        &pMetaData->fields[i].dataType);

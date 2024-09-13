@@ -30,7 +30,7 @@ typedef struct UA_AsyncResponse UA_AsyncResponse;
 typedef struct UA_AsyncOperation {
     TAILQ_ENTRY(UA_AsyncOperation) pointers;
     UA_CallMethodRequest request;
-    UA_CallMethodResult	response;
+    UA_CallMethodResult response;
     size_t index;             /* Index of the operation in the array of ops in
                                * request/response */
     UA_AsyncResponse *parent; /* Always non-NULL. The parent is only removed
@@ -42,7 +42,7 @@ struct UA_AsyncResponse {
     UA_UInt32 requestId;
     UA_NodeId sessionId;
     UA_UInt32 requestHandle;
-    UA_DateTime	timeout;
+    UA_DateTime timeout;
     UA_AsyncOperationType operationType;
     union {
         UA_CallResponse callResponse;

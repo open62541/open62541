@@ -494,9 +494,9 @@ UA_CertificateVerification_Verify (const UA_CertificateVerification *cv,
         goto cleanup;
     }
 #if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
-	(void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
+    (void) X509_STORE_CTX_trusted_stack (storeCtx, ctx->skTrusted);
 #else
-	(void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
+    (void) X509_STORE_CTX_set0_trusted_stack (storeCtx, ctx->skTrusted);
 #endif
 
     /* Set crls to ctx */

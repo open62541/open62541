@@ -833,11 +833,11 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String *appName,
         return retval;
     }
 
-    if (hostname.length == 0) {
-	gethostname(hoststr, sizeof(hoststr)-1);
-	hoststr[sizeof(hoststr)-1] = '\0';
-	hostname.data = (unsigned char *) hoststr;
-	hostname.length = strlen(hoststr);
+    if(hostname.length == 0) {
+        gethostname(hoststr, sizeof(hoststr)-1);
+        hoststr[sizeof(hoststr)-1] = '\0';
+        hostname.data = (unsigned char *) hoststr;
+        hostname.length = strlen(hoststr);
     }
     retval = UA_Discovery_addRecord(dm, appName, &hostname, port,
                                     &path, UA_DISCOVERY_TCP, true,

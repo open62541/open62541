@@ -136,43 +136,43 @@ parse_nodeid(UA_NodeId *id, const char *pos, const char *end) {
 
     
 {
-	char yych;
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-		case 's':
-			YYSTAGN(context.yyt1);
-			YYSTAGN(context.yyt2);
-			goto yy3;
-		case 'n': goto yy4;
-		default: goto yy1;
-	}
+    char yych;
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+        case 's':
+            YYSTAGN(context.yyt1);
+            YYSTAGN(context.yyt2);
+            goto yy3;
+        case 'n': goto yy4;
+        default: goto yy1;
+    }
 yy1:
-	YYSKIP();
+    YYSKIP();
 yy2:
-	{ (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
+    { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
 yy3:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy5;
-		default: goto yy2;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy5;
+        default: goto yy2;
+    }
 yy4:
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 's': goto yy6;
-		default: goto yy2;
-	}
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 's': goto yy6;
+        default: goto yy2;
+    }
 yy5:
-	YYSKIP();
-	ns = context.yyt1;
-	nse = context.yyt2;
-	{
+    YYSKIP();
+    ns = context.yyt1;
+    nse = context.yyt2;
+    {
         (void)pos; // Get rid of a dead store clang-analyzer warning
         if(ns) {
             UA_UInt32 tmp;
@@ -186,69 +186,69 @@ yy5:
         return parse_nodeid_body(id, &pos[-2], end);
     }
 yy6:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy8;
-		default: goto yy7;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy8;
+        default: goto yy7;
+    }
 yy7:
-	YYRESTORE();
-	goto yy2;
+    YYRESTORE();
+    goto yy2;
 yy8:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			YYSTAGP(context.yyt1);
-			goto yy9;
-		default: goto yy7;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            YYSTAGP(context.yyt1);
+            goto yy9;
+        default: goto yy7;
+    }
 yy9:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9': goto yy9;
-		case ';':
-			YYSTAGP(context.yyt2);
-			goto yy10;
-		default: goto yy7;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': goto yy9;
+        case ';':
+            YYSTAGP(context.yyt2);
+            goto yy10;
+        default: goto yy7;
+    }
 yy10:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-		case 's': goto yy11;
-		default: goto yy7;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+        case 's': goto yy11;
+        default: goto yy7;
+    }
 yy11:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy5;
-		default: goto yy7;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy5;
+        default: goto yy7;
+    }
 }
 
 }
@@ -271,66 +271,66 @@ parse_expandednodeid(UA_ExpandedNodeId *id, const char *pos, const char *end) {
 
     
 {
-	char yych;
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-			YYSTAGN(context.yyt1);
-			YYSTAGN(context.yyt2);
-			YYSTAGN(context.yyt3);
-			YYSTAGN(context.yyt4);
-			goto yy15;
-		case 'n':
-			YYSTAGN(context.yyt1);
-			YYSTAGN(context.yyt2);
-			goto yy16;
-		case 's':
-			YYSTAGN(context.yyt1);
-			YYSTAGN(context.yyt2);
-			YYSTAGN(context.yyt3);
-			YYSTAGN(context.yyt4);
-			goto yy17;
-		default: goto yy13;
-	}
+    char yych;
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+            YYSTAGN(context.yyt1);
+            YYSTAGN(context.yyt2);
+            YYSTAGN(context.yyt3);
+            YYSTAGN(context.yyt4);
+            goto yy15;
+        case 'n':
+            YYSTAGN(context.yyt1);
+            YYSTAGN(context.yyt2);
+            goto yy16;
+        case 's':
+            YYSTAGN(context.yyt1);
+            YYSTAGN(context.yyt2);
+            YYSTAGN(context.yyt3);
+            YYSTAGN(context.yyt4);
+            goto yy17;
+        default: goto yy13;
+    }
 yy13:
-	YYSKIP();
+    YYSKIP();
 yy14:
-	{ (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
+    { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
 yy15:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy18;
-		default: goto yy14;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy18;
+        default: goto yy14;
+    }
 yy16:
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 's': goto yy19;
-		default: goto yy14;
-	}
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 's': goto yy19;
+        default: goto yy14;
+    }
 yy17:
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy18;
-		case 'v': goto yy21;
-		default: goto yy14;
-	}
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy18;
+        case 'v': goto yy21;
+        default: goto yy14;
+    }
 yy18:
-	YYSKIP();
-	svr = context.yyt1;
-	svre = context.yyt2;
-	ns = context.yyt3;
-	nsu = context.yyt4;
-	YYSTAGP(body);
-	YYSHIFTSTAG(body, -2);
-	{
+    YYSKIP();
+    svr = context.yyt1;
+    svre = context.yyt2;
+    ns = context.yyt3;
+    nsu = context.yyt4;
+    YYSTAGP(body);
+    YYSHIFTSTAG(body, -2);
+    {
         (void)pos; // Get rid of a dead store clang-analyzer warning
         if(svr) {
             size_t len = (size_t)((svre) - svr);
@@ -358,183 +358,183 @@ yy18:
         return parse_nodeid_body(&id->nodeId, &pos[-2], end);
     }
 yy19:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy22;
-		case 'u': goto yy23;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy22;
+        case 'u': goto yy23;
+        default: goto yy20;
+    }
 yy20:
-	YYRESTORE();
-	goto yy14;
+    YYRESTORE();
+    goto yy14;
 yy21:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 'r': goto yy24;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 'r': goto yy24;
+        default: goto yy20;
+    }
 yy22:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			YYSTAGP(context.yyt3);
-			goto yy25;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            YYSTAGP(context.yyt3);
+            goto yy25;
+        default: goto yy20;
+    }
 yy23:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy26;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy26;
+        default: goto yy20;
+    }
 yy24:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy27;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy27;
+        default: goto yy20;
+    }
 yy25:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9': goto yy25;
-		case ';': goto yy28;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': goto yy25;
+        case ';': goto yy28;
+        default: goto yy20;
+    }
 yy26:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00:
-		case '\n': goto yy20;
-		case ';':
-			YYSTAGP(context.yyt4);
-			goto yy30;
-		default:
-			YYSTAGP(context.yyt4);
-			goto yy29;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00:
+        case '\n': goto yy20;
+        case ';':
+            YYSTAGP(context.yyt4);
+            goto yy30;
+        default:
+            YYSTAGP(context.yyt4);
+            goto yy29;
+    }
 yy27:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			YYSTAGP(context.yyt1);
-			goto yy31;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            YYSTAGP(context.yyt1);
+            goto yy31;
+        default: goto yy20;
+    }
 yy28:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-		case 's':
-			YYSTAGN(context.yyt4);
-			goto yy32;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+        case 's':
+            YYSTAGN(context.yyt4);
+            goto yy32;
+        default: goto yy20;
+    }
 yy29:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00:
-		case '\n': goto yy20;
-		case ';': goto yy30;
-		default: goto yy29;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00:
+        case '\n': goto yy20;
+        case ';': goto yy30;
+        default: goto yy29;
+    }
 yy30:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-		case 's':
-			YYSTAGN(context.yyt3);
-			goto yy32;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+        case 's':
+            YYSTAGN(context.yyt3);
+            goto yy32;
+        default: goto yy20;
+    }
 yy31:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9': goto yy31;
-		case ';':
-			YYSTAGP(context.yyt2);
-			goto yy33;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': goto yy31;
+        case ';':
+            YYSTAGP(context.yyt2);
+            goto yy33;
+        default: goto yy20;
+    }
 yy32:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '=': goto yy18;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '=': goto yy18;
+        default: goto yy20;
+    }
 yy33:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 'b':
-		case 'g':
-		case 'i':
-		case 's':
-			YYSTAGN(context.yyt3);
-			YYSTAGN(context.yyt4);
-			goto yy32;
-		case 'n': goto yy34;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 'b':
+        case 'g':
+        case 'i':
+        case 's':
+            YYSTAGN(context.yyt3);
+            YYSTAGN(context.yyt4);
+            goto yy32;
+        case 'n': goto yy34;
+        default: goto yy20;
+    }
 yy34:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 's': goto yy19;
-		default: goto yy20;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 's': goto yy19;
+        default: goto yy20;
+    }
 }
 
 }
@@ -620,72 +620,72 @@ parse_refpath_qn(UA_QualifiedName *qn, const char *pos, const char *end) {
 
     
 {
-	char yych;
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			YYSTAGP(context.yyt1);
-			goto yy38;
-		default: goto yy36;
-	}
+    char yych;
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+            YYSTAGP(context.yyt1);
+            goto yy38;
+        default: goto yy36;
+    }
 yy36:
-	YYSKIP();
+    YYSKIP();
 yy37:
-	{ pos--; goto parse_qn_name; }
+    { pos--; goto parse_qn_name; }
 yy38:
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-		case ':': goto yy40;
-		default: goto yy37;
-	}
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9':
+        case ':': goto yy40;
+        default: goto yy37;
+    }
 yy39:
-	YYSKIP();
-	yych = YYPEEK();
+    YYSKIP();
+    yych = YYPEEK();
 yy40:
-	switch (yych) {
-		case '0':
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9': goto yy39;
-		case ':': goto yy42;
-		default: goto yy41;
-	}
+    switch (yych) {
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
+        case '8':
+        case '9': goto yy39;
+        case ':': goto yy42;
+        default: goto yy41;
+    }
 yy41:
-	YYRESTORE();
-	goto yy37;
+    YYRESTORE();
+    goto yy37;
 yy42:
-	YYSKIP();
-	ns = context.yyt1;
-	YYSTAGP(nse);
-	YYSHIFTSTAG(nse, -1);
-	{
+    YYSKIP();
+    ns = context.yyt1;
+    YYSTAGP(nse);
+    YYSHIFTSTAG(nse, -1);
+    {
         UA_UInt32 tmp;
         size_t len = (size_t)(nse - ns);
         if(UA_readNumber((const UA_Byte*)ns, len, &tmp) != len)
@@ -761,82 +761,82 @@ parse_relativepath(UA_RelativePath *rp, const char *pos, const char *end) {
     /* Get the ReferenceType and its modifiers */
     
 {
-	char yych;
-	unsigned int yyaccept = 0;
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00: goto yy44;
-		case '.': goto yy47;
-		case '/': goto yy48;
-		case '<': goto yy49;
-		default: goto yy45;
-	}
+    char yych;
+    unsigned int yyaccept = 0;
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00: goto yy44;
+        case '.': goto yy47;
+        case '/': goto yy48;
+        case '<': goto yy49;
+        default: goto yy45;
+    }
 yy44:
-	YYSKIP();
-	{ (void)pos; return UA_STATUSCODE_GOOD; }
+    YYSKIP();
+    { (void)pos; return UA_STATUSCODE_GOOD; }
 yy45:
-	YYSKIP();
+    YYSKIP();
 yy46:
-	{ (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
+    { (void)pos; return UA_STATUSCODE_BADDECODINGERROR; }
 yy47:
-	YYSKIP();
-	{
+    YYSKIP();
+    {
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_AGGREGATES);
         goto reftype_target;
     }
 yy48:
-	YYSKIP();
-	{
+    YYSKIP();
+    {
         current.referenceTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_HIERARCHICALREFERENCES);
         goto reftype_target;
     }
 yy49:
-	yyaccept = 0;
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00:
-		case '>': goto yy46;
-		case '&':
-			YYSTAGP(context.yyt1);
-			goto yy52;
-		default:
-			YYSTAGP(context.yyt1);
-			goto yy50;
-	}
+    yyaccept = 0;
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00:
+        case '>': goto yy46;
+        case '&':
+            YYSTAGP(context.yyt1);
+            goto yy52;
+        default:
+            YYSTAGP(context.yyt1);
+            goto yy50;
+    }
 yy50:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00: goto yy51;
-		case '&': goto yy52;
-		case '>': goto yy53;
-		default: goto yy50;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00: goto yy51;
+        case '&': goto yy52;
+        case '>': goto yy53;
+        default: goto yy50;
+    }
 yy51:
-	YYRESTORE();
-	if (yyaccept == 0) {
-		goto yy46;
-	} else {
-		goto yy54;
-	}
+    YYRESTORE();
+    if (yyaccept == 0) {
+        goto yy46;
+    } else {
+        goto yy54;
+    }
 yy52:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00: goto yy51;
-		case '&': goto yy52;
-		case '>': goto yy55;
-		default: goto yy50;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00: goto yy51;
+        case '&': goto yy52;
+        case '>': goto yy55;
+        default: goto yy50;
+    }
 yy53:
-	YYSKIP();
+    YYSKIP();
 yy54:
-	begin = context.yyt1;
-	YYSTAGP(finish);
-	YYSHIFTSTAG(finish, -1);
-	{
+    begin = context.yyt1;
+    YYSTAGP(finish);
+    YYSHIFTSTAG(finish, -1);
+    {
         for(; begin < finish; begin++) {
             if(*begin== '#')
                 current.includeSubtypes = false;
@@ -852,16 +852,16 @@ yy54:
         goto reftype_target;
     }
 yy55:
-	yyaccept = 1;
-	YYSKIP();
-	YYBACKUP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00: goto yy54;
-		case '&': goto yy52;
-		case '>': goto yy53;
-		default: goto yy50;
-	}
+    yyaccept = 1;
+    YYSKIP();
+    YYBACKUP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00: goto yy54;
+        case '&': goto yy52;
+        case '>': goto yy53;
+        default: goto yy50;
+    }
 }
 
 
@@ -872,48 +872,48 @@ yy55:
 
     
 {
-	char yych;
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00:
-		case '.':
-		case '/':
-		case '<': goto yy57;
-		case '&':
-			YYSTAGP(context.yyt1);
-			goto yy60;
-		default:
-			YYSTAGP(context.yyt1);
-			goto yy58;
-	}
+    char yych;
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00:
+        case '.':
+        case '/':
+        case '<': goto yy57;
+        case '&':
+            YYSTAGP(context.yyt1);
+            goto yy60;
+        default:
+            YYSTAGP(context.yyt1);
+            goto yy58;
+    }
 yy57:
-	YYSKIP();
-	{ pos--; goto add_element; }
+    YYSKIP();
+    { pos--; goto add_element; }
 yy58:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00:
-		case '.':
-		case '/':
-		case '<': goto yy59;
-		case '&': goto yy60;
-		default: goto yy58;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00:
+        case '.':
+        case '/':
+        case '<': goto yy59;
+        case '&': goto yy60;
+        default: goto yy58;
+    }
 yy59:
-	begin = context.yyt1;
-	{
+    begin = context.yyt1;
+    {
         res = parse_refpath_qn(&current.targetName, begin, pos);
         goto add_element;
     }
 yy60:
-	YYSKIP();
-	yych = YYPEEK();
-	switch (yych) {
-		case 0x00: goto yy59;
-		case '&': goto yy60;
-		default: goto yy58;
-	}
+    YYSKIP();
+    yych = YYPEEK();
+    switch (yych) {
+        case 0x00: goto yy59;
+        case '&': goto yy60;
+        default: goto yy58;
+    }
 }
 
 
