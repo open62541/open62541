@@ -20,7 +20,6 @@
 #include "../deps/dtoa.h"
 #include "../deps/parse_num.h"
 #include "../deps/base64.h"
-#include "../deps/libc_time.h"
 
 #ifndef UA_ENABLE_PARSING
 #error UA_ENABLE_PARSING required for JSON encoding
@@ -2008,132 +2007,11 @@ DECODE_JSON(DateTime) {
     CHECK_STRING;
     GET_TOKEN;
 
-    /* The last character has to be 'Z'. We can omit some length checks later on
-     * because we know the atoi functions stop before the 'Z'. */
-    if(tokenSize == 0 || tokenData[tokenSize-1] != 'Z')
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    struct mytm dts;
-    memset(&dts, 0, sizeof(dts));
-
-    size_t pos = 0;
-    size_t len;
-
-    /* Parse the year. The ISO standard asks for four digits. But we accept up
-     * to five with an optional plus or minus in front due to the range of the
-     * DateTime 64bit integer. But in that case we require the year and the
-     * month to be separated by a '-'. Otherwise we cannot know where the month
-     * starts. */
-    if(tokenData[0] == '-' || tokenData[0] == '+')
-        pos++;
-    UA_Int64 year = 0;
-    len = parseInt64(&tokenData[pos], 5, &year);
-    pos += len;
-    if(len != 4 && tokenData[pos] != '-')
-        return UA_STATUSCODE_BADDECODINGERROR;
-    if(tokenData[0] == '-')
-        year = -year;
-    dts.tm_year = (UA_Int16)year - 1900;
-    if(tokenData[pos] == '-')
-        pos++;
-
-    /* Parse the month */
-    UA_UInt64 month = 0;
-    len = parseUInt64(&tokenData[pos], 2, &month);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_mon = (UA_UInt16)month - 1;
-    if(tokenData[pos] == '-')
-        pos++;
-
-    /* Parse the day and check the T between date and time */
-    UA_UInt64 day = 0;
-    len = parseUInt64(&tokenData[pos], 2, &day);
-    pos += len;
-    UA_CHECK(len == 2 || tokenData[pos] != 'T',
-             return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_mday = (UA_UInt16)day;
-    pos++;
-
-    /* Parse the hour */
-    UA_UInt64 hour = 0;
-    len = parseUInt64(&tokenData[pos], 2, &hour);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_hour = (UA_UInt16)hour;
-    if(tokenData[pos] == ':')
-        pos++;
-
-    /* Parse the minute */
-    UA_UInt64 min = 0;
-    len = parseUInt64(&tokenData[pos], 2, &min);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_min = (UA_UInt16)min;
-    if(tokenData[pos] == ':')
-        pos++;
-
-    /* Parse the second */
-    UA_UInt64 sec = 0;
-    len = parseUInt64(&tokenData[pos], 2, &sec);
-    pos += len;
-    UA_CHECK(len == 2, return UA_STATUSCODE_BADDECODINGERROR);
-    dts.tm_sec = (UA_UInt16)sec;
-
-    /* Compute the seconds since the Unix epoch */
-    long long sinceunix = __tm_to_secs(&dts);
-
-    /* Are we within the range that can be represented? */
-    long long sinceunix_min =
-        (long long)(UA_INT64_MIN / UA_DATETIME_SEC) -
-        (long long)(UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC) -
-        (long long)1; /* manual correction due to rounding */
-    long long sinceunix_max = (long long)
-        ((UA_INT64_MAX - UA_DATETIME_UNIX_EPOCH) / UA_DATETIME_SEC);
-    if(sinceunix < sinceunix_min || sinceunix > sinceunix_max)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Convert to DateTime. Add or subtract one extra second here to prevent
-     * underflow/overflow. This is reverted once the fractional part has been
-     * added. */
-    sinceunix -= (sinceunix > 0) ? 1 : -1;
-    UA_DateTime dt = (UA_DateTime)
-        (sinceunix + (UA_DATETIME_UNIX_EPOCH / UA_DATETIME_SEC)) * UA_DATETIME_SEC;
-
-    /* Parse the fraction of the second if defined */
-    if(tokenData[pos] == ',' || tokenData[pos] == '.') {
-        pos++;
-        double frac = 0.0;
-        double denom = 0.1;
-        while(pos < tokenSize &&
-              tokenData[pos] >= '0' && tokenData[pos] <= '9') {
-            frac += denom * (tokenData[pos] - '0');
-            denom *= 0.1;
-            pos++;
-        }
-        frac += 0.00000005; /* Correct rounding when converting to integer */
-        dt += (UA_DateTime)(frac * UA_DATETIME_SEC);
-    }
-
-    /* Remove the underflow/overflow protection (see above) */
-    if(sinceunix > 0) {
-        if(dt > UA_INT64_MAX - UA_DATETIME_SEC)
-            return UA_STATUSCODE_BADDECODINGERROR;
-        dt += UA_DATETIME_SEC;
-    } else {
-        if(dt < UA_INT64_MIN + UA_DATETIME_SEC)
-            return UA_STATUSCODE_BADDECODINGERROR;
-        dt -= UA_DATETIME_SEC;
-    }
-
-    /* We must be at the end of the string (ending with 'Z' as checked above) */
-    if(pos != tokenSize - 1)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    *dst = dt;
-
-    ctx->index++;
-    return UA_STATUSCODE_GOOD;
+    UA_ByteString input = {tokenSize, (UA_Byte*)(uintptr_t)tokenData};
+    UA_StatusCode res = decodeDateTime(input, dst);
+    if(UA_LIKELY(res == UA_STATUSCODE_GOOD))
+        ctx->index++;
+    return res;
 }
 
 DECODE_JSON(StatusCode) {

@@ -74,6 +74,9 @@ UA_String_append(UA_String *s, const UA_String s2);
 UA_AttributeId
 UA_AttributeId_fromName(const UA_String name);
 
+UA_StatusCode
+decodeDateTime(const UA_ByteString s, UA_DateTime *dst);
+
 /**
  * Error checking macros
  */
