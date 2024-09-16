@@ -347,9 +347,9 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
         goto cleanup;
     }
 #if defined(OPENSSL_API_COMPAT) && OPENSSL_API_COMPAT < 0x10100000L
-	(void) X509_STORE_CTX_trusted_stack(storeCtx, context->trustedCertificates);
+    (void) X509_STORE_CTX_trusted_stack(storeCtx, context->trustedCertificates);
 #else
-	(void) X509_STORE_CTX_set0_trusted_stack(storeCtx, context->trustedCertificates);
+    (void) X509_STORE_CTX_set0_trusted_stack(storeCtx, context->trustedCertificates);
 #endif
 
     /* Set crls to ctx */
@@ -407,6 +407,8 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
                 opensslRet = X509_STORE_CTX_get_error(storeCtx);
                 if(opensslRet == X509_V_ERR_UNABLE_TO_GET_CRL) {
                     ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+                } else {
+                    ret = UA_X509_Store_CTX_Error_To_UAError (opensslRet);
                 }
             }
         }

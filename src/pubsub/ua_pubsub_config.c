@@ -763,7 +763,7 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-	UA_LOCK(&server->serviceMutex);
+    UA_LOCK(&server->serviceMutex);
 
     UA_PubSubManager *psm = getPSM(server);
     if(!psm) {
@@ -797,8 +797,8 @@ UA_Server_loadPubSubConfigFromByteString(UA_Server *server,
     }
 
  cleanup:
-	UA_UNLOCK(&server->serviceMutex);
-	UA_ExtensionObject_clear(&decodedFile);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_ExtensionObject_clear(&decodedFile);
     return res;
 }
 
@@ -1232,8 +1232,8 @@ UA_Server_writePubSubConfigurationToByteString(UA_Server *server,
                 "Saving PubSub config was successful");
 
  cleanup:
-	UA_UNLOCK(&server->serviceMutex);
-	UA_PubSubConfigurationDataType_clear(&config);
+    UA_UNLOCK(&server->serviceMutex);
+    UA_PubSubConfigurationDataType_clear(&config);
     return res;
 }
 

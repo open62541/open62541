@@ -142,15 +142,15 @@ UA_String_isEmpty(const UA_String *s) {
 
 static UA_Byte
 lowercase(UA_Byte c) {
-	if(((int)c) - 'A' < 26) return c | 32;
-	return c;
+    if(((int)c) - 'A' < 26) return c | 32;
+    return c;
 }
 
 static int
 casecmp(const UA_Byte *l, const UA_Byte *r, size_t n) {
-	if(!n--) return 0;
-	for(; *l && *r && n && (*l == *r || lowercase(*l) == lowercase(*r)); l++, r++, n--);
-	return lowercase(*l) - lowercase(*r);
+    if(!n--) return 0;
+    for(; *l && *r && n && (*l == *r || lowercase(*l) == lowercase(*r)); l++, r++, n--);
+    return lowercase(*l) - lowercase(*r);
 }
 
 /* Do not expose UA_String_equal_ignorecase to public API as it currently only handles
@@ -2053,7 +2053,7 @@ UA_Array_append(void **p, size_t *size, void *newElem,
     return UA_STATUSCODE_GOOD;
 }
 
-UA_StatusCode UA_EXPORT
+UA_StatusCode
 UA_Array_appendCopy(void **p, size_t *size, const void *newElem,
                     const UA_DataType *type) {
     char scratch[512];
