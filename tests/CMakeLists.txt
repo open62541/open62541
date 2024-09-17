@@ -419,6 +419,7 @@ endif()
 
 if(UA_ENABLE_ENCRYPTION)
     ua_add_test(client/check_client_encryption.c)
+    ua_add_test(encryption/check_crl_validation.c)
 
     if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_MBEDTLS)
         ua_add_test(client/check_client_authentication.c)
