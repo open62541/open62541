@@ -226,7 +226,7 @@ static UA_StatusCode onInactive(UA_Server *server, const UA_NodeId *id, void *ct
     return UA_STATUSCODE_GOOD;
 }
 
-const UA_ConditionImplCallbacks callbacks = {
+const UA_ConditionCallbacks callbacks = {
     .onAcked = onAcked,
     .onConfirmed = onConfirmed,
     .onActive = onActive,
@@ -268,7 +268,7 @@ START_TEST(conditionSequence1) {
                                         );
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_Condition_setImplCallbacks(acserver, conditionInstance, &callbacks);
+    retval = UA_Server_Condition_setCallbacks(acserver, conditionInstance, &callbacks);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     /* Create monitored event */
@@ -483,7 +483,7 @@ START_TEST(conditionSequence2) {
     retval = UA_Server_Condition_enable(acserver, conditionInstance, true);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
-    retval = UA_Server_Condition_setImplCallbacks(acserver, conditionInstance, &callbacks);
+    retval = UA_Server_Condition_setCallbacks(acserver, conditionInstance, &callbacks);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_Boolean autoConfirm = false;

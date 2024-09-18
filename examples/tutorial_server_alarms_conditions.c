@@ -67,7 +67,7 @@ afterInputNodeWrite (UA_Server *server,
                      const UA_NodeId *nodeId, void *nodeContext,
                      const UA_NumericRange *range, const UA_DataValue *data)
 {
-    UA_Server_exclusiveLimitAlarmEvaluate_default(server, &conditionInstance_1, (UA_Double*) data->value.data);
+    UA_Server_exclusiveLimitAlarmEvaluate_default(server, &conditionInstance_1, NULL, (UA_Double*) data->value.data);
 }
 
 static void *
@@ -104,7 +104,7 @@ static UA_StatusCode onCondition1Active (
     return UA_Server_Condition_setAcknowledgeRequired(server, *conditionId);
 }
 
-UA_ConditionImplCallbacks condition1Impl = {
+UA_ConditionCallbacks condition1Impl = {
     .onActive = onCondition1Active
 };
 
@@ -161,7 +161,8 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
     UA_Double highLimit = 20.0f;
     UA_LimitAlarmProperties alarmProperties = {
         .alarmConditionProperties = baseP,
-        .highLimit = &highLimit
+        .hasHighLimit = true,
+        .highLimit = highLimit
     };
 
 
@@ -179,7 +180,7 @@ addExclusiveLimitAlarmCondition (UA_Server *server) {
         &conditionInstance_1
     );
 
-    retval = UA_Server_Condition_setImplCallbacks(server, conditionInstance_1, &condition1Impl);
+    retval = UA_Server_Condition_setCallbacks(server, conditionInstance_1, &condition1Impl);
 
     retval = UA_Server_Condition_enable (server, conditionInstance_1, true);
     return retval;

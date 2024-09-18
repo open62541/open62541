@@ -1619,12 +1619,12 @@ typedef UA_StatusCode (*UA_ConditionCallbackFn)(
     void *context
 );
 
-typedef struct UA_ConditionImplCallbacks {
+typedef struct UA_ConditionCallbacks {
     UA_ConditionCallbackFn onAcked;
     UA_ConditionCallbackFn onConfirmed;
     UA_ConditionCallbackFn onActive;
     UA_ConditionCallbackFn onInactive;
-} UA_ConditionImplCallbacks;
+} UA_ConditionCallbacks;
 
 typedef struct UA_ConditionEventInfo {
     UA_LocalizedText message;
@@ -1700,7 +1700,7 @@ __UA_Server_createCondition(
 );
 
 UA_StatusCode UA_EXPORT
-UA_Server_Condition_setImplCallbacks (UA_Server *server, UA_NodeId conditionId, const UA_ConditionImplCallbacks *callback);
+UA_Server_Condition_setCallbacks (UA_Server *server, UA_NodeId conditionId, const UA_ConditionCallbacks *callback);
 
 UA_StatusCode UA_EXPORT
 UA_Server_Condition_setContext(UA_Server *server, UA_NodeId conditionId, void *conditionContext);
@@ -1786,11 +1786,16 @@ typedef struct UA_AlarmConditionProperties
     UA_Boolean isSuppressible;
     UA_Boolean isServiceable;
     UA_Boolean isShelvable;
-    const UA_Duration *maxTimeShelved;
-    const UA_Duration *onDelay;
-    const UA_Duration *offDelay;
-    const UA_Duration *reAlarmTime;
-    const UA_Int16 *reAlarmRepeatCount;
+    UA_Boolean hasMaxTimeShelved;
+    UA_Duration maxTimeShelved;
+    UA_Boolean hasOnDelay;
+    UA_Duration onDelay;
+    UA_Boolean hasOffDelay;
+    UA_Duration offDelay;
+    UA_Boolean hasReAlarmTime;
+    UA_Duration reAlarmTime;
+    UA_Boolean hasReAlarmRepeatCount;
+    UA_Int16 reAlarmRepeatCount;
 } UA_AlarmConditionProperties;
 
 UA_StatusCode UA_EXPORT
@@ -1802,7 +1807,8 @@ typedef struct UA_DiscrepancyAlarmProperties
     UA_AlarmConditionProperties alarmConditionProperties;
     UA_Variant targetValue;
     UA_Duration expectedTime;
-    const UA_Double *tolerance;
+    UA_Boolean hasTolerance;
+    UA_Double tolerance;
 } UA_DiscrepancyAlarmProperties;
 
 UA_StatusCode UA_EXPORT
@@ -1928,7 +1934,8 @@ typedef struct UA_CertificateExpirationAlarmProperties
     UA_ByteString certificate;
     UA_NodeId certificateType;
     UA_DateTime expirationDate;
-    UA_Duration *expirationLimit;
+    UA_Boolean hasExpirationLimit;
+    UA_Duration expirationLimit;
 } UA_CertificateExpirationAlarmProperties;
 
 UA_StatusCode
@@ -1973,25 +1980,42 @@ UA_Server_NonExclusiveLimitAlarmEvaluateLimitState (UA_Server *server, const UA_
 typedef struct UA_LimitAlarmProperties
 {
     UA_AlarmConditionProperties alarmConditionProperties;
-    const UA_Double *highHighLimit;
-    const UA_Double *highLimit;
-    const UA_Double *lowLimit;
-    const UA_Double *lowLowLimit;
 
-    const UA_Double *base_high_high_limit;
-    const UA_Double *base_high_limit;
-    const UA_Double *base_low_limit;
-    const UA_Double *base_low_low_limit;
+    UA_Boolean hasHighHighLimit;
+    UA_Double highHighLimit;
+    UA_Boolean hasHighLimit;
+    UA_Double highLimit;
+    UA_Boolean hasLowLimit;
+    UA_Double lowLimit;
+    UA_Boolean hasLowLowLimit;
+    UA_Double lowLowLimit;
 
-    const UA_Double *high_high_deadband;
-    const UA_Double *high_deadband;
-    const UA_Double *low_deadband;
-    const UA_Double *low_low_deadband;
+    UA_Boolean hasBaseHighHighLimit;
+    UA_Double baseHighHighLimit;
+    UA_Boolean hasBaseHighLimit;
+    UA_Double baseHighLimit;
+    UA_Boolean hasBaseLowLimit;
+    UA_Double baseLowLimit;
+    UA_Boolean hasBaseLowLowLimit;
+    UA_Double baseLowLowLimit;
 
-    const UA_UInt16 *severity_high_high;
-    const UA_UInt16 *severity_high;
-    const UA_UInt16 *severity_low;
-    const UA_UInt16 *severity_low_low;
+    UA_Boolean hasHighHighDeadband;
+    UA_Double highHighDeadband;
+    UA_Boolean hasHighDeadband;
+    UA_Double highDeadband;
+    UA_Boolean hasLowDeadband;
+    UA_Double lowDeadband;
+    UA_Boolean hasLowLowDeadband;
+    UA_Double lowLowDeadband;
+
+    UA_Boolean hasSeverityHighHigh;
+    UA_UInt16 severityHighHigh;
+    UA_Boolean hasSeverityHigh;
+    UA_UInt16 severityHigh;
+    UA_Boolean hasSeverityLow;
+    UA_UInt16 severityLow;
+    UA_Boolean hasSeverityLowLow;
+    UA_UInt16 severityLowLow;
 } UA_LimitAlarmProperties;
 
 UA_StatusCode
@@ -2053,7 +2077,8 @@ typedef struct UA_DeviationAlarmProperties
 {
     UA_LimitAlarmProperties limitAlarmProperties;
     UA_NodeId setpointNode;
-    const UA_NodeId *baseSetpointNode;
+    UA_Boolean hasBaseSetpointNode;
+    UA_NodeId baseSetpointNode;
 } UA_DeviationAlarmProperties;
 
 UA_StatusCode UA_EXPORT
@@ -2133,7 +2158,8 @@ UA_Server_createExclusiveLevelAlarm(
 typedef struct UA_RateOfChangeAlarmProperties
 {
     UA_LimitAlarmProperties limitAlarmProperties;
-    const UA_EUInformation * engineeringUnits;
+    UA_Boolean hasEngineeringUnits;
+    UA_EUInformation engineeringUnits;
 } UA_RateOfChangeAlarmProperties;
 
 UA_StatusCode UA_EXPORT
