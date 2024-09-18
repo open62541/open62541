@@ -627,6 +627,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
     }
 
     size_t fieldsSize = dsr->config.dataSetMetaData.fieldsSize;
+    UA_Boolean externalDataValueSet = false;
     for(size_t i = 0; i < fieldsSize; i++) {
         /* Use the datasource from the node, if available and no externalDataValue
            has been set in the configuration */
@@ -639,6 +640,7 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
                rtNode->valueBackend.backendType == UA_VALUEBACKENDTYPE_EXTERNAL) {
                 /* Set the external data source in the tv */
                 tv->externalDataValue = rtNode->valueBackend.backend.external.value;
+                externalDataValueSet = true;
             }
 
             UA_NODESTORE_RELEASE(server, (const UA_Node *) rtNode);
@@ -659,6 +661,12 @@ UA_ReaderGroup_freezeConfiguration(UA_Server *server, UA_ReaderGroup *rg) {
                                   "PDS contains variable with dynamic size.");
             return UA_STATUSCODE_BADNOTSUPPORTED;
         }
+    }
+    if (externalDataValueSet) {
+        UA_LOG_INFO_READER(server->config.logging, dsr,
+                           "PubSub-RT configuration: Take externalDataValue from "
+                           "external value backend for at least one configured target "
+                           "variable.");
     }
 
     /* Reset the OffsetBuffer. The OffsetBuffer for a frozen configuration is
