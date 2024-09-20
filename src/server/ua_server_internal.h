@@ -51,6 +51,12 @@ typedef struct {
     } callback;
 } UA_LocalMonitoredItem;
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+/* Forward Declarations */
+typedef ZIP_HEAD(UA_ConditionTree, UA_Condition) UA_ConditionTree;
+typedef ZIP_HEAD(UA_ConditionBranchTree, UA_ConditionBranch) UA_ConditionBranchTree;
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
 
 /********************/
@@ -166,7 +172,8 @@ struct UA_Server {
     UA_UInt32 lastLocalMonitoredItemId;
 
 # ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    LIST_HEAD(, UA_ConditionSource) conditionSources;
+    UA_ConditionTree conditions;
+    UA_ConditionBranchTree conditionBranches;
     UA_NodeId refreshEvents[2];
 # endif
 #endif
@@ -328,18 +335,18 @@ getAllInterfaceChildNodeIds(UA_Server *server, const UA_NodeId *objectNode, cons
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
 
+/*Forward Declaration */
+struct UA_ConditionBranch;
+typedef struct UA_ConditionBranch UA_ConditionBranch;
+
+UA_ConditionBranch *UA_getConditionBranch (UA_Server *server, const UA_NodeId *conditionBranchId);
+
 UA_StatusCode
 UA_getConditionId(UA_Server *server, const UA_NodeId *conditionNodeId,
                   UA_NodeId *outConditionId);
 
 void
 UA_ConditionList_delete(UA_Server *server);
-
-UA_Boolean
-isConditionOrBranch(UA_Server *server,
-                    const UA_NodeId *condition,
-                    const UA_NodeId *conditionSource,
-                    UA_Boolean *isCallerAC);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
@@ -461,6 +468,10 @@ UA_StatusCode
 readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                    const UA_QualifiedName propertyName,
                    UA_Variant *value);
+
+UA_StatusCode
+getNodeIdWithBrowseName(UA_Server *server, const UA_NodeId *origin,
+                        UA_QualifiedName browseName, UA_NodeId *outNodeId);
 
 UA_BrowsePathResult
 translateBrowsePathToNodeIds(UA_Server *server, const UA_BrowsePath *browsePath);
