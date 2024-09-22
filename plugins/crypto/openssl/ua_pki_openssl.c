@@ -118,9 +118,7 @@ UA_CertificateVerification_clear (UA_CertificateVerification * cv) {
     UA_CertContext_sk_free (context);
     UA_free (context);
 
-    cv->context = NULL;
-
-    return;
+    memset(cv, 0, sizeof(UA_CertificateVerification));
 }
 
 static UA_StatusCode
