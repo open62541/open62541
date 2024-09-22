@@ -184,6 +184,8 @@ setDefaultConfig(UA_ServerConfig *conf) {
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
+    if(conf->certificateVerification.clear)
+        conf->certificateVerification.clear(&conf->certificateVerification);
     UA_CertificateVerification_AcceptAll(&conf->certificateVerification);
 
     /* * Global Node Lifecycle * */
@@ -685,6 +687,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
+    if(conf->certificateVerification.clear)
+        conf->certificateVerification.clear(&conf->certificateVerification);
     retval = UA_CertificateVerification_Trustlist(&conf->certificateVerification,
                                                   trustList, trustListSize,
                                                   issuerList, issuerListSize,
@@ -758,6 +762,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
     UA_LOG_WARNING(&config->logger, UA_LOGCATEGORY_USERLAND,
                    "AcceptAll Certificate Verification. "
@@ -816,6 +822,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
     retval = UA_CertificateVerification_Trustlist(&config->certificateVerification,
                                                   trustList, trustListSize,
                                                   NULL, 0,
