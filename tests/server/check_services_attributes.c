@@ -711,15 +711,45 @@ START_TEST(WriteSingleAttributeBrowseName) {
 } END_TEST
 
 START_TEST(WriteSingleAttributeDisplayName) {
+    /* Write a new locale. The server continues to respond with the old locale. */
     UA_WriteValue wValue;
     UA_WriteValue_init(&wValue);
-    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer");
+    UA_LocalizedText testValue = UA_LOCALIZEDTEXT("en-EN", "the.answer.123");
     UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
     wValue.value.hasValue = true;
     wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
     wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
     UA_StatusCode retval = UA_Server_write(server, &wValue);
     ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back the display name and compare. We continue to receive the original locale. */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    UA_DataValue resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(UA_Variant_hasScalarType(&resp.value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_order(&testValue, resp.value.data, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) != UA_ORDER_EQ);
+    UA_DataValue_clear(&resp);
+
+    /* Update the original locale. The server continues to respond with the old locale. */
+    UA_WriteValue_init(&wValue);
+    testValue = UA_LOCALIZEDTEXT("locale", "the.answer.123");
+    UA_Variant_setScalar(&wValue.value.value, &testValue, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
+    wValue.value.hasValue = true;
+    wValue.nodeId = UA_NODEID_STRING(1, "the.answer");
+    wValue.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    retval = UA_Server_write(server, &wValue);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* Read back the new display name and compare */
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = UA_NODEID_STRING(1, "the.answer");
+    rvi.attributeId = UA_ATTRIBUTEID_DISPLAYNAME;
+    resp = UA_Server_read(server, &rvi, UA_TIMESTAMPSTORETURN_NEITHER);
+    ck_assert(UA_Variant_hasScalarType(&resp.value, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]));
+    ck_assert(UA_order(&testValue, resp.value.data, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]) == UA_ORDER_EQ);
+    UA_DataValue_clear(&resp);
 } END_TEST
 
 START_TEST(WriteSingleAttributeDescription) {
