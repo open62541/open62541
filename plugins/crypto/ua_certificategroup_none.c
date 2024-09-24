@@ -65,4 +65,10 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2) {
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
+
+UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
 #endif

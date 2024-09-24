@@ -824,6 +824,71 @@ cleanup:
 }
 
 UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context pk;
+
+    mbedtls_x509_crt_init(&cert);
+    mbedtls_pk_init(&pk);
+
+    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate);
+    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(privateKey);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data1.data, data1.length);
+    if(mbedErr) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0);
+#else
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0,
+                                   mbedtls_entropy_func, &entropy);
+    mbedtls_entropy_free(&entropy);
+#endif
+
+    if(err != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Verify the private key matches the public key in the certificate */
+    if(!mbedtls_pk_can_do(&pk, mbedtls_pk_get_type(&cert.pk))) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Check if the public key from the certificate matches the private key */
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    if(mbedtls_pk_check_pair(&cert.pk, &pk) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#else
+    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedtls_entropy_func, NULL) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#endif
+
+cleanup:
+    mbedtls_pk_free(&pk);
+    mbedtls_x509_crt_free(&cert);
+    UA_ByteString_clear(&data1);
+    UA_ByteString_clear(&data2);
+
+    return retval;
+}
+
+UA_StatusCode
 UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {
