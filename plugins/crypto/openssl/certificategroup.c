@@ -900,6 +900,70 @@ UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
     return retval;
 }
 
+UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    if(certificate == NULL || privateKey == NULL)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509 *cert = NULL;
+    EVP_PKEY *pkey = NULL;
+
+    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
+    if (!certBio) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    BIO *pkeyBio = BIO_new_mem_buf(privateKey->data, privateKey->length);
+    if (!pkeyBio) {
+        BIO_free(certBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Try to read the certificate as PEM first */
+    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
+    if(!cert) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(certBio);
+        cert = d2i_X509_bio(certBio, NULL);
+    }
+    if(!cert) {
+        BIO_free(certBio);
+        BIO_free(pkeyBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Try to read the privateKey as PEM first */
+    pkey = PEM_read_bio_PrivateKey(pkeyBio, NULL, NULL, NULL);
+    if(!pkey) {
+        /* If PEM read fails, reset BIO and try reading as DER */
+        BIO_reset(pkeyBio);
+        pkey = d2i_PrivateKey_bio(pkeyBio, NULL);
+    }
+    if(!pkey) {
+        BIO_free(certBio);
+        X509_free(cert);
+        BIO_free(pkeyBio);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    /* Verify if the private key matches the public key in the certificate */
+    if(X509_check_private_key(cert, pkey) != 1) {
+        BIO_free(certBio);
+        X509_free(cert);
+        BIO_free(pkeyBio);
+        EVP_PKEY_free(pkey);
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+
+    X509_free(cert);
+    EVP_PKEY_free(pkey);
+    BIO_free(certBio);
+    BIO_free(pkeyBio);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 static int
 privateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
     (void) rwflag;
