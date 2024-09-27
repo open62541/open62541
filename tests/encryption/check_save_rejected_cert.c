@@ -466,7 +466,7 @@ START_TEST(encryption_connect_reject_cert) {
 #ifdef __linux__
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED);
 
     char rejectedFileName [256] = {0};
     strcat(rejectedFileName, "./");
