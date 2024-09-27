@@ -491,26 +491,22 @@ openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
 
 static UA_StatusCode
 openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
-                    X509 *x509, int depth) {
+                    X509 *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 
     /* Verification Step: Validity Period */
-    ASN1_TIME *notBefore = X509_get_notBefore(x509);
-    ASN1_TIME *notAfter = X509_get_notAfter(x509);
+    ASN1_TIME *notBefore = X509_get_notBefore(cert);
+    ASN1_TIME *notAfter = X509_get_notAfter(cert);
     if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
-        return UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
+        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
+            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
 
     /* Verification Step: Revocation Check */
-    if(openSSLCheckRevoked(ctx, x509))
-        return UA_STATUSCODE_BADCERTIFICATEREVOKED;
-
-    /* Is the certificate in the trust list? If yes, then we are done. */
-    for(int i = 0; i < sk_X509_num(ctx->skTrusted); i++) {
-        if(X509_cmp(x509, sk_X509_value(ctx->skTrusted, i)) == 0)
-            return UA_STATUSCODE_GOOD;
-    }
+    if(openSSLCheckRevoked(ctx, cert))
+        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
+            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
@@ -519,19 +515,12 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
     while(ret != UA_STATUSCODE_GOOD) {
         /* Find the issuer. We jump back here to find a different path if a
          * subsequent check fails. */
-        issuer = openSSLFindNextIssuer(ctx, stack, x509, issuer);
+        issuer = openSSLFindNextIssuer(ctx, stack, cert, issuer);
         if(!issuer)
             break;
 
-        /* Detect (endless) loops of issuers */
-        for(int i = 0; i < depth; i++) {
-            if(old_issuers[i] == issuer)
-                return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
-        }
-        old_issuers[depth] = issuer;
-
         /* Verification Step: Signature */
-        int opensslRet = X509_verify(x509, X509_get0_pubkey(issuer));
+        int opensslRet = X509_verify(cert, X509_get0_pubkey(issuer));
         if(opensslRet == -1) {
             return UA_STATUSCODE_BADCERTIFICATEINVALID; /* Ill-formed signature */
         } else if(opensslRet == 0) {
@@ -539,15 +528,35 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
             continue;
         }
 
+        /* The certificate is self-signed. We have arrived at the top of the
+         * chain. We check whether the certificate is trusted below. This is the
+         * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
+         * This sinals that the chain is complete (but can be still
+         * untrusted). */
+        if(cert == issuer || X509_cmp(cert, issuer) == 0) {
+            ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+            continue;
+        }
+
+        /* Detect (endless) loops of issuers. The last one can be skipped by the
+         * check for self-signed just before. */
+        for(int i = 0; i < depth; i++) {
+            if(old_issuers[i] == issuer)
+                return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        }
+        old_issuers[depth] = issuer;
+
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
         ret = openSSL_verifyChain(ctx, stack, old_issuers, issuer, depth + 1);
+    }
 
-        /* Problems where x509 != leaf are reported as "untrusted" without the
-         * detailed reason */
-        if(ret != UA_STATUSCODE_GOOD &&
-           ret != UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE)
-            ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+    /* Is the certificate in the trust list? If yes, then we are done. */
+    if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        for(int i = 0; i < sk_X509_num(ctx->skTrusted); i++) {
+            if(X509_cmp(cert, sk_X509_value(ctx->skTrusted, i)) == 0)
+                return UA_STATUSCODE_GOOD;
+        }
     }
 
     return ret;
