@@ -589,12 +589,12 @@ UA_CertificateVerification_Verify(void *verificationContext,
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
-     * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the
+     * If the KU_KEY_CERT_SIGN or KU_CRL_SIGN of key_usage are set, then the
      * certificate shall be condidered as CA Certificate and cannot be used to
      * establish a connection. Refer the test case CTT/Security/Security
      * Certificate Validation/029.js for more details */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(X509_check_purpose(leaf, X509_PURPOSE_CRL_SIGN, 0) && X509_check_ca(leaf)) {
+    if(X509_check_purpose(leaf, X509_PURPOSE_CRL_SIGN, 0) || X509_check_ca(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }

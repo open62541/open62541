@@ -408,12 +408,13 @@ certificateVerification_verify(void *verificationContext,
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
-     * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the
+     * If the KU_KEY_CERT_SIGN or KU_CRL_SIGN of key_usage are set, then the
      * certificate shall be condidered as CA Certificate and cannot be used to
      * establish a connection. Refer the test case CTT/Security/Security
      * Certificate Validation/029.js for more details */
-    unsigned int ca_flags = MBEDTLS_X509_KU_KEY_CERT_SIGN | MBEDTLS_X509_KU_CRL_SIGN;
-    if(mbedtls_x509_crt_check_key_usage(&cert, ca_flags)) {
+    if(mbedtls_x509_crt_check_key_usage(&cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) ||
+       mbedtls_x509_crt_check_key_usage(&cert, MBEDTLS_X509_KU_CRL_SIGN) ||
+       cert.MBEDTLS_PRIVATE(ca_istrue)) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
