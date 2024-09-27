@@ -15,6 +15,7 @@
 #include "securitypolicy_mbedtls_common.h"
 
 #include <mbedtls/x509.h>
+#include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/error.h>
@@ -236,31 +237,63 @@ reloadCertificates(const UA_CertificateVerification *cv, CertInfo *ci) {
 
 #endif
 
+#define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
+#define UA_MBEDTLS_MAX_DN_LENGTH 256
+
 /* We need to access some private fields below */
 #ifndef MBEDTLS_PRIVATE
 #define MBEDTLS_PRIVATE(x) x
 #endif
 
-/* Return the first matching issuer candidate AFTER prev */
+/* Is the certificate a CA? */
+static UA_Boolean
+mbedtlsCheckCA(mbedtls_x509_crt *cert) {
+    /* The Basic Constraints extension must be set and the cert acts as CA */
+    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
+       !cert->MBEDTLS_PRIVATE(ca_istrue))
+        return false;
+
+    /* The Key Usage extension must be set to cert signing and CRL issuing */
+    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_KEY_USAGE) ||
+       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0 ||
+       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_CRL_SIGN) != 0)
+        return false;
+
+    return true;
+}
+
+static UA_Boolean
+mbedtlsSameName(UA_String name, const mbedtls_x509_name *name2) {
+    char buf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int len = mbedtls_x509_dn_gets(buf, UA_MBEDTLS_MAX_DN_LENGTH, name2);
+    if(len < 0)
+        return false;
+    UA_String nameString = {(size_t)len, (UA_Byte*)buf};
+    return UA_String_equal(&name, &nameString);
+}
+
+/* Return the first matching issuer candidate AFTER prev.
+ * This can return the cert itself if self-signed. */
 static mbedtls_x509_crt *
 mbedtlsFindNextIssuer(CertInfo *ci, mbedtls_x509_crt *stack,
                       mbedtls_x509_crt *cert, mbedtls_x509_crt *prev) {
-    char inbuf[512], snbuf[512];
-    if(mbedtls_x509_dn_gets(inbuf, 512, &cert->issuer) < 0)
+    char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
+    if(nameLen < 0)
         return NULL;
+    UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
     do {
         for(mbedtls_x509_crt *i = stack; i; i = i->next) {
-            /* Compare issuer name and subject name */
-            if(mbedtls_x509_dn_gets(snbuf, 512, &i->subject) < 0)
+            if(prev) {
+                if(prev == i)
+                    prev = NULL; /* This was the last issuer we tried to verify */
                 continue;
-            if(strncmp(inbuf, snbuf, 512) != 0)
-                continue;
-            /* Skip when the key does not match the signature */
-            if(!mbedtls_pk_can_do(&i->pk, cert->MBEDTLS_PRIVATE(sig_pk)))
-                continue;
-            if(prev == NULL)
+            }
+            /* Compare issuer name and subject name.
+             * Skip when the key does not match the signature. */
+            if(mbedtlsSameName(issuerName, &i->subject) &&
+               mbedtls_pk_can_do(&i->pk, cert->MBEDTLS_PRIVATE(sig_pk)))
                 return i;
-            prev = NULL; /* This was the last issuer we tried to verify */
         }
         /* Switch from the stack that came with the cert to the ctx->skIssue list */
         stack = (stack != &ci->certificateIssuerList) ? &ci->certificateIssuerList : NULL;
@@ -270,17 +303,16 @@ mbedtlsFindNextIssuer(CertInfo *ci, mbedtls_x509_crt *stack,
 
 static UA_Boolean
 mbedtlsCheckRevoked(CertInfo *ci, mbedtls_x509_crt *cert) {
-    char inbuf[512], inbuf2[512];
-    if(mbedtls_x509_dn_gets(inbuf, 512, &cert->issuer) < 0)
+    char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
+    if(nameLen < 0)
         return true;
+    UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
     for(mbedtls_x509_crl *crl = &ci->certificateRevocationList; crl; crl = crl->next) {
-        /* Is the CRL for the issuer of the certificate? */
-        if(mbedtls_x509_dn_gets(inbuf2, 512, &crl->issuer) < 0)
-            return true;
-        if(strncmp(inbuf, inbuf2, 512) != 0)
-            continue;
-        /* Is the serial number of the certificate contained in the CRL? */
-        if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
+        /* Is the CRL for certificates from the cert issuer?
+         * Is the serial number of the certificate contained in the CRL? */
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtls_x509_crt_is_revoked(cert, crl) != 0)
             return true;
     }
     return false;
@@ -308,8 +340,6 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
     return (mbedtls_pk_verify_ext(pktype, sig_opts, &issuer->pk, md,
                                   hash, hash_len, sig->p, sig->len) == 0);
 }
-
-#define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
 
 static UA_StatusCode
 mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old_issuers,
@@ -341,6 +371,13 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
         if(!issuer)
             break;
 
+        /* Verification Step: Certificate Usage
+         * Can the issuer act as CA? Omit for self-signed leaf certificates. */
+        if((depth > 0 || issuer != cert) && !mbedtlsCheckCA(issuer)) {
+            ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
+            continue;
+        }
+
         /* Verification Step: Signature */
         if(!mbedtlsCheckSignature(cert, issuer)) {
             ret = UA_STATUSCODE_BADCERTIFICATEINVALID;  /* Wrong issuer, try again */
@@ -350,7 +387,7 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
         /* The certificate is self-signed. We have arrived at the top of the
          * chain. We check whether the certificate is trusted below. This is the
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
-         * This sinals that the chain is complete (but can be still
+         * This signals that the chain is complete (but can be still
          * untrusted). */
         if(issuer == cert || (cert->tbs.len == issuer->tbs.len &&
                               memcmp(cert->tbs.p, issuer->tbs.p, cert->tbs.len) == 0)) {
@@ -412,12 +449,9 @@ certificateVerification_verify(const UA_CertificateVerification *cv,
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
-     * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the
-     * certificate shall be condidered as CA Certificate and cannot be used to
-     * establish a connection. Refer the test case CTT/Security/Security
-     * Certificate Validation/029.js for more details */
-    unsigned int ca_flags = MBEDTLS_X509_KU_KEY_CERT_SIGN | MBEDTLS_X509_KU_CRL_SIGN;
-    if(mbedtls_x509_crt_check_key_usage(&cert, ca_flags)) {
+     * Refer the test case CTT/Security/Security Certificate Validation/029.js
+     * for more details. */
+    if(mbedtlsCheckCA(&cert)) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
