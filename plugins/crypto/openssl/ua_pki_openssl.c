@@ -454,11 +454,16 @@ openSSLFindNextIssuer(CertContext *ctx, STACK_OF(X509) *stack, X509 *x509, X509 
         int size = sk_X509_num(stack);
         for(int i = 0; i < size; i++) {
             X509 *candidate = sk_X509_value(stack, i);
-            if(X509_check_issued(candidate, x509) != 0)
+            if(prev) {
+                if(prev == candidate)
+                    prev = NULL; /* This was the last issuer we tried to verify */
                 continue;
-            if(prev == NULL)
+            }
+            /* This checks subject/issuer name and the key usage of the issuer.
+             * It does not verify the validity period and if the issuer key was
+             * used for the signature. We check that afterwards. */
+            if(X509_check_issued(candidate, x509) == 0)
                 return candidate;
-            prev = NULL;
         }
         /* Switch to search in the ctx->skIssue list */
         stack = (stack != ctx->skIssue) ? ctx->skIssue : NULL;
@@ -519,6 +524,13 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
         if(!issuer)
             break;
 
+        /* Verification Step: Certificate Usage
+         * Can the issuer act as CA? Omit for self-signed leaf certificates. */
+        if((depth > 0 || issuer != cert) && !X509_check_ca(issuer)) {
+            ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
+            continue;
+        }
+
         /* Verification Step: Signature */
         int opensslRet = X509_verify(cert, X509_get0_pubkey(issuer));
         if(opensslRet == -1) {
@@ -531,7 +543,7 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
         /* The certificate is self-signed. We have arrived at the top of the
          * chain. We check whether the certificate is trusted below. This is the
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
-         * This sinals that the chain is complete (but can be still
+         * This signals that the chain is complete (but can be still
          * untrusted). */
         if(cert == issuer || X509_cmp(cert, issuer) == 0) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
@@ -589,12 +601,10 @@ UA_CertificateVerification_Verify(void *verificationContext,
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
-     * If the KU_KEY_CERT_SIGN and KU_CRL_SIGN of key_usage are set, then the
-     * certificate shall be condidered as CA Certificate and cannot be used to
-     * establish a connection. Refer the test case CTT/Security/Security
-     * Certificate Validation/029.js for more details */
+     * Refer the test case CTT/Security/Security Certificate Validation/029.js
+     * for more details. */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(X509_check_purpose(leaf, X509_PURPOSE_CRL_SIGN, 0) && X509_check_ca(leaf)) {
+    if(X509_check_ca(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
