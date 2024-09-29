@@ -162,6 +162,8 @@ typedef struct UA_PubSubConnection {
 
     UA_UInt16 configurationFreezeCounter;
 
+    UA_DateTime silenceErrorUntil; /* Avoid generating too many logs */
+
     UA_Boolean deleteFlag; /* To be deleted - in addition to the PubSubState */
     UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;
