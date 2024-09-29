@@ -1201,7 +1201,7 @@ START_TEST(ReserveIdsMultipleTimes){
         connectionConfig.transportProfileUri = transportProfileUri;
         UA_NetworkAddressUrlDataType networkAddressUrl;
         UA_NetworkAddressUrlDataType_init(&networkAddressUrl);
-        networkAddressUrl.url = UA_STRING("opc.udp://224.0.0.1:4840");
+        networkAddressUrl.url = UA_STRING("opc.udp://224.0.0.22:4840");
         UA_Variant_setScalar(&connectionConfig.address, &networkAddressUrl,
                             &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]);
         UA_NodeId connectionNodeId, writerGroupNodeId, dataSetWriterNodeId, publishedDataSetNodeId;
