@@ -29,9 +29,9 @@ static UA_Ternary
 UA_Ternary_and(UA_Ternary first, UA_Ternary second) {
     if(first == UA_TERNARY_FALSE || second == UA_TERNARY_FALSE)
         return UA_TERNARY_FALSE;
-    if(first == UA_TERNARY_TRUE && second == UA_TERNARY_TRUE)
-        return UA_TERNARY_TRUE;
-    return UA_TERNARY_NULL;
+    if(first == UA_TERNARY_NULL || second == UA_TERNARY_NULL)
+        return UA_TERNARY_NULL;
+    return UA_TERNARY_TRUE;
 }
 
 static UA_Ternary
@@ -39,7 +39,7 @@ UA_Ternary_or(UA_Ternary first, UA_Ternary second) {
     if(first == UA_TERNARY_TRUE || second == UA_TERNARY_TRUE)
         return UA_TERNARY_TRUE;
     if(first == UA_TERNARY_NULL || second == UA_TERNARY_NULL)
-        return UA_TERNARY_TRUE;
+        return UA_TERNARY_NULL;
     return UA_TERNARY_FALSE;
 }
 
