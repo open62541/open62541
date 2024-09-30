@@ -669,8 +669,6 @@ UA_PublishedDataSet_create(UA_Server *server,
     result.configurationVersion.minorVersion = UA_PubSubConfigurationVersionTimeDifference();
     switch(newConfig->publishedDataSetType) {
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        break;
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
         res = UA_STATUSCODE_BADNOTSUPPORTED;
         break;
