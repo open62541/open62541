@@ -206,7 +206,7 @@ signActivateSessionRequest(UA_Client *client, UA_SecureChannel *channel,
         UA_ByteString signData = UA_BYTESTRING_NULL;
         size_t signDataSize =
             channel->remoteCertificate.length + client->serverSessionNonce.length;
-        if(dataToSignSize > MAX_DATA_SIZE) {
+        if(signDataSize > MAX_DATA_SIZE) {
             retval = UA_STATUSCODE_BADINTERNALERROR;
             goto cleanup;
         }
