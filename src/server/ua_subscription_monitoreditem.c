@@ -276,9 +276,9 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > UA_DateTime_nowMonotonic())) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Notification enqueued (Queue size %lu)",
-                                  (long unsigned)mon->subscription->notificationQueueSize);
+                                  (long unsigned)sub->notificationQueueSize);
     }
 
     /* Insert into the MonitoredItem. This checks the queue size and
@@ -430,7 +430,6 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
     UA_Subscription *sub = mon->subscription;
     if(sub) {
         mon->monitoredItemId = ++sub->lastMonitoredItemId;
-        mon->subscription = sub;
         sub->monitoredItemsSize++;
         LIST_INSERT_HEAD(&sub->monitoredItems, mon, listEntry);
     } else {
