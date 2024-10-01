@@ -61,6 +61,8 @@ struct MemoryCertStore {
     mbedtls_x509_crl issuerCrls;
 };
 
+static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
+
 static UA_StatusCode
 MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
     /* Check parameter */
@@ -130,6 +132,107 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
         *rejectedListSize = context->rejectedCertificatesSize;
 
     return retval;
+}
+
+static UA_StatusCode
+mbedtlsCheckCrlMatch(mbedtls_x509_crt *cert, mbedtls_x509_crl *crl) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Check if the certificate is a CA certificate.
+     * Only a CA certificate can have a CRL. */
+    if(!mbedtlsCheckCA(cert))
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+
+    char certSubject[MBEDTLS_X509_MAX_DN_NAME_SIZE];
+    char crlIssuer[MBEDTLS_X509_MAX_DN_NAME_SIZE];
+
+    mbedtls_x509_dn_gets(certSubject, sizeof(certSubject), &cert->subject);
+    mbedtls_x509_dn_gets(crlIssuer, sizeof(crlIssuer), &crl->issuer);
+
+    if(strncmp(certSubject, crlIssuer, MBEDTLS_X509_MAX_DN_NAME_SIZE) == 0) {
+        retval = UA_STATUSCODE_GOOD;
+    } else {
+        retval = UA_STATUSCODE_BADNOMATCH;
+    }
+
+    return retval;
+}
+
+static UA_StatusCode
+mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+             const UA_ByteString *crlList, const size_t crlListSize,
+             UA_ByteString **crls, size_t *crlsSize) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+            "An error occurred while parsing the certificate.");
+        return retval;
+    }
+    UA_Boolean foundMatch = false;
+    for(size_t i = 0; i < crlListSize; i++) {
+        mbedtls_x509_crl crl;
+        mbedtls_x509_crl_init(&crl);
+        retval = UA_mbedTLS_LoadCrl(&crlList[i], &crl);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "An error occurred while parsing the crl.");
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+
+        retval = mbedtlsCheckCrlMatch(&cert, &crl);
+        mbedtls_x509_crl_free(&crl);
+
+        if(retval == UA_STATUSCODE_BADNOMATCH) {
+            continue;
+        }
+        /* If it is not a CA certificate, there is no crl list. */
+        if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "The certificate is not a CA certificate and therefore does not have a CRL.");
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+        /* Continue the search, as a certificate may be associated with multiple CRLs. */
+        foundMatch = true;
+        retval = UA_Array_appendCopy((void **)crls, crlsSize, &crlList[i],
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+    }
+    mbedtls_x509_crt_free(&cert);
+
+    if(!foundMatch)
+        return UA_STATUSCODE_BADNOMATCH;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+MemoryCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                   const UA_Boolean isTrusted, UA_ByteString **crls,
+                                   size_t *crlsSize) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL || crls == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+
+    if(isTrusted) {
+        return mbedtlsFindCrls(certGroup, certificate,
+                               context->trustList.trustedCrls,
+                               context->trustList.trustedCrlsSize, crls,
+                               crlsSize);
+    }
+    return mbedtlsFindCrls(certGroup, certificate,
+                           context->trustList.issuerCrls,
+                           context->trustList.issuerCrlsSize, crls,
+                           crlsSize);
 }
 
 static UA_StatusCode
@@ -521,6 +624,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = MemoryCertStore_addToTrustList;
     certGroup->removeFromTrustList = MemoryCertStore_removeFromTrustList;
     certGroup->getRejectedList = MemoryCertStore_getRejectedList;
+    certGroup->getCertificateCrls = MemoryCertStore_getCertificateCrls;
     certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
     certGroup->clear = MemoryCertStore_clear;
 

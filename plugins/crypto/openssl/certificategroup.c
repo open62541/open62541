@@ -126,6 +126,113 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
 }
 
 static UA_StatusCode
+openSSLCheckCrlMatch(X509 *cert, X509_CRL *crl) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Check if the certificate is a CA certificate.
+     * Only a CA certificate can have a CRL. */
+    BASIC_CONSTRAINTS *bs = (BASIC_CONSTRAINTS*)X509_get_ext_d2i(cert, NID_basic_constraints, NULL, NULL);
+    if(!bs || bs->ca == 0) {
+        /* The certificate is not a CA or the extension is missing */
+        BASIC_CONSTRAINTS_free(bs);
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+    }
+    BASIC_CONSTRAINTS_free(bs);
+
+    X509_NAME *certSubject = X509_get_subject_name(cert);
+    if(!certSubject)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    X509_NAME *crlIssuer = X509_CRL_get_issuer(crl);
+    if(!crlIssuer) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if(X509_NAME_cmp(certSubject, crlIssuer) == 0) {
+        retval = UA_STATUSCODE_GOOD;
+    } else {
+        retval = UA_STATUSCODE_BADNOMATCH;
+    }
+
+    return retval;
+}
+
+static UA_StatusCode
+openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                const UA_ByteString *crlList, const size_t crlListSize,
+                UA_ByteString **crls, size_t *crlsSize) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(!cert)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_Boolean foundMatch = false;
+    for(size_t i = 0; i < crlListSize; i++) {
+        X509_CRL *crl = UA_OpenSSL_LoadCrl(&crlList[i]);
+        if(!crl) {
+            X509_free(cert);
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+
+        retval = openSSLCheckCrlMatch(cert, crl);
+        X509_CRL_free(crl);
+        if(retval == UA_STATUSCODE_BADNOMATCH) {
+            continue;
+        }
+        /* If it is not a CA certificate, there is no crl list. */
+        if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "The certificate is not a CA certificate and therefore does not have a CRL.");
+            X509_free(cert);
+            return retval;
+        }
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "An error occurred while determining the appropriate CRL.");
+            X509_free(cert);
+            return retval;
+        }
+        /* Continue the search, as a certificate may be associated with multiple CRLs. */
+        foundMatch = true;
+        retval = UA_Array_appendCopy((void **)crls, crlsSize, &crlList[i],
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            X509_free(cert);
+            return retval;
+        }
+    }
+    X509_free(cert);
+    if(!foundMatch)
+        return UA_STATUSCODE_BADNOMATCH;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+MemoryCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                   const UA_Boolean isTrusted, UA_ByteString **crls,
+                                   size_t *crlsSize) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL || crls == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+
+    if(isTrusted) {
+        return openSSLFindCrls(certGroup, certificate,
+                               context->trustList.trustedCrls,
+                               context->trustList.trustedCrlsSize, crls,
+                               crlsSize);
+    }
+    return openSSLFindCrls(certGroup, certificate,
+                           context->trustList.issuerCrls,
+                           context->trustList.issuerCrlsSize, crls,
+                           crlsSize);
+}
+
+static UA_StatusCode
 MemoryCertStore_addToRejectedList(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
@@ -574,6 +681,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = MemoryCertStore_addToTrustList;
     certGroup->removeFromTrustList = MemoryCertStore_removeFromTrustList;
     certGroup->getRejectedList = MemoryCertStore_getRejectedList;
+    certGroup->getCertificateCrls = MemoryCertStore_getCertificateCrls;
     certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
     certGroup->clear = MemoryCertStore_clear;
 
