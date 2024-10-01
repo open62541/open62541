@@ -32,6 +32,8 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
     certGroup->setTrustList = NULL;
     certGroup->addToTrustList = NULL;
     certGroup->removeFromTrustList = NULL;
+    certGroup->getRejectedList = NULL;
+    certGroup->getCertificateCrls = NULL;
 }
 
 #ifndef UA_ENABLE_ENCRYPTION

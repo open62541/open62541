@@ -596,6 +596,23 @@ FileCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **re
 }
 
 static UA_StatusCode
+FileCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                 const UA_Boolean isTrusted, UA_ByteString **crls,
+                                 size_t *crlsSize) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL || crls == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    /* It will only re-read the Cert store on the file system if there have been changes to files. */
+    UA_StatusCode retval = reloadTrustStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return context->store->getCertificateCrls(context->store, certificate, isTrusted, crls, crlsSize);
+}
+
+static UA_StatusCode
 FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL)
@@ -678,6 +695,7 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = FileCertStore_addToTrustList;
     certGroup->removeFromTrustList = FileCertStore_removeFromTrustList;
     certGroup->getRejectedList = FileCertStore_getRejectedList;
+    certGroup->getCertificateCrls = FileCertStore_getCertificateCrls;
     certGroup->verifyCertificate = FileCertStore_verifyCertificate;
     certGroup->clear = FileCertStore_clear;
 
