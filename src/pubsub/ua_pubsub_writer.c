@@ -854,21 +854,15 @@ UA_DataSetWriter_generateDataSetMessage(UA_Server *server,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
-            if(heartbeat){
-                dataSetMessage->header.configVersionMajorVersion = 0;
-            } else {
-                dataSetMessage->header.configVersionMajorVersion =
-                currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
-            }
-       }
-        if((u64)jsonDsm->dataSetMessageContentMask &
-           (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
             if(heartbeat){
+                dataSetMessage->header.configVersionMajorVersion = 0;
                 dataSetMessage->header.configVersionMinorVersion = 0;
             } else {
+                dataSetMessage->header.configVersionMajorVersion =
+                    currentDataSet->dataSetMetaData.configurationVersion.majorVersion;
                 dataSetMessage->header.configVersionMinorVersion =
-                currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
+                    currentDataSet->dataSetMetaData.configurationVersion.minorVersion;
             }
        }
 

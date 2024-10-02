@@ -65,9 +65,14 @@ decodeNetworkMessage(UA_Server *server, UA_ByteString *buffer, size_t *pos,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_INFO_CONNECTION(server->config.logging, connection,
-                               "Dataset reader not found. Check PublisherId, "
-                               "WriterGroupId and DatasetWriterId");
+        UA_DateTime nowM = UA_DateTime_nowMonotonic();
+        if(connection->silenceErrorUntil < nowM) {
+            UA_LOG_INFO_CONNECTION(server->config.logging, connection,
+                                   "Dataset reader not found. Check PublisherId, "
+                                   "WriterGroupId and DatasetWriterId. "
+                                   "(This error is now silenced for 10s.)");
+            connection->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
+        }
         /* Possible multicast scenario: there are multiple connections (with one
          * or more ReaderGroups) within a multicast group every connection
          * receives all network messages, even if some of them are not meant for
