@@ -205,8 +205,7 @@ triggerPOSIXInterruptEvent(int sig) {
 static void
 activateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop)->elMutex, 1);
 
     /* Register the signal on the OS level */
     if(rs->active)
@@ -228,8 +227,7 @@ activateSignal(UA_RegisteredSignal *rs) {
 static void
 deactivateSignal(UA_RegisteredSignal *rs) {
     UA_assert(singletonIM != NULL);
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)singletonIM->im.eventSource.eventLoop)->elMutex, 1);
 
     /* Only dectivate if active */
     if(!rs->active)
@@ -250,8 +248,7 @@ deactivateSignal(UA_RegisteredSignal *rs) {
 /* Execute all triggered interrupts via the self-pipe trick from within the EventLoop */
 static void
 executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short event) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)es->eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex, 1);
+    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)es->eventLoop)->elMutex, 1);
 
     /* Re-arm the socket for the next signal by reading from it */
     char buf[128];
@@ -268,10 +265,10 @@ executeTriggeredPOSIXInterrupts(UA_EventSource *es, UA_RegisteredFD *rfd, short 
     TAILQ_FOREACH_SAFE(rs, &singletonIM->triggered, triggeredEntry, rs_tmp) {
         TAILQ_REMOVE(&singletonIM->triggered, rs, triggeredEntry);
         rs->triggered = false;
-        UA_UNLOCK(&el->elMutex);
+        UA_UNLOCK(&((UA_EventLoopPOSIX*)es->eventLoop)->elMutex);
         rs->signalCallback(&singletonIM->im, (uintptr_t)rs->signal,
                            rs->context, &UA_KEYVALUEMAP_NULL);
-        UA_LOCK(&el->elMutex);
+        UA_LOCK(&((UA_EventLoopPOSIX*)es->eventLoop)->elMutex);
     }
 }
 
