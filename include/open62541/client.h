@@ -101,9 +101,9 @@ struct UA_ClientConfig {
      * message. */
     UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
     UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
-                                           * default is invalid. This indicates
-                                           * the client to select any matching
-                                           * endpoint. */
+                                           * default is "invalid". This
+                                           * indicates the client to select any
+                                           * matching endpoint. */
     UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
                                   * empty string indicates the client to select
                                   * any matching SecurityPolicy. */
