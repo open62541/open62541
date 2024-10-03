@@ -330,10 +330,14 @@ sendRequest(UA_Client *client, const void *request,
         return client->connectStatus;
 
     /* Adjusting the request header. The const attribute is violated, but we
-     * only touch the following members: */
+     * reset to the original state before returning. Use the AuthenticationToken
+     * only once the session is active (or to activate / close it). */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
-    rr->authenticationToken = client->authenticationToken;
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED ||
+       requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
+       requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST])
+        rr->authenticationToken = client->authenticationToken;
     rr->timestamp = UA_DateTime_now();
 
     /* Create a unique handle >100,000 if not manually defined. The handle is
