@@ -75,6 +75,11 @@ static void setup(void) {
     config->certificateVerification.clear(&config->certificateVerification);
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
 
+    /* Manually add the Basic128Rsa15 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    UA_ServerConfig_addSecurityPolicyBasic128Rsa15(config, &certificate, &privateKey);
+    UA_ServerConfig_addAllEndpoints(config);
+
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
     config->applicationDescription.applicationUri =
@@ -118,7 +123,9 @@ START_TEST(encryption_connect) {
      * security mode as none to see the server's capability
      * and certificate */
     client = UA_Client_new();
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
+    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    UA_ClientConfig_setDefault(cc);
+
     ck_assert(client != NULL);
     UA_StatusCode retval = UA_Client_getEndpoints(client, "opc.tcp://localhost:4840",
                                                   &endpointArraySize, &endpointArray);
@@ -147,12 +154,22 @@ START_TEST(encryption_connect) {
 
     /* Secure client initialization */
     client = UA_Client_new();
-    UA_ClientConfig *cc = UA_Client_getConfig(client);
+    cc = UA_Client_getConfig(client);
     UA_ClientConfig_setDefaultEncryption(cc, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+
+    /* Manually add the Basic128Rsa15 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) *
+                   (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_Basic128Rsa15(&cc->securityPolicies[cc->securityPoliciesSize],
+                                    certificate, privateKey, &cc->logger);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
     ck_assert(client != NULL);
@@ -236,6 +253,16 @@ START_TEST(encryption_connect_pem) {
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+
+    /* Manually add the Basic128Rsa15 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) *
+                   (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_Basic128Rsa15(&cc->securityPolicies[cc->securityPoliciesSize],
+                                    certificate, privateKey, &cc->logger);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15");
     ck_assert(client != NULL);

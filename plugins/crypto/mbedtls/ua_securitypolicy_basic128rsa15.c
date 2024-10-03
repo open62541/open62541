@@ -746,6 +746,10 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
 
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "!! WARNING !! The Basic128Rsa15 SecurityPolicy is unsecure. "
+                   "There are known attacks that break the encryption.");
+
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15\0");
 
     UA_SecurityPolicyAsymmetricModule *const asymmetricModule = &policy->asymmetricModule;
