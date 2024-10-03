@@ -123,7 +123,7 @@ struct UA_SecureChannel {
                                                * See the renewState. */
 
     /* The endpoint and context of the channel */
-    const UA_SecurityPolicy *securityPolicy;
+    UA_SecurityPolicy *securityPolicy;
     void *channelContext; /* For interaction with the security policy */
 
     /* Asymmetric encryption info */
@@ -181,7 +181,7 @@ UA_SecureChannel_processHELACK(UA_SecureChannel *channel,
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   const UA_SecurityPolicy *securityPolicy,
+                                   UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate);
 
 UA_Boolean
