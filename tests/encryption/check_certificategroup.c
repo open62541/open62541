@@ -303,7 +303,7 @@ START_TEST(get_rejectedlist) {
 
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
 
     UA_ByteString *rejectedList = NULL;
     size_t rejectedListSize = 0;

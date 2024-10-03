@@ -143,9 +143,9 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > nowMonotonic)) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Notification enqueued (Queue size %lu)",
-                                  (long unsigned)mon->subscription->notificationQueueSize);
+                                  (long unsigned)sub->notificationQueueSize);
     }
 
     /* Insert into the MonitoredItem. This checks the queue size and

@@ -370,10 +370,11 @@ typeCheckVariableNode(UA_Server *server, UA_Session *session,
     }
 
     /* Type-check the value */
-    if(retval == UA_STATUSCODE_GOOD &&
-       !compatibleValue(server, session, &node->dataType, node->valueRank,
-                        node->arrayDimensionsSize, node->arrayDimensions,
-                        &value.value, NULL, &reason)) {
+    UA_Boolean compatible =
+        compatibleValue(server, session, &node->dataType,
+            node->valueRank, node->arrayDimensionsSize,
+            node->arrayDimensions, &value.value, NULL, &reason);
+    if(!compatible) {
         UA_LOG_INFO_SESSION(server->config.logging, session,
                             "AddNode (%N): The VariableNode value has "
                             "failed the type check with reason %s. ",
@@ -1576,10 +1577,9 @@ addNode_finish(UA_Server *server, UA_Session *session, const UA_NodeId *nodeId) 
     }
 
  cleanup:
+    UA_NODESTORE_RELEASE(server, node);
     if(type)
         UA_NODESTORE_RELEASE(server, type);
-    if(node)
-        UA_NODESTORE_RELEASE(server, node);
     if(retval != UA_STATUSCODE_GOOD)
         deleteNode(server, *nodeId, true);
     return retval;

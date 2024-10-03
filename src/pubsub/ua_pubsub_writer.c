@@ -728,23 +728,16 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
-            if(!pds) {
-                /* Heartbeat */
-                dataSetMessage->header.configVersionMajorVersion = 0;
-            } else {
-                dataSetMessage->header.configVersionMajorVersion =
-                pds->dataSetMetaData.configurationVersion.majorVersion;
-            }
-       }
-        if((u64)jsonDsm->dataSetMessageContentMask &
-           (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
             if(!pds) {
                 /* Heartbeat */
+                dataSetMessage->header.configVersionMajorVersion = 0;
                 dataSetMessage->header.configVersionMinorVersion = 0;
             } else {
+                dataSetMessage->header.configVersionMajorVersion =
+                    pds->dataSetMetaData.configurationVersion.majorVersion;
                 dataSetMessage->header.configVersionMinorVersion =
-                pds->dataSetMetaData.configurationVersion.minorVersion;
+                    pds->dataSetMetaData.configurationVersion.minorVersion;
             }
        }
 

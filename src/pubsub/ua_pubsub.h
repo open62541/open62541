@@ -260,6 +260,8 @@ typedef struct UA_PubSubConnection {
     size_t readerGroupsSize;
     LIST_HEAD(, UA_ReaderGroup) readerGroups;
 
+    UA_DateTime silenceErrorUntil; /* Avoid generating too many logs */
+
     UA_Boolean deleteFlag; /* To be deleted - in addition to the PubSubState */
     UA_DelayedCallback dc; /* For delayed freeing */
 } UA_PubSubConnection;

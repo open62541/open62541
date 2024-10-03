@@ -36,9 +36,6 @@ getNodeType(UA_Server *server, const UA_NodeHead *head) {
     UA_Boolean inverse;
     switch(head->nodeClass) {
     case UA_NODECLASS_OBJECT:
-        parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
-        inverse = false;
-        break;
     case UA_NODECLASS_VARIABLE:
         parentRefIndex = UA_REFERENCETYPEINDEX_HASTYPEDEFINITION;
         inverse = false;

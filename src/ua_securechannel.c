@@ -71,6 +71,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
     switch(error->error) {
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
     case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;

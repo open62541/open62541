@@ -432,7 +432,12 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* Certificate Verification that accepts every certificate. Can be
      * overwritten when the policy is specialized. */
+    if(conf->secureChannelPKI.clear)
+        conf->secureChannelPKI.clear(&conf->secureChannelPKI);
     UA_CertificateGroup_AcceptAll(&conf->secureChannelPKI);
+
+    if(conf->sessionPKI.clear)
+        conf->sessionPKI.clear(&conf->sessionPKI);
     UA_CertificateGroup_AcceptAll(&conf->sessionPKI);
 
     /* * Global Node Lifecycle * */
@@ -1017,6 +1022,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
     paramsMap.map = params;
     paramsMap.mapSize = paramsSize;
 
+    if(conf->secureChannelPKI.clear)
+        conf->secureChannelPKI.clear(&conf->secureChannelPKI);
     UA_NodeId defaultApplicationGroup =
            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     retval = UA_CertificateGroup_Memorystore(&conf->secureChannelPKI, &defaultApplicationGroup, &list, conf->logging, &paramsMap);
@@ -1025,6 +1032,8 @@ UA_ServerConfig_setDefaultWithSecurityPolicies(UA_ServerConfig *conf,
         return retval;
     }
 
+    if(conf->sessionPKI.clear)
+        conf->sessionPKI.clear(&conf->sessionPKI);
     UA_NodeId defaultUserTokenGroup =
             UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
     retval = UA_CertificateGroup_Memorystore(&conf->sessionPKI, &defaultUserTokenGroup, &list, conf->logging, &paramsMap);
@@ -1631,6 +1640,8 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     paramsMap.map = params;
     paramsMap.mapSize = paramsSize;
 
+    if(config->certificateVerification.clear)
+        config->certificateVerification.clear(&config->certificateVerification);
     UA_NodeId defaultApplicationGroup =
            UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
     retval = UA_CertificateGroup_Memorystore(&config->certificateVerification, &defaultApplicationGroup, &list, config->logging, &paramsMap);
