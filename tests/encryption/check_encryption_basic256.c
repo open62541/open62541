@@ -10,6 +10,7 @@
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/plugin/securitypolicy.h>
+#include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/plugin/pki_default.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -77,6 +78,11 @@ static void setup(void) {
                                                    revocationList, revocationListSize);
     config->certificateVerification.clear(&config->certificateVerification);
     UA_CertificateVerification_AcceptAll(&config->certificateVerification);
+
+    /* Manually add the Basic256 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    UA_ServerConfig_addSecurityPolicyBasic256(config, &certificate, &privateKey);
+    UA_ServerConfig_addAllEndpoints(config);
 
     /* Set the ApplicationUri used in the certificate */
     UA_String_clear(&config->applicationDescription.applicationUri);
@@ -156,6 +162,16 @@ START_TEST(encryption_connect) {
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+
+    /* Manually add the Basic256 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) *
+                   (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_Basic256(&cc->securityPolicies[cc->securityPoliciesSize],
+                               certificate, privateKey, &cc->logger);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
@@ -239,6 +255,16 @@ START_TEST(encryption_connect_pem) {
                                          revocationList, revocationListSize);
     cc->certificateVerification.clear(&cc->certificateVerification);
     UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+
+    /* Manually add the Basic256 SecurityPolicy.
+     * It does not get added by default as it is considered unsecure. */
+    cc->securityPolicies = (UA_SecurityPolicy *)
+        UA_realloc(cc->securityPolicies, sizeof(UA_SecurityPolicy) *
+                   (cc->securityPoliciesSize + 1));
+    UA_SecurityPolicy_Basic256(&cc->securityPolicies[cc->securityPoliciesSize],
+                               certificate, privateKey, &cc->logger);
+    cc->securityPoliciesSize++;
+
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     ck_assert(client != NULL);
