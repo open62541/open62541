@@ -549,6 +549,10 @@ UA_SecurityPolicy_Basic128Rsa15 (UA_SecurityPolicy * policy,
                                  const UA_ByteString localPrivateKey,
                                  const UA_Logger *   logger) {
 
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "!! WARNING !! The Basic128Rsa15 SecurityPolicy is unsecure. "
+                   "There are known attacks that break the encryption.");
+
     UA_SecurityPolicyAsymmetricModule * const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule * const  symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule * const    channelModule = &policy->channelModule;
