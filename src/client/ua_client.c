@@ -212,7 +212,7 @@ UA_Client_clear(UA_Client *client) {
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->discoveryUrl);
-    UA_ApplicationDescription_clear(&client->serverDescription);
+    UA_EndpointDescription_clear(&client->endpoint);
 
     UA_String_clear(&client->serverSessionNonce);
     UA_String_clear(&client->clientSessionNonce);
@@ -1091,7 +1091,7 @@ getConnectionttribute(UA_Client *client, const UA_QualifiedName key,
 
     if(UA_QualifiedName_equal(&key, &connectionAttributes[0])) {
         /* ServerDescription */
-        UA_Variant_setScalar(&localAttr, &client->serverDescription,
+        UA_Variant_setScalar(&localAttr, &client->endpoint.server,
                              &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     } else if(UA_QualifiedName_equal(&key, &connectionAttributes[1])) {
         /* SecurityPolicyUri */
