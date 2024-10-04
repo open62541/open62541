@@ -47,7 +47,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 static UA_StatusCode
 TCP_setNoNagle(UA_fd sockfd) {
     int val = 1;
-    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&val, sizeof(val));
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -197,7 +197,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     /* Receive */
 #if defined(UA_ARCHITECTURE_WIN32)
     ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                          response.length, MSG_DONTWAIT);
+                          (int)response.length, MSG_DONTWAIT);
 #else
     int ret = UA_recv(conn->rfd.fd, (char*)response.data,
                       response.length, MSG_DONTWAIT);
@@ -358,10 +358,10 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_addrinfo *ai,
 
     /* Translate INADDR_ANY to IPv4/IPv6 address */
     char addrstr[UA_MAXHOSTNAME_LENGTH];
-    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+    int get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
                                  addrstr, sizeof(addrstr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+        get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
                                  addrstr, sizeof(addrstr),
                                  NULL, 0, NI_NUMERICHOST);
         if(get_res != 0) {
@@ -670,7 +670,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             size_t bytes_to_send = buf->length - nWritten;
             n = UA_send((UA_fd)connectionId,
                         (const char*)buf->data + nWritten,
-                        bytes_to_send, flags);
+                        (int)bytes_to_send, flags);
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
@@ -858,7 +858,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     }
 
     /* Non-blocking connect */
-    error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
+    error = UA_connect(newSock, info->ai_addr, (int)info->ai_addrlen);
     UA_freeaddrinfo(info);
     if(error != 0 &&
        UA_ERRNO != UA_INPROGRESS &&
