@@ -1121,7 +1121,6 @@ static void
 responseFindServers(UA_Client *client, void *userdata,
                     UA_UInt32 requestId, void *response) {
     client->findServersHandshake = false;
-
     UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
                  "Received FindServersResponse");
 
@@ -1135,6 +1134,7 @@ responseFindServers(UA_Client *client, void *userdata,
                        UA_StatusCode_name(fsr->responseHeader.serviceResult),
                        (int)client->config.endpointUrl.length,
                        client->config.endpointUrl.data);
+        UA_String_clear(&client->discoveryUrl);
         UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
         return;
     }
@@ -1145,18 +1145,14 @@ responseFindServers(UA_Client *client, void *userdata,
 
         /* Filter by the ApplicationURI if defined */
         if(client->config.applicationUri.length > 0 &&
-           !UA_String_equal(&client->config.applicationUri,
-                            &server->applicationUri))
+           !UA_String_equal(&client->config.applicationUri, &server->applicationUri))
             continue;
 
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
             if(UA_String_equal(&client->config.endpointUrl, &server->discoveryUrls[j])) {
-                UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                            "The initially defined EndpointURL %.*s "
-                            "is valid for the server",
-                            (int)client->config.endpointUrl.length,
-                            client->config.endpointUrl.data);
-                UA_String_copy(&client->config.endpointUrl, &client->discoveryUrl);
+                UA_String_clear(&client->discoveryUrl);
+                client->discoveryUrl = server->discoveryUrls[j];
+                UA_String_init(&server->discoveryUrls[j]);
                 return;
             }
         }
@@ -1173,8 +1169,7 @@ responseFindServers(UA_Client *client, void *userdata,
 
         /* Filter by the ApplicationURI if defined */
         if(client->config.applicationUri.length > 0 &&
-           !UA_String_equal(&client->config.applicationUri,
-                            &server->applicationUri))
+           !UA_String_equal(&client->config.applicationUri, &server->applicationUri))
             continue;
 
         for(size_t j = 0; j < server->discoveryUrlsSize; j++) {
@@ -1183,8 +1178,7 @@ responseFindServers(UA_Client *client, void *userdata,
             UA_String hostname, path;
             UA_UInt16 port;
             UA_StatusCode res =
-                UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname,
-                                    &port, &path);
+                UA_parseEndpointUrl(&server->discoveryUrls[j], &hostname, &port, &path);
             if(res != UA_STATUSCODE_GOOD)
                 continue;
 
@@ -1194,11 +1188,12 @@ responseFindServers(UA_Client *client, void *userdata,
             UA_String_init(&server->discoveryUrls[j]);
 
             UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                        "Use the EndpointURL %.*s returned from FindServers",
+                        "Use the EndpointURL %.*s returned from FindServers and reconnect",
                         (int)client->discoveryUrl.length, client->discoveryUrl.data);
 
             /* Close the SecureChannel to build it up new with the correct
-             * EndpointURL in the HEL/ACK handshake */
+             * EndpointURL in the HEL/ACK handshake. In closeSecureChannel the
+             * received client->endpoint is reset also. */
             closeSecureChannel(client);
             return;
         }
