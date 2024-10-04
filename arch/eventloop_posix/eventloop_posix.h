@@ -72,7 +72,8 @@ typedef SSIZE_T ssize_t;
 #define UA_select select
 #define UA_connect connect
 #define UA_getsockopt getsockopt
-#define UA_setsockopt setsockopt
+#define UA_setsockopt(__fd, __level, __optname, __optval, __optlen)                      \
+    setsockopt(__fd, __level, __optname, (const char *)__optval, __optlen)
 #define UA_getsockname getsockname
 #define UA_inet_pton InetPton
 #define UA_if_nametoindex if_nametoindex
@@ -80,11 +81,11 @@ typedef SSIZE_T ssize_t;
 #define UA_FD_ISSET FD_ISSET
 #define UA_FD_ZERO FD_ZERO
 /* Define a wrapper for setting non-blocking mode */
-#define UA_fcntl(fd, cmd, arg) \
-    do { \
-        u_long mode = (arg); \
-        ioctlsocket(fd, FIONBIO, &mode); \
-    } while (0)
+#define UA_fcntl(fd, cmd, arg)                                                           \
+    do {                                                                                 \
+        u_long mode = (arg);                                                             \
+        ioctlsocket(fd, FIONBIO, &mode);                                                 \
+    } while(0)
 #define UA_getaddrinfo getaddrinfo
 #define UA_gai_strerror gai_strerrorA
 #define UA_shutdown shutdown
@@ -267,17 +268,17 @@ typedef struct zsock_addrinfo UA_addrinfo;
 typedef struct zsock_pollfd UA_pollfd;
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char *)"None" : (STR_FUN)(errno))
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                          \
-    {                                                                          \
-        char *errno_str = UA_clean_errno(strerror);                            \
-        LOG;                                                                   \
-        errno = 0;                                                             \
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                                    \
+    {                                                                                    \
+        char *errno_str = UA_clean_errno(strerror);                                      \
+        LOG;                                                                             \
+        errno = 0;                                                                       \
     }
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG)                                      \
-    {                                                                          \
-        const char *errno_str = UA_clean_errno(gai_strerror);                  \
-        LOG;                                                                   \
-        errno = 0;                                                             \
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG)                                                \
+    {                                                                                    \
+        const char *errno_str = UA_clean_errno(gai_strerror);                            \
+        LOG;                                                                             \
+        errno = 0;                                                                       \
     }
 
 #endif
