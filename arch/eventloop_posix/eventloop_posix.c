@@ -587,14 +587,14 @@ UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
 /******************/
 
 enum ZIP_CMP
-cmpFD(const UA_FD *a, const UA_FD *b) {
+cmpFD(const UA_fd *a, const UA_fd *b) {
     if(*a == *b)
         return ZIP_CMP_EQ;
     return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
+UA_EventLoopPOSIX_setNonBlocking(UA_fd sockfd) {
 #if defined(UA_ARCHITECTURE_ZEPHYR) || defined(UA_ARCHITECTURE_WIN32)
     int fl;
     fl = UA_fcntl(sockfd, F_GETFL, 0);
@@ -617,7 +617,7 @@ UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
+UA_EventLoopPOSIX_setNoSigPipe(UA_fd sockfd) {
 #ifdef SO_NOSIGPIPE
     int val = 1;
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
@@ -628,7 +628,7 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
+UA_EventLoopPOSIX_setReusable(UA_fd sockfd) {
 #if defined(UA_ARCHITECTURE_ZEPHYR)
     // This operation is not supported on zephyr, thus always return GOOD
     return UA_STATUSCODE_GOOD;
@@ -656,7 +656,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 
 /* Re-arm the self-pipe socket for the next signal by reading from it */
 static void
-flushSelfPipe(UA_SOCKET s) {
+flushSelfPipe(UA_fd s) {
     char buf[128];
 #if defined(UA_ARCHITECTURE_POSIX)
     ssize_t i;
@@ -732,29 +732,28 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
     }
 }
 
-static UA_FD
-setFDSets(UA_EventLoopPOSIX *el, UA_FD_SET *readset, UA_FD_SET *writeset,
-          UA_FD_SET *errset) {
+static UA_fd
+setFDSets(UA_EventLoopPOSIX *el, UA_fd_set *readset, UA_fd_set *writeset,
+          UA_fd_set *errset) {
     UA_LOCK_ASSERT(&el->elMutex);
     /* Always listen on the read-end of the pipe */
-    UA_FD highestfd = el->selfpipe[0];
+    UA_fd highestfd = el->selfpipe[0];
     UA_FD_ZERO(readset);
     UA_FD_ZERO(writeset);
     UA_FD_ZERO(errset);
-
-    UA_fd_set(el->selfpipe[0], readset);
+    UA_FD_SET(el->selfpipe[0], readset);
 
     for(size_t i = 0; i < el->fdsSize; i++) {
-        UA_FD currentFD = el->fds[i]->fd;
+        UA_fd currentFD = el->fds[i]->fd;
 
         /* Add to the fd_sets */
         if(el->fds[i]->listenEvents & UA_FDEVENT_IN)
-            UA_fd_set(currentFD, readset);
+            UA_FD_SET(currentFD, readset);
         if(el->fds[i]->listenEvents & UA_FDEVENT_OUT)
-            UA_fd_set(currentFD, writeset);
+            UA_FD_SET(currentFD, writeset);
 
         /* Always return errors */
-        UA_fd_set(currentFD, errset);
+        UA_FD_SET(currentFD, errset);
 
         /* Highest fd? */
         if(currentFD > highestfd)
@@ -768,8 +767,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     UA_assert(listenTimeout >= 0);
     UA_LOCK_ASSERT(&el->elMutex);
 
-    UA_FD_SET readset, writeset, errset;
-    UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
+    UA_fd_set readset, writeset, errset;
+    UA_fd highestfd = setFDSets(el, &readset, &writeset, &errset);
 
     /* Nothing to do? */
     if(highestfd == UA_INVALID_FD) {
@@ -839,8 +838,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 }
 
 int
-UA_EventLoopPOSIX_pipe(UA_SOCKET fds[2]) {
-    UA_SOCKET lst;
+UA_EventLoopPOSIX_pipe(UA_fd fds[2]) {
+    UA_fd lst;
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
     inaddr.sin_family = AF_INET;

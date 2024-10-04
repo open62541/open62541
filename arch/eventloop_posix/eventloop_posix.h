@@ -49,7 +49,6 @@ typedef SSIZE_T ssize_t;
 #endif
 
 #define UA_IPV6 1
-#define UA_SOCKET SOCKET
 #define UA_INVALID_SOCKET INVALID_SOCKET
 #define UA_ERRNO WSAGetLastError()
 #define UA_INTERRUPTED WSAEINTR
@@ -60,23 +59,41 @@ typedef SSIZE_T ssize_t;
 #define UA_POLLOUT POLLWRNORM
 #define UA_SHUT_RDWR SD_BOTH
 
-#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)                   \
-    getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
-#define UA_poll(fds, nfds, timeout) WSAPoll((LPWSAPOLLFD)fds, nfds, timeout)
-#define UA_send(sockfd, buf, len, flags) send(sockfd, buf, (int)(len), flags)
-#define UA_recv(sockfd, buf, len, flags) recv(sockfd, buf, (int)(len), flags)
-#define UA_sendto(sockfd, buf, len, flags, dest_addr, addrlen)                           \
-    sendto(sockfd, (const char *)(buf), (int)(len), flags, dest_addr, (int)(addrlen))
+#define UA_socket socket
+#define UA_accept accept
+#define UA_getnameinfo getnameinfo
+#define UA_listen listen
+#define UA_bind bind
+#define UA_poll WSAPoll
+#define UA_send send
+#define UA_recv recv
+#define UA_sendto sendto
 #define UA_close closesocket
-#define UA_select(nfds, readfds, writefds, exceptfds, timeout)                           \
-    select((int)(nfds), readfds, writefds, exceptfds, timeout)
-#define UA_connect(sockfd, addr, addrlen) connect(sockfd, addr, (int)(addrlen))
-#define UA_getsockopt(sockfd, level, optname, optval, optlen)                            \
-    getsockopt(sockfd, level, optname, (char *)(optval), optlen)
-#define UA_setsockopt(sockfd, level, optname, optval, optlen)                            \
-    setsockopt(sockfd, level, optname, (const char *)(optval), optlen)
+#define UA_select select
+#define UA_connect connect
+#define UA_getsockopt getsockopt
+#define UA_setsockopt setsockopt
+#define UA_getsockname getsockname
 #define UA_inet_pton InetPton
-#define UA_close closesocket
+#define UA_if_nametoindex if_nametoindex
+#define UA_FD_SET FD_SET
+#define UA_FD_ISSET FD_ISSET
+#define UA_FD_ZERO FD_ZERO
+/* Define a wrapper for setting non-blocking mode */
+#define UA_fcntl(fd, cmd, arg) \
+    do { \
+        u_long mode = (arg); \
+        ioctlsocket(fd, FIONBIO, &mode); \
+    } while (0)
+#define UA_getaddrinfo getaddrinfo
+#define UA_gai_strerror gai_strerrorA
+#define UA_shutdown shutdown
+#define UA_freeaddrinfo freeaddrinfo
+#define UA_gethostname gethostname
+
+typedef SOCKET UA_socket_fd;
+typedef fd_set UA_fd_set;
+typedef struct addrinfo ua_addrinfo;
 
 #if UA_IPV6
 #define UA_if_nametoindex if_nametoindex
@@ -130,7 +147,6 @@ typedef SSIZE_T ssize_t;
 #endif
 
 #define UA_IPV6 1
-#define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
@@ -141,8 +157,11 @@ typedef SSIZE_T ssize_t;
 #define UA_POLLOUT POLLOUT
 #define UA_SHUT_RDWR SHUT_RDWR
 
-#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)                   \
-    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
+#define UA_socket socket
+#define UA_accept accept
+#define UA_getnameinfo getnameinfo
+#define UA_listen listen
+#define UA_bind bind
 #define UA_poll poll
 #define UA_send send
 #define UA_recv recv
@@ -152,8 +171,22 @@ typedef SSIZE_T ssize_t;
 #define UA_connect connect
 #define UA_getsockopt getsockopt
 #define UA_setsockopt setsockopt
+#define UA_getsockname getsockname
 #define UA_inet_pton inet_pton
 #define UA_if_nametoindex if_nametoindex
+#define UA_FD_SET FD_SET
+#define UA_FD_ISSET FD_ISSET
+#define UA_FD_ZERO FD_ZERO
+#define UA_fcntl fcntl
+#define UA_getaddrinfo getaddrinfo
+#define UA_gai_strerror gai_strerror
+#define UA_shutdown shutdown
+#define UA_freeaddrinfo freeaddrinfo
+#define UA_gethostname gethostname
+
+typedef int UA_socket_fd;
+typedef struct fd_set UA_fd_set;
+typedef struct addrinfo UA_addrinfo;
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char *)"None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                                    \
@@ -185,11 +218,10 @@ typedef SSIZE_T ssize_t;
 #include <unistd.h>
 
 #include <sys/types.h>
-#include <zephyr/posix/fcntl.h>
 #include <zephyr/net/socket.h>
+#include <zephyr/posix/fcntl.h>
 
 #define UA_IPV6 1
-#define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
 #define UA_ERRNO errno
 #define UA_INTERRUPTED EINTR
@@ -217,31 +249,31 @@ typedef SSIZE_T ssize_t;
 #define UA_getsockname zsock_getsockname
 #define UA_inet_pton zsock_inet_pton
 #define UA_if_nametoindex zsock_if_nametoindex
-#define UA_FD_SET struct zsock_fd_set
-#define UA_fd_set ZSOCK_FD_SET
 #define UA_FD_ISSET ZSOCK_FD_ISSET
 #define UA_FD_ZERO ZSOCK_FD_ZERO
 #define UA_fcntl zsock_fcntl
 #define UA_getaddrinfo zsock_getaddrinfo
-#define UA_ADDRINFO struct zsock_addrinfo
 #define UA_gai_strerror zsock_gai_strerror
 #define UA_shutdown zsock_shutdown
 #define UA_freeaddrinfo zsock_freeaddrinfo
 #define UA_gethostname zsock_gethostname
 
+typedef int UA_socket_fd;
+typedef struct zsock_fd_set UA_fd_set;
+typedef struct zsock_addrinfo UA_addrinfo;
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char *)"None" : (STR_FUN)(errno))
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                                    \
-    {                                                                                    \
-        char *errno_str = UA_clean_errno(strerror);                                      \
-        LOG;                                                                             \
-        errno = 0;                                                                       \
+#define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                          \
+    {                                                                          \
+        char *errno_str = UA_clean_errno(strerror);                            \
+        LOG;                                                                   \
+        errno = 0;                                                             \
     }
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG)                                                \
-    {                                                                                    \
-        const char *errno_str = UA_clean_errno(gai_strerror);                            \
-        LOG;                                                                             \
-        errno = 0;                                                                       \
+#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG)                                      \
+    {                                                                          \
+        const char *errno_str = UA_clean_errno(gai_strerror);                  \
+        LOG;                                                                   \
+        errno = 0;                                                             \
     }
 
 #endif
@@ -268,7 +300,7 @@ typedef SSIZE_T ssize_t;
 
 /* TODO: Move the macro-forest from /arch/<arch>/ua_architecture.h */
 
-#define UA_FD UA_SOCKET
+typedef UA_socket_fd UA_fd;
 #define UA_INVALID_FD UA_INVALID_SOCKET
 
 struct UA_RegisteredFD;
@@ -287,7 +319,7 @@ struct UA_RegisteredFD {
                             * mechanism. */
 
     ZIP_ENTRY(UA_RegisteredFD) zipPointers; /* Register FD in the EventSource */
-    UA_FD fd;
+    UA_fd fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
     UA_EventSource *es; /* Backpointer to the EventSource */
@@ -295,9 +327,9 @@ struct UA_RegisteredFD {
 };
 
 enum ZIP_CMP
-cmpFD(const UA_FD *a, const UA_FD *b);
+cmpFD(const UA_fd *a, const UA_fd *b);
 typedef ZIP_HEAD(UA_FDTree, UA_RegisteredFD) UA_FDTree;
-ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
+ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_fd, fd, cmpFD)
 
 /* All ConnectionManager in the POSIX EventLoop can be cast to
  * UA_ConnectionManagerPOSIX. They carry a sorted tree of their open
@@ -341,7 +373,7 @@ typedef struct {
 #endif
 
     /* Self-pipe to cancel blocking wait */
-    UA_FD selfpipe[2]; /* 0: read, 1: write */
+    UA_fd selfpipe[2]; /* 0: read, 1: write */
 
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
@@ -381,21 +413,21 @@ UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connecti
 /* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
  * connections inherit this state. */
 UA_StatusCode
-UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd);
+UA_EventLoopPOSIX_setNonBlocking(UA_fd sockfd);
 
 /* Don't have the socket create interrupt signals */
 UA_StatusCode
-UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd);
+UA_EventLoopPOSIX_setNoSigPipe(UA_fd sockfd);
 
 /* Enables sharing of the same listening address on different sockets */
 UA_StatusCode
-UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
+UA_EventLoopPOSIX_setReusable(UA_fd sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
 #if defined(_WIN32) || defined(__APPLE__) || defined(UA_ARCHITECTURE_ZEPHYR)
 int
-UA_EventLoopPOSIX_pipe(UA_SOCKET fds[2]);
+UA_EventLoopPOSIX_pipe(UA_socket_fd fds[2]);
 #else
 #define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif
