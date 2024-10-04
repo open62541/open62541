@@ -8,10 +8,11 @@
  *   Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_posix.h"
+#include <open62541/config.h>
 
 #if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
 
+#include "eventloop_posix.h"
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
 #include <linux/if_packet.h>
