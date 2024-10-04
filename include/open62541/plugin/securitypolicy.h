@@ -323,7 +323,21 @@ struct UA_SecurityPolicy {
                                                     const UA_ByteString newPrivateKey);
 
     /* Creates a PKCS #10 DER encoded certificate request signed with the server's
-     * private key. */
+     * private key.
+     *
+     * @param securityPolicy The securityPolicy to work on.
+     * @param subjectName The subject name to use in the Certificate Request.
+     *                    If not specified the SubjectName from the current Certificate is used.
+     * @param nonce Additional entropy that the caller can provide.
+     *              It shall be at least 32 bytes long.
+     * @param params A KeyVaue list that can be used for additional parameters later.
+     * @param csr Returns the created CSR. If the passed byte string is not empty, nothing is created.
+     * @param newPrivateKey Returns the private key if a new one needs to be generated.
+     *                      Alternatively, an existing key can be provided,
+     *                      which will be used as the CSR key in the security policy.
+     *                      This is necessary if the CSR was created under a different security policy
+     *                      and the current one only requires an update.
+     * @return If the CSR creation was successful, UA_STATUSCODE_GOOD is returned. */
     UA_StatusCode (*createSigningRequest)(UA_SecurityPolicy *securityPolicy,
                                           const UA_String *subjectName,
                                           const UA_ByteString *nonce,

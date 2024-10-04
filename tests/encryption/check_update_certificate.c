@@ -15,6 +15,11 @@
 #include "test_helpers.h"
 #include "certificates.h"
 
+#ifdef __linux__
+#include "mp_printf.h"
+#include <linux/limits.h>
+#endif
+
 UA_Server *server;
 
 static void setup(void) {
@@ -43,8 +48,9 @@ static void setup2(void) {
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
 
-    char storePathDir[4096];
-    getcwd(storePathDir, 4096);
+    char storePathDir[PATH_MAX];
+    getcwd(storePathDir, PATH_MAX - 4);
+    mp_snprintf(storePathDir, PATH_MAX, "%s/pki", storePathDir);
 
     const UA_String storePath = UA_STRING(storePathDir);
     server =
@@ -88,17 +94,54 @@ START_TEST(update_certificate) {
 
     generateCertificate(&newCertificate, &newPrivateKey);
 
-    UA_ByteString oldCertificate;
-    oldCertificate.length = CERT_DER_LENGTH;
-    oldCertificate.data = CERT_DER_DATA;
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
 
     UA_StatusCode retval =
-            UA_Server_updateCertificate(server, &oldCertificate, &newCertificate,
-                                        &newPrivateKey, false, false);
+            UA_Server_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+                               newCertificate, &newPrivateKey);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&newCertificate);
     UA_ByteString_clear(&newPrivateKey);
+}
+END_TEST
+
+START_TEST(update_certificate_wrongKey) {
+    UA_ByteString newCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
+
+    generateCertificate(&newCertificate, &newPrivateKey);
+
+    UA_ByteString wrongPrivateKey;
+    wrongPrivateKey.length = KEY_DER_LENGTH;
+    wrongPrivateKey.data = KEY_DER_DATA;
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_Server_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, &wrongPrivateKey);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADNOTSUPPORTED);
+
+    UA_ByteString_clear(&newCertificate);
+    UA_ByteString_clear(&newPrivateKey);
+}
+END_TEST
+
+START_TEST(update_certificate_noKey) {
+    UA_ByteString newCertificate;
+    newCertificate.length = CERT_DER_LENGTH;
+    newCertificate.data = CERT_DER_DATA;
+
+    UA_NodeId defaultApplicationGroup = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
+
+    UA_StatusCode retval =
+            UA_Server_updateCertificate(server, defaultApplicationGroup, certTypRsaSha256,
+                                        newCertificate, NULL);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 }
 END_TEST
 
@@ -108,6 +151,8 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert, update_certificate);
+    tcase_add_test(tc_cert, update_certificate_wrongKey);
+    tcase_add_test(tc_cert, update_certificate_noKey);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert);
 
@@ -116,6 +161,8 @@ static Suite* testSuite_create_certificate(void) {
     tcase_add_checked_fixture(tc_cert_filestore, setup2, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
     tcase_add_test(tc_cert_filestore, update_certificate);
+    tcase_add_test(tc_cert, update_certificate_wrongKey);
+    tcase_add_test(tc_cert, update_certificate_noKey);
 #endif /* UA_ENABLE_ENCRYPTION */
     suite_add_tcase(s,tc_cert_filestore);
 #endif

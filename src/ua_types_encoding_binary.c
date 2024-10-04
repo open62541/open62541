@@ -291,16 +291,14 @@ FUNC_DECODE_BINARY(UInt64) {
 /************************/
 
 /* Can we reuse the integer encoding mechanism by casting floating point
- * values? */
-#if (UA_FLOAT_IEEE754 == 1) && (UA_LITTLE_ENDIAN == UA_FLOAT_LITTLE_ENDIAN)
-# define Float_encodeBinary UInt32_encodeBinary
-# define Float_decodeBinary UInt32_decodeBinary
-# define Double_encodeBinary UInt64_encodeBinary
-# define Double_decodeBinary UInt64_decodeBinary
-#else
+ * values? For single float values we ensure that only quiet NAN are used.
+ * For float arrays we want to have the speed advantage of just memcpy (if
+ * the processor architecture uses IEE754). We get array-memcpy by the
+ * "overlayable" bit in the datatype description. */
 
+#if (UA_FLOAT_IEEE754 < 1) || (UA_LITTLE_ENDIAN != UA_FLOAT_LITTLE_ENDIAN)
 #include <math.h>
-
+#define UA_SLOW_IEEE754 1
 #pragma message "No native IEEE 754 format detected. Use slow generic encoding."
 
 /* Handling of IEEE754 floating point values was taken from Beej's Guide to
@@ -336,6 +334,8 @@ unpack754(uint64_t i, unsigned bits, unsigned expbits) {
     return result;
 }
 
+#endif
+
 /* Float */
 #define FLOAT_NAN 0xffc00000
 #define FLOAT_INF 0x7f800000
@@ -345,19 +345,26 @@ unpack754(uint64_t i, unsigned bits, unsigned expbits) {
 FUNC_ENCODE_BINARY(Float) {
     UA_Float f = *src;
     u32 encoded;
-    /* cppcheck-suppress duplicateExpression */
-    if(f != f) encoded = FLOAT_NAN;
+    if(UA_UNLIKELY(f != f)) encoded = FLOAT_NAN; /* quit NAN */
+#ifndef UA_SLOW_IEEE754
+    else memcpy(&encoded, &f, sizeof(UA_Float));
+#else
     else if(f == 0.0f) encoded = signbit(f) ? FLOAT_NEG_ZERO : 0;
     else if(f/f != f/f) encoded = f > 0 ? FLOAT_INF : FLOAT_NEG_INF;
     else encoded = (u32)pack754(f, 32, 8);
+#endif
     return ENCODE_DIRECT(&encoded, UInt32);
 }
 
 FUNC_DECODE_BINARY(Float) {
     u32 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt32);
-    if(ret != UA_STATUSCODE_GOOD)
-        return ret;
+    UA_CHECK_STATUS(ret, return ret);
+#ifndef UA_SLOW_IEEE754
+    if(UA_UNLIKELY((decoded >= 0x7f800001 && decoded <= 0x7fffffff) ||
+                   (decoded >= 0xff800001))) decoded = FLOAT_NAN;
+    memcpy(dst, &decoded, sizeof(UA_Float));
+#else
     if(decoded == 0) *dst = 0.0f;
     else if(decoded == FLOAT_NEG_ZERO) *dst = -0.0f;
     else if(decoded == FLOAT_INF) *dst = INFINITY;
@@ -365,6 +372,7 @@ FUNC_DECODE_BINARY(Float) {
     else if((decoded >= 0x7f800001 && decoded <= 0x7fffffff) ||
        (decoded >= 0xff800001)) *dst = NAN;
     else *dst = (UA_Float)unpack754(decoded, 32, 8);
+#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -378,10 +386,14 @@ FUNC_ENCODE_BINARY(Double) {
     UA_Double d = *src;
     u64 encoded;
     /* cppcheck-suppress duplicateExpression */
-    if(d != d) encoded = DOUBLE_NAN;
+    if(UA_UNLIKELY(d != d)) encoded = DOUBLE_NAN; /* quiet NAN*/
+#ifndef UA_SLOW_IEEE754
+    else memcpy(&encoded, &d, sizeof(UA_Double));
+#else
     else if(d == 0.0) encoded = signbit(d) ? DOUBLE_NEG_ZERO : 0;
     else if(d/d != d/d) encoded = d > 0 ? DOUBLE_INF : DOUBLE_NEG_INF;
     else encoded = pack754(d, 64, 11);
+ #endif
     return ENCODE_DIRECT(&encoded, UInt64);
 }
 
@@ -389,6 +401,11 @@ FUNC_DECODE_BINARY(Double) {
     u64 decoded;
     status ret = DECODE_DIRECT(&decoded, UInt64);
     UA_CHECK_STATUS(ret, return ret);
+#ifndef UA_SLOW_IEEE754
+    if(UA_UNLIKELY((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
+                   (decoded >= 0xfff0000000000001L))) decoded = DOUBLE_NAN;
+    memcpy(dst, &decoded, sizeof(UA_Double));
+#else
     if(decoded == 0) *dst = 0.0;
     else if(decoded == DOUBLE_NEG_ZERO) *dst = -0.0;
     else if(decoded == DOUBLE_INF) *dst = INFINITY;
@@ -396,10 +413,9 @@ FUNC_DECODE_BINARY(Double) {
     else if((decoded >= 0x7ff0000000000001L && decoded <= 0x7fffffffffffffffL) ||
        (decoded >= 0xfff0000000000001L)) *dst = NAN;
     else *dst = (UA_Double)unpack754(decoded, 64, 11);
+#endif
     return UA_STATUSCODE_GOOD;
 }
-
-#endif
 
 /******************/
 /* Array Handling */

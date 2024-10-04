@@ -445,10 +445,6 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
     memcpy(rootDirectory, directory.data, directory.length);
     rootDirectorySize = strnlen(rootDirectory, PATH_MAX);
 
-    /* Add pki directory */
-    strncpy(&rootDirectory[rootDirectorySize], "/pki/", PATH_MAX - rootDirectorySize);
-    rootDirectorySize = strnlen(rootDirectory, PATH_MAX);
-
     /* Add Certificate Group Id */
     UA_NodeId applCertGroup =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -458,11 +454,11 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
     if(UA_NodeId_equal(&certGroup->certificateGroupId, &applCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "ApplCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/ApplCerts", PATH_MAX - rootDirectorySize);
     } else if(UA_NodeId_equal(&certGroup->certificateGroupId, &httpCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "HttpCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/HttpCerts", PATH_MAX - rootDirectorySize);
     } else if(UA_NodeId_equal(&certGroup->certificateGroupId, &userTokenCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "UserTokenCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/UserTokenCerts", PATH_MAX - rootDirectorySize);
     } else {
         UA_String nodeIdStr;
         UA_String_init(&nodeIdStr);

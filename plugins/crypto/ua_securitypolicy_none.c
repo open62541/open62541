@@ -132,6 +132,9 @@ UA_SecurityPolicy_None(UA_SecurityPolicy *policy, const UA_ByteString localCerti
     policy->securityLevel = 0;
     policy->logger = logger;
 
+    policy->certificateGroupId = UA_NODEID_NULL;
+    policy->certificateTypeId = UA_NODEID_NULL;
+
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
     UA_mbedTLS_LoadLocalCertificate(&localCertificate, &policy->localCertificate);
 #elif defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)

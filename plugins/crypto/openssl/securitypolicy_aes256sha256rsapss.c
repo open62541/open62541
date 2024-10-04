@@ -143,6 +143,12 @@ updateCertificateAndPrivateKey_sp_aes128sha256rsapss(UA_SecurityPolicy *security
     Policy_Context_Aes256Sha256RsaPss *pc =
         (Policy_Context_Aes256Sha256RsaPss *)securityPolicy->policyContext;
 
+    UA_Boolean isLocalKey = false;
+    if(newPrivateKey.length <= 0) {
+        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
+            isLocalKey = true;
+    }
+
     UA_ByteString_clear(&securityPolicy->localCertificate);
     UA_ByteString_clear(&pc->localCertThumbprint);
 
@@ -153,11 +159,19 @@ updateCertificateAndPrivateKey_sp_aes128sha256rsapss(UA_SecurityPolicy *security
         return retval;
 
     /* Set the new private key */
-    EVP_PKEY_free(pc->localPrivateKey);
+    if(newPrivateKey.length > 0) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    } else {
+        if(!isLocalKey) {
+            EVP_PKEY_free(pc->localPrivateKey);
+            pc->localPrivateKey = pc->csrLocalPrivateKey;
+            pc->csrLocalPrivateKey = NULL;
+        }
+    }
 
-    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
     if(!pc->localPrivateKey) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        retval = UA_STATUSCODE_BADNOTSUPPORTED;
         goto error;
     }
 

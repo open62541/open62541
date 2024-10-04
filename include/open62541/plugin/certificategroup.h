@@ -63,6 +63,23 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize);
 
+/* Compares the public keys from two byte strings, which can represent either certificates
+ * or Certificate Signing Requests (CSR). This function extracts the public keys from the
+ * provided byte strings and compares them to determine if they are identical.
+ *
+ * @param certificate1  The first byte string, containing either a certificate or a CSR.
+ * @param certificate2  The second byte string, containing either a certificate or a CSR.
+ * @return UA_STATUSCODE_GOOD if the public keys are identical,
+ *         UA_STATUSCODE_BADNOMATCH if the public keys do not match,
+ *         UA_STATUSCODE_BADINTERNALERROR if an error occurs during extraction or comparison. */
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2);
+
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is
