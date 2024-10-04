@@ -85,6 +85,13 @@ UA_DiscoveryManager_clear(struct UA_ServerComponent *sc) {
             currHash = nextHash;
         }
     }
+
+    /* Clean up mdns daemon */
+    if(dm->mdnsDaemon) {
+        mdnsd_shutdown(dm->mdnsDaemon);
+        mdnsd_free(dm->mdnsDaemon);
+        dm->mdnsDaemon = NULL;
+    }
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     return UA_STATUSCODE_GOOD;
