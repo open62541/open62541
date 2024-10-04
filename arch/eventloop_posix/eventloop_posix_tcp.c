@@ -348,7 +348,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 }
 
 static UA_StatusCode
-TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct zsock_addrinfo *ai,
+TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_addrinfo *ai,
                          const char *hostname, UA_UInt16 port,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
@@ -581,7 +581,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     /* Add listen sockets. Aggregate the results to see if at least one
      * listen-socket was established. */
     UA_StatusCode total_result = UA_INT32_MAX;
-    struct zsock_addrinfo *ai = res;
+    UA_addrinfo *ai = res;
     while(ai) {
         total_result &= TCP_registerListenSocket(pcm, ai, hostname, port, application, context,
                                                  connectionCallback, validate, reuseaddr);
@@ -656,7 +656,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
-    struct zsock_pollfd tmp_poll_fd;
+    UA_pollfd tmp_poll_fd;
     tmp_poll_fd.fd = (UA_fd)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
@@ -807,7 +807,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
     UA_addrinfo hints, *info;
-    memset(&hints, 0, sizeof(struct zsock_addrinfo));
+    memset(&hints, 0, sizeof(UA_addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
     int error = UA_getaddrinfo(hostname, portStr, &hints, &info);

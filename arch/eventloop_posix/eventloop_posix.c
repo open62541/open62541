@@ -595,9 +595,12 @@ cmpFD(const UA_fd *a, const UA_fd *b) {
 
 UA_StatusCode
 UA_EventLoopPOSIX_setNonBlocking(UA_fd sockfd) {
-#if defined(UA_ARCHITECTURE_ZEPHYR) || defined(UA_ARCHITECTURE_WIN32)
-    int fl;
-    fl = UA_fcntl(sockfd, F_GETFL, 0);
+#if defined(UA_ARCHITECTURE_WIN32)
+    u_long iMode = 1;
+    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
+        return UA_STATUSCODE_BADINTERNALERROR;
+#elif defined(UA_ARCHITECTURE_ZEPHYR) || defined(UA_ARCHITECTURE_POSIX)
+    int fl = UA_fcntl(sockfd, F_GETFL, 0);
     if(fl == -1) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -606,12 +609,6 @@ UA_EventLoopPOSIX_setNonBlocking(UA_fd sockfd) {
     if(fl == -1) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
-#elif defined(UA_ARCHITECTURE_POSIX)
-    u_long iMode = 1;
-    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#else
-#error "Unknown architecture"
 #endif
     return UA_STATUSCODE_GOOD;
 }
@@ -639,14 +636,11 @@ UA_EventLoopPOSIX_setReusable(UA_fd sockfd) {
     res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, (const char *)&enableReuseVal,
                          sizeof(enableReuseVal));
     return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD
 #elif defined(UA_ARCHITECTURE_WIN32)
     int enableReuseVal = 1;
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char *)&enableReuseVal, sizeof(enableReuseVal));
     return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
-#else
-#error "Unknown architecture"
 #endif
 }
 
@@ -778,12 +772,13 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     struct timeval tmptv = {
-#if defined(UA_ARCHITECTURE_WIN32)
+#if defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_ZEPHYR)
+        (long)(listenTimeout / UA_DATETIME_SEC),
+        (long)((listenTimeout % UA_DATETIME_SEC) /
+               UA_DATETIME_USEC)
+#elif defined(UA_ARCHITECTURE_POSIX)
         (time_t)(listenTimeout / UA_DATETIME_SEC),
         (suseconds_t)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#else
-        (long)(listenTimeout / UA_DATETIME_SEC),
-        (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
 #endif
     };
 
@@ -1006,7 +1001,7 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
 #if defined(UA_ARCHITECTURE_ZEPHYR) || defined(UA_ARCHITECTURE_WIN32)
     int err = UA_send(el->selfpipe[1], ".", 1, 0);
 #elif defined(UA_ARCHITECTURE_POSIX)
-    ssize_t err = UA_write(el->selfpipe[1], ".", 1);
+    ssize_t err = write(el->selfpipe[1], ".", 1);
 #else
 #error "Unknown architecture"
 #endif

@@ -93,7 +93,8 @@ typedef SSIZE_T ssize_t;
 
 typedef SOCKET UA_socket_fd;
 typedef fd_set UA_fd_set;
-typedef struct addrinfo ua_addrinfo;
+typedef struct addrinfo UA_addrinfo;
+typedef struct pollfd UA_pollfd;
 
 #if UA_IPV6
 #define UA_if_nametoindex if_nametoindex
@@ -185,8 +186,9 @@ typedef struct addrinfo ua_addrinfo;
 #define UA_gethostname gethostname
 
 typedef int UA_socket_fd;
-typedef struct fd_set UA_fd_set;
+typedef fd_set UA_fd_set;
 typedef struct addrinfo UA_addrinfo;
+typedef struct pollfd UA_pollfd;
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char *)"None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                                    \
@@ -249,6 +251,7 @@ typedef struct addrinfo UA_addrinfo;
 #define UA_getsockname zsock_getsockname
 #define UA_inet_pton zsock_inet_pton
 #define UA_if_nametoindex zsock_if_nametoindex
+#define UA_FD_SET ZSOCK_FD_SET
 #define UA_FD_ISSET ZSOCK_FD_ISSET
 #define UA_FD_ZERO ZSOCK_FD_ZERO
 #define UA_fcntl zsock_fcntl
@@ -261,6 +264,7 @@ typedef struct addrinfo UA_addrinfo;
 typedef int UA_socket_fd;
 typedef struct zsock_fd_set UA_fd_set;
 typedef struct zsock_addrinfo UA_addrinfo;
+typedef struct zsock_pollfd UA_pollfd;
 
 #define UA_clean_errno(STR_FUN) (errno == 0 ? (char *)"None" : (STR_FUN)(errno))
 #define UA_LOG_SOCKET_ERRNO_WRAP(LOG)                                          \
@@ -366,7 +370,7 @@ typedef struct {
 #endif
 
 #if defined(UA_HAVE_EPOLL)
-    UA_FD epollfd;
+    UA_fd epollfd;
 #else
     UA_RegisteredFD **fds;
     size_t fdsSize;
@@ -427,7 +431,7 @@ UA_EventLoopPOSIX_setReusable(UA_fd sockfd);
  * https://stackoverflow.com/a/3333565 */
 #if defined(_WIN32) || defined(__APPLE__) || defined(UA_ARCHITECTURE_ZEPHYR)
 int
-UA_EventLoopPOSIX_pipe(UA_socket_fd fds[2]);
+UA_EventLoopPOSIX_pipe(UA_fd fds[2]);
 #else
 #define UA_EventLoopPOSIX_pipe(fds) pipe2(fds, O_NONBLOCK)
 #endif
