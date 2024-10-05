@@ -30,7 +30,6 @@
 #define UA_MINMESSAGESIZE 8192
 #define UA_SESSION_LOCALNONCELENGTH 32
 #define MAX_DATA_SIZE 4096
-#define REVERSE_CONNECT_INDICATOR (void *)(uintptr_t)0xFFFFFFFF
 
 static void initConnect(UA_Client *client);
 static UA_StatusCode createSessionAsync(UA_Client *client);
@@ -1360,6 +1359,7 @@ connectActivity(UA_Client *client) {
     switch(client->channel.state) {
         /* Nothing to do if the connection has not opened fully */
     case UA_SECURECHANNELSTATE_CONNECTING:
+    case UA_SECURECHANNELSTATE_REVERSE_CONNECTED:
     case UA_SECURECHANNELSTATE_CLOSING:
     case UA_SECURECHANNELSTATE_HEL_SENT:
     case UA_SECURECHANNELSTATE_OPN_SENT:
@@ -1582,8 +1582,6 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         /* The connection is now open on the TCP level. Set the SecureChannel
          * state to reflect this. Otherwise later consistency checks for the
          * received messages fail. */
-        if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
-            client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
         if(client->channel.state < UA_SECURECHANNELSTATE_CONNECTED)
             client->channel.state = UA_SECURECHANNELSTATE_CONNECTED;
     } else /* state == UA_CONNECTIONSTATE_OPENING */ {
@@ -1946,60 +1944,96 @@ UA_Client_activateSessionAsync(UA_Client *client,
 }
 
 static void
+disconnectListenSockets(UA_Client *client) {
+    UA_ConnectionManager *cm = client->reverseConnectionCM;
+    for(size_t i = 0; i < 16; i++) {
+        if(client->reverseConnectionIds[i] != 0) {
+            cm->closeConnection(cm, client->reverseConnectionIds[i]);
+        }
+    }
+}
+
+/* ConnectionContext meaning:
+ * - NULL: New listen connection
+ * - &client->channel: Established active socket to a server
+ * - &client->reverseConnectionIds[*] == connectionId: Established listen socket
+ * - &client->reverseConnectionIds[*] != connectionId: New active socket */
+static void
 __Client_reverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
-                         void *application, void **connectionContext,
-                         UA_ConnectionState state, const UA_KeyValueMap *params,
-                         UA_ByteString msg) {
-
+                                void *application, void **connectionContext,
+                                UA_ConnectionState state, const UA_KeyValueMap *params,
+                                UA_ByteString msg) {
     UA_Client *client = (UA_Client*)application;
-
     UA_LOCK(&client->clientMutex);
 
-    /* This is the first call for the listening socket, attach the
-     * REVERSE_CONNECT_INDICATOR marker and set the ID to the channel */
-    if(!client->channel.connectionId) {
-        client->channel.connectionId = connectionId;
-        *connectionContext = REVERSE_CONNECT_INDICATOR;
-    }
-
-    /* Last call for the listening connection while it is being closed. Only
-     * notify a state change if no reverse connection is being or has been
-     * established by now */
-    if(*connectionContext == REVERSE_CONNECT_INDICATOR &&
-       state == UA_CONNECTIONSTATE_CLOSING) {
-        if(client->channel.connectionId == connectionId) {
-            client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
-            notifyClientState(client);
+    if(!*connectionContext) {
+        /* Store the new listen connection */
+        size_t i = 0;
+        for(; i < 16; i++) {
+            if(client->reverseConnectionIds[i] == 0) {
+                client->reverseConnectionIds[i] = connectionId;
+                client->reverseConnectionCM = cm;
+                *connectionContext = &client->reverseConnectionIds[i];
+                if(client->channel.state == UA_SECURECHANNELSTATE_CLOSED)
+                    client->channel.state = UA_SECURECHANNELSTATE_REVERSE_LISTENING;
+                break;
+            }
         }
-        UA_UNLOCK(&client->clientMutex);
-        return;
-    }
+        /* All slots are full, close */
+        if(i == 16) {
+            cm->closeConnection(cm, connectionId);
+            UA_UNLOCK(&client->clientMutex);
+            return;
+        }
+    } else if(*connectionContext == &client->channel ||
+              *(uintptr_t*)*connectionContext != connectionId) {
+        /* Active socket */
 
-    /* Second callback for the listening socket, it is now listening for
-     * incoming connections */
-    if(client->channel.connectionId == connectionId &&
-       *connectionContext == REVERSE_CONNECT_INDICATOR) {
-        client->channel.state = UA_SECURECHANNELSTATE_REVERSE_LISTENING;
-        notifyClientState(client);
-    }
+        /* New active socket */
+        if(*connectionContext != &client->channel) {
+            /* The client already has an active connection */
+            if(client->channel.connectionId) {
+                cm->closeConnection(cm, connectionId);
+                UA_UNLOCK(&client->clientMutex);
+                return;
+            }
 
-    /* This is a connection initiated by a server, disconnect the listener and
-     * reset secure channel information */
-    if(client->channel.connectionId != connectionId) {
-        cm->closeConnection(cm, client->channel.connectionId);
-        client->channel.connectionId = 0;
-        *connectionContext = NULL;
-    }
+            /* Set the connection the SecureChannel */
+            client->channel.connectionId = connectionId;
+            client->channel.connectionManager = cm;
+            *connectionContext = &client->channel;
 
-    /* Forward all calls belonging to the reverse connection estblished by the
-     * server to the regular network callback */
-    if(*connectionContext != REVERSE_CONNECT_INDICATOR) {
+            /* Don't keep the listen sockets when an active connection is open */
+            disconnectListenSockets(client);
+
+            /* Set the channel state. The notification callback is called within
+             * __Client_reverseConnectCallback. */
+            if(client->channel.state == UA_SECURECHANNELSTATE_REVERSE_LISTENING)
+                client->channel.state = UA_SECURECHANNELSTATE_REVERSE_CONNECTED;
+        }
+
+        /* Handle the active connection in the normal network callback */
         UA_UNLOCK(&client->clientMutex);
         __Client_networkCallback(cm, connectionId, application,
                                  connectionContext, state, params, msg);
         return;
     }
 
+    /* Close the listen socket. Was this the last one? */
+    if(state == UA_CONNECTIONSTATE_CLOSING) {
+        UA_Byte count = 0;
+        for(size_t i = 0; i < 16; i++) {
+            if(client->reverseConnectionIds[i] == connectionId)
+                client->reverseConnectionIds[i] = 0;
+            if(client->reverseConnectionIds[i] != 0)
+                count++;
+        }
+        /* The last connection was closed */
+        if(count == 0 && client->channel.connectionId == 0)
+            client->channel.state = UA_SECURECHANNELSTATE_CLOSED;
+    }
+
+    notifyClientState(client);
     UA_UNLOCK(&client->clientMutex);
 }
 
@@ -2117,6 +2151,8 @@ closeSecureChannel(UA_Client *client) {
 
     UA_LOG_DEBUG_CHANNEL(client->config.logging, &client->channel,
                          "Closing the channel");
+
+    disconnectListenSockets(client);
 
     /* Send CLO if the SecureChannel is open */
     if(client->channel.state == UA_SECURECHANNELSTATE_OPEN) {

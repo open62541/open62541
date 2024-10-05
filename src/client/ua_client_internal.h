@@ -140,6 +140,10 @@ struct UA_Client {
     UA_UInt32 requestId; /* Unique, internally defined for each request */
     UA_DateTime nextChannelRenewal;
 
+    /* Reverse connect (listen) connections */
+    UA_ConnectionManager *reverseConnectionCM;
+    uintptr_t reverseConnectionIds[16];
+
     /* Session */
     UA_SessionState sessionState;
     UA_NodeId authenticationToken;
