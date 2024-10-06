@@ -132,12 +132,17 @@ struct UA_Client {
      * EndpointUrl != DiscoveryUrl. */
     UA_String discoveryUrl;
 
-    UA_ApplicationDescription serverDescription;
+    /* Contains the Server description, etc. */
+    UA_EndpointDescription endpoint;
 
     /* SecureChannel */
     UA_SecureChannel channel;
     UA_UInt32 requestId; /* Unique, internally defined for each request */
     UA_DateTime nextChannelRenewal;
+
+    /* Reverse connect (listen) connections */
+    UA_ConnectionManager *reverseConnectionCM;
+    uintptr_t reverseConnectionIds[16];
 
     /* Session */
     UA_SessionState sessionState;

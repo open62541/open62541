@@ -212,7 +212,7 @@ UA_Client_clear(UA_Client *client) {
 
     UA_Client_disconnect(client);
     UA_String_clear(&client->discoveryUrl);
-    UA_ApplicationDescription_clear(&client->serverDescription);
+    UA_EndpointDescription_clear(&client->endpoint);
 
     UA_String_clear(&client->serverSessionNonce);
     UA_String_clear(&client->clientSessionNonce);
@@ -330,10 +330,14 @@ sendRequest(UA_Client *client, const void *request,
         return client->connectStatus;
 
     /* Adjusting the request header. The const attribute is violated, but we
-     * only touch the following members: */
+     * reset to the original state before returning. Use the AuthenticationToken
+     * only once the session is active (or to activate / close it). */
     UA_RequestHeader *rr = (UA_RequestHeader*)(uintptr_t)request;
     UA_NodeId oldToken = rr->authenticationToken; /* Put back in place later */
-    rr->authenticationToken = client->authenticationToken;
+    if(client->sessionState == UA_SESSIONSTATE_ACTIVATED ||
+       requestType == &UA_TYPES[UA_TYPES_ACTIVATESESSIONREQUEST] ||
+       requestType == &UA_TYPES[UA_TYPES_CLOSESESSIONREQUEST])
+        rr->authenticationToken = client->authenticationToken;
     rr->timestamp = UA_DateTime_now();
 
     /* Create a unique handle >100,000 if not manually defined. The handle is
@@ -1087,7 +1091,7 @@ getConnectionttribute(UA_Client *client, const UA_QualifiedName key,
 
     if(UA_QualifiedName_equal(&key, &connectionAttributes[0])) {
         /* ServerDescription */
-        UA_Variant_setScalar(&localAttr, &client->serverDescription,
+        UA_Variant_setScalar(&localAttr, &client->endpoint.server,
                              &UA_TYPES[UA_TYPES_APPLICATIONDESCRIPTION]);
     } else if(UA_QualifiedName_equal(&key, &connectionAttributes[1])) {
         /* SecurityPolicyUri */

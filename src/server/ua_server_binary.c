@@ -142,10 +142,6 @@ setBinaryProtocolManagerState(UA_Server *server,
 static void
 deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
                           UA_SecureChannel *channel) {
-    /* Clean up the SecureChannel. This is the only place where
-     * UA_SecureChannel_clear must be called within the server code-base. */
-    UA_SecureChannel_clear(channel);
-
     /* Detach the channel from the server list */
     TAILQ_REMOVE(&bpm->channels, (channel_entry*)channel, pointers);
 
@@ -178,6 +174,9 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         break;
     }
 
+    /* Clean up the SecureChannel. This is the only place where
+     * UA_SecureChannel_clear must be called within the server code-base. */
+    UA_SecureChannel_clear(channel);
     UA_free(channel);
 }
 
