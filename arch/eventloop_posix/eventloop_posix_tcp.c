@@ -556,9 +556,14 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 #else
     hints.ai_family = AF_INET;   /* IPv4 only */
 #endif
+    // For any reason, the behaviour of getaddrinfo on zephyr is different for
+    // hostname == NULL. The call works when hostname is set to "0.0.0.0"
+    // instead.
+#if defined(UA_ARCHITECTURE_ZEPHYR)
     if (hostname == NULL) {
         hostname = "0.0.0.0";
     }
+#endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
