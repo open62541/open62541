@@ -1118,70 +1118,68 @@ target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
 # Check if a C compiler flag is supported and add it (if supported)
 # Taken from https://stackoverflow.com/a/33266748
 include(CheckCCompilerFlag)
-function(check_add_cc_flag CC_FLAG)
+function(check_add_cc_flag VISIBILITY CC_FLAG)
     message(STATUS "Test CC flag ${CC_FLAG}")
     check_c_compiler_flag("${CC_FLAG}" flag_supported)
     if(flag_supported)
-        target_compile_options(open62541-plugins PRIVATE ${CC_FLAG})
-        target_compile_options(open62541-object PRIVATE ${CC_FLAG})
-        target_compile_options(open62541 PRIVATE ${CC_FLAG})
+        target_compile_options(open62541-plugins ${VISIBILITY} ${CC_FLAG})
+        target_compile_options(open62541-object ${VISIBILITY} ${CC_FLAG})
+        target_compile_options(open62541 ${VISIBILITY} ${CC_FLAG})
     endif()
     unset(flag_supported CACHE)
 endfunction()
-function(add_cc_flag CC_FLAG)
-    target_compile_options(open62541-plugins PRIVATE ${CC_FLAG})
-    target_compile_options(open62541-object PRIVATE ${CC_FLAG})
-    target_compile_options(open62541 PRIVATE ${CC_FLAG})
+function(add_cc_flag VISIBILITY CC_FLAG)
+    target_compile_options(open62541-plugins ${VISIBILITY} ${CC_FLAG})
+    target_compile_options(open62541-object ${VISIBILITY} ${CC_FLAG})
+    target_compile_options(open62541 ${VISIBILITY} ${CC_FLAG})
 endfunction()
 
 if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND NOT UA_ARCHITECTURE STREQUAL "zephyr")
-    check_add_cc_flag("-std=c99")   # C99 mode
-    check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
-    check_add_cc_flag("-Wall")      # Warnings
-    check_add_cc_flag("-Wextra")    # More warnings
-    check_add_cc_flag("-Wpedantic") # Standard compliance
+    check_add_cc_flag(PRIVATE "-std=c99")   # C99 mode
+    check_add_cc_flag(PRIVATE "-pipe")      # Avoid writing temporary files (for compiler speed)
+    check_add_cc_flag(PRIVATE "-Wall")      # Warnings
+    check_add_cc_flag(PRIVATE "-Wextra")    # More warnings
+    check_add_cc_flag(PRIVATE "-Wpedantic") # Standard compliance
     if(UA_FORCE_WERROR)
-        check_add_cc_flag("-Werror") # All warnings are errors
-        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+        check_add_cc_flag(PRIVATE "-Werror") # All warnings are errors
+        check_add_cc_flag(PRIVATE "-Wunused-command-line-argument") # Warning for command line args instead of error
     endif()
 
-    check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
-    check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
-    check_add_cc_flag("-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
-    check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
+    check_add_cc_flag(PRIVATE "-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
+    check_add_cc_flag(PRIVATE "-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
+    check_add_cc_flag(PRIVATE "-Wno-unused-parameter") # some methods may require unused arguments to cast to a method pointer
+    check_add_cc_flag(PRIVATE "-Wno-maybe-uninitialized") # too many false positives
 
     # Use a strict subset of the C and C++ languages
-    check_add_cc_flag("-Wc++-compat")
+    check_add_cc_flag(PRIVATE "-Wc++-compat")
 
     # Check that format strings (printf/scanf) are sane
-    check_add_cc_flag("-Wformat")
-    check_add_cc_flag("-Wformat-security")
-    check_add_cc_flag("-Wformat-nonliteral")
+    check_add_cc_flag(PRIVATE "-Wformat")
+    check_add_cc_flag(PRIVATE "-Wformat-security")
+    check_add_cc_flag(PRIVATE "-Wformat-nonliteral")
 
     # Check prototype definitions
-    check_add_cc_flag("-Wmissing-prototypes")
-    check_add_cc_flag("-Wstrict-prototypes")
-    check_add_cc_flag("-Wredundant-decls")
+    check_add_cc_flag(PRIVATE "-Wmissing-prototypes")
+    check_add_cc_flag(PRIVATE "-Wstrict-prototypes")
+    check_add_cc_flag(PRIVATE "-Wredundant-decls")
 
-    check_add_cc_flag("-Wuninitialized")
-    check_add_cc_flag("-Winit-self")
-    check_add_cc_flag("-Wcast-qual")
-    check_add_cc_flag("-Wstrict-overflow")
-    check_add_cc_flag("-Wnested-externs")
-    check_add_cc_flag("-Wmultichar")
-    check_add_cc_flag("-Wundef")
-    check_add_cc_flag("-fno-strict-aliasing") # fewer compiler assumptions about pointer types
-    check_add_cc_flag("-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
+    check_add_cc_flag(PRIVATE "-Wuninitialized")
+    check_add_cc_flag(PRIVATE "-Winit-self")
+    check_add_cc_flag(PRIVATE "-Wcast-qual")
+    check_add_cc_flag(PRIVATE "-Wstrict-overflow")
+    check_add_cc_flag(PRIVATE "-Wnested-externs")
+    check_add_cc_flag(PRIVATE "-Wmultichar")
+    check_add_cc_flag(PRIVATE "-Wundef")
+    check_add_cc_flag(PRIVATE "-fno-strict-aliasing") # fewer compiler assumptions about pointer types
+    check_add_cc_flag(PRIVATE "-fexceptions") # recommended for multi-threaded C code, also in combination with C++ code
 
     # Generate position-independent code for shared libraries (adds a performance penalty)
     if(BUILD_SHARED_LIBS)
-        add_cc_flag("-fPIC")
+        add_cc_flag(PRIVATE "-fPIC")
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
-        target_compile_options(open62541-plugins PUBLIC -pthread)
-        target_compile_options(open62541-object PUBLIC -pthread)
-        target_compile_options(open62541 PUBLIC -pthread)
+        add_cc_flag(PUBLIC "-pthread")
     endif()
 
     # Force 32bit build
@@ -1194,21 +1192,21 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND NOT UA_
 
     # Coverage
     if(UA_ENABLE_COVERAGE)
-        check_add_cc_flag("--coverage")
+        check_add_cc_flag(PUBLIC "--coverage")
         if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-            check_add_cc_flag("-fprofile-instr-generate")
-            check_add_cc_flag("-fcoverage-mapping")
+            check_add_cc_flag(PUBLIC "-fprofile-instr-generate")
+            check_add_cc_flag(PUBLIC "-fcoverage-mapping")
         endif()
     endif()
 
     if(NOT MINGW AND NOT UA_BUILD_OSS_FUZZ)
         if(UA_ENABLE_HARDENING)
-            check_add_cc_flag("-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
-            check_add_cc_flag("-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
+            check_add_cc_flag(PRIVATE "-fstack-protector-strong") # more performant stack protector, available since gcc 4.9
+            check_add_cc_flag(PRIVATE "-fstack-clash-protection") # increased reliability of stack overflow detection, available since gcc 8
             # future use (control flow integrity protection)
             if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD" AND NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
-                check_add_cc_flag("-mcet")
-                check_add_cc_flag("-fcf-protection")
+                check_add_cc_flag(PRIVATE "-mcet")
+                check_add_cc_flag(PRIVATE "-fcf-protection")
             endif()
         endif()
 
@@ -1245,21 +1243,21 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND NOT UA_
     endif()
 
     if(NOT MINGW AND UA_ENABLE_HARDENING AND ((CMAKE_BUILD_TYPE STREQUAL "Release") OR (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")))
-        check_add_cc_flag("-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
+        check_add_cc_flag(PRIVATE "-D_FORTIFY_SOURCE=2") # run-time buffer overflow detection (needs at least -O1)
     endif()
 
     # Strip release builds
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-        check_add_cc_flag("-ffunction-sections")
-        check_add_cc_flag("-fdata-sections")
-        check_add_cc_flag("-fno-unwind-tables")
-        check_add_cc_flag("-fno-asynchronous-unwind-tables")
-        check_add_cc_flag("-fno-math-errno")
-#        check_add_cc_flag("-fno-ident")
+        check_add_cc_flag(PRIVATE "-ffunction-sections")
+        check_add_cc_flag(PRIVATE "-fdata-sections")
+        check_add_cc_flag(PRIVATE "-fno-unwind-tables")
+        check_add_cc_flag(PRIVATE "-fno-asynchronous-unwind-tables")
+        check_add_cc_flag(PRIVATE "-fno-math-errno")
+#        check_add_cc_flag(PRIVATE "-fno-ident")
 
         # remove stack-protector with MinSizeRel
         if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-            check_add_cc_flag("-fno-stack-protector")
+            check_add_cc_flag(PRIVATE "-fno-stack-protector")
         endif()
         if(NOT OS9)
             set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
