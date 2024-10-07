@@ -495,6 +495,10 @@ endif()
 # Directory for generated sources
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    set(UA_ENABLE_MALLOC_SINGLETON ON)
+endif()
+
 # Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
@@ -1175,7 +1179,9 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND NOT UA_
     endif()
 
     if(UA_MULTITHREADING GREATER_EQUAL 100 AND NOT WIN32)
-        check_add_cc_flag("-pthread")
+        target_compile_options(open62541-plugins PUBLIC -pthread)
+        target_compile_options(open62541-object PUBLIC -pthread)
+        target_compile_options(open62541 PUBLIC -pthread)
     endif()
 
     # Force 32bit build
@@ -1349,10 +1355,6 @@ install(TARGETS open62541
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_schema_dir share/open62541/schema)
-
-if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    set(UA_ENABLE_MALLOC_SINGLETON ON)
-endif()
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
