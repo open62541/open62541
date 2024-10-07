@@ -811,10 +811,14 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
             &dsr->config.subscribedDataSet.subscribedDataSetTarget.targetVariables[i];
 
         if(tv->externalDataValue) {
-            if(tv->beforeWrite)
+            if(tv->beforeWrite) {
+                void *pData = (**tv->externalDataValue).value.data;
+                (**tv->externalDataValue).value.data = value;   // set raw data as "preview"
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
+                (**tv->externalDataValue).value.data = pData;  // restore previous data pointer
+            }
             memcpy((*tv->externalDataValue)->value.data, value, type->memSize);
             if(tv->afterWrite)
                 tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
@@ -926,10 +930,14 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
                 continue;
             }
 
-            if(tv->beforeWrite)
+            if(tv->beforeWrite) {
+                UA_DataValue *pDataValue = *tv->externalDataValue;
+                *tv->externalDataValue = field;   // set raw data as "preview"
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
+                *tv->externalDataValue = pDataValue;  // restore previous data pointer
+            }
             memcpy((*tv->externalDataValue)->value.data,
                    field->value.data, field->value.type->memSize);
             if(tv->afterWrite)
