@@ -17,6 +17,7 @@
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
+#include <mbedtls/sha256.h>
 
 #include "securitypolicy_common.h"
 
@@ -673,25 +674,31 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString thumbpr = UA_BYTESTRING_NULL;
-    UA_ByteString_allocBuffer(&thumbpr, UA_SHA1_LENGTH);
+    // prepare temporary to hold the binary thumbprint
+    UA_Byte buf[UA_SHA1_LENGTH];
+    UA_ByteString thumbpr = {
+        /*.length =*/ sizeof(buf),
+        /*.data =*/ buf
+    };
 
     retval = mbedtls_thumbprint_sha1(certificate, &thumbpr);
 
-    UA_String thumb = UA_STRING_NULL;
-    thumb.length = (UA_SHA1_LENGTH * 2) + 1;
-    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumb.length);
-
-    /* Create a string containing a hex representation */
-    char *p = (char*)thumb.data;
-    for (size_t i = 0; i < thumbpr.length; i++) {
-        p += sprintf(p, "%.2X", thumbpr.data[i]);
+    // convert to hexadecimal string representation
+    size_t t = 0u;
+    for (size_t i = 0u; i < thumbpr.length; i++) {
+        UA_Byte shift = 4u;
+        // byte consists of two nibbles: AAAABBBB
+        const UA_Byte curByte = thumbpr.data[i];
+        // convert AAAA first then BBBB
+        for(size_t n = 0u; n < 2u; n++) {
+            UA_Byte curNibble = (curByte >> shift) & 0x0Fu;
+            if(curNibble >= 10u)
+                thumbprint->data[t++] = (65u + (curNibble - 10u));  // 65 == 'A'
+            else
+                thumbprint->data[t++] = (48u + curNibble);          // 48 == '0'
+            shift -= 4u;
+        }
     }
-
-    memcpy(thumbprint->data, thumb.data, thumbprint->length);
-
-    UA_ByteString_clear(&thumbpr);
-    UA_ByteString_clear(&thumb);
 
     return retval;
 }
@@ -717,6 +724,168 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     mbedtls_x509_crt_free(&publicKey);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    mbedtls_x509_crt cert1;
+    mbedtls_x509_crt cert2;
+    mbedtls_x509_csr csr1;
+    mbedtls_x509_csr csr2;
+    mbedtls_mpi N1, E1;
+    mbedtls_mpi N2, E2;
+
+    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate1);
+    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(certificate2);
+
+    mbedtls_x509_crt_init(&cert1);
+    mbedtls_x509_crt_init(&cert2);
+    mbedtls_x509_csr_init(&csr1);
+    mbedtls_x509_csr_init(&csr2);
+    mbedtls_mpi_init(&N1);
+    mbedtls_mpi_init(&E1);
+    mbedtls_mpi_init(&N2);
+    mbedtls_mpi_init(&E2);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert1, data1.data, data1.length);
+    if(mbedErr) {
+        /* Try to load as a csr */
+        mbedErr = mbedtls_x509_csr_parse(&csr1, data1.data, data1.length);
+        if(mbedErr) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+
+    mbedErr = mbedtls_x509_crt_parse(&cert2, data2.data, data2.length);
+    if(mbedErr) {
+        /* Try to load as a csr */
+        mbedErr = mbedtls_x509_csr_parse(&csr2, data2.data, data2.length);
+        if(mbedErr) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_pk_context pk1 = cert1.pk.pk_info ? cert1.pk : csr1.pk;
+    mbedtls_pk_context pk2 = cert2.pk.pk_info ? cert2.pk : csr2.pk;
+#else
+    mbedtls_pk_context pk1 = cert1.pk_raw.p ? cert1.pk : csr1.pk;
+    mbedtls_pk_context pk2 = cert2.pk_raw.p ? cert2.pk : csr2.pk;
+#endif
+
+    if(!mbedtls_pk_rsa(pk1) || !mbedtls_pk_rsa(pk2)) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(!mbedtls_pk_can_do(&pk1, MBEDTLS_PK_RSA) &&
+       !mbedtls_pk_can_do(&pk2, MBEDTLS_PK_RSA)) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+#if MBEDTLS_VERSION_NUMBER < 0x02070000
+    N1 = mbedtls_pk_rsa(pk1)->N;
+    E1 = mbedtls_pk_rsa(pk1)->E;
+    N2 = mbedtls_pk_rsa(pk2)->N;
+    E2 = mbedtls_pk_rsa(pk2)->E;
+#else
+    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk1), &N1, NULL, NULL, NULL, &E1) != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk2), &N2, NULL, NULL, NULL, &E2) != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+#endif
+
+    if(mbedtls_mpi_cmp_mpi(&N1, &N2) || mbedtls_mpi_cmp_mpi(&E1, &E2))
+        retval = UA_STATUSCODE_BADNOMATCH;
+
+cleanup:
+    mbedtls_mpi_free(&N1);
+    mbedtls_mpi_free(&E1);
+    mbedtls_mpi_free(&N2);
+    mbedtls_mpi_free(&E2);
+    mbedtls_x509_crt_free(&cert1);
+    mbedtls_x509_crt_free(&cert2);
+    mbedtls_x509_csr_free(&csr1);
+    mbedtls_x509_csr_free(&csr2);
+    UA_ByteString_clear(&data1);
+    UA_ByteString_clear(&data2);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context pk;
+
+    mbedtls_x509_crt_init(&cert);
+    mbedtls_pk_init(&pk);
+
+    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate);
+    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(privateKey);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data1.data, data1.length);
+    if(mbedErr) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0);
+#else
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0,
+                                   mbedtls_entropy_func, &entropy);
+    mbedtls_entropy_free(&entropy);
+#endif
+
+    if(err != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Verify the private key matches the public key in the certificate */
+    if(!mbedtls_pk_can_do(&pk, mbedtls_pk_get_type(&cert.pk))) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Check if the public key from the certificate matches the private key */
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    if(mbedtls_pk_check_pair(&cert.pk, &pk) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#else
+    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedtls_entropy_func, NULL) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#endif
+
+cleanup:
+    mbedtls_pk_free(&pk);
+    mbedtls_x509_crt_free(&cert);
+    UA_ByteString_clear(&data1);
+    UA_ByteString_clear(&data2);
+
+    return retval;
 }
 
 UA_StatusCode

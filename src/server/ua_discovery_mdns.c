@@ -980,13 +980,6 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
         }
     }
 
-    /* Clean up mdns daemon */
-    if(dm->mdnsDaemon) {
-        mdnsd_shutdown(dm->mdnsDaemon);
-        mdnsd_free(dm->mdnsDaemon);
-        dm->mdnsDaemon = NULL;
-    }
-
     /* Close the socket */
     if(dm->cm) {
         if(dm->mdnsSendConnection)
