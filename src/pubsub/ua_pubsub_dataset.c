@@ -581,8 +581,6 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     switch(newConfig->publishedDataSetType) {
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        break;
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
         res = UA_STATUSCODE_BADNOTSUPPORTED;
         break;

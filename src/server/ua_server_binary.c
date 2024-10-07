@@ -151,6 +151,9 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         break;
     }
 
+    /* Clean up the SecureChannel. This is the only place where
+     * UA_SecureChannel_clear must be called within the server code-base. */
+    UA_SecureChannel_clear(channel);
     UA_free(channel);
 }
 

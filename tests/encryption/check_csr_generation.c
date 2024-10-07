@@ -49,18 +49,19 @@ START_TEST(csr_generation_rsaSha) {
 }
 END_TEST
 
-START_TEST(csr_generation_rsaMin) {
-    UA_ByteString *csr = UA_ByteString_new();
-    UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
-    UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
-    UA_StatusCode retval =
-            UA_Server_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr);
-    ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
-    ck_assert_uint_ne(csr->length, 0);
+/* Basic128Rsa15 is deprecated */
+/* START_TEST(csr_generation_rsaMin) { */
+/*     UA_ByteString *csr = UA_ByteString_new(); */
+/*     UA_NodeId groupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP); */
+/*     UA_NodeId typeId = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
+/*     UA_StatusCode retval = */
+/*             UA_Server_createSigningRequest(server, groupId, typeId, NULL, NULL, NULL, csr); */
+/*     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD); */
+/*     ck_assert_uint_ne(csr->length, 0); */
 
-    UA_ByteString_delete(csr);
-}
-END_TEST
+/*     UA_ByteString_delete(csr); */
+/* } */
+/* END_TEST */
 
 START_TEST(csr_generation_new_priv_key) {
     UA_ByteString *csr = UA_ByteString_new();
@@ -141,7 +142,6 @@ static Suite* testSuite_create_certificate(void) {
     TCase *tc_cert = tcase_create("Csr Create");
     tcase_add_checked_fixture(tc_cert, setup, teardown);
 #ifdef UA_ENABLE_ENCRYPTION
-    tcase_add_test(tc_cert, csr_generation_rsaMin);
     tcase_add_test(tc_cert, csr_generation_rsaSha);
     tcase_add_test(tc_cert, csr_generation_new_priv_key);
     tcase_add_test(tc_cert, csr_generation_add_nonce);

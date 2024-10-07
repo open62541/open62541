@@ -79,9 +79,13 @@ UA_PubSubConnection_decodeNetworkMessage(UA_PubSubManager *psm,
 
 loops_exit:
     if(!processed) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, connection,
-                              "Could not decode the received NetworkMessage "
-                              "-- No matching ReaderGroup");
+        UA_DateTime nowM = UA_DateTime_nowMonotonic();
+        if(connection->silenceErrorUntil < nowM) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, connection,
+                                  "Could not decode the received NetworkMessage "
+                                  "-- No matching ReaderGroup");
+            connection->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
+        }
         UA_NetworkMessage_clear(nm);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -284,7 +288,7 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
-        if(rg->config.rtLevel != UA_PUBSUB_RT_FIXED_SIZE) {
+        if(!(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)) {
             nonRtRg = rg;
             continue;
         } 
@@ -323,7 +327,7 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
         if(rg->head.state != UA_PUBSUBSTATE_OPERATIONAL &&
            rg->head.state != UA_PUBSUBSTATE_PREOPERATIONAL)
             continue;
-        if(rg->config.rtLevel == UA_PUBSUB_RT_FIXED_SIZE)
+        if(rg->config.rtLevel & UA_PUBSUB_RT_FIXED_SIZE)
             continue;
         processed |= UA_ReaderGroup_process(psm, rg, &nm);
     }
@@ -331,9 +335,13 @@ UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
  finish:
     if(!processed) {
-        UA_LOG_WARNING_PUBSUB(psm->logging, c,
-                              "Message received that could not be processed. "
-                              "Check PublisherID, WriterGroupID and DatasetWriterID.");
+        UA_DateTime nowM = UA_DateTime_nowMonotonic();
+        if(c->silenceErrorUntil < nowM) {
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Message received that could not be processed. "
+                                  "Check PublisherID, WriterGroupID and DatasetWriterID.");
+            c->silenceErrorUntil = nowM + (UA_DateTime)(10.0 * UA_DATETIME_SEC);
+        }
     }
 }
 
