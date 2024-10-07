@@ -11,7 +11,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include "test_helpers.h"
 #include "ua_pubsub.h"
@@ -229,7 +229,7 @@ encyrptedclientconnect(UA_Client *client) {
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     return UA_STATUSCODE_GOOD;
 }

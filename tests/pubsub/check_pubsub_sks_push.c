@@ -13,7 +13,7 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include <open62541/client_highlevel.h>
-#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include "test_helpers.h"
 #include "../encryption/certificates.h"
@@ -95,7 +95,7 @@ encyrptedclientconnect(UA_Client *client) {
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
 
-    UA_CertificateVerification_AcceptAll(&cc->certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     /* Secure client connect */
     return UA_Client_connect(client, "opc.tcp://localhost:4840");

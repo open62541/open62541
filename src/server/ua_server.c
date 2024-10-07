@@ -730,11 +730,10 @@ UA_Server_updateCertificate(UA_Server *server,
     if(!UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    /* The server currently only supports the following certificate types */
-    UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    /* The server currently only supports the following certificate type */
+    /* UA_NodeId certTypRsaMin = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
     UA_NodeId certTypRsaSha256 = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaMin) &&
-       !UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
+    if(!UA_NodeId_equal(&certificateTypeId, &certTypRsaSha256))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
@@ -799,9 +798,9 @@ UA_Server_createSigningRequest(UA_Server *server,
 
     /* The server currently only supports RSA CertificateType */
     UA_NodeId rsaShaCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
-    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
-       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
+    /* UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,
+       UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
+    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
