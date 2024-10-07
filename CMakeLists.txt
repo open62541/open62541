@@ -1293,10 +1293,6 @@ if(MSVC)
   endif()
 endif()
 
-if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
-    set(UA_ENABLE_MALLOC_SINGLETON ON)
-endif()
-
 ##########################
 # Build Selected Targets #
 ##########################
@@ -1353,6 +1349,10 @@ install(TARGETS open62541
 
 set(open62541_install_tools_dir share/open62541)
 set(open62541_install_schema_dir share/open62541/schema)
+
+if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
+    set(UA_ENABLE_MALLOC_SINGLETON ON)
+endif()
 
 # Create open62541Config.cmake
 include(CMakePackageConfigHelpers)
