@@ -45,9 +45,9 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
 /* Do not merge packets on the socket (disable Nagle's algorithm) */
 static UA_StatusCode
-TCP_setNoNagle(UA_FD sockfd) {
+TCP_setNoNagle(UA_fd sockfd) {
     int val = 1;
-    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&val, sizeof(val));
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     return UA_STATUSCODE_GOOD;
@@ -123,13 +123,13 @@ TCP_delayedClose(void *application, void *context) {
 static int
 getSockError(TCP_FD *conn) {
     int error = 0;
-#ifndef _WIN32
-    socklen_t errlen = sizeof(int);
-    int err = getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
-#else
+#if defined(UA_ARCHITECTURE_WIN32)
     int errlen = (int)sizeof(int);
     int err = getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
                          (char*)&error, &errlen);
+#else
+    socklen_t errlen = sizeof(int);
+    int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
 #endif
     return (err == 0) ? error : err;
 }
@@ -195,9 +195,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
-#ifndef _WIN32
+#if defined(UA_ARCHITECTURE_WIN32)
     ssize_t ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                          response.length, MSG_DONTWAIT);
+                          (int)response.length, MSG_DONTWAIT);
 #else
     int ret = UA_recv(conn->rfd.fd, (char*)response.data,
                       response.length, MSG_DONTWAIT);
@@ -247,7 +247,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Try to accept a new connection */
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_FD newsockfd = accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
+    UA_fd newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
         if(UA_ERRNO == UA_INTERRUPTED)
@@ -348,7 +348,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 }
 
 static UA_StatusCode
-TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
+TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_addrinfo *ai,
                          const char *hostname, UA_UInt16 port,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
@@ -358,10 +358,10 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 
     /* Translate INADDR_ANY to IPv4/IPv6 address */
     char addrstr[UA_MAXHOSTNAME_LENGTH];
-    int get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+    int get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
                                  addrstr, sizeof(addrstr), NULL, 0, 0);
     if(get_res != 0) {
-        get_res = UA_getnameinfo(ai->ai_addr, ai->ai_addrlen,
+        get_res = UA_getnameinfo(ai->ai_addr, (socklen_t)ai->ai_addrlen,
                                  addrstr, sizeof(addrstr),
                                  NULL, 0, NI_NUMERICHOST);
         if(get_res != 0) {
@@ -374,7 +374,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Create the server socket */
-    UA_FD listenSocket = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    UA_fd listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -429,14 +429,14 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Bind socket to address */
-    int ret = bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+    int ret = UA_bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {
         struct sockaddr_in sin;
         memset(&sin, 0, sizeof(sin));
         socklen_t len = sizeof(sin);
-        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        UA_getsockname(listenSocket, (struct sockaddr *)&sin, &len);
         port = ntohs(sin.sin_port);
     }
 
@@ -447,7 +447,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                     "TCP %u\t| Creating listen socket for \"%s\" on port %u",
                     (unsigned)listenSocket, hostname, port);
     } else {
-        gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
+        UA_gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
         hostname = hoststr;
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| Creating listen socket for \"%s\" "
@@ -472,7 +472,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Start listening */
-    if(listen(listenSocket, UA_MAXBACKLOG) < 0) {
+    if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s)",
@@ -549,18 +549,26 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     mp_snprintf(portstr, sizeof(portstr), "%d", port);
 
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
-    struct addrinfo hints, *res;
+    UA_addrinfo hints, *res;
     memset(&hints, 0, sizeof hints);
 #if UA_IPV6
     hints.ai_family = AF_UNSPEC; /* Allow IPv4 and IPv6 */
 #else
     hints.ai_family = AF_INET;   /* IPv4 only */
 #endif
+    // For any reason, the behaviour of getaddrinfo on zephyr is different for
+    // hostname == NULL. The call works when hostname is set to "0.0.0.0"
+    // instead.
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+    if (hostname == NULL) {
+        hostname = "0.0.0.0";
+    }
+#endif
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -570,7 +578,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 #else
         UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, gai_strerror(retcode));
+                       hostname, port, UA_gai_strerror(retcode));
 #endif
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -578,13 +586,13 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     /* Add listen sockets. Aggregate the results to see if at least one
      * listen-socket was established. */
     UA_StatusCode total_result = UA_INT32_MAX;
-    struct addrinfo *ai = res;
+    UA_addrinfo *ai = res;
     while(ai) {
         total_result &= TCP_registerListenSocket(pcm, ai, hostname, port, application, context,
                                                  connectionCallback, validate, reuseaddr);
         ai = ai->ai_next;
     }
-    freeaddrinfo(res);
+    UA_freeaddrinfo(res);
 
     return total_result;
 }
@@ -604,7 +612,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",
@@ -628,7 +636,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
-    UA_FD fd = (UA_FD)connectionId;
+    UA_fd fd = (UA_fd)connectionId;
     TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -648,13 +656,13 @@ static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
     /* We may not have a lock. But we need not take it. As the connectionId is
-     * the fd, no need to do a lookup and access internal data strucures. */
+     * the fd, no need to do a lookup and access internal data structures. */
 
     /* Prevent OS signals when sending to a closed socket */
     int flags = MSG_NOSIGNAL;
 
-    struct pollfd tmp_poll_fd;
-    tmp_poll_fd.fd = (UA_FD)connectionId;
+    UA_pollfd tmp_poll_fd;
+    tmp_poll_fd.fd = (UA_fd)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
     /* Send the full buffer. This may require several calls to send */
@@ -665,9 +673,9 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                          "TCP %u\t| Attempting to send", (unsigned)connectionId);
             size_t bytes_to_send = buf->length - nWritten;
-            n = UA_send((UA_FD)connectionId,
+            n = UA_send((UA_fd)connectionId,
                         (const char*)buf->data + nWritten,
-                        bytes_to_send, flags);
+                        (int)bytes_to_send, flags);
             if(n < 0) {
                 /* An error we cannot recover from? */
                 if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
@@ -803,13 +811,13 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
 
     /* Create the socket description from the connectString
      * TODO: Make this non-blocking */
-    struct addrinfo hints, *info;
-    memset(&hints, 0, sizeof(struct addrinfo));
+    UA_addrinfo hints, *info;
+    memset(&hints, 0, sizeof(UA_addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    int error = getaddrinfo(hostname, portStr, &hints, &info);
+    int error = UA_getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-#ifdef _WIN32
+#if defined(UA_ARCHITECTURE_WIN32)
         UA_LOG_SOCKET_ERRNO_WRAP(
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup of %s failed (%s)",
@@ -817,15 +825,15 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
 #else
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP\t| Lookup of %s failed (%s)",
-                       hostname, gai_strerror(error));
+                       hostname, UA_gai_strerror(error));
 #endif
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Create a socket */
-    UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_fd newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(newSock == UA_INVALID_FD) {
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not create socket to connect to %s (%s)",
@@ -842,21 +850,21 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not set socket options: %s", errno_str));
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_close(newSock);
         return res;
     }
 
     /* Only validate, don't actually open the connection */
     if(validate) {
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_close(newSock);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Non-blocking connect */
-    error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
-    freeaddrinfo(info);
+    error = UA_connect(newSock, info->ai_addr, (int)info->ai_addrlen);
+    UA_freeaddrinfo(info);
     if(error != 0 &&
        UA_ERRNO != UA_INPROGRESS &&
        UA_ERRNO != UA_WOULDBLOCK) {
@@ -905,7 +913,7 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
                 "TCP %u\t| Opening a connection to \"%s\" on port %s",
                 (unsigned)newSock, hostname, portStr);
 
-    /* Signal the new connection to the application as asynchonously opening */
+    /* Signal the new connection to the application as asynchronously opening */
     UA_UNLOCK(&el->elMutex);
     connectionCallback(&pcm->cm, (uintptr_t)newSock,
                        application, &newConn->context,

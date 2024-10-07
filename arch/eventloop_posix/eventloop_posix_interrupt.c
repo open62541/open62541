@@ -5,6 +5,10 @@
  *    Copyright 2021, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
+#include <open62541/config.h>
+
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
 #include "eventloop_posix.h"
 #include <signal.h>
 
@@ -95,7 +99,7 @@ activateSignal(UA_RegisteredSignal *rs) {
     }
 
     /* Create the fd */
-    UA_FD newfd = signalfd(-1, &mask, 0);
+    UA_fd newfd = signalfd(-1, &mask, 0);
     if(newfd < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -441,3 +445,5 @@ UA_InterruptManager_new_POSIX(const UA_String eventSourceName) {
     im->deregisterInterrupt = deregisterPOSIXInterrupt;
     return im;
 }
+
+#endif

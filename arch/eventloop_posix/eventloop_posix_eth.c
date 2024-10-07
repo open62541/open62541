@@ -8,10 +8,11 @@
  *   Copyright 2022 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-#include "eventloop_posix.h"
+#include <open62541/config.h>
 
 #if defined(UA_ARCHITECTURE_POSIX) && defined(__linux__)
 
+#include "eventloop_posix.h"
 #include <arpa/inet.h> /* htons */
 #include <net/ethernet.h> /* ETH_P_*/
 #include <linux/if_packet.h>
@@ -211,7 +212,7 @@ ETH_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
                        UA_ByteString *buf, size_t bufSize) {
     /* Get the ETH_FD */
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
-    UA_FD fd = (UA_FD)connectionId;
+    UA_fd fd = (UA_fd)connectionId;
     ETH_FD *erfd = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!erfd)
         return UA_STATUSCODE_BADCONNECTIONREJECTED;
@@ -232,7 +233,7 @@ ETH_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
                       UA_ByteString *buf) {
     /* Get the ETH_FD */
     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
-    UA_FD fd = (UA_FD)connectionId;
+    UA_fd fd = (UA_fd)connectionId;
     ETH_FD *erfd = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!erfd)
         return;
@@ -686,7 +687,7 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
     /* Create the socket and add the basic configuration */
     ETH_FD *conn = NULL;
-    UA_FD sockfd;
+    UA_fd sockfd;
     if(listen && *listen)
         sockfd = socket(PF_PACKET, SOCK_RAW, htons(etherType));
     else
@@ -801,7 +802,7 @@ ETH_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_LOCK(&el->elMutex);
 
     /* Get the ETH_FD */
-    UA_FD fd = (UA_FD)connectionId;
+    UA_fd fd = (UA_fd)connectionId;
     UA_RegisteredFD *rfd = ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!rfd) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -893,7 +894,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_LOCK(&el->elMutex);
 
     /* Get the ETH_FD */
-    UA_FD fd = (UA_FD)connectionId;
+    UA_fd fd = (UA_fd)connectionId;
     ETH_FD *conn = (ETH_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_UNLOCK(&el->elMutex);
@@ -927,7 +928,7 @@ ETH_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     int flags = MSG_NOSIGNAL;
 
     struct pollfd tmp_poll_fd;
-    tmp_poll_fd.fd = (UA_FD)connectionId;
+    tmp_poll_fd.fd = (UA_fd)connectionId;
     tmp_poll_fd.events = UA_POLLOUT;
 
     /* Send the full buffer. This may require several calls to send */
