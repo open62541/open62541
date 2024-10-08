@@ -1452,7 +1452,7 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
      * endpoint is used for the SecureChannel */
     UA_ByteString serverCert = getLeafCertificate(asymHeader->senderCertificate);
     if(client->endpoint.serverCertificate.length > 0 &&
-       !UA_String_equal(&client->endpoint.serverCertificate, &serverCert)) {
+       !UA_ByteString_equal(&client->endpoint.serverCertificate, &serverCert)) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "The server certificate is different from the EndpointDescription");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
