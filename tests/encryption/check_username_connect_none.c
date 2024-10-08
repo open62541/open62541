@@ -88,7 +88,7 @@ START_TEST(none_policy_connect_fail) {
     UA_StatusCode retval =
         UA_Client_connectUsername(client, "opc.tcp://localhost:4840", "user1", "password");
 
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYTOKENINVALID);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADIDENTITYTOKENREJECTED);
 
     UA_Client_disconnect(client);
     UA_Client_delete(client);

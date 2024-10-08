@@ -536,7 +536,7 @@ DataSetReader_processRaw(UA_PubSubManager *psm, UA_DataSetReader *dsr,
         }
 
         /* Write the value */
-        if(tv->beforeWrite || tv->externalDataValue) {
+        if(tv->externalDataValue) {
             if(tv->beforeWrite)
                 tv->beforeWrite(psm->sc.server, &dsr->head.identifier,
                                 &dsr->linkedReaderGroup->head.identifier,

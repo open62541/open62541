@@ -1638,7 +1638,7 @@ extensionObjectOrder(const UA_ExtensionObject *p1, const UA_ExtensionObject *p2,
     case UA_EXTENSIONOBJECT_DECODED:
     default: {
             const UA_DataType *type1 = p1->content.decoded.type;
-            const UA_DataType *type2 = p1->content.decoded.type;
+            const UA_DataType *type2 = p2->content.decoded.type;
             if(type1 != type2)
                 return ((uintptr_t)type1 < (uintptr_t)type2) ? UA_ORDER_LESS : UA_ORDER_MORE;
             if(!type1)
