@@ -567,7 +567,62 @@ START_TEST(idOrderString) {
     ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
 } END_TEST
 
-static Suite* testSuite_Utils(void) {
+START_TEST(formatString){
+    UA_String s = UA_String_fromFormat("%s", "test");
+    ck_assert (s.length == 4);
+    ck_assert (s.data);
+    ck_assert (memcmp(s.data, "test", s.length) == 0);
+    UA_String_clear(&s);
+
+    /* Greater output length than internal buffer */
+    size_t size = 300;
+    char test_str[300];
+    memset (test_str, 'A', size-1);
+    test_str[size-1] = '\0';
+    s = UA_String_fromFormat("%s",test_str);
+    ck_assert(s.length == size-1);
+    ck_assert(s.data);
+    ck_assert (memcmp(s.data, test_str, s.length) == 0);
+    UA_String_clear(&s);
+} END_TEST
+
+START_TEST(formatStringBuffer){
+
+    size_t bufSize = 256;
+    UA_Byte buf[256];
+    ck_assert(UA_String_fromFormatWithBuffer(NULL, "%s", "test") == UA_STATUSCODE_BADINTERNALERROR);
+    /* No buffer provided */
+    UA_String s;
+    s.data = NULL;
+    s.length = 4;
+    ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_BADINTERNALERROR);
+
+    /*Zero length buffer */
+    s.data = buf;
+    s.length = 0;
+    ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_BADINTERNALERROR);
+
+    /*Buffer too small*/
+    s.data = buf;
+    s.length = bufSize;
+    ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_GOOD);
+    ck_assert (s.length == 4);
+    ck_assert (s.data);
+    ck_assert (memcmp(s.data, "test", s.length) == 0);
+
+    /*Buffer too small for whole output string*/
+    size_t smallBufSize = 4;
+    UA_Byte smallBuf[4];
+    s.data = smallBuf;
+    s.length = smallBufSize;
+    ck_assert(UA_String_fromFormatWithBuffer(&s, "%s", "test") == UA_STATUSCODE_GOOD);
+    ck_assert (s.length == 3);
+    ck_assert (s.data);
+    ck_assert (memcmp(s.data, "tes", s.length) == 0);
+} END_TEST
+
+
+    static Suite* testSuite_Utils(void) {
     Suite *s = suite_create("Utils");
     TCase *tc_endpointUrl_split = tcase_create("EndpointUrl_split");
     tcase_add_test(tc_endpointUrl_split, EndpointUrl_split);
@@ -591,12 +646,17 @@ static Suite* testSuite_Utils(void) {
     suite_add_tcase(s, tc1);
 
     TCase *tc2 = tcase_create("test nodeid order");
-    tcase_add_test(tc1, idOrderNs);
-    tcase_add_test(tc1, idOrderIdentifier);
-    tcase_add_test(tc1, idOrderNumeric);
-    tcase_add_test(tc1, idOrderGuid);
-    tcase_add_test(tc1, idOrderString);
+    tcase_add_test(tc2, idOrderNs);
+    tcase_add_test(tc2, idOrderIdentifier);
+    tcase_add_test(tc2, idOrderNumeric);
+    tcase_add_test(tc2, idOrderGuid);
+    tcase_add_test(tc2, idOrderString);
     suite_add_tcase(s, tc2);
+
+    TCase *tc3 = tcase_create("test string from format");
+    tcase_add_test(tc3, formatString);
+    tcase_add_test(tc3, formatStringBuffer);
+    suite_add_tcase(s, tc3);
 
     return s;
 }
