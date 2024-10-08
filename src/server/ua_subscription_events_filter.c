@@ -488,7 +488,6 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
         rvi.nodeId = *origin;
 
         /* A Condition is an indirection. Look up the target node. */
-        /* TODO: check for Branches! One Condition could have multiple Branches */
         UA_NodeId conditionTypeId = UA_NODEID_NUMERIC(0, UA_NS0ID_CONDITIONTYPE);
         if(UA_NodeId_equal(&sao->typeDefinitionId, &conditionTypeId)) {
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
