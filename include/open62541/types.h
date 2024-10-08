@@ -329,14 +329,24 @@ UA_INLINABLE(UA_Guid
  * ByteString
  * ^^^^^^^^^^
  * A sequence of octets. */
-typedef UA_String UA_ByteString;
+typedef struct {
+    size_t length; /* The length of the string */
+    UA_Byte *data; /* The content (not null-terminated) */
+} UA_ByteString;
 
 UA_EXPORT extern const UA_ByteString UA_BYTESTRING_NULL;
+
+/* Copies the content on the heap. Returns a null-string when alloc fails */
+UA_ByteString UA_EXPORT
+UA_ByteString_fromChars(const char *src, size_t length) UA_FUNC_ATTR_WARN_UNUSED_RESULT;
 
 /* Allocates memory of size length for the bytestring.
  * The content is not set to zero. */
 UA_StatusCode UA_EXPORT
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length);
+
+UA_StatusCode UA_EXPORT
+UA_String_allocBuffer(UA_String *bs, size_t length);
 
 /* Converts a ByteString to the corresponding
  * base64 representation */
@@ -348,8 +358,17 @@ UA_StatusCode UA_EXPORT
 UA_ByteString_fromBase64(UA_ByteString *bs,
                          const UA_String *input);
 
-#define UA_BYTESTRING(chars) UA_STRING(chars)
-#define UA_BYTESTRING_ALLOC(chars) UA_STRING_ALLOC(chars)
+UA_INLINABLE(UA_ByteString
+             UA_BYTESTRING(char *chars, size_t length), {
+    UA_ByteString s;
+    memset(&s, 0, sizeof(s));
+    if(!chars)
+        return s;
+    s.length = length; s.data = (UA_Byte*)chars;
+    return s;
+})
+
+#define UA_BYTESTRING_ALLOC(chars, length) UA_ByteString_fromChars(chars, length)
 
 /* Returns a non-cryptographic hash of a bytestring */
 UA_UInt32 UA_EXPORT
@@ -360,7 +379,10 @@ UA_ByteString_hash(UA_UInt32 initialHashValue,
  * XmlElement
  * ^^^^^^^^^^
  * An XML element. */
-typedef UA_String UA_XmlElement;
+typedef struct {
+    size_t length; /* The length of the string */
+    UA_Byte *data; /* The content (not null-terminated) */
+} UA_XmlElement;
 
 /**
  * .. _nodeid:
@@ -470,23 +492,23 @@ UA_INLINABLE(UA_NodeId
 })
 
 UA_INLINABLE(UA_NodeId
-             UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
+             UA_NODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars, size_t length), {
     UA_NodeId id;
     memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING(chars);
+    id.identifier.byteString = UA_BYTESTRING(chars, length);
     return id;
 })
 
 UA_INLINABLE(UA_NodeId
              UA_NODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex,
-                                        const char *chars), {
+                                        const char *chars, size_t length), {
     UA_NodeId id;
     memset(&id, 0, sizeof(UA_NodeId));
     id.namespaceIndex = nsIndex;
     id.identifierType = UA_NODEIDTYPE_BYTESTRING;
-    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars);
+    id.identifier.byteString = UA_BYTESTRING_ALLOC(chars, length);
     return id;
 })
 
@@ -571,14 +593,14 @@ UA_INLINABLE(UA_ExpandedNodeId
 })
 
 UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars);
+             UA_EXPANDEDNODEID_BYTESTRING(UA_UInt16 nsIndex, char *chars, size_t length), {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING(nsIndex, chars, length);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 })
 
 UA_INLINABLE(UA_ExpandedNodeId
-             UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars), {
-    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars);
+             UA_EXPANDEDNODEID_BYTESTRING_ALLOC(UA_UInt16 nsIndex, const char *chars, size_t length), {
+    UA_ExpandedNodeId id; id.nodeId = UA_NODEID_BYTESTRING_ALLOC(nsIndex, chars, length);
     id.serverIndex = 0; id.namespaceUri = UA_STRING_NULL; return id;
 })
 
@@ -692,7 +714,7 @@ UA_NumericRange_parse(UA_NumericRange *range, const UA_String str);
 UA_INLINABLE(UA_NumericRange
              UA_NUMERICRANGE(const char *s), {
     UA_NumericRange nr;
-    memset(&nr, 0, sizeof(nr)); 
+    memset(&nr, 0, sizeof(nr));
     UA_NumericRange_parse(&nr, UA_STRING((char*)(uintptr_t)s));
     return nr;
 })
@@ -1312,11 +1334,11 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
  *
  * @param src The value. Must not be NULL.
  * @param type The value type. Must not be NULL.
- * @param outBuf Pointer to ByteString containing the result if the encoding
+ * @param outBuf Pointer to String containing the result if the encoding
  *        was successful
  * @return Returns a statuscode whether encoding succeeded. */
 UA_StatusCode UA_EXPORT
-UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
+UA_encodeJson(const void *src, const UA_DataType *type, UA_String *outBuf,
               const UA_EncodeJsonOptions *options);
 
 /* The structure with the decoding options may be extended in the future.

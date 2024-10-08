@@ -561,6 +561,22 @@ FUNC_DECODE_BINARY(String) {
     return Array_decodeBinary(ctx, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
+FUNC_ENCODE_BINARY(ByteString) {
+    return Array_encodeBinary(ctx, src->data, src->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+FUNC_DECODE_BINARY(ByteString) {
+    return Array_decodeBinary(ctx, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+FUNC_ENCODE_BINARY(XmlElement) {
+    return Array_encodeBinary(ctx, src->data, src->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+FUNC_DECODE_BINARY(XmlElement) {
+    return Array_decodeBinary(ctx, (void**)&dst->data, &dst->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
 /* Guid */
 FUNC_ENCODE_BINARY(Guid) {
     status ret = UA_STATUSCODE_GOOD;
@@ -640,7 +656,7 @@ NodeId_encodeBinaryWithEncodingMask(Ctx *ctx, UA_NodeId const *src, u8 encoding)
         ret |= ENCODE_DIRECT(&src->namespaceIndex, UInt16);
         UA_CHECK_STATUS(ret, return ret);
         /* Can exchange the buffer */
-        ret = ENCODE_DIRECT(&src->identifier.byteString, String); /* ByteString */
+        ret = ENCODE_DIRECT(&src->identifier.byteString, ByteString); /* ByteString */
         UA_assert(ret != UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
         break;
     default:
@@ -698,7 +714,7 @@ FUNC_DECODE_BINARY(NodeId) {
     case UA_NODEIDTYPE_BYTESTRING:
         dst->identifierType = UA_NODEIDTYPE_BYTESTRING;
         ret |= DECODE_DIRECT(&dst->namespaceIndex, UInt16);
-        ret |= DECODE_DIRECT(&dst->identifier.byteString, String); /* ByteString */
+        ret |= DECODE_DIRECT(&dst->identifier.byteString, ByteString); /* ByteString */
         break;
     default:
         ret |= UA_STATUSCODE_BADINTERNALERROR;
@@ -862,7 +878,7 @@ FUNC_ENCODE_BINARY(ExtensionObject) {
         case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
         case UA_EXTENSIONOBJECT_ENCODED_XML:
             /* ByteString in disguise. Array encoding can exchange the buffer */
-            ret = ENCODE_DIRECT(&src->content.encoded.body, String);
+            ret = ENCODE_DIRECT(&src->content.encoded.body, ByteString);
             break;
         default:
             ret = UA_STATUSCODE_BADINTERNALERROR;
@@ -916,7 +932,7 @@ ExtensionObject_decodeBinaryContent(Ctx *ctx, UA_ExtensionObject *dst,
     if(!type) {
         dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
         UA_NodeId_copy(typeId, &dst->content.encoded.typeId);
-        return DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
+        return DECODE_DIRECT(&dst->content.encoded.body, ByteString); /* ByteString */
     }
 
     /* Allocate memory */
@@ -955,7 +971,7 @@ FUNC_DECODE_BINARY(ExtensionObject) {
     case UA_EXTENSIONOBJECT_ENCODED_XML:
         dst->encoding = (UA_ExtensionObjectEncoding)encoding;
         dst->content.encoded.typeId = binTypeId; /* move to dst */
-        ret = DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
+        ret = DECODE_DIRECT(&dst->content.encoded.body, ByteString); /* ByteString */
         UA_CHECK_STATUS(ret, ctxClearNodeId(ctx, &dst->content.encoded.typeId));
         break;
     default:
@@ -1612,8 +1628,8 @@ const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (encodeBinarySignature)String_encodeBinary,
     (encodeBinarySignature)UInt64_encodeBinary, /* DateTime */
     (encodeBinarySignature)Guid_encodeBinary,
-    (encodeBinarySignature)String_encodeBinary, /* ByteString */
-    (encodeBinarySignature)String_encodeBinary, /* XmlElement */
+    (encodeBinarySignature)ByteString_encodeBinary, /* ByteString */
+    (encodeBinarySignature)XmlElement_encodeBinary, /* XmlElement */
     (encodeBinarySignature)NodeId_encodeBinary,
     (encodeBinarySignature)ExpandedNodeId_encodeBinary,
     (encodeBinarySignature)UInt32_encodeBinary, /* StatusCode */
@@ -1832,8 +1848,8 @@ const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
     (decodeBinarySignature)String_decodeBinary,
     (decodeBinarySignature)UInt64_decodeBinary, /* DateTime */
     (decodeBinarySignature)Guid_decodeBinary,
-    (decodeBinarySignature)String_decodeBinary, /* ByteString */
-    (decodeBinarySignature)String_decodeBinary, /* XmlElement */
+    (decodeBinarySignature)ByteString_decodeBinary, /* ByteString */
+    (decodeBinarySignature)XmlElement_decodeBinary, /* XmlElement */
     (decodeBinarySignature)NodeId_decodeBinary,
     (decodeBinarySignature)ExpandedNodeId_decodeBinary,
     (decodeBinarySignature)UInt32_decodeBinary, /* StatusCode */

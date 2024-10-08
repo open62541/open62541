@@ -659,7 +659,7 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
-                                   UA_String *subjectName) {
+                                   UA_ByteString *subjectName) {
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
     int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
@@ -671,7 +671,7 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
     if(res < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_String tmp = {(size_t)res, (UA_Byte*)buf};
-    return UA_String_copy(&tmp, subjectName);
+    return UA_ByteString_copy(&tmp, subjectName);
 }
 
 UA_StatusCode

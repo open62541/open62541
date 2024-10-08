@@ -182,6 +182,18 @@ String_clear(UA_String *s, const UA_DataType *_) {
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
 }
 
+UA_StatusCode
+UA_String_allocBuffer(UA_String *bs, size_t length) {
+    UA_String_init(bs);
+    if(length == 0)
+        return UA_STATUSCODE_GOOD;
+    bs->data = (u8*)UA_malloc(length);
+    if(UA_UNLIKELY(!bs->data))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    bs->length = length;
+    return UA_STATUSCODE_GOOD;
+}
+
 /* QualifiedName */
 static UA_StatusCode
 QualifiedName_copy(const UA_QualifiedName *src, UA_QualifiedName *dst,
@@ -302,6 +314,40 @@ UA_Guid_print(const UA_Guid *guid, UA_String *output) {
 }
 
 /* ByteString */
+static UA_StatusCode
+ByteString_copy(UA_ByteString const *src, UA_ByteString *dst, const UA_DataType *_) {
+    UA_StatusCode res =
+        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                      &UA_TYPES[UA_TYPES_BYTE]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->length = src->length;
+    return res;
+}
+
+static void
+ByteString_clear(UA_ByteString *s, const UA_DataType *_) {
+    UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_ByteString
+UA_ByteString_fromChars(const char *src, size_t length) {
+    UA_ByteString s; s.length = 0; s.data = NULL;
+    if(!src)
+        return s;
+    s.length = length;
+    if(s.length > 0) {
+        s.data = (u8*)UA_malloc(s.length);
+        if(UA_UNLIKELY(!s.data)) {
+            s.length = 0;
+            return s;
+        }
+        memcpy(s.data, src, s.length);
+    } else {
+        s.data = (u8*)UA_EMPTY_ARRAY_SENTINEL;
+    }
+    return s;
+}
+
 UA_StatusCode
 UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
     UA_ByteString_init(bs);
@@ -312,6 +358,37 @@ UA_ByteString_allocBuffer(UA_ByteString *bs, size_t length) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     bs->length = length;
     return UA_STATUSCODE_GOOD;
+}
+
+/* XmlElement */
+static UA_StatusCode
+XmlElement_copy(UA_XmlElement const *src, UA_XmlElement *dst, const UA_DataType *_) {
+    UA_StatusCode res =
+        UA_Array_copy(src->data, src->length, (void**)&dst->data,
+                      &UA_TYPES[UA_TYPES_BYTE]);
+    if(res == UA_STATUSCODE_GOOD)
+        dst->length = src->length;
+    return res;
+}
+
+static void
+XmlElement_clear(UA_XmlElement *s, const UA_DataType *_) {
+    UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+static UA_Order
+xmlElementOrder(const UA_XmlElement *p1, const UA_XmlElement *p2, const UA_DataType *type) {
+    if(p1->length != p2->length)
+        return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1->data == p2->data) return UA_ORDER_EQ;
+    if(p1->data == NULL) return UA_ORDER_LESS;
+    if(p2->data == NULL) return UA_ORDER_MORE;
+    int cmp = memcmp((const char*)p1->data, (const char*)p2->data, p1->length);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
 }
 
 /* NodeId */
@@ -614,7 +691,7 @@ ExtensionObject_clear(UA_ExtensionObject *p, const UA_DataType *_) {
     case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
     case UA_EXTENSIONOBJECT_ENCODED_XML:
         NodeId_clear(&p->content.encoded.typeId, NULL);
-        String_clear(&p->content.encoded.body, NULL);
+        ByteString_clear(&p->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
         if(p->content.decoded.data)
@@ -636,8 +713,7 @@ ExtensionObject_copy(UA_ExtensionObject const *src, UA_ExtensionObject *dst,
         dst->encoding = src->encoding;
         retval = NodeId_copy(&src->content.encoded.typeId,
                              &dst->content.encoded.typeId, NULL);
-        /* ByteString -> copy as string */
-        retval |= String_copy(&src->content.encoded.body,
+        retval |= ByteString_copy(&src->content.encoded.body,
                               &dst->content.encoded.body, NULL);
         break;
     case UA_EXTENSIONOBJECT_DECODED:
@@ -905,7 +981,7 @@ copySubString(const UA_String *src, UA_String *dst,
     else
         length = src->length - dim->min;
 
-    UA_StatusCode retval = UA_ByteString_allocBuffer(dst, length);
+    UA_StatusCode retval = UA_String_allocBuffer(dst, length);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -1349,8 +1425,8 @@ const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
     (UA_copySignature)String_copy,
     (UA_copySignature)copy8Byte, /* DateTime */
     (UA_copySignature)copyGuid, /* Guid */
-    (UA_copySignature)String_copy, /* ByteString */
-    (UA_copySignature)String_copy, /* XmlElement */
+    (UA_copySignature)ByteString_copy, /* ByteString */
+    (UA_copySignature)XmlElement_copy, /* XmlElement */
     (UA_copySignature)NodeId_copy,
     (UA_copySignature)ExpandedNodeId_copy,
     (UA_copySignature)copy4Byte, /* StatusCode */
@@ -1452,8 +1528,8 @@ UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
     (UA_clearSignature)String_clear, /* String */
     (UA_clearSignature)nopClear, /* DateTime */
     (UA_clearSignature)nopClear, /* Guid */
-    (UA_clearSignature)String_clear, /* ByteString */
-    (UA_clearSignature)String_clear, /* XmlElement */
+    (UA_clearSignature)ByteString_clear, /* ByteString */
+    (UA_clearSignature)XmlElement_clear, /* XmlElement */
     (UA_clearSignature)NodeId_clear,
     (UA_clearSignature)ExpandedNodeId_clear,
     (UA_clearSignature)nopClear, /* StatusCode */
@@ -1535,6 +1611,21 @@ guidOrder(const UA_Guid *p1, const UA_Guid *p2, const UA_DataType *type) {
     if(p1->data3 != p2->data3)
         return (p1->data3 < p2->data3) ? UA_ORDER_LESS : UA_ORDER_MORE;
     int cmp = memcmp(p1->data4, p2->data4, 8);
+    if(cmp != 0)
+        return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    return UA_ORDER_EQ;
+}
+
+static UA_Order
+byteStringOrder(const UA_ByteString *p1, const UA_ByteString *p2, const UA_DataType *type) {
+    if(p1->length != p2->length)
+        return (p1->length < p2->length) ? UA_ORDER_LESS : UA_ORDER_MORE;
+    /* For zero-length arrays, every pointer not NULL is considered a
+     * UA_EMPTY_ARRAY_SENTINEL. */
+    if(p1->data == p2->data) return UA_ORDER_EQ;
+    if(p1->data == NULL) return UA_ORDER_LESS;
+    if(p2->data == NULL) return UA_ORDER_MORE;
+    int cmp = memcmp((const char*)p1->data, (const char*)p2->data, p1->length);
     if(cmp != 0)
         return (cmp < 0) ? UA_ORDER_LESS : UA_ORDER_MORE;
     return UA_ORDER_EQ;
@@ -1907,8 +1998,8 @@ UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
     (UA_orderSignature)stringOrder,
     (UA_orderSignature)int64Order,  /* DateTime */
     (UA_orderSignature)guidOrder,
-    (UA_orderSignature)stringOrder, /* ByteString */
-    (UA_orderSignature)stringOrder, /* XmlElement */
+    (UA_orderSignature)byteStringOrder, /* ByteString */
+    (UA_orderSignature)xmlElementOrder, /* XmlElement */
     (UA_orderSignature)nodeIdOrder,
     (UA_orderSignature)expandedNodeIdOrder,
     (UA_orderSignature)uInt32Order, /* StatusCode */
