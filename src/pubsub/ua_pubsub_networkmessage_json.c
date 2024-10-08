@@ -259,7 +259,7 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
         outBuf->length = (size_t)((uintptr_t)ctx.pos - (uintptr_t)outBuf->data);
 
     if(alloced && ret != UA_STATUSCODE_GOOD)
-        UA_String_clear(outBuf);
+        UA_ByteString_clear(outBuf);
     return ret;
 }
 

@@ -114,7 +114,7 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
         } else {
             for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
                 if(UA_String_equal(&userToken->userName, &context->usernamePasswordLogin[i].username) &&
-                   UA_String_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
+                   UA_ByteString_equal(&userToken->password, &context->usernamePasswordLogin[i].password)) {
                     match = true;
                     break;
                 }
@@ -280,7 +280,7 @@ static void clear_default(UA_AccessControl *ac) {
     if (context) {
         for(size_t i = 0; i < context->usernamePasswordLoginSize; i++) {
             UA_String_clear(&context->usernamePasswordLogin[i].username);
-            UA_String_clear(&context->usernamePasswordLogin[i].password);
+            UA_ByteString_clear(&context->usernamePasswordLogin[i].password);
         }
         if(context->usernamePasswordLoginSize > 0)
             UA_free(context->usernamePasswordLogin);
@@ -293,7 +293,7 @@ static void clear_default(UA_AccessControl *ac) {
 UA_StatusCode
 UA_AccessControl_default(UA_ServerConfig *config,
                          UA_Boolean allowAnonymous,
-                         const UA_ByteString *userTokenPolicyUri,
+                         const UA_String *userTokenPolicyUri,
                          size_t usernamePasswordLoginSize,
                          const UA_UsernamePasswordLogin *usernamePasswordLogin) {
     UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
@@ -350,7 +350,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         for(size_t i = 0; i < usernamePasswordLoginSize; i++) {
             UA_String_copy(&usernamePasswordLogin[i].username,
                            &context->usernamePasswordLogin[i].username);
-            UA_String_copy(&usernamePasswordLogin[i].password,
+            UA_ByteString_copy(&usernamePasswordLogin[i].password,
                            &context->usernamePasswordLogin[i].password);
         }
     }
@@ -387,7 +387,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         return UA_STATUSCODE_GOOD;
     }
 
-    const UA_ByteString *utpUri = NULL;
+    const UA_String *utpUri = NULL;
     policies = 0;
     for(size_t i = 0; i < numOfPolcies; i++) {
         if(userTokenPolicyUri) {
@@ -398,7 +398,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         if(allowAnonymous) {
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_ANONYMOUS;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(ANONYMOUS_POLICY);
-            UA_ByteString_copy(utpUri,
+            UA_String_copy(utpUri,
                                &ac->userTokenPolicies[policies].securityPolicyUri);
             policies++;
         }
@@ -407,14 +407,14 @@ UA_AccessControl_default(UA_ServerConfig *config,
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400
-            if(UA_ByteString_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            if(UA_String_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                                "x509 Certificate Authentication configured, "
                                "but no encrypting SecurityPolicy. "
                                "This can leak credentials on the network.");
             }
 #endif
-            UA_ByteString_copy(utpUri,
+            UA_String_copy(utpUri,
                                &ac->userTokenPolicies[policies].securityPolicyUri);
             policies++;
         }
@@ -423,14 +423,14 @@ UA_AccessControl_default(UA_ServerConfig *config,
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_USERNAME;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(USERNAME_POLICY);
 #if UA_LOGLEVEL <= 400
-            if(UA_ByteString_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
+            if(UA_String_equal(utpUri, &UA_SECURITY_POLICY_NONE_URI)) {
                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_SERVER,
                                "Username/Password Authentication configured, "
                                "but no encrypting SecurityPolicy. "
                                "This can leak credentials on the network.");
             }
 #endif
-            UA_ByteString_copy(utpUri,
+            UA_String_copy(utpUri,
                                &ac->userTokenPolicies[policies].securityPolicyUri);
             policies++;
         }
@@ -441,7 +441,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
 UA_StatusCode
 UA_AccessControl_defaultWithLoginCallback(UA_ServerConfig *config,
                                           UA_Boolean allowAnonymous,
-                                          const UA_ByteString *userTokenPolicyUri,
+                                          const UA_String *userTokenPolicyUri,
                                           size_t usernamePasswordLoginSize,
                                           const UA_UsernamePasswordLogin *usernamePasswordLogin,
                                           UA_UsernamePasswordLoginCallback loginCallback,

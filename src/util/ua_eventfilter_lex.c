@@ -8487,12 +8487,13 @@ lit:
     *token = create_operand(ctx, OT_LITERAL);
     (*token)->operand.literal.data = UA_new(lt);
     (*token)->operand.literal.type = lt;
+    UA_String nodeIdStr = { match.length, match.data };
     if(lt == &UA_TYPES[UA_TYPES_NODEID]) {
-        res = UA_NodeId_parse((UA_NodeId*)(*token)->operand.literal.data, match);
+        res = UA_NodeId_parse((UA_NodeId*)(*token)->operand.literal.data, nodeIdStr);
     } else if(lt == &UA_TYPES[UA_TYPES_EXPANDEDNODEID]) {
-        res = UA_ExpandedNodeId_parse((UA_ExpandedNodeId*)(*token)->operand.literal.data, match);
+        res = UA_ExpandedNodeId_parse((UA_ExpandedNodeId*)(*token)->operand.literal.data, nodeIdStr);
     } else if(lt == &UA_TYPES[UA_TYPES_GUID]) {
-        res = UA_Guid_parse((UA_Guid*)(*token)->operand.literal.data, match);
+        res = UA_Guid_parse((UA_Guid*)(*token)->operand.literal.data, nodeIdStr);
     } else {
         res = UA_decodeJson(&match, (*token)->operand.literal.data, lt, NULL);
     }
@@ -8504,7 +8505,8 @@ sao:
     match.length = (uintptr_t)(pos-b);
     match.data = (UA_Byte*)(uintptr_t)b;
     *token = create_operand(ctx, OT_SAO);
-    res = UA_SimpleAttributeOperand_parse(&(*token)->operand.sao, match);
+    UA_String saoStr = { match.length, match.data };
+    res = UA_SimpleAttributeOperand_parse(&(*token)->operand.sao, saoStr);
     tokenId = (res == UA_STATUSCODE_GOOD) ? EF_TOK_SAO : 0;
 
 finish:

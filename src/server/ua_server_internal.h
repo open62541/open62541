@@ -282,7 +282,7 @@ sendServiceFault(UA_Server *server, UA_SecureChannel *channel, UA_UInt32 request
  * server matched by the security policy uri. */
 UA_SecurityPolicy *
 getSecurityPolicyByUri(const UA_Server *server,
-                       const UA_ByteString *securityPolicyUri);
+                       const UA_String *securityPolicyUri);
 
 /********************/
 /* Session Handling */

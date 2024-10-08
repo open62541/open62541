@@ -213,8 +213,8 @@ PARSE_JSON(BooleanField) {
         UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Value of type bool expected.");
         return UA_STATUSCODE_BADTYPEMISMATCH;
     }
-    UA_String val = UA_STRING("true");
-    if(UA_String_equal(&val, &buf)) {
+    UA_ByteString val = UA_BYTESTRING("true", sizeof("true"));
+    if(UA_ByteString_equal(&val, &buf)) {
         out = true;
     }else {
         out = false;
