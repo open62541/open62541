@@ -42,13 +42,16 @@ typedef struct UA_DiscoveryManager UA_DiscoveryManager;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
 #include "ua_subscription.h"
 
+typedef union
+{
+    UA_Server_DataChangeNotificationCallback dataChangeCallback;
+    UA_Server_EventNotificationCallback eventCallback;
+} UA_Server_MonitoredItemNotificationCallback;
+
 typedef struct {
     UA_MonitoredItem monitoredItem;
     void *context;
-    union {
-        UA_Server_DataChangeNotificationCallback dataChangeCallback;
-        /* UA_Server_EventNotificationCallback eventCallback; */
-    } callback;
+    UA_Server_MonitoredItemNotificationCallback callback;
 } UA_LocalMonitoredItem;
 
 #endif /* !UA_ENABLE_SUBSCRIPTIONS */
