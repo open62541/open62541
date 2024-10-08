@@ -1028,7 +1028,7 @@ UA_ServerConfig_updateFromFile(UA_ServerConfig *config, const UA_ByteString json
 #ifdef UA_ENABLE_ENCRYPTION
 static UA_ByteString
 loadCertificateFile(const char *const path) {
-    UA_ByteString fileContents = UA_STRING_NULL;
+    UA_ByteString fileContents = UA_BYTESTRING_NULL;
 
     /* Open the file */
     FILE *fp = fopen(path, "rb");
