@@ -137,10 +137,11 @@ def setNodeValueRankRecursive(node, nodeset):
 
         setNodeValueRankRecursive(typeDefNode, nodeset)
 
-        if typeDefNode.valueRank is not None:
+        if typeDefNode.valueRank is not None and typeDefNode.valueRank > -1:
             node.valueRank = typeDefNode.valueRank
         else:
-            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
+            # Default value
+            node.valueRank = -1
     else:
         if node.parent is None:
             raise RuntimeError(f"Node {str(node.id)}: does not have a parent. Probably the parent node was blacklisted?")
@@ -149,10 +150,11 @@ def setNodeValueRankRecursive(node, nodeset):
         setNodeValueRankRecursive(node.parent, nodeset)
 
 
-        if node.parent.valueRank is not None:
+        if node.parent.valueRank is not None and node.parent.valueRank > -1:
             node.valueRank = node.parent.valueRank
         else:
-            raise RuntimeError(f"Node {str(node.id)}: the ValueRank of the parent node is None.")
+            # Default value
+            node.valueRank = -1
 
 
 def generateCommonVariableCode(node, nodeset):

@@ -111,7 +111,7 @@ START_TEST(readValueRank) {
     UA_Variant dims;
     // scalar
     UA_Server_readValueRank(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &rank);
-    ck_assert_int_eq(rank, -2);
+    ck_assert_int_eq(rank, -1);
     UA_Variant_init(&dims);
     UA_Server_readArrayDimensions(server, UA_NODEID_NUMERIC(testNamespaceIndex, 10002), &dims);
     ck_assert_uint_eq(dims.arrayLength, 0);
