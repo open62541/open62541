@@ -365,6 +365,12 @@ evaluateWhereClause(UA_Server *server, UA_Session *session, const UA_NodeId *eve
                     const UA_ContentFilter *contentFilter,
                     UA_ContentFilterResult *contentFilterResult);
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+
+void initNs0ConditionAndAlarms (UA_Server *server);
+
+#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
+
 #endif
 
 /***********/

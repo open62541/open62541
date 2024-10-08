@@ -283,18 +283,6 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
             "Events: An event is triggered on node %.*s",
             (int)nodeIdStr.length, nodeIdStr.data));
 
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_Boolean isCallerAC = false;
-    if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
-        if(!isCallerAC) {
-          UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
-                                  UA_STATUSCODE_BADINVALIDARGUMENT);
-          return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-    }
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
-
     /* Check that the origin node exists */
     const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
     if(!originNode) {
