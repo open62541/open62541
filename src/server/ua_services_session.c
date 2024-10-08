@@ -297,7 +297,7 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
 
     UA_assert(channel->securityToken.channelId != 0);
 
-    if(!UA_ByteString_equal(&channel->securityPolicy->policyUri,
+    if(!UA_String_equal(&channel->securityPolicy->policyUri,
                             &UA_SECURITY_POLICY_NONE_URI) &&
        request->clientNonce.length < 32) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNONCEINVALID;
@@ -548,7 +548,7 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
 static UA_StatusCode
 decryptUserToken(UA_Server *server, UA_Session *session,
                  UA_SecureChannel *channel, const UA_SecurityPolicy *sp,
-                 const UA_String encryptionAlgorithm, UA_String *encrypted) {
+                 const UA_String encryptionAlgorithm, UA_ByteString *encrypted) {
     /* If SecurityPolicy is None there shall be no EncryptionAlgorithm  */
     if(UA_String_equal(&sp->policyUri, &UA_SECURITY_POLICY_NONE_URI)) {
         if(encryptionAlgorithm.length > 0)

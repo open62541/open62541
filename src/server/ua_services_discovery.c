@@ -420,7 +420,7 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                 sp = getDefaultEncryptedSecurityPolicy(server);
             if(sp) {
                 UA_ByteString_clear(&ed->serverCertificate);
-                retval |= UA_String_copy(&sp->localCertificate, &ed->serverCertificate);
+                retval |= UA_ByteString_copy(&sp->localCertificate, &ed->serverCertificate);
             }
 
             /* Set the User Identity Token list fromt the AccessControl plugin */

@@ -757,8 +757,8 @@ UA_Server_updateCertificate(UA_Server *server,
         if(retval != UA_STATUSCODE_GOOD)
             return retval;
 
-        UA_String_clear(&ed->serverCertificate);
-        UA_String_copy(&certificate, &ed->serverCertificate);
+        UA_ByteString_clear(&ed->serverCertificate);
+        UA_ByteString_copy(&certificate, &ed->serverCertificate);
     }
 
     UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
@@ -808,9 +808,9 @@ UA_Server_createSigningRequest(UA_Server *server,
     if(!UA_NodeId_equal(&certGroup.certificateGroupId, &defaultApplicationGroup))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_String *newPrivateKey = NULL;
+    UA_ByteString *newPrivateKey = NULL;
     if(regenerateKey && *regenerateKey == true) {
-        newPrivateKey = UA_String_new();
+        newPrivateKey = UA_ByteString_new();
     }
 
     const UA_String securityPolicyNoneUri =
@@ -849,10 +849,10 @@ cleanup:
 /***************************/
 
 UA_SecurityPolicy *
-getSecurityPolicyByUri(const UA_Server *server, const UA_ByteString *securityPolicyUri) {
+getSecurityPolicyByUri(const UA_Server *server, const UA_String *securityPolicyUri) {
     for(size_t i = 0; i < server->config.securityPoliciesSize; i++) {
         UA_SecurityPolicy *securityPolicyCandidate = &server->config.securityPolicies[i];
-        if(UA_ByteString_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
+        if(UA_String_equal(securityPolicyUri, &securityPolicyCandidate->policyUri))
             return securityPolicyCandidate;
     }
     return NULL;

@@ -577,7 +577,7 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
     UA_Server *const server = (UA_Server *const) application;
     for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+        if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
         UA_StatusCode res = policy->asymmetricModule.
