@@ -288,21 +288,51 @@ static UA_StatusCode
 UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
-    if(el->executing) {
-        UA_LOG_ERROR(el->eventLoop.logger,
-                     UA_LOGCATEGORY_EVENTLOOP,
-                     "Cannot run EventLoop from the run method itself");
+#if UA_MULTITHREADING >= 100
+    static UA_THREAD_LOCAL UA_UInt32 executingSize = 0;
+    static UA_THREAD_LOCAL UA_EventLoopPOSIX **executing = NULL;
+#endif
+
+    if(el->executing > 0) {
+#if UA_MULTITHREADING >= 100
+        for(UA_UInt32 i = 0; i < executingSize; ++i) {
+            if(executing[i] == el) {
+                UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                             "Cannot run EventLoop from the run method itself");
+                UA_UNLOCK(&el->elMutex);
+                return UA_STATUSCODE_BADINTERNALERROR;
+            }
+        }
+#else
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
+#endif  // 
     }
 
-    el->executing = true;
+    el->executing += 1;
+#if UA_MULTITHREADING >= 100
+    executingSize += 1;
+    executing = (UA_EventLoopPOSIX **)UA_realloc(
+        executing, executingSize * sizeof(UA_EventLoopPOSIX*));
+    if(!executing) {
+        executingSize -= 1;
+        el->executing -= 1;
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    executing[executingSize - 1] = el;
+#endif
 
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_FRESH ||
        el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot run a stopped EventLoop");
-        el->executing = false;
+        el->executing -= 1;
+#if UA_MULTITHREADING >= 100
+        executingSize -= 1;
+        executing = (UA_EventLoopPOSIX **)UA_realloc(
+            executing, executingSize * sizeof(UA_EventLoopPOSIX *));
+#endif
         UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -349,7 +379,13 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
         checkClosed(el);
 
-    el->executing = false;
+    el->executing -= 1;
+
+#if UA_MULTITHREADING >= 100
+    executingSize -= 1;
+    executing = (UA_EventLoopPOSIX **)UA_realloc(
+        executing, executingSize * sizeof(UA_EventLoopPOSIX *));
+#endif
     UA_UNLOCK(&el->elMutex);
     return rv;
 }

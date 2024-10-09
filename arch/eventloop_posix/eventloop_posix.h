@@ -247,7 +247,7 @@ typedef struct {
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
-    volatile UA_Boolean executing;
+    volatile UA_UInt32 executing;
 
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
     /* Clocks for the eventloop's time domain */
