@@ -1482,8 +1482,8 @@ addCommentMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, triggerEvent, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
@@ -1567,8 +1567,8 @@ acknowledgeMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
@@ -1647,8 +1647,8 @@ confirmMethodCallback(UA_Server *server, const UA_NodeId *sessionId,
     /* Set Comment. Check whether comment is empty -> leave the last value as is*/
     UA_LocalizedText *inputComment = (UA_LocalizedText *)input[1].data;
     UA_String nullString = UA_STRING_NULL;
-    if(!UA_ByteString_equal(&inputComment->locale, &nullString) &&
-       !UA_ByteString_equal(&inputComment->text, &nullString)) {
+    if(!UA_String_equal(&inputComment->locale, &nullString) &&
+       !UA_String_equal(&inputComment->text, &nullString)) {
         UA_Variant_setScalar(&value, inputComment, &UA_TYPES[UA_TYPES_LOCALIZEDTEXT]);
         retval = UA_Server_setConditionField(server, conditionNode, &value, fieldComment);
         CONDITION_ASSERT_RETURN_RETVAL(retval, "Set Condition Comment failed",
