@@ -132,6 +132,17 @@ function set_capabilities {
 }
 
 function unit_tests {
+    if [ "${CC:-x}" = "tcc" ]; then
+        # tcc does not allow multi-threading up to version 0.9.27.
+        # because it supports atomic intrinsics only after.
+        MULTITHREADING=0
+        tcc_recent=$(tcc -v | awk 'match($0, /tcc version [0-9]+\.[0-9]+\.[0-9]+/) {split(substr($0, 13, RLENGTH-12), ver, "."); print(ver[1] > 0 || ver[2] > 9 || ver[3] > 27);}')
+        if [ $tcc_recent = 1 ]; then
+            MULTITHREADING=100
+        fi
+    else
+        MULTITHREADING=100
+    fi
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
@@ -144,6 +155,7 @@ function unit_tests {
           -DUA_ENABLE_MQTT=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
+          -DUA_MULTITHREADING=${MULTITHREADING} \
           ..
     make ${MAKEOPTS}
     set_capabilities
