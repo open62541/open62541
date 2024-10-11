@@ -1318,14 +1318,6 @@ if(UA_BUILD_TOOLS)
     endif()
 endif()
 
-########################
-# Linting as target    #
-########################
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-include(linting_build)
-include(linting_target)
-
 ##########################
 # Installation           #
 ##########################
