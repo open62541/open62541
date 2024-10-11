@@ -380,7 +380,7 @@ function examples_valgrind {
     # signal. Wait for the process to terminate and collect the exit status.
     # Abort when the exit status is non-null.
     # set_capabilities not possible with valgrind
-    sudo -E bash -c "python3 ../tools/examples_with_valgrind.py"
+    sudo -E bash -c "python3 ../tools/ci/examples_with_valgrind.py"
     EXIT_CODE=$?
     if [[ $EXIT_CODE -ne 0 ]]; then
         echo "Processing failed with exit code $EXIT_CODE"
