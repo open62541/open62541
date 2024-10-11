@@ -7,7 +7,6 @@
  */
 
 #include "ua_pubsub_keystorage.h"
-#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 

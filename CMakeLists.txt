@@ -752,7 +752,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c

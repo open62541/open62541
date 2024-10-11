@@ -9,7 +9,7 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS
 #include "ua_pubsub_keystorage.h"
