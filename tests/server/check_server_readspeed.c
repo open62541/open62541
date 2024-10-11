@@ -156,7 +156,7 @@ START_TEST(readSpeedWithEncoding) {
         UA_ByteString request_msg = request_buffer;
 
         /* Encode the request */
-        retval = UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg);
+        retval = UA_encodeBinary(&request, &UA_TYPES[UA_TYPES_READREQUEST], &request_msg, NULL);
         ck_assert(retval == UA_STATUSCODE_GOOD);
 
         /* Decode the request */
@@ -167,7 +167,7 @@ START_TEST(readSpeedWithEncoding) {
         Service_Read(server, &server->adminSession, &req, &res);
         UA_UNLOCK(&server->serviceMutex);
 
-        retval = UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg);
+        retval = UA_encodeBinary(&res, &UA_TYPES[UA_TYPES_READRESPONSE], &response_msg, NULL);
         ck_assert(retval == UA_STATUSCODE_GOOD);
 
         UA_ReadRequest_clear(&req);
