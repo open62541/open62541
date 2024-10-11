@@ -27,7 +27,7 @@ UA_DiscoveryManager_setState(UA_DiscoveryManager *dm,
        state == UA_LIFECYCLESTATE_STOPPED) {
         state = UA_LIFECYCLESTATE_STOPPED;
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
-        if(dm->mdnsRecvConnectionsSize != 0 || dm->mdnsSendConnection != 0)
+        if(dm->mdnsRecvConnectionsSize != 0 || dm->mdnsSendConnectionsSize != 0)
             state = UA_LIFECYCLESTATE_STOPPING;
 #endif
 
