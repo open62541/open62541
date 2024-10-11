@@ -13,7 +13,7 @@
 
 #include "../../deps/mp_printf.h"
 #include "testing_clock.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #define STR_BUFSIZE             1024

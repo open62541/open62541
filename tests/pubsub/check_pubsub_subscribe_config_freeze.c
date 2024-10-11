@@ -9,7 +9,7 @@
 #include <open62541/server_pubsub.h>
 
 #include "ua_server_internal.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "test_helpers.h"
 
 #include <check.h>

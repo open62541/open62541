@@ -17,7 +17,7 @@
 
 #include "test_helpers.h"
 #include "../encryption/certificates.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_keystorage.h"
 #include "ua_server_internal.h"
 

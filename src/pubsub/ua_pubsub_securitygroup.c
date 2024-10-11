@@ -10,9 +10,8 @@
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_keystorage.h"
-#include "../server/ua_server_internal.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
 
