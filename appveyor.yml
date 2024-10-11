@@ -32,7 +32,7 @@ init:
 
 install:
 - set PATH=C:\Users\appveyor\AppData\Roaming\Python\Scripts;%PATH%
-- ps: '& "./tools/appveyor/install.ps1"'
+- ps: '& "./tools/ci/appveyor/install.ps1"'
 
 build_script:
-- ps: '& "./tools/appveyor/build.ps1"'
+- ps: '& "./tools/ci/appveyor/build.ps1"'

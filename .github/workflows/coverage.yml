@@ -22,7 +22,7 @@ jobs:
         with:
           submodules: true
       - name: Execute Tests
-        run: source tools/ci.sh && unit_tests_with_coverage
+        run: source tools/ci/ci.sh && unit_tests_with_coverage
         env:
           ETHERNET_INTERFACE: eth0
       - name: Debug print
