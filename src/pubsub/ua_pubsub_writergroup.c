@@ -535,10 +535,26 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
     UA_Boolean isTransient = wg->head.transientState;
     wg->head.transientState = true;
 
+    UA_Server *server = psm->sc.server;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_PubSubState oldState = wg->head.state;
     UA_PubSubConnection *connection = wg->linkedConnection;
 
+    /* Custom state machine */
+    if(wg->config.customStateMachine) {
+        UA_UNLOCK(&server->serviceMutex);
+        ret = wg->config.customStateMachine(server, wg->head.identifier, wg->config.context,
+                                            &wg->head.state, targetState);
+        UA_LOCK(&server->serviceMutex);
+        if(wg->head.state == UA_PUBSUBSTATE_DISABLED ||
+           wg->head.state == UA_PUBSUBSTATE_ERROR)
+            UA_WriterGroup_unfreezeConfiguration(psm, wg);
+        else
+            UA_WriterGroup_freezeConfiguration(psm, wg);
+        goto finalize_state_machine;
+    }
+
+    /* Internal state machine */
     switch(targetState) {
         /* Disabled or Error */
     case UA_PUBSUBSTATE_DISABLED:
@@ -612,6 +628,8 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
         UA_WriterGroup_removePublishCallback(psm, wg);
     }
 
+ finalize_state_machine:
+
     /* Only the top-level state update (if recursive calls are happening)
      * notifies the application and updates Reader and WriterGroups */
     wg->head.transientState = isTransient;
@@ -620,15 +638,14 @@ UA_WriterGroup_setPubSubState(UA_PubSubManager *psm, UA_WriterGroup *wg,
 
     /* Inform the application about state change */
     if(wg->head.state != oldState) {
-        UA_ServerConfig *pConfig = &psm->sc.server->config;
         UA_LOG_INFO_PUBSUB(psm->logging, wg, "%s -> %s",
                            UA_PubSubState_name(oldState),
                            UA_PubSubState_name(wg->head.state));
-        if(pConfig->pubSubConfig.stateChangeCallback != 0) {
-            UA_UNLOCK(&psm->sc.server->serviceMutex);
-            pConfig->pubSubConfig.
-                stateChangeCallback(psm->sc.server, wg->head.identifier, wg->head.state, ret);
-            UA_LOCK(&psm->sc.server->serviceMutex);
+        if(server->config.pubSubConfig.stateChangeCallback != 0) {
+            UA_UNLOCK(&server->serviceMutex);
+            server->config.pubSubConfig.
+                stateChangeCallback(server, wg->head.identifier, wg->head.state, ret);
+            UA_LOCK(&server->serviceMutex);
         }
     }
 
