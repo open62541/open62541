@@ -185,6 +185,6 @@ jobs:
           ${{ matrix.cmd_deps }}
       - name: ${{matrix.build_name}}
         if: ${{ matrix.runs_on == '' || matrix.runs_on == matrix.os }}
-        run: source tools/ci.sh && ${{matrix.cmd_action}}
+        run: source tools/ci/ci.sh && ${{matrix.cmd_action}}
         env:
           ETHERNET_INTERFACE: eth0

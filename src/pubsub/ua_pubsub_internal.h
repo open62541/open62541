@@ -12,8 +12,8 @@
  * Copyright (c) 2022 Linutronix GmbH (Author: Muddasir Shakil)
  */
 
-#ifndef UA_PUBSUB_H_
-#define UA_PUBSUB_H_
+#ifndef UA_PUBSUB_INTERNAL_H_
+#define UA_PUBSUB_INTERNAL_H_
 
 #define UA_INTERNAL
 #include <open62541/server.h>
@@ -772,4 +772,4 @@ addSecurityGroupRepresentation(UA_Server *server, UA_SecurityGroup *securityGrou
 
 _UA_END_DECLS
 
-#endif /* UA_PUBSUB_H_ */
+#endif /* UA_PUBSUB_INTERNAL_H_ */

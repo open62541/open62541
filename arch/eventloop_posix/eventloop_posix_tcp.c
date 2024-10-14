@@ -617,9 +617,8 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     dc->application = cm;
     dc->context = conn;
 
-    /* Don't use the "public" el->addDelayedCallback. It takes a lock. */
-    dc->next = el->delayedCallbacks;
-    el->delayedCallbacks = dc;
+    /* Adding a delayed callback does not take a lock */
+    UA_EventLoopPOSIX_addDelayedCallback((UA_EventLoop*)el, dc);
 }
 
 static UA_StatusCode

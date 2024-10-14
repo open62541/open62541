@@ -202,27 +202,36 @@
 
 /* Intrinsic atomic operations are not available everywhere for MSVC.
  * Use the win32 API. Prevent duplicate definitions by via winsock2. */
-#if UA_MULTITHREADING >= 100 && defined(_WIN32)
-# ifndef _WINSOCKAPI_
-#  define _NO_WINSOCKAPI_
-# endif
-# define _WINSOCKAPI_
-# include <windows.h>
-# ifdef _NO_WINSOCKAPI_
-#  undef _WINSOCKAPI_
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32)
+#  ifndef _WINSOCKAPI_
+#   define _NO_WINSOCKAPI_
+#  endif
+#  define _WINSOCKAPI_
+#  include <windows.h>
+#  ifdef _NO_WINSOCKAPI_
+#   undef _WINSOCKAPI_
+#  endif
+# elif defined(__has_include) && __has_include(<stdatomic.h>)
+#  define UA_HAVE_C11_ATOMICS
+#  include <stdatomic.h>
+# elif !defined(HAVE_GCC_SYNC_BUILTINS)
+#  error Atomic operations not implemented
 # endif
 #endif
 
 static UA_INLINE void *
-UA_atomic_xchg(void * volatile * addr, void *newptr) {
-#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
-    return InterlockedExchangePointer(addr, newptr);
-#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+UA_atomic_xchg(void **addr, void *newptr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    return InterlockedExchangePointer((void * volatile *)(uintptr_t)addr, newptr);
+# elif defined(UA_HAVE_C11_ATOMICS)
+    return (void *)atomic_exchange((volatile atomic_uintptr_t *)addr,
+                                   (uintptr_t)newptr);
+# else /* HAVE_GCC_SYNC_BUILTINS */
     return __sync_lock_test_and_set(addr, newptr);
-#else
-# if UA_MULTITHREADING >= 100
-#  warning Atomic operations not implemented
 # endif
+#else
     void *old = *addr;
     *addr = newptr;
     return old;
@@ -230,16 +239,41 @@ UA_atomic_xchg(void * volatile * addr, void *newptr) {
 }
 
 static UA_INLINE void *
-UA_atomic_cmpxchg(void * volatile * addr, void *expected, void *newptr) {
-#if UA_MULTITHREADING >= 100 && defined(_WIN32) /* Visual Studio */
-    return InterlockedCompareExchangePointer(addr, newptr, expected);
-#elif UA_MULTITHREADING >= 100 && defined(__GNUC__) /* GCC/Clang */
+UA_atomic_cmpxchg(void **addr, void *expected, void *newptr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    return InterlockedCompareExchangePointer((void *volatile *)(uintptr_t)addr,
+                                             newptr, expected);
+# elif defined(UA_HAVE_C11_ATOMICS)
+    atomic_compare_exchange_strong((volatile atomic_uintptr_t *)addr,
+                                   (uintptr_t *)&expected, (uintptr_t)newptr);
+    return expected;
+# else /* HAVE_GCC_SYNC_BUILTINS */
     return __sync_val_compare_and_swap(addr, expected, newptr);
+# endif
 #else
     void *old = *addr;
     if(old == expected)
         *addr = newptr;
     return old;
+#endif
+}
+
+static UA_INLINE void *
+UA_atomic_load(void **addr) {
+#if UA_MULTITHREADING >= 100
+# if defined(_WIN32) /* Visual Studio */
+    /* Assume x86 for Win32 builds. There we only need to lock stores. Reads are
+     * always atomic: "Locked operations are atomic with respect to all other
+     * memory operations and all externally visible events." */
+    return *addr;
+# elif defined(UA_HAVE_C11_ATOMICS)
+    return (void*)atomic_load((volatile atomic_uintptr_t *)addr);
+# else /* HAVE_GCC_SYNC_BUILTINS */
+    return __sync_fetch_and_or(addr, (void*)0);
+# endif
+#else
+    return *addr;
 #endif
 }
 

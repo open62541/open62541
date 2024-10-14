@@ -9,7 +9,7 @@
 #include <open62541/server_pubsub.h>
 #include <open62541/server_config_default.h>
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_networkmessage.h"
 #include "testing_clock.h"
 #include "test_helpers.h"

@@ -9,7 +9,8 @@
 #include <open62541/server_pubsub.h>
 
 #if defined(UA_ENABLE_PUBSUB) && defined(UA_ENABLE_PUBSUB_FILE_CONFIG)
-#include "../pubsub/ua_pubsub.h"
+
+#include "ua_pubsub_internal.h"
 
 static UA_StatusCode
 createPubSubConnection(UA_PubSubManager *psm,
