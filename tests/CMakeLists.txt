@@ -2,17 +2,19 @@ if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W1") # Reduce warnings level
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function)
+    add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library
 endif()
 
-# Load CMake Packages
+# Check dependency
 find_package(Check REQUIRED)
 set(LIBS ${CHECK_LIBRARIES} ${open62541_LIBRARIES})
-if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD"))
+if(NOT WIN32 AND NOT APPLE AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "OpenBSD") AND NOT (CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD"))
   list(APPEND LIBS subunit)
 endif()
+include_directories(${CHECK_INCLUDE_DIRS})
+link_directories(${CHECK_LIBRARY_DIRS})
 
-include_directories(${CHECK_INCLUDE_DIR})
-#find_package(Threads REQUIRED)
+# Valgrind dependency
 if(NOT MSVC AND UA_ENABLE_UNIT_TESTS_MEMCHECK)
     find_package(Valgrind REQUIRED)
 endif()
