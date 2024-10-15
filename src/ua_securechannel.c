@@ -594,6 +594,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     if(!channel->securityPolicy) {
         if(channel->processOPNHeader)
             res = channel->processOPNHeader(application, channel, &asymHeader);
+        UA_CHECK_STATUS(res, goto error);
         if(!channel->securityPolicy)
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);
