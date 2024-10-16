@@ -99,6 +99,24 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
 
 int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng);
 
+UA_StatusCode
+UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadDerCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadPemCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadDerCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
+
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target);
 
 UA_ByteString UA_mbedTLS_CopyDataFormatAware(const UA_ByteString *data);

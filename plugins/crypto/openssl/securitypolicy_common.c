@@ -1359,6 +1359,38 @@ UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate) {
     return result;
 }
 
+X509_CRL *
+UA_OpenSSL_LoadCrl(const UA_ByteString *crl) {
+    X509_CRL * result = NULL;
+    const unsigned char *pData = crl->data;
+
+    if (crl->length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
+        result = UA_OpenSSL_LoadDerCrl(crl);
+    } else {
+        result = UA_OpenSSL_LoadPemCrl(crl);
+    }
+
+    return result;
+}
+
+X509_CRL *
+UA_OpenSSL_LoadDerCrl(const UA_ByteString *crl) {
+    const unsigned char *pData = crl->data;
+    return d2i_X509_CRL(NULL, &pData, (long) crl->length);
+}
+
+X509_CRL *
+UA_OpenSSL_LoadPemCrl(const UA_ByteString *crl) {
+    X509_CRL * result = NULL;
+
+    BIO* bio = NULL;
+    bio = BIO_new_mem_buf((void *) crl->data, (int) crl->length);
+    result = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
+    BIO_free(bio);
+
+    return result;
+}
+
 UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target) {
     X509 *cert = UA_OpenSSL_LoadCertificate(certificate);

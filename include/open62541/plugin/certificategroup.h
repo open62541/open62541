@@ -34,6 +34,9 @@ struct UA_CertificateGroup {
     UA_StatusCode (*removeFromTrustList)(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList);
 
     UA_StatusCode (*getRejectedList)(UA_CertificateGroup *certGroup, UA_ByteString **rejectedList, size_t *rejectedListSize);
+    /* Provides all associated CRLs for a CA certificate. */
+    UA_StatusCode (*getCertificateCrls)(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                        const UA_Boolean isTrusted, UA_ByteString **crls, size_t *crlsSize);
 
     UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup, const UA_ByteString *certificate);
 

@@ -693,6 +693,147 @@ UA_Server_removeCallback(UA_Server *server, UA_UInt64 callbackId) {
     UA_UNLOCK(&server->serviceMutex);
 }
 
+static void
+secureChannel_delayedCloseTrustList(void *application, void *context) {
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
+    UA_Server *server = (UA_Server*)application;
+
+    UA_CertificateGroup certGroup = server->config.secureChannelPKI;
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &server->channels, serverEntry) {
+        const UA_SecurityPolicy *policy = channel->securityPolicy;
+        if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
+            continue;
+        if(certGroup.verifyCertificate(&certGroup, &policy->localCertificate) != UA_STATUSCODE_GOOD)
+            UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
+    }
+    UA_free(dc);
+}
+
+static UA_CertificateGroup*
+getCertificateGroup(UA_Server *server, const UA_NodeId certificateGroupId) {
+    UA_NodeId defaultApplicationGroup =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
+    UA_NodeId defaultUserTokenGroup =
+        UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
+    if(UA_NodeId_equal(&certificateGroupId, &defaultApplicationGroup)) {
+        return &server->config.secureChannelPKI;
+    }
+    if(UA_NodeId_equal(&certificateGroupId, &defaultUserTokenGroup)) {
+        return &server->config.sessionPKI;
+    }
+    return NULL;
+}
+
+UA_StatusCode
+UA_Server_addCertificates(UA_Server *server,
+                          const UA_NodeId certificateGroupId,
+                          UA_ByteString *certificates,
+                          size_t certificatesSize,
+                          UA_ByteString *crls,
+                          size_t crlsSize,
+                          const UA_Boolean isTrusted,
+                          const UA_Boolean appendCertificates) {
+    UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+
+    if(isTrusted) {
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+        trustList.trustedCertificates = certificates;
+        trustList.trustedCertificatesSize = certificatesSize;
+        trustList.trustedCrls = crls;
+        trustList.trustedCrlsSize = crlsSize;
+    } else {
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCRLS;
+        trustList.issuerCertificates = certificates;
+        trustList.issuerCertificatesSize = certificatesSize;
+        trustList.issuerCrls = crls;
+        trustList.issuerCrlsSize = crlsSize;
+    }
+
+    /* When adding certificate files to the TrustList,
+     * it is not necessary to check the trust status of the existing SecureChannels. */
+    if(appendCertificates)
+        return certGroup->addToTrustList(certGroup, &trustList);
+
+    UA_StatusCode retval = certGroup->setTrustList(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
+    if(!dc)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    dc->callback = secureChannel_delayedCloseTrustList;
+    dc->application = server;
+    dc->context = dc;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_Server_removeCertificates(UA_Server *server,
+                             const UA_NodeId certificateGroupId,
+                             UA_ByteString *certificates,
+                             size_t certificatesSize,
+                             const UA_Boolean isTrusted) {
+    UA_CertificateGroup *certGroup = getCertificateGroup(server, certificateGroupId);
+    if(!certGroup)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    UA_ByteString *crls = NULL;
+    size_t crlsSize = 0;
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < certificatesSize; i++) {
+        retval = certGroup->getCertificateCrls(certGroup, &certificates[i], isTrusted, &crls, &crlsSize);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+            return retval;
+        }
+    }
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    if(isTrusted) {
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_TRUSTEDCERTIFICATES | UA_TRUSTLISTMASKS_TRUSTEDCRLS;
+        trustList.trustedCertificates = certificates;
+        trustList.trustedCertificatesSize = certificatesSize;
+        trustList.trustedCrls = crls;
+        trustList.trustedCrlsSize = crlsSize;
+    } else {
+        trustList.specifiedLists = UA_TRUSTLISTMASKS_ISSUERCERTIFICATES | UA_TRUSTLISTMASKS_ISSUERCRLS;
+        trustList.issuerCertificates = certificates;
+        trustList.issuerCertificatesSize = certificatesSize;
+        trustList.issuerCrls = crls;
+        trustList.issuerCrlsSize = crlsSize;
+    }
+
+    retval = certGroup->removeFromTrustList(certGroup, &trustList);
+    UA_Array_delete(crls, crlsSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    UA_DelayedCallback *dc = (UA_DelayedCallback*)UA_calloc(1, sizeof(UA_DelayedCallback));
+    if(!dc)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+
+    dc->callback = secureChannel_delayedCloseTrustList;
+    dc->application = server;
+    dc->context = dc;
+
+    UA_EventLoop *el = server->config.eventLoop;
+    el->addDelayedCallback(el, dc);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 typedef struct UpdateCertInfo {
     UA_Server *server;
     const UA_NodeId *certificateTypeId;
