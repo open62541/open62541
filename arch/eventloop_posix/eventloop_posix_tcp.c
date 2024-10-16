@@ -250,7 +250,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     UA_FD newsockfd = accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
-        if(UA_ERRNO == UA_INTERRUPTED)
+        if(UA_IS_TEMPORARY_ACCEPT_ERROR(UA_ERRNO))
             return;
 
         /* Close the listen socket */

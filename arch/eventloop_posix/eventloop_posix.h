@@ -55,9 +55,15 @@ typedef SSIZE_T ssize_t;
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_INPROGRESS WSAEINPROGRESS
 #define UA_WOULDBLOCK WSAEWOULDBLOCK
+#define UA_CONNRESET WSAECONNRESET
+#define UA_NOBUFS WSAENOBUFS
+#define UA_MFILE WSAEMFILE
 #define UA_POLLIN POLLRDNORM
 #define UA_POLLOUT POLLWRNORM
 #define UA_SHUT_RDWR SD_BOTH
+
+#define UA_IS_TEMPORARY_ACCEPT_ERROR(err) \
+    ((err) == UA_INTERRUPTED || (err) == UA_CONNRESET || (err) == UA_NOBUFS || (err) == UA_MFILE)
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, (socklen_t)salen, host, (DWORD)hostlen, serv, (DWORD)servlen, flags)
@@ -136,9 +142,16 @@ typedef int SOCKET;
 #define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
 #define UA_INPROGRESS EINPROGRESS
 #define UA_WOULDBLOCK EWOULDBLOCK
+#define UA_CONNABORTED ECONNABORTED
+#define UA_MFILE EMFILE
+#define UA_NFILE ENFILE
+#define UA_NOBUFS ENOBUFS
 #define UA_POLLIN POLLIN
 #define UA_POLLOUT POLLOUT
 #define UA_SHUT_RDWR SHUT_RDWR
+
+#define UA_IS_TEMPORARY_ACCEPT_ERROR(err) \
+    ((err) == UA_INTERRUPTED || (err) == UA_CONNABORTED || (err) == UA_MFILE || (err) == UA_NFILE || (err) == UA_NOBUFS)
 
 #define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
     getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
