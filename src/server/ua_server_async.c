@@ -508,7 +508,7 @@ UA_Server_setMethodNodeAsync(UA_Server *server, const UA_NodeId id,
                                         UA_BROWSEDIRECTION_INVALID);
     if(node) {
         if(node->head.nodeClass == UA_NODECLASS_METHOD)
-            node->methodNode.async = isAsync;
+            node->head.async = isAsync;
         else
             res = UA_STATUSCODE_BADNODECLASSINVALID;
         UA_NODESTORE_RELEASE(server, node);
@@ -637,7 +637,8 @@ UA_Server_setVariableNodeAsync(UA_Server *server, const UA_NodeId id,
                              UA_Boolean isAsync) {
     UA_LOCK(&server->serviceMutex);
     UA_StatusCode res =
-        UA_Server_editNode(server, &server->adminSession, &id,
+        UA_Server_editNode(server, &server->adminSession, &id, UA_ATTRIBUTEID_INVALID,
+                            UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH,
                            (UA_EditNodeCallback)setVariableNodeAsync, &isAsync);
     UA_UNLOCK(&server->serviceMutex);
     return res;

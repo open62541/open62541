@@ -22,7 +22,6 @@
  */
 
 #include "ua_server_internal.h"
-#include "ua_types_encoding_binary.h"
 #include "ua_services.h"
 
 #ifdef UA_ENABLE_HISTORIZING
@@ -678,7 +677,7 @@ UA_DataValue
 readWithSession(UA_Server *server, UA_Session *session,
                 const UA_ReadValueId *item,
                 UA_TimestampsToReturn timestampsToReturn) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_DataValue dv;
     UA_DataValue_init(&dv);
@@ -1156,7 +1155,7 @@ Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
                   const UA_ReadRequest *request, UA_ReadResponse *response,
                   UA_Boolean *finished) {
     UA_LOG_DEBUG_SESSION(server->config.logging, session, "Processing ReadRequestAsync");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Check if the timestampstoreturn is valid */
     if(request->timestampsToReturn > UA_TIMESTAMPSTORETURN_NEITHER) {
@@ -1177,7 +1176,7 @@ Service_ReadAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
         return;
     }
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_AsyncResponse *ar = NULL;
     response->responseHeader.serviceResult =
@@ -1944,6 +1943,7 @@ Operation_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId
     //Synchronous execution
     if(!node->head.async) {
         *opResult = UA_Server_editNode(server, session, &opRequest->nodesToWrite[opIndex].nodeId,
+                                     UA_ATTRIBUTEID_INVALID, UA_REFERENCETYPESET_ALL, UA_BROWSEDIRECTION_BOTH,
                                      (UA_EditNodeCallback)copyAttributeIntoNode,
                                      (void*)(uintptr_t) &opRequest->nodesToWrite[opIndex]);
         goto cleanup;
@@ -1976,7 +1976,7 @@ Service_WriteAsync(UA_Server *server, UA_Session *session, UA_UInt32 requestId,
     UA_assert(session != NULL);
     UA_LOG_DEBUG_SESSION(server->config.logging, session,
                          "Processing Async WriteRequest");
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(server->config.maxNodesPerWrite != 0 &&
        request->nodesToWriteSize > server->config.maxNodesPerWrite) {
