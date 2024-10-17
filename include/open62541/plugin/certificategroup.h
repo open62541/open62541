@@ -21,6 +21,12 @@ struct UA_CertificateGroup {
     /* The nodeId of the certificate group this pki store is associated with */
     UA_NodeId certificateGroupId;
     void *context;
+    /* Used internally to create a FileType from the TrustList,
+     * which can then be read and written using the FileType functions.
+     * Only used when the GDS push information model is enabled (UA_ENABLE_GDS_PUSHMANAGEMENT).
+     */
+    void *fileInfoContext;
+
     /* Pointer to logging pointer in the server/client configuration. If the
      * logging pointer is changed outside of the plugin, the new logger is used
      * automatically
