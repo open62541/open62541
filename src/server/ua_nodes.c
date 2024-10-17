@@ -490,9 +490,6 @@ static UA_StatusCode
 UA_MethodNode_copy(const UA_MethodNode *src, UA_MethodNode *dst) {
     dst->executable = src->executable;
     dst->method = src->method;
-#if UA_MULTITHREADING >= 100
-    dst->async = src->async;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
@@ -581,6 +578,9 @@ UA_Node_copy(const UA_Node *src, UA_Node *dst) {
     dsthead->constructed = srchead->constructed;
 #ifdef UA_ENABLE_SUBSCRIPTIONS
     dsthead->monitoredItems = srchead->monitoredItems;
+#endif
+#if UA_MULTITHREADING >= 100
+    dsthead->async = srchead->async;
 #endif
     if(retval != UA_STATUSCODE_GOOD) {
         UA_Node_clear(dst);
