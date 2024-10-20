@@ -205,6 +205,7 @@ typedef struct {
         UA_UInt16 sequenceNumber;
         UA_DataValue **externalValue;
         UA_DataValue value;
+        size_t rawMessageLength;
     } content;
     size_t offset;
 } UA_NetworkMessageOffset;
@@ -214,7 +215,6 @@ typedef struct {
     UA_NetworkMessageOffset *offsets; /* Offsets for changes in the message buffer */
     size_t offsetsSize;
     UA_NetworkMessage *nm; /* The precomputed NetworkMessage for subscriber */
-    size_t rawMessageLength;
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
                                   * into the encrypt buffer for encryption and
