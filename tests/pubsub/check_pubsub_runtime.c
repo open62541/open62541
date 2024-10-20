@@ -7,6 +7,7 @@
 #include "ua_pubsub_internal.h"
 #include "test_helpers.h"
 #include "testing_networklayers.h"
+#include "testing_clock.h"
 #include <check.h>
 
 static UA_Server *server;
@@ -417,6 +418,103 @@ static void clearCapture(PublishCapture *capture) {
         UA_ByteString_clear(&capture->messages[i]);
 }
 
+START_TEST(PublishBaseTimeControlsSchedule) {
+    /* Missing/wrongly typed properties retain the default policy. Both past
+     * and future basetimes align publications to the configured phase. */
+    UA_Boolean aligned = (_i == 1 || _i == 3);
+    UA_WriterGroup *wg = createPublisher(1, 0);
+    UA_EventLoop *el = UA_Server_getConfig(server)->eventLoop;
+    UA_DateTime now = el->dateTime_nowMonotonic(el);
+    const UA_DateTime baseTime = now + (_i == 3 ? -75 : 25) * UA_DATETIME_MSEC;
+    wg->head.state = UA_PUBSUBSTATE_DISABLED;
+    UA_WriterGroupConfig config;
+    ck_assert_uint_eq(UA_Server_getWriterGroupConfig(server, wg->head.identifier, &config),
+                      UA_STATUSCODE_GOOD);
+    config.publishingInterval = 100;
+    if(_i != 0) {
+        const UA_DataType *type = &UA_TYPES[_i == 2 ? UA_TYPES_INT64 : UA_TYPES_DATETIME];
+        ck_assert_uint_eq(UA_KeyValueMap_setScalar(&config.groupProperties,
+            UA_QUALIFIEDNAME(0, "__publish-basetime"), &baseTime, type), UA_STATUSCODE_GOOD);
+    }
+    ck_assert_uint_eq(UA_Server_updateWriterGroupConfig(server, wg->head.identifier, &config),
+                      UA_STATUSCODE_GOOD);
+    UA_WriterGroupConfig_clear(&config);
+    wg->head.state = UA_PUBSUBSTATE_OPERATIONAL;
+
+    PublishCapture capture;
+    memset(&capture, 0, sizeof(capture));
+    UA_PubSubConnection *connection = wg->linkedConnection;
+    UA_ConnectionManager *originalCm = connection->cm;
+    uintptr_t originalChannel = connection->sendChannel;
+    UA_ConnectionManager *cm = TestConnectionManager_new("udp", NULL);
+    ck_assert_ptr_nonnull(cm);
+    uintptr_t channel;
+    ck_assert_uint_eq(TestConnectionManager_createConnection(cm, NULL, NULL,
+        connectionCallback, &channel), UA_STATUSCODE_GOOD);
+    TestConnectionManager_setContext(cm, &capture);
+    cm->sendWithConnection = captureMessage;
+    connection->cm = cm;
+    connection->sendChannel = channel;
+    if(el->state != UA_EVENTLOOPSTATE_STARTED)
+        ck_assert_uint_eq(el->start(el), UA_STATUSCODE_GOOD);
+
+    lockServer(server);
+    ck_assert_uint_eq(UA_WriterGroup_addPublishCallback(getPSM(server), wg), UA_STATUSCODE_GOOD);
+    UA_UInt64 timerId = wg->publishCallbackId;
+    ck_assert_uint_ne(timerId, 0);
+    /* Registering twice must not create duplicate publications. */
+    ck_assert_uint_eq(UA_WriterGroup_addPublishCallback(getPSM(server), wg), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(wg->publishCallbackId, timerId);
+    unlockServer(server);
+
+    UA_UInt32 firstDelay = aligned ? 25 : 100;
+    UA_fakeSleep(firstDelay - 1);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 0);
+    UA_fakeSleep(1);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 1);
+
+    /* Miss two cycles: basetime resumes at the original phase, while the
+     * default policy waits a full interval from the delayed execution. */
+    UA_fakeSleep(260);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 2);
+    UA_UInt32 nextDelay = aligned ? 40 : 100;
+    UA_fakeSleep(nextDelay - 1);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 2);
+    UA_fakeSleep(1);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 3);
+
+    lockServer(server);
+    UA_WriterGroup_removePublishCallback(getPSM(server), wg);
+    ck_assert_uint_eq(wg->publishCallbackId, 0);
+    unlockServer(server);
+    UA_fakeSleep(130);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 3);
+
+    /* Restarting uses the original basetime, not the time of registration. */
+    lockServer(server);
+    ck_assert_uint_eq(UA_WriterGroup_addPublishCallback(getPSM(server), wg), UA_STATUSCODE_GOOD);
+    unlockServer(server);
+    UA_fakeSleep(aligned ? 69 : 99);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 3);
+    UA_fakeSleep(1);
+    ck_assert_uint_eq(el->run(el, 0), UA_STATUSCODE_GOOD);
+    ck_assert_uint_eq(capture.count, 4);
+    lockServer(server);
+    UA_WriterGroup_removePublishCallback(getPSM(server), wg);
+    unlockServer(server);
+    connection->cm = originalCm;
+    connection->sendChannel = originalChannel;
+    cm->eventSource.free(&cm->eventSource);
+    clearCapture(&capture);
+} END_TEST
+
 START_TEST(NetworkMessageNumbersRestartEachCycle) {
     UA_WriterGroup *wg = createPublisher(3, 0);
     PublishCapture capture = capturePublishes(wg, 2);
@@ -726,6 +824,7 @@ int main(void) {
     tcase_add_loop_test(tc, SequenceOrderingAndRollover, 0, 3);
     tcase_add_test(tc, SequenceHistoriesArePerStream);
     tcase_add_test(tc, SequenceHistoryExpiresAfterTwoTimeouts);
+    tcase_add_loop_test(tc, PublishBaseTimeControlsSchedule, 0, 4);
     tcase_add_test(tc, DeltaGapRequiresNewKeyFrame);
     tcase_add_test(tc, NetworkMessageNumbersRestartEachCycle);
     tcase_add_loop_test(tc, ConfiguredSizeReachesRuntimeEncoder, 0, 2);
