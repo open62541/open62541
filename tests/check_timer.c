@@ -88,6 +88,33 @@ START_TEST(addWithoutCallback) {
     UA_Timer_clear(&timer);
 } END_TEST
 
+START_TEST(constBaseTimeAddAndModify) {
+    UA_Timer timer;
+    UA_Timer_init(&timer);
+    count = 0;
+    const UA_DateTime baseTime = 25 * UA_DATETIME_MSEC;
+    UA_UInt64 callbackId;
+    ck_assert_uint_eq(UA_Timer_add(&timer, timerCallback, NULL, NULL, 100, 0,
+                                   &baseTime, UA_TIMERPOLICY_BASETIME, &callbackId),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_next(&timer) == baseTime);
+    ck_assert(UA_Timer_process(&timer, baseTime) == 125 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 1);
+
+    const UA_DateTime changedBaseTime = 40 * UA_DATETIME_MSEC;
+    ck_assert_uint_eq(UA_Timer_modify(&timer, callbackId, 50, baseTime,
+                                      &changedBaseTime, UA_TIMERPOLICY_BASETIME),
+                      UA_STATUSCODE_GOOD);
+    ck_assert(UA_Timer_next(&timer) == changedBaseTime);
+    ck_assert(UA_Timer_process(&timer, changedBaseTime - 1) == changedBaseTime);
+    ck_assert_uint_eq(count, 1);
+    ck_assert(UA_Timer_process(&timer, changedBaseTime) == 90 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 2);
+    ck_assert(UA_Timer_process(&timer, 175 * UA_DATETIME_MSEC) == 190 * UA_DATETIME_MSEC);
+    ck_assert_uint_eq(count, 3);
+    UA_Timer_clear(&timer);
+} END_TEST
+
 START_TEST(addNonpositiveRepeatedInterval) {
     const UA_TimerPolicy policies[] = {UA_TIMERPOLICY_CURRENTTIME,
                                        UA_TIMERPOLICY_BASETIME};
@@ -288,6 +315,7 @@ int main(void) {
     tcase_add_test(tc, benchmarkTimer);
     tcase_add_test(tc, batchWithinWindow);
     tcase_add_test(tc, addWithoutCallback);
+    tcase_add_test(tc, constBaseTimeAddAndModify);
     tcase_add_loop_test(tc, addNonpositiveRepeatedInterval, 0, 4);
     tcase_add_loop_test(tc, modifyNonpositiveRepeatedInterval, 0, 4);
     tcase_add_loop_test(tc, modifyToOneShot, 0, 5);
