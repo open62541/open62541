@@ -49,6 +49,14 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->publishCallbackId != 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    const UA_DateTime *basetime = (const UA_DateTime *)
+        UA_KeyValueMap_getScalar(&wg->config.groupProperties,
+                                 UA_QUALIFIEDNAME(0, "__publish-basetime"),
+                                 &UA_TYPES[UA_TYPES_DATETIME]);
+    UA_TimerPolicy timerpolicy = (basetime) ?
+        UA_TIMER_HANDLE_CYCLEMISS_WITH_BASETIME :
+        UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME;
+
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(wg->config.pubsubManagerCallback.addCustomCallback) {
         /* Use configured mechanism for cyclic callbacks */
@@ -56,16 +64,13 @@ UA_WriterGroup_addPublishCallback(UA_Server *server, UA_WriterGroup *wg) {
                  addCustomCallback(server, wg->identifier,
                                    (UA_ServerCallback)UA_WriterGroup_publishCallback,
                                    wg, wg->config.publishingInterval,
-                                   NULL, UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                   &wg->publishCallbackId);
+                                   basetime, timerpolicy, &wg->publishCallbackId);
     } else {
         /* Use EventLoop for cyclic callbacks */
         UA_EventLoop *el = UA_PubSubConnection_getEL(server, wg->linkedConnection);
         retval = el->addCyclicCallback(el, (UA_Callback)UA_WriterGroup_publishCallback,
                                        server, wg, wg->config.publishingInterval,
-                                       NULL /* TODO: use basetime */,
-                                       UA_TIMER_HANDLE_CYCLEMISS_WITH_CURRENTTIME,
-                                       &wg->publishCallbackId);
+                                       basetime, timerpolicy, &wg->publishCallbackId);
     }
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
