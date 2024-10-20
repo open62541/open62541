@@ -63,13 +63,13 @@ UA_Timer_next(UA_Timer *t);
 UA_StatusCode
 UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
-             UA_DateTime now, UA_DateTime *baseTime,
+             UA_DateTime now, const UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
 
 UA_StatusCode
 UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
                 UA_Double interval_ms, UA_DateTime now,
-                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
+                const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
 
 void
 UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId);

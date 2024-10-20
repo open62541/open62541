@@ -95,7 +95,7 @@ batchTimerEntry(UA_Timer *t, UA_TimerEntry *te) {
 UA_StatusCode
 UA_Timer_add(UA_Timer *t, UA_Callback callback,
              void *application, void *data, UA_Double interval_ms,
-             UA_DateTime now, UA_DateTime *baseTime,
+             UA_DateTime now, const UA_DateTime *baseTime,
              UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId) {
     /* A callback method needs to be present */
     if(!callback)
@@ -151,7 +151,7 @@ UA_Timer_add(UA_Timer *t, UA_Callback callback,
 UA_StatusCode
 UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
                 UA_Double interval_ms, UA_DateTime now,
-                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
+                const UA_DateTime *baseTime, UA_TimerPolicy timerPolicy) {
     /* The interval needs to be positive. The exception is for the "once" policy
      * where we allow baseTime + interval < now. Then the timer executes once in
      * the next processing iteration. */
