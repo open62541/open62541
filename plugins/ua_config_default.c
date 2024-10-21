@@ -22,6 +22,8 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
+#include "../../arch/eventloop_zephyr/eventloop_zephyr.h"
+
 #include "../deps/mp_printf.h"
 
 #include <stdio.h>
@@ -79,8 +81,7 @@ UA_Server_new(void) {
     return UA_Server_newWithConfig(&config);
 }
 
-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
-
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(UA_ARCHITECTURE_ZEPHYR)
 /* Required for the definition of SIGINT */
 #include <signal.h>
 
@@ -283,32 +284,44 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 
     /* EventLoop */
     if(conf->eventLoop == NULL) {
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+        conf->eventLoop = UA_EventLoop_new_Zephyr(conf->logging);
+#else
         conf->eventLoop = UA_EventLoop_new_POSIX(conf->logging);
+#endif
         if(conf->eventLoop == NULL)
             return UA_STATUSCODE_BADOUTOFMEMORY;
 
         conf->externalEventLoop = false;
 
         /* Add the TCP connection manager */
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_Zephyr_TCP(UA_STRING("tcp connection manager"));
+#else
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+#endif
         if(tcpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
         /* Add the UDP connection manager */
+#if !defined(UA_ARCHITECTURE_ZEPHYR)
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)udpCM);
+#endif
 
         /* Add the Ethernet connection manager */
-#ifdef __linux__
+#if defined(UA_ARCHITECTURE_POSIX)
         UA_ConnectionManager *ethCM =
             UA_ConnectionManager_new_POSIX_Ethernet(UA_STRING("eth connection manager"));
         if(ethCM)
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)ethCM);
 #endif
 
+#if !defined(UA_ARCHITECTURE_ZEPHYR)
         /* Add the interrupt manager */
         UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
         if(im) {
@@ -317,6 +330,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             UA_LOG_WARNING(conf->logging, UA_LOGCATEGORY_USERLAND,
                            "Cannot create the Interrupt Manager (only relevant if used)");
         }
+#endif
 #ifdef UA_ENABLE_MQTT
         /* Add the MQTT connection manager */
         UA_ConnectionManager *mqttCM =
@@ -1530,18 +1544,29 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 
     /* EventLoop */
     if(config->eventLoop == NULL) {
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+        config->eventLoop = UA_EventLoop_new_Zephyr(config->logging);
+#else
         config->eventLoop = UA_EventLoop_new_POSIX(config->logging);
+#endif
         config->externalEventLoop = false;
 
         /* Add the TCP connection manager */
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_Zephyr_TCP(UA_STRING("tcp connection manager"));
+#else
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
+#endif
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
 
+#if !defined(UA_ARCHITECTURE_ZEPHYR)
         /* Add the UDP connection manager */
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)udpCM);
+#endif
     }
 
     if(config->localConnectionConfig.recvBufferSize == 0)
