@@ -127,18 +127,6 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
 
 static UA_StatusCode
 openSSLCheckCrlMatch(X509 *cert, X509_CRL *crl) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    /* Check if the certificate is a CA certificate.
-     * Only a CA certificate can have a CRL. */
-    BASIC_CONSTRAINTS *bs = (BASIC_CONSTRAINTS*)X509_get_ext_d2i(cert, NID_basic_constraints, NULL, NULL);
-    if(!bs || bs->ca == 0) {
-        /* The certificate is not a CA or the extension is missing */
-        BASIC_CONSTRAINTS_free(bs);
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-    }
-    BASIC_CONSTRAINTS_free(bs);
-
     X509_NAME *certSubject = X509_get_subject_name(cert);
     if(!certSubject)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -148,13 +136,10 @@ openSSLCheckCrlMatch(X509 *cert, X509_CRL *crl) {
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
-    if(X509_NAME_cmp(certSubject, crlIssuer) == 0) {
-        retval = UA_STATUSCODE_GOOD;
-    } else {
-        retval = UA_STATUSCODE_BADNOMATCH;
-    }
+    if(X509_NAME_cmp(certSubject, crlIssuer) == 0)
+        return UA_STATUSCODE_GOOD;
 
-    return retval;
+    return UA_STATUSCODE_BADNOMATCH;
 }
 
 static UA_StatusCode
@@ -167,6 +152,15 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     if(!cert)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    /* Check if the certificate is a CA certificate.
+     * Only a CA certificate can have a CRL. */
+    if(!X509_check_ca(cert)) {
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                   "The certificate is not a CA certificate and therefore does not have a CRL.");
+        X509_free(cert);
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_Boolean foundMatch = false;
     for(size_t i = 0; i < crlListSize; i++) {
         X509_CRL *crl = UA_OpenSSL_LoadCrl(&crlList[i]);
@@ -177,22 +171,10 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
 
         retval = openSSLCheckCrlMatch(cert, crl);
         X509_CRL_free(crl);
-        if(retval == UA_STATUSCODE_BADNOMATCH) {
+        if(retval != UA_STATUSCODE_GOOD) {
             continue;
         }
-        /* If it is not a CA certificate, there is no crl list. */
-        if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
-            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                "The certificate is not a CA certificate and therefore does not have a CRL.");
-            X509_free(cert);
-            return retval;
-        }
-        if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                "An error occurred while determining the appropriate CRL.");
-            X509_free(cert);
-            return retval;
-        }
+
         /* Continue the search, as a certificate may be associated with multiple CRLs. */
         foundMatch = true;
         retval = UA_Array_appendCopy((void **)crls, crlsSize, &crlList[i],
@@ -792,11 +774,9 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
 UA_StatusCode
 UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
-    const unsigned char *pData = certificate->data;
-    X509 * x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
-    if (x509 == NULL) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
+    if(!x509)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     /* Get the certificate Expiry date */
     ASN1_TIME *not_after = X509_get_notAfter(x509);
@@ -823,10 +803,10 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
-    const unsigned char *pData = certificate->data;
-    X509 *x509 = d2i_X509 (NULL, &pData, (long)certificate->length);
+    X509 *x509 = UA_OpenSSL_LoadCertificate(certificate);
     if(!x509)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
     X509_NAME *sn = X509_get_subject_name(x509);
     char buf[1024];
     *subjectName = UA_STRING_ALLOC(X509_NAME_oneline(sn, buf, 1024));
@@ -840,30 +820,14 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (SHA1_DIGEST_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
-    if(!certBio)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    X509 *cert = NULL;
-    /* Try to read the certificate as PEM first */
-    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
-    if(!cert) {
-        /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(certBio);
-        cert = d2i_X509_bio(certBio, NULL);
-    }
-    if(!cert) {
-        BIO_free(certBio);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(!cert)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     unsigned char digest[SHA1_DIGEST_LENGTH];
     unsigned int digestLen;
     if(X509_digest(cert, EVP_sha1(), digest, &digestLen) != 1) {
         X509_free(cert);
-        BIO_free(certBio);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -880,10 +844,9 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     memcpy(thumbprint->data, thumb.data, thumbprint->length);
 
     X509_free(cert);
-    BIO_free(certBio);
     free(thumb.data);
 
-    return retval;
+    return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
@@ -892,27 +855,13 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     if(certificate == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
-    if(!certBio)
-        return UA_STATUSCODE_BADINTERNALERROR;
-
-    X509 *cert = NULL;
-    /* Try to read the certificate as PEM first */
-    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
-    if(!cert) {
-        /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(certBio);
-        cert = d2i_X509_bio(certBio, NULL);
-    }
-    if(!cert) {
-        BIO_free(certBio);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(!cert)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
     EVP_PKEY *pkey = X509_get_pubkey(cert);
     if(!pkey) {
         X509_free(cert);
-        BIO_free(certBio);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -925,13 +874,11 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     } else {
         EVP_PKEY_free(pkey);
         X509_free(cert);
-        BIO_free(certBio);
         return UA_STATUSCODE_BADINTERNALERROR; /* Unsupported key type */
     }
 
     EVP_PKEY_free(pkey);
     X509_free(cert);
-    BIO_free(certBio);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -1045,60 +992,25 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     if(certificate == NULL || privateKey == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    X509 *cert = NULL;
-    EVP_PKEY *pkey = NULL;
+    X509 *cert = UA_OpenSSL_LoadCertificate(certificate);
+    if(!cert)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    BIO *certBio = BIO_new_mem_buf(certificate->data, certificate->length);
-    if (!certBio) {
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    BIO *pkeyBio = BIO_new_mem_buf(privateKey->data, privateKey->length);
-    if (!pkeyBio) {
-        BIO_free(certBio);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Try to read the certificate as PEM first */
-    cert = PEM_read_bio_X509(certBio, NULL, 0, NULL);
-    if(!cert) {
-        /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(certBio);
-        cert = d2i_X509_bio(certBio, NULL);
-    }
-    if(!cert) {
-        BIO_free(certBio);
-        BIO_free(pkeyBio);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Try to read the privateKey as PEM first */
-    pkey = PEM_read_bio_PrivateKey(pkeyBio, NULL, NULL, NULL);
+    EVP_PKEY *pkey = UA_OpenSSL_LoadPrivateKey(privateKey);
     if(!pkey) {
-        /* If PEM read fails, reset BIO and try reading as DER */
-        BIO_reset(pkeyBio);
-        pkey = d2i_PrivateKey_bio(pkeyBio, NULL);
-    }
-    if(!pkey) {
-        BIO_free(certBio);
         X509_free(cert);
-        BIO_free(pkeyBio);
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
     /* Verify if the private key matches the public key in the certificate */
     if(X509_check_private_key(cert, pkey) != 1) {
-        BIO_free(certBio);
         X509_free(cert);
-        BIO_free(pkeyBio);
         EVP_PKEY_free(pkey);
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
     X509_free(cert);
     EVP_PKEY_free(pkey);
-    BIO_free(certBio);
-    BIO_free(pkeyBio);
 
     return UA_STATUSCODE_GOOD;
 }
