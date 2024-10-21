@@ -971,6 +971,23 @@ cleanup:
 }
 
 UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = mbedtlsCheckCA(&cert) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
+
+cleanup:
+    mbedtls_x509_crt_free(&cert);
+
+    return retval;
+}
+
+UA_StatusCode
 UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
                                       const UA_ByteString password,
                                       UA_ByteString *outDerKey) {

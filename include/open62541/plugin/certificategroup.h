@@ -100,6 +100,9 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey);
 
+UA_EXPORT UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate);
+
 /* Decrypt a private key in PEM format using a password. The output is the key
  * in the binary DER format. Also succeeds if the PEM private key does not
  * require a password or is already in the DER format. The outDerKey memory is
