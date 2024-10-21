@@ -701,10 +701,9 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        const UA_SecurityPolicy *policy = channel->securityPolicy;
         if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &policy->localCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);
@@ -939,9 +938,9 @@ UA_Server_createSigningRequest(UA_Server *server,
 
     /* The server currently only supports RSA CertificateType */
     UA_NodeId rsaShaCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    /* UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,
-       UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
-    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType))
+    UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
+       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
