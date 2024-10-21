@@ -14,6 +14,8 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
+#if defined(UA_ARCHITECTURE_ZEPHYR)
+
 #include <errno.h>
 
 #include "../../deps/mp_printf.h"
@@ -21,7 +23,6 @@
 #include "../eventloop_common/eventloop_common.h"
 #include "../eventloop_common/timer.h"
 
-#if defined(UA_ARCHITECTURE_ZEPHYR)
 
 /*********************/
 /* Zephyr Definitions */
@@ -90,8 +91,6 @@ typedef struct zsock_pollfd UA_pollfd;
         LOG;                                                                             \
         errno = 0;                                                                       \
     }
-
-#endif
 
 /***********************/
 /* General Definitions */
@@ -209,11 +208,11 @@ UA_EventLoopZephyr_allocateStaticBuffers(UA_ZephyrConnectionManager *pcm);
 
 UA_StatusCode
 UA_EventLoopZephyr_allocNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                                     UA_ByteString *buf, size_t bufSize);
+                                      UA_ByteString *buf, size_t bufSize);
 
 void
 UA_EventLoopZephyr_freeNetworkBuffer(UA_ConnectionManager *cm, uintptr_t connectionId,
-                                    UA_ByteString *buf);
+                                     UA_ByteString *buf);
 
 /* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
  * connections inherit this state. */
@@ -241,3 +240,4 @@ void
 UA_EventLoopZephyr_addDelayedCallback(UA_EventLoop *public_el, UA_DelayedCallback *dc);
 
 #endif /* defined(UA_ARCHITECTURE_Zephyr) */
+#endif

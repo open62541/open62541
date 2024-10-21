@@ -6,7 +6,7 @@ set(ANDROID_PLATFORM 24)
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
 else()
-    project(open62541 C) # Do not look for a C++ compiler endif()
+    project(open62541 C) # Do not look for a C++ compiler
 endif()
 
 # set(CMAKE_VERBOSE_MAKEFILE ON)
