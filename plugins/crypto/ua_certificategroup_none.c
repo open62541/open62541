@@ -73,4 +73,9 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey) {
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
+
+UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
 #endif
