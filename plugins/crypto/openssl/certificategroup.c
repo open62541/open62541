@@ -1015,6 +1015,16 @@ UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
     return UA_STATUSCODE_GOOD;
 }
 
+UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
+
+    X509 *certificateX509 = UA_OpenSSL_LoadCertificate(certificate);
+    if(!certificateX509)
+        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    return X509_check_ca(certificateX509) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
+}
+
 static int
 privateKeyPasswordCallback(char *buf, int size, int rwflag, void *userdata) {
     (void) rwflag;
