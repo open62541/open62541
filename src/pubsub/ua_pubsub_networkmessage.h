@@ -219,7 +219,7 @@ typedef struct {
     UA_ByteString encryptBuffer; /* The precomputed message buffer is copied
                                   * into the encrypt buffer for encryption and
                                   * signing*/
-    UA_Byte *payloadPosition; /* Payload Position of the message to encrypt*/
+    size_t payloadOffset;        /* Payload Position of the message to encrypt*/
 #endif
 } UA_NetworkMessageOffsetBuffer;
 

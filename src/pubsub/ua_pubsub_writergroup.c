@@ -395,7 +395,8 @@ UA_WriterGroup_freezeConfiguration(UA_Server *server, UA_WriterGroup *wg) {
     if(wg->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         UA_Byte *payloadPosition;
         UA_NetworkMessage_encodeBinary(&networkMessage, &bufPos, bufEnd, &payloadPosition);
-        wg->bufferedMessage.payloadPosition = payloadPosition;
+        wg->bufferedMessage.payloadOffset =
+            (size_t)(payloadPosition - wg->bufferedMessage.buffer.data);
         wg->bufferedMessage.nm = (UA_NetworkMessage *)UA_calloc(1,sizeof(UA_NetworkMessage));
         wg->bufferedMessage.nm->securityHeader = networkMessage.securityHeader;
         UA_ByteString_allocBuffer(&wg->bufferedMessage.encryptBuffer, msgSize);
@@ -1283,9 +1284,7 @@ publishWithOffsets(UA_Server *server, UA_WriterGroup *writerGroup,
     if(writerGroup->config.securityMode > UA_MESSAGESECURITYMODE_NONE) {
         size_t sigSize = writerGroup->config.securityPolicy->symmetricModule.cryptoModule.
             signatureAlgorithm.getLocalSignatureSize(writerGroup->securityPolicyContext);
-
-        UA_Byte payloadOffset = (UA_Byte)(writerGroup->bufferedMessage.payloadPosition -
-                                          writerGroup->bufferedMessage.buffer.data);
+        size_t payloadOffset = writerGroup->bufferedMessage.payloadOffset;
         memcpy(writerGroup->bufferedMessage.encryptBuffer.data,
                writerGroup->bufferedMessage.buffer.data,
                writerGroup->bufferedMessage.buffer.length);
