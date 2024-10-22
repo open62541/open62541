@@ -1093,9 +1093,18 @@ DECODE_BINARY(Variant) {
     }
 
     /* Decode array dimensions */
-    if(isArray && (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
+    if(isArray && (encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0) {
         ret |= Array_decodeBinary((void**)&dst->arrayDimensions, &dst->arrayDimensionsSize,
                                   &UA_TYPES[UA_TYPES_INT32], ctx);
+        /* Validate array length against array dimensions */
+        size_t totalSize = 1;
+        for(size_t i = 0; i < dst->arrayDimensionsSize; ++i) {
+            if(dst->arrayDimensions[i] == 0)
+                return UA_STATUSCODE_BADDECODINGERROR;
+            totalSize *= dst->arrayDimensions[i];
+        }
+        UA_CHECK(totalSize == dst->arrayLength, ret = UA_STATUSCODE_BADDECODINGERROR);
+    }
 
     ctx->depth--;
     return ret;
