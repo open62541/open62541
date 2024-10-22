@@ -9,6 +9,13 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
+if(ZEPHYR_BASE)
+  if(NOT CONFIG_OPEN62541)
+    return()
+  endif()
+  include(zephyr/zephyr.cmake)
+endif()
+
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")

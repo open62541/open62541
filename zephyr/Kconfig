@@ -1,0 +1,197 @@
+menuconfig OPEN62541
+    bool "Enable open62541"
+    help
+        This option enables OPC UA support
+    default n
+
+if OPEN62541
+config OPEN62541_ENABLE_AMALGAMATION
+    bool "Enable amalgamation"
+    default n
+    help
+        Concatenate the library to a single file open62541.h/.c
+config OPEN62541_ENABLE_DIAGNOSTICS
+    bool "Enable diagnostics"
+    default y
+    help
+        Enable diagnostics information exposed by the server
+config OPEN62541_ENABLE_METHODCALLS
+    bool "Enable method calls"
+    default y
+    help
+        Enable the Method service set
+config OPEN62541_ENABLE_SUBSCRIPTIONS
+    bool "Enable subscriptions"
+    default y
+    help
+        Enable subscriptions support
+config OPEN62541_ENABLE_SUBSCRIPTIONS_EVENTS
+    bool "Enable subscription events"
+    default y
+    help
+        Enable event monitoring
+config OPEN62541_ENABLE_DA
+    bool "Enable data access"
+    default y
+    help
+        Enable OPC UA DataAccess (Part 8) definitions
+config OPEN62541_ENABLE_HISTORIZING
+    bool "Enable historizing"
+    default y
+    help
+        Enable basic support for historical access (client and server)
+config OPEN62541_ENABLE_DISCOVERY
+    bool "Enable discovery"
+    default y
+    help
+        Enable Discovery Service (LDS)
+config OPEN62541_ENABLE_JSON_ENCODING
+    bool "Enable JSON encoding"
+    default y
+    help
+        Enable JSON encoding
+config OPEN62541_ENABLE_XML_ENCODING
+    bool "Enable XML encoding"
+    default n
+    help
+        Enable XML encoding (EXPERIMENTAL)
+config OPEN62541_ENABLE_NODESETLOADER
+    bool "Enable nodeset loader"
+    default n
+    help
+        Enable nodesetLoader public API
+config OPEN62541_ENABLE_DATATYPES_ALL
+    bool "Enable all data types"
+    default y
+    help
+        Generate all datatypes for namespace zero (uses more binary space)
+config OPEN62541_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    bool "Enable subscription alaram conditions"
+    default n
+    help
+        Enable the use of A&C. (EXPERIMENTAL)
+config OPEN62541_ENABLE_NODEMANAGEMENT
+    bool "Enabled node management"
+    default y
+    help
+        Enable dynamic addition and removal of nodes at runtime
+config OPEN62541_ENABLE_PARSING
+    bool "Enable parsing"
+    default y
+    help
+        Utility functions that require parsing (e.g. NodeId expressions)
+config OPEN62541_ENABLE_INLINABLE_EXPORT
+    bool "Enable inlinable export"
+    default n
+    help
+        Export 'static inline' methods as regular API
+config OPEN62541_ENABLE_DISCOVERY_MULTICAST
+    bool "Enable discovery multicast"
+    default n
+    help
+        Enable Discovery Service with multicast support (LDS-ME)
+config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
+    bool "Enable mbedTLS"
+    default n
+    depends on MBEDTLS
+    help
+        Deprecated: Enable encryption support (uses mbedTLS)" OFF)
+config OPEN62541_ENABLE_QUERY
+    bool "Enable query"
+    default n
+    help
+        Enable query support in the client (most servers don't support it)
+config OPEN62541_ENABLE_DEBUG_SANITIZER
+    bool "Enable debug sanitizer"
+    default y
+    help
+        Use sanitizer in debug mode
+config OPEN62541_ENABLE_PUBSUB
+    bool "Enable pubsub"
+    default y
+    help
+        Enable the PubSub protocol
+config OPEN62541_ENABLE_PUBSUB_SKS
+    bool "Enable pubsub sks"
+    default n
+    help
+        Enable Security Key Service support for publisher and subscriber
+config OPEN62541_ENABLE_PUBSUB_INFORMATIONMODEL
+    bool "Enable pubsub information model"
+    default y
+    help
+        Enable PubSub information model twin
+config OPEN62541_ENABLE_PUBSUB_FILE_CONFIG
+    bool "Enable pubsub file config"
+    default n
+    help
+        Enable loading PubSub Config from file extension
+config OPEN62541_ENABLE_MQTT
+    bool "Enable mqtt"
+    default n
+    help
+        Enable MQTT connections for the EventLoop
+config OPEN62541_ENABLE_STATUSCODE_DESCRIPTIONS
+    bool "Enable status code descriptions"
+    default y
+    help
+        Enable conversion of StatusCode to human-readable error message
+config OPEN62541_ENABLE_TYPEDESCRIPTION
+    bool "Enable type descriptions"
+    default y
+    help
+        Add the type and member names to the OPEN62541_DataType structure
+config OPEN62541_ENABLE_NODESET_COMPILER_DESCRIPTIONS
+    bool "Enable nodeset compiler descriptions"
+    default y
+    help
+        Set node description attribute for nodeset compiler generated nodes
+config OPEN62541_ENABLE_DETERMINISTIC_RNG
+    bool "Enable deterministic RNG"
+    default n
+    help
+        Do not seed the random number generator (e.g. for unit tests).
+config OPEN62541_ENABLE_MALLOC_SINGLETON
+    bool "Enable malloc singleton"
+    default n
+    help
+        Use a global variable pointer for malloc (and free, ...) that can be switched at runtime
+config OPEN62541_FILE_NS0
+    string "Namespace zero xml file"
+    help
+        Override the NodeSet xml file used to generate namespace zero")
+config OPEN62541_FILE_NS0_BLACKLIST
+    string "Namespace zero blacklist"
+    help
+        File containing blacklisted nodes which should not be included in the generated nodeset code.")
+config OPEN62541_ENABLE_DISCOVERY_SEMAPHORE
+    bool "Enable discovery semaphore"
+    default y
+    help
+        Enable Discovery Semaphore support" ON)
+config OPEN62541_DEBUG_DUMP_PKGS
+    bool "Enable debug dump pkgs"
+    default n
+    help
+        Dump every package received by the server as hexdump format" OFF)
+config OPEN62541_ENABLE_HARDENING
+    bool "Enable hardening"
+    default y
+    help
+        Enable Hardening measures (e.g. Stack-Protectors and Fortify)
+config OPEN62541_DEBUG_FILE_LINE_INFO
+    bool "Enable debug file line info"
+    default n
+    help
+        Enable file and line information as additional debugging output for error messages" OFF)
+config OPEN62541_MULTITHREADING
+    int "Multithreading"
+    default 0
+    help
+        Multithreading support (<100: No multithreading support, >=100: Thread-safety enabled (internal mutexes)
+config OPEN62541_NAMESPACE_ZERO
+    string "Namespace zero"
+    default "REDUCED"
+    help
+        Completeness of the generated namespace zero (minimal/reduced/full)
+endif
