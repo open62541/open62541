@@ -69,7 +69,6 @@ static void setup1(void) {
     issuerList[0] = intermediateCa;
     issuerList[1] = rootCa;
 
-    /* Loading of a revocation list currently unsupported */
     size_t revocationListSize = 2;
     UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
     revocationList[0] = rootCaCrl;
@@ -132,7 +131,6 @@ static void setup2(void) {
     issuerList[0] = intermediateCa;
     issuerList[1] = rootCa;
 
-    /* Loading of a revocation list currently unsupported */
     size_t revocationListSize = 2;
     UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
     revocationList[0] = rootCaCrl;
@@ -195,7 +193,6 @@ static void setup3(void) {
     issuerList[0] = rootCa;
     issuerList[1] = intermediateCa;
 
-    /* Loading of a revocation list currently unsupported */
     size_t revocationListSize = 2;
     UA_STACKARRAY(UA_ByteString, revocationList, revocationListSize);
     revocationList[0] = rootCaCrl;
