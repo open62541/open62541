@@ -13,6 +13,8 @@
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 
+#include <stdlib.h>
+
 #include "certificates.h"
 #include "check.h"
 #include "thread_wrapper.h"
