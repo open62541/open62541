@@ -471,6 +471,26 @@ openSSLFindNextIssuer(CertContext *ctx, STACK_OF(X509) *stack, X509 *x509, X509 
     return NULL;
 }
 
+/* Is the certificate a CA? */
+static UA_Boolean
+openSSLCheckCA(X509 *cert) {
+    uint32_t flags = X509_get_extension_flags(cert);
+    /* The basic constraints must be set with the CA flag true */
+    if(!(flags & EXFLAG_CA))
+        return false;
+
+    /* The Key Usage extension must be set */
+    if(!(flags & EXFLAG_KUSAGE))
+        return false;
+
+    /* The Key Usage must include cert signing and CRL issuing */
+    uint32_t usage = X509_get_key_usage(cert);
+    if(!(usage & KU_KEY_CERT_SIGN) || !(usage & KU_CRL_SIGN))
+        return false;
+
+    return true;
+}
+
 static UA_Boolean
 openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
     const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
@@ -526,7 +546,7 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
 
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
-        if((depth > 0 || issuer != cert) && !X509_check_ca(issuer)) {
+        if((depth > 0 || issuer != cert) && !openSSLCheckCA(issuer)) {
             ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
             continue;
         }
@@ -604,7 +624,7 @@ UA_CertificateVerification_Verify(void *verificationContext,
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details. */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(X509_check_ca(leaf)) {
+    if(openSSLCheckCA(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
