@@ -464,9 +464,6 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         for(size_t j = 0; j < identPoliciesSize ; j++) {
             const UA_UserTokenPolicy *pol = &identPolicies[j];
 
-            if(!UA_String_equal(&desc->securityPolicyUri, &pol->securityPolicyUri))
-                continue;
-
             /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
              * UserIdentityToken should be treated as Anonymous */
             if(identityToken->encoding == UA_EXTENSIONOBJECT_ENCODED_NOBODY &&
