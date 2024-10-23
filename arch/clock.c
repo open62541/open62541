@@ -4,6 +4,7 @@
  *    Copyright 2016-2017 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) Thomas Stalder, Blue Time Concept SA
+ *    Copyright 2024 (c) Julian Weiß, PRIMES GmbH
  */
 
 #include <open62541/types.h>

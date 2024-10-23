@@ -4,6 +4,7 @@
  *
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
+ *    Copyright 2024 (c) Julian Weiß, PRIMES GmbH
  */
 
 #include "eventloop_zephyr.h"

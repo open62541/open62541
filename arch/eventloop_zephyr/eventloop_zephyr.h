@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2021 (c) Christian von Arnim, ISW University of Stuttgart (for VDW and
  * umati) Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer) Copyright 2021 (c)
+ *    Copyright 2024 (c) Julian Weiß, PRIMES GmbH
  * Fraunhofer IOSB (Author: Jan Hermes)
  */
 
