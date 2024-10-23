@@ -15,6 +15,8 @@
 
 #include <time.h>
 
+#include <zephyr/posix/sys/eventfd.h>
+
 /*********/
 /* Timer */
 /*********/
@@ -133,8 +135,8 @@ UA_EventLoopZephyr_start(UA_EventLoopZephyr *el) {
                        "Eventloop\t| Cannot set a custom clock source");
     }
     /* Create the self-pipe */
-    int err = UA_EventLoopZephyr_pipe(el->selfpipe);
-    if(err != 0) {
+    el->ef = eventfd(0, EFD_NONBLOCK);
+    if(el->ef < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(UA_LOG_WARNING(
             el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "Eventloop\t| Could not create the self-pipe (%s)", errno_str));
@@ -175,8 +177,7 @@ checkClosed(UA_EventLoopZephyr *el) {
         return;
 
     /* Close the self-pipe when everything else is done */
-    UA_close(el->selfpipe[0]);
-    UA_close(el->selfpipe[1]);
+    UA_close(el->ef);
 
     /* Dirty-write the state that is const "from the outside" */
     *(UA_EventLoopState *)(uintptr_t)&el->eventLoop.state = UA_EVENTLOOPSTATE_STOPPED;
@@ -541,13 +542,6 @@ UA_EventLoopZephyr_setReusable(UA_fd sockfd) {
 /* Select / epoll Logic */
 /************************/
 
-/* Re-arm the self-pipe socket for the next signal by reading from it */
-static void
-flushSelfPipe(UA_fd s) {
-    char buf[128];
-    UA_recv(s, buf, sizeof(buf), 0);
-}
-
 UA_StatusCode
 UA_EventLoopZephyr_registerFD(UA_EventLoopZephyr *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
@@ -615,11 +609,11 @@ setFDSets(UA_EventLoopZephyr *el, UA_fd_set *readset, UA_fd_set *writeset,
           UA_fd_set *errset) {
     UA_LOCK_ASSERT(&el->elMutex);
     /* Always listen on the read-end of the pipe */
-    UA_fd highestfd = el->selfpipe[0];
+    UA_fd highestfd = el->ef;
     UA_FD_ZERO(readset);
     UA_FD_ZERO(writeset);
     UA_FD_ZERO(errset);
-    UA_FD_SET(el->selfpipe[0], readset);
+    UA_FD_SET(el->ef, readset);
 
     for(size_t i = 0; i < el->fdsSize; i++) {
         UA_fd currentFD = el->fds[i]->fd;
@@ -670,10 +664,6 @@ UA_EventLoopZephyr_pollFDs(UA_EventLoopZephyr *el, UA_DateTime listenTimeout) {
         return UA_STATUSCODE_GOOD;
     }
 
-    /* The self-pipe has received. Clear the buffer by reading. */
-    if(UA_UNLIKELY(UA_FD_ISSET(el->selfpipe[0], &readset)))
-        flushSelfPipe(el->selfpipe[0]);
-
     /* Loop over all registered FD to see if an event arrived. Yes, this is why
      * select is slow for many open sockets. */
     for(size_t i = 0; i < el->fdsSize; i++) {
@@ -709,38 +699,6 @@ UA_EventLoopZephyr_pollFDs(UA_EventLoopZephyr *el, UA_DateTime listenTimeout) {
     return UA_STATUSCODE_GOOD;
 }
 
-int
-UA_EventLoopZephyr_pipe(UA_fd fds[2]) {
-    UA_fd lst;
-    struct sockaddr_in inaddr;
-    memset(&inaddr, 0, sizeof(inaddr));
-    inaddr.sin_family = AF_INET;
-    inaddr.sin_port = 0;
-    const struct in_addr ipv4_loopback = INADDR_LOOPBACK_INIT;
-    inaddr.sin_addr = ipv4_loopback;
-
-    lst = UA_socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    UA_bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
-    UA_listen(lst, 1);
-
-    struct sockaddr_storage addr;
-    memset(&addr, 0, sizeof(addr));
-    int len = sizeof(addr);
-    UA_getsockname(lst, (struct sockaddr *)&addr, &len);
-
-    fds[0] = UA_socket(AF_INET, SOCK_STREAM, 0);
-    int err = UA_connect(fds[0], (struct sockaddr *)&addr, len);
-    fds[1] = UA_accept(lst, 0, 0);
-    UA_close(lst);
-
-    UA_EventLoopZephyr_setNoSigPipe(fds[0]);
-    UA_EventLoopZephyr_setReusable(fds[0]);
-    UA_EventLoopZephyr_setNonBlocking(fds[0]);
-    UA_EventLoopZephyr_setNoSigPipe(fds[1]);
-    UA_EventLoopZephyr_setReusable(fds[1]);
-    UA_EventLoopZephyr_setNonBlocking(fds[1]);
-    return err;
-}
 
 void
 UA_EventLoopZephyr_cancel(UA_EventLoopZephyr *el) {
@@ -749,7 +707,7 @@ UA_EventLoopZephyr_cancel(UA_EventLoopZephyr *el) {
         return;
 
     /* Trigger the self-pipe */
-    int err = UA_send(el->selfpipe[1], ".", 1, 0);
+    int err = eventfd_write(0, 0);
     if(err <= 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,

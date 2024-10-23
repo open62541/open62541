@@ -177,8 +177,8 @@ typedef struct {
     UA_RegisteredFD **fds;
     size_t fdsSize;
 
-    /* Self-pipe to cancel blocking wait */
-    UA_fd selfpipe[2]; /* 0: read, 1: write */
+    /* Event fd to cancel blocking wait */
+    UA_fd ef;
 
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
