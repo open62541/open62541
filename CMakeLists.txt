@@ -947,9 +947,9 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_zephyr/eventloop_zephyr.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_zephyr/eventloop_zephyr.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_zephyr/eventloop_zephyr_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
 
 # For file based server configuration

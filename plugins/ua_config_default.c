@@ -22,7 +22,7 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 
-#include "../../arch/eventloop_zephyr/eventloop_zephyr.h"
+#include "../../arch/zephyr/eventloop_zephyr.h"
 
 #include "../deps/mp_printf.h"
 
