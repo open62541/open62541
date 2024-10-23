@@ -935,7 +935,7 @@ cleanup:
 }
 
 UA_StatusCode
-UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey) {
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
 
