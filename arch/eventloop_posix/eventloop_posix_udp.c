@@ -8,6 +8,8 @@
 
 #include "eventloop_posix.h"
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
 #define IPV4_PREFIX_MASK 0xF0
 #define IPV4_MULTICAST_PREFIX 0xE0
 #if UA_IPV6
@@ -1436,3 +1438,5 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName) {
     cm->cm.closeConnection = UDP_shutdownConnection;
     return &cm->cm;
 }
+
+#endif
