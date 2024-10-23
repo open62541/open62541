@@ -42,6 +42,17 @@ static const struct {
     {{0, UA_STRING_STATIC("max-rejected-listsize")}, &UA_TYPES[UA_TYPES_STRING], false}
 };
 
+#define VERIFYCERTIFICATE_PARAMETERSSIZE 1
+#define VERIFYCERTIFICATE_PARAMINDEX_USAGE 0
+
+static const struct {
+    UA_QualifiedName name;
+    const UA_DataType *type;
+    UA_Boolean required;
+} VerifyCertificateParameters[VERIFYCERTIFICATE_PARAMETERSSIZE] = {
+    {{0, UA_STRING_STATIC("is-ca-certificate")}, &UA_TYPES[UA_TYPES_BOOLEAN], false},
+};
+
 struct MemoryCertStore;
 typedef struct MemoryCertStore MemoryCertStore;
 
@@ -444,23 +455,31 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
                                   hash, hash_len, sig->p, sig->len) == 0);
 }
 
+typedef enum {
+    UA_CERTIFICATEVERIFICATION_INTEGRITY,
+    UA_CERTIFICATEVERIFICATION_VALIDITY,
+    UA_CERTIFICATEVERIFICATION_TRUST,
+} UA_CertificateVerification;
+
 static UA_StatusCode
 mbedtlsVerifyChain(MemoryCertStore *context, mbedtls_x509_crt *stack, mbedtls_x509_crt **old_issuers,
-                   mbedtls_x509_crt *cert, int depth) {
+                   mbedtls_x509_crt *cert, int depth, UA_CertificateVerification verificationStep) {
     /* Maxiumum chain length */
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
 
-    /* Verification Step: Validity Period */
-    if(mbedtls_x509_time_is_future(&cert->valid_from) ||
-       mbedtls_x509_time_is_past(&cert->valid_to))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
-            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
+    if(verificationStep != UA_CERTIFICATEVERIFICATION_INTEGRITY) {
+        /* Verification Step: Validity Period */
+        if(mbedtls_x509_time_is_future(&cert->valid_from) ||
+           mbedtls_x509_time_is_past(&cert->valid_to))
+            return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
+                UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
 
-    /* Verification Step: Revocation Check */
-    if(mbedtlsCheckRevoked(context, cert))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
-            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+        /* Verification Step: Revocation Check */
+        if(mbedtlsCheckRevoked(context, cert))
+            return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
+                UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+    }
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
@@ -508,12 +527,15 @@ mbedtlsVerifyChain(MemoryCertStore *context, mbedtls_x509_crt *stack, mbedtls_x5
 
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
-        ret = mbedtlsVerifyChain(context, stack, old_issuers, issuer, depth + 1);
+        ret = mbedtlsVerifyChain(context, stack, old_issuers, issuer, depth + 1, verificationStep);
     }
 
     /* The chain is complete, but we haven't yet identified a trusted
      * certificate "on the way down". Can we trust this certificate? */
     if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        /* Not checking trustworthiness */
+        if(verificationStep != UA_CERTIFICATEVERIFICATION_TRUST)
+            return UA_STATUSCODE_GOOD;
         for(mbedtls_x509_crt *t = &context->trustedCertificates; t; t = t->next) {
             if(cert->tbs.len == t->tbs.len &&
                memcmp(cert->tbs.p, t->tbs.p, cert->tbs.len) == 0)
@@ -527,10 +549,24 @@ mbedtlsVerifyChain(MemoryCertStore *context, mbedtls_x509_crt *stack, mbedtls_x5
 /* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
  * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
-verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                  UA_CertificateVerification verificationStep, const UA_KeyValueMap *params) {
     /* Check parameter */
     if (certGroup == NULL || certGroup->context == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    UA_Boolean isCaCertificate = UA_FALSE;
+    UA_Boolean noUsageCheck = UA_TRUE;
+    if(params) {
+        const UA_Boolean *isCaCert = (const UA_Boolean*)
+        UA_KeyValueMap_getScalar(params, VerifyCertificateParameters[VERIFYCERTIFICATE_PARAMINDEX_USAGE].name,
+                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+        if(isCaCert) {
+            isCaCertificate = *isCaCert;
+            noUsageCheck = UA_FALSE;
+        }
     }
 
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
@@ -542,7 +578,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
         context->reloadRequired = false;
     }
 
-    /* Verification Step: Certificate Structure
+    /* Verification Step: Certificate Structure (1)
      * This parses the entire certificate chain contained in the bytestring. */
     mbedtls_x509_crt cert;
     mbedtls_x509_crt_init(&cert);
@@ -551,14 +587,21 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     if(mbedErr)
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* Verification Step: Certificate Usage
+    /* Verification Step: Certificate Usage (9)
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details. */
-    if(mbedtlsCheckCA(&cert)) {
+    if(!noUsageCheck && mbedtlsCheckCA(&cert) != isCaCertificate) {
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
+
+    /* Verification Step: Build Certificate Chain (2)
+     * We perform the checks for each certificate inside. */
+    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
+    UA_StatusCode ret = mbedtlsVerifyChain(context, &cert, old_issuers, &cert, 0, verificationStep);
+    if(ret != UA_STATUSCODE_GOOD)
+        goto cleanup;
 
     /* These steps are performed outside of this method.
      * Because we need the server or client context.
@@ -566,23 +609,56 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * - Host Name
      * - URI */
 
-    /* Verification Step: Build Certificate Chain
-     * We perform the checks for each certificate inside. */
-    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
-    UA_StatusCode ret = mbedtlsVerifyChain(context, &cert, old_issuers, &cert, 0);
+cleanup:
     mbedtls_x509_crt_free(&cert);
     return ret;
 }
 
+/* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
+ * It defines a sequence of steps to verify the integrity of a certificate. */
 static UA_StatusCode
-MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
-                                  const UA_ByteString *certificate) {
+MemoryCertStore_verifyCertificateIntegrity(UA_CertificateGroup *certGroup,
+                                           const UA_ByteString *certificate,
+                                           const UA_KeyValueMap *params) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL) {
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    UA_StatusCode retval = verifyCertificate(certGroup, certificate);
+    return verifyCertificate(certGroup, certificate,
+                             UA_CERTIFICATEVERIFICATION_INTEGRITY, params);
+}
+
+/* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
+ * It defines a sequence of steps to verify the validity of a certificate. */
+static UA_StatusCode
+MemoryCertStore_verifyCertificateValidity(UA_CertificateGroup *certGroup,
+                                          const UA_ByteString *certificate,
+                                          const UA_KeyValueMap *params) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    return verifyCertificate(certGroup, certificate,
+                             UA_CERTIFICATEVERIFICATION_VALIDITY, params);
+}
+
+/* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
+ * It defines a sequence of steps to verify the trustworthiness of a certificate. */
+static UA_StatusCode
+MemoryCertStore_verifyCertificateTrust(UA_CertificateGroup *certGroup,
+                                       const UA_ByteString *certificate,
+                                       const UA_KeyValueMap *params) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL) {
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
+    UA_StatusCode retval = verifyCertificate(certGroup, certificate,
+                                             UA_CERTIFICATEVERIFICATION_TRUST, params);
+    /* Trustworthiness is checked when a SecureChannel is set up.
+     * If this check fails, the certificate is added to the rejected list. */
     if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
@@ -618,7 +694,9 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->removeFromTrustList = MemoryCertStore_removeFromTrustList;
     certGroup->getRejectedList = MemoryCertStore_getRejectedList;
     certGroup->getCertificateCrls = MemoryCertStore_getCertificateCrls;
-    certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
+    certGroup->verifyCertificateIntegrity = MemoryCertStore_verifyCertificateIntegrity;
+    certGroup->verifyCertificateValidity = MemoryCertStore_verifyCertificateValidity;
+    certGroup->verifyCertificateTrust = MemoryCertStore_verifyCertificateTrust;
     certGroup->clear = MemoryCertStore_clear;
 
     /* Set PKI Store context data */

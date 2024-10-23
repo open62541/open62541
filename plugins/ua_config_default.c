@@ -1662,7 +1662,7 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     config->maxRejectedListSize = 0;
 #endif
 
-    if(!config->certificateVerification.verifyCertificate) {
+    if(!config->certificateVerification.verifyCertificateTrust) {
         /* Certificate Verification that accepts every certificate. Can be
          * overwritten when the policy is specialized. */
         UA_CertificateGroup_AcceptAll(&config->certificateVerification);

@@ -11,6 +11,7 @@
 
 #include <open62541/types.h>
 #include <open62541/plugin/log.h>
+#include <open62541/util.h>
 
 _UA_BEGIN_DECLS
 
@@ -53,8 +54,25 @@ struct UA_CertificateGroup {
                                         const UA_Boolean isTrusted,
                                         UA_ByteString **crls, size_t *crlsSize);
 
-    UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
-                                       const UA_ByteString *certificate);
+    /* This function verifies the integrity of a certificate.
+     * See https://reference.opcfoundation.org/Core/Part4/v104/docs/6.1.3 Table 106
+     * Steps: 1, 2, 3, 4, 9 */
+    UA_StatusCode (*verifyCertificateIntegrity)(UA_CertificateGroup *certGroup,
+                                                const UA_ByteString *certificate,
+                                                const UA_KeyValueMap *params);
+    /* This function verifies the validity of a certificate by checking its expiration date,
+     * validity period, and whether it appears on a certificate revocation list.
+     * See https://reference.opcfoundation.org/Core/Part4/v104/docs/6.1.3 Table 106
+     * Steps: 6, 10, 11 */
+    UA_StatusCode (*verifyCertificateValidity)(UA_CertificateGroup *certGroup,
+                                               const UA_ByteString *certificate,
+                                               const UA_KeyValueMap *params);
+    /* This function verifies the trustworthiness of a certificate.
+     * See https://reference.opcfoundation.org/Core/Part4/v104/docs/6.1.3 Table 106
+     * Step: 5 */
+    UA_StatusCode (*verifyCertificateTrust)(UA_CertificateGroup *certGroup,
+                                            const UA_ByteString *certificate,
+                                            const UA_KeyValueMap *params);
 
     void (*clear)(UA_CertificateGroup *certGroup);
 };

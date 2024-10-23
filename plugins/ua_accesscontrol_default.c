@@ -135,11 +135,24 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
         }
 
-        if(!config->sessionPKI.verifyCertificate)
+        if(!config->sessionPKI.verifyCertificateTrust)
             return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
+        /* Set up the parameters for the verification */
+        UA_KeyValuePair params[1];
+        size_t paramsSize = 1;
+
+        /* Cannot be a CA certificate */
+        UA_Boolean isCaCertificate = false;
+        params[0].key = UA_QUALIFIEDNAME(0, "is-ca-certificate");
+        UA_Variant_setScalar(&params[0].value, &isCaCertificate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+        UA_KeyValueMap paramsMap;
+        paramsMap.map = params;
+        paramsMap.mapSize = paramsSize;
+
        UA_StatusCode res = config->sessionPKI.
-            verifyCertificate(&config->sessionPKI, &userToken->certificateData);
+            verifyCertificateTrust(&config->sessionPKI, &userToken->certificateData, &paramsMap);
         if(res != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADIDENTITYTOKENREJECTED;
     } else {
@@ -372,7 +385,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
         policies++;
     if(usernamePasswordLoginSize > 0)
         policies++;
-    if(config->sessionPKI.verifyCertificate)
+    if(config->sessionPKI.verifyCertificateTrust)
         policies++;
     ac->userTokenPoliciesSize = 0;
     ac->userTokenPolicies = (UA_UserTokenPolicy *)
@@ -403,7 +416,7 @@ UA_AccessControl_default(UA_ServerConfig *config,
             policies++;
         }
 
-        if(config->sessionPKI.verifyCertificate) {
+        if(config->sessionPKI.verifyCertificateTrust) {
             ac->userTokenPolicies[policies].tokenType = UA_USERTOKENTYPE_CERTIFICATE;
             ac->userTokenPolicies[policies].policyId = UA_STRING_ALLOC(CERTIFICATE_POLICY);
 #if UA_LOGLEVEL <= 400

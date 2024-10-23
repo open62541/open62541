@@ -716,12 +716,26 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_DelayedCallback *dc = (UA_DelayedCallback*)context;
     UA_Server *server = (UA_Server*)application;
 
+    /* Set up the parameters for the verification */
+    UA_KeyValuePair params[1];
+    size_t paramsSize = 1;
+
+    /* Cannot be a CA certificate */
+    UA_Boolean isCaCertificate = false;
+    params[0].key = UA_QUALIFIEDNAME(0, "is-ca-certificate");
+    UA_Variant_setScalar(&params[0].value, &isCaCertificate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
         if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificateTrust(&certGroup, &channel->remoteCertificate,
+                                            &paramsMap) != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);
