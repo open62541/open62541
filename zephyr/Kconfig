@@ -95,7 +95,7 @@ config OPEN62541_ENABLE_ENCRYPTION_MBEDTLS
     default n
     depends on MBEDTLS
     help
-        Deprecated: Enable encryption support (uses mbedTLS)" OFF)
+        Deprecated: Enable encryption support (uses mbedTLS)
 config OPEN62541_ENABLE_QUERY
     bool "Enable query"
     default n
@@ -159,21 +159,21 @@ config OPEN62541_ENABLE_MALLOC_SINGLETON
 config OPEN62541_FILE_NS0
     string "Namespace zero xml file"
     help
-        Override the NodeSet xml file used to generate namespace zero")
+        Override the NodeSet xml file used to generate namespace zero
 config OPEN62541_FILE_NS0_BLACKLIST
     string "Namespace zero blacklist"
     help
-        File containing blacklisted nodes which should not be included in the generated nodeset code.")
+        File containing blacklisted nodes which should not be included in the generated nodeset code.
 config OPEN62541_ENABLE_DISCOVERY_SEMAPHORE
     bool "Enable discovery semaphore"
     default y
     help
-        Enable Discovery Semaphore support" ON)
+        Enable Discovery Semaphore support
 config OPEN62541_DEBUG_DUMP_PKGS
     bool "Enable debug dump pkgs"
     default n
     help
-        Dump every package received by the server as hexdump format" OFF)
+        Dump every package received by the server as hexdump format
 config OPEN62541_ENABLE_HARDENING
     bool "Enable hardening"
     default y
@@ -183,7 +183,7 @@ config OPEN62541_DEBUG_FILE_LINE_INFO
     bool "Enable debug file line info"
     default n
     help
-        Enable file and line information as additional debugging output for error messages" OFF)
+        Enable file and line information as additional debugging output for error messages
 config OPEN62541_MULTITHREADING
     int "Multithreading"
     default 0
