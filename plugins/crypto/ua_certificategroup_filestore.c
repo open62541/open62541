@@ -290,6 +290,26 @@ readTrustStore(UA_CertificateGroup *certGroup, UA_TrustListDataType *trustList) 
 }
 
 static UA_StatusCode
+reloadAndWriteTrustStore(UA_CertificateGroup *certGroup) {
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+
+    UA_TrustListDataType trustList;
+    UA_TrustListDataType_init(&trustList);
+    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
+
+    UA_StatusCode retval = readTrustStore(certGroup, &trustList);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return retval;
+    }
+
+    retval = context->store->setTrustList(context->store, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+
+    return retval;
+}
+
+static UA_StatusCode
 reloadTrustStore(UA_CertificateGroup *certGroup) {
     if(certGroup == NULL)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -308,17 +328,7 @@ reloadTrustStore(UA_CertificateGroup *certGroup) {
     if(length <= 0)
         return UA_STATUSCODE_GOOD;
 
-    UA_TrustListDataType trustList;
-    UA_TrustListDataType_init(&trustList);
-    trustList.specifiedLists = UA_TRUSTLISTMASKS_ALL;
-
-    UA_StatusCode retval = readTrustStore(certGroup, &trustList);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_TrustListDataType_clear(&trustList);
-        return retval;
-    }
-
-    return context->store->setTrustList(context->store, &trustList);
+    return reloadAndWriteTrustStore(certGroup);
 }
 
 static UA_StatusCode
@@ -634,7 +644,7 @@ FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteStr
         UA_ByteString *rejectedList = NULL;
         size_t rejectedListSize = 0;
         context->store->getRejectedList(context->store, &rejectedList, &rejectedListSize);
-        writeTrustList(certGroup, rejectedList, rejectedListSize, context->trustedCertFolder);
+        writeTrustList(certGroup, rejectedList, rejectedListSize, context->rejectedCertFolder);
         UA_Array_delete(rejectedList, rejectedListSize, &UA_TYPES[UA_TYPES_BYTESTRING]);
     }
 
@@ -719,6 +729,11 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     }
 
     retval = FileCertStore_createInotifyEvent(certGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        goto cleanup;
+    }
+
+    retval = reloadAndWriteTrustStore(certGroup);
     if(retval != UA_STATUSCODE_GOOD) {
         goto cleanup;
     }

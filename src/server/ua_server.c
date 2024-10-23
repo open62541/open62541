@@ -553,6 +553,11 @@ UA_Server_init(UA_Server *server) {
     res = initNS0(server);
     UA_CHECK_STATUS(res, goto cleanup);
 
+#ifdef UA_ENABLE_GDS_PUSHMANAGEMENT
+    res = initNS0PushManagement(server);
+    UA_CHECK_STATUS(res, goto cleanup);
+#endif
+
 #ifdef UA_ENABLE_NODESET_INJECTOR
     UA_UNLOCK(&server->serviceMutex);
     res = UA_Server_injectNodesets(server);
@@ -701,10 +706,9 @@ secureChannel_delayedCloseTrustList(void *application, void *context) {
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
     UA_SecureChannel *channel;
     TAILQ_FOREACH(channel, &server->channels, serverEntry) {
-        const UA_SecurityPolicy *policy = channel->securityPolicy;
         if(channel->state != UA_SECURECHANNELSTATE_CLOSED && channel->state != UA_SECURECHANNELSTATE_CLOSING)
             continue;
-        if(certGroup.verifyCertificate(&certGroup, &policy->localCertificate) != UA_STATUSCODE_GOOD)
+        if(certGroup.verifyCertificate(&certGroup, &channel->remoteCertificate) != UA_STATUSCODE_GOOD)
             UA_SecureChannel_shutdown(channel, UA_SHUTDOWNREASON_CLOSE);
     }
     UA_free(dc);
@@ -879,7 +883,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
-        if(UA_CertificateUtils_ckeckKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
     }
@@ -939,9 +943,9 @@ UA_Server_createSigningRequest(UA_Server *server,
 
     /* The server currently only supports RSA CertificateType */
     UA_NodeId rsaShaCertificateType = UA_NODEID_NUMERIC(0, UA_NS0ID_RSASHA256APPLICATIONCERTIFICATETYPE);
-    /* UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,
-       UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE); */
-    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType))
+    UA_NodeId rsaMinCertificateType = UA_NODEID_NUMERIC(0,UA_NS0ID_RSAMINAPPLICATIONCERTIFICATETYPE);
+    if(!UA_NodeId_equal(&certificateTypeId, &rsaShaCertificateType) &&
+       !UA_NodeId_equal(&certificateTypeId, &rsaMinCertificateType))
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_CertificateGroup certGroup = server->config.secureChannelPKI;
