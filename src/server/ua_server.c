@@ -879,7 +879,7 @@ UA_Server_updateCertificate(UA_Server *server,
 
     UA_ByteString newPrivateKey = UA_BYTESTRING_NULL;
     if(privateKey) {
-        if(UA_CertificateUtils_ckeckKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
+        if(UA_CertificateUtils_checkKeyPair(&certificate, privateKey) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
         newPrivateKey = *privateKey;
     }
