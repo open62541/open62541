@@ -848,17 +848,6 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
 
     UA_LOG_DEBUG_READER(server->config.logging, dsr, "Received a network message");
 
-#ifdef UA_ENABLE_PUBSUB_MONITORING
-    UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
-#endif
-
-    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
-       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL) {
-        UA_LOG_WARNING_READER(server->config.logging, dsr,
-                            "Received a network message but not operational");
-        return;
-    }
-
     if(!msg->header.dataSetMessageValid) {
         UA_LOG_INFO_READER(server->config.logging, dsr,
                            "DataSetMessage is discarded: message is not valid");
@@ -879,6 +868,17 @@ UA_DataSetReader_process(UA_Server *server, UA_ReaderGroup *rg,
     if(msg->header.dataSetMessageType != UA_DATASETMESSAGE_DATAKEYFRAME) {
         UA_LOG_WARNING_READER(server->config.logging, dsr,
                        "DataSetMessage is discarded: Only keyframes are supported");
+        return;
+    }
+
+#ifdef UA_ENABLE_PUBSUB_MONITORING
+    UA_DataSetReader_checkMessageReceiveTimeout(server, dsr);
+#endif
+
+    if(dsr->state != UA_PUBSUBSTATE_OPERATIONAL &&
+       dsr->state != UA_PUBSUBSTATE_PREOPERATIONAL) {
+        UA_LOG_WARNING_READER(server->config.logging, dsr,
+                            "Received a network message but not operational");
         return;
     }
 
