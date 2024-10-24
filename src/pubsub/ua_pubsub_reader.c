@@ -779,27 +779,69 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
     size_t offset = 0;
     msg->data.keyFrameData.rawFields.length = 0;
     for(size_t i = 0; i < dsr->config.dataSetMetaData.fieldsSize; i++) {
+        UA_FieldMetaData *fmd = &dsr->config.dataSetMetaData.fields[i];
         /* TODO The datatype reference should be part of the internal
          * pubsub configuration to avoid the time-expensive lookup */
         const UA_DataType *type =
-            UA_findDataTypeWithCustom(&dsr->config.dataSetMetaData.fields[i].dataType,
-                                      server->config.customDataTypes);
-        msg->data.keyFrameData.rawFields.length += type->memSize;
-        UA_STACKARRAY(UA_Byte, value, type->memSize);
-        UA_StatusCode res =
-            UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
-                                    &offset, value, type, NULL);
-        if(dsr->config.dataSetMetaData.fields[i].maxStringLength != 0) {
-            if(type->typeKind == UA_DATATYPEKIND_STRING ||
-               type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
-                UA_ByteString *bs = (UA_ByteString *) value;
-                /* Check if length < maxStringLength, The types ByteString and
-                 * String are equal in their base definition */
-                size_t lengthDifference =
-                    dsr->config.dataSetMetaData.fields[i].maxStringLength - bs->length;
-                offset += lengthDifference;
+            UA_findDataTypeWithCustom(&fmd->dataType, server->config.customDataTypes);
+        if(!type) {
+            UA_LOG_INFO_READER(server->config.logging, dsr,
+                               "Error during Raw-decode KeyFrame field %u: "
+                               "Cannot find datatype", (unsigned)i);
+            return;
+        }
+
+        if(type->typeKind == UA_DATATYPEKIND_STRING ||
+           type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+            /* Strings need to have a MaxStringLength */
+            if(fmd->maxStringLength == 0) {
+                UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                      "Raw-decode KeyFrame field %u contains a"
+                                      "string without a MaxStringLength",
+                                      (unsigned)i);
+                return;
+            }
+            /* Cannot handle an array of strings */
+            if(fmd->arrayDimensionsSize > 0) {
+                UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                      "Raw-decode KeyFrame field %u contains an"
+                                      "array of strings (unsupported)", (unsigned)i);
+                return;
+            }
+        } else if(!type->pointerFree) {
+            UA_LOG_WARNING_READER(server->config.logging, dsr,
+                                  "Raw-decode KeyFrame field %u has a variable"
+                                  "length member", (unsigned)i);
+            return;
+        }
+
+        /* Handle ArrayDimensions for arrays in raw encoding */
+        size_t arraySize = 1;
+        for(size_t j = 0; j < fmd->arrayDimensionsSize; j++)
+            arraySize *= fmd->arrayDimensions[j];
+        msg->data.keyFrameData.rawFields.length += arraySize * type->memSize;
+        UA_STACKARRAY(UA_Byte, value, arraySize * type->memSize);
+
+        UA_StatusCode res = UA_STATUSCODE_GOOD;
+        if(type->overlayable) {
+            /* If the type is overlayable we can just memcpy the entire array */
+            if(msg->data.keyFrameData.rawFields.length >= offset + (arraySize * type->memSize)) {
+                res = UA_STATUSCODE_BADDECODINGERROR;
+            } else {
+                memcpy(value, msg->data.keyFrameData.rawFields.data + offset,
+                       arraySize * type->memSize);
+                offset += arraySize * type->memSize;
+            }
+        } else {
+            /* Use standard decoding */
+            UA_Byte *valpos = value;
+            for(size_t j = 0; j < arraySize; j++) {
+                res |= UA_decodeBinaryInternal(&msg->data.keyFrameData.rawFields,
+                                               &offset, valpos, type, NULL);
+                valpos += type->memSize;
             }
         }
+
         if(res != UA_STATUSCODE_GOOD) {
             UA_LOG_INFO_READER(server->config.logging, dsr,
                                "Error during Raw-decode KeyFrame field %u: %s",
@@ -815,27 +857,34 @@ DataSetReader_processRaw(UA_Server *server, UA_ReaderGroup *rg,
                 tv->beforeWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                                 &tv->targetVariable.targetNodeId,
                                 tv->targetVariableContext, tv->externalDataValue);
-            memcpy((*tv->externalDataValue)->value.data, value, type->memSize);
+            memcpy((*tv->externalDataValue)->value.data, value, arraySize * type->memSize);
             if(tv->afterWrite)
                 tv->afterWrite(server, &dsr->identifier, &dsr->linkedReaderGroup,
                                &tv->targetVariable.targetNodeId,
                                tv->targetVariableContext, tv->externalDataValue);
-            continue; /* No dynamic allocation for fixed-size msg, no need to _clear */
+        } else {
+            UA_WriteValue writeVal;
+            UA_WriteValue_init(&writeVal);
+            writeVal.attributeId = tv->targetVariable.attributeId;
+            writeVal.indexRange = tv->targetVariable.receiverIndexRange;
+            writeVal.nodeId = tv->targetVariable.targetNodeId;
+            UA_Variant_setScalar(&writeVal.value.value, value, type);
+            writeVal.value.hasValue = true;
+            Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
+            if(res != UA_STATUSCODE_GOOD) {
+                UA_LOG_INFO_READER(server->config.logging, dsr,
+                                   "Error writing KeyFrame field %u: %s",
+                                   (unsigned)i, UA_StatusCode_name(res));
+            }
         }
 
-        UA_WriteValue writeVal;
-        UA_WriteValue_init(&writeVal);
-        writeVal.attributeId = tv->targetVariable.attributeId;
-        writeVal.indexRange = tv->targetVariable.receiverIndexRange;
-        writeVal.nodeId = tv->targetVariable.targetNodeId;
-        UA_Variant_setScalar(&writeVal.value.value, value, type);
-        writeVal.value.hasValue = true;
-        Operation_Write(server, &server->adminSession, NULL, &writeVal, &res);
-        UA_clear(value, type);
-        if(res != UA_STATUSCODE_GOOD) {
-            UA_LOG_INFO_READER(server->config.logging, dsr,
-                               "Error writing KeyFrame field %u: %s",
-                               (unsigned)i, UA_StatusCode_name(res));
+        /* Handle zero-padding and clear string value */
+        if(type->typeKind == UA_DATATYPEKIND_STRING ||
+           type->typeKind == UA_DATATYPEKIND_BYTESTRING) {
+            UA_ByteString *bs = (UA_ByteString *)value;
+            size_t padding = fmd->maxStringLength - bs->length;
+            offset += padding;
+            UA_ByteString_clear(bs);
         }
     }
 }
