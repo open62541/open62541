@@ -9,7 +9,8 @@ systems. The arch-specific functionality covers:
 Currently open62541 supports the architectures
 
 - POSIX (Linux, BSD, Mac, etc.)
-- Windows
+- Windows (integrated with the POSIX implementation)
+- Zephyr
 
 Previously (until v1.3) there was additional support for:
 
