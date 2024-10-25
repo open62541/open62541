@@ -21,8 +21,8 @@
 
 #include "../../deps/mp_printf.h"
 #include "../../deps/open62541_queue.h"
-#include "../eventloop_common/eventloop_common.h"
-#include "../eventloop_common/timer.h"
+#include "../common/eventloop_common.h"
+#include "../common/timer.h"
 
 
 /*********************/
