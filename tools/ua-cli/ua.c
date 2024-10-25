@@ -6,6 +6,7 @@
  */
 
 /* Enable POSIX features */
+#include <open62541/plugin/log.h>
 #if !defined(_XOPEN_SOURCE)
 # define _XOPEN_SOURCE 600
 #endif
@@ -22,6 +23,7 @@
 #include <ctype.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include "../../deps/mp_printf.h"
 
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;
@@ -36,6 +38,52 @@ static UA_UInt32 attr = UA_ATTRIBUTEID_VALUE;
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_Boolean json = false;
 #endif
+
+/* Custom logger that prints to stderr. So the "good output" can be easily separated. */
+UA_LogLevel logLevel = UA_LOGLEVEL_INFO;
+
+/* ANSI escape sequences for color output taken from here:
+ * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
+static const char *
+logLevelNames[6] = {"trace", "debug", ANSI_COLOR_GREEN "info",
+                    ANSI_COLOR_YELLOW "warn", ANSI_COLOR_RED "error",
+                    ANSI_COLOR_MAGENTA "fatal"};
+
+static const char *
+logCategoryNames[UA_LOGCATEGORIES] =
+    {"network", "channel", "session", "server", "client",
+     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
+
+static void
+cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
+    const char *msg, va_list args) {
+    if(logLevel > level)
+        return;
+
+    /* Set to fatal if the level is outside the range */
+    int logLevelSlot = ((int)level / 100) - 1;
+    if(logLevelSlot < 0 || logLevelSlot > 5)
+        logLevelSlot = 5;
+
+    /* Log */
+#define LOGBUFSIZE 512
+    char logbuf[LOGBUFSIZE];
+    fprintf(stderr, "%s/%s" ANSI_COLOR_RESET "\t",
+           logLevelNames[logLevelSlot], logCategoryNames[category]);
+    mp_vsnprintf(logbuf, LOGBUFSIZE, msg, args);
+    fprintf(stderr, "%s\n", logbuf);
+    fflush(stderr);
+}
+
+UA_Logger stderrLog = {cliLog, NULL, NULL};
 
 static void
 usage(void) {
@@ -267,8 +315,11 @@ main(int argc, char **argv) {
         }
     }
 
-    /* Parse the options */
+    /* Initialize the client config */
+    cc.logging = &stderrLog;
     UA_ClientConfig_setDefault(&cc);
+
+    /* Parse the options */
     argpos = parseOptions(argc, argv, argpos);
     if(argpos < argc - 1)
         usage(); /* Not all options have been parsed */
