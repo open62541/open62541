@@ -24,6 +24,7 @@
 #include <open62541/client_config_default.h>
 
 static UA_Client *client = NULL;
+static UA_ClientConfig cc;
 static UA_NodeId nodeidval = {0};
 static char *url = NULL;
 static char *service = NULL;
@@ -74,18 +75,12 @@ abortWithStatus(UA_StatusCode res) {
 
 static int
 getEndpoints(int argc, char **argv) {
-    client = UA_Client_new();
-    if(!client)
-        return -1;
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
     /* Get endpoints */
     size_t endpointDescriptionsSize = 0;
     UA_EndpointDescription* endpointDescriptions = NULL;
     UA_StatusCode res = UA_Client_getEndpoints(client, url,
                                                &endpointDescriptionsSize,
                                                &endpointDescriptions);
-    UA_Client_delete(client);
     if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
         return -1;
@@ -113,11 +108,6 @@ parseNodeId(void) {
 
 static int
 connectClient(void) {
-    client = UA_Client_new();
-    if(!client)
-        return -1;
-    UA_ClientConfig_setDefault(UA_Client_getConfig(client));
-
     UA_StatusCode res = UA_Client_connect(client, url);
     if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
@@ -198,7 +188,6 @@ readAttr(int argc, char **argv) {
     req.nodesToRead = &rvid;
 
     UA_ReadResponse resp = UA_Client_Service_read(client, req);
-    UA_Client_delete(client);
 
     /* Print the result */
     if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
@@ -235,6 +224,8 @@ main(int argc, char **argv) {
     service = argv[2];
     argv[2] = NULL;
 
+    UA_ClientConfig_setDefault(&cc);
+
     /* If not a -- option string, then this is the NodeId */
     int argpos = 3;
     if(argc > argpos && strstr(argv[argpos], "--") != argv[argpos]) {
@@ -266,13 +257,24 @@ main(int argc, char **argv) {
 #endif
     }
 
+    /* Initialize the client */
+    client = UA_Client_newWithConfig(&cc);
+    if(!client) {
+        printf("Client configuration invalid\n");
+        return -1;
+    }
+
     /* Execute the service */
+    int ret = -1;
     if(strcmp(service, "getendpoints") == 0) {
         if(!nodeid && !value)
-            return getEndpoints(argc, argv);
+            ret = getEndpoints(argc, argv);
     } else if(strcmp(service, "read") == 0) {
         if(nodeid && !value)
-            return readAttr(argc, argv);
+            ret = readAttr(argc, argv);
+    } else {
+        /* Unknown service */
+        usage();
     }
     //else if(strcmp(service, "browse") == 0) {
     //    if(nodeid && !value)
@@ -283,7 +285,7 @@ main(int argc, char **argv) {
     //        return writeAttr(argc-argpos, &argv[argpos]);
     //}
 
-    /* Unknown service */
-    usage();
-    return -1;
+    UA_Client_delete(client);
+
+    return ret;
 }
