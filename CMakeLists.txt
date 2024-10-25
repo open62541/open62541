@@ -915,24 +915,23 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 # Always add the POSIX eventloop. The files internally check for the configured architecture
 list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/clock.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
 
 if(UA_ARCHITECTURE_ZEPHYR)
     list(APPEND plugin_sources
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
-         ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
 endif()
 
 # For file based server configuration

@@ -14,8 +14,8 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
-#include "../eventloop_common/timer.h"
-#include "../eventloop_common/eventloop_common.h"
+#include "../common/timer.h"
+#include "../common/eventloop_common.h"
 #include "../../deps/mp_printf.h"
 #include "../../deps/open62541_queue.h"
 
