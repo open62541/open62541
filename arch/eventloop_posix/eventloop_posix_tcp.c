@@ -9,6 +9,8 @@
 #include "open62541/types.h"
 #include "eventloop_posix.h"
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
 /* Configuration parameters */
 #define TCP_MANAGERPARAMS 2
 
@@ -1080,3 +1082,5 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.closeConnection = TCP_shutdownConnection;
     return &cm->cm;
 }
+
+#endif

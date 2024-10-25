@@ -9,6 +9,8 @@
 #include "eventloop_posix.h"
 #include "open62541/plugin/eventloop.h"
 
+#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32)
+
 #if defined(UA_ARCHITECTURE_POSIX) && !defined(__APPLE__) && !defined(__MACH__)
 #include <time.h>
 #endif
@@ -1079,3 +1081,5 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
                            "Eventloop\t| Error signaling self-pipe (%s)", errno_str));
     }
 }
+
+#endif
