@@ -785,8 +785,8 @@ static const UA_NodeId hierarchicalRefs =
 static const UA_NodeId aggregatesRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
 
-UA_StatusCode
-UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+static UA_StatusCode
+printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscape) {
     UA_String tmp = UA_STRING_NULL;
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     for(size_t i = 0; i < rp->elementsSize && res == UA_STATUSCODE_GOOD; i++) {
@@ -809,7 +809,7 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
             res |= getRefTypeBrowseName(&elm->referenceTypeId, &bnBufStr);
             if(res != UA_STATUSCODE_GOOD)
                 break;
-            res |= UA_String_escapeAppend(&tmp, bnBufStr, false);
+            res |= UA_String_escapeAppend(&tmp, bnBufStr, extEscape);
             res |= UA_String_append(&tmp, UA_STRING(">"));
         }
 
@@ -821,7 +821,7 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
             res |= UA_String_append(&tmp, UA_STRING(nsStr));
             res |= UA_String_append(&tmp, UA_STRING(":"));
         }
-        res |= UA_String_escapeAppend(&tmp, qn->name, false);
+        res |= UA_String_escapeAppend(&tmp, qn->name, extEscape);
     }
 
     /* Encoding failed, clean up */
@@ -831,6 +831,11 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
     }
 
     return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out) {
+    return printRelativePath(rp, out, false);
 }
 
 static UA_NodeId baseEventTypeId = {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_BASEEVENTTYPE}};
@@ -854,18 +859,17 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     }
 
     /* Print the BrowsePath */
+    UA_RelativePathElement rpe;
+    UA_RelativePathElement_init(&rpe);
+    rpe.includeSubtypes = true;
+    rpe.referenceTypeId = hierarchicalRefs;
+    UA_RelativePath rp = {1, &rpe};
     for(size_t i = 0; i < sao->browsePathSize; i++) {
-        res |= UA_String_append(&tmp, UA_STRING("/"));
-        UA_QualifiedName *qn = &sao->browsePath[i];
-        if(qn->namespaceIndex > 0) {
-            char nsStr[8]; /* Enough for a uint16 */
-            itoaUnsigned(qn->namespaceIndex, nsStr, 10);
-            res |= UA_String_append(&tmp, UA_STRING(nsStr));
-            res |= UA_String_append(&tmp, UA_STRING(":"));
-        }
-        res |= UA_String_escapeAppend(&tmp, qn->name, true);
-        if(res != UA_STATUSCODE_GOOD)
-            goto cleanup;
+        UA_String rpstr = UA_STRING_NULL;
+        rpe.targetName = sao->browsePath[i];
+        res |= printRelativePath(&rp, &rpstr, true);
+        res |= UA_String_append(&tmp, rpstr);
+        UA_String_clear(&rpstr);
     }
 
     /* Print the attribute name */
@@ -911,8 +915,8 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
 
     /* Print the BrowsePath */
     UA_String rpstr = UA_STRING_NULL;
-    res |= UA_RelativePath_print(&ao->browsePath, &rpstr);
-    res |= UA_String_escapeAppend(&tmp, rpstr, true);
+    res |= printRelativePath(&ao->browsePath, &rpstr, true);
+    res |= UA_String_append(&tmp, rpstr);
     UA_String_clear(&rpstr);
 
     /* Print the attribute name */

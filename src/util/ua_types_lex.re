@@ -459,7 +459,8 @@ parseAttributeOperand(UA_AttributeOperand *ao, const UA_String str, UA_NodeId de
             goto cleanup;
         }
         UA_String rangeString = {(size_t)(pos - range_pos), (UA_Byte*)(uintptr_t)range_pos};
-        res = UA_String_copy(&rangeString, &ao->indexRange);
+        if(rangeString.length > 0)
+            res = UA_String_copy(&rangeString, &ao->indexRange);
         pos++;
     }
 
