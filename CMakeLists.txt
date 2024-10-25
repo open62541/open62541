@@ -1346,7 +1346,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
 endif()
 
 if(UA_BUILD_TOOLS)
-    add_subdirectory(tools/ua-tool)
+    add_subdirectory(tools/ua-cli)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
     endif()
