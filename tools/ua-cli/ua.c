@@ -30,6 +30,8 @@ static char *url = NULL;
 static char *service = NULL;
 static char *nodeid = NULL;
 static char *value = NULL;
+static char *username = NULL;
+static char *password = NULL;
 static UA_UInt32 attr = UA_ATTRIBUTEID_VALUE;
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_Boolean json = false;
@@ -112,7 +114,16 @@ parseNodeId(void) {
 
 static int
 connectClient(void) {
-    UA_StatusCode res = UA_Client_connect(client, url);
+    UA_StatusCode res;
+    if(username) {
+        if(!password) {
+            fprintf(stderr, "Username without password\n");
+            exit(EXIT_FAILURE);
+        }
+        res = UA_Client_connectUsername(client, url, username, password);
+    } else {
+        res = UA_Client_connect(client, url);
+    }
     if(res != UA_STATUSCODE_GOOD) {
         abortWithStatus(res);
         return -1;
@@ -182,6 +193,22 @@ parseOptions(int argc, char **argv, int argpos) {
         /* Help */
         if(strcmp(argv[argpos], "--help") == 0)
             usage();
+
+        /* Username/Password */
+        if(strcmp(argv[argpos], "--username") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            username = argv[argpos];
+            continue;
+        }
+        if(strcmp(argv[argpos], "--password") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            password = argv[argpos];
+            continue;
+        }
 
         /* Parse attribute to be read or written */
         if(strcmp(argv[argpos], "--attr") == 0) {
