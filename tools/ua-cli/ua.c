@@ -30,6 +30,7 @@ static char *url = NULL;
 static char *service = NULL;
 static char *nodeid = NULL;
 static char *value = NULL;
+static UA_UInt32 attr = UA_ATTRIBUTEID_VALUE;
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_Boolean json = false;
 #endif
@@ -49,6 +50,7 @@ usage(void) {
            " --json: Format output as JSON\n"
 #endif
            " --help: Print this message\n");
+    exit(EXIT_FAILURE);
 }
 
 static void
@@ -116,55 +118,8 @@ connectClient(void) {
     return 0;
 }
 
-static const char *attributeIds[27] = {
-    "nodeid", "nodeclass", "browsename", "displayname", "description",
-    "writemask", "userwritemask", "isabstract", "symmetric", "inversename",
-    "containsnoloops", "eventnotifier", "value", "datatype", "valuerank",
-    "arraydimensions", "accesslevel", "useraccesslevel",
-    "minimumsamplinginterval", "historizing", "executable", "userexecutable",
-    "datatypedefinition", "rolepermissions", "userrolepermissions",
-    "accessrestrictions", "accesslevelex"
-};
-
 static int
 readAttr(int argc, char **argv) {
-    /* Get the attr attribute (default: value) */
-    UA_UInt32 attr = UA_ATTRIBUTEID_VALUE;
-    for(int argpos = 1; argpos < argc; argpos++) {
-        if(argv[argpos] == NULL)
-            continue;
-        if(strcmp(argv[argpos], "--attr") == 0) {
-            argpos++;
-            if(argpos == argc) {
-                usage();
-                return -1;
-            }
-
-            /* Try to parse integer attr argument */
-            attr = (UA_UInt32)atoi(argv[argpos]);
-            if(attr != 0)
-                continue;
-
-            /* Convert to lower case and try to find in table */
-            for(char *w = argv[argpos]; *w; w++)
-                *w = (char)tolower(*w);
-            for(UA_UInt32 i = 0; i < 26; i++) {
-                if(strcmp(argv[argpos], attributeIds[i]) == 0) {
-                    attr = i+1;
-                    break;
-                }
-            }
-            if(attr != 0)
-                continue;
-            usage();
-            return -1;
-        }
-
-        /* Unknown option */
-        usage();
-        return -1;
-    }
-
     int ret = parseNodeId();
     if(ret != 0)
         return ret;
@@ -203,6 +158,69 @@ readAttr(int argc, char **argv) {
     return 0;
 }
 
+static const char *attributeIds[27] = {
+    "nodeid", "nodeclass", "browsename", "displayname", "description",
+    "writemask", "userwritemask", "isabstract", "symmetric", "inversename",
+    "containsnoloops", "eventnotifier", "value", "datatype", "valuerank",
+    "arraydimensions", "accesslevel", "useraccesslevel",
+    "minimumsamplinginterval", "historizing", "executable", "userexecutable",
+    "datatypedefinition", "rolepermissions", "userrolepermissions",
+    "accessrestrictions", "accesslevelex"
+};
+
+/* Parse options beginning with --.
+ * Returns the position in the argv list. */
+static int
+parseOptions(int argc, char **argv, int argpos) {
+    for(; argpos < argc; argpos++) {
+        /* End of the arguments list */
+        if(strncmp(argv[argpos], "--", 2) == 0)
+            break;
+
+        /* Help */
+        if(strcmp(argv[argpos], "--help") == 0)
+            usage();
+
+        /* Parse attribute to be read or written */
+        if(strcmp(argv[argpos], "--attr") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+
+            /* Try to parse integer attr argument */
+            attr = (UA_UInt32)atoi(argv[argpos]);
+            if(attr != 0)
+                continue;
+
+            /* Convert to lower case and try to find in table */
+            for(char *w = argv[argpos]; *w; w++)
+                *w = (char)tolower(*w);
+            for(UA_UInt32 i = 0; i < 26; i++) {
+                if(strcmp(argv[argpos], attributeIds[i]) == 0) {
+                    attr = i+1;
+                    break;
+                }
+            }
+            if(attr != 0)
+                continue;
+            usage();
+        }
+
+        /* Output JSON format */
+#ifdef UA_ENABLE_JSON_ENCODING
+        if(strcmp(argv[argpos], "--json") == 0) {
+            json = true;
+            continue;
+        }
+#endif
+
+        /* Unknown option */
+        usage();
+    }
+
+    return argpos;
+}
+
 int
 main(int argc, char **argv) {
     /* Read the command line options. Set used options to NULL.
@@ -217,14 +235,9 @@ main(int argc, char **argv) {
         usage();
         return -1;
     }
+
     url = argv[1];
-    argv[1] = NULL;
-
-    /* Get the service */
     service = argv[2];
-    argv[2] = NULL;
-
-    UA_ClientConfig_setDefault(&cc);
 
     /* If not a -- option string, then this is the NodeId */
     int argpos = 3;
@@ -241,21 +254,11 @@ main(int argc, char **argv) {
         }
     }
 
-    /* Process the options */
-    for(; argpos < argc; argpos++) {
-        if(strcmp(argv[argpos], "--help") == 0) {
-            usage();
-            return 0;
-        }
-
-#ifdef UA_ENABLE_JSON_ENCODING
-        if(strcmp(argv[argpos], "--json") == 0) {
-            json = true;
-            argv[argpos] = NULL;
-            continue;
-        }
-#endif
-    }
+    /* Parse the options */
+    UA_ClientConfig_setDefault(&cc);
+    argpos = parseOptions(argc, argv, argpos);
+    if(argpos < argc - 1)
+        usage(); /* Not all options have been parsed */
 
     /* Initialize the client */
     client = UA_Client_newWithConfig(&cc);
