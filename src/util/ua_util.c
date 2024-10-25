@@ -684,7 +684,11 @@ isReservedExtended(char c) {
 char *
 find_unescaped(char *pos, char *end, UA_Boolean extended) {
     while(pos < end) {
+        if(*pos == 0)
+            return pos;
         if(*pos == '&') {
+            if(pos + 1 == end || pos[1] == 0)
+                return pos;
             pos += 2;
             continue;
         }
@@ -700,11 +704,14 @@ void
 UA_String_unescape(UA_String *s, UA_Boolean extended) {
     UA_Byte *writepos = s->data;
     UA_Byte *end = &s->data[s->length];
-    for(UA_Byte *pos = s->data; pos < end; pos++,writepos++) {
-        UA_Boolean skip = (extended) ? isReservedExtended(*pos) : isReserved(*pos);
-        if(skip && ++pos >= end)
-            break;
+    for(UA_Byte *pos = s->data; pos < end; pos++) {
+        if(*pos == '&') {
+            pos++;
+            if(pos == end)
+                break;
+        }
         *writepos = *pos;
+        writepos++;
     }
     s->length = (size_t)(writepos - s->data);
 }
