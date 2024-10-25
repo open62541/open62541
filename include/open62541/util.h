@@ -352,6 +352,10 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
+UA_AttributeOperand_parse(UA_AttributeOperand *ao,
+                          const UA_String str);
+
+UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
 

@@ -433,9 +433,6 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
         res = UA_NodeId_parse(&sao->typeDefinitionId, typeString);
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
-    } else {
-        /* BaseEventType is the default */
-        sao->typeDefinitionId = UA_NODEID_NUMERIC(0, UA_NS0ID_BASEEVENTTYPE);
     }
 
     /* Parse the BrowsePath */
@@ -493,9 +490,6 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
             res = UA_STATUSCODE_BADDECODINGERROR;
             goto cleanup;
         }
-    } else {
-        /* The value attribute is the default */
-        sao->attributeId = UA_ATTRIBUTEID_VALUE;
     }
 
     /* Check whether the IndexRange can be parsed.
@@ -530,5 +524,81 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
     UA_String_clear(&edit_str);
     if(res != UA_STATUSCODE_GOOD)
         UA_SimpleAttributeOperand_clear(sao);
+    return res;
+}
+
+UA_StatusCode
+UA_AttributeOperand_parse(UA_AttributeOperand *ao, const UA_String str) {
+    /* Initialize */
+    UA_AttributeOperand_init(ao);
+
+    /* Make a copy of the input. Used to de-escape the reserved characters. */
+    UA_String edit_str;
+    UA_StatusCode res = UA_String_copy(&str, &edit_str);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    char *pos = (char*)edit_str.data;
+    char *end = (char*)(edit_str.data + edit_str.length);
+    char *mid = NULL;
+
+    /* Parse the NodeId */
+    if(pos < end && *pos != '/' && *pos != '#' && *pos != '[') {
+        char *typedef_pos = pos;
+        pos = find_unescaped(pos, end, true);
+        UA_String typeString = {(size_t)(pos - typedef_pos), (UA_Byte*)typedef_pos};
+        UA_String_unescape(&typeString, true);
+        res = UA_NodeId_parse(&ao->nodeId, typeString);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    } else {
+        /* Objects folder is the default */
+        ao->nodeId = UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER);
+    }
+
+    /* Parse the index range from the end */
+    if(end[-1] == ']') {
+        char *range = end;
+        for(; range > pos; range--) {
+            if(*range == '[')
+                break;
+        }
+        if(range == pos) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+        UA_String rangeString = {(size_t)(end - range - 1), (UA_Byte*)range + 1};
+        res = UA_String_copy(&rangeString, &ao->indexRange);
+        if(res != UA_STATUSCODE_GOOD)
+            goto cleanup;
+    }
+
+    /* Parse the AttributeId from the end.
+     * Go back to find the # character. */
+    mid = end - 1;
+    while(mid > pos && *mid != '#' &&
+          ((*mid >= 'a' && *mid <= 'z') || (*mid >= 'A' && *mid <= 'Z'))) {
+        mid--;
+    }
+    if(*mid == '#') {
+        UA_String attrString = {(size_t)(mid - end), (UA_Byte*)mid};
+        ao->attributeId = UA_AttributeId_fromName(attrString);
+        if(ao->attributeId == UA_ATTRIBUTEID_INVALID) {
+            res = UA_STATUSCODE_BADDECODINGERROR;
+            goto cleanup;
+        }
+        end = mid;
+    } else {
+        ao->attributeId = UA_ATTRIBUTEID_VALUE; /* default */
+    }
+
+    /* Parse the BrowsePath in the middle */
+    UA_String bp = {(size_t)(end - pos), (UA_Byte*)pos};
+    res = parse_relativepath(NULL, &ao->browsePath, bp);
+
+ cleanup:
+    UA_String_clear(&edit_str);
+    if(res != UA_STATUSCODE_GOOD)
+        UA_AttributeOperand_clear(ao);
     return res;
 }
