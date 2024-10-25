@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-
-# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
-set(ANDROID_PLATFORM 24)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
@@ -9,13 +7,13 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+##################
+# CMake Packages #
+##################
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-
 find_package(Python3 REQUIRED)
 find_package(Git)
-
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 include(open62541Macros)
@@ -59,7 +57,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -76,7 +74,16 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
     set(UA_ARCHITECTURE_POSIX 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    set(UA_ARCHITECTURE_ZEPHYR 1)
+    if(NOT CONFIG_OPEN62541)
+        return()
+    endif()
+    include(zephyr/zephyr.cmake)
 endif()
+
+# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
+set(ANDROID_PLATFORM 24)
 
 #################
 # Build Options #
@@ -511,7 +518,8 @@ function(add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
+   NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -919,6 +927,14 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
      ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
 
+if(UA_ARCHITECTURE_ZEPHYR)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
+         ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+endif()
+
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
@@ -1206,8 +1222,15 @@ assign_source_group(${lib_headers} ${lib_sources})
 assign_source_group(${plugin_headers} ${plugin_sources})
 
 # Define the target libraries
-add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
-add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+if(${UA_ARCHITECTURE} STREQUAL "zephyr")
+    zephyr_library_named(open62541-object)
+    zephyr_library_named(open62541-plugins)
+    target_sources(open62541-object PRIVATE ${lib_sources} ${lib_headers} ${exported_headers})
+    target_sources(open62541-plugins PRIVATE ${plugin_sources} ${plugin_headers})
+else()
+    add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
 add_dependencies(open62541-object open62541-code-generation)

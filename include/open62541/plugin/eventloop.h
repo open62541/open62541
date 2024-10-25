@@ -750,7 +750,15 @@ UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
 UA_EXPORT UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
 
-#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
+#elif defined(UA_ARCHITECTURE_ZEPHYR)
+
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_Zephyr(const UA_Logger *logger);
+
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName);
+
+#endif
 
 _UA_END_DECLS
 
