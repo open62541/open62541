@@ -37,19 +37,21 @@ static UA_Boolean json = false;
 
 static void
 usage(void) {
-    printf("Usage: ua <server-url> <service> [--json] [--help]\n"
-           " <server-url>: opc.tcp://domain[:port]\n"
-           " <service> -> getendpoints: Log the endpoint descriptions of the server\n"
-           " <service> -> read <nodeid>: Read an attribute of the node\n"
-           "   --attr <attribute-id | attribute-name>: Attribute to read from the node. "
-           "[default: value]\n"
-           //" <service> -> browse <nodeid>: Browse the Node\n"
-           //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
-           //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
+    fprintf(stderr, "Usage: ua <server-url> <service> [--json] [--help]\n"
+            " <server-url>: opc.tcp://domain[:port]\n"
+            " <service> -> getendpoints: Log the endpoint descriptions of the server\n"
+            " <service> -> read <nodeid>: Read an attribute of the node\n"
+            "   --attr <attribute-id | attribute-name>: Attribute to read from the node. "
+            "[default: value]\n"
+            //" <service> -> browse <nodeid>: Browse the Node\n"
+            //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
+            //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
 #ifdef UA_ENABLE_JSON_ENCODING
-           " --json: Format output as JSON\n"
+            " --json: Format output as JSON\n"
 #endif
-           " --help: Print this message\n");
+            " --username: Username for the session creation\n"
+            " --password: Password for the session creation\n"
+            " --help: Print this message\n");
     exit(EXIT_FAILURE);
 }
 
@@ -72,7 +74,7 @@ printType(void *p, const UA_DataType *type) {
 
 static void
 abortWithStatus(UA_StatusCode res) {
-    printf("Aborting with status code %s\n", UA_StatusCode_name(res));
+    fprintf(stderr, "Aborting with status code %s\n", UA_StatusCode_name(res));
 }
 
 static int
@@ -102,7 +104,7 @@ static int
 parseNodeId(void) {
     UA_StatusCode res = UA_NodeId_parse(&nodeidval, UA_STRING(nodeid));
     if(res != UA_STATUSCODE_GOOD) {
-        printf("Could not parse the NodeId\n");
+        fprintf(stderr, "Could not parse the NodeId\n");
         return -1;
     }
     return 0;
@@ -263,7 +265,7 @@ main(int argc, char **argv) {
     /* Initialize the client */
     client = UA_Client_newWithConfig(&cc);
     if(!client) {
-        printf("Client configuration invalid\n");
+        fprintf(stderr, "Client configuration invalid\n");
         return -1;
     }
 
