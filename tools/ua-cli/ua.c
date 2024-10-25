@@ -77,9 +77,10 @@ printType(void *p, const UA_DataType *type) {
 static void
 abortWithStatus(UA_StatusCode res) {
     fprintf(stderr, "Aborting with status code %s\n", UA_StatusCode_name(res));
+    exit(res);
 }
 
-static int
+static void
 getEndpoints(int argc, char **argv) {
     /* Get endpoints */
     size_t endpointDescriptionsSize = 0;
@@ -87,10 +88,8 @@ getEndpoints(int argc, char **argv) {
     UA_StatusCode res = UA_Client_getEndpoints(client, url,
                                                &endpointDescriptionsSize,
                                                &endpointDescriptions);
-    if(res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
-        return -1;
-    }
 
     /* Print the results */
     UA_Variant var;
@@ -98,21 +97,20 @@ getEndpoints(int argc, char **argv) {
                         &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
     printType(&var, &UA_TYPES[UA_TYPES_VARIANT]);
 
-    UA_Variant_clear(&var); /* deletes the original array */
-    return 0;
+    /* Delete the allocated array */
+    UA_Variant_clear(&var);
 }
 
-static int
+static void
 parseNodeId(void) {
     UA_StatusCode res = UA_NodeId_parse(&nodeidval, UA_STRING(nodeid));
     if(res != UA_STATUSCODE_GOOD) {
         fprintf(stderr, "Could not parse the NodeId\n");
-        return -1;
+        exit(EXIT_FAILURE);
     }
-    return 0;
 }
 
-static int
+static void
 connectClient(void) {
     UA_StatusCode res;
     if(username) {
@@ -124,24 +122,14 @@ connectClient(void) {
     } else {
         res = UA_Client_connect(client, url);
     }
-    if(res != UA_STATUSCODE_GOOD) {
+    if(res != UA_STATUSCODE_GOOD)
         abortWithStatus(res);
-        return -1;
-    }
-    return 0;
 }
 
-static int
+static void
 readAttr(int argc, char **argv) {
-    int ret = parseNodeId();
-    if(ret != 0)
-        return ret;
-
-    ret = connectClient();
-    if(ret != 0) {
-        UA_NodeId_clear(&nodeidval);
-        return ret;
-    }
+    parseNodeId();
+    connectClient();
 
     /* Read */
     UA_ReadValueId rvid;
@@ -168,7 +156,6 @@ readAttr(int argc, char **argv) {
 
     UA_ReadResponse_clear(&resp);
     UA_NodeId_clear(&nodeidval);
-    return 0;
 }
 
 static const char *attributeIds[27] = {
@@ -254,16 +241,13 @@ int
 main(int argc, char **argv) {
     /* Read the command line options. Set used options to NULL.
      * Service-specific options are parsed later. */
-    if(argc < 3) {
+    if(argc < 3)
         usage();
-        return 0;
-    }
 
-    /* Get the url. Must not be a -- option string */
-    if(strstr(argv[1], "--") == argv[1]) {
+    /* Get the url and service. Must not be a -- option string */
+    if(strstr(argv[1], "--") == argv[1] ||
+       strstr(argv[2], "--") == argv[2])
         usage();
-        return -1;
-    }
 
     url = argv[1];
     service = argv[2];
@@ -293,20 +277,18 @@ main(int argc, char **argv) {
     client = UA_Client_newWithConfig(&cc);
     if(!client) {
         fprintf(stderr, "Client configuration invalid\n");
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
     /* Execute the service */
-    int ret = -1;
     if(strcmp(service, "getendpoints") == 0) {
         if(!nodeid && !value)
-            ret = getEndpoints(argc, argv);
+            getEndpoints(argc, argv);
     } else if(strcmp(service, "read") == 0) {
         if(nodeid && !value)
-            ret = readAttr(argc, argv);
+            readAttr(argc, argv);
     } else {
-        /* Unknown service */
-        usage();
+        usage(); /* Unknown service */
     }
     //else if(strcmp(service, "browse") == 0) {
     //    if(nodeid && !value)
@@ -318,6 +300,5 @@ main(int argc, char **argv) {
     //}
 
     UA_Client_delete(client);
-
-    return ret;
+    return 0;
 }
