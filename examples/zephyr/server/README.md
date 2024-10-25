@@ -4,6 +4,7 @@
 # Initialize the west workspace
 cd examples/zephyr
 west init -l server
+west update
 # Build the native sim executable
 cd server
 west build -p -b native_sim
