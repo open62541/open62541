@@ -895,6 +895,50 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     return moveTmpToOut(&tmp, out);
 }
 
+UA_StatusCode
+UA_AttributeOperand_print(const UA_AttributeOperand *ao,
+                          UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&hierarchicalRefs, &ao->nodeId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res |= UA_NodeId_print(&ao->nodeId, &nodeIdBufStr);
+        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+    }
+
+    /* Print the BrowsePath */
+    UA_String rpstr = UA_STRING_NULL;
+    res |= UA_RelativePath_print(&ao->browsePath, &rpstr);
+    res |= UA_String_escapeAppend(&tmp, rpstr, true);
+    UA_String_clear(&rpstr);
+
+    /* Print the attribute name */
+    if(ao->attributeId != UA_ATTRIBUTEID_VALUE) {
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)ao->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+    }
+
+    /* Print the IndexRange
+     * TODO: Validate the indexRange string */
+    if(ao->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, ao->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
 #endif
 
 /************************/

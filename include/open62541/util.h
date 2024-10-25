@@ -312,8 +312,8 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 /**
  * .. _parse-sao:
  *
- * Print and Parse SimpleAttributeOperand Expression
- * -------------------------------------------------
+ * Print and Parse AttributeId and SimpleAttributeOperand Expression
+ * -----------------------------------------------------------------
  * The SimpleAttributeOperand is used to specify the location of up values.
  * SimpleAttributeOperands are used for example in EventFilters to select the
  * values reported for each event instance.
@@ -336,6 +336,9 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
  * For the index range, see the section on :ref:`numericrange`.
  * The BNF definition of the SimpleAttributeOperand is as follows::
  *
+ *   AttributeOperand :=
+ *     NodeIdId? RelativePath? ("#" Attribute)? ("[" IndexRange "]")?
+ *
  *   SimpleAttributeOperand :=
  *     TypeDefinitionId? SimpleBrowsePath ("#" Attribute)? ("[" IndexRange "]")?
  *
@@ -352,8 +355,7 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
-UA_AttributeOperand_parse(UA_AttributeOperand *ao,
-                          const UA_String str);
+UA_AttributeOperand_parse(UA_AttributeOperand *ao, const UA_String str);
 
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
@@ -361,6 +363,9 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
+UA_EXPORT UA_StatusCode
+UA_AttributeOperand_print(const UA_AttributeOperand *ao, UA_String *out);
+
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
