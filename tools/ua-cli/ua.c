@@ -2,28 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  *
- *    Copyright 2021 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
+ *    Copyright 2021, 2024 (c) Fraunhofer IOSB (Author: Julius Pfrommer)
  */
 
-/* Enable POSIX features */
 #include <open62541/plugin/log.h>
-#if !defined(_XOPEN_SOURCE)
-# define _XOPEN_SOURCE 600
-#endif
-#ifndef _DEFAULT_SOURCE
-# define _DEFAULT_SOURCE
-#endif
-/* On older systems we need to define _BSD_SOURCE.
- * _DEFAULT_SOURCE is an alias for that. */
-#ifndef _BSD_SOURCE
-# define _BSD_SOURCE
-#endif
-
-#include <stdio.h>
-#include <ctype.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 #include "../../deps/mp_printf.h"
+
+#include <stdio.h>
+#include <ctype.h>
 
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;
