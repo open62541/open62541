@@ -340,6 +340,19 @@ void UA_GDSTransaction_delete(UA_GDSTransaction *transaction) {
     UA_free(transaction);
 }
 
+/********************/
+/*   GDS Manager    */
+/********************/
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager) {
+    if(!gdsManager)
+        return;
+    gdsManager->checkSessionCallbackId = 0;
+    UA_GDSTransaction_clear(&gdsManager->transaction);
+    UA_free(gdsManager->fileInfoContext);
+}
+
 /*********************/
 /* Server Components */
 /*********************/
@@ -466,7 +479,7 @@ UA_Server_delete(UA_Server *server) {
     UA_LOCK_DESTROY(&server->serviceMutex);
 #endif
 
-    UA_GDSTransaction_clear(&server->transaction);
+    UA_GDSManager_clear(&server->gdsManager);
 
     /* Delete the server itself and return */
     UA_free(server);
@@ -862,7 +875,7 @@ UA_Server_updateCertificate(UA_Server *server,
     if(!server)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    if(server->transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
+    if(server->gdsManager.transaction.state == UA_GDSTRANSACIONSTATE_PENDING)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
     /* The server currently only supports the DefaultApplicationGroup */
@@ -974,8 +987,8 @@ UA_Server_createSigningRequest(UA_Server *server,
         }
     }
 
-    UA_ByteString_clear(&server->transaction.localCsrCertificate);
-    UA_ByteString_copy(csr, &server->transaction.localCsrCertificate);
+    UA_ByteString_clear(&server->gdsManager.transaction.localCsrCertificate);
+    UA_ByteString_copy(csr, &server->gdsManager.transaction.localCsrCertificate);
 
 cleanup:
     if(newPrivateKey)

@@ -109,6 +109,23 @@ void
 UA_GDSTransaction_delete(UA_GDSTransaction *transaction);
 
 /********************/
+/*   GDS Manager    */
+/********************/
+
+typedef struct {
+    /* Transaction for certificate management */
+    UA_GDSTransaction transaction;
+    /* Contains context information necessary for reading and writing the TrustList as a file type */
+    void *fileInfoContext;
+    /* Holds the ID for the repeated callback that verifies the presence of sessions
+     * with an active transaction or an open trust list */
+    UA_UInt64 checkSessionCallbackId;
+} UA_GDSManager;
+
+void
+UA_GDSManager_clear(UA_GDSManager *gdsManager);
+
+/********************/
 /* Server Component */
 /********************/
 
@@ -240,8 +257,8 @@ struct UA_Server {
     UA_SecureChannelStatistics secureChannelStatistics;
     UA_ServerDiagnosticsSummaryDataType serverDiagnosticsSummary;
 
-    /* Transaction for certificate management */
-    UA_GDSTransaction transaction;
+    /* GDS Manager for certificate management */
+    UA_GDSManager gdsManager;
 };
 
 /***********************/
