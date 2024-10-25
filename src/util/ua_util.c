@@ -682,13 +682,13 @@ isReservedExtended(char c) {
 }
 
 char *
-find_unescaped(char *pos, char *end, UA_Boolean extended) {
+find_unescaped(char *pos, const char *end, UA_Boolean extended) {
     while(pos < end) {
         if(*pos == 0)
             return pos;
         if(*pos == '&') {
             if(pos + 1 == end || pos[1] == 0)
-                return pos;
+                return pos; /* Skip if & is the last character */
             pos += 2;
             continue;
         }
@@ -697,14 +697,13 @@ find_unescaped(char *pos, char *end, UA_Boolean extended) {
             return pos;
         pos++;
     }
-    return end;
+    return (char*)(uintptr_t)end;
 }
 
-void
-UA_String_unescape(UA_String *s, UA_Boolean extended) {
-    UA_Byte *writepos = s->data;
-    UA_Byte *end = &s->data[s->length];
-    for(UA_Byte *pos = s->data; pos < end; pos++) {
+char *
+unescape(char *pos, const char *end) {
+    char *writepos = pos;
+    for(; pos < end; pos++) {
         if(*pos == '&') {
             pos++;
             if(pos == end)
@@ -713,7 +712,7 @@ UA_String_unescape(UA_String *s, UA_Boolean extended) {
         *writepos = *pos;
         writepos++;
     }
-    s->length = (size_t)(writepos - s->data);
+    return writepos;
 }
 
 UA_StatusCode
