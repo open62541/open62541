@@ -9,6 +9,7 @@
  *    Copyright 2016-2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2017 (c) frax2222
  *    Copyright 2017 (c) Mark Giraud, Fraunhofer IOSB
+ *    Copyright 2024 (c) Andreas Ebner, Fraunhofer IOSB
  */
 
 #include "ua_server_internal.h"
@@ -432,12 +433,23 @@ setCurrentEndPointsArray(UA_Server *server, const UA_String endpointUrl,
                 retval |= UA_String_copy(&server->config.applicationDescription.
                                          discoveryUrls[i], &ed->endpointUrl);
             } else {
-                /* Mirror back the requested EndpointUrl and also add it to the
-                 * array of discovery urls */
-                retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
-                retval |= UA_Array_appendCopy((void**)&ed->server.discoveryUrls,
-                                              &ed->server.discoveryUrlsSize,
-                                              &endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+                /* Check if the EndpointURL is already contained in the endpoint description */
+                UA_Boolean foundEndpointUrl = false;
+                for(size_t n = 0; n < ed->server.discoveryUrlsSize; n++) {
+                    if(UA_String_equal(&endpointUrl,
+                                       &ed->server.discoveryUrls[n])) {
+                        foundEndpointUrl = true;
+                        break;
+                    }
+                }
+                if(!foundEndpointUrl) {
+                    /* Mirror back the requested EndpointUrl and also add it to the
+                    * array of discovery urls */
+                    retval |= UA_String_copy(&endpointUrl, &ed->endpointUrl);
+                    retval |= UA_Array_appendCopy((void**)&ed->server.discoveryUrls,
+                                                  &ed->server.discoveryUrlsSize,
+                                                  &endpointUrl, &UA_TYPES[UA_TYPES_STRING]);
+                }
             }
             if(retval != UA_STATUSCODE_GOOD)
                 goto error;
