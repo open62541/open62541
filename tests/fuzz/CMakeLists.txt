@@ -78,6 +78,7 @@ add_fuzzer(fuzz_binary_message fuzz_binary_message.cc)
 add_fuzzer(fuzz_tcp_message fuzz_tcp_message.cc)
 add_fuzzer(fuzz_binary_decode fuzz_binary_decode.cc)
 add_fuzzer(fuzz_src_ua_util fuzz_src_ua_util.cc)
+add_fuzzer(fuzz_attributeoperand fuzz_attributeoperand.cc)
 
 # Add fuzzer for mdns dependency. It's currently not fuzzed separately.
 # See also: https://github.com/google/oss-fuzz/pull/2928
