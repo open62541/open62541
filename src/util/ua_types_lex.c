@@ -974,3 +974,23 @@ UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
         UA_SimpleAttributeOperand_clear(sao);
     return res;
 }
+
+UA_StatusCode
+UA_ReadValueId_parse(UA_ReadValueId *rvi, const UA_String str) {
+    /* Parse an AttributeOperand and convert */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = parseAttributeOperand(&ao, str, UA_NODEID_NULL);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+
+    if(ao.browsePath.elementsSize > 0) {
+        UA_AttributeOperand_clear(&ao);
+        return UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    UA_ReadValueId_init(rvi);
+    rvi->nodeId = ao.nodeId;
+    rvi->attributeId = ao.attributeId;
+    rvi->indexRange = ao.indexRange;
+    return UA_STATUSCODE_GOOD;
+}
