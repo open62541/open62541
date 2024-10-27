@@ -784,6 +784,8 @@ static const UA_NodeId hierarchicalRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_HIERARCHICALREFERENCES}};
 static const UA_NodeId aggregatesRefs =
     {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_AGGREGATES}};
+static const UA_NodeId objectsFolder =
+    {0, UA_NODEIDTYPE_NUMERIC, {UA_NS0ID_OBJECTSFOLDER}};
 
 static UA_StatusCode
 printRelativePath(const UA_RelativePath *rp, UA_String *out, UA_Boolean extEscape) {
@@ -875,14 +877,13 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
     /* Print the attribute name */
     if(sao->attributeId != UA_ATTRIBUTEID_VALUE) {
         res |= UA_String_append(&tmp, UA_STRING("#"));
-        const char *attrName= UA_AttributeId_name((UA_AttributeId)sao->attributeId);
+        const char *attrName = UA_AttributeId_name((UA_AttributeId)sao->attributeId);
         res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
         if(res != UA_STATUSCODE_GOOD)
             goto cleanup;
     }
 
-    /* Print the IndexRange
-     * TODO: Validate the indexRange string */
+    /* Print the IndexRange */
     if(sao->indexRange.length > 0) {
         res |= UA_String_append(&tmp, UA_STRING("["));
         res |= UA_String_append(&tmp, sao->indexRange);
@@ -906,7 +907,7 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     /* Print the TypeDefinitionId */
-    if(!UA_NodeId_equal(&hierarchicalRefs, &ao->nodeId)) {
+    if(!UA_NodeId_equal(&objectsFolder, &ao->nodeId)) {
         UA_Byte nodeIdBuf[512];
         UA_String nodeIdBufStr = {512, nodeIdBuf};
         res |= UA_NodeId_print(&ao->nodeId, &nodeIdBufStr);
@@ -926,11 +927,46 @@ UA_AttributeOperand_print(const UA_AttributeOperand *ao,
         res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
     }
 
-    /* Print the IndexRange
-     * TODO: Validate the indexRange string */
+    /* Print the IndexRange */
     if(ao->indexRange.length > 0) {
         res |= UA_String_append(&tmp, UA_STRING("["));
         res |= UA_String_append(&tmp, ao->indexRange);
+        res |= UA_String_append(&tmp, UA_STRING("]"));
+    }
+
+    /* Encoding failed, clean up */
+    if(res != UA_STATUSCODE_GOOD) {
+        UA_String_clear(&tmp);
+        return res;
+    }
+
+    return moveTmpToOut(&tmp, out);
+}
+
+UA_StatusCode
+UA_ReadValueId_print(const UA_ReadValueId *rvi, UA_String *out) {
+    UA_String tmp = UA_STRING_NULL;
+    UA_StatusCode res = UA_STATUSCODE_GOOD;
+
+    /* Print the TypeDefinitionId */
+    if(!UA_NodeId_equal(&UA_NODEID_NULL, &rvi->nodeId)) {
+        UA_Byte nodeIdBuf[512];
+        UA_String nodeIdBufStr = {512, nodeIdBuf};
+        res |= UA_NodeId_print(&rvi->nodeId, &nodeIdBufStr);
+        res |= UA_String_escapeAppend(&tmp, nodeIdBufStr, true);
+    }
+
+    /* Print the attribute name */
+    if(rvi->attributeId != UA_ATTRIBUTEID_VALUE) {
+        const char *attrName= UA_AttributeId_name((UA_AttributeId)rvi->attributeId);
+        res |= UA_String_append(&tmp, UA_STRING("#"));
+        res |= UA_String_append(&tmp, UA_STRING((char*)(uintptr_t)attrName));
+    }
+
+    /* Print the IndexRange */
+    if(rvi->indexRange.length > 0) {
+        res |= UA_String_append(&tmp, UA_STRING("["));
+        res |= UA_String_append(&tmp, rvi->indexRange);
         res |= UA_String_append(&tmp, UA_STRING("]"));
     }
 
