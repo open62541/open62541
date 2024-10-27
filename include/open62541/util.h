@@ -14,6 +14,15 @@
 _UA_BEGIN_DECLS
 
 /**
+ * .. _utility:
+ *
+ * Utility Definitions
+ * ===================
+ *
+ * Utility functions are used by both client and server. Different from the
+ * :ref:`common`, the utlity functions can use the :ref:`types`. */
+
+/**
  * Range Definition
  * ---------------- */
 
@@ -27,24 +36,25 @@ typedef struct {
     UA_Duration max;
 } UA_DurationRange;
 
+/**
+ * .. _eventfilter:
+ *
+ * Event-Filter Parsing
+ * --------------------
+ */
+#ifdef UA_ENABLE_PARSING
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 typedef struct {
     const UA_Logger *logger;
 } UA_EventFilterParserOptions;
 
-/**
- * Query Language Eventfilter
- * @param content eventfilter query
- * @param filter generated eventfilter
- * @param options Can be NULL.
- */
-#ifdef UA_ENABLE_PARSING
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
-#endif
-#endif
 
+#endif
+#endif
 
 /**
  * Random Number Generator
@@ -374,8 +384,10 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
-#define UA_PRINTF_GUID_FORMAT "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 \
-    "-%02" PRIx8 "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
+
+#define UA_PRINTF_GUID_FORMAT                                           \
+    "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-%02" PRIx8 "%02" PRIx8   \
+    "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8  "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
@@ -400,7 +412,7 @@ UA_ByteString_memZero(UA_ByteString *bs);
 
 /**
  * Trustlist Helpers
- * -------------------- */
+ * ----------------- */
 
 /* Adds all of the certificates from the src trusted list to the dst trusted list. */
 UA_EXPORT UA_StatusCode
