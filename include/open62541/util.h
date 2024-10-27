@@ -262,8 +262,10 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * This documentation always states whether "and-escaping" or the
  * "extended-and-escaping is used.
  *
- * Print and Parse RelativePath Expressions
- * ----------------------------------------
+ * .. _relativepath:
+ *
+ * RelativePath Expressions
+ * ------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
  * used e.g. for the BrowsePath structure.
  *
@@ -276,6 +278,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
  *   Reserved characters in the BrowseName are and-escaped. The following
  *   prefix-modifiers are defined for the ReferenceType.
+ *
  *   - ``!`` switches to inverse References
  *   - ``#`` excludes subtypes of the ReferenceType.
  *   - As a non-standard extension we allow the ReferenceType in angle-brackets
@@ -322,46 +325,54 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 /**
  * .. _parse-sao:
  *
- * Print and Parse AttributeId and SimpleAttributeOperand Expression
- * -----------------------------------------------------------------
- * The SimpleAttributeOperand is used to specify the location of up values.
- * SimpleAttributeOperands are used for example in EventFilters to select the
- * values reported for each event instance.
+ * Attribute Path Expression
+ * -------------------------
+ * The data types ``ReadValueId``, ``AttributeOperand`` and
+ * ``SimpleAttributeOperand`` define the location of a value. That is, they
+ * define an attribute (with an optional index-range) of a node in the
+ * information model. The ``AttributeOperand`` data type has the most features.
+ * The other two are similar but simplified:
  *
- * The TypeDefinitionId is a NodeId and restricts the starting point for the
- * lookup to instances of the TypeDefinitionNode or one of its subtypes. If not
- * defined, the NodeId defaults to the BaseEventType. The NodeId is
- * extended-and-escaped.
- *
- * The BrowsePath is a list of BrowseNames (QualifiedName expression with
- * extended-and-escaping of the name) to be followed from the TypeDefinitionNode
- * instance. The implied ReferenceTypeIds (cf. the RelativePath expressions) are
- * always the HierarchicalReferences and their subtypes. So the ``/`` separator
- * is mandatory here. The BrowsePath for the SimpleAttributeOperand is defined
- * to only follow into Variable- and ObjectNodes. If the BrowsePath is empty,
- * the value is taken from the instance of the TypeDefinition itself.
- *
- * The attribute is the textual name of the selected node attribute.
- * If undefined, the attribute defaults to the Value attribute.
- * For the index range, see the section on :ref:`numericrange`.
- * The BNF definition of the SimpleAttributeOperand is as follows::
+ *   ReadValueId :=
+ *     NodeId? ("#" Attribute)? ("[" IndexRange "]")?
  *
  *   AttributeOperand :=
- *     NodeIdId? RelativePath? ("#" Attribute)? ("[" IndexRange "]")?
+ *     NodeId? RelativePath? ("#" Attribute)? ("[" IndexRange "]")?
  *
  *   SimpleAttributeOperand :=
- *     TypeDefinitionId? SimpleBrowsePath ("#" Attribute)? ("[" IndexRange "]")?
+ *     TypeDefId? ("/" BrowseName)* ("#" Attribute)? ("[" IndexRange "]")?
  *
- *   SimpleBrowsePath := ("/" BrowseName)*
+ * The ReadValueId is used for the Read Service. The default NodeId is ``i=0``.
+ * The default attribute is ``#Value``.
+ *
+ * The AttributeOperand is used for the Query Service. It extends the
+ * ReadValueId with a RelativePath to be followed from the initial node. The
+ * default NodeId is the ObjectsFolder ``i=85``. The default attribute is
+ * ``#Value``.
+ *
+ * The SimpleAttributeOperand is used for the Query Service and for
+ * :ref:`eventfilter`. It is a simplified AttributeOperand where all references
+ * in the RelativePath are (subtypes of) HierarchicalReferences. So the ``/``
+ * separator is mandatory. The initial NodeId is called *TypeDefinitionId*
+ * because SimpleAttributeOperands are typically used in EventFilters to
+ * reference the child nodes of an EventType to select the values reported for
+ * each event instance.
+ *
+ * The different parts of the expression are parsed as follows:
+ *
+ * - The :ref:`nodeid` uses the human-readable format of Part 6, 5.3.1.10.
+ *   String NodeIds use the extended-and-escaping from above.
+ * - The :ref:`relativepath` use the human-readable format with
+ *   extended-and-escaping for strings.
+ * - The :ref:`attribute-id` is the human-readable name of the selected node
+ *   attribute.
+ * - For the index range, see the section on :ref:`numericrange`.
  *
  * Example SimpleAttributeOperands
  * ```````````````````````````````
  * - ``ns=2;s=TruckEventType/3:Truck/5:Wheel#Value[1:3]``
  * - ``/3:Truck/5:Wheel``
- * - ``#BrowseName``
- * - Empty String: No NodeId, BrowsePath, Attribute and NumericRange. This
- *   indicates the value attribute of the event instance.
- */
+ * - ``#BrowseName`` */
 
 #ifdef UA_ENABLE_PARSING
 UA_EXPORT UA_StatusCode
