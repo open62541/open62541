@@ -881,12 +881,11 @@ typedef struct {
     UA_UInt32 maxPastKeyCount;
 } UA_SecurityGroupConfig;
 
-/**
- * @brief Creates a SecurityGroup object and add it to the list in PubSub
- * Manager. If the information model is enabled then the SecurityGroup object
- * Node is also created in the server. A keyStorage with initial list of keys is
- * created with a SecurityGroup. A callback is added to new SecurityGroup which
- * updates the keys periodically at each KeyLifeTime expire.
+/* Creates a SecurityGroup object and add it to the list in PubSub Manager. If
+ * the information model is enabled then the SecurityGroup object Node is also
+ * created in the server. A keyStorage with initial list of keys is created with
+ * a SecurityGroup. A callback is added to new SecurityGroup which updates the
+ * keys periodically at each KeyLifeTime expire.
  *
  * @param server The server instance
  * @param securityGroupFolderNodeId The parent node of the SecurityGroup. It
@@ -900,9 +899,8 @@ UA_Server_addSecurityGroup(UA_Server *server,
                            const UA_SecurityGroupConfig *securityGroupConfig,
                            UA_NodeId *securityGroupNodeId);
 
-/**
- * @brief Removes the SecurityGroup from PubSub Manager. It removes the
- * KeyStorage associated with the SecurityGroup from the server.
+/* Removes the SecurityGroup from PubSub Manager. It removes the KeyStorage
+ * associated with the SecurityGroup from the server.
  *
  * @param server The server instance
  * @param securityGroup The nodeId of the securityGroup to be removed
@@ -911,12 +909,10 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_removeSecurityGroup(UA_Server *server,
                               const UA_NodeId securityGroup);
 
-/**
- * @brief This is a repeated callback which is triggered on each iteration of
- * SKS Pull request. The server uses this callback to notify user about the
- * status of current Pull request iteration. The period is calculated based on
- * the KeylifeTime of specified in the SecurityGroup object node on the SKS
- * server.
+/* This is a repeated callback which is triggered on each iteration of SKS Pull
+ * request. The server uses this callback to notify user about the status of
+ * current Pull request iteration. The period is calculated based on the
+ * KeylifeTime of specified in the SecurityGroup object node on the SKS server.
  *
  * @param server The server instance managing the publisher/subscriber.
  * @param sksPullRequestStatus The current status of sks pull request.
@@ -926,21 +922,19 @@ typedef void
                                     UA_StatusCode sksPullRequestStatus,
                                     void* context);
 
-/**
- * @brief Sets the SKS client config used to call the GetSecurityKeys Method on
- * SKS and get the initial set of keys for a SecurityGroupId and adds
- * timedCallback for the next GetSecurityKeys method Call. This uses async
- * Client API for SKS Pull request. The SKS Client instance is created and
- * destroyed at runtime on each iteration of SKS Pull request by the server. The
- * key Rollover mechanism will check if the new keys are needed then it will
- * call the getSecurityKeys Method on SKS Server. At the end of SKS Pull request
- * iteration, the sks client will be deleted by a delayed callback (in next
- * server iteration).
+/* Sets the SKS client config used to call the GetSecurityKeys Method on SKS and
+ * get the initial set of keys for a SecurityGroupId and adds timedCallback for
+ * the next GetSecurityKeys method Call. This uses async Client API for SKS Pull
+ * request. The SKS Client instance is created and destroyed at runtime on each
+ * iteration of SKS Pull request by the server. The key Rollover mechanism will
+ * check if the new keys are needed then it will call the getSecurityKeys Method
+ * on SKS Server. At the end of SKS Pull request iteration, the sks client will
+ * be deleted by a delayed callback (in next server iteration).
  *
- * @note It is be called before setting Reader/Writer Group into Operational
+ * Note: It is be called before setting Reader/Writer Group into Operational
  * because this also allocates a channel context for the pubsub security policy.
  *
- * @note the stateCallback of sksClientConfig will be overwritten by an internal
+ * Note: The stateCallback of sksClientConfig will be overwritten by an internal
  * callback.
  *
  * @param server the server instance

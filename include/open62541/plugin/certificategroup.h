@@ -18,8 +18,8 @@ struct UA_CertificateGroup;
 typedef struct UA_CertificateGroup UA_CertificateGroup;
 
 /**
- * Certificate Group Plugin API
- * ---------------------------- */
+ * CertificateGroup Plugin API
+ * --------------------------- */
 
 struct UA_CertificateGroup {
     /* The NodeId of the certificate group this pki store is associated with */
