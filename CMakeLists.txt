@@ -528,8 +528,10 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     check_add_cc_flag("-Wall")      # Warnings
     check_add_cc_flag("-Wextra")    # More warnings
     check_add_cc_flag("-Wpedantic") # Standard compliance
-    check_add_cc_flag("-Werror") # All warnings are errors
-    check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+    if(UA_FORCE_WERROR)
+        check_add_cc_flag("-Werror") # All warnings are errors
+        check_add_cc_flag("-Wunused-command-line-argument") # Warning for command line args instead of error
+    endif()
 
     check_add_cc_flag("-Wno-static-in-inline") # Clang doesn't like the use of static inline methods inside static inline methods
     check_add_cc_flag("-Wno-overlength-strings") # May happen in the nodeset compiler when complex values are directly encoded
