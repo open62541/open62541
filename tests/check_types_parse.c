@@ -157,7 +157,8 @@ START_TEST(parseRelativePath) {
     UA_String ex = UA_STRING("");
     UA_String exout = UA_STRING_NULL;
     UA_StatusCode res = UA_RelativePath_parse(&rp, ex);
-    res |= UA_RelativePath_print(&rp, &exout);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_RelativePath_print(&rp, &exout);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 0);
     ck_assert(UA_String_equal(&ex, &exout));

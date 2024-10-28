@@ -59,14 +59,15 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
 UA_StatusCode
 getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
 
-/* Unescape &-escaped string. The string is modified */
-void
-UA_String_unescape(UA_String *s, UA_Boolean extended);
+/* Unescape &-escaped string. The string is modified.
+ * Returns the end position of the unescaped string. */
+char *
+unescape(char *pos, const char *end);
 
 /* Returns the position of the first unescaped reserved character (or the end
  * position) */
 char *
-find_unescaped(char *pos, char *end, UA_Boolean extended);
+find_unescaped(char *pos, const char *end, UA_Boolean extended);
 
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode

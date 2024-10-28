@@ -29,7 +29,7 @@ struct UA_InterruptManager;
 typedef struct UA_InterruptManager UA_InterruptManager;
 
 /**
- * Event Loop Subsystem
+ * EventLoop Plugin API
  * ====================
  * An OPC UA-enabled application can have several clients and servers. And
  * server can serve different transport-level protocols for OPC UA. The

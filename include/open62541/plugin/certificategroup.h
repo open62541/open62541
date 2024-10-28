@@ -17,28 +17,44 @@ _UA_BEGIN_DECLS
 struct UA_CertificateGroup;
 typedef struct UA_CertificateGroup UA_CertificateGroup;
 
+/**
+ * CertificateGroup Plugin API
+ * --------------------------- */
+
 struct UA_CertificateGroup {
-    /* The nodeId of the certificate group this pki store is associated with */
+    /* The NodeId of the certificate group this pki store is associated with */
     UA_NodeId certificateGroupId;
+
+    /* Context-pointer to be set by the CertificateGroup plugin implementation */
     void *context;
+
     /* Pointer to logging pointer in the server/client configuration. If the
      * logging pointer is changed outside of the plugin, the new logger is used
-     * automatically
-     */
+     * automatically. */
     const UA_Logger *logging;
 
-    UA_StatusCode (*getTrustList)(UA_CertificateGroup *certGroup, UA_TrustListDataType *trustList);
-    UA_StatusCode (*setTrustList)(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList);
+    UA_StatusCode (*getTrustList)(UA_CertificateGroup *certGroup,
+                                  UA_TrustListDataType *trustList);
+    UA_StatusCode (*setTrustList)(UA_CertificateGroup *certGroup,
+                                  const UA_TrustListDataType *trustList);
 
-    UA_StatusCode (*addToTrustList)(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList);
-    UA_StatusCode (*removeFromTrustList)(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList);
+    UA_StatusCode (*addToTrustList)(UA_CertificateGroup *certGroup,
+                                    const UA_TrustListDataType *trustList);
+    UA_StatusCode (*removeFromTrustList)(UA_CertificateGroup *certGroup,
+                                         const UA_TrustListDataType *trustList);
 
-    UA_StatusCode (*getRejectedList)(UA_CertificateGroup *certGroup, UA_ByteString **rejectedList, size_t *rejectedListSize);
+    UA_StatusCode (*getRejectedList)(UA_CertificateGroup *certGroup,
+                                     UA_ByteString **rejectedList,
+                                     size_t *rejectedListSize);
+
     /* Provides all associated CRLs for a CA certificate. */
-    UA_StatusCode (*getCertificateCrls)(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
-                                        const UA_Boolean isTrusted, UA_ByteString **crls, size_t *crlsSize);
+    UA_StatusCode (*getCertificateCrls)(UA_CertificateGroup *certGroup,
+                                        const UA_ByteString *certificate,
+                                        const UA_Boolean isTrusted,
+                                        UA_ByteString **crls, size_t *crlsSize);
 
-    UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup, const UA_ByteString *certificate);
+    UA_StatusCode (*verifyCertificate)(UA_CertificateGroup *certGroup,
+                                       const UA_ByteString *certificate);
 
     void (*clear)(UA_CertificateGroup *certGroup);
 };
@@ -66,15 +82,16 @@ UA_EXPORT UA_StatusCode
 UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize);
 
-/* Compares the public keys from two byte strings, which can represent either certificates
- * or Certificate Signing Requests (CSR). This function extracts the public keys from the
- * provided byte strings and compares them to determine if they are identical.
+/* Compares the public keys from two byte strings, which can represent either
+ * certificates or Certificate Signing Requests (CSR). This function extracts
+ * the public keys from the provided byte strings and compares them to determine
+ * if they are identical.
  *
- * @param certificate1  The first byte string, containing either a certificate or a CSR.
- * @param certificate2  The second byte string, containing either a certificate or a CSR.
+ * @param certificate1 Containing either a certificate or a CSR.
+ * @param certificate2 Containing either a certificate or a CSR.
  * @return UA_STATUSCODE_GOOD if the public keys are identical,
  *         UA_STATUSCODE_BADNOMATCH if the public keys do not match,
- *         UA_STATUSCODE_BADINTERNALERROR if an error occurs during extraction or comparison. */
+ *         UA_STATUSCODE_BADINTERNALERROR if an error occurs. */
 UA_EXPORT UA_StatusCode
 UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
                                       const UA_ByteString *certificate2);
@@ -90,7 +107,8 @@ UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
  *
  * Returns UA_STATUSCODE_BADSECURITYCHECKSFAILED if the password is wrong. */
 UA_EXPORT UA_StatusCode
-UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey, const UA_ByteString password,
+UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
+                                      const UA_ByteString password,
                                       UA_ByteString *outDerKey);
 
 _UA_END_DECLS

@@ -7,12 +7,13 @@
  */
 
 #include <open62541/plugin/create_certificate.h>
-#include <time.h>
-
-#include "securitypolicy_common.h"
-#include "../../arch/eventloop_posix/eventloop_posix.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+
+#include "securitypolicy_common.h"
+#include "../../arch/posix/eventloop_posix.h"
+
+#include <time.h>
 
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>

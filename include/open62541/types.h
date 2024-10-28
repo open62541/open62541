@@ -670,7 +670,6 @@ UA_INLINABLE(UA_LocalizedText
  *
  * NumericRange
  * ^^^^^^^^^^^^
- *
  * NumericRanges are used to indicate subsets of a (multidimensional) array.
  * They no official data type in the OPC UA standard and are transmitted only
  * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
