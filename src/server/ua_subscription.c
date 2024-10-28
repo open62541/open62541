@@ -143,9 +143,9 @@ UA_Notification_enqueueAndTrigger(UA_Server *server, UA_Notification *n) {
         mon->triggeredUntil > nowMonotonic)) {
         UA_Notification_enqueueSub(n);
         mon->triggeredUntil = UA_INT64_MIN;
-        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, mon->subscription,
+        UA_LOG_DEBUG_SUBSCRIPTION(server->config.logging, sub,
                                   "Notification enqueued (Queue size %lu)",
-                                  (long unsigned)mon->subscription->notificationQueueSize);
+                                  (long unsigned)sub->notificationQueueSize);
     }
 
     /* Insert into the MonitoredItem. This checks the queue size and
@@ -278,7 +278,7 @@ delayedFreeSubscription(void *app, void *context) {
 
 void
 UA_Subscription_delete(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_EventLoop *el = server->config.eventLoop;
 
@@ -944,7 +944,7 @@ UA_Subscription_publish(UA_Server *server, UA_Subscription *sub) {
 
 void
 UA_Subscription_resendData(UA_Server *server, UA_Subscription *sub) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(server);
     UA_assert(sub);
 
@@ -1257,7 +1257,7 @@ removeMonitoredItemBackPointer(UA_Server *server, UA_Session *session,
 
 void
 UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(mon->registered)
         return;
@@ -1289,7 +1289,7 @@ UA_Server_registerMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
 
 static void
 UA_Server_unregisterMonitoredItem(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     if(!mon->registered)
         return;
@@ -1391,7 +1391,7 @@ delayedFreeMonitoredItem(void *app, void *context) {
 
 void
 UA_MonitoredItem_delete(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove the sampling callback */
     UA_MonitoredItem_unregisterSampling(server, mon);
@@ -1559,7 +1559,7 @@ UA_MonitoredItem_lockAndSample(UA_Server *server, UA_MonitoredItem *mon) {
 
 UA_StatusCode
 UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Sampling is already registered */
     if(mon->samplingType != UA_MONITOREDITEMSAMPLINGTYPE_NONE)
@@ -1601,7 +1601,7 @@ UA_MonitoredItem_registerSampling(UA_Server *server, UA_MonitoredItem *mon) {
 
 void
 UA_MonitoredItem_unregisterSampling(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     switch(mon->samplingType) {
     case UA_MONITOREDITEMSAMPLINGTYPE_CYCLIC:

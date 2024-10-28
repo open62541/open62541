@@ -10,7 +10,7 @@
  * Copyright (c) 2021 Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -139,7 +139,7 @@ UA_DataSetWriter_create(UA_PubSubManager *psm,
                         const UA_NodeId writerGroup, const UA_NodeId dataSet,
                         const UA_DataSetWriterConfig *dswConfig,
                         UA_NodeId *writerIdentifier) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     if(!dswConfig)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -350,7 +350,7 @@ UA_DataSetWriter_prepareDataSet(UA_PubSubManager *psm, UA_DataSetWriter *dsw,
 
 UA_StatusCode
 UA_DataSetWriter_remove(UA_PubSubManager *psm, UA_DataSetWriter *dsw) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_WriterGroup *wg = dsw->linkedWriterGroup;
     UA_assert(wg);
@@ -728,23 +728,16 @@ UA_DataSetWriter_generateDataSetMessage(UA_PubSubManager *psm,
         if((u64)jsonDsm->dataSetMessageContentMask &
            (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMajorVersionEnabled = true;
-            if(!pds) {
-                /* Heartbeat */
-                dataSetMessage->header.configVersionMajorVersion = 0;
-            } else {
-                dataSetMessage->header.configVersionMajorVersion =
-                pds->dataSetMetaData.configurationVersion.majorVersion;
-            }
-       }
-        if((u64)jsonDsm->dataSetMessageContentMask &
-           (u64)UA_JSONDATASETMESSAGECONTENTMASK_METADATAVERSION) {
             dataSetMessage->header.configVersionMinorVersionEnabled = true;
             if(!pds) {
                 /* Heartbeat */
+                dataSetMessage->header.configVersionMajorVersion = 0;
                 dataSetMessage->header.configVersionMinorVersion = 0;
             } else {
+                dataSetMessage->header.configVersionMajorVersion =
+                    pds->dataSetMetaData.configurationVersion.majorVersion;
                 dataSetMessage->header.configVersionMinorVersion =
-                pds->dataSetMetaData.configurationVersion.minorVersion;
+                    pds->dataSetMetaData.configurationVersion.minorVersion;
             }
        }
 

@@ -14,9 +14,11 @@
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
 #include <mbedtls/x509.h>
+#include <mbedtls/oid.h>
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
+#include <mbedtls/sha256.h>
 
 #include "securitypolicy_common.h"
 
@@ -58,6 +60,8 @@ struct MemoryCertStore {
     mbedtls_x509_crl trustedCrls;
     mbedtls_x509_crl issuerCrls;
 };
+
+static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
 
 static UA_StatusCode
 MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
@@ -128,6 +132,107 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
         *rejectedListSize = context->rejectedCertificatesSize;
 
     return retval;
+}
+
+static UA_StatusCode
+mbedtlsCheckCrlMatch(mbedtls_x509_crt *cert, mbedtls_x509_crl *crl) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    /* Check if the certificate is a CA certificate.
+     * Only a CA certificate can have a CRL. */
+    if(!mbedtlsCheckCA(cert))
+        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+
+    char certSubject[MBEDTLS_X509_MAX_DN_NAME_SIZE];
+    char crlIssuer[MBEDTLS_X509_MAX_DN_NAME_SIZE];
+
+    mbedtls_x509_dn_gets(certSubject, sizeof(certSubject), &cert->subject);
+    mbedtls_x509_dn_gets(crlIssuer, sizeof(crlIssuer), &crl->issuer);
+
+    if(strncmp(certSubject, crlIssuer, MBEDTLS_X509_MAX_DN_NAME_SIZE) == 0) {
+        retval = UA_STATUSCODE_GOOD;
+    } else {
+        retval = UA_STATUSCODE_BADNOMATCH;
+    }
+
+    return retval;
+}
+
+static UA_StatusCode
+mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+             const UA_ByteString *crlList, const size_t crlListSize,
+             UA_ByteString **crls, size_t *crlsSize) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+            "An error occurred while parsing the certificate.");
+        return retval;
+    }
+    UA_Boolean foundMatch = false;
+    for(size_t i = 0; i < crlListSize; i++) {
+        mbedtls_x509_crl crl;
+        mbedtls_x509_crl_init(&crl);
+        retval = UA_mbedTLS_LoadCrl(&crlList[i], &crl);
+        if(retval != UA_STATUSCODE_GOOD) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "An error occurred while parsing the crl.");
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+
+        retval = mbedtlsCheckCrlMatch(&cert, &crl);
+        mbedtls_x509_crl_free(&crl);
+
+        if(retval == UA_STATUSCODE_BADNOMATCH) {
+            continue;
+        }
+        /* If it is not a CA certificate, there is no crl list. */
+        if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+                "The certificate is not a CA certificate and therefore does not have a CRL.");
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+        /* Continue the search, as a certificate may be associated with multiple CRLs. */
+        foundMatch = true;
+        retval = UA_Array_appendCopy((void **)crls, crlsSize, &crlList[i],
+                                 &UA_TYPES[UA_TYPES_BYTESTRING]);
+        if(retval != UA_STATUSCODE_GOOD) {
+            mbedtls_x509_crt_free(&cert);
+            return retval;
+        }
+    }
+    mbedtls_x509_crt_free(&cert);
+
+    if(!foundMatch)
+        return UA_STATUSCODE_BADNOMATCH;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static UA_StatusCode
+MemoryCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                   const UA_Boolean isTrusted, UA_ByteString **crls,
+                                   size_t *crlsSize) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL || crls == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
+
+    if(isTrusted) {
+        return mbedtlsFindCrls(certGroup, certificate,
+                               context->trustList.trustedCrls,
+                               context->trustList.trustedCrlsSize, crls,
+                               crlsSize);
+    }
+    return mbedtlsFindCrls(certGroup, certificate,
+                           context->trustList.issuerCrls,
+                           context->trustList.issuerCrlsSize, crls,
+                           crlsSize);
 }
 
 static UA_StatusCode
@@ -239,6 +344,195 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
     return UA_STATUSCODE_GOOD;
 }
 
+#define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
+#define UA_MBEDTLS_MAX_DN_LENGTH 256
+
+/* We need to access some private fields below */
+#ifndef MBEDTLS_PRIVATE
+#define MBEDTLS_PRIVATE(x) x
+#endif
+
+/* Is the certificate a CA? */
+static UA_Boolean
+mbedtlsCheckCA(mbedtls_x509_crt *cert) {
+    /* The Basic Constraints extension must be set and the cert acts as CA */
+    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_BASIC_CONSTRAINTS) ||
+       !cert->MBEDTLS_PRIVATE(ca_istrue))
+        return false;
+
+    /* The Key Usage extension must be set to cert signing and CRL issuing */
+    if(!(cert->MBEDTLS_PRIVATE(ext_types) & MBEDTLS_X509_EXT_KEY_USAGE) ||
+       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_KEY_CERT_SIGN) != 0 ||
+       mbedtls_x509_crt_check_key_usage(cert, MBEDTLS_X509_KU_CRL_SIGN) != 0)
+        return false;
+
+    return true;
+}
+
+static UA_Boolean
+mbedtlsSameName(UA_String name, const mbedtls_x509_name *name2) {
+    char buf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int len = mbedtls_x509_dn_gets(buf, UA_MBEDTLS_MAX_DN_LENGTH, name2);
+    if(len < 0)
+        return false;
+    UA_String nameString = {(size_t)len, (UA_Byte*)buf};
+    return UA_String_equal(&name, &nameString);
+}
+
+/* Return the first matching issuer candidate AFTER prev.
+ * This can return the cert itself if self-signed. */
+static mbedtls_x509_crt *
+mbedtlsFindNextIssuer(MemoryCertStore *context, mbedtls_x509_crt *stack,
+                      mbedtls_x509_crt *cert, mbedtls_x509_crt *prev) {
+    char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
+    if(nameLen < 0)
+        return NULL;
+    UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
+    do {
+        for(mbedtls_x509_crt *i = stack; i; i = i->next) {
+            if(prev) {
+                if(prev == i)
+                    prev = NULL; /* This was the last issuer we tried to verify */
+                continue;
+            }
+            /* Compare issuer name and subject name.
+             * Skip when the key does not match the signature. */
+            if(mbedtlsSameName(issuerName, &i->subject) &&
+               mbedtls_pk_can_do(&i->pk, cert->MBEDTLS_PRIVATE(sig_pk)))
+                return i;
+        }
+        /* Switch from the stack that came with the cert to the ctx->skIssue list */
+        stack = (stack != &context->issuerCertificates) ? &context->issuerCertificates: NULL;
+    } while(stack);
+    return NULL;
+}
+
+static UA_Boolean
+mbedtlsCheckRevoked(MemoryCertStore *context, mbedtls_x509_crt *cert) {
+    char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
+    int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
+    if(nameLen < 0)
+        return true;
+    UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
+    for(mbedtls_x509_crl *crl = &context->trustedCrls; crl; crl = crl->next) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtls_x509_crt_is_revoked(cert, crl) != 0)
+            return true;
+    }
+    for(mbedtls_x509_crl *crl = &context->issuerCrls; crl; crl = crl->next) {
+        if(mbedtlsSameName(issuerName, &crl->issuer) &&
+           mbedtls_x509_crt_is_revoked(cert, crl) != 0)
+            return true;
+    }
+    return false;
+}
+
+/* Verify that the public key of the issuer was used to sign the certificate */
+static UA_Boolean
+mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
+    size_t hash_len;
+    unsigned char hash[MBEDTLS_MD_MAX_SIZE];
+    mbedtls_md_type_t md = cert->MBEDTLS_PRIVATE(sig_md);
+#if !defined(MBEDTLS_USE_PSA_CRYPTO)
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(md);
+    hash_len = mbedtls_md_get_size(md_info);
+    if(mbedtls_md(md_info, cert->tbs.p, cert->tbs.len, hash) != 0)
+        return false;
+#else
+    if(psa_hash_compute(mbedtls_md_psa_alg_from_type(md), cert->tbs.p,
+                        cert->tbs.len, hash, sizeof(hash), &hash_len) != PSA_SUCCESS)
+        return false;
+#endif
+    const mbedtls_x509_buf *sig = &cert->MBEDTLS_PRIVATE(sig);
+    void *sig_opts = cert->MBEDTLS_PRIVATE(sig_opts);
+    mbedtls_pk_type_t pktype = cert->MBEDTLS_PRIVATE(sig_pk);
+    return (mbedtls_pk_verify_ext(pktype, sig_opts, &issuer->pk, md,
+                                  hash, hash_len, sig->p, sig->len) == 0);
+}
+
+static UA_StatusCode
+mbedtlsVerifyChain(MemoryCertStore *context, mbedtls_x509_crt *stack, mbedtls_x509_crt **old_issuers,
+                   mbedtls_x509_crt *cert, int depth) {
+    /* Maxiumum chain length */
+    if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
+        return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+
+    /* Verification Step: Validity Period */
+    if(mbedtls_x509_time_is_future(&cert->valid_from) ||
+       mbedtls_x509_time_is_past(&cert->valid_to))
+        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
+            UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
+
+    /* Verification Step: Revocation Check */
+    if(mbedtlsCheckRevoked(context, cert))
+        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
+            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+
+    /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
+     * returned only if all possible chains are incomplete. */
+    mbedtls_x509_crt *issuer = NULL;
+    UA_StatusCode ret = UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+    while(ret != UA_STATUSCODE_GOOD) {
+        /* Find the issuer. This can return the same certificate if it is
+         * self-signed (subject == issuer). We come back here to try a different
+         * "path" if a subsequent verification fails. */
+        issuer = mbedtlsFindNextIssuer(context, stack, cert, issuer);
+        if(!issuer)
+            break;
+
+        /* Verification Step: Certificate Usage
+         * Can the issuer act as CA? Omit for self-signed leaf certificates. */
+        if((depth > 0 || issuer != cert) && !mbedtlsCheckCA(issuer)) {
+            ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
+            continue;
+        }
+
+        /* Verification Step: Signature */
+        if(!mbedtlsCheckSignature(cert, issuer)) {
+            ret = UA_STATUSCODE_BADCERTIFICATEINVALID;  /* Wrong issuer, try again */
+            continue;
+        }
+
+        /* The certificate is self-signed. We have arrived at the top of the
+         * chain. We check whether the certificate is trusted below. This is the
+         * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
+         * This signals that the chain is complete (but can be still
+         * untrusted). */
+        if(issuer == cert || (cert->tbs.len == issuer->tbs.len &&
+                              memcmp(cert->tbs.p, issuer->tbs.p, cert->tbs.len) == 0)) {
+            ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
+            continue;
+        }
+
+        /* Detect (endless) loops of issuers. The last one can be skipped by the
+         * check for self-signed just before. */
+        for(int i = 0; i < depth - 1; i++) {
+            if(old_issuers[i] == issuer)
+                return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
+        }
+        old_issuers[depth] = issuer;
+
+        /* We have found the issuer certificate used for the signature. Recurse
+         * to the next certificate in the chain (verify the current issuer). */
+        ret = mbedtlsVerifyChain(context, stack, old_issuers, issuer, depth + 1);
+    }
+
+    /* The chain is complete, but we haven't yet identified a trusted
+     * certificate "on the way down". Can we trust this certificate? */
+    if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
+        for(mbedtls_x509_crt *t = &context->trustedCertificates; t; t = t->next) {
+            if(cert->tbs.len == t->tbs.len &&
+               memcmp(cert->tbs.p, t->tbs.p, cert->tbs.len) == 0)
+                return UA_STATUSCODE_GOOD;
+        }
+    }
+
+    return ret;
+}
+
+/* This follows Part 6, 6.1.3 Determining if a Certificate is trusted.
+ * It defines a sequence of steps for certificate verification. */
 static UA_StatusCode
 verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
@@ -255,216 +549,36 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
         context->reloadRequired = false;
     }
 
-
-    /* Accept the certificate if the store is empty */
-    if(context->trustedCertificates.raw.len == 0 &&
-       context->issuerCertificates.raw.len == 0 &&
-       context->trustedCrls.raw.len == 0 &&
-       context->issuerCrls.raw.len == 0) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_USERLAND,
-                       "No certificate store configured. Accepting the certificate.");
-        return UA_STATUSCODE_GOOD;
-    }
-
-    /* Parse the certificate */
-    mbedtls_x509_crt remoteCertificate;
-
-    /* Temporary Object to parse the trustList */
-    mbedtls_x509_crt *tempCert = NULL;
-
-    /* Temporary Object to parse the revocationList */
-    mbedtls_x509_crl *tempCrl = NULL;
-
-    /* Temporary Object to identify the parent CA when there is no intermediate CA */
-    mbedtls_x509_crt *parentCert = NULL;
-
-    /* Temporary Object to identify the parent CA when there is intermediate CA */
-    mbedtls_x509_crt *parentCert_2 = NULL;
-
-    /* Flag value to identify if the issuer certificate is found */
-    int issuerKnown = 0;
-
-    /* Flag value to identify if the parent certificate found */
-    int parentFound = 0;
-
-    mbedtls_x509_crt_init(&remoteCertificate);
-    int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
+    /* Verification Step: Certificate Structure
+     * This parses the entire certificate chain contained in the bytestring. */
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+    int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
                                          certificate->length);
-    if(mbedErr) {
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-    }
+    if(mbedErr)
+        return UA_STATUSCODE_BADCERTIFICATEINVALID;
 
-    /* Verify */
-    mbedtls_x509_crt_profile crtProfile = {
-            MBEDTLS_X509_ID_FLAG(MBEDTLS_MD_SHA1) | MBEDTLS_X509_ID_FLAG(MBEDTLS_MD_SHA256),
-            0xFFFFFF, 0x000000, 128 * 8 // in bits
-    }; // TODO: remove magic numbers
-
-    uint32_t flags = 0;
-    mbedErr = mbedtls_x509_crt_verify_with_profile(&remoteCertificate,
-                                                   &context->trustedCertificates,
-                                                   &context->trustedCrls,
-                                                   &crtProfile, NULL, &flags, NULL, NULL);
-
-    /* Flag to check if the remote certificate is trusted or not */
-    int TRUSTED = 0;
-
-    /* Check if the remoteCertificate is present in the trustList while mbedErr value is not zero */
-    if(mbedErr && !(flags & MBEDTLS_X509_BADCERT_EXPIRED) && !(flags & MBEDTLS_X509_BADCERT_FUTURE)) {
-        for(tempCert = &context->trustedCertificates; tempCert != NULL; tempCert = tempCert->next) {
-            if(remoteCertificate.raw.len == tempCert->raw.len &&
-               memcmp(remoteCertificate.raw.p, tempCert->raw.p, remoteCertificate.raw.len) == 0) {
-                TRUSTED = REMOTECERTIFICATETRUSTED;
-                break;
-            }
-        }
-    }
-
-    /* If the remote certificate is present in the trustList then check if the issuer certificate
-     * of remoteCertificate is present in issuerList */
-    if(TRUSTED && mbedErr) {
-        mbedErr = mbedtls_x509_crt_verify_with_profile(&remoteCertificate,
-                                                       &context->issuerCertificates,
-                                                       &context->issuerCrls,
-                                                       &crtProfile, NULL, &flags, NULL, NULL);
-
-        /* Check if the parent certificate has a CRL file available */
-        if(!mbedErr) {
-            /* Flag value to identify if that there is an intermediate CA present */
-            int dualParent = 0;
-
-            /* Identify the topmost parent certificate for the remoteCertificate */
-            for(parentCert = &context->issuerCertificates; parentCert != NULL; parentCert = parentCert->next ) {
-                if(memcmp(remoteCertificate.issuer_raw.p, parentCert->subject_raw.p, parentCert->subject_raw.len) == 0) {
-                    for(parentCert_2 = &context->trustedCertificates; parentCert_2 != NULL; parentCert_2 = parentCert_2->next) {
-                        if(memcmp(parentCert->issuer_raw.p, parentCert_2->subject_raw.p, parentCert_2->subject_raw.len) == 0) {
-                            dualParent = DUALPARENT;
-                            break;
-                        }
-                    }
-                    parentFound = PARENTFOUND;
-                }
-
-                if(parentFound == PARENTFOUND)
-                    break;
-            }
-
-            /* Check if there is an intermediate certificate between the topmost parent
-             * certificate and child certificate
-             * If yes the topmost parent certificate is to be checked whether it has a
-             * CRL file avaiable */
-            if(dualParent == DUALPARENT && parentFound == PARENTFOUND) {
-                parentCert = parentCert_2;
-            }
-
-            /* If a parent certificate is found traverse the revocationList and identify
-             * if there is any CRL file that corresponds to the parentCertificate */
-            if(parentFound == PARENTFOUND) {
-                tempCrl = &context->issuerCrls;
-                while(tempCrl != NULL) {
-                    if(tempCrl->version != 0 &&
-                       tempCrl->issuer_raw.len == parentCert->subject_raw.len &&
-                       memcmp(tempCrl->issuer_raw.p,
-                              parentCert->subject_raw.p,
-                              tempCrl->issuer_raw.len) == 0) {
-                        issuerKnown = ISSUERKNOWN;
-                        break;
-                    }
-
-                    tempCrl = tempCrl->next;
-                }
-
-                /* If the CRL file corresponding to the parent certificate is not present
-                 * then return UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN */
-                if(!issuerKnown) {
-                    return UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
-                }
-            }
-        }
-    }
-    else if(!mbedErr && !TRUSTED) {
-        /* This else if section is to identify if the parent certificate which is present in trustList
-         * has CRL file corresponding to it */
-
-        /* Identify the parent certificate of the remoteCertificate */
-        for(parentCert = &context->trustedCertificates; parentCert != NULL; parentCert = parentCert->next) {
-            if(memcmp(remoteCertificate.issuer_raw.p, parentCert->subject_raw.p, parentCert->subject_raw.len) == 0) {
-                parentFound = PARENTFOUND;
-                break;
-            }
-        }
-
-        /* If the parent certificate is found traverse the revocationList and identify
-         * if there is any CRL file that corresponds to the parentCertificate */
-        if(parentFound == PARENTFOUND &&
-           memcmp(remoteCertificate.issuer_raw.p, remoteCertificate.subject_raw.p, remoteCertificate.subject_raw.len) != 0) {
-            tempCrl = &context->trustedCrls;
-            while(tempCrl != NULL) {
-                if(tempCrl->version != 0 &&
-                   tempCrl->issuer_raw.len == parentCert->subject_raw.len &&
-                   memcmp(tempCrl->issuer_raw.p,
-                          parentCert->subject_raw.p,
-                          tempCrl->issuer_raw.len) == 0) {
-                    issuerKnown = ISSUERKNOWN;
-                    break;
-                }
-
-                tempCrl = tempCrl->next;
-            }
-
-            /* If the CRL file corresponding to the parent certificate is not present
-             * then return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN */
-            if(!issuerKnown) {
-                return UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
-            }
-
-        }
-
-    }
-
-    // TODO: Extend verification
-
-    /* This condition will check whether the certificate is a User certificate
-     * or a CA certificate. If the MBEDTLS_X509_KU_KEY_CERT_SIGN and
-     * MBEDTLS_X509_KU_CRL_SIGN of key_usage are set, then the certificate
-     * shall be condidered as CA Certificate and cannot be used to establish a
-     * connection. Refer the test case CTT/Security/Security Certificate Validation/029.js
-     * for more details */
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    if((remoteCertificate.key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
-       (remoteCertificate.key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
+    /* Verification Step: Certificate Usage
+     * Check whether the certificate is a User certificate or a CA certificate.
+     * Refer the test case CTT/Security/Security Certificate Validation/029.js
+     * for more details. */
+    if(mbedtlsCheckCA(&cert)) {
+        mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
-#else
-    if((remoteCertificate.private_key_usage & MBEDTLS_X509_KU_KEY_CERT_SIGN) &&
-       (remoteCertificate.private_key_usage & MBEDTLS_X509_KU_CRL_SIGN)) {
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-    }
-#endif
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-    if(mbedErr) {
-#if UA_LOGLEVEL <= 400
-        char buff[100];
-        int len = mbedtls_x509_crt_verify_info(buff, 100, "", flags);
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "Verifying the certificate failed with error: %.*s", len-1, buff);
-#endif
-        if(flags & (uint32_t)MBEDTLS_X509_BADCERT_NOT_TRUSTED) {
-            retval = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-        } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_FUTURE ||
-                  flags & (uint32_t)MBEDTLS_X509_BADCERT_EXPIRED) {
-            retval = UA_STATUSCODE_BADCERTIFICATETIMEINVALID;
-        } else if(flags & (uint32_t)MBEDTLS_X509_BADCERT_REVOKED ||
-                  flags & (uint32_t)MBEDTLS_X509_BADCRL_EXPIRED) {
-            retval = UA_STATUSCODE_BADCERTIFICATEREVOKED;
-        } else {
-            retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        }
-    }
+    /* These steps are performed outside of this method.
+     * Because we need the server or client context.
+     * - Security Policy
+     * - Host Name
+     * - URI */
 
-    mbedtls_x509_crt_free(&remoteCertificate);
-    return retval;
+    /* Verification Step: Build Certificate Chain
+     * We perform the checks for each certificate inside. */
+    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
+    UA_StatusCode ret = mbedtlsVerifyChain(context, &cert, old_issuers, &cert, 0);
+    mbedtls_x509_crt_free(&cert);
+    return ret;
 }
 
 static UA_StatusCode
@@ -476,10 +590,7 @@ MemoryCertStore_verifyCertificate(UA_CertificateGroup *certGroup,
     }
 
     UA_StatusCode retval = verifyCertificate(certGroup, certificate);
-    if(retval == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
-        retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
-        retval == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN ||
-        retval == UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN) {
+    if(retval != UA_STATUSCODE_GOOD) {
         if(MemoryCertStore_addToRejectedList(certGroup, certificate) != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                            "Could not append certificate to rejected list");
@@ -513,6 +624,7 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = MemoryCertStore_addToTrustList;
     certGroup->removeFromTrustList = MemoryCertStore_removeFromTrustList;
     certGroup->getRejectedList = MemoryCertStore_getRejectedList;
+    certGroup->getCertificateCrls = MemoryCertStore_getCertificateCrls;
     certGroup->verifyCertificate = MemoryCertStore_verifyCertificate;
     certGroup->clear = MemoryCertStore_clear;
 
@@ -673,25 +785,31 @@ UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
     if(certificate == NULL || thumbprint->length != (UA_SHA1_LENGTH * 2))
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_ByteString thumbpr = UA_BYTESTRING_NULL;
-    UA_ByteString_allocBuffer(&thumbpr, UA_SHA1_LENGTH);
+    // prepare temporary to hold the binary thumbprint
+    UA_Byte buf[UA_SHA1_LENGTH];
+    UA_ByteString thumbpr = {
+        /*.length =*/ sizeof(buf),
+        /*.data =*/ buf
+    };
 
     retval = mbedtls_thumbprint_sha1(certificate, &thumbpr);
 
-    UA_String thumb = UA_STRING_NULL;
-    thumb.length = (UA_SHA1_LENGTH * 2) + 1;
-    thumb.data = (UA_Byte*)malloc(sizeof(UA_Byte)*thumb.length);
-
-    /* Create a string containing a hex representation */
-    char *p = (char*)thumb.data;
-    for (size_t i = 0; i < thumbpr.length; i++) {
-        p += sprintf(p, "%.2X", thumbpr.data[i]);
+    // convert to hexadecimal string representation
+    size_t t = 0u;
+    for (size_t i = 0u; i < thumbpr.length; i++) {
+        UA_Byte shift = 4u;
+        // byte consists of two nibbles: AAAABBBB
+        const UA_Byte curByte = thumbpr.data[i];
+        // convert AAAA first then BBBB
+        for(size_t n = 0u; n < 2u; n++) {
+            UA_Byte curNibble = (curByte >> shift) & 0x0Fu;
+            if(curNibble >= 10u)
+                thumbprint->data[t++] = (65u + (curNibble - 10u));  // 65 == 'A'
+            else
+                thumbprint->data[t++] = (48u + curNibble);          // 48 == '0'
+            shift -= 4u;
+        }
     }
-
-    memcpy(thumbprint->data, thumb.data, thumbprint->length);
-
-    UA_ByteString_clear(&thumbpr);
-    UA_ByteString_clear(&thumb);
 
     return retval;
 }
@@ -717,6 +835,168 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
     mbedtls_x509_crt_free(&publicKey);
 
     return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    mbedtls_x509_crt cert1;
+    mbedtls_x509_crt cert2;
+    mbedtls_x509_csr csr1;
+    mbedtls_x509_csr csr2;
+    mbedtls_mpi N1, E1;
+    mbedtls_mpi N2, E2;
+
+    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate1);
+    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(certificate2);
+
+    mbedtls_x509_crt_init(&cert1);
+    mbedtls_x509_crt_init(&cert2);
+    mbedtls_x509_csr_init(&csr1);
+    mbedtls_x509_csr_init(&csr2);
+    mbedtls_mpi_init(&N1);
+    mbedtls_mpi_init(&E1);
+    mbedtls_mpi_init(&N2);
+    mbedtls_mpi_init(&E2);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert1, data1.data, data1.length);
+    if(mbedErr) {
+        /* Try to load as a csr */
+        mbedErr = mbedtls_x509_csr_parse(&csr1, data1.data, data1.length);
+        if(mbedErr) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+
+    mbedErr = mbedtls_x509_crt_parse(&cert2, data2.data, data2.length);
+    if(mbedErr) {
+        /* Try to load as a csr */
+        mbedErr = mbedtls_x509_csr_parse(&csr2, data2.data, data2.length);
+        if(mbedErr) {
+            retval = UA_STATUSCODE_BADINTERNALERROR;
+            goto cleanup;
+        }
+    }
+
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+    mbedtls_pk_context pk1 = cert1.pk.pk_info ? cert1.pk : csr1.pk;
+    mbedtls_pk_context pk2 = cert2.pk.pk_info ? cert2.pk : csr2.pk;
+#else
+    mbedtls_pk_context pk1 = cert1.pk_raw.p ? cert1.pk : csr1.pk;
+    mbedtls_pk_context pk2 = cert2.pk_raw.p ? cert2.pk : csr2.pk;
+#endif
+
+    if(!mbedtls_pk_rsa(pk1) || !mbedtls_pk_rsa(pk2)) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+    if(!mbedtls_pk_can_do(&pk1, MBEDTLS_PK_RSA) &&
+       !mbedtls_pk_can_do(&pk2, MBEDTLS_PK_RSA)) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+#if MBEDTLS_VERSION_NUMBER < 0x02070000
+    N1 = mbedtls_pk_rsa(pk1)->N;
+    E1 = mbedtls_pk_rsa(pk1)->E;
+    N2 = mbedtls_pk_rsa(pk2)->N;
+    E2 = mbedtls_pk_rsa(pk2)->E;
+#else
+    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk1), &N1, NULL, NULL, NULL, &E1) != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+    if(mbedtls_rsa_export(mbedtls_pk_rsa(pk2), &N2, NULL, NULL, NULL, &E2) != 0) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+#endif
+
+    if(mbedtls_mpi_cmp_mpi(&N1, &N2) || mbedtls_mpi_cmp_mpi(&E1, &E2))
+        retval = UA_STATUSCODE_BADNOMATCH;
+
+cleanup:
+    mbedtls_mpi_free(&N1);
+    mbedtls_mpi_free(&E1);
+    mbedtls_mpi_free(&N2);
+    mbedtls_mpi_free(&E2);
+    mbedtls_x509_crt_free(&cert1);
+    mbedtls_x509_crt_free(&cert2);
+    mbedtls_x509_csr_free(&csr1);
+    mbedtls_x509_csr_free(&csr2);
+    UA_ByteString_clear(&data1);
+    UA_ByteString_clear(&data2);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    mbedtls_x509_crt cert;
+    mbedtls_pk_context pk;
+
+    mbedtls_x509_crt_init(&cert);
+    mbedtls_pk_init(&pk);
+
+    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate);
+    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(privateKey);
+
+    int mbedErr = mbedtls_x509_crt_parse(&cert, data1.data, data1.length);
+    if(mbedErr) {
+        retval = UA_STATUSCODE_BADINTERNALERROR;
+        goto cleanup;
+    }
+
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0);
+#else
+    mbedtls_entropy_context entropy;
+    mbedtls_entropy_init(&entropy);
+    int err = mbedtls_pk_parse_key(&pk, data2.data,
+                                   data2.length,
+                                   NULL, 0,
+                                   mbedtls_entropy_func, &entropy);
+    mbedtls_entropy_free(&entropy);
+#endif
+
+    if(err != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Verify the private key matches the public key in the certificate */
+    if(!mbedtls_pk_can_do(&pk, mbedtls_pk_get_type(&cert.pk))) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        goto cleanup;
+    }
+
+    /* Check if the public key from the certificate matches the private key */
+#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
+    if(mbedtls_pk_check_pair(&cert.pk, &pk) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#else
+    if(mbedtls_pk_check_pair(&cert.pk, &pk, mbedtls_entropy_func, NULL) != 0) {
+        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    }
+#endif
+
+cleanup:
+    mbedtls_pk_free(&pk);
+    mbedtls_x509_crt_free(&cert);
+    UA_ByteString_clear(&data1);
+    UA_ByteString_clear(&data2);
+
+    return retval;
 }
 
 UA_StatusCode

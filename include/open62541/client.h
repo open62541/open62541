@@ -101,9 +101,9 @@ struct UA_ClientConfig {
      * message. */
     UA_ExtensionObject userIdentityToken; /* Configured User-Identity Token */
     UA_MessageSecurityMode securityMode;  /* None, Sign, SignAndEncrypt. The
-                                           * default is invalid. This indicates
-                                           * the client to select any matching
-                                           * endpoint. */
+                                           * default is "invalid". This
+                                           * indicates the client to select any
+                                           * matching endpoint. */
     UA_String securityPolicyUri; /* SecurityPolicy for the SecureChannel. An
                                   * empty string indicates the client to select
                                   * any matching SecurityPolicy. */
@@ -116,27 +116,16 @@ struct UA_ClientConfig {
                               * connection when the Session is lost. */
 
     /**
-     * If either endpoint or userTokenPolicy has been set (at least one non-zero
-     * byte in either structure), then the selected Endpoint and UserTokenPolicy
-     * overwrite the settings in the basic connection configuration. The
-     * userTokenPolicy array in the EndpointDescription is ignored. The selected
-     * userTokenPolicy is set in the dedicated configuration field.
-     *
-     * If the advanced configuration is not set, the client will write to it the
-     * selected Endpoint and UserTokenPolicy during GetEndpoints.
-     *
-     * The information in the advanced configuration is used during reconnect
-     * when the SecureChannel was broken. */
+     * If either endpoint or userTokenPolicy has been set, then they are used
+     * directly. Otherwise this information comes from the GetEndpoints response
+     * from the server (filtered and selected for the SecurityMode, etc.). */
     UA_EndpointDescription endpoint;
     UA_UserTokenPolicy userTokenPolicy;
 
     /**
      * If the EndpointDescription has not been defined, the ApplicationURI
-     * constrains the servers considered in the FindServers service and the
-     * Endpoints considered in the GetEndpoints service.
-     *
-     * If empty the applicationURI is not used to filter.
-     */
+     * filters the servers considered in the FindServers service and the
+     * Endpoints considered in the GetEndpoints service. */
     UA_String applicationUri;
 
     /**
@@ -189,6 +178,7 @@ struct UA_ClientConfig {
      * secure channel is selected.*/
     size_t authSecurityPoliciesSize;
     UA_SecurityPolicy *authSecurityPolicies;
+
     /* SecurityPolicyUri for the Authentication. */
     UA_String authSecurityPolicyUri;
 
@@ -272,7 +262,7 @@ UA_ClientConfig_setAuthenticationUsername(UA_ClientConfig *config,
     if(!identityToken)
         return UA_STATUSCODE_BADOUTOFMEMORY;
     identityToken->userName = UA_STRING_ALLOC(username);
-    identityToken->password = UA_STRING_ALLOC(password);
+    identityToken->password = UA_BYTESTRING_ALLOC(password);
 
     UA_ExtensionObject_clear(&config->userIdentityToken);
     UA_ExtensionObject_setValue(&config->userIdentityToken, identityToken,

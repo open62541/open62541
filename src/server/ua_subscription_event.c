@@ -286,7 +286,7 @@ UA_StatusCode
 triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
              const UA_NodeId origin, UA_ByteString *outEventId,
              const UA_Boolean deleteEventNode) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
                  "Events: An event is triggered on node %N", origin);

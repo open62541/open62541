@@ -26,7 +26,7 @@ void UA_Session_init(UA_Session *session) {
 }
 
 void UA_Session_clear(UA_Session *session, UA_Server* server) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Remove all Subscriptions. This may send out remaining publish
      * responses. */

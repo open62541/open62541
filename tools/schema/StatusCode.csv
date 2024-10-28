@@ -213,6 +213,7 @@ BadAggregateConfigurationRejected,0x80DA0000,"The aggregate configuration is not
 GoodDataIgnored,0x00D90000,"The request specifies fields which are not valid for the EventType or cannot be saved by the historian."
 BadRequestNotAllowed,0x80E40000,"The request was rejected by the server because it did not meet the criteria set by the server."
 BadRequestNotComplete,0x81130000,"The request has not been processed by the server yet."
+BadTransactionPending,0x80E80000,"The operation is not allowed because a transaction is in progress."
 BadTicketRequired,0x811F0000,"The device identity needs a ticket before it can be accepted."
 BadTicketInvalid,0x81200000,"The device identity needs a ticket before it can be accepted."
 GoodEdited,0x00DC0000,"The value does not come from the real source and has been edited by the server."

@@ -11,8 +11,7 @@
  */
 
 #include <open62541/server_pubsub.h>
-#include "ua_pubsub.h"
-#include "../server/ua_server_internal.h"
+#include "ua_pubsub_internal.h"
 
 #ifdef UA_ENABLE_PUBSUB /* conditional compilation */
 
@@ -581,8 +580,6 @@ UA_PublishedDataSet_create(UA_PubSubManager *psm,
         UA_PubSubConfigurationVersionTimeDifference(el->dateTime_now(el));
     switch(newConfig->publishedDataSetType) {
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS_TEMPLATE:
-        res = UA_STATUSCODE_BADNOTSUPPORTED;
-        break;
     case UA_PUBSUB_DATASET_PUBLISHEDEVENTS:
         res = UA_STATUSCODE_BADNOTSUPPORTED;
         break;
@@ -745,7 +742,7 @@ addSubscribedDataSet(UA_PubSubManager *psm,
     if(!psm)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     if(!sdsConfig) {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,

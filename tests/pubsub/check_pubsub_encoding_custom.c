@@ -7,7 +7,7 @@
 
 #include <open62541/types.h>
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_networkmessage.h"
 
 #include "math.h"

@@ -11,10 +11,11 @@
 #include <open62541/plugin/securitypolicy_default.h>
 #include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include "test_helpers.h"
-#include "ua_pubsub.h"
 #include "ua_pubsub_keystorage.h"
+#include "ua_pubsub_internal.h"
 #include "ua_server_internal.h"
 
 #include <check.h>
@@ -114,12 +115,27 @@ setup(void) {
     privateKey.length = KEY_DER_LENGTH;
     privateKey.data = KEY_DER_DATA;
 
-    size_t trustListSize = 0;
-    UA_ByteString *trustList = NULL;
-    size_t issuerListSize = 0;
-    UA_ByteString *issuerList = NULL;
+    UA_ByteString rootCa = {ROOT_CERT_DER_LENGTH, ROOT_CERT_DER_DATA};
+    UA_ByteString rootCaCrl = {ROOT_CRL_PEM_LENGTH, ROOT_CRL_PEM_DATA};
+    UA_ByteString intermediateCa = {INTERMEDIATE_CERT_DER_LENGTH, INTERMEDIATE_CERT_DER_DATA};
+    UA_ByteString intermediateCaCrl = {INTERMEDIATE_EMPTY_CRL_PEM_LENGTH, INTERMEDIATE_EMPTY_CRL_PEM_DATA};
+
+    /* Load the trustlist */
+    size_t trustListSize = 2;
+    UA_STACKARRAY(UA_ByteString, trustList, trustListSize);
+    trustList[0] = intermediateCa;
+    trustList[1] = rootCa;
+
+    /* Load the issuerList */
+    size_t issuerListSize = 2;
+    UA_STACKARRAY(UA_ByteString, issuerList, issuerListSize);
+    issuerList[0] = rootCa;
+    issuerList[1] = intermediateCa;
+
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
+
+
     UA_StatusCode retVal = UA_STATUSCODE_GOOD;
     sksServer = UA_Server_newForUnitTestWithSecurityPolicies(4840, &certificate, &privateKey,
                                                              trustList, trustListSize,
@@ -194,13 +210,12 @@ encyrptedclientconnect(UA_Client *client) {
 
     /* Load certificate and private key */
     UA_ByteString certificate;
-    certificate.length = CERT_DER_LENGTH;
-    certificate.data = CERT_DER_DATA;
-    ck_assert_uint_ne(certificate.length, 0);
+    certificate.length = APPLICATION_CERT_DER_LENGTH;
+    certificate.data = APPLICATION_CERT_DER_DATA;
 
     UA_ByteString privateKey;
-    privateKey.length = KEY_DER_LENGTH;
-    privateKey.data = KEY_DER_DATA;
+    privateKey.length = APPLICATION_KEY_DER_LENGTH;
+    privateKey.data = APPLICATION_KEY_DER_DATA;
     ck_assert_uint_ne(privateKey.length, 0);
 
     /* Secure client initialization */
@@ -213,6 +228,8 @@ encyrptedclientconnect(UA_Client *client) {
     cc->securityPolicyUri =
         UA_STRING_ALLOC("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     ck_assert(client != NULL);
+
+    UA_CertificateGroup_AcceptAll(&cc->certificateVerification);
 
     return UA_STATUSCODE_GOOD;
 }

@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.13)
-
-# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
-set(ANDROID_PLATFORM 24)
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
@@ -9,13 +7,13 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+##################
+# CMake Packages #
+##################
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
-
 find_package(Python3 REQUIRED)
 find_package(Git)
-
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 include(open62541Macros)
@@ -37,7 +35,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 4)
+set(OPEN62541_VER_PATCH 6)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -59,7 +57,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -76,7 +74,16 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
     set(UA_ARCHITECTURE_POSIX 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    set(UA_ARCHITECTURE_ZEPHYR 1)
+    if(NOT CONFIG_OPEN62541)
+        return()
+    endif()
+    include(zephyr/zephyr.cmake)
 endif()
+
+# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
+set(ANDROID_PLATFORM 24)
 
 #################
 # Build Options #
@@ -454,6 +461,10 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL)
     # https://cmake.org/cmake/help/v3.13/module/FindOpenSSL.html
     find_package(OpenSSL REQUIRED)
     list(APPEND open62541_LIBRARIES "${OPENSSL_LIBRARIES}")
+    if(WIN32)
+        # Add bestcrypt for windows systems
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_LIBRESSL)
@@ -472,6 +483,10 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     # defined in /tools/cmake/FindMbedTLS.cmake.
     find_package(MbedTLS REQUIRED)
     list(APPEND open62541_LIBRARIES ${MBEDTLS_LIBRARIES})
+    if(WIN32)
+        # Add bestcrypt for windows systems
+        list(APPEND open62541_LIBRARIES bcrypt)
+    endif()
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
@@ -503,7 +518,8 @@ function(add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
+   NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -744,7 +760,7 @@ set(lib_headers ${PROJECT_SOURCE_DIR}/deps/open62541_queue.h
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage.h
-                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub.h
+                ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_internal.h
                 ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_keystorage.h)
 
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
@@ -898,18 +914,26 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 
 # Always add the POSIX eventloop. The files internally check for the configured architecture
 list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/arch/clock.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
+
+if(UA_ARCHITECTURE_ZEPHYR)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+endif()
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1198,8 +1222,15 @@ assign_source_group(${lib_headers} ${lib_sources})
 assign_source_group(${plugin_headers} ${plugin_sources})
 
 # Define the target libraries
-add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
-add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+if(${UA_ARCHITECTURE} STREQUAL "zephyr")
+    zephyr_library_named(open62541-object)
+    zephyr_library_named(open62541-plugins)
+    target_sources(open62541-object PRIVATE ${lib_sources} ${lib_headers} ${exported_headers})
+    target_sources(open62541-plugins PRIVATE ${plugin_sources} ${plugin_headers})
+else()
+    add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
 add_dependencies(open62541-object open62541-code-generation)
@@ -1309,14 +1340,6 @@ if(UA_BUILD_TOOLS)
         add_subdirectory(tools/tpm_keystore)
     endif()
 endif()
-
-########################
-# Linting as target    #
-########################
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-include(linting_build)
-include(linting_target)
 
 ##########################
 # Installation           #

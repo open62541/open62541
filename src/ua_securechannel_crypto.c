@@ -481,7 +481,7 @@ UA_StatusCode
 checkAsymHeader(UA_SecureChannel *channel,
                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
     const UA_SecurityPolicy *sp = channel->securityPolicy;
-    if(!UA_ByteString_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
+    if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
 
     return sp->asymmetricModule.

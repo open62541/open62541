@@ -10,9 +10,8 @@
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 #include "ua_pubsub_keystorage.h"
-#include "../server/ua_server_internal.h"
 
 #define UA_PUBSUB_KEYMATERIAL_NONCELENGTH 32
 
@@ -164,7 +163,7 @@ updateSKSKeyStorage(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
 
 static UA_StatusCode
 initializeKeyStorageWithKeys(UA_PubSubManager *psm, UA_SecurityGroup *sg) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_PubSubSecurityPolicy *policy =
         findPubSubSecurityPolicy(psm, &sg->config.securityPolicyUri);

@@ -151,6 +151,9 @@ deleteServerSecureChannel(UA_BinaryProtocolManager *bpm,
         break;
     }
 
+    /* Clean up the SecureChannel. This is the only place where
+     * UA_SecureChannel_clear must be called within the server code-base. */
+    UA_SecureChannel_clear(channel);
     UA_free(channel);
 }
 
@@ -574,7 +577,7 @@ configServerSecureChannel(void *application, UA_SecureChannel *channel,
     UA_Server *const server = (UA_Server *const) application;
     for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
-        if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
+        if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
             continue;
 
         UA_StatusCode res = policy->asymmetricModule.
@@ -835,7 +838,7 @@ createServerConnection(UA_BinaryProtocolManager *bpm, const UA_String *serverUrl
     UA_Server *server = bpm->sc.server;
     UA_ServerConfig *config = &server->config;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Extract the protocol, hostname and port from the url */
     UA_String hostname = UA_STRING_NULL;
@@ -1025,7 +1028,7 @@ attemptReverseConnect(UA_BinaryProtocolManager *bpm, reverse_connect_context *co
     UA_ServerConfig *config = &server->config;
     UA_EventLoop *el = config->eventLoop;
 
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Find a TCP ConnectionManager */
     UA_String tcpString = UA_STRING_STATIC("tcp");

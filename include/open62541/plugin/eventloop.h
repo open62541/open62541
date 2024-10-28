@@ -29,7 +29,7 @@ struct UA_InterruptManager;
 typedef struct UA_InterruptManager UA_InterruptManager;
 
 /**
- * Event Loop Subsystem
+ * EventLoop Plugin API
  * ====================
  * An OPC UA-enabled application can have several clients and servers. And
  * server can serve different transport-level protocols for OPC UA. The
@@ -76,7 +76,7 @@ typedef void (*UA_Callback)(void *application, void *context);
 /* Delayed callbacks are executed not when they are registered, but in the
  * following EventLoop cycle */
 typedef struct UA_DelayedCallback {
-    struct UA_DelayedCallback *next; /* Singly-linked list */
+    struct UA_DelayedCallback *next;
     UA_Callback callback;
     void *application;
     void *context;
@@ -191,13 +191,16 @@ struct UA_EventLoop {
      * delay a resource cleanup to a point where it is known that the resource
      * has no remaining users.
      *
-     * The delayed callbacks are processed in each of the cycle of the EventLoop
+     * The delayed callbacks are processed in each cycle of the EventLoop
      * between the handling of periodic callbacks and polling for (network)
      * events. The memory for the delayed callback is *NOT* automatically freed
-     * after the execution.
+     * after the execution. But this can be done from within the callback.
      *
-     * addDelayedCallback is non-blocking and can be called from an interrupt
-     * context. removeDelayedCallback can take a mutex and is blocking. */
+     * Delayed callbacks are processed in the order in which they are added.
+     *
+     * The delayed callback API is thread-safe. addDelayedCallback is
+     * non-blocking and can be called from an interrupt context.
+     * removeDelayedCallback can take a mutex and is blocking. */
 
     void (*addDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
     void (*removeDelayedCallback)(UA_EventLoop *el, UA_DelayedCallback *dc);
@@ -747,7 +750,15 @@ UA_ConnectionManager_new_MQTT(const UA_String eventSourceName);
 UA_EXPORT UA_InterruptManager *
 UA_InterruptManager_new_POSIX(const UA_String eventSourceName);
 
-#endif /* defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) */
+#elif defined(UA_ARCHITECTURE_ZEPHYR)
+
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_Zephyr(const UA_Logger *logger);
+
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName);
+
+#endif
 
 _UA_END_DECLS
 

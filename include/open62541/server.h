@@ -405,7 +405,7 @@ UA_ServerConfig_clear(UA_ServerConfig *config);
 
 UA_DEPRECATED static UA_INLINE void
 UA_ServerConfig_clean(UA_ServerConfig *config) {
-	UA_ServerConfig_clear(config);
+    UA_ServerConfig_clear(config);
 }
 
 /**
@@ -1892,11 +1892,10 @@ UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
 
 UA_StatusCode UA_EXPORT
 UA_Server_updateCertificate(UA_Server *server,
-                            const UA_ByteString *oldCertificate,
-                            const UA_ByteString *newCertificate,
-                            const UA_ByteString *newPrivateKey,
-                            UA_Boolean closeSessions,
-                            UA_Boolean closeSecureChannels);
+                            const UA_NodeId certificateGroupId,
+                            const UA_NodeId certificateTypeId,
+                            const UA_ByteString certificate,
+                            const UA_ByteString *privateKey);
 
 /**
  * Creates a PKCS #10 DER encoded certificate request signed with the server's private key
@@ -1909,6 +1908,46 @@ UA_Server_createSigningRequest(UA_Server *server,
                                const UA_Boolean *regenerateKey,
                                const UA_ByteString *nonce,
                                UA_ByteString *csr);
+
+/* Adds certificates and Certificate Revocation Lists (CRLs) to a specific certificate group
+ * on the server.
+ *
+ * @param server The server object
+ * @param certificateGroupId The NodeId of the certificate group where certificates will be added
+ * @param certificates The certificates to be added
+ * @param certificatesSize The number of certificates
+ * @param crls The associated CRLs for the certificates, required when adding issuer certificates
+ * @param crlsSize The number of CRLs
+ * @param isTrusted Indicates whether the certificates should be added to the trusted list or the issuer list
+ * @param appendCertificates Indicates whether the certificates should be added to the list or replace the existing list
+ * @return ``UA_STATUSCODE_GOOD`` on success
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_addCertificates(UA_Server *server,
+                          const UA_NodeId certificateGroupId,
+                          UA_ByteString *certificates,
+                          size_t certificatesSize,
+                          UA_ByteString *crls,
+                          size_t crlsSize,
+                          const UA_Boolean isTrusted,
+                          const UA_Boolean appendCertificates);
+
+/* Removes certificates from a specific certificate group on the server.
+ * The corresponding CRLs are removed automatically.
+ *
+ * @param server The server object
+ * @param certificateGroupId The NodeId of the certificate group from which certificates will be removed
+ * @param certificates The certificates to be removed
+ * @param certificatesSize The number of certificates
+ * @param isTrusted Indicates whether the certificates are being removed from the trusted list or the issuer list
+ * @return ``UA_STATUSCODE_GOOD`` on success
+ */
+UA_StatusCode UA_EXPORT
+UA_Server_removeCertificates(UA_Server *server,
+                          const UA_NodeId certificateGroupId,
+                          UA_ByteString *certificates,
+                          size_t certificatesSize,
+                          const UA_Boolean isTrusted);
 
 /**
  * Utility Functions

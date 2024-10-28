@@ -28,7 +28,12 @@ _UA_BEGIN_DECLS
 #define UA_MACRO_EXPAND(x) x
 
 /* Try if the type of the value can be adjusted "in situ" to the target type.
- * That can be done, for example, to map between int32 and an enum. */
+ * That can be done, for example, to map between int32 and an enum.
+ *
+ * This can also "unwrap" a type. For example: string -> array of bytes
+ *
+ * If value->data is changed during adjustType, free the pointer afterwards (if
+ * you did not keep the original variant for _clear). */
 void
 adjustType(UA_Variant *value, const UA_DataType *targetType);
 
@@ -54,14 +59,15 @@ lookupRefType(UA_Server *server, UA_QualifiedName *qn, UA_NodeId *outRefTypeId);
 UA_StatusCode
 getRefTypeBrowseName(const UA_NodeId *refTypeId, UA_String *outBN);
 
-/* Unescape &-escaped string. The string is modified */
-void
-UA_String_unescape(UA_String *s, UA_Boolean extended);
+/* Unescape &-escaped string. The string is modified.
+ * Returns the end position of the unescaped string. */
+char *
+unescape(char *pos, const char *end);
 
 /* Returns the position of the first unescaped reserved character (or the end
  * position) */
 char *
-find_unescaped(char *pos, char *end, UA_Boolean extended);
+find_unescaped(char *pos, const char *end, UA_Boolean extended);
 
 /* Escape s2 and append it to s. Memory is allocated internally. */
 UA_StatusCode

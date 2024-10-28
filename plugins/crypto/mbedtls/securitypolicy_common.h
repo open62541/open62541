@@ -23,14 +23,16 @@
 #define UA_SHA1_LENGTH 20
 #define UA_MAXSUBJECTLENGTH 512
 #define MBEDTLS_SAN_MAX_LEN    64
-#define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
-    do                                     \
-    {                                      \
-        if((ret = (f)) < 0)                \
-        goto cleanup;                      \
-        else                               \
-        (g) += ret;                        \
-    } while (0)
+#ifndef WIN32
+    #define MBEDTLS_ASN1_CHK_CLEANUP_ADD(g, f) \
+        do                                     \
+        {                                      \
+            if((ret = (f)) < 0)                \
+            goto cleanup;                      \
+            else                               \
+            (g) += ret;                        \
+        } while (0)
+#endif
 
 _UA_BEGIN_DECLS
 
@@ -96,6 +98,24 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
                              UA_ByteString *newPrivateKey);
 
 int UA_mbedTLS_LoadPrivateKey(const UA_ByteString *key, mbedtls_pk_context *target, void *p_rng);
+
+UA_StatusCode
+UA_mbedTLS_LoadCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadDerCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadPemCertificate(const UA_ByteString *certificate, mbedtls_x509_crt *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadDerCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
+
+UA_StatusCode
+UA_mbedTLS_LoadPemCrl(const UA_ByteString *crl, mbedtls_x509_crl *target);
 
 UA_StatusCode UA_mbedTLS_LoadLocalCertificate(const UA_ByteString *certData, UA_ByteString *target);
 

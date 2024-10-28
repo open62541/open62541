@@ -7,12 +7,13 @@
  */
 
 #include <open62541/plugin/create_certificate.h>
-#include <time.h>
-
-#include "securitypolicy_common.h"
-#include "../../arch/eventloop_posix/eventloop_posix.h"
 
 #if defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+
+#include "securitypolicy_common.h"
+#include "../../arch/posix/eventloop_posix.h"
+
+#include <time.h>
 
 #include <mbedtls/x509_crt.h>
 #include <mbedtls/oid.h>
@@ -467,7 +468,7 @@ static size_t mbedtls_get_san_list_deep(const mbedtls_write_san_list* sanlist) {
 }
 
 int mbedtls_x509write_crt_set_subject_alt_name(mbedtls_x509write_cert *ctx, const mbedtls_write_san_list* sanlist) {
-    int	ret = 0;
+    int ret = 0;
     size_t sandeep = 0;
     const mbedtls_write_san_list* cur = sanlist;
     unsigned char* buf;

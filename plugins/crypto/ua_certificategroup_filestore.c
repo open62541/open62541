@@ -445,10 +445,6 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
     memcpy(rootDirectory, directory.data, directory.length);
     rootDirectorySize = strnlen(rootDirectory, PATH_MAX);
 
-    /* Add pki directory */
-    strncpy(&rootDirectory[rootDirectorySize], "/pki/", PATH_MAX - rootDirectorySize);
-    rootDirectorySize = strnlen(rootDirectory, PATH_MAX);
-
     /* Add Certificate Group Id */
     UA_NodeId applCertGroup =
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);
@@ -458,11 +454,11 @@ FileCertStore_createPkiDirectory(UA_CertificateGroup *certGroup, const UA_String
         UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTUSERTOKENGROUP);
 
     if(UA_NodeId_equal(&certGroup->certificateGroupId, &applCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "ApplCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/ApplCerts", PATH_MAX - rootDirectorySize);
     } else if(UA_NodeId_equal(&certGroup->certificateGroupId, &httpCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "HttpCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/HttpCerts", PATH_MAX - rootDirectorySize);
     } else if(UA_NodeId_equal(&certGroup->certificateGroupId, &userTokenCertGroup)) {
-        strncpy(&rootDirectory[rootDirectorySize], "UserTokenCerts", PATH_MAX - rootDirectorySize);
+        strncpy(&rootDirectory[rootDirectorySize], "/UserTokenCerts", PATH_MAX - rootDirectorySize);
     } else {
         UA_String nodeIdStr;
         UA_String_init(&nodeIdStr);
@@ -600,6 +596,23 @@ FileCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **re
 }
 
 static UA_StatusCode
+FileCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate,
+                                 const UA_Boolean isTrusted, UA_ByteString **crls,
+                                 size_t *crlsSize) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL || crls == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    /* It will only re-read the Cert store on the file system if there have been changes to files. */
+    UA_StatusCode retval = reloadTrustStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
+    return context->store->getCertificateCrls(context->store, certificate, isTrusted, crls, crlsSize);
+}
+
+static UA_StatusCode
 FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL)
@@ -682,6 +695,7 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     certGroup->addToTrustList = FileCertStore_addToTrustList;
     certGroup->removeFromTrustList = FileCertStore_removeFromTrustList;
     certGroup->getRejectedList = FileCertStore_getRejectedList;
+    certGroup->getCertificateCrls = FileCertStore_getCertificateCrls;
     certGroup->verifyCertificate = FileCertStore_verifyCertificate;
     certGroup->clear = FileCertStore_clear;
 

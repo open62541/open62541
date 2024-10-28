@@ -837,11 +837,11 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
         return retval;
     }
 
-    if (hostname.length == 0) {
-	gethostname(hoststr, sizeof(hoststr)-1);
-	hoststr[sizeof(hoststr)-1] = '\0';
-	hostname.data = (unsigned char *) hoststr;
-	hostname.length = strlen(hoststr);
+    if(hostname.length == 0) {
+        gethostname(hoststr, sizeof(hoststr)-1);
+        hoststr[sizeof(hoststr)-1] = '\0';
+        hostname.data = (unsigned char *) hoststr;
+        hostname.length = strlen(hoststr);
     }
     retval = UA_Discovery_addRecord(dm, serverName, hostname, port, path, UA_DISCOVERY_TCP, true,
                                     dm->sc.server->config.mdnsConfig.serverCapabilities,
@@ -1073,13 +1073,6 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
             el->removeTimer(el, dm->mdnsCallbackId);
             dm->mdnsCallbackId = 0;
         }
-    }
-
-    /* Clean up mdns daemon */
-    if(dm->mdnsDaemon) {
-        mdnsd_shutdown(dm->mdnsDaemon);
-        mdnsd_free(dm->mdnsDaemon);
-        dm->mdnsDaemon = NULL;
     }
 
     /* Close the socket */

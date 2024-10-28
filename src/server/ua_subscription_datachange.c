@@ -76,7 +76,7 @@ detectVariantDeadband(const UA_Variant *value, const UA_Variant *oldValue,
 
 static UA_Boolean
 detectValueChange(UA_Server *server, UA_MonitoredItem *mon, const UA_DataValue *dv) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Status changes are always reported */
     if(dv->hasStatus != mon->lastValue.hasStatus ||
@@ -152,7 +152,7 @@ void
 UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
                                      UA_DataValue *value) {
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     /* Has the value changed (with the filters applied)? */
     UA_Boolean changed = detectValueChange(server, mon, value);
@@ -183,7 +183,7 @@ UA_MonitoredItem_processSampledValue(UA_Server *server, UA_MonitoredItem *mon,
 
 void
 UA_MonitoredItem_sample(UA_Server *server, UA_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_assert(mon->itemToMonitor.attributeId != UA_ATTRIBUTEID_EVENTNOTIFIER);
 
     UA_Subscription *sub = mon->subscription;

@@ -7,7 +7,6 @@
  */
 
 #include "ua_pubsub_keystorage.h"
-#include "ua_pubsub.h"
 
 #ifdef UA_ENABLE_PUBSUB_SKS /* conditional compilation */
 
@@ -33,7 +32,7 @@ findPubSubSecurityPolicy(UA_PubSubManager *psm, const UA_String *securityPolicyU
     if(!psm || !securityPolicyUri)
         return NULL;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_ServerConfig *config = &psm->sc.server->config;
     for(size_t i = 0; i < config->pubSubConfig.securityPoliciesSize; i++) {
@@ -60,7 +59,7 @@ UA_PubSubKeyStorage_clearKeyList(UA_PubSubKeyStorage *ks) {
 
 void
 UA_PubSubKeyStorage_delete(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Remove callback */
     if(!ks->callBackId) {
@@ -166,7 +165,7 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_PubSubManager *psm,
     if(!psm || !ks || !callback || timeToNextMs <= 0)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     UA_EventLoop *el = psm->sc.server->config.eventLoop;
     return el->addTimer(el, (UA_Callback)callback, psm, ks,
@@ -215,7 +214,7 @@ static UA_StatusCode
 setPubSubGroupEncryptingKey(UA_PubSubManager *psm, UA_NodeId PubSubGroupId,
                             UA_UInt32 securityTokenId, UA_ByteString signingKey,
                             UA_ByteString encryptingKey, UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     UA_WriterGroup *wg = UA_WriterGroup_find(psm, PubSubGroupId);
     if(wg)
         return UA_WriterGroup_setEncryptionKeys(psm, wg, securityTokenId, signingKey,
@@ -236,7 +235,7 @@ setPubSubGroupEncryptingKeyForMatchingSecurityGroupId(UA_PubSubManager *psm,
                                                       UA_ByteString signingKey,
                                                       UA_ByteString encryptingKey,
                                                       UA_ByteString keyNonce) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
 
     /* Key storage is the same for all reader / writer groups, channel context isn't
      * => Update channelcontext in all Writergroups / ReaderGroups which have the same
@@ -273,7 +272,7 @@ UA_StatusCode
 UA_PubSubKeyStorage_activateKeyToChannelContext(UA_PubSubManager *psm,
                                                 UA_NodeId pubSubGroupId,
                                                 UA_String securityGroupId) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     if(securityGroupId.data == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
@@ -366,7 +365,7 @@ UA_PubSubKeyStorage_keyRolloverCallback(UA_PubSubManager *psm, UA_PubSubKeyStora
 
 void
 UA_PubSubKeyStorage_detachKeyStorage(UA_PubSubManager *psm, UA_PubSubKeyStorage *ks) {
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex);
     ks->referenceCount--;
     if(ks->referenceCount == 0) {
         LIST_REMOVE(ks, keyStorageList);
@@ -421,6 +420,8 @@ sksClientCleanupCb(void *client, void *context) {
          * be freed in UA_PubSubKeyStorage_delete. */
         sksClient->config.securityPolicies = NULL;
         sksClient->config.securityPoliciesSize = 0;
+        sksClient->config.authSecurityPolicies = NULL;
+        sksClient->config.authSecurityPoliciesSize = 0;
         sksClient->config.certificateVerification.context = NULL;
         sksClient->config.logging = NULL;
         sksClient->config.clientContext = NULL;

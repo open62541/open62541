@@ -20,7 +20,7 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB_SKS
 
 #include "open62541_queue.h"
-#include "ua_pubsub.h"
+#include "ua_pubsub_internal.h"
 
 /**
  * PubSubKeyStorage

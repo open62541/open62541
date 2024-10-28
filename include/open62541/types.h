@@ -670,7 +670,6 @@ UA_INLINABLE(UA_LocalizedText
  *
  * NumericRange
  * ^^^^^^^^^^^^
- *
  * NumericRanges are used to indicate subsets of a (multidimensional) array.
  * They no official data type in the OPC UA standard and are transmitted only
  * with a string encoding, such as "1:2,0:3,5". The colon separates min/max
@@ -1103,7 +1102,7 @@ typedef struct UA_DataTypeArray {
  * If the member is an array, the offset points to the (size_t) length field.
  * (The array pointer comes after the length field without any padding.) */
 #ifdef UA_ENABLE_TYPEDESCRIPTION
-UA_Boolean
+UA_Boolean UA_EXPORT
 UA_DataType_getStructMember(const UA_DataType *type,
                             const char *memberName,
                             size_t *outOffset,
@@ -1114,7 +1113,7 @@ UA_DataType_getStructMember(const UA_DataType *type,
 /* Test if the data type is a numeric builtin data type (via the typeKind field
  * of UA_DataType). This includes integers and floating point numbers. Not
  * included are Boolean, DateTime, StatusCode and Enums. */
-UA_Boolean
+UA_Boolean UA_EXPORT
 UA_DataType_isNumeric(const UA_DataType *type);
 
 /**

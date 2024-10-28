@@ -34,7 +34,7 @@ UA_SecureChannel_init(UA_SecureChannel *channel) {
 
 UA_StatusCode
 UA_SecureChannel_setSecurityPolicy(UA_SecureChannel *channel,
-                                   const UA_SecurityPolicy *securityPolicy,
+                                   UA_SecurityPolicy *securityPolicy,
                                    const UA_ByteString *remoteCertificate) {
     /* Is a policy already configured? */
     UA_CHECK_ERROR(!channel->securityPolicy, return UA_STATUSCODE_BADINTERNALERROR,
@@ -71,6 +71,7 @@ hideErrors(UA_TcpErrorMessage *const error) {
     switch(error->error) {
     case UA_STATUSCODE_BADCERTIFICATEUNTRUSTED:
     case UA_STATUSCODE_BADCERTIFICATEREVOKED:
+    case UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED:
         error->error = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
         error->reason = UA_STRING_NULL;
         break;
@@ -593,6 +594,7 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
     if(!channel->securityPolicy) {
         if(channel->processOPNHeader)
             res = channel->processOPNHeader(application, channel, &asymHeader);
+        UA_CHECK_STATUS(res, goto error);
         if(!channel->securityPolicy)
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);

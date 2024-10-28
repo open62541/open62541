@@ -32,6 +32,8 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
     certGroup->setTrustList = NULL;
     certGroup->addToTrustList = NULL;
     certGroup->removeFromTrustList = NULL;
+    certGroup->getRejectedList = NULL;
+    certGroup->getCertificateCrls = NULL;
 }
 
 #ifndef UA_ENABLE_ENCRYPTION
@@ -57,6 +59,18 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
 UA_StatusCode
 UA_CertificateUtils_getThumbprint(UA_ByteString *certificate,
                                   UA_String *thumbprint){
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_comparePublicKeys(const UA_ByteString *certificate1,
+                                      const UA_ByteString *certificate2) {
+    return UA_STATUSCODE_BADNOTSUPPORTED;
+}
+
+UA_StatusCode
+UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+                                 const UA_ByteString *privateKey) {
     return UA_STATUSCODE_BADNOTSUPPORTED;
 }
 #endif

@@ -28,8 +28,8 @@ typedef struct UA_MonitoredItem UA_MonitoredItem;
 #endif
 
 /**
- * Node Store Plugin API
- * =====================
+ * Nodestore Plugin API
+ * ====================
  *
  * **Warning!!** The structures defined in this section are only relevant for
  * the developers of custom Nodestores. The interaction with the information

@@ -622,6 +622,12 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
 
     Basic128Rsa15_PolicyContext *pc = (Basic128Rsa15_PolicyContext *)securityPolicy->policyContext;
 
+    UA_Boolean isLocalKey = false;
+    if(newPrivateKey.length <= 0) {
+        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
+            isLocalKey = true;
+    }
+
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
     UA_StatusCode retval = UA_mbedTLS_LoadLocalCertificate(&newCertificate, &securityPolicy->localCertificate);
@@ -630,12 +636,19 @@ updateCertificateAndPrivateKey_sp_basic128rsa15(UA_SecurityPolicy *securityPolic
         return retval;
 
     /* Set the new private key */
-    mbedtls_pk_free(&pc->localPrivateKey);
-    mbedtls_pk_init(&pc->localPrivateKey);
-    int mbedErr = UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
-        goto error;
+    if(newPrivateKey.length > 0) {
+        mbedtls_pk_free(&pc->localPrivateKey);
+        mbedtls_pk_init(&pc->localPrivateKey);
+        if(UA_mbedTLS_LoadPrivateKey(&newPrivateKey, &pc->localPrivateKey, &pc->entropyContext)) {
+            retval = UA_STATUSCODE_BADNOTSUPPORTED;
+            goto error;
+        }
+    } else {
+        if(!isLocalKey) {
+            mbedtls_pk_free(&pc->localPrivateKey);
+            pc->localPrivateKey = pc->csrLocalPrivateKey;
+            mbedtls_pk_init(&pc->csrLocalPrivateKey);
+        }
     }
 
     retval = asym_makeThumbprint_sp_basic128rsa15(securityPolicy,
@@ -764,6 +777,10 @@ UA_SecurityPolicy_Basic128Rsa15(UA_SecurityPolicy *policy, const UA_ByteString l
                                 const UA_ByteString localPrivateKey, const UA_Logger *logger) {
     memset(policy, 0, sizeof(UA_SecurityPolicy));
     policy->logger = logger;
+
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "!! WARNING !! The Basic128Rsa15 SecurityPolicy is unsecure. "
+                   "There are known attacks that break the encryption.");
 
     policy->policyUri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic128Rsa15\0");
     policy->certificateGroupId = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVERCONFIGURATION_CERTIFICATEGROUPS_DEFAULTAPPLICATIONGROUP);

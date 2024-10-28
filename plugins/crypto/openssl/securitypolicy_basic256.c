@@ -111,6 +111,12 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
     Policy_Context_Basic256 *pc =
         (Policy_Context_Basic256 *)securityPolicy->policyContext;
 
+    UA_Boolean isLocalKey = false;
+    if(newPrivateKey.length <= 0) {
+        if(UA_CertificateUtils_comparePublicKeys(&newCertificate, &securityPolicy->localCertificate) == 0)
+            isLocalKey = true;
+    }
+
     UA_ByteString_clear(&securityPolicy->localCertificate);
 
     UA_StatusCode retval = UA_OpenSSL_LoadLocalCertificate(
@@ -120,12 +126,19 @@ updateCertificateAndPrivateKey_sp_basic256(UA_SecurityPolicy *securityPolicy,
         return retval;
 
     /* Set the new private key */
-    EVP_PKEY_free(pc->localPrivateKey);
-
-    pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    if(newPrivateKey.length > 0) {
+        EVP_PKEY_free(pc->localPrivateKey);
+        pc->localPrivateKey = UA_OpenSSL_LoadPrivateKey(&newPrivateKey);
+    } else {
+        if(!isLocalKey) {
+            EVP_PKEY_free(pc->localPrivateKey);
+            pc->localPrivateKey = pc->csrLocalPrivateKey;
+            pc->csrLocalPrivateKey = NULL;
+        }
+    }
 
     if(!pc->localPrivateKey) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+        retval = UA_STATUSCODE_BADNOTSUPPORTED;
         goto error;
     }
 
@@ -576,6 +589,11 @@ UA_SecurityPolicy_Basic256 (UA_SecurityPolicy * policy,
                             const UA_ByteString localCertificate,
                             const UA_ByteString localPrivateKey,
                             const UA_Logger *   logger) {
+
+    UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                   "!! WARNING !! The Basic256 SecurityPolicy is unsecure. "
+                   "There are known attacks that break the encryption.");
+
     UA_SecurityPolicyAsymmetricModule * const asymmetricModule = &policy->asymmetricModule;
     UA_SecurityPolicySymmetricModule * const  symmetricModule = &policy->symmetricModule;
     UA_SecurityPolicyChannelModule * const    channelModule = &policy->channelModule;

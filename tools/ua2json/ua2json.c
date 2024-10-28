@@ -239,12 +239,12 @@ int main(int argc, char **argv) {
         }
 
         size_t c = fread(&buf.data[pos], sizeof(UA_Byte), length - pos, in);
-		if(ferror(in)) {
-			fprintf(stderr, "Reading from input failed\n");
-			goto cleanup;
-		}
+        if(ferror(in)) {
+            fprintf(stderr, "Reading from input failed\n");
+            goto cleanup;
+        }
         pos += c;
-	} while (!feof(in));
+    } while (!feof(in));
 
     if(pos == 0) {
         fprintf(stderr, "No input\n");

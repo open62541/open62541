@@ -178,13 +178,13 @@ writeCertificateAndPrivateKeyToFilestore(const UA_String storePath,
 
     /* Create the paths to the certificates and private key folders */
     char ownCertPathDir[PATH_MAX];
-    if(mp_snprintf(ownCertPathDir, PATH_MAX, "%.*s/%s", (int)storePath.length,
-                   (char *)storePath.data, "/own/certs") < 0)
+    if(mp_snprintf(ownCertPathDir, PATH_MAX, "%.*s%s", (int)storePath.length,
+                   (char *)storePath.data, "/ApplCerts/own/certs") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     char ownKeyPathDir[PATH_MAX];
-    if(mp_snprintf(ownKeyPathDir, PATH_MAX, "%.*s/%s", (int)storePath.length,
-                   (char *)storePath.data, "/own/private") < 0)
+    if(mp_snprintf(ownKeyPathDir, PATH_MAX, "%.*s%s", (int)storePath.length,
+                   (char *)storePath.data, "/ApplCerts/own/private") < 0)
         return UA_STATUSCODE_BADINTERNALERROR;
 
     /* Check if certificate is already stored */
@@ -281,6 +281,8 @@ updateCertificateAndPrivateKey_sp_filestore(UA_SecurityPolicy *securityPolicy,
     if(retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
+
+    securityPolicy->localCertificate = pc->innerPolicy->localCertificate;
 
     retval =
         writeCertificateAndPrivateKeyToFilestore(pc->storePath, newCertificate, newPrivateKey);

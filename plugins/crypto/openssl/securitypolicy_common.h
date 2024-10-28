@@ -196,6 +196,15 @@ UA_OpenSSL_LoadDerCertificate(const UA_ByteString *certificate);
 X509 *
 UA_OpenSSL_LoadPemCertificate(const UA_ByteString *certificate);
 
+X509_CRL *
+UA_OpenSSL_LoadCrl(const UA_ByteString *crl);
+
+X509_CRL *
+UA_OpenSSL_LoadDerCrl(const UA_ByteString *crl);
+
+X509_CRL *
+UA_OpenSSL_LoadPemCrl(const UA_ByteString *crl);
+
 UA_StatusCode
 UA_OpenSSL_LoadLocalCertificate(const UA_ByteString *certificate, UA_ByteString *target);
 

@@ -20,8 +20,8 @@ UA_AsyncOperation_delete(UA_AsyncOperation *ar) {
 static void
 UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
                                   UA_AsyncResponse *ar) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&am->queueLock);
 
     /* Get the session */
     UA_Session* session = getSessionById(server, &ar->sessionId);
@@ -65,8 +65,8 @@ UA_AsyncManager_sendAsyncResponse(UA_AsyncManager *am, UA_Server *server,
 static UA_Boolean
 integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
                          UA_AsyncOperation *ao) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
-    UA_LOCK_ASSERT(&am->queueLock, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
+    UA_LOCK_ASSERT(&am->queueLock);
 
     /* Grab the open request, so we can continue to construct the response */
     UA_AsyncResponse *ar = ao->parent;
@@ -95,7 +95,7 @@ integrateOperationResult(UA_AsyncManager *am, UA_Server *server,
 static UA_UInt32
 processAsyncResults(UA_Server *server) {
     UA_AsyncManager *am = &server->asyncManager;
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
 
     UA_UInt32 count = 0;
     UA_AsyncOperation *ao;
@@ -441,7 +441,7 @@ UA_Server_processServiceOperationsAsync(UA_Server *server, UA_Session *session,
 
 UA_UInt32
 UA_AsyncManager_cancel(UA_Server *server, UA_Session *session, UA_UInt32 requestHandle) {
-    UA_LOCK_ASSERT(&server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex);
     UA_AsyncManager *am = &server->asyncManager;
 
     UA_LOCK(&am->queueLock);

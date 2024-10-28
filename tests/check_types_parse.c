@@ -157,7 +157,8 @@ START_TEST(parseRelativePath) {
     UA_String ex = UA_STRING("");
     UA_String exout = UA_STRING_NULL;
     UA_StatusCode res = UA_RelativePath_parse(&rp, ex);
-    res |= UA_RelativePath_print(&rp, &exout);
+    ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
+    res = UA_RelativePath_print(&rp, &exout);
     ck_assert_int_eq(res, UA_STATUSCODE_GOOD);
     ck_assert_uint_eq(rp.elementsSize, 0);
     ck_assert(UA_String_equal(&ex, &exout));
@@ -270,12 +271,12 @@ START_TEST(parseRelativePathWithServer) {
     UA_Server *server = UA_Server_newForUnitTest();
 
     /* Add a custom non-hierarchical reference type */
-	UA_NodeId refTypeId;
-	UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
-	refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
-	refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
-	UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
-	UA_StatusCode res =
+    UA_NodeId refTypeId;
+    UA_ReferenceTypeAttributes refattr = UA_ReferenceTypeAttributes_default;
+    refattr.displayName = UA_LOCALIZEDTEXT(NULL, "MyRef");
+    refattr.inverseName = UA_LOCALIZEDTEXT(NULL, "RefMy");
+    UA_QualifiedName browseName = UA_QUALIFIEDNAME(1, "MyRef");
+    UA_StatusCode res =
         UA_Server_addReferenceTypeNode(server, UA_NODEID_NULL,
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_NONHIERARCHICALREFERENCES),
                                        UA_NODEID_NUMERIC(0, UA_NS0ID_HASSUBTYPE),

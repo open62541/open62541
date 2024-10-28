@@ -50,7 +50,7 @@ logCategoryNames[UA_LOGCATEGORIES] =
 # ifdef UA_ARCHITECTURE_POSIX
 UA_Lock logLock = UA_LOCK_STATIC_INIT;
 # else
-void * volatile logSpinLock = NULL;
+void * logSpinLock = NULL;
 static UA_INLINE void spinLock(void) {
     while(UA_atomic_cmpxchg(&logSpinLock, NULL, (void*)0x1) != NULL) {}
 }
