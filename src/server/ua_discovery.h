@@ -170,6 +170,10 @@ mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
 
+void
+discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
+                                 UA_KeyValuePair params[], UA_KeyValueMap kvm);
+
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
 #endif /* UA_ENABLE_DISCOVERY */
