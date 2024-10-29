@@ -1,4 +1,4 @@
 name: open62541
 build:
-    cmake: .
+    cmake: ..
     kconfig: zephyr/Kconfig

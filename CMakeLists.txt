@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
-# set(CMAKE_VERBOSE_MAKEFILE ON)
+
+# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
+set(ANDROID_PLATFORM 24)
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     project(open62541) # We need to have C++ support configured for fuzzing
@@ -7,13 +9,20 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
-##################
-# CMake Packages #
-##################
+if(ZEPHYR_BASE)
+  if(NOT CONFIG_OPEN62541)
+    return()
+  endif()
+  include(arch/zephyr/zephyr.cmake)
+endif()
+
+# set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
+
 find_package(Python3 REQUIRED)
 find_package(Git)
+
 include(AssignSourceGroup)
 include(GNUInstallDirs)
 include(open62541Macros)
@@ -76,14 +85,7 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
     set(UA_ARCHITECTURE_ZEPHYR 1)
-    if(NOT CONFIG_OPEN62541)
-        return()
-    endif()
-    include(zephyr/zephyr.cmake)
 endif()
-
-# Default android platform of android.toolchain.cmake is "19" but we need "24" for "epoll_create1" and "<ifaddrs.h>"
-set(ANDROID_PLATFORM 24)
 
 #################
 # Build Options #
@@ -520,7 +522,8 @@ function(add_cc_flag CC_FLAG)
 endfunction()
 
 if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
-   NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
+    NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
+
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -537,6 +540,7 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
 
     # Use a strict subset of the C and C++ languages
+
     check_add_cc_flag("-Wc++-compat")
 
     # Check that format strings (printf/scanf) are sane
@@ -547,12 +551,14 @@ if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
     # Check prototype definitions
     check_add_cc_flag("-Wmissing-prototypes")
     check_add_cc_flag("-Wstrict-prototypes")
+
     check_add_cc_flag("-Wredundant-decls")
 
     check_add_cc_flag("-Wuninitialized")
     check_add_cc_flag("-Winit-self")
     check_add_cc_flag("-Wcast-qual")
     check_add_cc_flag("-Wstrict-overflow")
+
     check_add_cc_flag("-Wnested-externs")
     check_add_cc_flag("-Wmultichar")
     check_add_cc_flag("-Wundef")
@@ -920,23 +926,20 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/arch/common/timer.c
      ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
      ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
      ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
-
-if(UA_ARCHITECTURE_ZEPHYR)
-    list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
-         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
-endif()
-
+     ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
+     
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
