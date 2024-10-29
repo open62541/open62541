@@ -4,6 +4,7 @@
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2024 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
 #include <open62541/util.h>
@@ -306,13 +307,17 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
     for(size_t i = 0; i < context->trustList.trustedCrlsSize; i++) {
-        const unsigned char *pData = context->trustList.trustedCrls[i].data;
         X509_CRL * crl = NULL;
+        BIO * bio = NULL;
 
-        if(context->trustList.trustedCrls[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
-            crl = d2i_X509_CRL (NULL, &pData, (long)context->trustList.trustedCrls[i].length);
-        } else {
-            BIO* bio = NULL;
+        /* Try to load DER encoded CRL */
+        bio = BIO_new_mem_buf((void *)context->trustList.trustedCrls[i].data,
+                              (int)context->trustList.trustedCrls[i].length);
+        crl = d2i_X509_CRL_bio(bio, NULL);
+        BIO_free(bio);
+
+        if (crl == NULL) {
+            /* Try to load PEM encoded CRL */
             bio = BIO_new_mem_buf((void *)context->trustList.trustedCrls[i].data,
                                   (int)context->trustList.trustedCrls[i].length);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
@@ -325,13 +330,17 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         sk_X509_CRL_push(context->crls, crl);
     }
     for(size_t i = 0; i < context->trustList.issuerCrlsSize; i++) {
-        const unsigned char *pData = context->trustList.issuerCrls[i].data;
         X509_CRL * crl = NULL;
+        BIO * bio = NULL;
 
-        if(context->trustList.issuerCrls[i].length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
-            crl = d2i_X509_CRL (NULL, &pData, (long)context->trustList.issuerCrls[i].length);
-        } else {
-            BIO* bio = NULL;
+        /* Try to load DER encoded Issuer CRL */
+        bio = BIO_new_mem_buf((void *)context->trustList.issuerCrls[i].data,
+                              (int)context->trustList.issuerCrls[i].length);
+        crl = d2i_X509_CRL_bio(bio, NULL);
+        BIO_free(bio);
+
+        if (crl == NULL) {
+            /* Try to load PEM encoded Issuer CRL */
             bio = BIO_new_mem_buf((void *)context->trustList.issuerCrls[i].data,
                                   (int)context->trustList.issuerCrls[i].length);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
@@ -1050,13 +1059,19 @@ UA_CertificateUtils_decryptPrivateKey(const UA_ByteString privateKey,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
     }
 
-    /* Already in DER format -> return verbatim */
-    if(privateKey.length > 1 && privateKey.data[0] == 0x30 && privateKey.data[1] == 0x82)
+    EVP_PKEY *pkey = NULL;
+    const unsigned char * in = privateKey.data;
+
+    /* Check if input is already in DER format */
+    pkey = d2i_AutoPrivateKey(NULL, &in, privateKey.length);
+    if (pkey != NULL) {
+        EVP_PKEY_free(pkey);
         return UA_ByteString_copy(&privateKey, outDerKey);
+    }
 
     /* Decrypt */
     BIO *bio = BIO_new_mem_buf((void*)privateKey.data, (int)privateKey.length);
-    EVP_PKEY *pkey = PEM_read_bio_PrivateKey(bio, NULL,
+    pkey = PEM_read_bio_PrivateKey(bio, NULL,
                                              privateKeyPasswordCallback,
                                              (void*)(uintptr_t)&password);
     BIO_free(bio);
