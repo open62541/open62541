@@ -458,6 +458,30 @@ addCertificate(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* Set up the parameters for the verification */
+    UA_KeyValuePair params[1];
+    size_t paramsSize = 1;
+
+    /* CA certificates cannot be added using this method because it does not support adding CRLs */
+    UA_Boolean isCaCertificate = false;
+    params[0].key = UA_QUALIFIEDNAME(0, "is-ca-certificate");
+    UA_Variant_setScalar(&params[0].value, &isCaCertificate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    /* Validity check of the certificate */
+    UA_StatusCode retval = certGroup->verifyCertificateValidity(certGroup, &certificate, &paramsMap);
+    if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
+            "The certificate could not be added because it is a CA certificate. "
+            "CA certificates must be added using the FileType methods.");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     /* This Method cannot be called if the containing TrustList Object is open */
     UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
     if(!fileInfo)
@@ -474,7 +498,7 @@ addCertificate(UA_Server *server,
     trustList.trustedCertificates = certificates;
     trustList.trustedCertificatesSize = 1;
 
-    UA_StatusCode retval = certGroup->addToTrustList(certGroup, &trustList);
+    retval = certGroup->addToTrustList(certGroup, &trustList);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 

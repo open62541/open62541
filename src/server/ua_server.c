@@ -769,6 +769,15 @@ UA_Server_addCertificates(UA_Server *server,
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
+    /* Validity check of the certificates */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    for(size_t i = 0; i < certificatesSize; i++) {
+        /* No usage check is performed, allowing various certificates to be added with this function */
+        retval = certGroup->verifyCertificateValidity(certGroup, &certificates[i], NULL);
+        if(retval != UA_STATUSCODE_GOOD)
+            return retval;
+    }
+
     UA_TrustListDataType trustList;
     UA_TrustListDataType_init(&trustList);
 
@@ -791,7 +800,7 @@ UA_Server_addCertificates(UA_Server *server,
     if(appendCertificates)
         return certGroup->addToTrustList(certGroup, &trustList);
 
-    UA_StatusCode retval = certGroup->setTrustList(certGroup, &trustList);
+    retval = certGroup->setTrustList(certGroup, &trustList);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -915,7 +924,26 @@ UA_Server_updateCertificate(UA_Server *server,
         newPrivateKey = *privateKey;
     }
 
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    /* Set up the parameters for the verification */
+    UA_KeyValuePair params[1];
+    size_t paramsSize = 1;
+
+    /* Cannot be a CA certificate */
+    UA_Boolean isCaCertificate = false;
+    params[0].key = UA_QUALIFIEDNAME(0, "is-ca-certificate");
+    UA_Variant_setScalar(&params[0].value, &isCaCertificate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
+    /* Integrity check of the certificate */
+    UA_CertificateGroup *certGroup = &server->config.secureChannelPKI;
+    UA_StatusCode retval = certGroup->verifyCertificateIntegrity(certGroup, &certificate, &paramsMap);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
     for(size_t i = 0; i < server->config.endpointsSize; i++) {
         UA_EndpointDescription *ed = &server->config.endpoints[i];
         UA_SecurityPolicy *sp = getSecurityPolicyByUri(server,
