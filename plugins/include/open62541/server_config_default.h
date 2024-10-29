@@ -5,6 +5,7 @@
  *    Copyright 2017 (c) Stefan Profanter, fortiss GmbH
  *    Copyright 2018 (c) Mark Giraud, Fraunhofer IOSB
  *    Copyright 2019 (c) Kalycito Infotech Private Limited
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
 #ifndef UA_SERVER_CONFIG_DEFAULT_H_
@@ -220,6 +221,21 @@ UA_EXPORT UA_StatusCode
 UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(UA_ServerConfig *config,
                                                     const UA_ByteString *certificate,
                                                     const UA_ByteString *privateKey);
+
+/* Adds the security policy ``SecurityPolicy#EccNistP256`` to the server. A
+ * server certificate may be supplied but is optional.
+ *
+ * Certificate verification should be configured before calling this
+ * function. See PKI plugin.
+ *
+ * @param config The configuration to manipulate
+ * @param certificate The server certificate.
+ * @param privateKey The private key that corresponds to the certificate.
+ */
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey);
 
 /* Adds all supported security policies and sets up certificate
  * validation procedures.
