@@ -131,12 +131,36 @@ UA_Openssl_ECDSA_SHA256_Verify (const UA_ByteString * message,
                                 const UA_ByteString * signature);
 
 UA_StatusCode
+UA_OpenSSL_ECC_NISTP384_GenerateKey (EVP_PKEY ** keyPairOut,
+                                     UA_ByteString * keyPublicEncOut);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Sign (const UA_ByteString * message,
+                              EVP_PKEY * privateKey,
+                              UA_ByteString * outSignature);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA384_Verify (const UA_ByteString * message,
+                                X509 * publicKeyX509,
+                                const UA_ByteString * signature);
+
+UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
                               const UA_ByteString *key,
                               const UA_ByteString *signature);
 
 UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Sign(const UA_ByteString *message,
+                            const UA_ByteString *key,
+                            UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Verify(const UA_ByteString *message,
+                              const UA_ByteString *key,
+                              const UA_ByteString *signature);
+
+UA_StatusCode
+UA_OpenSSL_HMAC_SHA384_Sign(const UA_ByteString *message,
                             const UA_ByteString *key,
                             UA_ByteString *signature);
 

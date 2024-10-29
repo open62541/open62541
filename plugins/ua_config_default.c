@@ -210,7 +210,7 @@ const UA_ConnectionConfig UA_ConnectionConfig_default = {
 #define APPLICATION_URI "urn:unconfigured:application"
 #define APPLICATION_URI_SERVER "urn:open62541.server.application"
 
-#define SECURITY_POLICY_SIZE 7
+#define SECURITY_POLICY_SIZE 8
 
 #define STRINGIFY(arg) #arg
 #define VERSION(MAJOR, MINOR, PATCH, LABEL) \
@@ -891,6 +891,41 @@ UA_ServerConfig_addSecurityPolicyEccNistP256(UA_ServerConfig *config,
     config->securityPoliciesSize++;
     return UA_STATUSCODE_GOOD;
 }
+
+UA_EXPORT UA_StatusCode
+UA_ServerConfig_addSecurityPolicyEccNistP384(UA_ServerConfig *config,
+                                                     const UA_ByteString *certificate,
+                                                     const UA_ByteString *privateKey) {
+    /* Allocate the SecurityPolicies */
+    UA_SecurityPolicy *tmp = (UA_SecurityPolicy *)
+        UA_realloc(config->securityPolicies,
+                   sizeof(UA_SecurityPolicy) * (1 + config->securityPoliciesSize));
+    if(!tmp)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    config->securityPolicies = tmp;
+
+    /* Populate the SecurityPolicies */
+    UA_ByteString localCertificate = UA_BYTESTRING_NULL;
+    UA_ByteString localPrivateKey  = UA_BYTESTRING_NULL;
+    if(certificate)
+        localCertificate = *certificate;
+    if(privateKey)
+        localPrivateKey = *privateKey;
+    UA_StatusCode retval =
+        UA_SecurityPolicy_EccNistP384(&config->securityPolicies[config->securityPoliciesSize],
+                                              UA_APPLICATIONTYPE_SERVER, localCertificate,
+                                              localPrivateKey, config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        if(config->securityPoliciesSize == 0) {
+            UA_free(config->securityPolicies);
+            config->securityPolicies = NULL;
+        }
+        return retval;
+    }
+
+    config->securityPoliciesSize++;
+    return UA_STATUSCODE_GOOD;
+}
 #endif
 
 /* Always returns UA_STATUSCODE_GOOD. Logs a warning if policies could not be added. */
@@ -999,6 +1034,15 @@ addAllSecurityPolicies(UA_ServerConfig *config, const UA_ByteString *certificate
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#EccNistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    /* EccNistP384 */
+    retval = UA_ServerConfig_addSecurityPolicyEccNistP384(config, &localCertificate,
+                                                       &decryptedPrivateKey);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP384 with error code %s",
                        UA_StatusCode_name(retval));
     }
 #endif
@@ -1516,6 +1560,32 @@ UA_ServerConfig_addSecurityPolicies_Filestore(UA_ServerConfig *config,
                        "Could not add SecurityPolicy#ECC_nistP256 with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+    /* EccNistP384 */
+    UA_SecurityPolicy *eccnistp384Policy =
+        (UA_SecurityPolicy*)UA_calloc(1, sizeof(UA_SecurityPolicy));
+    if(!eccnistp384Policy) {
+        UA_ByteString_memZero(&decryptedPrivateKey);
+        UA_ByteString_clear(&decryptedPrivateKey);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    retval = UA_SecurityPolicy_EccNistP384(eccnistp384Policy, UA_APPLICATIONTYPE_SERVER,
+                                        localCertificate, decryptedPrivateKey,
+                                        config->logging);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
+                       UA_StatusCode_name(retval));
+        eccnistp384Policy->clear(eccnistp384Policy);
+        UA_free(eccnistp384Policy);
+        eccnistp384Policy = NULL;
+    }
+    retval = UA_ServerConfig_addSecurityPolicy_Filestore(config, eccnistp384Policy, storePath);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#ECC_nistP384 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
 #endif
 
     UA_ByteString_memZero(&decryptedPrivateKey);
@@ -1581,7 +1651,7 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
 /* Default Client Settings */
 /***************************/
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL)
-#define AUTH_SECURITY_POLICY_SIZE 4
+#define AUTH_SECURITY_POLICY_SIZE 5
 #else
 #define AUTH_SECURITY_POLICY_SIZE 3
 #endif
@@ -1781,6 +1851,16 @@ clientConfig_setAuthenticationSecurityPolicies(UA_ClientConfig *config,
                        "Could not add SecurityPolicy#EccNistP256 with error code %s",
                        UA_StatusCode_name(retval));
     }
+
+    sp = &config->authSecurityPolicies[config->authSecurityPoliciesSize];
+    retval = UA_SecurityPolicy_EccNistP384(sp, UA_APPLICATIONTYPE_CLIENT, certificateAuth, privateKeyAuth, config->logging);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->authSecurityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP384 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
 #endif
 
     if(config->authSecurityPoliciesSize == 0) {
@@ -1940,6 +2020,17 @@ UA_ClientConfig_setDefaultEncryption(UA_ClientConfig *config,
     } else {
         UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                        "Could not add SecurityPolicy#EccNistP256 with error code %s",
+                       UA_StatusCode_name(retval));
+    }
+
+    retval = UA_SecurityPolicy_EccNistP384(&config->securityPolicies[config->securityPoliciesSize],
+                                                   UA_APPLICATIONTYPE_CLIENT, localCertificate,
+                                                   decryptedPrivateKey, config->logging);
+    if(retval == UA_STATUSCODE_GOOD) {
+        ++config->securityPoliciesSize;
+    } else {
+        UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                       "Could not add SecurityPolicy#EccNistP384 with error code %s",
                        UA_StatusCode_name(retval));
     }
 #endif
