@@ -394,6 +394,10 @@ if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL)
     ua_add_test(encryption/check_certificategroup.c)
 endif()
 
+if(UA_ENABLE_ENCRYPTION_OPENSSL)
+    ua_add_test(encryption/check_encryption_eccnistp256.c)
+endif()
+
 # Tests for Nodeset Compiler
 add_subdirectory(nodeset-compiler)
 
