@@ -874,6 +874,12 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
 #else
         *keySize =  RSA_size(get_pkey_rsa(pkey)) * 8;
 #endif
+    } else if(EVP_PKEY_base_id(pkey) == EVP_PKEY_EC) {
+#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+        *keySize = EVP_PKEY_get_size(pkey) * 8;
+#else
+        *keySize =  ECDSA_size(EVP_PKEY_get0_EC_KEY(pkey)) * 8;
+#endif
     } else {
         EVP_PKEY_free(pkey);
         X509_free(cert);
