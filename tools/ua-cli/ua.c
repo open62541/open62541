@@ -18,9 +18,7 @@ static char *url = NULL;
 static char *service = NULL;
 static char *username = NULL;
 static char *password = NULL;
-#ifdef UA_ENABLE_JSON_ENCODING
-static UA_Boolean json = false;
-#endif
+int return_value = 0;
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
 UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
@@ -80,12 +78,9 @@ usage(void) {
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
             //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
             " Options:\n"
-#ifdef UA_ENABLE_JSON_ENCODING
-            " --json: Format output as JSON\n"
-#endif
             " --username: Username for the session creation\n"
             " --password: Password for the session creation\n"
-            " --loglevel: Logging detail (1 -> TRACE, ..., 6 -> FATAL)\n"
+            " --loglevel: Logging detail [1 -> TRACE, 6 -> FATAL]\n"
             " --help: Print this message\n");
     exit(EXIT_FAILURE);
 }
@@ -93,16 +88,13 @@ usage(void) {
 static void
 printType(void *p, const UA_DataType *type) {
     UA_ByteString out = UA_BYTESTRING_NULL;
-#ifdef UA_ENABLE_JSON_ENCODING
-    if(!json) {
-        UA_print(p, type, &out);
-    } else {
-        UA_StatusCode res = UA_encodeJson(p, type, &out, NULL);
-        (void)res;
-    }
-#else
-    UA_print(p, type, &out);
-#endif
+    UA_EncodeJsonOptions opts;
+    memset(&opts, 0, sizeof(UA_EncodeJsonOptions));
+    opts.prettyPrint = true;
+    opts.useReversible = true;
+    opts.stringNodeIds = true;
+    UA_StatusCode res = UA_encodeJson(p, type, &out, &opts);
+    (void)res;
     printf("%.*s\n", (int)out.length, out.data);
     UA_ByteString_clear(&out);
 }
@@ -161,10 +153,10 @@ getEndpoints(int argc, char **argv, int argpos) {
 }
 
 static void
-readAttr(int argc, char **argv, int argpos) {
+read(int argc, char **argv, int argpos) {
     /* Validate the arguments */
     if(argpos != argc - 1) {
-        fprintf(stderr, "The read service takes the AttributeOperand "
+        fprintf(stderr, "The read service takes an AttributeOperand "
                 "expression as the last argument\n");
         exit(EXIT_FAILURE);
     }
@@ -264,14 +256,6 @@ parseOptions(int argc, char **argv, int argpos) {
             continue;
         }
 
-        /* Output JSON format */
-#ifdef UA_ENABLE_JSON_ENCODING
-        if(strcmp(argv[argpos], "--json") == 0) {
-            json = true;
-            continue;
-        }
-#endif
-
         /* Unknown option */
         usage();
     }
@@ -322,5 +306,5 @@ main(int argc, char **argv) {
     //}
 
     UA_Client_delete(client);
-    return 0;
+    return return_value;
 }
