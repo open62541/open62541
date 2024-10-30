@@ -1118,6 +1118,14 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
         }
     }
 
+    if(bind(newSock, info->ai_addr, (socklen_t)info->ai_addrlen) < 0) {
+        UA_LOG_SOCKET_ERRNO_WRAP(
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_NETWORK,
+                           "UDP\t| Could not bind multicast send socket to connect to %s (%s)",
+                           hostname, errno_str));
+        /* Could not bind to a given port number, go ahead with a random port without return */
+    }
+
     memcpy(&ufd->sendAddr, info->ai_addr, info->ai_addrlen);
     ufd->sendAddrLength = info->ai_addrlen;
     return UA_STATUSCODE_GOOD;
