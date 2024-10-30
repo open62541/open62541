@@ -7,27 +7,23 @@
 
 #include <open62541/plugin/log.h>
 #include <open62541/client.h>
+#include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
 
 #include <stdio.h>
-#include <ctype.h>
 
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;
-static UA_NodeId nodeidval = {0};
 static char *url = NULL;
 static char *service = NULL;
-static char *nodeid = NULL;
-static char *value = NULL;
 static char *username = NULL;
 static char *password = NULL;
-static UA_UInt32 attr = UA_ATTRIBUTEID_VALUE;
 #ifdef UA_ENABLE_JSON_ENCODING
 static UA_Boolean json = false;
 #endif
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
-UA_LogLevel logLevel = UA_LOGLEVEL_INFO;
+UA_LogLevel logLevel = UA_LOGLEVEL_ERROR;
 
 /* ANSI escape sequences for color output taken from here:
  * https://stackoverflow.com/questions/3219393/stdlib-and-colored-output-in-c*/
@@ -76,20 +72,20 @@ UA_Logger stderrLog = {cliLog, NULL, NULL};
 
 static void
 usage(void) {
-    fprintf(stderr, "Usage: ua <server-url> <service> [--json] [--help]\n"
+    fprintf(stderr, "Usage: ua [options] [--help] <server-url> <service>\n"
             " <server-url>: opc.tcp://domain[:port]\n"
-            " <service> -> getendpoints: Log the endpoint descriptions of the server\n"
-            " <service> -> read <nodeid>: Read an attribute of the node\n"
-            "   --attr <attribute-id | attribute-name>: Attribute to read from the node. "
-            "[default: value]\n"
+            " <service> -> getendpoints: Print the endpoint descriptions of the server\n"
+            " <service> -> read <AttributeOperand>: Read an attribute\n"
             //" <service> -> browse <nodeid>: Browse the Node\n"
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
             //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
+            " Options:\n"
 #ifdef UA_ENABLE_JSON_ENCODING
             " --json: Format output as JSON\n"
 #endif
             " --username: Username for the session creation\n"
             " --password: Password for the session creation\n"
+            " --loglevel: Logging detail (1 -> TRACE, ..., 6 -> FATAL)\n"
             " --help: Print this message\n");
     exit(EXIT_FAILURE);
 }
@@ -114,37 +110,11 @@ printType(void *p, const UA_DataType *type) {
 static void
 abortWithStatus(UA_StatusCode res) {
     fprintf(stderr, "Aborting with status code %s\n", UA_StatusCode_name(res));
-    exit(res);
-}
-
-static void
-getEndpoints(int argc, char **argv) {
-    /* Get endpoints */
-    size_t endpointDescriptionsSize = 0;
-    UA_EndpointDescription* endpointDescriptions = NULL;
-    UA_StatusCode res = UA_Client_getEndpoints(client, url,
-                                               &endpointDescriptionsSize,
-                                               &endpointDescriptions);
-    if(res != UA_STATUSCODE_GOOD)
-        abortWithStatus(res);
-
-    /* Print the results */
-    UA_Variant var;
-    UA_Variant_setArray(&var, endpointDescriptions, endpointDescriptionsSize,
-                        &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
-    printType(&var, &UA_TYPES[UA_TYPES_VARIANT]);
-
-    /* Delete the allocated array */
-    UA_Variant_clear(&var);
-}
-
-static void
-parseNodeId(void) {
-    UA_StatusCode res = UA_NodeId_parse(&nodeidval, UA_STRING(nodeid));
-    if(res != UA_STATUSCODE_GOOD) {
-        fprintf(stderr, "Could not parse the NodeId\n");
-        exit(EXIT_FAILURE);
+    if(client) {
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
     }
+    exit(res);
 }
 
 static void
@@ -164,46 +134,98 @@ connectClient(void) {
 }
 
 static void
-readAttr(int argc, char **argv) {
-    parseNodeId();
-    connectClient();
+getEndpoints(int argc, char **argv, int argpos) {
+    /* Validate the arguments */
+    if(argpos != argc) {
+        fprintf(stderr, "Arguments after \"getendpoints\" could not be parsed\n");
+        exit(EXIT_FAILURE);
+    }
 
-    /* Read */
-    UA_ReadValueId rvid;
-    UA_ReadValueId_init(&rvid);
-    rvid.nodeId = nodeidval;
-    rvid.attributeId = attr;
+    /* Get Endpoints */
+    size_t endpointDescriptionsSize = 0;
+    UA_EndpointDescription* endpointDescriptions = NULL;
+    UA_StatusCode res = UA_Client_getEndpoints(client, url,
+                                               &endpointDescriptionsSize,
+                                               &endpointDescriptions);
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
 
-    UA_ReadRequest req;
-    UA_ReadRequest_init(&req);
-    req.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
-    req.nodesToReadSize = 1;
-    req.nodesToRead = &rvid;
+    /* Print the results */
+    UA_Variant var;
+    UA_Variant_setArray(&var, endpointDescriptions, endpointDescriptionsSize,
+                        &UA_TYPES[UA_TYPES_ENDPOINTDESCRIPTION]);
+    printType(&var, &UA_TYPES[UA_TYPES_VARIANT]);
 
-    UA_ReadResponse resp = UA_Client_Service_read(client, req);
-
-    /* Print the result */
-    if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD &&
-       resp.resultsSize != 1)
-        resp.responseHeader.serviceResult = UA_STATUSCODE_BADUNEXPECTEDERROR;
-    if(resp.responseHeader.serviceResult == UA_STATUSCODE_GOOD)
-        printType(&resp.results[0], &UA_TYPES[UA_TYPES_DATAVALUE]);
-    else
-        abortWithStatus(resp.responseHeader.serviceResult);
-
-    UA_ReadResponse_clear(&resp);
-    UA_NodeId_clear(&nodeidval);
+    /* Delete the allocated array */
+    UA_Variant_clear(&var);
 }
 
-static const char *attributeIds[27] = {
-    "nodeid", "nodeclass", "browsename", "displayname", "description",
-    "writemask", "userwritemask", "isabstract", "symmetric", "inversename",
-    "containsnoloops", "eventnotifier", "value", "datatype", "valuerank",
-    "arraydimensions", "accesslevel", "useraccesslevel",
-    "minimumsamplinginterval", "historizing", "executable", "userexecutable",
-    "datatypedefinition", "rolepermissions", "userrolepermissions",
-    "accessrestrictions", "accesslevelex"
-};
+static void
+readAttr(int argc, char **argv, int argpos) {
+    /* Validate the arguments */
+    if(argpos != argc - 1) {
+        fprintf(stderr, "The read service takes the AttributeOperand "
+                "expression as the last argument\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Connect */
+    connectClient();
+
+    /* Parse the AttributeOperand */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos]));
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
+
+    /* Resolve the RelativePath */
+    if(ao.browsePath.elementsSize > 0) {
+        UA_BrowsePath bp;
+        UA_BrowsePath_init(&bp);
+        bp.startingNode = ao.nodeId;
+        bp.relativePath = ao.browsePath;
+
+        UA_BrowsePathResult bpr =
+            UA_Client_translateBrowsePathToNodeIds(client, &bp);
+        if(bpr.statusCode != UA_STATUSCODE_GOOD)
+            abortWithStatus(bpr.statusCode);
+
+        /* Validate the response */
+        if(bpr.targetsSize != 1) {
+            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
+                    (unsigned)bpr.targetsSize);
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
+            fprintf(stderr, "The RelativePath was not fully resolved\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
+            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
+                    "on a different server\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        UA_NodeId_clear(&ao.nodeId);
+        ao.nodeId = bpr.targets[0].targetId.nodeId;
+        UA_ExpandedNodeId_init(&bpr.targets[0].targetId);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* Read the attribute */
+    UA_ReadValueId rvi;
+    UA_ReadValueId_init(&rvi);
+    rvi.nodeId = ao.nodeId;
+    rvi.attributeId = ao.attributeId;
+    rvi.indexRange = ao.indexRange;
+
+    UA_DataValue resp = UA_Client_read(client, &rvi);
+    printType(&resp, &UA_TYPES[UA_TYPES_DATAVALUE]);
+    UA_DataValue_clear(&resp);
+    UA_AttributeOperand_clear(&ao);
+}
 
 /* Parse options beginning with --.
  * Returns the position in the argv list. */
@@ -211,7 +233,7 @@ static int
 parseOptions(int argc, char **argv, int argpos) {
     for(; argpos < argc; argpos++) {
         /* End of the arguments list */
-        if(strncmp(argv[argpos], "--", 2) == 0)
+        if(strncmp(argv[argpos], "--", 2) != 0)
             break;
 
         /* Help */
@@ -234,29 +256,12 @@ parseOptions(int argc, char **argv, int argpos) {
             continue;
         }
 
-        /* Parse attribute to be read or written */
-        if(strcmp(argv[argpos], "--attr") == 0) {
+        if(strcmp(argv[argpos], "--loglevel") == 0) {
             argpos++;
             if(argpos == argc)
                 usage();
-
-            /* Try to parse integer attr argument */
-            attr = (UA_UInt32)atoi(argv[argpos]);
-            if(attr != 0)
-                continue;
-
-            /* Convert to lower case and try to find in table */
-            for(char *w = argv[argpos]; *w; w++)
-                *w = (char)tolower(*w);
-            for(UA_UInt32 i = 0; i < 26; i++) {
-                if(strcmp(argv[argpos], attributeIds[i]) == 0) {
-                    attr = i+1;
-                    break;
-                }
-            }
-            if(attr != 0)
-                continue;
-            usage();
+            logLevel = (UA_LogLevel)atoi(argv[argpos]);
+            continue;
         }
 
         /* Output JSON format */
@@ -281,37 +286,16 @@ main(int argc, char **argv) {
     if(argc < 3)
         usage();
 
-    /* Get the url and service. Must not be a -- option string */
-    if(strstr(argv[1], "--") == argv[1] ||
-       strstr(argv[2], "--") == argv[2])
+    /* Parse the options */
+    int argpos = parseOptions(argc, argv, 1);
+    if(argpos > argc - 2)
         usage();
-
-    url = argv[1];
-    service = argv[2];
-
-    /* If not a -- option string, then this is the NodeId */
-    int argpos = 3;
-    if(argc > argpos && strstr(argv[argpos], "--") != argv[argpos]) {
-        nodeid = argv[argpos];
-        argv[argpos] = NULL;
-        argpos++;
-
-        /* If not a -- option string, then this is the value */
-        if(argc > argpos && strstr(argv[argpos], "--") != argv[argpos]) {
-            value = argv[argpos];
-            argv[argpos] = NULL;
-            argpos++;
-        }
-    }
+    url = argv[argpos++];
+    service = argv[argpos++];
 
     /* Initialize the client config */
     cc.logging = &stderrLog;
     UA_ClientConfig_setDefault(&cc);
-
-    /* Parse the options */
-    argpos = parseOptions(argc, argv, argpos);
-    if(argpos < argc - 1)
-        usage(); /* Not all options have been parsed */
 
     /* Initialize the client */
     client = UA_Client_newWithConfig(&cc);
@@ -322,11 +306,9 @@ main(int argc, char **argv) {
 
     /* Execute the service */
     if(strcmp(service, "getendpoints") == 0) {
-        if(!nodeid && !value)
-            getEndpoints(argc, argv);
+        getEndpoints(argc, argv, argpos);
     } else if(strcmp(service, "read") == 0) {
-        if(nodeid && !value)
-            readAttr(argc, argv);
+        readAttr(argc, argv, argpos);
     } else {
         usage(); /* Unknown service */
     }
