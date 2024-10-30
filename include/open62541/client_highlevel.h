@@ -281,6 +281,9 @@ UA_Client_HistoryUpdate_deleteRaw(
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
 
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_write(UA_Client *client, const UA_WriteValue *wv);
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,

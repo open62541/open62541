@@ -394,6 +394,34 @@ UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
 /* Write Attributes */
 /********************/
 
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_write(UA_Client *client, const UA_WriteValue *wv) {
+    if(!wv)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    /* Set up the request */
+    UA_WriteRequest request;
+    UA_WriteRequest_init(&request);
+    request.nodesToWrite = (UA_WriteValue*)(uintptr_t)wv;
+    request.nodesToWriteSize = 1;
+
+    /* Call the service */
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+    UA_WriteResponse response = UA_Client_Service_write(client, request);
+    retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_WriteResponse_clear(&response);
+        return retval;
+    }
+
+    /* Return the result */
+    retval = response.results[0];
+    UA_WriteResponse_clear(&response);
+    return retval;
+}
+
 UA_StatusCode
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
                            UA_AttributeId attributeId, const void *in,
