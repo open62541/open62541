@@ -486,6 +486,25 @@ UA_Client_call(UA_Client *client,
                size_t *outputSize, UA_Variant **output);
 
 /**
+ * Browsing
+ * ^^^^^^^^ */
+
+UA_EXPORT UA_THREADSAFE UA_BrowseResult
+UA_Client_browse(UA_Client *client,
+                 const UA_ViewDescription *view,
+                 UA_UInt32 requestedMaxReferencesPerNode,
+                 const UA_BrowseDescription *nodesToBrowse);
+
+UA_EXPORT UA_THREADSAFE UA_BrowseResult
+UA_Client_browseNext(UA_Client *client,
+                     UA_Boolean releaseContinuationPoint,
+                     UA_ByteString continuationPoint);
+
+UA_EXPORT UA_THREADSAFE UA_BrowsePathResult
+UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
+                                       const UA_BrowsePath *browsePath);
+
+/**
  * Node Management
  * ^^^^^^^^^^^^^^^
  * See the section on :ref:`server-side node management <addnodes>`. */
