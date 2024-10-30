@@ -74,7 +74,7 @@ usage(void) {
             " <server-url>: opc.tcp://domain[:port]\n"
             " <service> -> getendpoints: Print the endpoint descriptions of the server\n"
             " <service> -> read <AttributeOperand>: Read an attribute\n"
-            //" <service> -> browse <nodeid>: Browse the Node\n"
+            " <service> -> browse <AttributeOperand>: Browse the references to and from the node\n"
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
             //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
             " Options:\n"
@@ -219,6 +219,76 @@ read(int argc, char **argv, int argpos) {
     UA_AttributeOperand_clear(&ao);
 }
 
+static void
+browse(int argc, char **argv, int argpos) {
+    /* Validate the arguments */
+    if(argpos != argc - 1) {
+        fprintf(stderr, "The browse service takes an AttributeOperand "
+                "expression as the last argument\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Connect */
+    connectClient();
+
+    /* Parse the AttributeOperand */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos]));
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
+
+    /* Resolve the RelativePath */
+    if(ao.browsePath.elementsSize > 0) {
+        UA_BrowsePath bp;
+        UA_BrowsePath_init(&bp);
+        bp.startingNode = ao.nodeId;
+        bp.relativePath = ao.browsePath;
+
+        UA_BrowsePathResult bpr =
+            UA_Client_translateBrowsePathToNodeIds(client, &bp);
+        if(bpr.statusCode != UA_STATUSCODE_GOOD)
+            abortWithStatus(bpr.statusCode);
+
+        /* Validate the response */
+        if(bpr.targetsSize != 1) {
+            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
+                    (unsigned)bpr.targetsSize);
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
+            fprintf(stderr, "The RelativePath was not fully resolved\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
+            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
+                    "on a different server\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        UA_NodeId_clear(&ao.nodeId);
+        ao.nodeId = bpr.targets[0].targetId.nodeId;
+        UA_ExpandedNodeId_init(&bpr.targets[0].targetId);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* Read the attribute */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.browseDirection = UA_BROWSEDIRECTION_BOTH;
+    bd.includeSubtypes = true;
+    bd.nodeId = ao.nodeId;
+    bd.referenceTypeId = UA_NS0ID(REFERENCES);
+    bd.resultMask = UA_BROWSERESULTMASK_ALL;
+
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, &bd);
+
+    printType(&br, &UA_TYPES[UA_TYPES_BROWSERESULT]);
+    UA_BrowseResult_clear(&br);
+    UA_AttributeOperand_clear(&ao);
+}
+
 /* Parse options beginning with --.
  * Returns the position in the argv list. */
 static int
@@ -292,14 +362,12 @@ main(int argc, char **argv) {
     if(strcmp(service, "getendpoints") == 0) {
         getEndpoints(argc, argv, argpos);
     } else if(strcmp(service, "read") == 0) {
-        readAttr(argc, argv, argpos);
+        read(argc, argv, argpos);
+    } else if(strcmp(service, "browse") == 0) {
+        browse(argc, argv, argpos);
     } else {
         usage(); /* Unknown service */
     }
-    //else if(strcmp(service, "browse") == 0) {
-    //    if(nodeid && !value)
-    //        return browse(argc, argv);
-    //}
     //else if(strcmp(argv[1], "write") == 0) {
     //    if(nodeid && value)
     //        return writeAttr(argc-argpos, &argv[argpos]);
