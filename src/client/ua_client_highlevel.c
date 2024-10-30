@@ -473,6 +473,36 @@ UA_Client_writeArrayDimensionsAttribute(UA_Client *client, const UA_NodeId nodeI
 /* Read Attributes */
 /*******************/
 
+UA_DataValue
+UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi) {
+    /* Set up the request */
+    UA_ReadRequest request;
+    UA_ReadRequest_init(&request);
+    request.timestampsToReturn = UA_TIMESTAMPSTORETURN_BOTH;
+    request.nodesToRead = (UA_ReadValueId*)(uintptr_t)rvi;
+    request.nodesToReadSize = 1;
+
+    /* Call the service */
+    UA_DataValue res;
+    UA_ReadResponse response = UA_Client_Service_read(client, request);
+    UA_StatusCode retval = response.responseHeader.serviceResult;
+    if(retval == UA_STATUSCODE_GOOD && response.resultsSize != 1)
+        retval = UA_STATUSCODE_BADUNEXPECTEDERROR;
+    if(UA_StatusCode_isBad(retval)) {
+        UA_ReadResponse_clear(&response);
+        UA_DataValue_init(&res);
+        res.status = retval;
+        res.hasStatus = true;
+        return res;
+    }
+
+    /* Return the result */
+    res = response.results[0];
+    response.resultsSize = 0;
+    UA_ReadResponse_clear(&response);
+    return res;
+}
+
 UA_StatusCode
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
                           UA_AttributeId attributeId, void *out,

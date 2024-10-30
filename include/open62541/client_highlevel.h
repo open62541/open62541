@@ -39,6 +39,9 @@ _UA_BEGIN_DECLS
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
 
+UA_DataValue UA_EXPORT UA_THREADSAFE
+UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi);
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
