@@ -48,7 +48,7 @@ UA_StatusCode writeJsonObjEnd(CtxJson *ctx);
 UA_StatusCode writeJsonArrStart(CtxJson *ctx);
 UA_StatusCode writeJsonArrElm(CtxJson *ctx, const void *value,
                               const UA_DataType *type);
-UA_StatusCode writeJsonArrEnd(CtxJson *ctx);
+UA_StatusCode writeJsonArrEnd(CtxJson *ctx, const UA_DataType *type);
 
 UA_StatusCode writeJsonKey(CtxJson *ctx, const char* key);
 

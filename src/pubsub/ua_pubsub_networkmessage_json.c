@@ -186,7 +186,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
             /* comma is needed if more dsm are present */
             ctx->commaNeeded[ctx->depth] = true;
         }
-        rv |= writeJsonArrEnd(ctx); /* end array */
+        rv |= writeJsonArrEnd(ctx, NULL); /* end array */
     }
 
     rv |= writeJsonObjEnd(ctx);
