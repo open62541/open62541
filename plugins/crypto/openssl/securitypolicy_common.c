@@ -1314,17 +1314,16 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
     EVP_PKEY *result = NULL;
     BIO *bio = NULL;
 
-    /* Try to read DER encoded private key */
     bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+    /* Try to read DER encoded private key */
     result = d2i_PrivateKey_bio(bio, NULL);
-    BIO_free(bio);
 
     if (result == NULL) {
         /* Try to read PEM encoded private key */
-        bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+        BIO_reset(bio);
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-        BIO_free(bio);
     }
+    BIO_free(bio);
 
     return result;
 }
