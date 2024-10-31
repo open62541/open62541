@@ -139,14 +139,19 @@ WRITE_JSON_ELEMENT(ArrStart) {
     return writeChar(ctx, '[');
 }
 
-WRITE_JSON_ELEMENT(ArrEnd) {
+status
+writeJsonArrEnd(CtxJson *ctx, const UA_DataType *type) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     UA_Boolean have_elem = ctx->commaNeeded[ctx->depth];
     ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
+
+    /* If the array does not contain JSON objects (with a newline after), then
+     * add the closing ] on the same line */
+    UA_Boolean distinct = (!type || type->typeKind > UA_DATATYPEKIND_DOUBLE);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(ctx->prettyPrint && have_elem) {
+    if(ctx->prettyPrint && have_elem && distinct) {
         res |= writeChar(ctx, '\n');
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
@@ -424,7 +429,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
      * TODO: Clarify the difference between length -1 and length 0 in JSON. */
     status ret = writeJsonArrStart(ctx);
     if(!ptr)
-        return ret | writeJsonArrEnd(ctx);
+        return ret | writeJsonArrEnd(ctx, type);
 
     uintptr_t uptr = (uintptr_t)ptr;
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
@@ -438,7 +443,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
@@ -1029,7 +1034,7 @@ encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
         }
     }
 
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 static status
@@ -1053,7 +1058,7 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
                                         dimensionIndex + 1, dimensionSize);
         ctx->commaNeeded[ctx->depth] = true;
     }
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 ENCODE_JSON(Variant) {
