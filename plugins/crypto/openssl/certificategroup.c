@@ -310,19 +310,16 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         X509_CRL * crl = NULL;
         BIO * bio = NULL;
 
-        /* Try to load DER encoded CRL */
         bio = BIO_new_mem_buf((void *)context->trustList.trustedCrls[i].data,
                               (int)context->trustList.trustedCrls[i].length);
+        /* Try to load DER encoded CRL */
         crl = d2i_X509_CRL_bio(bio, NULL);
-        BIO_free(bio);
-
         if (crl == NULL) {
             /* Try to load PEM encoded CRL */
-            bio = BIO_new_mem_buf((void *)context->trustList.trustedCrls[i].data,
-                                  (int)context->trustList.trustedCrls[i].length);
+            BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
-            BIO_free(bio);
         }
+        BIO_free(bio);
 
         if (crl == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
@@ -333,19 +330,16 @@ reloadCertificates(UA_CertificateGroup *certGroup) {
         X509_CRL * crl = NULL;
         BIO * bio = NULL;
 
-        /* Try to load DER encoded Issuer CRL */
         bio = BIO_new_mem_buf((void *)context->trustList.issuerCrls[i].data,
                               (int)context->trustList.issuerCrls[i].length);
+        /* Try to load DER encoded Issuer CRL */
         crl = d2i_X509_CRL_bio(bio, NULL);
-        BIO_free(bio);
-
         if (crl == NULL) {
             /* Try to load PEM encoded Issuer CRL */
-            bio = BIO_new_mem_buf((void *)context->trustList.issuerCrls[i].data,
-                                  (int)context->trustList.issuerCrls[i].length);
+            BIO_reset(bio);
             crl = PEM_read_bio_X509_CRL(bio, NULL, NULL, NULL);
-            BIO_free(bio);
         }
+        BIO_free(bio);
 
         if (crl == NULL) {
             return UA_STATUSCODE_BADINTERNALERROR;
