@@ -295,6 +295,9 @@ Detailed SDK Features
    The advanced build option ``UA_FILE_NS0`` can be used to override the XML
    file used for namespace zero generation.
 
+**UA_ENABLE_DIAGNOSTICS**
+   Enable diagnostics information exposed by the server. Enabled by default.
+
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
