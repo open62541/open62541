@@ -272,6 +272,7 @@ Detailed SDK Features
 **UA_ENABLE_ENCRYPTION**
    Enable encryption support and specify the used encryption backend. The possible
    options are:
+
    - ``OFF`` No encryption support. (default)
    - ``MBEDTLS`` Encryption support using mbed TLS
    - ``OPENSSL`` Encryption support using OpenSSL
@@ -297,6 +298,9 @@ Detailed SDK Features
 
 **UA_ENABLE_DIAGNOSTICS**
    Enable diagnostics information exposed by the server. Enabled by default.
+
+**UA_ENABLE_JSON_ENCODING**
+   Enable JSON encoding. Enabled by default.
 
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
