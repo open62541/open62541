@@ -320,17 +320,17 @@ PubSub Build Options
 
 **UA_ENABLE_PUBSUB**
    Enable the experimental OPC UA PubSub support. The option will include the
-   PubSub UDP multicast plugin. Disabled by default.
+   PubSub UDP multicast plugin. Enabled by default.
 
 **UA_ENABLE_PUBSUB_FILE_CONFIG**
    Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
    PubSub informationmodel methods also will add a method to the
-   Publish/Subscribe object which allows configuring PubSub at runtime.
+   Publish/Subscribe object which allows configuring PubSub at runtime. Disabled by default.
 
 **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
    Enable the information model representation of the PubSub configuration. For
    more details take a look at the following section `PubSub Information Model
-   Representation`. Disabled by default.
+   Representation`. Enabled by default.
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^
