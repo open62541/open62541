@@ -296,6 +296,9 @@ Detailed SDK Features
    The advanced build option ``UA_FILE_NS0`` can be used to override the XML
    file used for namespace zero generation.
 
+**UA_ENABLE_DIAGNOSTICS**
+   Enable diagnostics information exposed by the server. Enabled by default.
+
 **UA_ENABLE_JSON_ENCODING**
    Enable JSON encoding. Enabled by default.
 
