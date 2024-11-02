@@ -65,6 +65,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
+    res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
     res |= UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
     if(res != UA_STATUSCODE_GOOD)
         UA_ReaderGroupConfig_clear(dst);

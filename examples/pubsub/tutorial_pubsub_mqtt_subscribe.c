@@ -111,8 +111,8 @@ addReaderGroup(UA_Server *server) {
         readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
     /* configure the mqtt publish topic */
-    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
-    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
     /* Assign the Topic at which MQTT publish should happen */
     /*ToDo: Pass the topic as argument from the reader group */
     brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);
