@@ -76,6 +76,7 @@ void
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->name);
     UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
+    UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
     UA_String_clear(&readerGroupConfig->securityGroupId);
 }
 
