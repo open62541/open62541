@@ -9,9 +9,11 @@ open62541 Documentation
    types
    server
    client
+   server_pubsub
    pubsub
    tutorials
    common
+   util
    nodeset_compiler
    statuscodes
    plugin

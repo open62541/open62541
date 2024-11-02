@@ -269,10 +269,14 @@ setWriterGroupEncodingType(UA_PubSubManager *psm,
         config->encodingMimeType = UA_PUBSUB_ENCODING_UADP;
     } else if(writerGroupParameters->messageSettings.content.decoded.type ==
               &UA_TYPES[UA_TYPES_JSONWRITERGROUPMESSAGEDATATYPE]) {
+#ifdef UA_ENABLE_JSON_ENCODING
+        config->encodingMimeType = UA_PUBSUB_ENCODING_JSON;
+#else
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_setWriterGroupEncodingType] "
                      "encoding type: JSON (not implemented!)");
         return UA_STATUSCODE_BADNOTIMPLEMENTED;
+#endif
     } else {
         UA_LOG_ERROR(psm->logging, UA_LOGCATEGORY_PUBSUB,
                      "[UA_PubSubManager_setWriterGroupEncodingType] "

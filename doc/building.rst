@@ -272,6 +272,7 @@ Detailed SDK Features
 **UA_ENABLE_ENCRYPTION**
    Enable encryption support and specify the used encryption backend. The possible
    options are:
+
    - ``OFF`` No encryption support. (default)
    - ``MBEDTLS`` Encryption support using mbed TLS
    - ``OPENSSL`` Encryption support using OpenSSL
@@ -295,6 +296,12 @@ Detailed SDK Features
    The advanced build option ``UA_FILE_NS0`` can be used to override the XML
    file used for namespace zero generation.
 
+**UA_ENABLE_DIAGNOSTICS**
+   Enable diagnostics information exposed by the server. Enabled by default.
+
+**UA_ENABLE_JSON_ENCODING**
+   Enable JSON encoding. Enabled by default.
+
 Some options are marked as advanced. The advanced options need to be toggled to
 be visible in the cmake GUIs.
 
@@ -313,17 +320,17 @@ PubSub Build Options
 
 **UA_ENABLE_PUBSUB**
    Enable the experimental OPC UA PubSub support. The option will include the
-   PubSub UDP multicast plugin. Disabled by default.
+   PubSub UDP multicast plugin. Enabled by default.
 
 **UA_ENABLE_PUBSUB_FILE_CONFIG**
    Enable loading OPC UA PubSub configuration from File/ByteString. Enabling
    PubSub informationmodel methods also will add a method to the
-   Publish/Subscribe object which allows configuring PubSub at runtime.
+   Publish/Subscribe object which allows configuring PubSub at runtime. Disabled by default.
 
 **UA_ENABLE_PUBSUB_INFORMATIONMODEL**
    Enable the information model representation of the PubSub configuration. For
    more details take a look at the following section `PubSub Information Model
-   Representation`. Disabled by default.
+   Representation`. Enabled by default.
 
 Debug Build Options
 ^^^^^^^^^^^^^^^^^^^

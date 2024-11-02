@@ -18,19 +18,16 @@ _UA_BEGIN_DECLS
 #ifdef UA_ENABLE_PUBSUB
 
 /**
- * .. _pubsub-messages:
+ * .. _raw-pubsub:
  *
- * PubSub Network Messages
- * =======================
+ * Raw PubSub
+ * ==========
  *
  * The following definitions enable to work directly with PubSub messages. This
- * is not required when :ref:`PubSub is integrated with a server<pubsub>`. */
-
-#define UA_NETWORKMESSAGE_MAX_NONCE_LENGTH 16
-
-/**
-* DataSet Message
-* ^^^^^^^^^^^^^^^ */
+ * is not required when :ref:`PubSub is integrated with a server<pubsub>`.
+ *
+ * DataSet Message
+ * ^^^^^^^^^^^^^^^ */
 
 typedef struct {
     UA_Byte count;
@@ -123,6 +120,8 @@ typedef struct {
     UA_UInt16 networkMessageNumber;
     UA_UInt16 sequenceNumber;
 } UA_NetworkMessageGroupHeader;
+
+#define UA_NETWORKMESSAGE_MAX_NONCE_LENGTH 16
 
 typedef struct {
     UA_Boolean networkMessageSigned;

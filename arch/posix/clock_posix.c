@@ -8,15 +8,12 @@
 
 #include <open62541/types.h>
 
-/* This file contains archicture-specific access to the system clock for
- * UA_DateTime_now. etc. Just add additional architecture below.
- *
- * Note that the EventLoop plugin provides its own internal time source (which
+/* Note that the EventLoop plugin provides its own internal time source (which
  * is typically just the normal system time). All internal access to the time
  * source should be through the EventLoop. The below is therefore for developer
- * convenience to just use UA_DateTime_now. */
+ * convenience to just use UA_DateTime_now(). */
 
-#ifdef UA_ARCHITECTURE_POSIX
+#if defined(UA_ARCHITECTURE_POSIX)
 
 #include <time.h>
 #include <sys/time.h>
@@ -65,9 +62,7 @@ UA_DateTime UA_DateTime_nowMonotonic(void) {
 #endif
 }
 
-#endif /* UA_ARCHITECTURE_POSIX */
-
-#ifdef UA_ARCHITECTURE_WIN32
+#elif defined(UA_ARCHITECTURE_WIN32)
 
 #include <time.h>
 /* Backup definition of SLIST_ENTRY on mingw winnt.h */

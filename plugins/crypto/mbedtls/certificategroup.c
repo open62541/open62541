@@ -136,26 +136,16 @@ MemoryCertStore_getRejectedList(UA_CertificateGroup *certGroup, UA_ByteString **
 
 static UA_StatusCode
 mbedtlsCheckCrlMatch(mbedtls_x509_crt *cert, mbedtls_x509_crl *crl) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
-    /* Check if the certificate is a CA certificate.
-     * Only a CA certificate can have a CRL. */
-    if(!mbedtlsCheckCA(cert))
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
-
     char certSubject[MBEDTLS_X509_MAX_DN_NAME_SIZE];
     char crlIssuer[MBEDTLS_X509_MAX_DN_NAME_SIZE];
 
     mbedtls_x509_dn_gets(certSubject, sizeof(certSubject), &cert->subject);
     mbedtls_x509_dn_gets(crlIssuer, sizeof(crlIssuer), &crl->issuer);
 
-    if(strncmp(certSubject, crlIssuer, MBEDTLS_X509_MAX_DN_NAME_SIZE) == 0) {
-        retval = UA_STATUSCODE_GOOD;
-    } else {
-        retval = UA_STATUSCODE_BADNOMATCH;
-    }
+    if(strncmp(certSubject, crlIssuer, MBEDTLS_X509_MAX_DN_NAME_SIZE) == 0)
+        return UA_STATUSCODE_GOOD;
 
-    return retval;
+    return UA_STATUSCODE_BADNOMATCH;
 }
 
 static UA_StatusCode
@@ -170,6 +160,16 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
             "An error occurred while parsing the certificate.");
         return retval;
     }
+
+    /* Check if the certificate is a CA certificate.
+     * Only a CA certificate can have a CRL. */
+    if(!mbedtlsCheckCA(&cert)) {
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+               "The certificate is not a CA certificate and therefore does not have a CRL.");
+        mbedtls_x509_crt_free(&cert);
+        return UA_STATUSCODE_GOOD;
+    }
+
     UA_Boolean foundMatch = false;
     for(size_t i = 0; i < crlListSize; i++) {
         mbedtls_x509_crl crl;
@@ -184,17 +184,10 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
 
         retval = mbedtlsCheckCrlMatch(&cert, &crl);
         mbedtls_x509_crl_free(&crl);
-
-        if(retval == UA_STATUSCODE_BADNOMATCH) {
+        if(retval != UA_STATUSCODE_GOOD) {
             continue;
         }
-        /* If it is not a CA certificate, there is no crl list. */
-        if(retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED) {
-            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                "The certificate is not a CA certificate and therefore does not have a CRL.");
-            mbedtls_x509_crt_free(&cert);
-            return retval;
-        }
+
         /* Continue the search, as a certificate may be associated with multiple CRLs. */
         foundMatch = true;
         retval = UA_Array_appendCopy((void **)crls, crlsSize, &crlList[i],
@@ -713,17 +706,16 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
     mbedtls_x509_crt_init(&remoteCertificate);
-    int mbedErr = mbedtls_x509_crt_parse(&remoteCertificate, certificate->data,
-                                         certificate->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &remoteCertificate);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
      * of the Alternative Subject Name. Instead test whether the URI-string is
      * present in the v3_ext field in general.
      *
      * TODO: Improve parsing of the Alternative Subject Name */
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
                   applicationURI->data, applicationURI->length) == NULL)
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
@@ -743,9 +735,11 @@ UA_CertificateUtils_getExpirationDate(UA_ByteString *certificate,
                                       UA_DateTime *expiryDateTime) {
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
-    int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     UA_DateTimeStruct ts;
     ts.year = (UA_Int16)publicKey.valid_to.year;
     ts.month = (UA_UInt16)publicKey.valid_to.mon;
@@ -766,9 +760,11 @@ UA_CertificateUtils_getSubjectName(UA_ByteString *certificate,
                                    UA_String *subjectName) {
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
-    int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     char buf[1024];
     int res = mbedtls_x509_dn_gets(buf, 1024, &publicKey.subject);
     mbedtls_x509_crt_free(&publicKey);
@@ -819,11 +815,10 @@ UA_CertificateUtils_getKeySize(UA_ByteString *certificate,
                                size_t *keySize){
     mbedtls_x509_crt publicKey;
     mbedtls_x509_crt_init(&publicKey);
-    int mbedErr = mbedtls_x509_crt_parse(&publicKey, certificate->data, certificate->length);
-    if(mbedErr) {
-        mbedtls_x509_crt_free(&publicKey);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &publicKey);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
 
     mbedtls_rsa_context *rsa = mbedtls_pk_rsa(publicKey.pk);
 
@@ -935,43 +930,21 @@ cleanup:
 }
 
 UA_StatusCode
-UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
+UA_CertificateUtils_checkKeyPair(const UA_ByteString *certificate,
                                  const UA_ByteString *privateKey) {
-    UA_StatusCode retval = UA_STATUSCODE_GOOD;
-
     mbedtls_x509_crt cert;
     mbedtls_pk_context pk;
 
     mbedtls_x509_crt_init(&cert);
     mbedtls_pk_init(&pk);
 
-    UA_ByteString data1 = UA_mbedTLS_CopyDataFormatAware(certificate);
-    UA_ByteString data2 = UA_mbedTLS_CopyDataFormatAware(privateKey);
-
-    int mbedErr = mbedtls_x509_crt_parse(&cert, data1.data, data1.length);
-    if(mbedErr) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    }
 
-#if MBEDTLS_VERSION_NUMBER >= 0x02060000 && MBEDTLS_VERSION_NUMBER < 0x03000000
-    int err = mbedtls_pk_parse_key(&pk, data2.data,
-                                   data2.length,
-                                   NULL, 0);
-#else
-    mbedtls_entropy_context entropy;
-    mbedtls_entropy_init(&entropy);
-    int err = mbedtls_pk_parse_key(&pk, data2.data,
-                                   data2.length,
-                                   NULL, 0,
-                                   mbedtls_entropy_func, &entropy);
-    mbedtls_entropy_free(&entropy);
-#endif
-
-    if(err != 0) {
-        retval = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
+    retval = UA_mbedTLS_LoadPrivateKey(privateKey, &pk, NULL);
+    if(retval != UA_STATUSCODE_GOOD)
         goto cleanup;
-    }
 
     /* Verify the private key matches the public key in the certificate */
     if(!mbedtls_pk_can_do(&pk, mbedtls_pk_get_type(&cert.pk))) {
@@ -993,8 +966,23 @@ UA_CertificateUtils_ckeckKeyPair(const UA_ByteString *certificate,
 cleanup:
     mbedtls_pk_free(&pk);
     mbedtls_x509_crt_free(&cert);
-    UA_ByteString_clear(&data1);
-    UA_ByteString_clear(&data2);
+
+    return retval;
+}
+
+UA_StatusCode
+UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
+    mbedtls_x509_crt cert;
+    mbedtls_x509_crt_init(&cert);
+
+    UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
+    if(retval != UA_STATUSCODE_GOOD)
+        goto cleanup;
+
+    retval = mbedtlsCheckCA(&cert) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
+
+cleanup:
+    mbedtls_x509_crt_free(&cert);
 
     return retval;
 }

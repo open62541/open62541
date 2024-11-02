@@ -9,6 +9,13 @@ else()
     project(open62541 C) # Do not look for a C++ compiler
 endif()
 
+if(ZEPHYR_BASE)
+  if(NOT CONFIG_OPEN62541)
+    return()
+  endif()
+  include(arch/zephyr/zephyr.cmake)
+endif()
+
 # set(CMAKE_VERBOSE_MAKEFILE ON)
 
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/tools/cmake")
@@ -59,7 +66,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -76,6 +83,8 @@ if("${UA_ARCHITECTURE}" STREQUAL "posix")
     set(UA_ARCHITECTURE_POSIX 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
+    set(UA_ARCHITECTURE_ZEPHYR 1)
 endif()
 
 #################
@@ -103,6 +112,7 @@ option(UA_ENABLE_DISCOVERY "Enable Discovery Service (LDS)" ON)
 option(UA_ENABLE_JSON_ENCODING "Enable JSON encoding" ON)
 option(UA_ENABLE_XML_ENCODING "Enable XML encoding (EXPERIMENTAL)" OFF)
 option(UA_ENABLE_NODESETLOADER "Enable nodesetLoader public API" OFF)
+option(UA_ENABLE_GDS_PUSHMANAGEMENT "Enable GDS pushManagement support" OFF)
 option(UA_ENABLE_DATATYPES_ALL "Generate all datatypes for namespace zero (uses more binary space)" ON)
 
 if(UA_INFORMATION_MODEL_AUTOLOAD AND NOT UA_BUILD_FUZZING)
@@ -511,7 +521,9 @@ function(add_cc_flag CC_FLAG)
     endif()
 endfunction()
 
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
+if((CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang") AND
+    NOT ${UA_ARCHITECTURE} STREQUAL "zephyr")
+
     check_add_cc_flag("-std=c99")   # C99 mode
     check_add_cc_flag("-pipe")      # Avoid writing temporary files (for compiler speed)
     check_add_cc_flag("-Wall")      # Warnings
@@ -528,6 +540,7 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     check_add_cc_flag("-Wno-maybe-uninitialized") # too many false positives
 
     # Use a strict subset of the C and C++ languages
+
     check_add_cc_flag("-Wc++-compat")
 
     # Check that format strings (printf/scanf) are sane
@@ -538,12 +551,14 @@ if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     # Check prototype definitions
     check_add_cc_flag("-Wmissing-prototypes")
     check_add_cc_flag("-Wstrict-prototypes")
+
     check_add_cc_flag("-Wredundant-decls")
 
     check_add_cc_flag("-Wuninitialized")
     check_add_cc_flag("-Winit-self")
     check_add_cc_flag("-Wcast-qual")
     check_add_cc_flag("-Wstrict-overflow")
+
     check_add_cc_flag("-Wnested-externs")
     check_add_cc_flag("-Wmultichar")
     check_add_cc_flag("-Wundef")
@@ -769,6 +784,7 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_diagnostics.c
+                ${PROJECT_SOURCE_DIR}/src/server/ua_server_ns0_gds.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_config.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_binary.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_server_utils.c
@@ -906,19 +922,24 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
 
 # Always add the POSIX eventloop. The files internally check for the configured architecture
 list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/arch/clock.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/timer.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/eventloop_common/eventloop_mqtt.c)
-
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+     ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
+     ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
+     ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
+     
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
     list(APPEND plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/server_config_file_based.h)
@@ -1058,6 +1079,15 @@ else()
     if(UA_ENABLE_DIAGNOSTICS)
         list(APPEND UA_FILE_NODESETS ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.DiagnosticsMinimal.xml)
         list(APPEND UA_FILE_DATATYPES ${UA_SCHEMA_DIR}/datatypes_diagnostics.txt)
+    endif()
+
+    if(UA_ENABLE_GDS_PUSHMANAGEMENT)
+        if(NOT UA_NAMESPACE_ZERO STREQUAL "FULL")
+            message(FATAL_ERROR "PushManagement needs the full Namespace Zero")
+        endif()
+        if(NOT UA_ENABLE_ENCRYPTION)
+            message(FATAL_ERROR "PushManagement cannot be used with disabled UA_ENABLE_ENCRYPTION")
+        endif()
     endif()
 
     if(UA_ENABLE_SUBSCRIPTIONS)
@@ -1206,8 +1236,15 @@ assign_source_group(${lib_headers} ${lib_sources})
 assign_source_group(${plugin_headers} ${plugin_sources})
 
 # Define the target libraries
-add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
-add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+if(${UA_ARCHITECTURE} STREQUAL "zephyr")
+    zephyr_library_named(open62541-object)
+    zephyr_library_named(open62541-plugins)
+    target_sources(open62541-object PRIVATE ${lib_sources} ${lib_headers} ${exported_headers})
+    target_sources(open62541-plugins PRIVATE ${plugin_sources} ${plugin_headers})
+else()
+    add_library(open62541-object OBJECT ${lib_sources} ${lib_headers} ${exported_headers})
+    add_library(open62541-plugins OBJECT ${plugin_sources} ${plugin_headers})
+endif()
 add_library(open62541 $<TARGET_OBJECTS:open62541-object> $<TARGET_OBJECTS:open62541-plugins>)
 
 add_dependencies(open62541-object open62541-code-generation)
@@ -1309,7 +1346,7 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
 endif()
 
 if(UA_BUILD_TOOLS)
-    add_subdirectory(tools/ua-tool)
+    add_subdirectory(tools/ua-cli)
     if(UA_ENABLE_JSON_ENCODING)
         add_subdirectory(tools/ua2json)
     endif()

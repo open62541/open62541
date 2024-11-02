@@ -6,6 +6,7 @@
  *    Copyright 2020 (c) basysKom GmbH
  *    Copyright 2022 (c) Wind River Systems, Inc.
  *    Copyright 2022 (c) Fraunhofer IOSB (Author: Noel Graf)
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  */
 
 /*
@@ -1307,22 +1308,22 @@ cleanup:
 
 EVP_PKEY *
 UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
-    const unsigned char * pkData = privateKey->data;
-    long len = (long) privateKey->length;
-    if(len == 0)
+    if(privateKey->length == 0)
         return NULL;
 
     EVP_PKEY *result = NULL;
+    BIO *bio = NULL;
 
-    if (len > 1 && pkData[0] == 0x30 && pkData[1] == 0x82) { // Magic number for DER encoded keys
-        result = d2i_PrivateKey(EVP_PKEY_RSA, NULL,
-                                          &pkData, len);
-    } else {
-        BIO *bio = NULL;
-        bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+    bio = BIO_new_mem_buf((void *) privateKey->data, (int) privateKey->length);
+    /* Try to read DER encoded private key */
+    result = d2i_PrivateKey_bio(bio, NULL);
+
+    if (result == NULL) {
+        /* Try to read PEM encoded private key */
+        BIO_reset(bio);
         result = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
-        BIO_free(bio);
     }
+    BIO_free(bio);
 
     return result;
 }
@@ -1330,11 +1331,12 @@ UA_OpenSSL_LoadPrivateKey(const UA_ByteString *privateKey) {
 X509 *
 UA_OpenSSL_LoadCertificate(const UA_ByteString *certificate) {
     X509 * result = NULL;
-    const unsigned char *pData = certificate->data;
 
-    if (certificate->length > 1 && pData[0] == 0x30 && pData[1] == 0x82) { // Magic number for DER encoded files
-        result = UA_OpenSSL_LoadDerCertificate(certificate);
-    } else {
+    /* Try to decode DER encoded certificate */
+    result = UA_OpenSSL_LoadDerCertificate(certificate);
+
+    if (result == NULL) {
+        /* Try to decode PEM encoded certificate */
         result = UA_OpenSSL_LoadPemCertificate(certificate);
     }
 

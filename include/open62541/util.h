@@ -14,6 +14,15 @@
 _UA_BEGIN_DECLS
 
 /**
+ * .. _utility:
+ *
+ * Utility Definitions
+ * ===================
+ *
+ * Utility functions are used by both client and server. Different from the
+ * :ref:`common`, the utlity functions can use the :ref:`types`. */
+
+/**
  * Range Definition
  * ---------------- */
 
@@ -27,24 +36,25 @@ typedef struct {
     UA_Duration max;
 } UA_DurationRange;
 
+/**
+ * .. _eventfilter:
+ *
+ * Event-Filter Parsing
+ * --------------------
+ */
+#ifdef UA_ENABLE_PARSING
+#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
+
 typedef struct {
     const UA_Logger *logger;
 } UA_EventFilterParserOptions;
 
-/**
- * Query Language Eventfilter
- * @param content eventfilter query
- * @param filter generated eventfilter
- * @param options Can be NULL.
- */
-#ifdef UA_ENABLE_PARSING
-#ifdef UA_ENABLE_SUBSCRIPTIONS_EVENTS
 UA_EXPORT UA_StatusCode
 UA_EventFilter_parse(UA_EventFilter *filter, UA_ByteString content,
                      UA_EventFilterParserOptions *options);
-#endif
-#endif
 
+#endif
+#endif
 
 /**
  * Random Number Generator
@@ -252,8 +262,10 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * This documentation always states whether "and-escaping" or the
  * "extended-and-escaping is used.
  *
- * Print and Parse RelativePath Expressions
- * ----------------------------------------
+ * .. _relativepath:
+ *
+ * RelativePath Expressions
+ * ------------------------
  * Parse a RelativePath according to the format defined in Part 4, A2. This is
  * used e.g. for the BrowsePath structure.
  *
@@ -266,6 +278,7 @@ UA_readNumberWithBase(const UA_Byte *buf, size_t buflen,
  * - ``< [!#]* BrowseName >``: The ReferenceType is indicated by its BrowseName.
  *   Reserved characters in the BrowseName are and-escaped. The following
  *   prefix-modifiers are defined for the ReferenceType.
+ *
  *   - ``!`` switches to inverse References
  *   - ``#`` excludes subtypes of the ReferenceType.
  *   - As a non-standard extension we allow the ReferenceType in angle-brackets
@@ -312,51 +325,78 @@ UA_RelativePath_print(const UA_RelativePath *rp, UA_String *out);
 /**
  * .. _parse-sao:
  *
- * Print and Parse SimpleAttributeOperand Expression
- * -------------------------------------------------
- * The SimpleAttributeOperand is used to specify the location of up values.
- * SimpleAttributeOperands are used for example in EventFilters to select the
- * values reported for each event instance.
+ * Attribute Path Expression
+ * -------------------------
+ * The data types ``ReadValueId``, ``AttributeOperand`` and
+ * ``SimpleAttributeOperand`` define the location of a value. That is, they
+ * define an attribute (with an optional index-range) of a node in the
+ * information model. The ``AttributeOperand`` data type has the most features.
+ * The other two are similar but simplified:
  *
- * The TypeDefinitionId is a NodeId and restricts the starting point for the
- * lookup to instances of the TypeDefinitionNode or one of its subtypes. If not
- * defined, the NodeId defaults to the BaseEventType. The NodeId is
- * extended-and-escaped.
+ *   ReadValueId :=
+ *     NodeId? ("#" Attribute)? ("[" IndexRange "]")?
  *
- * The BrowsePath is a list of BrowseNames (QualifiedName expression with
- * extended-and-escaping of the name) to be followed from the TypeDefinitionNode
- * instance. The implied ReferenceTypeIds (cf. the RelativePath expressions) are
- * always the HierarchicalReferences and their subtypes. So the ``/`` separator
- * is mandatory here. The BrowsePath for the SimpleAttributeOperand is defined
- * to only follow into Variable- and ObjectNodes. If the BrowsePath is empty,
- * the value is taken from the instance of the TypeDefinition itself.
- *
- * The attribute is the textual name of the selected node attribute.
- * If undefined, the attribute defaults to the Value attribute.
- * For the index range, see the section on :ref:`numericrange`.
- * The BNF definition of the SimpleAttributeOperand is as follows::
+ *   AttributeOperand :=
+ *     NodeId? RelativePath? ("#" Attribute)? ("[" IndexRange "]")?
  *
  *   SimpleAttributeOperand :=
- *     TypeDefinitionId? SimpleBrowsePath ("#" Attribute)? ("[" IndexRange "]")?
+ *     TypeDefId? ("/" BrowseName)* ("#" Attribute)? ("[" IndexRange "]")?
  *
- *   SimpleBrowsePath := ("/" BrowseName)*
+ * The ReadValueId is used for the Read Service. The default NodeId is ``i=0``.
+ * The default attribute is ``#Value``.
+ *
+ * The AttributeOperand is used for the Query Service. It extends the
+ * ReadValueId with a RelativePath to be followed from the initial node. The
+ * default NodeId is the ObjectsFolder ``i=85``. The default attribute is
+ * ``#Value``.
+ *
+ * The SimpleAttributeOperand is used for the Query Service and for
+ * :ref:`eventfilter`. It is a simplified AttributeOperand where all references
+ * in the RelativePath are (subtypes of) HierarchicalReferences. So the ``/``
+ * separator is mandatory. The initial NodeId is called *TypeDefinitionId*
+ * because SimpleAttributeOperands are typically used in EventFilters to
+ * reference the child nodes of an EventType to select the values reported for
+ * each event instance.
+ *
+ * The different parts of the expression are parsed as follows:
+ *
+ * - The :ref:`nodeid` uses the human-readable format of Part 6, 5.3.1.10.
+ *   String NodeIds use the extended-and-escaping from above.
+ * - The :ref:`relativepath` use the human-readable format with
+ *   extended-and-escaping for strings.
+ * - The :ref:`attribute-id` is the human-readable name of the selected node
+ *   attribute.
+ * - For the index range, see the section on :ref:`numericrange`.
  *
  * Example SimpleAttributeOperands
  * ```````````````````````````````
  * - ``ns=2;s=TruckEventType/3:Truck/5:Wheel#Value[1:3]``
  * - ``/3:Truck/5:Wheel``
- * - ``#BrowseName``
- * - Empty String: No NodeId, BrowsePath, Attribute and NumericRange. This
- *   indicates the value attribute of the event instance.
- */
+ * - ``#BrowseName`` */
 
 #ifdef UA_ENABLE_PARSING
+UA_EXPORT UA_StatusCode
+UA_ReadValueId_parse(UA_ReadValueId *rvi,
+                     const UA_String str);
+
+UA_EXPORT UA_StatusCode
+UA_AttributeOperand_parse(UA_AttributeOperand *ao,
+                          const UA_String str);
+
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_parse(UA_SimpleAttributeOperand *sao,
                                 const UA_String str);
 
 /* The out-string can be pre-allocated. Then the size is adjusted or an error
  * returned. If the out-string is NULL, then memory is allocated for it. */
+UA_EXPORT UA_StatusCode
+UA_ReadValueId_print(const UA_ReadValueId *rvi,
+                     UA_String *out);
+
+UA_EXPORT UA_StatusCode
+UA_AttributeOperand_print(const UA_AttributeOperand *ao,
+                          UA_String *out);
+
 UA_EXPORT UA_StatusCode
 UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
                                 UA_String *out);
@@ -365,8 +405,10 @@ UA_SimpleAttributeOperand_print(const UA_SimpleAttributeOperand *sao,
 /**
  * Convenience macros for complex types
  * ------------------------------------ */
-#define UA_PRINTF_GUID_FORMAT "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 \
-    "-%02" PRIx8 "%02" PRIx8 "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
+
+#define UA_PRINTF_GUID_FORMAT                                           \
+    "%08" PRIx32 "-%04" PRIx16 "-%04" PRIx16 "-%02" PRIx8 "%02" PRIx8   \
+    "-%02" PRIx8 "%02" PRIx8 "%02" PRIx8  "%02" PRIx8 "%02" PRIx8 "%02" PRIx8
 #define UA_PRINTF_GUID_DATA(GUID) (GUID).data1, (GUID).data2, (GUID).data3, \
         (GUID).data4[0], (GUID).data4[1], (GUID).data4[2], (GUID).data4[3], \
         (GUID).data4[4], (GUID).data4[5], (GUID).data4[6], (GUID).data4[7]
@@ -391,7 +433,7 @@ UA_ByteString_memZero(UA_ByteString *bs);
 
 /**
  * Trustlist Helpers
- * -------------------- */
+ * ----------------- */
 
 /* Adds all of the certificates from the src trusted list to the dst trusted list. */
 UA_EXPORT UA_StatusCode
