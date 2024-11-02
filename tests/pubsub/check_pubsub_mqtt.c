@@ -6,7 +6,6 @@
  */
 
 #include <open62541/server.h>
-#include <open62541/server_config_default.h>
 #include <open62541/server_pubsub.h>
 
 #include "test_helpers.h"
@@ -58,9 +57,7 @@ static void setup(void) {
     connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 1;
-
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
     size_t connectionOptionIndex = 0;
     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
@@ -224,8 +221,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         readerGroupConfig.name = UA_STRING("ReaderGroup1");
 
         /* configure the mqtt publish topic */
-        UA_BrokerWriterGroupTransportDataType brokerTransportSettingsSubscriber;
-        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+        UA_BrokerDataSetReaderTransportDataType brokerTransportSettingsSubscriber;
+        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
 
         brokerTransportSettingsSubscriber.queueName = UA_STRING(SUBSCRIBE_TOPIC);
         brokerTransportSettingsSubscriber.resourceUri = UA_STRING_NULL;
