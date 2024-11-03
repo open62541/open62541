@@ -436,7 +436,7 @@ Array_encodeBinary(const void *src, size_t length, const UA_DataType *type, Ctx 
         return UA_STATUSCODE_BADINTERNALERROR;
     if(length > 0)
         signed_length = (i32)length;
-    else if(src == UA_EMPTY_ARRAY_SENTINEL)
+    else if(src >= UA_EMPTY_ARRAY_SENTINEL) /* src != NULL */
         signed_length = 0;
 
     /* Encode the array length */
