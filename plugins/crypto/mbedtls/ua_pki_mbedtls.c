@@ -429,8 +429,9 @@ certificateVerification_verify(const UA_CertificateVerification *cv,
     if(!cv || !certificate)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     CertInfo *ci = (CertInfo*)cv->context;
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
+    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
 
 #ifdef __linux__ /* Reload certificates if folder paths are specified */
     ret = reloadCertificates(cv, ci);
@@ -444,16 +445,18 @@ certificateVerification_verify(const UA_CertificateVerification *cv,
     mbedtls_x509_crt_init(&cert);
     int mbedErr = mbedtls_x509_crt_parse(&cert, certificate->data,
                                          certificate->length);
-    if(mbedErr)
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+    if(mbedErr) {
+        ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto errout;
+    }
 
     /* Verification Step: Certificate Usage
      * Check whether the certificate is a User certificate or a CA certificate.
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details. */
     if(mbedtlsCheckCA(&cert)) {
-        mbedtls_x509_crt_free(&cert);
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        ret = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        goto errout;
     }
 
     /* These steps are performed outside of this method.
@@ -464,9 +467,45 @@ certificateVerification_verify(const UA_CertificateVerification *cv,
 
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
-    mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
     ret = mbedtlsVerifyChain(ci, &cert, old_issuers, &cert, 0);
+
+ errout:
     mbedtls_x509_crt_free(&cert);
+
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    if(ret != UA_STATUSCODE_GOOD &&
+       ci->rejectedListFolder.length > 0) {
+            char rejectedFileName[256] = {0};
+            UA_ByteString thumbprint;
+            UA_ByteString_allocBuffer(&thumbprint, UA_SHA1_LENGTH);
+            if(mbedtls_thumbprint_sha1(certificate, &thumbprint) == UA_STATUSCODE_GOOD) {
+                static const char hex2char[] = "0123456789ABCDEF";
+                for(size_t pos = 0, namePos = 0; pos < thumbprint.length; pos++) {
+                    rejectedFileName[namePos++] = hex2char[(thumbprint.data[pos] & 0xf0) >> 4];
+                    rejectedFileName[namePos++] = hex2char[thumbprint.data[pos] & 0x0f];
+                }
+                strcat(rejectedFileName, ".der");
+            } else {
+                UA_UInt64 dt = (UA_UInt64) UA_DateTime_now();
+                sprintf(rejectedFileName, "cert_%" PRIu64 ".der", dt);
+            }
+            UA_ByteString_clear(&thumbprint);
+            char *rejectedFullFileName = (char *)
+                calloc(ci->rejectedListFolder.length + 1 /* '/' */ + strlen(rejectedFileName) + 1, sizeof(char));
+            if(!rejectedFullFileName)
+                return ret;
+            memcpy(rejectedFullFileName, ci->rejectedListFolder.data, ci->rejectedListFolder.length);
+            rejectedFullFileName[ci->rejectedListFolder.length] = '/';
+            memcpy(&rejectedFullFileName[ci->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
+            FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
+            if(fp_rejectedFile) {
+                fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
+                fclose(fp_rejectedFile);
+            }
+            free(rejectedFullFileName);
+    }
+#endif
+
     return ret;
 }
 
@@ -514,9 +553,7 @@ certificateVerification_clear(UA_CertificateVerification *cv) {
     UA_String_clear(&ci->trustListFolder);
     UA_String_clear(&ci->issuerListFolder);
     UA_String_clear(&ci->revocationListFolder);
-#ifdef UA_ENABLE_CERT_REJECTED_DIR
     UA_String_clear(&ci->rejectedListFolder);
-#endif
     UA_free(ci);
     cv->context = NULL;
 }

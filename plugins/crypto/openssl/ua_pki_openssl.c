@@ -617,6 +617,7 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
 
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     CertContext *ctx = (CertContext *)cv->context;
+    X509 *old_issuers[UA_OPENSSL_MAX_CHAIN_LENGTH];
 
 #ifdef __linux__ 
     ret = UA_ReloadCertFromFolder(ctx);
@@ -627,9 +628,8 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
     /* Verification Step: Certificate Structure */
     STACK_OF(X509) *stack = openSSLLoadCertificateStack(*certificate);
     if(!stack || sk_X509_num(stack) < 1) {
-        if(stack)
-            sk_X509_pop_free(stack, X509_free);
-        return UA_STATUSCODE_BADCERTIFICATEINVALID;
+        ret = UA_STATUSCODE_BADCERTIFICATEINVALID;
+        goto errout;
     }
 
     /* Verification Step: Certificate Usage
@@ -638,8 +638,8 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
      * for more details. */
     X509 *leaf = sk_X509_value(stack, 0);
     if(openSSLCheckCA(leaf)) {
-        sk_X509_pop_free(stack, X509_free);
-        return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        ret = UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
+        goto errout;
     }
 
     /* These steps are performed outside of this method.
@@ -650,9 +650,46 @@ UA_CertificateVerification_Verify(const UA_CertificateVerification *cv,
 
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
-    X509 *old_issuers[UA_OPENSSL_MAX_CHAIN_LENGTH];
     ret = openSSL_verifyChain(ctx, stack, old_issuers, leaf, 0);
-    sk_X509_pop_free(stack, X509_free);
+
+ errout:
+    if(stack)
+        sk_X509_pop_free(stack, X509_free);
+
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    if(ret != UA_STATUSCODE_GOOD &&
+       ctx->rejectedListFolder.length > 0) {
+            char rejectedFileName[256] = {0};
+            UA_ByteString thumbprint;
+            UA_ByteString_allocBuffer(&thumbprint, UA_SHA1_LENGTH);
+            if(UA_Openssl_X509_GetCertificateThumbprint(certificate, &thumbprint, true) == UA_STATUSCODE_GOOD) {
+                static const char hex2char[] = "0123456789ABCDEF";
+                for(size_t pos = 0, namePos = 0; pos < thumbprint.length; pos++) {
+                    rejectedFileName[namePos++] = hex2char[(thumbprint.data[pos] & 0xf0) >> 4];
+                    rejectedFileName[namePos++] = hex2char[thumbprint.data[pos] & 0x0f];
+                }
+                strcat(rejectedFileName, ".der");
+            } else {
+                UA_UInt64 dt = (UA_UInt64) UA_DateTime_now();
+                sprintf(rejectedFileName, "cert_%" PRIu64 ".der", dt);
+            }
+            UA_ByteString_clear(&thumbprint);
+            char *rejectedFullFileName = (char *)
+                calloc(ctx->rejectedListFolder.length + 1 /* '/' */ + strlen(rejectedFileName) + 1, sizeof(char));
+            if(!rejectedFullFileName)
+                return ret;
+            memcpy(rejectedFullFileName, ctx->rejectedListFolder.data, ctx->rejectedListFolder.length);
+            rejectedFullFileName[ctx->rejectedListFolder.length] = '/';
+            memcpy(&rejectedFullFileName[ctx->rejectedListFolder.length + 1], rejectedFileName, strlen(rejectedFileName));
+            FILE * fp_rejectedFile = fopen(rejectedFullFileName, "wb");
+            if(fp_rejectedFile) {
+                fwrite(certificate->data, sizeof(certificate->data[0]), certificate->length, fp_rejectedFile);
+                fclose(fp_rejectedFile);
+            }
+            free(rejectedFullFileName);
+    }
+#endif
+
     return ret;
 }
 
@@ -850,10 +887,14 @@ errout:
 
 #ifdef __linux__ /* Linux only so far */
 UA_StatusCode
-UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
-                                       const char *                 trustListFolder,
-                                       const char *                 issuerListFolder,
-                                       const char *                 revocationListFolder) {
+UA_CertificateVerification_CertFolders(UA_CertificateVerification *cv,
+                                       const char *trustListFolder,
+                                       const char *issuerListFolder,
+                                       const char *revocationListFolder
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+                                       , const char *rejectedListFolder
+#endif
+                                       ) {
     UA_StatusCode ret;
     if (cv == NULL) {
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -886,6 +927,9 @@ UA_CertificateVerification_CertFolders(UA_CertificateVerification * cv,
     context->trustListFolder = UA_STRING_ALLOC(trustListFolder);
     context->issuerListFolder = UA_STRING_ALLOC(issuerListFolder);
     context->revocationListFolder = UA_STRING_ALLOC(revocationListFolder);
+#ifdef UA_ENABLE_CERT_REJECTED_DIR
+    context->rejectedListFolder = UA_STRING_ALLOC(rejectedListFolder);
+#endif
 
     return UA_STATUSCODE_GOOD;
 }
