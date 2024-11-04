@@ -18,6 +18,8 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
+#define UA_SHA1_LENGTH 20
+
 _UA_BEGIN_DECLS
 
 void saveDataToFile(const char *fileName, const UA_ByteString *str);
