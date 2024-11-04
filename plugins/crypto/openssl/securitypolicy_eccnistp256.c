@@ -100,9 +100,7 @@ UA_Policy_EccNistP256_Clear_Context(UA_SecurityPolicy *policy) {
     }
 
     EVP_PKEY_free(pc->localPrivateKey);
-    pc->localPrivateKey = NULL;
     EVP_PKEY_free(pc->csrLocalPrivateKey);
-    pc->csrLocalPrivateKey = NULL;
     UA_ByteString_clear(&pc->localCertThumbprint);
     UA_free(pc);
 
@@ -191,19 +189,11 @@ UA_ChannelModule_EccNistP256_New_Context(const UA_SecurityPolicy *securityPolicy
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     Channel_Context_EccNistP256 *context =
-        (Channel_Context_EccNistP256 *)UA_malloc(
+        (Channel_Context_EccNistP256 *)UA_calloc(1,
             sizeof(Channel_Context_EccNistP256));
     if(context == NULL) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-
-    context->localEphemeralKeyPair = NULL;
-    UA_ByteString_init(&context->localSymSigningKey);
-    UA_ByteString_init(&context->localSymEncryptingKey);
-    UA_ByteString_init(&context->localSymIv);
-    UA_ByteString_init(&context->remoteSymSigningKey);
-    UA_ByteString_init(&context->remoteSymEncryptingKey);
-    UA_ByteString_init(&context->remoteSymIv);
 
     UA_StatusCode retval =
         UA_copyCertificate(&context->remoteCertificate, remoteCertificate);
