@@ -4,6 +4,7 @@
  *
  *    Copyright 2020 (c) Wind River Systems, Inc.
  *    Copyright 2020 (c) basysKom GmbH
+ *    Copyright 2024 (c) Siemens AG (Authors: Tin Raic, Thomas Zeschg)
  *
  */
 
@@ -105,6 +106,29 @@ UA_StatusCode
 UA_Openssl_RSA_PSS_SHA256_Sign (const UA_ByteString * message,
                                 EVP_PKEY * privateKey,
                                 UA_ByteString *       outSignature);
+
+UA_StatusCode
+UA_OpenSSL_ECC_NISTP256_GenerateKey (EVP_PKEY ** keyPairOut,
+                                     UA_ByteString * keyPublicEncOut);
+
+UA_StatusCode
+UA_OpenSSL_ECC_DeriveKeys (const int curveID,
+                           char * hashAlgorithm,
+                           const UA_ApplicationType applicationType,
+                           EVP_PKEY * localEphemeralKeyPair,
+                           const UA_ByteString * key1,
+                           const UA_ByteString * key2,
+                           UA_ByteString * out);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA256_Sign (const UA_ByteString * message,
+                              EVP_PKEY * privateKey,
+                              UA_ByteString * outSignature);
+
+UA_StatusCode
+UA_Openssl_ECDSA_SHA256_Verify (const UA_ByteString * message,
+                                X509 * publicKeyX509,
+                                const UA_ByteString * signature);
 
 UA_StatusCode
 UA_OpenSSL_HMAC_SHA256_Verify(const UA_ByteString *message,
