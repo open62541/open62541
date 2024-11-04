@@ -1443,21 +1443,17 @@ UA_OpenSSL_ECDH (const int nid,
     EVP_PKEY_CTX * kctx = NULL;
     EVP_PKEY * remotePubKey = NULL;
     EVP_PKEY * params = NULL;
-    UA_ByteString * keyPublicRemoteEncoded = NULL;
+    UA_ByteString keyPublicRemoteEncoded = UA_BYTESTRING_NULL;
 
-    keyPublicRemoteEncoded = UA_ByteString_new();
-    if(keyPublicRemoteEncoded == NULL) {
+    /* We need one additional byte of memory for the encoding */
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&keyPublicRemoteEncoded, keyPublicRemote->length+1)) {
         ret = UA_STATUSCODE_BADOUTOFMEMORY;
         goto errout;
     }
 
-    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(keyPublicRemoteEncoded, keyPublicRemote->length+1)) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-
-    keyPublicRemoteEncoded->data[0] = 0x04;
-    memcpy(&keyPublicRemoteEncoded->data[1], keyPublicRemote->data, keyPublicRemote->length);
+    /* Set the encoding to 0x04 (uncompressed) and copy the public key */
+    keyPublicRemoteEncoded.data[0] = 0x04;
+    memcpy(&keyPublicRemoteEncoded.data[1], keyPublicRemote->data, keyPublicRemote->length);
 
     remotePubKey = EVP_PKEY_new();
     if(remotePubKey == NULL) {
@@ -1492,12 +1488,12 @@ UA_OpenSSL_ECDH (const int nid,
     }
 
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    if(EVP_PKEY_set1_encoded_public_key(remotePubKey, keyPublicRemoteEncoded->data, keyPublicRemoteEncoded->length) <= 0) {
+    if(EVP_PKEY_set1_encoded_public_key(remotePubKey, keyPublicRemoteEncoded.data, keyPublicRemoteEncoded.length) <= 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 #else
-    if(EVP_PKEY_set1_tls_encodedpoint(remotePubKey, keyPublicRemoteEncoded->data, keyPublicRemoteEncoded->length) <= 0) {
+    if(EVP_PKEY_set1_tls_encodedpoint(remotePubKey, keyPublicRemoteEncoded.data, keyPublicRemoteEncoded.length) <= 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
@@ -1535,8 +1531,7 @@ UA_OpenSSL_ECDH (const int nid,
     }
 
 errout:
-    UA_ByteString_clear(keyPublicRemoteEncoded);
-    UA_ByteString_delete(keyPublicRemoteEncoded);
+    UA_ByteString_clear(&keyPublicRemoteEncoded);
     EVP_PKEY_free(remotePubKey);
     EVP_PKEY_CTX_free(pctx);
     EVP_PKEY_CTX_free(kctx);
@@ -1553,7 +1548,11 @@ UA_OpenSSL_ECC_GenerateSalt (const size_t L,
                              UA_ByteString * salt) {
     size_t saltLen = sizeof(uint16_t) + label->length + key1->length + key2->length;
 
-    if (salt == NULL || UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(salt, saltLen)) {
+    if (salt == NULL) {
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(salt, saltLen)) {
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
@@ -1678,8 +1677,8 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
     UA_Boolean generateLocal = true;
     const UA_ByteString * remotePublicKey = NULL;
-    UA_ByteString * sharedSecret = NULL;
-    UA_ByteString * salt = NULL;
+    UA_ByteString sharedSecret = UA_BYTESTRING_NULL;
+    UA_ByteString salt = UA_BYTESTRING_NULL;
 
     /* The order of ephemeral public keys (key1 and key2) tells us whether we
      * need to generate the local keys or the remote keys. To figure that out,
@@ -1715,12 +1714,7 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
     }
 
     /* Use ECDH to calculate shared secret */
-    sharedSecret = UA_ByteString_new();
-    if (sharedSecret == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECDH(curveID, localEphemeralKeyPair, remotePublicKey, sharedSecret)) {
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECDH(curveID, localEphemeralKeyPair, remotePublicKey, &sharedSecret)) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
@@ -1747,28 +1741,21 @@ UA_OpenSSL_ECC_DeriveKeys (const int curveID,
     }
 
     /* Calculate salt */
-    salt = UA_ByteString_new();
-    if (salt == NULL) {
-        ret = UA_STATUSCODE_BADOUTOFMEMORY;
-        goto errout;
-    }
-    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECC_GenerateSalt(out->length, label, key1, key2, salt)) {
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_ECC_GenerateSalt(out->length, label, key1, key2, &salt)) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
     /* Call HKDF to derive keys */
-    if (UA_STATUSCODE_GOOD != UA_OpenSSL_HKDF(hashAlgorithm, sharedSecret, salt, salt, out)) {
+    if (UA_STATUSCODE_GOOD != UA_OpenSSL_HKDF(hashAlgorithm, &sharedSecret, &salt, &salt, out)) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
 errout:
     OPENSSL_free(keyPubEnc);
-    UA_ByteString_clear(sharedSecret);
-    UA_ByteString_delete(sharedSecret);
-    UA_ByteString_clear(salt);
-    UA_ByteString_delete(salt);
+    UA_ByteString_clear(&sharedSecret);
+    UA_ByteString_clear(&salt);
 
     return ret;
 }
@@ -1831,6 +1818,7 @@ UA_OpenSSL_ECC_GenerateKey(const int curveId,
         goto errout;
     }
 
+    /* Omit the first byte (encoding) */
     memcpy(keyPublicEncOut->data, &keyPubEnc[1], keyPubEncSize-1);
 
 errout:
@@ -1851,7 +1839,7 @@ UA_Openssl_ECDSA_Sign(const UA_ByteString * message,
     int opensslRet = 0;
     EVP_PKEY_CTX * evpKeyCtx = NULL;
     UA_StatusCode ret = UA_STATUSCODE_GOOD;
-    UA_ByteString * signatureEnc = NULL;
+    UA_ByteString signatureEnc = UA_BYTESTRING_NULL;
     ECDSA_SIG* signatureRaw = NULL;
     const BIGNUM * pr = NULL;
     const BIGNUM * ps = NULL;
@@ -1879,36 +1867,29 @@ UA_Openssl_ECDSA_Sign(const UA_ByteString * message,
         goto errout;
     }
 
-    /* Temporary buffer for OpenSSL-internal signature computation */
-    signatureEnc = UA_ByteString_new();
-    if (signatureEnc == NULL) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-
     /* Length required for internal computing */
 #if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
-    signatureEnc->length = EVP_PKEY_get_size(privateKey);
+    signatureEnc.length = EVP_PKEY_get_size(privateKey);
 #else
-    signatureEnc->length = ECDSA_size(EVP_PKEY_get0_EC_KEY(privateKey));
+    signatureEnc.length = ECDSA_size(EVP_PKEY_get0_EC_KEY(privateKey));
 #endif
 
-    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(signatureEnc, signatureEnc->length)) {
-
+    /* Temporary buffer for OpenSSL-internal signature computation */
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&signatureEnc, signatureEnc.length)) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
-    opensslRet = EVP_DigestSignFinal(mdctx, signatureEnc->data, &signatureEnc->length);
+    opensslRet = EVP_DigestSignFinal(mdctx, signatureEnc.data, &signatureEnc.length);
     if (opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
     // using temp pointer since the function call increments it
-    const UA_Byte * ptmpData = signatureEnc->data;
+    const UA_Byte * ptmpData = signatureEnc.data;
 
-    signatureRaw = d2i_ECDSA_SIG(NULL, &ptmpData, signatureEnc->length);
+    signatureRaw = d2i_ECDSA_SIG(NULL, &ptmpData, signatureEnc.length);
     if (signatureRaw == NULL) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -1938,8 +1919,7 @@ UA_Openssl_ECDSA_Sign(const UA_ByteString * message,
 
 errout:
     EVP_MD_CTX_destroy(mdctx);
-    UA_ByteString_clear(signatureEnc);
-    UA_ByteString_delete(signatureEnc);
+    UA_ByteString_clear(&signatureEnc);
     ECDSA_SIG_free(signatureRaw);
 
     return ret;
@@ -1954,7 +1934,7 @@ UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
     EVP_MD_CTX *mdctx = NULL;
     BIGNUM *pr = NULL;
     BIGNUM *ps = NULL;
-    UA_ByteString *signatureEnc = NULL;
+    UA_ByteString signatureEnc = UA_BYTESTRING_NULL;
     ECDSA_SIG *signatureRaw = NULL;
     EVP_PKEY *evpPublicKey = NULL;
     size_t sizeEncCoordinate = 0;
@@ -1986,36 +1966,31 @@ UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
         goto errout;
     }
 
-    signatureEnc = UA_ByteString_new();
-    if (signatureEnc == NULL) {
-        ret = UA_STATUSCODE_BADINTERNALERROR;
-        goto errout;
-    }
-
     // this call is to find out the length of the encoded signature
-    signatureEnc->length = i2d_ECDSA_SIG(signatureRaw, NULL);
-    if (signatureEnc->length == 0) {
+    signatureEnc.length = i2d_ECDSA_SIG(signatureRaw, NULL);
+    if (signatureEnc.length == 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
-    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(signatureEnc, signatureEnc->length)) {
+    if (UA_STATUSCODE_GOOD != UA_ByteString_allocBuffer(&signatureEnc, signatureEnc.length)) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
     // use temp pointer since the function call increments it
-    UA_Byte * ptmpData = signatureEnc->data;
+    UA_Byte * ptmpData = signatureEnc.data;
 
-    signatureEnc->length = i2d_ECDSA_SIG(signatureRaw, &ptmpData);
-    if (signatureEnc->length == 0) {
+    signatureEnc.length = i2d_ECDSA_SIG(signatureRaw, &ptmpData);
+    if (signatureEnc.length == 0) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
     }
 
     mdctx = EVP_MD_CTX_create();
     if(!mdctx) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
+        ret = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto errout;
     }
 
     evpPublicKey = X509_get_pubkey(publicKeyX509);
@@ -2038,7 +2013,7 @@ UA_Openssl_ECDSA_Verify(const UA_ByteString * message,
         goto errout;
     }
 
-    opensslRet = EVP_DigestVerifyFinal(mdctx, signatureEnc->data, signatureEnc->length);
+    opensslRet = EVP_DigestVerifyFinal(mdctx, signatureEnc.data, signatureEnc.length);
     if(opensslRet != 1) {
         ret = UA_STATUSCODE_BADINTERNALERROR;
         goto errout;
@@ -2050,8 +2025,7 @@ errout:
     EVP_PKEY_free(evpPublicKey);
     EVP_MD_CTX_destroy(mdctx);
     ECDSA_SIG_free(signatureRaw);
-    UA_ByteString_clear(signatureEnc);
-    UA_ByteString_delete(signatureEnc);
+    UA_ByteString_clear(&signatureEnc);
 
     return ret;
 }
