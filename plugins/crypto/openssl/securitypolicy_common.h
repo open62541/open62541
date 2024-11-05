@@ -19,6 +19,8 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
+#define UA_SHA1_LENGTH 20
+
 _UA_BEGIN_DECLS
 
 

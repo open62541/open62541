@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
     size_t issuerListSize = 0;
     UA_ByteString *issuerList = NULL;
 
-    /* Loading of a revocation list currently unsupported */
+    /* Revocation lists are supported, but not used for the example here */
     UA_ByteString *revocationList = NULL;
     size_t revocationListSize = 0;
 

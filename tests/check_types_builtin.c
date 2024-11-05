@@ -941,6 +941,53 @@ START_TEST(UA_String_encodeShallWorkOnExample) {
 }
 END_TEST
 
+START_TEST(UA_String_encodeShallWorkOnEmpty) {
+    // given
+    UA_String src = UA_STRING_NULL;
+    UA_Byte data[] = { 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55,
+                       0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55, 0x55 };
+    UA_ByteString dst = { 24, data };
+    UA_Byte *pos = dst.data;
+    const UA_Byte *end = &dst.data[dst.length];
+
+    // when
+    UA_StatusCode retval = UA_String_encodeBinary(&src, &pos, end);
+
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(data[0], 0xFF);
+
+    ///////
+
+    // given
+    src = UA_STRING("");
+    pos = dst.data;
+    end = &dst.data[dst.length];
+
+    // when
+    retval = UA_String_encodeBinary(&src, &pos, end);
+
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(data[0], 0x00);
+
+    ///////
+
+    // given
+    src.data = (UA_Byte*)"";
+    pos = dst.data;
+    end = &dst.data[dst.length];
+
+    // when
+    retval = UA_String_encodeBinary(&src, &pos, end);
+
+    // then
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+    ck_assert_int_eq(data[0], 0x00);
+}
+END_TEST
+
 START_TEST(UA_ExpandedNodeId_encodeShallWorkOnExample) {
     // given
     UA_ExpandedNodeId src = UA_EXPANDEDNODEID_NUMERIC(0, 15);
@@ -1752,6 +1799,7 @@ static Suite *testSuite_builtin(void) {
     tcase_add_test(tc_encode, UA_Float_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_Double_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_String_encodeShallWorkOnExample);
+    tcase_add_test(tc_encode, UA_String_encodeShallWorkOnEmpty);
     tcase_add_test(tc_encode, UA_ExpandedNodeId_encodeShallWorkOnExample);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithoutVariant);
     tcase_add_test(tc_encode, UA_DataValue_encodeShallWorkOnExampleWithVariant);
