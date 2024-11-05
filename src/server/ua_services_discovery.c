@@ -302,10 +302,10 @@ const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"
 
 static UA_String
 securityPolicyUriPostfix(const UA_String uri) {
-    for(size_t i = 0; i < uri.length; i++) {
-        if(uri.data[i] != '#')
+    for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
+        if(*b != '#')
             continue;
-        UA_String postfix = {uri.length - i, &uri.data[i]};
+        UA_String postfix = {uri.length - (size_t)(b - uri.data), b};
         return postfix;
     }
     return uri;
