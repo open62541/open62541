@@ -539,6 +539,9 @@ UA_ServerComponent *
 UA_DiscoveryManager_new(UA_Server *server);
 #endif
 
+UA_String
+securityPolicyUriPostfix(const UA_String uri);
+
 UA_ServerComponent *
 UA_BinaryProtocolManager_new(UA_Server *server);
 

@@ -300,7 +300,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
 
 const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
 
-static UA_String
+UA_String
 securityPolicyUriPostfix(const UA_String uri) {
     for(UA_Byte *b = uri.data + uri.length - 1; b >= uri.data; b--) {
         if(*b != '#')
