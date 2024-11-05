@@ -15,6 +15,9 @@
 typedef struct UA_FileContext {
     LIST_ENTRY(UA_FileContext) listEntry;
     UA_ByteString file;
+    /* Caches any data to be written using the Write method.
+     * With a CloseAndUpdate, the data to be written is applied to the transaction. */
+    UA_ByteString dataToWrite;
     UA_UInt32 fileHandle;
     UA_NodeId sessionId;
     UA_UInt64 currentPos;
@@ -679,6 +682,7 @@ openTrustList(UA_Server *server,
     fileContext->sessionId = *sessionId;
     fileContext->openFileMode = fileOpenMode;
     fileContext->currentPos = 0;
+    fileContext->dataToWrite = UA_BYTESTRING_NULL;
     retval = createFileHandleId(fileInfo, &fileContext->fileHandle);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&fileContext->file);
@@ -744,11 +748,12 @@ openTrustListWithMask(UA_Server *server,
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_FileContext *fileContext = (UA_FileContext*)malloc(sizeof(UA_FileContext));
+    UA_FileContext *fileContext = (UA_FileContext*)UA_calloc(1, sizeof(UA_FileContext));
     fileContext->file = encTrustList;
     fileContext->sessionId = *sessionId;
     fileContext->openFileMode = UA_OPENFILEMODE_READ;
     fileContext->currentPos = 0;
+    fileContext->dataToWrite = UA_BYTESTRING_NULL;
     retval = createFileHandleId(fileInfo, &fileContext->fileHandle);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_ByteString_clear(&fileContext->file);
@@ -842,7 +847,6 @@ writeTrustList(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsManager = &server->gdsManager;
-    UA_GDSTransaction *transaction = &gdsManager->transaction;
     UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -854,20 +858,18 @@ writeTrustList(UA_Server *server,
     if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
         return UA_STATUSCODE_BADINVALIDSTATE;
 
-    UA_TrustListDataType trustList;
-    memset(&trustList, 0, sizeof(UA_TrustListDataType));
-     UA_StatusCode retval =
-         UA_decodeBinary(&data, &trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
-
+    UA_ByteString dataToWrite = UA_BYTESTRING_NULL;
+    UA_StatusCode retval = UA_ByteString_allocBuffer(&dataToWrite, fileContext->dataToWrite.length + data.length);
     if(retval != UA_STATUSCODE_GOOD)
-        return UA_STATUSCODE_BADINTERNALERROR;
+        return retval;
 
-    UA_CertificateGroup *transactionCertGroup =
-        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
-    if(!transactionCertGroup)
-        return UA_STATUSCODE_BADINTERNALERROR;
+    memcpy(dataToWrite.data, fileContext->dataToWrite.data, fileContext->dataToWrite.length);
+    memcpy(dataToWrite.data + fileContext->dataToWrite.length, data.data, data.length);
 
-    return transactionCertGroup->setTrustList(transactionCertGroup, &trustList);
+    UA_ByteString_clear(&fileContext->dataToWrite);
+    fileContext->dataToWrite = dataToWrite;
+
+    return UA_STATUSCODE_GOOD;
 }
 
 static UA_StatusCode
@@ -908,6 +910,7 @@ closeTrustList(UA_Server *server,
     fileInfo->openCount -= 1;
 
     UA_ByteString_clear(&fileContext->file);
+    UA_ByteString_clear(&fileContext->dataToWrite);
     UA_free(fileContext);
 
     /* Updating OpenCount Variable in the information model */
@@ -935,6 +938,7 @@ closeAndUpdateTrustList(UA_Server *server,
         return UA_STATUSCODE_BADINVALIDARGUMENT;
 
     UA_GDSManager *gdsManager = &server->gdsManager;
+    UA_GDSTransaction *transaction = &gdsManager->transaction;
     UA_FileInfo *fileInfo = getFileInfo(gdsManager, certGroup->certificateGroupId);
     if(!fileInfo)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -943,10 +947,33 @@ closeAndUpdateTrustList(UA_Server *server,
     if(!fileContext)
         return UA_STATUSCODE_BADINTERNALERROR;
 
+    if(fileContext->openFileMode != (UA_OPENFILEMODE_WRITE | UA_OPENFILEMODE_ERASEEXISTING))
+        return UA_STATUSCODE_BADINVALIDSTATE;
+
+    UA_CertificateGroup *transactionCertGroup =
+        UA_GDSTransaction_getCertificateGroup(transaction, certGroup);
+    if(!transactionCertGroup)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_TrustListDataType trustList;
+    UA_StatusCode retval =
+        UA_decodeBinary(&fileContext->dataToWrite, &trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], NULL);
+
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_TrustListDataType_clear(&trustList);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    retval = transactionCertGroup->setTrustList(transactionCertGroup, &trustList);
+    UA_TrustListDataType_clear(&trustList);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+
     LIST_REMOVE(fileContext, listEntry);
     fileInfo->openCount -= 1;
 
     UA_ByteString_clear(&fileContext->file);
+    UA_ByteString_clear(&fileContext->dataToWrite);
     UA_free(fileContext);
 
     /* Updating OpenCount Variable in the information model */
