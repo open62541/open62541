@@ -446,14 +446,6 @@ addCertificate(UA_Server *server,
     if(gdsManager->transaction.state != UA_GDSTRANSACIONSTATE_FRESH)
         return UA_STATUSCODE_BADTRANSACTIONPENDING;
 
-    /* CA certificates cannot be added using this method because it does not support adding CRLs */
-    if(UA_CertificateUtils_checkCA(&certificate) == UA_STATUSCODE_GOOD) {
-        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
-            "The certificate could not be added because it is a CA certificate. "
-            "CA certificates must be added using the FileType methods.");
-        return UA_STATUSCODE_BADINVALIDARGUMENT;
-    }
-
     UA_CertificateGroup *certGroup = getCertGroup(server, objectId);
     if(!certGroup)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
