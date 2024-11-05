@@ -58,6 +58,7 @@ UA_ReaderGroupConfig_copy(const UA_ReaderGroupConfig *src,
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_String_copy(&src->name, &dst->name);
     res |= UA_KeyValueMap_copy(&src->groupProperties, &dst->groupProperties);
+    res |= UA_ExtensionObject_copy(&src->transportSettings, &dst->transportSettings);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     res = UA_String_copy(&src->securityGroupId, &dst->securityGroupId);
 #endif
@@ -70,6 +71,7 @@ void
 UA_ReaderGroupConfig_clear(UA_ReaderGroupConfig *readerGroupConfig) {
     UA_String_clear(&readerGroupConfig->name);
     UA_KeyValueMap_clear(&readerGroupConfig->groupProperties);
+    UA_ExtensionObject_clear(&readerGroupConfig->transportSettings);
 #ifdef UA_ENABLE_PUBSUB_ENCRYPTION
     UA_String_clear(&readerGroupConfig->securityGroupId);
 #endif
