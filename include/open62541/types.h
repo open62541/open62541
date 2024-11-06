@@ -221,6 +221,28 @@ UA_INLINABLE(UA_String
 /* Define strings at compile time (in ROM) */
 #define UA_STRING_STATIC(CHARS) {sizeof(CHARS)-1, (UA_Byte*)CHARS}
 
+/* The following methods implement the C standard's printf/vprintf.
+ *
+ * In addition to the format specifiers from the C standard, the following can
+ * be used also:
+ *
+ * - %S - UA_String (not wrapped in quotation marks in the output)
+ * - %N - UA_NodeId (using UA_NodeId_print)
+ *
+ * The output is written to the output string in the first argument. Memory of
+ * sufficient length is allocated when the output string initially has zero
+ * length.
+ *
+ * If the string in the first argument initially has non-zero length, then this
+ * string is used as buffer for encoding and its length is adjusted accordingly.
+ * If the length is too short, then UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED is
+ * reported. Also in that case the string is printed as much as possible. */
+UA_EXPORT UA_StatusCode
+UA_String_printf(UA_String *str, const char *format, ...);
+
+UA_EXPORT UA_StatusCode
+UA_String_vprintf(UA_String *str, const char *format, va_list args);
+
 /**
  * .. _datetime:
  *
