@@ -8,7 +8,6 @@
 #include <open62541/plugin/log.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include "../../deps/mp_printf.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -63,10 +62,11 @@ cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
 
     /* Log */
 #define LOGBUFSIZE 512
-    char logbuf[LOGBUFSIZE];
+    UA_Byte logbuf[LOGBUFSIZE];
+    UA_String out = {LOGBUFSIZE, logbuf};
+    UA_String_vprintf(&out, msg, args);
     fprintf(stderr, "%s/%s" ANSI_COLOR_RESET "\t",
            logLevelNames[logLevelSlot], logCategoryNames[category]);
-    mp_vsnprintf(logbuf, LOGBUFSIZE, msg, args);
     fprintf(stderr, "%s\n", logbuf);
     fflush(stderr);
 }
