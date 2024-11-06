@@ -151,6 +151,7 @@
  * C99 Definitions
  * --------------- */
 #include <stddef.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <inttypes.h>

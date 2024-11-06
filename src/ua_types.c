@@ -21,7 +21,8 @@
 #include "util/ua_util_internal.h"
 #include "../deps/itoa.h"
 #include "../deps/base64.h"
-#include "libc_time.h"
+#include "../deps/libc_time.h"
+#include "../deps/mp_printf.h"
 
 #define UA_MAX_ARRAY_DIMS 100 /* Max dimensions of an array */
 
@@ -180,6 +181,48 @@ String_copy(UA_String const *src, UA_String *dst, const UA_DataType *_) {
 static void
 String_clear(UA_String *s, const UA_DataType *_) {
     UA_Array_delete(s->data, s->length, &UA_TYPES[UA_TYPES_BYTE]);
+}
+
+UA_StatusCode
+UA_String_printf(UA_String *str, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    UA_StatusCode ret = UA_String_vprintf(str, format, args);
+    va_end(args);
+    return ret;
+}
+
+UA_StatusCode
+UA_String_vprintf(UA_String *str, const char *format, va_list args) {
+    /* Encode initially */
+    int out = mp_vsnprintf((char*)str->data, str->length, format, args);
+    if(out < 0)
+        return UA_STATUSCODE_BADENCODINGERROR;
+
+    /* Output length zero */
+    if(out == 0) {
+        str->length = 0;
+        if(str->data == NULL)
+            str->data = (UA_Byte*)UA_EMPTY_ARRAY_SENTINEL;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Encode into existing buffer. mp_snprintf adds a trailing \0. So out must
+     * be truly smaller than str->length for success. */
+    if(str->length > 0) {
+        if((size_t)out >= str->length)
+            return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED;
+        str->length = (size_t)out;
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Allocate and encode again (+1 length for the trailing \0) */
+    UA_StatusCode res = UA_ByteString_allocBuffer(str, (size_t)out + 1);
+    if(res != UA_STATUSCODE_GOOD)
+        return res;
+    mp_vsnprintf((char*)str->data, str->length, format, args);
+    str->length--;
+    return UA_STATUSCODE_GOOD;
 }
 
 /* QualifiedName */
