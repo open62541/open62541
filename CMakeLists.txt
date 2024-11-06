@@ -1318,7 +1318,7 @@ if(UA_ENABLE_AMALGAMATION)
                       open62541-generator-statuscode
                       open62541-amalgamation-source)
 
-    add_library(open62541 SHARED $<TARGET_OBJECTS:open62541-object>)
+    add_library(open62541 $<TARGET_OBJECTS:open62541-object>)
     # the only directory that needs to be included if open62541 (amalgameted) target from
     # the build directory is ${PROJECT_BINARY_DIR}, that contains the generated open62541.h
     target_include_directories(open62541 PUBLIC $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}>)
