@@ -623,6 +623,9 @@ UA_ServerComponent * UA_BinaryProtocolManager_new(UA_Server *server);
 UA_ServerComponent * UA_PubSubManager_new(UA_Server *server);
 #endif
 
+UA_String
+securityPolicyUriPostfix(const UA_String uri);
+
 /***********/
 /* RefTree */
 /***********/
