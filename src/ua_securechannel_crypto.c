@@ -262,7 +262,7 @@ padChunk(UA_SecureChannel *channel, const UA_SecurityPolicyCryptoModule *cm,
     /* Write the padding. This is <= because the paddingSize byte also has to be
      * written */
     UA_Byte paddingByte = (UA_Byte)paddingLength;
-    for(UA_UInt16 i = 0; i <= paddingLength; ++i) {
+    for(size_t i = 0; i <= paddingLength; ++i) {
         **pos = paddingByte;
         ++*pos;
     }
