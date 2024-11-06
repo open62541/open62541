@@ -17,6 +17,7 @@ jobs:
           "Debug Build & Unit Tests with Alarms&Conditions (gcc)",
           "Debug Build & Unit Tests (clang-11)",
           "Debug Build & Unit Tests (clang-15)",
+          "Debug Build & Unit Tests (clang-18)",
           "Debug Build & Unit Tests (tcc)",
           "Encryption (MbedTLS) Build & Unit Tests (gcc)",
           "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)",
@@ -33,7 +34,9 @@ jobs:
           "Valgrind Build & Unit Tests with OpenSSL (gcc)",
           "Valgrind Examples with MbedTLS (gcc)",
           "Valgrind Examples with OpenSSL (gcc)",
-          "Clang Static Analyzer",
+          "Clang Static Analyzer (clang11)",
+          "Clang Static Analyzer (clang15)",
+          "Clang Static Analyzer (clang18)",
           "Build All Companion Specifications"
         ]
         include:
@@ -66,6 +69,10 @@ jobs:
             runs_on: "ubuntu-22.04"
             cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
+          - build_name: "Debug Build & Unit Tests (clang-18)"
+            runs_on: "ubuntu-24.04"
+            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
+            cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
           - build_name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
@@ -97,7 +104,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
-                git checkout 3.2.3
+                git checkout 3.2.2
                 ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
                 make -j$(nproc)
                 sudo make install
@@ -124,7 +131,7 @@ jobs:
               cd ${HOME}
               git clone https://github.com/tpm2-software/tpm2-tss.git
               cd ${HOME}/tpm2-tss
-              git checkout 3.2.3
+              git checkout 3.2.2
               ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
               make -j$(nproc)
               sudo make install
@@ -191,9 +198,18 @@ jobs:
           - build_name: "Valgrind Examples with OpenSSL (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto
             cmd_action: examples_valgrind OPENSSL
-          - build_name: "Clang Static Analyzer"
+          - build_name: "Clang Static Analyzer (clang11)"
+            runs_on: "ubuntu-20.04"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
-            cmd_action: build_clang_analyzer
+            cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11
+          - build_name: "Clang Static Analyzer (clang15)"
+            runs_on: "ubuntu-22.04"
+            cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev mosquitto
+            cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15
+          - build_name: "Clang Static Analyzer (clang18)"
+            runs_on: "ubuntu-24.04"
+            cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev mosquitto
+            cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
           - build_name: "Build All Companion Specifications"
             cmd_deps: ""
             cmd_action: build_all_companion_specs
