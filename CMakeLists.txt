@@ -901,7 +901,6 @@ if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/tests/fuzz/custom_memory_manager.c)
 endif()
 
-
 # Plugins
 set(plugin_headers ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/accesscontrol_default.h
                    ${PROJECT_SOURCE_DIR}/plugins/include/open62541/plugin/certificategroup_default.h
@@ -920,25 +919,36 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_none.c
                    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
-# Always add the POSIX eventloop. The files internally check for the configured architecture
-list(APPEND plugin_sources
-     ${PROJECT_SOURCE_DIR}/arch/common/timer.h
-     ${PROJECT_SOURCE_DIR}/arch/common/timer.c
-     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
-     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
-     ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c
-     ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
-     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
-     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
-     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c
-     ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c)
+if(UA_ARCHITECTURE_POSIX OR UA_ARCHITECTURE_WIN32)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/clock_posix.c
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.h
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_tcp.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_udp.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_eth.c
+         ${PROJECT_SOURCE_DIR}/arch/posix/eventloop_posix_interrupt.c)
+endif()
+
+if(UA_ARCHITECTURE_ZEPHYR)
+    list(APPEND plugin_sources
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+         ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/clock_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+         ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
+         ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+endif()
+
+if(UA_ENABLE_MQTT)
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/arch/common/eventloop_mqtt.c)
+endif()
      
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)

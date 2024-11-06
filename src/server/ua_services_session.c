@@ -448,8 +448,9 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
                              const UA_EndpointDescription **ed,
                              const UA_UserTokenPolicy **utp,
                              const UA_SecurityPolicy **tokenSp) {
-    for(size_t i = 0; i < server->config.endpointsSize; ++i) {
-        const UA_EndpointDescription *desc = &server->config.endpoints[i];
+    UA_ServerConfig *sc = &server->config;
+    for(size_t i = 0; i < sc->endpointsSize; ++i) {
+        const UA_EndpointDescription *desc = &sc->endpoints[i];
 
         /* Match the Security Mode */
         if(desc->securityMode != channel->securityMode)
@@ -464,17 +465,14 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
         size_t identPoliciesSize = desc->userIdentityTokensSize;
         const UA_UserTokenPolicy *identPolicies = desc->userIdentityTokens;
         if(identPoliciesSize == 0) {
-            identPoliciesSize = server->config.accessControl.userTokenPoliciesSize;
-            identPolicies = server->config.accessControl.userTokenPolicies;
+            identPoliciesSize = sc->accessControl.userTokenPoliciesSize;
+            identPolicies = sc->accessControl.userTokenPolicies;
         }
 
         /* Match the UserTokenType */
         const UA_DataType *tokenDataType = identityToken->content.decoded.type;
         for(size_t j = 0; j < identPoliciesSize ; j++) {
             const UA_UserTokenPolicy *pol = &identPolicies[j];
-
-            if(!UA_String_equal(&desc->securityPolicyUri, &pol->securityPolicyUri))
-                continue;
 
             /* Part 4, Section 5.6.3.2, Table 17: A NULL or empty
              * UserIdentityToken should be treated as Anonymous */
@@ -509,37 +507,53 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             UA_AnonymousIdentityToken *token = (UA_AnonymousIdentityToken*)
                 identityToken->content.decoded.data;
 
-            /* In setCurrentEndPointsArray we prepend the policyId with the
-             * security mode to make it unique. Remove that here. */
+            /* Select the SecurityPolicy used to encrypt the token.
+             * The default is to use the SecurityPolicy of the SecureChannel. */
+            *tokenSp = channel->securityPolicy;
+#ifdef UA_ENABLE_ENCRYPTION
+            if(identPolicies == sc->accessControl.userTokenPolicies) {
+                /* If the standard UserTokenPolicies from the AccessControl
+                 * plugin are used, use the same logic as in
+                 * updateEndpointUserIdentityToken (ua_services_discovery.c). */
+                if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+                   !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
+                   UA_String_equal(&channel->securityPolicy->policyUri, &UA_SECURITY_POLICY_NONE_URI))
+                    *tokenSp = getDefaultEncryptedSecurityPolicy(server);
+            } else if(pol->securityPolicyUri.length > 0) {
+                /* Manually defined UserTokenPolicy. Lookup by URI */
+                *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
+            }
+            if(!*tokenSp)
+                continue;
+
+            /* Anonymous tokens don't need encryption. All other tokens require
+             * encryption with the exception of Username/Password if also the
+             * allowNonePolicyPassword option has been set. */
+            if(pol->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+               !(sc->allowNonePolicyPassword && pol->tokenType == UA_USERTOKENTYPE_USERNAME) &&
+               UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))
+                continue;
+#endif
+
+            /* In setCurrentEndPointsArray we prepend the PolicyId with the
+             * SecurityMode of the endpoint and the postfix of the
+             * SecurityPolicyUri to make it unique. Check the SecurityPolicyUri
+             * postfix. */
             if(pol->policyId.length > token->policyId.length)
                 continue;
-            UA_String tmpId = token->policyId;
-            tmpId.length = pol->policyId.length;
-            if(!UA_String_equal(&tmpId, &pol->policyId))
+            UA_String policyPrefix = token->policyId;
+            policyPrefix.length = pol->policyId.length;
+            if(!UA_String_equal(&policyPrefix, &pol->policyId))
+                continue;
+
+            UA_String secPolPostfix = securityPolicyUriPostfix((*tokenSp)->policyUri);
+            UA_String utPolPostfix = securityPolicyUriPostfix(token->policyId);
+            if(!UA_String_equal(&secPolPostfix, &utPolPostfix))
                 continue;
 
             /* Match found */
             *ed = desc;
             *utp = pol;
-
-            /* Set the SecurityPolicy used to encrypt the token. If the
-             * userTokenPolicy doesn't specify a security policy the security
-             * policy of the secure channel is used. */
-            *tokenSp = channel->securityPolicy;
-            if(pol->securityPolicyUri.length > 0)
-                *tokenSp = getSecurityPolicyByUri(server, &pol->securityPolicyUri);
-
-            /* If the server does not allow unencrypted passwords, select the
-             * default encrypted policy for the UserTokenPolicy */
-#ifdef UA_ENABLE_ENCRYPTION
-            if(!*tokenSp ||
-               (!server->config.allowNonePolicyPassword &&
-                ((*tokenSp)->localCertificate.length == 0 ||
-                 UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &(*tokenSp)->policyUri))))
-                *tokenSp = getDefaultEncryptedSecurityPolicy(server);
-#endif
-
-            /* Found SecurityPolicy and UserTokenPoliy. Stop here. */
             return;
         }
     }

@@ -468,7 +468,7 @@ Array_encodeBinary(Ctx *ctx, const void *src, size_t length, const UA_DataType *
         return UA_STATUSCODE_BADINTERNALERROR;
     if(length > 0)
         signed_length = (i32)length;
-    else if(src == UA_EMPTY_ARRAY_SENTINEL)
+    else if(src >= UA_EMPTY_ARRAY_SENTINEL) /* src != NULL */
         signed_length = 0;
 
     /* Encode the array length */
@@ -1252,9 +1252,18 @@ FUNC_DECODE_BINARY(Variant) {
         }
 
         /* Decode array dimensions */
-        if((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0)
+        if((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_DIMENSIONS) > 0) {
             ret |= Array_decodeBinary(ctx, (void **)&dst->arrayDimensions,
                                       &dst->arrayDimensionsSize, &UA_TYPES[UA_TYPES_INT32]);
+            /* Validate array length against array dimensions */
+            size_t totalSize = 1;
+            for(size_t i = 0; i < dst->arrayDimensionsSize; ++i) {
+                if(dst->arrayDimensions[i] == 0)
+                    ret = UA_STATUSCODE_BADDECODINGERROR;
+                totalSize *= dst->arrayDimensions[i];
+            }
+            UA_CHECK(totalSize == dst->arrayLength, ret = UA_STATUSCODE_BADDECODINGERROR);
+        }
     }
 
     ctx->depth--;
