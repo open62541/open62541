@@ -1323,6 +1323,26 @@ writeContentMask(UA_Server *server, const UA_NodeId *sessionId,
     return UA_STATUSCODE_GOOD;
 }
 
+static UA_StatusCode
+readGroupVersion(UA_Server *server, const UA_NodeId *sessionId,
+                void *sessionContext, const UA_NodeId *nodeId,
+                void *nodeContext, UA_Boolean includeSourceTimeStamp,
+                const UA_NumericRange *range, UA_DataValue *value) {
+    UA_WriterGroup *writerGroup = (UA_WriterGroup*)nodeContext;
+    if((writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED &&
+        writerGroup->config.messageSettings.encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) ||
+       writerGroup->config.messageSettings.content.decoded.type !=
+       &UA_TYPES[UA_TYPES_UADPWRITERGROUPMESSAGEDATATYPE])
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_UadpWriterGroupMessageDataType *wgm = (UA_UadpWriterGroupMessageDataType*)
+        writerGroup->config.messageSettings.content.decoded.data;
+
+    UA_Variant_setScalarCopy(&value->value, &wgm->groupVersion,
+                             &UA_TYPES[UA_DATATYPEKIND_UINT32]);
+    value->hasValue = true;
+    return UA_STATUSCODE_GOOD;
+}
+
 UA_StatusCode
 addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
     UA_LOCK_ASSERT(&server->serviceMutex);
@@ -1435,6 +1455,22 @@ addWriterGroupRepresentation(UA_Server *server, UA_WriterGroup *writerGroup) {
         /* Make writable */
         writeAccessLevelAttribute(server, contentMaskId,
                                   UA_ACCESSLEVELMASK_WRITE | UA_ACCESSLEVELMASK_READ);
+
+    }
+    UA_NodeId groupVersionId =
+        findSingleChildNode(server, UA_QUALIFIEDNAME(0, "GroupVersion"),
+                            UA_NODEID_NUMERIC(0, UA_NS0ID_HASPROPERTY), messageSettingsId);
+    if(!UA_NodeId_isNull(&groupVersionId)) {
+        /* Set the callback */
+        UA_DataSource ds;
+        ds.read = readGroupVersion;
+        ds.write = NULL;
+        setVariableNode_dataSource(server, groupVersionId, ds);
+        setNodeContext(server, groupVersionId, writerGroup);
+
+        /* Read only */
+        writeAccessLevelAttribute(server, groupVersionId,
+                                  UA_ACCESSLEVELMASK_READ);
 
     }
 
