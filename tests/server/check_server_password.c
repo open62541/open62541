@@ -144,6 +144,7 @@ static void setup(void) {
     ck_assert_msg(server, "UA_Server_new");
     UA_ServerConfig *config = UA_Server_getConfig(server);
     UA_ServerConfig_setDefault(config);
+    config->allowNonePolicyPassword = true;
     UA_String policy = UA_STRING_STATIC("http://opcfoundation.org/UA/SecurityPolicy#None");
     UA_UsernamePasswordLogin login[] = {
         { UA_STRING_STATIC("user"),

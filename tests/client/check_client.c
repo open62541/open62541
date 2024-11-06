@@ -69,6 +69,7 @@ static void setup(void) {
     UA_SecurityPolicy *sp = &config->securityPolicies[config->securityPoliciesSize-1];
     UA_AccessControl_default(config, true, &sp->policyUri,
                              usernamePasswordsSize, usernamePasswords);
+    config->allowNonePolicyPassword = true;
 
     UA_Server_run_startup(server);
     addVariable(VARLENGTH);
