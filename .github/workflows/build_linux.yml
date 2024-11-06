@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
         build_name: [
           "Debug Build & Unit Tests (gcc)",
           "Debug Build & Unit Tests (gcc, 32bit)",
@@ -25,6 +25,7 @@ jobs:
           "Encryption (LibreSSL) Build & Unit Tests (gcc)",
           "TPM Tool Build 20.04",
           "TPM Tool Build 22.04",
+          "TPM Tool Build 24.04",
           "Release Build",
           "Amalgamation Build",
           "Amalgamation Build with Multithreading",
@@ -96,7 +97,7 @@ jobs:
                 cd ${HOME}
                 git clone https://github.com/tpm2-software/tpm2-tss.git
                 cd ${HOME}/tpm2-tss
-                git checkout 3.2.2
+                git checkout 3.2.3
                 ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
                 make -j$(nproc)
                 sudo make install
@@ -123,7 +124,7 @@ jobs:
               cd ${HOME}
               git clone https://github.com/tpm2-software/tpm2-tss.git
               cd ${HOME}/tpm2-tss
-              git checkout 3.2.2
+              git checkout 3.2.3
               ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
               make -j$(nproc)
               sudo make install
@@ -143,6 +144,32 @@ jobs:
               sudo pip3 install pyasn1_modules
               pip3 install .
             cmd_action: build_tpm_tool
+          - build_name: "TPM Tool Build 24.04"
+            runs_on: "ubuntu-24.04"
+            cmd_deps: |
+              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-tss.git
+              cd ${HOME}/tpm2-tss
+              git checkout e96b0197531233999e5e27c45d4d979d09860028
+              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo udevadm control --reload-rules && sudo udevadm trigger
+              sudo apt-get install -y -qq tpm2-tools opensc
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+              cd ${HOME}/tpm2-pkcs11
+              git checkout 1.7.0
+              ./bootstrap && ./configure
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+              cd ${HOME}/tpm2-pkcs11/tools/
+              sudo pip3 install pyasn1_modules
+              pip3 install .
           - build_name: "Release Build"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: build_release
