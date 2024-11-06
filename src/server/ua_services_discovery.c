@@ -294,8 +294,7 @@ getDefaultEncryptedSecurityPolicy(UA_Server *server) {
         if(!UA_String_equal(&UA_SECURITY_POLICY_NONE_URI, &sp->policyUri))
             return sp;
     }
-    return server->config.securityPoliciesSize > 0 ?
-        &server->config.securityPolicies[0] : NULL;
+    return NULL; /* No encrypted policy found */
 }
 
 const char *securityModeStrs[4] = {"-invalid", "-none", "-sign", "-sign+encrypt"};
@@ -321,30 +320,45 @@ updateEndpointUserIdentityToken(UA_Server *server, UA_EndpointDescription *ed) {
     /* Copy the UserTokenPolicies from the AccessControl plugin, but only the matching ones to the securityPolicyUri.
      * TODO: Different instances of the AccessControl plugin per Endpoint */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    for(size_t i = 0; i < server->config.accessControl.userTokenPoliciesSize; i++) {
-        UA_UserTokenPolicy *utp = &server->config.accessControl.userTokenPolicies[i];
-        if(UA_String_equal(&ed->securityPolicyUri, &utp->securityPolicyUri)) {
-             res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
-                                &ed->userIdentityTokensSize,
-                                utp,
-                                &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
-            if(res != UA_STATUSCODE_GOOD)
-                return res;
-        }
-    }
+    UA_ServerConfig *sc = &server->config;
+    for(size_t i = 0; i < sc->accessControl.userTokenPoliciesSize; i++) {
+        UA_UserTokenPolicy *utp = &sc->accessControl.userTokenPolicies[i];
+        res = UA_Array_appendCopy((void**)&ed->userIdentityTokens,
+                                  &ed->userIdentityTokensSize, utp,
+                                  &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+        if(res != UA_STATUSCODE_GOOD)
+            return res;
 
-    for(size_t i = 0; i < ed->userIdentityTokensSize; i++) {
-        /* Use the securityPolicy of the SecureChannel. But not if the
-         * SecureChannel is unencrypted and there is a non-anonymous token. */
-        UA_UserTokenPolicy *utp = &ed->userIdentityTokens[i];
+        /* Select the SecurityPolicy for the UserTokenType.
+         * If not set, the SecurityPolicy of the SecureChannel is used. */
+        utp = &ed->userIdentityTokens[ed->userIdentityTokensSize - 1];
         UA_String_clear(&utp->securityPolicyUri);
-        if((!server->config.allowNonePolicyPassword || ed->userIdentityTokens[i].tokenType != UA_USERTOKENTYPE_USERNAME) &&
-           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI) &&
-           utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS) {
+#ifdef UA_ENABLE_ENCRYPTION
+        /* Anonymous tokens don't need encryption. All other tokens require
+         * encryption with the exception of Username/Password if also the
+         * allowNonePolicyPassword option has been set. The same logic is used
+         * in selectEndpointAndTokenPolicy (ua_services_session.c). */
+        if(utp->tokenType != UA_USERTOKENTYPE_ANONYMOUS &&
+           !(sc->allowNonePolicyPassword && utp->tokenType == UA_USERTOKENTYPE_USERNAME) &&
+           UA_String_equal(&ed->securityPolicyUri, &UA_SECURITY_POLICY_NONE_URI)) {
             UA_SecurityPolicy *encSP = getDefaultEncryptedSecurityPolicy(server);
-            if(encSP)
-                res |= UA_String_copy(&encSP->policyUri, &utp->securityPolicyUri);
+            if(!encSP) {
+                /* No encrypted SecurityPolicy available */
+                UA_LOG_WARNING(sc->logging, UA_LOGCATEGORY_CLIENT,
+                               "Removing a UserTokenPolicy that would allow the "
+                               "password to be transmitted without encryption "
+                               "(Can be enabled via config->allowNonePolicyPassword)");
+                UA_StatusCode res2 =
+                    UA_Array_resize((void **)&ed->userIdentityTokens,
+                                    &ed->userIdentityTokensSize,
+                                    ed->userIdentityTokensSize - 1,
+                                    &UA_TYPES[UA_TYPES_USERTOKENPOLICY]);
+                (void)res2;
+                continue;
+            }
+            res |= UA_String_copy(&encSP->policyUri, &utp->securityPolicyUri);
         }
+#endif
 
         /* Append the SecurityMode and SecurityPolicy postfix to the PolicyId to
          * make it unique */
