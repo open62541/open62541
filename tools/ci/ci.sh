@@ -17,7 +17,7 @@ else
 fi
 
 # Allow to reuse TIME-WAIT sockets for new connections
-sudo echo 1 > /proc/sys/net/ipv4/tcp_tw_reuse
+sudo sysctl -w net.ipv4.tcp_tw_reuse=1
 
 ###########
 # cpplint #
