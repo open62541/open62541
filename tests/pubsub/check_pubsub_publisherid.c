@@ -28,6 +28,12 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_ServerConfig_setDefault(config));
+
+    /* Silence the log, because this test might produce an enormous amount of noise */
+    UA_Logger logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_ERROR);
+    logger.clear = config->logging->clear;
+    *config->logging = logger;
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 
@@ -371,7 +377,7 @@ static void ValidatePublishSubscribe(
             tmpValue = TestValue + (UA_Int32)i;
             if(UseFastPath) {
                 ck_assert(fastPathSubscriberValues[i] != 0);
-                if(tmpValue != *(UA_Int32 *)fastPathSubscriberValues[i]->value.data) {
+                if(tmpValue != *((UA_Int32 *)fastPathSubscriberValues[i]->value.data)) {
                     done = false;
                     break;
                 }
