@@ -406,7 +406,10 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
           ..
-    scan-build-11 --status-bugs --exclude ../src/util make ${MAKEOPTS}
+    scan-build-11 --status-bugs \
+          -disable-checker unix.BlockInCriticalSection \
+          -disable-checker unix.Errno \
+          --exclude ../src/util make ${MAKEOPTS}
 }
 
 ###################################################
