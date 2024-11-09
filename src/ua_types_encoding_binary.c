@@ -895,37 +895,35 @@ DECODE_BINARY(ExtensionObject) {
     ret |= DECODE_DIRECT(&binTypeId, NodeId);
     ret |= DECODE_DIRECT(&encoding, Byte);
     UA_CHECK_STATUS(ret, UA_NodeId_clear(&binTypeId); return ret);
-
-    #ifdef UA_ENABLE_TYPES_DECODING
-        switch(encoding) {
-        case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+    
+    switch(encoding) {
+    case UA_EXTENSIONOBJECT_ENCODED_BYTESTRING:
+        #ifdef UA_ENABLE_TYPES_DECODING
             ret = ExtensionObject_decodeBinaryContent(dst, &binTypeId, ctx);
-            UA_NodeId_clear(&binTypeId);
-            break;
-        case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
-            dst->encoding = (UA_ExtensionObjectEncoding)encoding;
-            dst->content.encoded.typeId = binTypeId; /* move to dst */
-            dst->content.encoded.body = UA_BYTESTRING_NULL;
-            break;
-        case UA_EXTENSIONOBJECT_ENCODED_XML:
-            dst->encoding = (UA_ExtensionObjectEncoding)encoding;
-            dst->content.encoded.typeId = binTypeId; /* move to dst */
+        #else
+            // take the binary content
+            dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+            UA_NodeId_copy(&binTypeId, &dst->content.encoded.typeId);
             ret = DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
-            UA_CHECK_STATUS(ret, UA_NodeId_clear(&dst->content.encoded.typeId));
-            break;
-        default:
-            UA_NodeId_clear(&binTypeId);
-            ret = UA_STATUSCODE_BADDECODINGERROR;
-            break;
-        }
-    #else
-        // take the binary content
-        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-        UA_NodeId_copy(&binTypeId, &dst->content.encoded.typeId);
+        #endif
         UA_NodeId_clear(&binTypeId);
+        break;
+    case UA_EXTENSIONOBJECT_ENCODED_NOBODY:
+        dst->encoding = (UA_ExtensionObjectEncoding)encoding;
+        dst->content.encoded.typeId = binTypeId; /* move to dst */
+        dst->content.encoded.body = UA_BYTESTRING_NULL;
+        break;
+    case UA_EXTENSIONOBJECT_ENCODED_XML:
+        dst->encoding = (UA_ExtensionObjectEncoding)encoding;
+        dst->content.encoded.typeId = binTypeId; /* move to dst */
         ret = DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
-    #endif
-
+        UA_CHECK_STATUS(ret, UA_NodeId_clear(&dst->content.encoded.typeId));
+        break;
+    default:
+        UA_NodeId_clear(&binTypeId);
+        ret = UA_STATUSCODE_BADDECODINGERROR;
+        break;
+    }
     return ret;
 }
 
