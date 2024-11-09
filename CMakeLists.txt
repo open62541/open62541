@@ -1056,7 +1056,8 @@ set(lib_sources ${lib_sources}
                 ${PROJECT_SOURCE_DIR}/deps/itoa.c
                 ${PROJECT_SOURCE_DIR}/deps/yxml.c
                 ${PROJECT_SOURCE_DIR}/deps/ziptree.c
-                ${PROJECT_SOURCE_DIR}/deps/parse_num.c)
+                ${PROJECT_SOURCE_DIR}/deps/parse_num.c
+                ${PROJECT_SOURCE_DIR}/deps/strtod.c)
 
 if(UA_GENERATED_NAMESPACE_ZERO)
     list(APPEND lib_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/namespace0_generated.h)
