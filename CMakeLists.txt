@@ -848,6 +848,7 @@ if(UA_ENABLE_JSON_ENCODING)
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.h)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/deps/cj5.c
                             ${PROJECT_SOURCE_DIR}/deps/parse_num.c
+                            ${PROJECT_SOURCE_DIR}/deps/strtod.c
                             ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_json.c
                             ${PROJECT_SOURCE_DIR}/src/pubsub/ua_pubsub_networkmessage_json.c)
 endif()
