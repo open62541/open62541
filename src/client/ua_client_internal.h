@@ -18,9 +18,9 @@
 #include <open62541/client_highlevel.h>
 #include <open62541/client_subscriptions.h>
 
-#include "../ua_securechannel.h"
-#include "../util/ua_util_internal.h"
 #include "open62541_queue.h"
+#include "ua_securechannel.h"
+#include "ua_util_internal.h"
 #include "ziptree.h"
 
 _UA_BEGIN_DECLS
@@ -58,13 +58,14 @@ typedef struct UA_Client_Subscription {
     UA_UInt32 maxKeepAliveCount;
     UA_Client_StatusChangeNotificationCallback statusChangeCallback;
     UA_Client_DeleteSubscriptionCallback deleteCallback;
+    UA_Client_DataChangeCallback dataChangeCallback;
     UA_UInt32 sequenceNumber;
     UA_DateTime lastActivity;
     MonitorItemsTree monitoredItems;
 } UA_Client_Subscription;
 
 void
-__Client_Subscriptions_clear(UA_Client *client);
+__Client_Subscriptions_clean(UA_Client *client);
 
 /* Exposed for fuzzing */
 UA_StatusCode
@@ -134,8 +135,6 @@ struct UA_Client {
 
     /* Contains the Server description, etc. */
     UA_EndpointDescription endpoint;
-
-    UA_RuleHandling allowAllCertificateUris;
 
     /* SecureChannel */
     UA_SecureChannel channel;

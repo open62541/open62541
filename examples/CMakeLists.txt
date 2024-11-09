@@ -36,6 +36,10 @@ endif()
 # Required for common.h header file used in examples
 include_directories(${CMAKE_CURRENT_LIST_DIR})
 
+if(UA_ENABLE_AMALGAMATION)
+    add_definitions(-DUA_ENABLE_AMALGAMATION)
+endif()
+
 #############################
 # Compiled binaries folders #
 #############################
@@ -101,16 +105,6 @@ if(UA_ENABLE_SUBSCRIPTIONS_EVENTS)
   add_example(tutorial_server_events tutorial_server_events.c)
   add_example(server_events_random events/server_random_events.c)
   add_example(client_event_filter events/client_eventfilter.c)
-  if(UA_ENABLE_PARSING)
-      add_example(client_event_filter_queries events/client_filter_queries.c)
-      file(STRINGS ${PROJECT_SOURCE_DIR}/events/example_queries/case_1.txt CASE_1 NEWLINE_CONSUME)
-      file(STRINGS ${PROJECT_SOURCE_DIR}/events/example_queries/case_2.txt CASE_2 NEWLINE_CONSUME)
-      STRING(REGEX REPLACE "\n" " " CASE_1 ${CASE_1})
-      STRING(REGEX REPLACE "\"" "\\\\\"" CASE_1 "${CASE_1}")
-      STRING(REGEX REPLACE "\n" " " CASE_2 ${CASE_2})
-      STRING(REGEX REPLACE "\"" "\\\\\"" CASE_2 "${CASE_2}")
-      configure_file(${PROJECT_SOURCE_DIR}/events/eventfilter_parser_examples.h.in ${PROJECT_BINARY_DIR}/../src_generated/open62541/eventfilter_parser_examples.h @ONLY)
-  endif()
   if(UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS)
     add_example(tutorial_server_alarms_conditions tutorial_server_alarms_conditions.c)
   endif()
@@ -144,6 +138,7 @@ add_example(client_connect_loop client_connect_loop.c)
 
 if(UA_ENABLE_SUBSCRIPTIONS)
     add_example(client_subscription_loop client_subscription_loop.c)
+    add_example(client_subscription_loop_complete_data_change client_subscription_loop_complete_data_change.c)
 endif()
 
 ####################
@@ -228,7 +223,7 @@ if(UA_ENABLE_PUBSUB)
     else (NOT BUILD_SHARED_LIBS)
         add_example(pubsub_subscribe_standalone_dataset pubsub/pubsub_subscribe_standalone_dataset.c)
     endif()
-    if(UA_ENABLE_ENCRYPTION_MBEDTLS)
+    if(UA_ENABLE_PUBSUB_ENCRYPTION)
         add_example(pubsub_publish_encrypted pubsub/pubsub_publish_encrypted.c)
         add_example(pubsub_subscribe_encrypted pubsub/pubsub_subscribe_encrypted.c)
         if(UA_ENABLE_TPM2_SECURITY)
@@ -242,7 +237,7 @@ if(UA_ENABLE_PUBSUB)
             target_link_libraries(pubsub_subscribe_encrypted_tpm_keystore tpm2_pkcs11 ssl crypto)
         endif()
         if(UA_ENABLE_PUBSUB_SKS)
-            add_subdirectory(pubsub/sks)
+        add_subdirectory(pubsub/sks)
         endif()
     endif()
 
@@ -252,14 +247,12 @@ if(UA_ENABLE_PUBSUB)
     endif()
 
     if(UA_ENABLE_PUBSUB_FILE_CONFIG)
-        # TODO: This example accesses a private API
         add_example(server_pubsub_file_configuration pubsub/server_pubsub_file_configuration.c)
-        target_include_directories(server_pubsub_file_configuration PUBLIC "${PROJECT_SOURCE_DIR}/../src/pubsub")
-        target_include_directories(server_pubsub_file_configuration PUBLIC "${PROJECT_SOURCE_DIR}/../deps")
     endif()
 
-    add_example(server_pubsub_subscribe_custom_monitoring
-                pubsub/server_pubsub_subscribe_custom_monitoring.c)
+    if(UA_ENABLE_PUBSUB_MONITORING)
+        add_example(server_pubsub_subscribe_custom_monitoring pubsub/server_pubsub_subscribe_custom_monitoring.c)
+    endif()
 endif()
 
 ###########################

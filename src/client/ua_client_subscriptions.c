@@ -53,13 +53,11 @@ MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
 static void
 ua_Subscriptions_create(UA_Client *client, UA_Client_Subscription *newSub,
                         UA_CreateSubscriptionResponse *response) {
-    UA_LOCK_ASSERT(&client->clientMutex);
-
-    UA_EventLoop *el = client->config.eventLoop;
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     newSub->subscriptionId = response->subscriptionId;
     newSub->sequenceNumber = 0;
-    newSub->lastActivity = el->dateTime_nowMonotonic(el);
+    newSub->lastActivity = UA_DateTime_nowMonotonic();
     newSub->publishingInterval = response->revisedPublishingInterval;
     newSub->maxKeepAliveCount = response->revisedMaxKeepAliveCount;
     ZIP_INIT(&newSub->monitoredItems);
@@ -98,6 +96,17 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                void *subscriptionContext,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    return UA_Client_Subscriptions_createCompleteDataChange(
+        client, request, subscriptionContext, statusChangeCallback, deleteCallback, NULL);
+}
+
+UA_CreateSubscriptionResponse
+UA_Client_Subscriptions_createCompleteDataChange(
+    UA_Client *client, const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_Client_DataChangeCallback dataChangeCallback) {
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = (UA_Client_Subscription *)
         UA_malloc(sizeof(UA_Client_Subscription));
@@ -109,6 +118,7 @@ UA_Client_Subscriptions_create(UA_Client *client,
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
+    sub->dataChangeCallback = dataChangeCallback;
 
     /* Send the request as a synchronous service call */
     __UA_Client_Service(client,
@@ -135,6 +145,19 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
                                      UA_ClientAsyncServiceCallback createCallback,
                                      void *userdata,
                                      UA_UInt32 *requestId) {
+    return UA_Client_Subscriptions_createCompleteDataChange_async(
+        client, request, subscriptionContext, statusChangeCallback, deleteCallback, NULL,
+        createCallback, userdata, requestId);
+}
+
+UA_StatusCode
+UA_Client_Subscriptions_createCompleteDataChange_async(
+    UA_Client *client, const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_Client_DataChangeCallback dataChangeCallback,
+    UA_ClientAsyncServiceCallback createCallback, void *userdata, UA_UInt32 *requestId) {
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -148,6 +171,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     sub->context = subscriptionContext;
     sub->statusChangeCallback = statusChangeCallback;
     sub->deleteCallback = deleteCallback;
+    sub->dataChangeCallback = dataChangeCallback;
 
     cc->userCallback = createCallback;
     cc->userData = userdata;
@@ -425,7 +449,7 @@ UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId
 static void
 MonitoredItem_delete(UA_Client *client, UA_Client_Subscription *sub,
                      UA_Client_MonitoredItem *mon) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     ZIP_REMOVE(MonitorItemsTree, &sub->monitoredItems, mon);
     if(mon->deleteCallback) {
@@ -583,8 +607,11 @@ MonitoredItems_CreateData_prepare(UA_Client *client,
 
     /* Set the clientHandle */
     for(size_t i = 0; i < data->request.itemsToCreateSize; i++)
-        data->request.itemsToCreate[i].requestedParameters.clientHandle =
-            ++client->monitoredItemHandles;
+        /* Don't overwrite the client handle if it is already set by the user.
+                   This is nesesary when the UA_Client_DataChangeCallback ist used */
+        if(!data->request.itemsToCreate[i].requestedParameters.clientHandle)
+            data->request.itemsToCreate[i].requestedParameters.clientHandle =
+                ++client->monitoredItemHandles;
 
     return UA_STATUSCODE_GOOD;
 
@@ -642,7 +669,7 @@ createDataChanges_async(UA_Client *client, const UA_CreateMonitoredItemsRequest 
                         UA_Client_DeleteMonitoredItemCallback *deleteCallbacks,
                         UA_ClientAsyncServiceCallback createCallback, void *userdata,
                         UA_UInt32 *requestId) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_Client_Subscription *sub = findSubscription(client, request.subscriptionId);
     if(!sub)
@@ -1014,7 +1041,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 /* Assume the request is already initialized */
 UA_StatusCode
 __Client_preparePublishRequest(UA_Client *client, UA_PublishRequest *request) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     /* Count acks */
     UA_Client_NotificationsAckNumber *ack;
@@ -1055,7 +1082,13 @@ __nextSequenceNumber(UA_UInt32 sequenceNumber) {
 static void
 processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
                               UA_DataChangeNotification *dataChangeNotification) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
+
+    if(sub->dataChangeCallback) {
+        sub->dataChangeCallback(client, sub->subscriptionId, sub->context,
+                                dataChangeNotification);
+        return;
+    }
 
     for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
         UA_MonitoredItemNotification *min = &dataChangeNotification->monitoredItems[j];
@@ -1095,7 +1128,7 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 static void
 processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
                          UA_EventNotificationList *eventNotificationList) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     for(size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
         UA_EventFieldList *eventFieldList = &eventNotificationList->events[j];
@@ -1136,7 +1169,7 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
 static void
 processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
                            UA_ExtensionObject *msg) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     if(msg->encoding != UA_EXTENSIONOBJECT_DECODED)
         return;
@@ -1181,7 +1214,7 @@ processNotificationMessage(UA_Client *client, UA_Client_Subscription *sub,
 static void
 __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishRequest *request,
                                               UA_PublishResponse *response) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     UA_NotificationMessage *msg = &response->notificationMessage;
 
@@ -1257,8 +1290,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
         return;
     }
 
-    UA_EventLoop *el = client->config.eventLoop;
-    sub->lastActivity = el->dateTime_nowMonotonic(el);
+    sub->lastActivity = UA_DateTime_nowMonotonic();
 
     /* Detect missing message - OPC Unified Architecture, Part 4 5.13.1.1 e) */
     if(__nextSequenceNumber(sub->sequenceNumber) != msg->sequenceNumber) {
@@ -1323,7 +1355,7 @@ processPublishResponseAsync(UA_Client *client, void *userdata,
 }
 
 void
-__Client_Subscriptions_clear(UA_Client *client) {
+__Client_Subscriptions_clean(UA_Client *client) {
     UA_Client_NotificationsAckNumber *n;
     UA_Client_NotificationsAckNumber *tmp;
     LIST_FOREACH_SAFE(n, &client->pendingNotificationsAcks, listEntry, tmp) {
@@ -1341,7 +1373,7 @@ __Client_Subscriptions_clear(UA_Client *client) {
 
 void
 __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     if(client->sessionState < UA_SESSIONSTATE_ACTIVATED)
         return;
@@ -1350,17 +1382,14 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
     if(client->currentlyOutStandingPublishRequests == 0)
         return;
 
-    UA_EventLoop *el = client->config.eventLoop;
-    UA_DateTime nowm = el->dateTime_nowMonotonic(el);
-
     UA_Client_Subscription *sub;
     LIST_FOREACH(sub, &client->subscriptions, listEntry) {
         UA_DateTime maxSilence = (UA_DateTime)
             ((sub->publishingInterval * sub->maxKeepAliveCount) +
              client->config.timeout) * UA_DATETIME_MSEC;
-        if(maxSilence + sub->lastActivity < nowm) {
+        if(maxSilence + sub->lastActivity < UA_DateTime_nowMonotonic()) {
             /* Reset activity */
-            sub->lastActivity = nowm;
+            sub->lastActivity = UA_DateTime_nowMonotonic();
 
             if(client->config.subscriptionInactivityCallback) {
                 void *subC = sub->context;
@@ -1377,7 +1406,7 @@ __Client_Subscriptions_backgroundPublishInactivityCheck(UA_Client *client) {
 
 void
 __Client_Subscriptions_backgroundPublish(UA_Client *client) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+    UA_LOCK_ASSERT(&client->clientMutex, 1);
 
     if(client->sessionState != UA_SESSIONSTATE_ACTIVATED)
         return;
