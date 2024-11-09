@@ -89,10 +89,10 @@ Pipfile
 Pipfile.lock
 .vscode
 **/libxml2
+/.vs
 
 # clangd cache
 .cache/
 
 # project local vim settings
 .vim/
-/.vs
