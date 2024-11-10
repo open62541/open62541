@@ -860,31 +860,33 @@ ENCODE_BINARY(ExtensionObject) {
     return ret;
 }
 
-static status
-ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *typeId,
-                                    Ctx *ctx) {
-    /* Lookup the datatype */
-    const UA_DataType *type = UA_findDataTypeByBinaryInternal(typeId, ctx);
+#ifdef UA_ENABLE_TYPES_DECODING
+    static status
+    ExtensionObject_decodeBinaryContent(UA_ExtensionObject *dst, const UA_NodeId *typeId,
+                                        Ctx *ctx) {
+        /* Lookup the datatype */
+        const UA_DataType *type = UA_findDataTypeByBinaryInternal(typeId, ctx);
 
-    /* Unknown type, just take the binary content */
-    if(!type) {
-        dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
-        UA_NodeId_copy(typeId, &dst->content.encoded.typeId);
-        return DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
+        /* Unknown type, just take the binary content */
+        if(!type) {
+            dst->encoding = UA_EXTENSIONOBJECT_ENCODED_BYTESTRING;
+            UA_NodeId_copy(typeId, &dst->content.encoded.typeId);
+            return DECODE_DIRECT(&dst->content.encoded.body, String); /* ByteString */
+        }
+
+        /* Allocate memory */
+        dst->content.decoded.data = UA_new(type);
+        UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
+
+        /* Jump over the length field (TODO: check if the decoded length matches) */
+        ctx->pos += 4;
+
+        /* Decode */
+        dst->encoding = UA_EXTENSIONOBJECT_DECODED;
+        dst->content.decoded.type = type;
+        return decodeBinaryJumpTable[type->typeKind](dst->content.decoded.data, type, ctx);
     }
-
-    /* Allocate memory */
-    dst->content.decoded.data = UA_new(type);
-    UA_CHECK_MEM(dst->content.decoded.data, return UA_STATUSCODE_BADOUTOFMEMORY);
-
-    /* Jump over the length field (TODO: check if the decoded length matches) */
-    ctx->pos += 4;
-
-    /* Decode */
-    dst->encoding = UA_EXTENSIONOBJECT_DECODED;
-    dst->content.decoded.type = type;
-    return decodeBinaryJumpTable[type->typeKind](dst->content.decoded.data, type, ctx);
-}
+#endif
 
 DECODE_BINARY(ExtensionObject) {
     u8 encoding = 0;
@@ -1026,141 +1028,143 @@ ENCODE_BINARY(Variant) {
     return ret;
 }
 
-static status
-Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
-    /* Save the position in the ByteString. If unwrapping is not possible, start
-     * from here to decode a normal ExtensionObject. */
-    u8 *old_pos = ctx->pos;
+#ifdef UA_ENABLE_TYPES_DECODING
+    static status
+    Variant_decodeBinaryUnwrapExtensionObject(UA_Variant *dst, Ctx *ctx) {
+        /* Save the position in the ByteString. If unwrapping is not possible, start
+        * from here to decode a normal ExtensionObject. */
+        u8 *old_pos = ctx->pos;
 
-    /* Decode the DataType */
-    UA_NodeId typeId;
-    UA_NodeId_init(&typeId);
-    status ret = DECODE_DIRECT(&typeId, NodeId);
-    UA_CHECK_STATUS(ret, return ret);
+        /* Decode the DataType */
+        UA_NodeId typeId;
+        UA_NodeId_init(&typeId);
+        status ret = DECODE_DIRECT(&typeId, NodeId);
+        UA_CHECK_STATUS(ret, return ret);
 
-    /* Decode the EncodingByte */
-    u8 encoding;
-    ret = DECODE_DIRECT(&encoding, Byte);
-    UA_CHECK_STATUS(ret, UA_NodeId_clear(&typeId); return ret);
+        /* Decode the EncodingByte */
+        u8 encoding;
+        ret = DECODE_DIRECT(&encoding, Byte);
+        UA_CHECK_STATUS(ret, UA_NodeId_clear(&typeId); return ret);
 
-    /* Search for the datatype. Default to ExtensionObject. */
-    if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
-       (dst->type = UA_findDataTypeByBinaryInternal(&typeId, ctx)) != NULL) {
-        /* Jump over the length field (TODO: check if length matches) */
-        ctx->pos += 4;
-    } else {
-        /* Reset and decode as ExtensionObject */
-        dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
-        ctx->pos = old_pos;
-    }
-    UA_NodeId_clear(&typeId);
+        /* Search for the datatype. Default to ExtensionObject. */
+        if(encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING &&
+        (dst->type = UA_findDataTypeByBinaryInternal(&typeId, ctx)) != NULL) {
+            /* Jump over the length field (TODO: check if length matches) */
+            ctx->pos += 4;
+        } else {
+            /* Reset and decode as ExtensionObject */
+            dst->type = &UA_TYPES[UA_TYPES_EXTENSIONOBJECT];
+            ctx->pos = old_pos;
+        }
+        UA_NodeId_clear(&typeId);
 
-    /* Allocate memory */
-    dst->data = UA_new(dst->type);
-    UA_CHECK_MEM(dst->data, return UA_STATUSCODE_BADOUTOFMEMORY);
+        /* Allocate memory */
+        dst->data = UA_new(dst->type);
+        UA_CHECK_MEM(dst->data, return UA_STATUSCODE_BADOUTOFMEMORY);
 
-    /* Decode the content */
-    return decodeBinaryJumpTable[dst->type->typeKind](dst->data, dst->type, ctx);
-}
-
-/* Unwraps all ExtensionObjects in an array if they have the same type.
- * For that we check whether all ExtensionObjects have the same header. */
-static status
-Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT dst,
-                                               size_t *out_length, const UA_DataType **type,
-                                               Ctx *ctx) {
-    u8 *orig_pos = ctx->pos;
-
-    /* Decode the length */
-    i32 signed_length;
-    status ret = DECODE_DIRECT(&signed_length, UInt32); /* Int32 */
-    UA_CHECK_STATUS(ret, return ret);
-
-    /* Return early for empty arrays */
-    if(signed_length <= 0) {
-        *out_length = 0;
-        if(signed_length < 0)
-            *dst = NULL;
-        else
-            *dst = UA_EMPTY_ARRAY_SENTINEL;
-        /* The *type field stays an ExtensionObject, as we did not decode any
-         * member who's type is known. */
-        return UA_STATUSCODE_GOOD;
+        /* Decode the content */
+        return decodeBinaryJumpTable[dst->type->typeKind](dst->data, dst->type, ctx);
     }
 
-    /* Protect against memory exhaustion by unrealistic array lengths. An
-     * ExtensionObject is at least 4 byte long (3 byte NodeId + 1 Byte encoding
-     * field). */
-    size_t length = (size_t)signed_length;
-    UA_CHECK(ctx->pos + ((4 * length) / 32) <= ctx->end,
-             return UA_STATUSCODE_BADDECODINGERROR);
+    /* Unwraps all ExtensionObjects in an array if they have the same type.
+    * For that we check whether all ExtensionObjects have the same header. */
+    static status
+    Variant_decodeBinaryUnwrapExtensionObjectArray(void *UA_RESTRICT *UA_RESTRICT dst,
+                                                size_t *out_length, const UA_DataType **type,
+                                                Ctx *ctx) {
+        u8 *orig_pos = ctx->pos;
 
-    /* Decode the type NodeId of the first member */
-    UA_NodeId binTypeId;
-    UA_NodeId_init(&binTypeId);
-    ret |= DECODE_DIRECT(&binTypeId, NodeId);
-    UA_CHECK_STATUS(ret, return ret);
+        /* Decode the length */
+        i32 signed_length;
+        status ret = DECODE_DIRECT(&signed_length, UInt32); /* Int32 */
+        UA_CHECK_STATUS(ret, return ret);
 
-    /* Lookup the data type */
-    const UA_DataType *contentType = UA_findDataTypeByBinaryInternal(&binTypeId, ctx);
-    UA_NodeId_clear(&binTypeId);
-    if(!contentType) {
-        /* DataType unknown, decode as ExtensionObject array */
-        ctx->pos = orig_pos;
-        return Array_decodeBinary(dst, out_length, *type, ctx);
-    }
+        /* Return early for empty arrays */
+        if(signed_length <= 0) {
+            *out_length = 0;
+            if(signed_length < 0)
+                *dst = NULL;
+            else
+                *dst = UA_EMPTY_ARRAY_SENTINEL;
+            /* The *type field stays an ExtensionObject, as we did not decode any
+            * member who's type is known. */
+            return UA_STATUSCODE_GOOD;
+        }
 
-    /* Check that the encoding is binary */
-    u8 encoding = 0;
-    ret |= DECODE_DIRECT(&encoding, Byte);
-    UA_CHECK_STATUS(ret, return ret);
-    if(encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
-        /* Encoding format is not automatically decoded, decode as
-         * ExtensionObject array */
-        ctx->pos = orig_pos;
-        return Array_decodeBinary(dst, out_length, *type, ctx);
-    }
+        /* Protect against memory exhaustion by unrealistic array lengths. An
+        * ExtensionObject is at least 4 byte long (3 byte NodeId + 1 Byte encoding
+        * field). */
+        size_t length = (size_t)signed_length;
+        UA_CHECK(ctx->pos + ((4 * length) / 32) <= ctx->end,
+                return UA_STATUSCODE_BADDECODINGERROR);
 
-    /* Compare the header of all array members if the array can be unwrapped */
-    UA_ByteString header = {(uintptr_t)ctx->pos - (uintptr_t)orig_pos - 4, &orig_pos[4]};
-    UA_ByteString compare_header = header;
-    ctx->pos = &orig_pos[4];
+        /* Decode the type NodeId of the first member */
+        UA_NodeId binTypeId;
+        UA_NodeId_init(&binTypeId);
+        ret |= DECODE_DIRECT(&binTypeId, NodeId);
+        UA_CHECK_STATUS(ret, return ret);
 
-    for(size_t i = 0; i < length; i++) {
-        compare_header.data = ctx->pos;
-        UA_CHECK(compare_header.data + compare_header.length <= ctx->end,
-                 return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
-        if(!UA_ByteString_equal(&header, &compare_header)) {
-            /* Different member types, decode as ExtensionObject array */
+        /* Lookup the data type */
+        const UA_DataType *contentType = UA_findDataTypeByBinaryInternal(&binTypeId, ctx);
+        UA_NodeId_clear(&binTypeId);
+        if(!contentType) {
+            /* DataType unknown, decode as ExtensionObject array */
             ctx->pos = orig_pos;
             return Array_decodeBinary(dst, out_length, *type, ctx);
         }
 
-        /* Decode the length field and jump to the next element */
-        ctx->pos += header.length;
-        u32 member_length = 0;
-        ret = DECODE_DIRECT(&member_length, UInt32);
+        /* Check that the encoding is binary */
+        u8 encoding = 0;
+        ret |= DECODE_DIRECT(&encoding, Byte);
         UA_CHECK_STATUS(ret, return ret);
-        ctx->pos += member_length;
-    }
+        if(encoding != UA_EXTENSIONOBJECT_ENCODED_BYTESTRING) {
+            /* Encoding format is not automatically decoded, decode as
+            * ExtensionObject array */
+            ctx->pos = orig_pos;
+            return Array_decodeBinary(dst, out_length, *type, ctx);
+        }
 
-    /* Allocate memory for the unwrapped members */
-    *dst = UA_calloc(length, contentType->memSize);
-    UA_CHECK_MEM(*dst, return UA_STATUSCODE_BADOUTOFMEMORY);
-    *out_length = length;
-    *type = contentType;
+        /* Compare the header of all array members if the array can be unwrapped */
+        UA_ByteString header = {(uintptr_t)ctx->pos - (uintptr_t)orig_pos - 4, &orig_pos[4]};
+        UA_ByteString compare_header = header;
+        ctx->pos = &orig_pos[4];
 
-    /* Decode unwrapped members */
-    uintptr_t array_pos = (uintptr_t)*dst;
-    ctx->pos = &orig_pos[4];
-    for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; i++) {
-        ctx->pos += header.length + 4; /* Jump over the header and length field */
-        ret = decodeBinaryJumpTable[contentType->typeKind]
-            ((void*)array_pos, contentType, ctx);
-        array_pos += contentType->memSize;
+        for(size_t i = 0; i < length; i++) {
+            compare_header.data = ctx->pos;
+            UA_CHECK(compare_header.data + compare_header.length <= ctx->end,
+                    return UA_STATUSCODE_BADENCODINGLIMITSEXCEEDED);
+            if(!UA_ByteString_equal(&header, &compare_header)) {
+                /* Different member types, decode as ExtensionObject array */
+                ctx->pos = orig_pos;
+                return Array_decodeBinary(dst, out_length, *type, ctx);
+            }
+
+            /* Decode the length field and jump to the next element */
+            ctx->pos += header.length;
+            u32 member_length = 0;
+            ret = DECODE_DIRECT(&member_length, UInt32);
+            UA_CHECK_STATUS(ret, return ret);
+            ctx->pos += member_length;
+        }
+
+        /* Allocate memory for the unwrapped members */
+        *dst = UA_calloc(length, contentType->memSize);
+        UA_CHECK_MEM(*dst, return UA_STATUSCODE_BADOUTOFMEMORY);
+        *out_length = length;
+        *type = contentType;
+
+        /* Decode unwrapped members */
+        uintptr_t array_pos = (uintptr_t)*dst;
+        ctx->pos = &orig_pos[4];
+        for(size_t i = 0; i < length && ret == UA_STATUSCODE_GOOD; i++) {
+            ctx->pos += header.length + 4; /* Jump over the header and length field */
+            ret = decodeBinaryJumpTable[contentType->typeKind]
+                ((void*)array_pos, contentType, ctx);
+            array_pos += contentType->memSize;
+        }
+        return ret;
     }
-    return ret;
-}
+#endif
 
 /* The resulting variant always has the storagetype UA_VARIANT_DATA. */
 DECODE_BINARY(Variant) {
