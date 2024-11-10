@@ -1334,6 +1334,7 @@ copyNotImplemented(const void *src, void *dst, const UA_DataType *type) {
 }
 
 const UA_copySignature copyJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (UA_copySignature)copyByte, /* Boolean */
     (UA_copySignature)copyByte, /* SByte */
     (UA_copySignature)copyByte, /* Byte */
@@ -1437,6 +1438,7 @@ static void nopClear(void *p, const UA_DataType *type) { }
 
 const
 UA_clearSignature clearJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (UA_clearSignature)nopClear, /* Boolean */
     (UA_clearSignature)nopClear, /* SByte */
     (UA_clearSignature)nopClear, /* Byte */
@@ -1892,6 +1894,7 @@ notImplementedOrder(const void *p1, const void *p2, const UA_DataType *type) {
 
 const
 UA_orderSignature orderJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (UA_orderSignature)booleanOrder,
     (UA_orderSignature)sByteOrder,
     (UA_orderSignature)byteOrder,

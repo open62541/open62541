@@ -1241,6 +1241,7 @@ encodeJsonNotImplemented(const void *src, const UA_DataType *type, CtxJson *ctx)
 }
 
 const encodeJsonSignature encodeJsonJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (encodeJsonSignature)Boolean_encodeJson,
     (encodeJsonSignature)SByte_encodeJson, /* SByte */
     (encodeJsonSignature)Byte_encodeJson,
@@ -2784,6 +2785,7 @@ decodeJsonNotImplemented(ParseCtx *ctx, void *dst, const UA_DataType *type) {
 }
 
 const decodeJsonSignature decodeJsonJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (decodeJsonSignature)Boolean_decodeJson,
     (decodeJsonSignature)SByte_decodeJson, /* SByte */
     (decodeJsonSignature)Byte_decodeJson,

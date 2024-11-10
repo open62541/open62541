@@ -974,11 +974,11 @@ ENCODE_BINARY(Variant) {
     const UA_Boolean isBuiltin = (src->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
     const UA_Boolean isEnum = (src->type->typeKind == UA_DATATYPEKIND_ENUM);
     if(isBuiltin)
-        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeKind + 1u)));
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(src->type->typeKind)));
     else if(isEnum)
-        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32 + 1u)));
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_INT32)));
     else
-        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT + 1u)));
+        encoding = (u8)(encoding | (u8)((u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK & (u8)(UA_TYPES_EXTENSIONOBJECT)));
 
     /* Set the array type in the encoding mask */
     const UA_Boolean isArray = src->arrayLength > 0 || src->data <= UA_EMPTY_ARRAY_SENTINEL;
@@ -1174,7 +1174,7 @@ DECODE_BINARY(Variant) {
      * All not-builtin types are wrapped in an ExtensionObject. The "type kind"
      * for types up to DiagnsticInfo equals to the index in the encoding
      * byte. */
-    size_t typeKind = (size_t)((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK) - 1);
+    size_t typeKind = (size_t)((encodingByte & (u8)UA_VARIANT_ENCODINGMASKTYPE_TYPEID_MASK));
     UA_CHECK(typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO, return UA_STATUSCODE_BADDECODINGERROR);
 
     /* A variant cannot contain a variant. But it can contain an array of
@@ -1562,6 +1562,7 @@ encodeBinaryNotImplemented(const void *src, const UA_DataType *type, Ctx *ctx) {
 }
 
 const encodeBinarySignature encodeBinaryJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (encodeBinarySignature)Boolean_encodeBinary,
     (encodeBinarySignature)Byte_encodeBinary, /* SByte */
     (encodeBinarySignature)Byte_encodeBinary,
@@ -1784,6 +1785,7 @@ decodeBinaryUnion(void *UA_RESTRICT dst, const UA_DataType *type, Ctx *ctx) {
 }
 
 const decodeBinarySignature decodeBinaryJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (decodeBinarySignature)Boolean_decodeBinary,
     (decodeBinarySignature)Byte_decodeBinary, /* SByte */
     (decodeBinarySignature)Byte_decodeBinary,
@@ -2124,6 +2126,7 @@ calcSizeBinaryNotImplemented(const void *p, const UA_DataType *type) {
 }
 
 const calcSizeBinarySignature calcSizeBinaryJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (calcSizeBinarySignature)calcSizeBinary1, /* Boolean */
     (calcSizeBinarySignature)calcSizeBinary1, /* SByte */
     (calcSizeBinarySignature)calcSizeBinary1, /* Byte */

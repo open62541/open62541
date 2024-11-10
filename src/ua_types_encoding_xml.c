@@ -262,6 +262,7 @@ encodeXmlNotImplemented(CtxXml *ctx, const void *src, const UA_DataType *type) {
 }
 
 const encodeXmlSignature encodeXmlJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (encodeXmlSignature)Boolean_encodeXml,          /* Boolean */
     (encodeXmlSignature)SByte_encodeXml,            /* SByte */
     (encodeXmlSignature)Byte_encodeXml,             /* Byte */
@@ -766,6 +767,7 @@ decodeXmlNotImplemented(ParseCtxXml *ctx, void *dst, const UA_DataType *type) {
 }
 
 const decodeXmlSignature decodeXmlJumpTable[UA_DATATYPEKINDS] = {
+    NULL,
     (decodeXmlSignature)Boolean_decodeXml,          /* Boolean */
     (decodeXmlSignature)SByte_decodeXml,            /* SByte */
     (decodeXmlSignature)Byte_decodeXml,             /* Byte */
