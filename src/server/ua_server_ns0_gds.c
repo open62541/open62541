@@ -294,10 +294,10 @@ updateCertificate(UA_Server *server,
 
     /* Verify that the privateKey is in a supported format and
      * that it matches the specified certificate */
-    if(privateKey) {
+    if(privateKey && privateKey->data) {
         const UA_String pemFormat = UA_STRING("PEM");
-        const UA_String pfxFormat = UA_STRING("PFX");
-        if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&pfxFormat, privateKeyFormat))
+        const UA_String derFormat = UA_STRING("DER");
+        if(!UA_String_equal(&pemFormat, privateKeyFormat) && !UA_String_equal(&derFormat, privateKeyFormat))
             return UA_STATUSCODE_BADNOTSUPPORTED;
         if(UA_CertificateUtils_checkKeyPair(certificate, privateKey) != UA_STATUSCODE_GOOD)
             return UA_STATUSCODE_BADNOTSUPPORTED;
@@ -1220,7 +1220,7 @@ writeGroupVariables(UA_Server *server) {
     size_t certificateTypesSize = 2;
 
     UA_String supportedPrivateKeyFormats[2] = {UA_STRING("PEM"),
-                                               UA_STRING("PFX")};
+                                               UA_STRING("DER")};
     size_t supportedPrivateKeyFormatsSize = 2;
 
     UA_UInt32  maxTrustListSize = 0;
