@@ -60,6 +60,10 @@ activateSession_default(UA_Server *server, UA_AccessControl *ac,
     }
 
     /* Could the token be decoded? */
+    #ifndef UA_ENABLE_TYPES_DECODING
+        // Manually decode ExtensionObject
+        UA_ExtensionObject_decode(userIdentityToken);
+    #endif    
     if(userIdentityToken->encoding < UA_EXTENSIONOBJECT_DECODED)
         return UA_STATUSCODE_BADIDENTITYTOKENINVALID;
 
