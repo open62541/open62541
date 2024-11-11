@@ -362,6 +362,10 @@ if(UA_ENABLE_ENCRYPTION)
     if(UA_ENABLE_DISCOVERY)
         ua_add_test(server/check_discovery.c)
     endif()
+
+    if(UA_ENABLE_GDS_PUSHMANAGEMENT)
+        ua_add_test(encryption/check_gds_informationmodel.c)
+    endif()
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
