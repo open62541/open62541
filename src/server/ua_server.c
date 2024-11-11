@@ -350,7 +350,12 @@ UA_GDSManager_clear(UA_GDSManager *gdsManager) {
         return;
     gdsManager->checkSessionCallbackId = 0;
     UA_GDSTransaction_clear(&gdsManager->transaction);
-    UA_free(gdsManager->fileInfoContext);
+    void *fileInfoContext = gdsManager->fileInfoContext;
+    while(fileInfoContext) {
+        void *next = *((void **)fileInfoContext);
+        UA_free(fileInfoContext);
+        fileInfoContext = next;
+    }
 }
 
 /*********************/
