@@ -702,9 +702,16 @@ UA_ExtensionObject_decode(UA_ExtensionObject* eo)
 {
 	if (eo->encoding == UA_EXTENSIONOBJECT_ENCODED_BYTESTRING)
 	{
-        const UA_DataType* type = UA_findDataTypeByBinary(&eo->content.encoded.typeId);
+        const UA_DataType* type = 
+            UA_findDataTypeByBinary(&eo->content.encoded.typeId);
+        if(type == NULL) {
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
 		eo->content.decoded.data = UA_new(type);
-		UA_StatusCode retVal = UA_decodeBinary(&eo->content.encoded.body, eo->content.decoded.data, type, NULL);
+		UA_StatusCode retVal = UA_decodeBinary(
+            &eo->content.encoded.body, 
+            eo->content.decoded.data, type, NULL
+        );
 		if (UA_StatusCode_isGood(retVal))
 		{			
 			// clear the encoded value
@@ -719,7 +726,7 @@ UA_ExtensionObject_decode(UA_ExtensionObject* eo)
 		}
 		return retVal;
 	}
-	return UA_STATUSCODE_BAD;
+    return UA_STATUSCODE_BADINTERNALERROR;
 }
 
 /* Variant */
