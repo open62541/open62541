@@ -250,9 +250,11 @@ function unit_tests_encryption {
     mkdir -p build; cd build; rm -rf *
     cmake -DCMAKE_BUILD_TYPE=Debug \
           -DUA_BUILD_EXAMPLES=ON \
+          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=$1 \
           -DUA_FORCE_WERROR=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
     make ${MAKEOPTS}
     set_capabilities
@@ -399,6 +401,7 @@ function build_clang_analyzer {
           -DUA_BUILD_EXAMPLES=ON \
           -DUA_BUILD_UNIT_TESTS=ON \
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_GDS_PUSHMANAGEMENT=ON \
           -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \
           -DUA_ENABLE_JSON_ENCODING=ON \
           -DUA_ENABLE_XML_ENCODING=ON \
@@ -406,6 +409,7 @@ function build_clang_analyzer {
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
           -DUA_FORCE_WERROR=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
           ..
     scan-build-$version --status-bugs \
           -disable-checker unix.BlockInCriticalSection \
