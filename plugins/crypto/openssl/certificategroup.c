@@ -9,7 +9,6 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/plugin/log_stdout.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
@@ -761,7 +760,8 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI) {
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     const unsigned char * pData;
     X509 *                certificateX509;
     UA_String             subjectURI = UA_STRING_NULL;
@@ -811,7 +811,7 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     }
 
     if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "The certificate's application URI could not be verified. StatusCode %s",
                        UA_StatusCode_name(ret));
         ret = UA_STATUSCODE_GOOD;

@@ -308,7 +308,8 @@ Service_CreateSession(UA_Server *server, UA_SecureChannel *channel,
         response->responseHeader.serviceResult =
             UA_CertificateUtils_verifyApplicationURI(server->config.allowAllCertificateUris,
                                                      &request->clientCertificate,
-                                                     &request->clientDescription.applicationUri);
+                                                     &request->clientDescription.applicationUri,
+                                                     server->config.logging);
         if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
                                    "The client's ApplicationURI did not match the certificate");

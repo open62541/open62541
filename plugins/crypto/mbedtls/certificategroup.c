@@ -9,7 +9,6 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/plugin/log_stdout.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
@@ -739,7 +738,8 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI) {
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
     mbedtls_x509_crt_init(&remoteCertificate);
@@ -758,7 +758,7 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
     if(retval != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "The certificate's application URI could not be verified. StatusCode %s",
                        UA_StatusCode_name(retval));
         retval = UA_STATUSCODE_GOOD;
