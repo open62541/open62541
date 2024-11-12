@@ -9,6 +9,7 @@
 #include <open62541/client.h>
 #include <open62541/client_highlevel.h>
 #include <open62541/client_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include <stdio.h>
 #include <string.h>
@@ -19,6 +20,8 @@ static char *url = NULL;
 static char *service = NULL;
 static char *username = NULL;
 static char *password = NULL;
+static UA_ByteString certificate;
+static UA_ByteString privateKey;
 int return_value = 0;
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
@@ -81,9 +84,34 @@ usage(void) {
             " Options:\n"
             " --username: Username for the session creation\n"
             " --password: Password for the session creation\n"
-            " --loglevel: Logging detail [1 -> TRACE, 6 -> FATAL]\n"
+            " --certificate <certfile>: Certificate in DER format\n"
+            " --privatekey <keyfile>: Private key in DER format\n"
+            " --loglevel <level>: Logging detail [1 -> TRACE, 6 -> FATAL]\n"
             " --help: Print this message\n");
     exit(EXIT_FAILURE);
+}
+
+static UA_ByteString
+loadFile(const char *const path) {
+    /* Open the file */
+    FILE *fp = fopen(path, "rb");
+    if(!fp) {
+        fprintf(stderr, "Cannot open file %s\n", path);
+        exit(EXIT_FAILURE);
+    }
+
+    /* Get the file length, allocate the data and read */
+    UA_ByteString fileContents = UA_STRING_NULL;
+    fseek(fp, 0, SEEK_END);
+    fileContents.length = (size_t)ftell(fp);
+    fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
+    fseek(fp, 0, SEEK_SET);
+    size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
+    if(read == 0)
+        UA_ByteString_clear(&fileContents);
+    fclose(fp);
+
+    return fileContents;
 }
 
 static void
@@ -485,6 +513,22 @@ parseOptions(int argc, char **argv, int argpos) {
             continue;
         }
 
+        if(strcmp(argv[argpos], "--certificate") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            certificate = loadFile(argv[argpos]);
+            continue;
+        }
+
+        if(strcmp(argv[argpos], "--privatekey") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            privateKey = loadFile(argv[argpos]);
+            continue;
+        }
+
         /* Unknown option */
         usage();
     }
@@ -510,6 +554,18 @@ main(int argc, char **argv) {
     cc.logging = &stderrLog;
     UA_ClientConfig_setDefault(&cc);
 
+    /* TODO: Trustlist end revocation list */
+    if(certificate.length > 0) {
+        UA_StatusCode res =
+            UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey,
+                                                 NULL, 0, NULL, 0);
+        if(res != UA_STATUSCODE_GOOD)
+            exit(EXIT_FAILURE);
+    }
+
+    cc.certificateVerification.clear(&cc.certificateVerification);
+    UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
+
     /* Initialize the client */
     client = UA_Client_newWithConfig(&cc);
     if(!client) {
@@ -529,6 +585,9 @@ main(int argc, char **argv) {
     } else {
         usage(); /* Unknown service */
     }
+
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
 
     UA_Client_delete(client);
     return return_value;
