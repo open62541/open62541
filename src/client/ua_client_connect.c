@@ -1610,8 +1610,10 @@ verifyClientApplicationURI(const UA_Client *client) {
         }
 
         UA_StatusCode retval =
-            UA_CertificateUtils_verifyApplicationURI(client->allowAllCertificateUris, &sp->localCertificate,
-                                                     &client->config.clientDescription.applicationUri);
+            UA_CertificateUtils_verifyApplicationURI(client->allowAllCertificateUris,
+                                                     &sp->localCertificate,
+                                                     &client->config.clientDescription.applicationUri,
+                                                     client->config.logging);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "The configured ApplicationURI does not match the URI "
