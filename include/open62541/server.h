@@ -243,6 +243,8 @@ struct UA_ServerConfig {
     UA_UInt16 maxSessions;
     UA_Double maxSessionTimeout; /* in ms */
 
+    UA_UInt16 maxConnections;
+
     /* Operation limits */
     UA_UInt32 maxNodesPerRead;
     UA_UInt32 maxNodesPerWrite;

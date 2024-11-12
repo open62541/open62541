@@ -198,6 +198,22 @@ decodeHeaderSendServiceFault(UA_Server *server, UA_SecureChannel *channel,
     return retval;
 }
 
+/* Remove the first (oldest) connection that has no open secureChannel */
+static UA_Boolean
+purgeFirstConnectionWithoutChannel(UA_ConnectionManager *cm,
+                                   UA_BinaryProtocolManager *bpm) {
+    UA_SecureChannel *channel;
+    TAILQ_FOREACH(channel, &bpm->channels, componentEntry) {
+        if(channel->state == UA_SECURECHANNELSTATE_OPEN) {
+            continue;
+        }
+        if(cm->closeConnection(cm, channel->connectionId) == UA_STATUSCODE_GOOD) {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 /*************************/
 /* Process Message Types */
@@ -618,6 +634,9 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     if(scs->currentChannelCount >= config->maxSecureChannels &&
        !purgeFirstChannelWithoutSession(bpm))
         return UA_STATUSCODE_BADOUTOFMEMORY;
+    if(config->maxConnections && scs->currentChannelCount >= config->maxConnections &&
+       !purgeFirstConnectionWithoutChannel(cm, bpm))
+        return UA_STATUSCODE_BADTCPNOTENOUGHRESOURCES;
 
     /* Allocate memory for the SecureChannel */
     UA_SecureChannel *channel = (UA_SecureChannel*)UA_calloc(1, sizeof(UA_SecureChannel));
