@@ -73,9 +73,6 @@ find_unescaped(char *pos, const char *end, UA_Boolean extended);
 UA_StatusCode
 UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended);
 
-UA_StatusCode
-UA_String_append(UA_String *s, const UA_String s2);
-
 /* Case insensitive lookup. Returns UA_ATTRIBUTEID_INVALID if not found. */
 UA_AttributeId
 UA_AttributeId_fromName(const UA_String name);
