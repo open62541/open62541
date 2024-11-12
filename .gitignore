@@ -88,10 +88,9 @@ examples/
 Pipfile
 Pipfile.lock
 .vscode
+/.vs
 **/libxml2
-
 # clangd cache
 .cache/
-
 # project local vim settings
 .vim/
