@@ -360,7 +360,7 @@ processERRResponse(UA_Client *client, const UA_ByteString *chunk) {
 
     UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                          "Received an ERR response with StatusCode %s and "
-                         "the following ireason: %S",
+                         "the following reason: \"%S\"",
                          UA_StatusCode_name(errMessage.error),
                          errMessage.reason);
     client->connectStatus = errMessage.error;
