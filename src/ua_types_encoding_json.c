@@ -749,7 +749,7 @@ ENCODE_JSON(NodeId) {
     if(ctx->stringNodeIds) {
         UA_String out = UA_STRING_NULL;
         ret |= UA_NodeId_print(src, &out);
-        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        ret |= ENCODE_DIRECT_JSON(&out, String);
         UA_String_clear(&out);
         return ret;
     }
@@ -766,12 +766,10 @@ ENCODE_JSON(NodeId) {
         /* For the non-reversible encoding, the field is the NamespaceUri
          * associated with the NamespaceIndex, encoded as a JSON string.
          * A NamespaceIndex of 1 is always encoded as a JSON number. */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
         if(src->namespaceIndex == 1) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-
             /* Check if Namespace given and in range */
             if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
                 UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
@@ -793,7 +791,7 @@ ENCODE_JSON(ExpandedNodeId) {
     if(ctx->stringNodeIds) {
         UA_String out = UA_STRING_NULL;
         ret |= UA_ExpandedNodeId_print(src, &out);
-        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        ret |= ENCODE_DIRECT_JSON(&out, String);
         UA_String_clear(&out);
         return ret;
     }
@@ -834,12 +832,11 @@ ENCODE_JSON(ExpandedNodeId) {
          * NamespaceUri associated with the NamespaceIndex encoded as a JSON
          * string. A NamespaceIndex of 1 is always encoded as a JSON number. */
 
+        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
         if(src->namespaceUri.data) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
         } else {
             if(src->nodeId.namespaceIndex == 1) {
-                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
                 ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
             } else {
                 /* Check if Namespace given and in range */
@@ -898,12 +895,10 @@ ENCODE_JSON(QualifiedName) {
          * NamespaceIndex portion of the QualifiedName is encoded as JSON string
          * unless the NamespaceIndex is 1 or if NamespaceUri is unknown. In
          * these cases, the NamespaceIndex is encoded as a JSON number. */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
         if(src->namespaceIndex == 1) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
-
              /* Check if Namespace given and in range */
             if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
                 UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
@@ -1103,7 +1098,7 @@ ENCODE_JSON(Variant) {
     ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
 
     if(!isArray) {
-        encodeScalarJsonWrapExtensionObject(ctx, src);
+        ret |= encodeScalarJsonWrapExtensionObject(ctx, src);
     } else {
         if(ctx->useReversible || !hasDimensions) {
             ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
