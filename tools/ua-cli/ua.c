@@ -11,6 +11,7 @@
 #include <open62541/client_config_default.h>
 
 #include <stdio.h>
+#include <string.h>
 
 static UA_Client *client = NULL;
 static UA_ClientConfig cc;
@@ -73,10 +74,10 @@ usage(void) {
     fprintf(stderr, "Usage: ua [options] [--help] <server-url> <service>\n"
             " <server-url>: opc.tcp://domain[:port]\n"
             " <service> -> getendpoints: Print the endpoint descriptions of the server\n"
-            " <service> -> read <AttributeOperand>: Read an attribute\n"
-            " <service> -> browse <AttributeOperand>: Browse the references to and from the node\n"
+            " <service> -> read   <AttributeOperand>: Read an attribute\n"
+            " <service> -> browse <AttributeOperand>: Browse the references of a node\n"
+            " <service> -> write  <AttributeOperand> <value>: Write an attribute\n"
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
-            //" <service> -> write <nodeid> <value>: Write an attribute of the node\n"
             " Options:\n"
             " --username: Username for the session creation\n"
             " --password: Password for the session creation\n"
@@ -217,6 +218,164 @@ read(int argc, char **argv, int argpos) {
     printType(&resp, &UA_TYPES[UA_TYPES_DATAVALUE]);
     UA_DataValue_clear(&resp);
     UA_AttributeOperand_clear(&ao);
+}
+
+static void
+write(int argc, char **argv, int argpos) {
+    /* Validate the arguments */
+    if(argpos + 1 >= argc) {
+        fprintf(stderr, "The Write Service takes an AttributeOperand "
+                "expression and the value as arguments\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Parse the AttributeOperand */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(argv[argpos++]));
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
+
+    /* Aggregate all the remaining arguments and parse them as JSON */
+    UA_String valstr = UA_STRING_NULL;
+    for(; argpos < argc; argpos++) {
+        UA_String_append(&valstr, UA_STRING(argv[argpos]));
+        if(argpos != argc - 1)
+            UA_String_append(&valstr, UA_STRING(" "));
+    }
+
+    if(valstr.length == 0) {
+        fprintf(stderr, "No value defined\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Detect a few basic "naked" datatypes.
+     * Otherwise try to decode a variant */
+    UA_Boolean b;
+    UA_Int32 i;
+    UA_Float ff;
+    UA_Variant v;
+    UA_String s = UA_STRING_NULL;
+    UA_String f = UA_STRING("false");
+    UA_String t = UA_STRING("true");
+    if(UA_String_equal(&valstr, &f)) {
+        b = false;
+        UA_Variant_setScalar(&v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        v.storageType = UA_VARIANT_DATA_NODELETE;
+    } else if(UA_String_equal(&valstr, &t)) {
+        b = true;
+        UA_Variant_setScalar(&v, &b, &UA_TYPES[UA_TYPES_BOOLEAN]);
+        v.storageType = UA_VARIANT_DATA_NODELETE;
+    } else if(valstr.data[0] == '\"') {
+        res = UA_decodeJson(&valstr, &s, &UA_TYPES[UA_TYPES_STRING], NULL);
+        UA_Variant_setScalar(&v, &s, &UA_TYPES[UA_TYPES_STRING]);
+        v.storageType = UA_VARIANT_DATA_NODELETE;
+    } else if(valstr.data[0] >= '0' && valstr.data[0] <= '9') {
+        res = UA_decodeJson(&valstr, &i, &UA_TYPES[UA_TYPES_INT32], NULL);
+        UA_Variant_setScalar(&v, &i, &UA_TYPES[UA_TYPES_INT32]);
+        if(res != UA_STATUSCODE_GOOD) {
+            res = UA_decodeJson(&valstr, &ff, &UA_TYPES[UA_TYPES_FLOAT], NULL);
+            UA_Variant_setScalar(&v, &ff, &UA_TYPES[UA_TYPES_FLOAT]);
+        }
+        v.storageType = UA_VARIANT_DATA_NODELETE;
+    } else if(valstr.data[0] == '{') {
+        /* JSON Variant */
+        res = UA_decodeJson(&valstr, &v, &UA_TYPES[UA_TYPES_VARIANT], NULL);
+    } else if(valstr.data[0] == '(') {
+        /* Data type name in parentheses */
+        UA_STACKARRAY(char, type, valstr.length);
+        int elem = sscanf((char*)valstr.data, "(%[^)])", type);
+        if(elem <= 0) {
+            fprintf(stderr, "Wrong datatype definition\n");
+            exit(EXIT_FAILURE);
+        }
+
+        /* Find type under the name */
+        const UA_DataType *datatype = NULL;
+        for(size_t i = 0; i < UA_TYPES_COUNT; i++) {
+            if(strcmp(UA_TYPES[i].typeName, type) == 0) {
+                datatype = &UA_TYPES[i];
+                break;
+            }
+        }
+
+        if(!datatype) {
+            fprintf(stderr, "Data type %s unknown\n", type);
+            exit(EXIT_FAILURE);
+        }
+
+        valstr.data += 2 + strlen(type);
+        valstr.length -= 2 + strlen(type);
+
+        /* Parse */
+        void *val = UA_new(datatype);
+        res = UA_decodeJson(&valstr, val, datatype, NULL);
+        UA_Variant_setScalar(&v, val, datatype);
+    } else {
+        res = UA_STATUSCODE_BADDECODINGERROR;
+    }
+
+    if(res != UA_STATUSCODE_GOOD) {
+        fprintf(stderr, "Could not parse the value\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* Connect */
+    connectClient();
+
+    /* Resolve the RelativePath */
+    if(ao.browsePath.elementsSize > 0) {
+        UA_BrowsePath bp;
+        UA_BrowsePath_init(&bp);
+        bp.startingNode = ao.nodeId;
+        bp.relativePath = ao.browsePath;
+
+        UA_BrowsePathResult bpr =
+            UA_Client_translateBrowsePathToNodeIds(client, &bp);
+        if(bpr.statusCode != UA_STATUSCODE_GOOD)
+            abortWithStatus(bpr.statusCode);
+
+        /* Validate the response */
+        if(bpr.targetsSize != 1) {
+            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
+                    (unsigned)bpr.targetsSize);
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
+            fprintf(stderr, "The RelativePath was not fully resolved\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
+            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
+                    "on a different server\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        UA_NodeId_clear(&ao.nodeId);
+        ao.nodeId = bpr.targets[0].targetId.nodeId;
+        UA_ExpandedNodeId_init(&bpr.targets[0].targetId);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* Write the attribute */
+    UA_WriteValue wv;
+    UA_WriteValue_init(&wv);
+    wv.value.value = v;
+    wv.value.hasValue = true;
+    wv.nodeId = ao.nodeId;
+    wv.attributeId = ao.attributeId;
+    wv.indexRange = ao.indexRange;
+    res = UA_Client_write(client, &wv);
+
+    /* Print the StatusCode and return */
+    fprintf(stdout, "%s\n", UA_StatusCode_name(res));
+    if(res != UA_STATUSCODE_GOOD)
+        return_value = EXIT_FAILURE;
+
+    UA_AttributeOperand_clear(&ao);
+    UA_Variant_clear(&v);
+    UA_String_clear(&s);
 }
 
 static void
@@ -365,13 +524,11 @@ main(int argc, char **argv) {
         read(argc, argv, argpos);
     } else if(strcmp(service, "browse") == 0) {
         browse(argc, argv, argpos);
+    } else if(strcmp(service, "write") == 0) {
+        write(argc, argv, argpos);
     } else {
         usage(); /* Unknown service */
     }
-    //else if(strcmp(argv[1], "write") == 0) {
-    //    if(nodeid && value)
-    //        return writeAttr(argc-argpos, &argv[argpos]);
-    //}
 
     UA_Client_delete(client);
     return return_value;
