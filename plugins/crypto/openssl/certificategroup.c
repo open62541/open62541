@@ -159,8 +159,8 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
     if(!openSSLCheckCA(cert)) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                   "The certificate is not a CA certificate and therefore does not have a CRL.");
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate is not a CA certificate and therefore does not have a CRL.");
         X509_free(cert);
         return UA_STATUSCODE_GOOD;
     }
@@ -811,7 +811,7 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     }
 
     if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
                        "The certificate's application URI could not be verified. StatusCode %s",
                        UA_StatusCode_name(ret));
         ret = UA_STATUSCODE_GOOD;

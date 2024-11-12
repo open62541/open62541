@@ -153,7 +153,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     mbedtls_x509_crt_init(&cert);
     UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
             "An error occurred while parsing the certificate.");
         return retval;
     }
@@ -161,7 +161,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
     if(!mbedtlsCheckCA(&cert)) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                "The certificate is not a CA certificate and therefore does not have a CRL.");
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_GOOD;
@@ -173,7 +173,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
         mbedtls_x509_crl_init(&crl);
         retval = UA_mbedTLS_LoadCrl(&crlList[i], &crl);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                 "An error occurred while parsing the crl.");
             mbedtls_x509_crt_free(&cert);
             return retval;
@@ -758,7 +758,7 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
     if(retval != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
                        "The certificate's application URI could not be verified. StatusCode %s",
                        UA_StatusCode_name(retval));
         retval = UA_STATUSCODE_GOOD;
