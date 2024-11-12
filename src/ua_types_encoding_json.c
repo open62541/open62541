@@ -775,7 +775,8 @@ ENCODE_JSON(NodeId) {
                 UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
                 ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
             } else {
-                return UA_STATUSCODE_BADNOTFOUND;
+                /* If not found, print the identifier */
+                ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
             }
         }
     }
@@ -840,11 +841,12 @@ ENCODE_JSON(ExpandedNodeId) {
                 ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
             } else {
                 /* Check if Namespace given and in range */
-                if(src->nodeId.namespaceIndex >= ctx->namespacesSize || !ctx->namespaces)
-                    return UA_STATUSCODE_BADNOTFOUND;
-                UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
-                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+                if(src->nodeId.namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
+                    UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
+                    ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+                } else {
+                    ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
+                }
             }
         }
 
