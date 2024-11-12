@@ -47,7 +47,7 @@ logLevelNames[6] = {"trace", "debug", ANSI_COLOR_GREEN "info",
 static const char *
 logCategoryNames[UA_LOGCATEGORIES] =
     {"network", "channel", "session", "server", "client",
-     "userland", "securitypolicy", "eventloop", "pubsub", "discovery"};
+     "userland", "security", "eventloop", "pubsub", "discovery"};
 
 static void
 cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
