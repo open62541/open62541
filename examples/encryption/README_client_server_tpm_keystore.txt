@@ -88,10 +88,10 @@ Create encryption and signing key in both the server and client node filesystems
     cd open62541/tools/tpm_keystore/
 
     In server,
-    python3 ../certs/create_self-signed.py -u urn:open62541.server.application
+    python3 ../certs/create_self-signed.py -u urn:open62541.unconfigured.application -c server
 
     In client,
-    python3 ../certs/create_self-signed.py -u urn:unconfigured:application -c client
+    python3 ../certs/create_self-signed.py -u urn:open62541.unconfigured.application -c client
 
 Seal the encryption and signing key files using the key available in TPM
     gcc cert_encrypt_tpm.c -o cert_encrypt_tpm -ltpm2_pkcs11 -lssl -lcrypto
