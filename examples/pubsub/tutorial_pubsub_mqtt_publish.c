@@ -105,11 +105,12 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     UA_PubSubConnectionConfig connectionConfig;
     memset(&connectionConfig, 0, sizeof(connectionConfig));
     connectionConfig.name = UA_STRING(CONNECTION_NAME);
-    if (useJson) {
+    if(useJson) {
         connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_JSON);
     } else {
         connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
     }
+    connectionConfig.enabled = true;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(addressUrl)};
