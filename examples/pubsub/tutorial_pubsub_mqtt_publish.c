@@ -110,7 +110,7 @@ addPubSubConnection(UA_Server *server, char *addressUrl) {
     } else {
         connectionConfig.transportProfileUri = UA_STRING(TRANSPORT_PROFILE_URI_UADP);
     }
-    connectionConfig.enabled = UA_TRUE;
+    connectionConfig.enabled = true;
 
     /* configure address of the mqtt broker (local on default port) */
     UA_NetworkAddressUrlDataType networkAddressUrl = {UA_STRING_NULL , UA_STRING(addressUrl)};
