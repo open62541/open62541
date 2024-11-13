@@ -535,6 +535,9 @@ resolveSimpleAttributeOperand(UA_Server *server, UA_Session *session,
 
 static UA_StatusCode
 resolveOperand(UA_FilterEvalContext *ctx, UA_ExtensionObject *op, UA_Variant *out) {
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(op);
+    #endif
     if(op->encoding != UA_EXTENSIONOBJECT_DECODED &&
        op->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE)
         return UA_STATUSCODE_BADFILTEROPERATORUNSUPPORTED;
@@ -1226,6 +1229,9 @@ UA_ContentFilterElementValidation(UA_Server *server, size_t operatorIndex,
     for(size_t i = 0; i < ef->filterOperandsSize; i++) {
         /* Must be a decoded ExtensionObject */
         UA_ExtensionObject *op = &ef->filterOperands[i];
+        #ifndef UA_ENABLE_TYPES_DECODING
+                UA_ExtensionObject_decode(op);
+        #endif
         if(op->encoding != UA_EXTENSIONOBJECT_DECODED &&
            op->encoding != UA_EXTENSIONOBJECT_DECODED_NODELETE) {
             er.operandStatusCodes[i] = UA_STATUSCODE_BADFILTEROPERANDINVALID;

@@ -149,7 +149,9 @@ checkAdjustMonitoredItemParams(UA_Server *server, UA_Session *session,
                                const UA_DataType* valueType,
                                UA_MonitoringParameters *params) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
-
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(&params->filter);
+    #endif
     /* Check the filter */
     if(mon->itemToMonitor.attributeId == UA_ATTRIBUTEID_EVENTNOTIFIER) {
         /* Event MonitoredItems need a filter */

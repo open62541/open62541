@@ -458,7 +458,9 @@ selectEndpointAndTokenPolicy(UA_Server *server, UA_SecureChannel *channel,
             identPoliciesSize = server->config.accessControl.userTokenPoliciesSize;
             identPolicies = server->config.accessControl.userTokenPolicies;
         }
-
+        #ifndef UA_ENABLE_TYPES_DECODING
+            UA_ExtensionObject_decode(identityToken);
+        #endif    
         /* Match the UserTokenType */
         const UA_DataType *tokenDataType = identityToken->content.decoded.type;
         for(size_t j = 0; j < identPoliciesSize ; j++) {

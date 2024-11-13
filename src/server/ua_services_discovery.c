@@ -550,6 +550,9 @@ process_RegisterServer(UA_Server *server, UA_Session *session,
 
         for(size_t i = 0; i < requestDiscoveryConfigurationSize; i++) {
             const UA_ExtensionObject *object = &requestDiscoveryConfiguration[i];
+            #ifndef UA_ENABLE_TYPES_DECODING
+                UA_ExtensionObject_decode(object);
+            #endif
             if(!mdnsConfig && (object->encoding == UA_EXTENSIONOBJECT_DECODED ||
                                object->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
                (object->content.decoded.type == &UA_TYPES[UA_TYPES_MDNSDISCOVERYCONFIGURATION])) {

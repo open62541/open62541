@@ -1099,6 +1099,9 @@ unwrapEOArray(UA_Server *server, UA_Variant *value) {
 
     /* All eo need to be already decoded and have the same wrapped type */
     UA_ExtensionObject *eo = (UA_ExtensionObject*)value->data;
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(eo);
+    #endif
     const UA_DataType *innerType = eo[0].content.decoded.type;
     for(size_t i = 0; i < value->arrayLength; i++) {
         if(eo[i].encoding != UA_EXTENSIONOBJECT_DECODED &&
@@ -1923,7 +1926,9 @@ Service_HistoryRead(UA_Server *server, UA_Session *session,
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
     }
-
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(request->historyReadDetails);
+    #endif
     if(request->historyReadDetails.encoding != UA_EXTENSIONOBJECT_DECODED) {
         response->responseHeader.serviceResult = UA_STATUSCODE_BADNOTSUPPORTED;
         return;
@@ -2039,6 +2044,9 @@ Service_HistoryUpdate(UA_Server *server, UA_Session *session,
 
     for(size_t i = 0; i < request->historyUpdateDetailsSize; ++i) {
         UA_HistoryUpdateResult_init(&response->results[i]);
+        #ifndef UA_ENABLE_TYPES_DECODING
+            UA_ExtensionObject_decode(request->historyUpdateDetails[i]);
+        #endif
         if(request->historyUpdateDetails[i].encoding != UA_EXTENSIONOBJECT_DECODED) {
             response->results[i].statusCode = UA_STATUSCODE_BADNOTSUPPORTED;
             continue;
