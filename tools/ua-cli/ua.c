@@ -585,6 +585,9 @@ main(int argc, char **argv) {
         usage(); /* Unknown service */
     }
 
+    UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&privateKey);
+
     UA_Client_delete(client);
     return return_value;
 }
