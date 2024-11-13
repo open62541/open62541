@@ -12,6 +12,7 @@
 #include <open62541/plugin/securitypolicy.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 
 #include <signal.h>
 #include <stdlib.h>
@@ -92,6 +93,13 @@ int main(int argc, char* argv[]) {
                                                        trustList, trustListSize,
                                                        issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
+
+    /* Accept all certificates */
+    config->secureChannelPKI.clear(&config->secureChannelPKI);
+    UA_CertificateGroup_AcceptAll(&config->secureChannelPKI);
+
+    config->sessionPKI.clear(&config->sessionPKI);
+    UA_CertificateGroup_AcceptAll(&config->sessionPKI);
 
     UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
