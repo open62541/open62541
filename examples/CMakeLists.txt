@@ -196,7 +196,7 @@ if(UA_ENABLE_NODEMANAGEMENT)
     add_example(access_control_server access_control/server_access_control.c)
     add_example(access_control_client access_control/client_access_control.c)
     if(UA_ENABLE_ENCRYPTION OR UA_ENABLE_ENCRYPTION STREQUAL "MBEDTLS" OR UA_ENABLE_ENCRYPTION STREQUAL "OPENSSL")
-    add_example(access_control_client_encrypt access_control_encrypt/client_access_control_encrypt.c)
+    add_example(access_control_client_encrypt access_control/client_access_control_encrypt.c)
     endif()
 endif()
 
