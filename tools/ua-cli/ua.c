@@ -22,6 +22,7 @@ static char *username = NULL;
 static char *password = NULL;
 static UA_ByteString certificate;
 static UA_ByteString privateKey;
+static UA_ByteString securityPolicyUri;
 int return_value = 0;
 
 /* Custom logger that prints to stderr. So the "good output" can be easily separated. */
@@ -86,7 +87,8 @@ usage(void) {
             " --password: Password for the session creation\n"
             " --certificate <certfile>: Certificate in DER format\n"
             " --privatekey <keyfile>: Private key in DER format\n"
-            " --loglevel <level>: Logging detail [1 -> TRACE, 6 -> FATAL]\n"
+            " --securitypolicy <policy-uri>: SecurityPolicy to be used\n"
+            " --loglevel <level>: Logging detail [0 -> TRACE, 6 -> FATAL]\n"
             " --help: Print this message\n");
     exit(EXIT_FAILURE);
 }
@@ -529,6 +531,14 @@ parseOptions(int argc, char **argv, int argpos) {
             continue;
         }
 
+        if(strcmp(argv[argpos], "--securitypolicy") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            securityPolicyUri = UA_STRING_ALLOC(argv[argpos]);
+            continue;
+        }
+
         /* Unknown option */
         usage();
     }
@@ -563,8 +573,13 @@ main(int argc, char **argv) {
             exit(EXIT_FAILURE);
     }
 
+    /* Accept all certificates without a trustlist */
     cc.certificateVerification.clear(&cc.certificateVerification);
     UA_CertificateGroup_AcceptAll(&cc.certificateVerification);
+
+    /* Filter endpoints with the securitypolicy.
+     * The allocated string gets cleaned up as part of the client config. */
+    cc.securityPolicyUri = securityPolicyUri;
 
     /* Initialize the client */
     client = UA_Client_newWithConfig(&cc);
