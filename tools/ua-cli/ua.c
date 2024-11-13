@@ -92,8 +92,6 @@ usage(void) {
 
 static UA_ByteString
 loadFile(const char *const path) {
-    UA_ByteString fileContents = UA_STRING_NULL;
-
     /* Open the file */
     FILE *fp = fopen(path, "rb");
     if(!fp) {
@@ -102,17 +100,14 @@ loadFile(const char *const path) {
     }
 
     /* Get the file length, allocate the data and read */
+    UA_ByteString fileContents = UA_STRING_NULL;
     fseek(fp, 0, SEEK_END);
     fileContents.length = (size_t)ftell(fp);
     fileContents.data = (UA_Byte *)UA_malloc(fileContents.length * sizeof(UA_Byte));
-    if(fileContents.data) {
-        fseek(fp, 0, SEEK_SET);
-        size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
-        if(read != fileContents.length)
-            UA_ByteString_clear(&fileContents);
-    } else {
-        fileContents.length = 0;
-    }
+    fseek(fp, 0, SEEK_SET);
+    size_t read = fread(fileContents.data, sizeof(UA_Byte), fileContents.length, fp);
+    if(read == 0)
+        UA_ByteString_clear(&fileContents);
     fclose(fp);
 
     return fileContents;
