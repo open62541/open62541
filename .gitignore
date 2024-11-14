@@ -83,8 +83,10 @@ Makefile
 Pipfile
 Pipfile.lock
 .vscode
+/.vs
 **/libxml2
 debian/*
+/CMakeSettings.json
 
 # clangd cache
 .cache/
