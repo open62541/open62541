@@ -23,6 +23,7 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install check libsubunit-dev # for unit tests
    sudo apt-get install python3-sphinx graphviz  # for documentation generation
    sudo apt-get install python3-sphinx-rtd-theme # documentation style
+   sudo apt-get install libavahi-client-dev libavahi-common-dev # for LDS-ME (multicast discovery)
 
    git clone https://github.com/open62541/open62541.git
    cd open62541
