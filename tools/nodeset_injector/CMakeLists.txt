@@ -276,6 +276,17 @@ foreach(MODEL ${UA_INFORMATION_MODEL_AUTOLOAD})
                 DEPENDS "di"
                 DEPENDS "irdi"
         )
+    elseif(MODEL STREQUAL "LADS")
+        ua_generate_nodeset_and_datatypes(
+                NAME "${NODESET_NAME}"
+                FILE_CSV "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeIds.csv"
+                FILE_NS "${UA_NODESET_DIR}/${MODEL}/Opc.Ua.${MODEL}.NodeSet2.xml"
+                INTERNAL
+                AUTOLOAD
+                DEPENDS "di"
+                DEPENDS "amb"
+                DEPENDS "machinery"
+        )
     else()
         MESSAGE(WARNING "The specified nodeset '${MODEL}' is not supported or is misspelled.")
     endif()
