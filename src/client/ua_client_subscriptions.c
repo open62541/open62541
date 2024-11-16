@@ -1007,6 +1007,35 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
     return statusCode;
 }
 
+static void *
+UA_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
+	UA_UInt32 monitorId = *(UA_UInt32*)data;
+	if (monitorId && (mon->monitoredItemId != monitorId)) {
+		return mon;
+	}
+	return NULL;
+}
+
+UA_StatusCode
+UA_Client_Subscriptions_getUserContexts(UA_Client *client, UA_UInt32 subscriptionId, void **subContext, UA_UInt32 monitorId, void **monContext)
+{
+	UA_LOCK(&client->clientMutex);
+	UA_Client_Subscription *sub = findSubscription(client, subscriptionId);
+	if (!sub) {
+		UA_UNLOCK(&client->clientMutex);
+		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
+	}
+	if (subContext)
+		*subContext = sub->context;
+
+	if (monitorId && monContext)
+	{
+		*monContext = ZIP_ITER(MonitorItemsTree, &sub->monitoredItems, UA_MonitoredItem_findByID, &monitorId);
+	}
+	UA_UNLOCK(&client->clientMutex);
+	return UA_STATUSCODE_GOOD;
+}
+
 /*************************************/
 /* Async Processing of Notifications */
 /*************************************/
