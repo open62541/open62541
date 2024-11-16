@@ -39,6 +39,9 @@ _UA_BEGIN_DECLS
  * The following functions can be used to retrieve a single node attribute. Use
  * the regular service to read several attributes at once. */
 
+UA_DataValue UA_EXPORT UA_THREADSAFE
+UA_Client_read(UA_Client *client, const UA_ReadValueId *rvi);
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_readAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -278,6 +281,9 @@ UA_Client_HistoryUpdate_deleteRaw(
  * The following functions can be use to write a single node attribute at a
  * time. Use the regular write service to write several attributes at once. */
 
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_write(UA_Client *client, const UA_WriteValue *wv);
+
 /* Don't call this function, use the typed versions */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 __UA_Client_writeAttribute(UA_Client *client, const UA_NodeId *nodeId,
@@ -484,6 +490,25 @@ UA_Client_call(UA_Client *client,
                const UA_NodeId objectId, const UA_NodeId methodId,
                size_t inputSize, const UA_Variant *input,
                size_t *outputSize, UA_Variant **output);
+
+/**
+ * Browsing
+ * ^^^^^^^^ */
+
+UA_EXPORT UA_THREADSAFE UA_BrowseResult
+UA_Client_browse(UA_Client *client,
+                 const UA_ViewDescription *view,
+                 UA_UInt32 requestedMaxReferencesPerNode,
+                 const UA_BrowseDescription *nodesToBrowse);
+
+UA_EXPORT UA_THREADSAFE UA_BrowseResult
+UA_Client_browseNext(UA_Client *client,
+                     UA_Boolean releaseContinuationPoint,
+                     UA_ByteString continuationPoint);
+
+UA_EXPORT UA_THREADSAFE UA_BrowsePathResult
+UA_Client_translateBrowsePathToNodeIds(UA_Client *client,
+                                       const UA_BrowsePath *browsePath);
 
 /**
  * Node Management

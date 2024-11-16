@@ -716,19 +716,6 @@ unescape(char *pos, const char *end) {
 }
 
 UA_StatusCode
-UA_String_append(UA_String *s, const UA_String s2) {
-    if(s2.length == 0)
-        return UA_STATUSCODE_GOOD;
-    UA_Byte *buf = (UA_Byte*)UA_realloc(s->data, s->length + s2.length);
-    if(!buf)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    memcpy(buf + s->length, s2.data, s2.length);
-    s->data = buf;
-    s->length += s2.length;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
 UA_String_escapeAppend(UA_String *s, const UA_String s2, UA_Boolean extended) {
     /* Allocate memory for the qn name.
      * We allocate enough space to escape every character. */

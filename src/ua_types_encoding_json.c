@@ -139,14 +139,19 @@ WRITE_JSON_ELEMENT(ArrStart) {
     return writeChar(ctx, '[');
 }
 
-WRITE_JSON_ELEMENT(ArrEnd) {
+status
+writeJsonArrEnd(CtxJson *ctx, const UA_DataType *type) {
     if(ctx->depth == 0)
         return UA_STATUSCODE_BADENCODINGERROR;
     UA_Boolean have_elem = ctx->commaNeeded[ctx->depth];
     ctx->depth--;
     ctx->commaNeeded[ctx->depth] = true;
+
+    /* If the array does not contain JSON objects (with a newline after), then
+     * add the closing ] on the same line */
+    UA_Boolean distinct = (!type || type->typeKind > UA_DATATYPEKIND_DOUBLE);
     UA_StatusCode res = UA_STATUSCODE_GOOD;
-    if(ctx->prettyPrint && have_elem) {
+    if(ctx->prettyPrint && have_elem && distinct) {
         res |= writeChar(ctx, '\n');
         for(size_t i = 0; i < ctx->depth; i++)
             res |= writeChar(ctx, '\t');
@@ -424,7 +429,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
      * TODO: Clarify the difference between length -1 and length 0 in JSON. */
     status ret = writeJsonArrStart(ctx);
     if(!ptr)
-        return ret | writeJsonArrEnd(ctx);
+        return ret | writeJsonArrEnd(ctx, type);
 
     uintptr_t uptr = (uintptr_t)ptr;
     encodeJsonSignature encodeType = encodeJsonJumpTable[type->typeKind];
@@ -438,7 +443,7 @@ encodeJsonArray(CtxJson *ctx, const void *ptr, size_t length,
         ctx->commaNeeded[ctx->depth] = true;
         uptr += type->memSize;
     }
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 static const uint32_t min_codepoints[5] = {0x00, 0x00, 0x80, 0x800, 0x10000};
@@ -744,7 +749,7 @@ ENCODE_JSON(NodeId) {
     if(ctx->stringNodeIds) {
         UA_String out = UA_STRING_NULL;
         ret |= UA_NodeId_print(src, &out);
-        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        ret |= ENCODE_DIRECT_JSON(&out, String);
         UA_String_clear(&out);
         return ret;
     }
@@ -761,18 +766,17 @@ ENCODE_JSON(NodeId) {
         /* For the non-reversible encoding, the field is the NamespaceUri
          * associated with the NamespaceIndex, encoded as a JSON string.
          * A NamespaceIndex of 1 is always encoded as a JSON number. */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
         if(src->namespaceIndex == 1) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-
             /* Check if Namespace given and in range */
             if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
                 UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
                 ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
             } else {
-                return UA_STATUSCODE_BADNOTFOUND;
+                /* If not found, print the identifier */
+                ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
             }
         }
     }
@@ -788,7 +792,7 @@ ENCODE_JSON(ExpandedNodeId) {
     if(ctx->stringNodeIds) {
         UA_String out = UA_STRING_NULL;
         ret |= UA_ExpandedNodeId_print(src, &out);
-        ret |= encodeJsonJumpTable[UA_DATATYPEKIND_STRING](ctx, &out, NULL);
+        ret |= ENCODE_DIRECT_JSON(&out, String);
         UA_String_clear(&out);
         return ret;
     }
@@ -829,20 +833,20 @@ ENCODE_JSON(ExpandedNodeId) {
          * NamespaceUri associated with the NamespaceIndex encoded as a JSON
          * string. A NamespaceIndex of 1 is always encoded as a JSON number. */
 
+        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
         if(src->namespaceUri.data) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
         } else {
             if(src->nodeId.namespaceIndex == 1) {
-                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
                 ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
             } else {
                 /* Check if Namespace given and in range */
-                if(src->nodeId.namespaceIndex >= ctx->namespacesSize || !ctx->namespaces)
-                    return UA_STATUSCODE_BADNOTFOUND;
-                UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
-                ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
-                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+                if(src->nodeId.namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
+                    UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
+                    ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+                } else {
+                    ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
+                }
             }
         }
 
@@ -893,12 +897,10 @@ ENCODE_JSON(QualifiedName) {
          * NamespaceIndex portion of the QualifiedName is encoded as JSON string
          * unless the NamespaceIndex is 1 or if NamespaceUri is unknown. In
          * these cases, the NamespaceIndex is encoded as a JSON number. */
+        ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
         if(src->namespaceIndex == 1) {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
-            ret |= writeJsonKey(ctx, UA_JSONKEY_URI);
-
              /* Check if Namespace given and in range */
             if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
                 UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
@@ -1029,7 +1031,7 @@ encodeArrayJsonWrapExtensionObject(CtxJson *ctx, const void *data,
         }
     }
 
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 static status
@@ -1053,7 +1055,7 @@ addMultiArrayContentJSON(CtxJson *ctx, void* array, const UA_DataType *type,
                                         dimensionIndex + 1, dimensionSize);
         ctx->commaNeeded[ctx->depth] = true;
     }
-    return ret | writeJsonArrEnd(ctx);
+    return ret | writeJsonArrEnd(ctx, type);
 }
 
 ENCODE_JSON(Variant) {
@@ -1098,7 +1100,7 @@ ENCODE_JSON(Variant) {
     ret |= writeJsonKey(ctx, UA_JSONKEY_BODY);
 
     if(!isArray) {
-        encodeScalarJsonWrapExtensionObject(ctx, src);
+        ret |= encodeScalarJsonWrapExtensionObject(ctx, src);
     } else {
         if(ctx->useReversible || !hasDimensions) {
             ret |= encodeArrayJsonWrapExtensionObject(ctx, src->data,
@@ -2140,13 +2142,6 @@ DECODE_JSON(StatusCode) {
     return UInt32_decodeJson(ctx, dst, NULL);
 }
 
-static status
-VariantDimension_decodeJson(ParseCtx *ctx, void *dst, const UA_DataType *type) {
-    (void) type;
-    const UA_DataType *dimType = &UA_TYPES[UA_TYPES_UINT32];
-    return Array_decodeJson(ctx, (void**)dst, dimType);
-}
-
 /* Get type type encoded by the ExtensionObject at ctx->index.
  * Returns NULL if that fails (type unknown or otherwise). */
 static const UA_DataType *
@@ -2309,6 +2304,83 @@ Array_decodeJsonUnwrapExtensionObject(ParseCtx *ctx, void **dst, const UA_DataTy
     return UA_STATUSCODE_GOOD;
 }
 
+static status
+decodeVariantBodyWithType(ParseCtx *ctx, UA_Variant *dst, size_t bodyIndex,
+                          size_t *dimIndex, const UA_DataType *type) {
+    /* Value is an array? */
+    UA_Boolean isArray = (ctx->tokens[bodyIndex].type == CJ5_TOKEN_ARRAY);
+
+    /* TODO: Handling of null-arrays (length -1) needs to be clarified
+     *
+     * if(tokenIsNull(ctx, bodyIndex)) {
+     *     isArray = true;
+     *     dst->arrayLength = 0;
+     * } */
+
+    /* No array but has dimension -> error */
+    if(!isArray && dimIndex)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* Get the datatype of the content. The type must be a builtin data type.
+     * All not-builtin types are wrapped in an ExtensionObject. */
+    if(type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    /* A variant cannot contain a variant. But it can contain an array of
+     * variants */
+    if(type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
+        return UA_STATUSCODE_BADDECODINGERROR;
+
+    ctx->depth++;
+    ctx->index = bodyIndex;
+
+    /* Decode an array */
+    status res = UA_STATUSCODE_GOOD;
+    if(isArray) {
+        /* Try to unwrap ExtensionObjects in the array.
+         * The members must all have the same type. */
+        const UA_DataType *unwrapType = NULL;
+        if(type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT] &&
+           (unwrapType = getArrayUnwrapType(ctx, bodyIndex))) {
+            dst->type = unwrapType;
+            res = Array_decodeJsonUnwrapExtensionObject(ctx, &dst->data, unwrapType);
+        } else {
+            dst->type = type;
+            res = Array_decodeJson(ctx, &dst->data, type);
+        }
+
+        /* Decode array dimensions */
+        if(dimIndex) {
+            ctx->index = *dimIndex;
+            res |= Array_decodeJson(ctx, (void**)&dst->arrayDimensions, &UA_TYPES[UA_TYPES_UINT32]);
+        }
+        ctx->depth--;
+        return res;
+    }
+
+    /* Decode a value wrapped in an ExtensionObject */
+    if(type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
+        res = Variant_decodeJsonUnwrapExtensionObject(ctx, dst, NULL);
+        goto out;
+    }
+
+    /* Allocate Memory for Body */
+    dst->data = UA_new(type);
+    if(!dst->data) {
+        res = UA_STATUSCODE_BADOUTOFMEMORY;
+        goto out;
+    }
+
+    /* Decode the body */
+    dst->type = type;
+    if(ctx->tokens[ctx->index].type != CJ5_TOKEN_NULL)
+        res = decodeJsonJumpTable[type->typeKind](ctx, dst->data, type);
+
+ out:
+    ctx->depth--;
+    return res;
+}
+
 DECODE_JSON(Variant) {
     CHECK_NULL_SKIP; /* Treat null as an empty variant */
     CHECK_OBJECT;
@@ -2338,8 +2410,8 @@ DECODE_JSON(Variant) {
 
     /* Set the type */
     UA_NodeId typeNodeId = UA_NODEID_NUMERIC(0, (UA_UInt32)idType);
-    dst->type = UA_findDataTypeWithCustom(&typeNodeId, ctx->customTypes);
-    if(!dst->type)
+    type = UA_findDataTypeWithCustom(&typeNodeId, ctx->customTypes);
+    if(!type)
         return UA_STATUSCODE_BADDECODINGERROR;
 
     /* Search for body */
@@ -2348,79 +2420,15 @@ DECODE_JSON(Variant) {
     if(ret != UA_STATUSCODE_GOOD)
         return UA_STATUSCODE_BADDECODINGERROR;
 
-    /* Value is an array? */
-    UA_Boolean isArray = (ctx->tokens[bodyIndex].type == CJ5_TOKEN_ARRAY);
-
-    /* TODO: Handling of null-arrays (length -1) needs to be clarified
-     *
-     * if(tokenIsNull(ctx, bodyIndex)) {
-     *     isArray = true;
-     *     dst->arrayLength = 0;
-     * } */
-
-    /* Has the variant dimension? */
-    UA_Boolean hasDimension = false;
+    /* Search for the dimensions */
+    size_t *dimPtr = NULL;
     size_t dimIndex = 0;
     ret = lookAheadForKey(ctx, UA_JSONKEY_DIMENSION, &dimIndex);
-    if(ret == UA_STATUSCODE_GOOD)
-        hasDimension = (ctx->tokens[dimIndex].size > 0);
+    if(ret == UA_STATUSCODE_GOOD && ctx->tokens[dimIndex].size > 0)
+        dimPtr = &dimIndex;
 
-    /* No array but has dimension -> error */
-    if(!isArray && hasDimension)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Get the datatype of the content. The type must be a builtin data type.
-     * All not-builtin types are wrapped in an ExtensionObject. */
-    if(dst->type->typeKind > UA_DATATYPEKIND_DIAGNOSTICINFO)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* A variant cannot contain a variant. But it can contain an array of
-     * variants */
-    if(dst->type->typeKind == UA_DATATYPEKIND_VARIANT && !isArray)
-        return UA_STATUSCODE_BADDECODINGERROR;
-
-    /* Decode an array */
-    if(isArray) {
-        DecodeEntry entries[3] = {
-            {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, &dst->data, (decodeJsonSignature)Array_decodeJson, false, dst->type},
-            {UA_JSONKEY_DIMENSION, &dst->arrayDimensions, VariantDimension_decodeJson, false, NULL}
-        };
-
-        /* Try to unwrap ExtensionObjects in the array.
-         * The members must all have the same type. */
-        if(dst->type == &UA_TYPES[UA_TYPES_EXTENSIONOBJECT]) {
-            const UA_DataType *unwrapType = getArrayUnwrapType(ctx, bodyIndex);
-            if(unwrapType) {
-                dst->type = unwrapType;
-                entries[1].type = unwrapType;
-                entries[1].function = (decodeJsonSignature)
-                    Array_decodeJsonUnwrapExtensionObject;
-            }
-        }
-
-        return decodeFields(ctx, entries, (hasDimension) ? 3 : 2);
-    }
-
-    /* Decode a value wrapped in an ExtensionObject */
-    if(dst->type->typeKind == UA_DATATYPEKIND_EXTENSIONOBJECT) {
-        DecodeEntry entries[2] = {
-            {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-            {UA_JSONKEY_BODY, dst, Variant_decodeJsonUnwrapExtensionObject, false, NULL}
-        };
-        return decodeFields(ctx, entries, 2);
-    }
-
-    /* Allocate Memory for Body */
-    dst->data = UA_new(dst->type);
-    if(!dst->data)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-
-    DecodeEntry entries[2] = {
-        {UA_JSONKEY_TYPE, NULL, NULL, false, NULL},
-        {UA_JSONKEY_BODY, dst->data, NULL, false, dst->type}
-    };
-    return decodeFields(ctx, entries, 2);
+    /* Decode the body */
+    return decodeVariantBodyWithType(ctx, dst, bodyIndex, dimPtr, type);
 }
 
 DECODE_JSON(DataValue) {

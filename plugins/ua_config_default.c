@@ -1534,6 +1534,12 @@ UA_ServerConfig_setDefaultWithFilestore(UA_ServerConfig *conf,
         return retval;
     }
 
+    if(!storePath.data) {
+        UA_LOG_ERROR(conf->logging, UA_LOGCATEGORY_USERLAND,
+                     "The path to a PKI folder has not been specified");
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+    }
+
     /* Set up the parameters */
     UA_KeyValuePair params[2];
     size_t paramsSize = 2;
