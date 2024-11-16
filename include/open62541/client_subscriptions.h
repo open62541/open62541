@@ -102,6 +102,10 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId);
 
+/* Retrieve the user supplied subscription contexts */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_getUserContexts(UA_Client *client, UA_UInt32 subscriptionId, void **subContext, UA_UInt32 monitorId, void **monitorContext);
+
 static UA_INLINE UA_THREADSAFE UA_SetPublishingModeResponse
 UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
     const UA_SetPublishingModeRequest request) {
