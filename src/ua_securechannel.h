@@ -154,6 +154,7 @@ struct UA_SecureChannel {
     UA_ByteString unprocessed;
     size_t unprocessedOffset;
     UA_Boolean unprocessedCopied;
+    UA_DelayedCallback unprocessedDelayed;
 
     UA_CertificateVerification *certificateVerification;
     void *processOPNHeaderApplication;

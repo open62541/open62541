@@ -500,7 +500,11 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         UA_clear(response, ac->responseType);
         UA_free(ac);
     } else {
+        /* Return a special status code after processing a synchronous message.
+         * This makes the client return control immediately. */
         ac->syncResponse = NULL; /* Indicate that response was received */
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     }
     return retval;
 }

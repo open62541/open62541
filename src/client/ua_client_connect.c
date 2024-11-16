@@ -1513,6 +1513,9 @@ verifyClientApplicationURI(const UA_Client *client) {
 }
 
 static void
+delayedNetworkCallback(void *application, void *context);
+
+static void
 __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                          void *application, void **connectionContext,
                          UA_ConnectionState state, const UA_KeyValueMap *params,
@@ -1605,6 +1608,21 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
                                      messageType, requestId, &payload);
         if(copied)
             UA_ByteString_clear(&payload);
+
+        /* Abort after synchronous processing of a message.
+         * Add a delayed callback to process the remaining buffer ASAP. */
+        if(res == UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY) {
+            if(client->channel.unprocessed.length > client->channel.unprocessedOffset &&
+               client->channel.unprocessedDelayed.callback == NULL) {
+                client->channel.unprocessedDelayed.callback = delayedNetworkCallback;
+                client->channel.unprocessedDelayed.application = client;
+                client->channel.unprocessedDelayed.context = &client->channel;
+                UA_EventLoop *el = client->config.eventLoop;
+                el->addDelayedCallback(el, &client->channel.unprocessedDelayed);
+            }
+            res = UA_STATUSCODE_GOOD;
+            break;
+        }
     }
     res |= UA_SecureChannel_persistBuffer(&client->channel);
 
@@ -1637,6 +1655,18 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         connectActivity(client);
     notifyClientState(client);
     UA_UNLOCK(&client->clientMutex);
+}
+
+static void
+delayedNetworkCallback(void *application, void *context) {
+    UA_Client *client = (UA_Client*)application;
+    client->channel.unprocessedDelayed.callback = NULL;
+    if(client->channel.state == UA_SECURECHANNELSTATE_CONNECTED)
+        __Client_networkCallback(client->channel.connectionManager,
+                                 client->channel.connectionId,
+                                 client, &context,
+                                 UA_CONNECTIONSTATE_ESTABLISHED,
+                                 &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 }
 
 /* Initialize a TCP connection. Writes the result to client->connectStatus. */

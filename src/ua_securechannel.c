@@ -184,6 +184,13 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
         channel->channelContext = NULL;
     }
 
+    /* Remove remaining delayed callback */
+    if(channel->connectionManager &&
+       channel->connectionManager->eventSource.eventLoop) {
+        UA_EventLoop *el = channel->connectionManager->eventSource.eventLoop;
+        el->removeDelayedCallback(el, &channel->unprocessedDelayed);
+    }
+
     /* The EventLoop connection is no longer valid */
     channel->connectionId = 0;
     channel->connectionManager = NULL;
