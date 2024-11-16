@@ -194,7 +194,7 @@ UA_StatusCode
 __Client_renewSecureChannel(UA_Client *client);
 
 UA_StatusCode
-processServiceResponse(void *application, UA_SecureChannel *channel,
+processServiceResponse(UA_Client *client, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message);
 

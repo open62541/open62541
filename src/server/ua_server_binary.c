@@ -952,11 +952,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
 /* Takes decoded messages starting at the nodeid of the content type. */
 static UA_StatusCode
-processSecureChannelMessage(void *application, UA_SecureChannel *channel,
+processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message) {
-    UA_Server *server = (UA_Server*)application;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
@@ -1034,9 +1032,12 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
 static UA_StatusCode
 configServerSecureChannel(void *application, UA_SecureChannel *channel,
                           const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    if(channel->securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
     /* Iterate over available endpoints and choose the correct one */
+    UA_Server *server = (UA_Server *)application;
     UA_SecurityPolicy *securityPolicy = NULL;
-    UA_Server *const server = (UA_Server *const) application;
     for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
         if(!UA_ByteString_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
@@ -1106,6 +1107,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     entry->channel.config = connConfig;
     entry->channel.certificateVerification = &config->secureChannelPKI;
     entry->channel.processOPNHeader = configServerSecureChannel;
+    entry->channel.processOPNHeaderApplication = server;
     entry->channel.connectionManager = cm;
     entry->channel.connectionId = connectionId;
 
@@ -1277,8 +1279,24 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_debug_dumpCompleteChunk(server, channel->connection, message);
 #endif
 
-    retval = UA_SecureChannel_processBuffer(channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+    /* Process all complete messages */
+    retval = UA_SecureChannel_loadBuffer(channel, msg);
+    while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        retval = UA_SecureChannel_getCompleteMessage(channel, &messageType, &requestId,
+                                                     &payload, &copied);
+        if(retval != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        retval = processSecureChannelMessage(bpm->server, channel,
+                                             messageType, requestId, &payload);
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    retval |= UA_SecureChannel_persistBuffer(channel);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
@@ -1744,8 +1762,23 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     /* The connection is fully opened and we have a SecureChannel.
      * Process the received buffer */
-    retval = UA_SecureChannel_processBuffer(context->channel, bpm->server,
-                                            processSecureChannelMessage, &msg);
+    retval = UA_SecureChannel_loadBuffer(context->channel, msg);
+    while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        retval = UA_SecureChannel_getCompleteMessage(context->channel, &messageType,
+                                                     &requestId, &payload, &copied);
+        if(retval != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        retval = processSecureChannelMessage(bpm->server, context->channel,
+                                             messageType, requestId, &payload);
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    retval |= UA_SecureChannel_persistBuffer(context->channel);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, context->channel,
                                "Processing the message failed with error %s",
@@ -1758,7 +1791,6 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         error.reason = UA_STRING_NULL;
         UA_SecureChannel_sendError(context->channel, &error);
         UA_SecureChannel_shutdown(context->channel, UA_SHUTDOWNREASON_ABORT);
-
         setReverseConnectState(bpm->server, context, UA_SECURECHANNELSTATE_CLOSING);
         return;
     }
