@@ -1030,7 +1030,8 @@ UA_Client_Subscriptions_getUserContexts(UA_Client *client, UA_UInt32 subscriptio
 
 	if (monitorId && monContext)
 	{
-		UA_Client_MonitoredItem *mon = ZIP_ITER(MonitorItemsTree, &sub->monitoredItems, UA_MonitoredItem_findByID, &monitorId);
+		UA_Client_MonitoredItem *mon = (UA_Client_MonitoredItem *)
+				ZIP_ITER(MonitorItemsTree, &sub->monitoredItems, UA_MonitoredItem_findByID, &monitorId);
 		*monContext = mon ? mon->context : NULL;
 	}
 	UA_UNLOCK(&client->clientMutex);
