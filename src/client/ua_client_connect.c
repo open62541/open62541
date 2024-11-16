@@ -1591,9 +1591,23 @@ __Client_networkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     }
 
     /* Received a message. Process the message with the SecureChannel. */
-    UA_StatusCode res =
-        UA_SecureChannel_processBuffer(&client->channel, client,
-                                       processServiceResponse, &msg);
+    UA_StatusCode res = UA_SecureChannel_loadBuffer(&client->channel, msg);
+    while(UA_LIKELY(res == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        res = UA_SecureChannel_getCompleteMessage(&client->channel, &messageType, &requestId,
+                                                  &payload, &copied);
+        if(res != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        res = processServiceResponse(client, &client->channel,
+                                     messageType, requestId, &payload);
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    res |= UA_SecureChannel_persistBuffer(&client->channel);
+
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "Processing the message returned the error code %s",
@@ -1656,6 +1670,7 @@ initConnect(UA_Client *client) {
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
+    client->channel.processOPNHeaderApplication = client;
 
     /* Initialize the SecurityPolicy */
     client->connectStatus = initSecurityPolicy(client);
@@ -2062,6 +2077,7 @@ UA_Client_startListeningForReverseConnect(UA_Client *client,
     client->channel.config = client->config.localConnectionConfig;
     client->channel.certificateVerification = &client->config.certificateVerification;
     client->channel.processOPNHeader = verifyClientSecureChannelHeader;
+    client->channel.processOPNHeaderApplication = client;
     client->channel.connectionId = 0;
 
     client->connectStatus = initSecurityPolicy(client);
