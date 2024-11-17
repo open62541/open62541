@@ -259,6 +259,14 @@ UA_EXPORT UA_StatusCode UA_THREADSAFE
 UA_Server_disablePubSubConnection(UA_Server *server,
                                   const UA_NodeId connectionId);
 
+/* Manually "inject" a packet as if it had been received by the
+ * PubSubConnection. This is intended to be used in combination with a custom
+ * state machine where sockets (connections) are handled by user code. */
+UA_EXPORT UA_StatusCode UA_THREADSAFE
+UA_Server_processPubSubConnectionReceive(UA_Server *server,
+                                         const UA_NodeId connectionId,
+                                         const UA_ByteString packet);
+
 /* Returns a deep copy of the config */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Server_getPubSubConnectionConfig(UA_Server *server,
