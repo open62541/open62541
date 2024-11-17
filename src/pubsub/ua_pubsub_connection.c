@@ -23,7 +23,7 @@ UA_PubSubConnection_connect(UA_PubSubManager *psm, UA_PubSubConnection *c,
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg);
+                            const UA_ByteString msg);
 
 static void
 UA_PubSubConnection_disconnect(UA_PubSubConnection *c);
@@ -276,7 +276,7 @@ UA_PubSubConnection_delete(UA_PubSubManager *psm, UA_PubSubConnection *c) {
 
 static void
 UA_PubSubConnection_process(UA_PubSubManager *psm, UA_PubSubConnection *c,
-                            UA_ByteString msg) {
+                            const UA_ByteString msg) {
     UA_LOG_TRACE_PUBSUB(psm->logging, c, "Processing a received buffer");
 
     /* Process RT ReaderGroups */
