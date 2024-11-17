@@ -947,4 +947,29 @@ UA_Server_disablePubSubConnection(UA_Server *server, const UA_NodeId cId) {
     return res;
 }
 
+UA_StatusCode
+UA_Server_processPubSubConnectionReceive(UA_Server *server,
+                                         const UA_NodeId connectionId,
+                                         const UA_ByteString packet) {
+    if(!server)
+        return UA_STATUSCODE_BADINTERNALERROR;
+    UA_LOCK(&server->serviceMutex);
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    UA_PubSubManager *psm = getPSM(server);
+    if(psm) {
+        UA_PubSubConnection *c = UA_PubSubConnection_find(psm, connectionId);
+        if(c) {
+            res = UA_STATUSCODE_GOOD;
+            UA_PubSubConnection_process(psm, c, packet);
+        } else {
+            res = UA_STATUSCODE_BADCONNECTIONCLOSED;
+            UA_LOG_WARNING_PUBSUB(psm->logging, c,
+                                  "Cannot process a packet if the "
+                                  "PubSubConnection is not operational");
+        }
+    }
+    UA_UNLOCK(&server->serviceMutex);
+    return res;
+}
+
 #endif /* UA_ENABLE_PUBSUB */
