@@ -211,7 +211,7 @@ UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId, 
 		return UA_STATUSCODE_BADSUBSCRIPTIONIDINVALID;
 	}
 
-	subContext = sub->context;
+	*subContext = sub->context;
 	UA_UNLOCK(&client->clientMutex);
 	return UA_STATUSCODE_GOOD;
 }
