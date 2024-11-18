@@ -31,7 +31,76 @@ UA_NodeId connectionIdentifier;
 UA_NodeId readerGroupIdentifier;
 UA_NodeId readerIdentifier;
 
+UA_Server *server;
+int listenSocket;
+pthread_t listenThread;
+
 UA_DataSetReaderConfig readerConfig;
+
+static void *
+listenUDP(void *) {
+    /* Open the listen socket */
+    int socket;
+
+    /* The connection is open, change the state to OPERATIONAL */
+    printf("XXX The UDP multicast connection is fully open\n");
+    UA_Server_enablePubSubConnection(server, connectionIdentifier);
+
+    /* Poll and process in a loop.
+     * The socket is closed in the state machine and */
+    while(poll) {
+
+        UA_Server_processPubSubConnectionReceive(server, connectionIdentifier, packet);
+    }
+
+    /* Clean up and notify the state machine */
+    close(listenSocket);
+    listenSocket = 0;
+    UA_Server_disablePubSubConnection(server, connectionIdentifier);
+    return NULL;
+}
+
+static UA_StatusCode
+connectionStateMachine(UA_Server *server, const UA_NodeId componentId,
+                       void *componentContext, UA_PubSubState *state,
+                       UA_PubSubState targetState) {
+    UA_PubSubConnectionConfig config;
+
+    if(targetState == *state)
+        return UA_STATUSCODE_GOOD;
+    
+    switch(targetState) {
+        /* Disabled or Error */
+        case UA_PUBSUBSTATE_ERROR:
+        case UA_PUBSUBSTATE_DISABLED:
+        case UA_PUBSUBSTATE_PAUSED:
+            printf("XXX Closing the UDP multicast connection\n");
+            if(listenSocket != 0)
+                shutdown(listenSocket);
+            *state = targetState;
+            break;
+
+        /* Operational */
+        case UA_PUBSUBSTATE_PREOPERATIONAL:
+        case UA_PUBSUBSTATE_OPERATIONAL:
+            if(listenSocket != 0) {
+                *state = UA_PUBSUBSTATE_OPERATIONAL;
+                break;
+            }
+            printf("XXX Opening the UDP multicast connection\n");
+            *state = UA_PUBSUBSTATE_PREOPERATIONAL;
+            int res = pthread_create(&listenThread, NULL, listenUDP, NULL);
+            if(res != 0)
+                return UA_STATUSCODE_BADINTERNALERROR;
+            break;
+
+        /* Unknown state */
+        default:
+            return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
 
 /* Simulate a custom data sink (e.g. shared memory) */
 UA_UInt32     repeatedFieldValues[PUBSUB_CONFIG_FIELD_COUNT];
