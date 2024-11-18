@@ -1046,7 +1046,7 @@ UA_Client_MonitoredItems_modify_async(UA_Client *client,
 static void *
 ua_MonitoredItem_findByID(void *data, UA_Client_MonitoredItem *mon) {
 	UA_UInt32 monitorId = *(UA_UInt32*)data;
-	if (monitorId && (mon->monitoredItemId != monitorId)) {
+	if (monitorId && (mon->monitoredItemId == monitorId)) {
 		return mon;
 	}
 	return NULL;
