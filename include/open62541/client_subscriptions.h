@@ -102,9 +102,12 @@ UA_Client_Subscriptions_delete_async(UA_Client *client,
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_Subscriptions_deleteSingle(UA_Client *client, UA_UInt32 subscriptionId);
 
-/* Retrieve the user supplied subscription contexts */
+/* Retrieve or change the user supplied subscription contexts */
 UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Client_Subscriptions_getUserContexts(UA_Client *client, UA_UInt32 subscriptionId, void **subContext, UA_UInt32 monitorId, void **monitorContext);
+UA_Client_Subscriptions_getContext(UA_Client *client, UA_UInt32 subscriptionId, void **subContext);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_setContext(UA_Client *client, UA_UInt32 subscriptionId, void *subContext);
 
 static UA_INLINE UA_THREADSAFE UA_SetPublishingModeResponse
 UA_Client_Subscriptions_setPublishingMode(UA_Client *client,
@@ -280,6 +283,13 @@ UA_Client_MonitoredItems_setTriggering_async(UA_Client *client,
         &UA_TYPES[UA_TYPES_SETTRIGGERINGRESPONSE],
         userdata, requestId);
 }
+
+/* Retrieve or change the user supplied monitored item context */
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItem_getContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void **monContext);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_MonitoredItem_setContext(UA_Client *client, UA_UInt32 subscriptionId, UA_UInt32 monitoredItemId, void *monContext);
 
 _UA_END_DECLS
 
