@@ -1497,5 +1497,5 @@ set_target_properties(open62541-generator-types PROPERTIES FOLDER "open62541/gen
 if(UA_ENABLE_NODESET_INJECTOR)
     set_target_properties(open62541-generator-nodesetinjector PROPERTIES FOLDER "open62541/generators")
     add_subdirectory(tools/nodeset_injector)
-    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS} PARENT_SCOPE)
+    set(UA_NODESETINJECTOR_GENERATORS ${UA_NODESETINJECTOR_GENERATORS})
 endif()
