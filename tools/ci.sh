@@ -85,6 +85,21 @@ function build_release {
     make ${MAKEOPTS}
 }
 
+function build_release_amalgamation {
+    mkdir -p build; cd build; rm -rf *
+    cmake -DCMAKE_BUILD_TYPE=None \
+          -DUA_ENABLE_AMALGAMATION=ON \
+          -DUA_NAMESPACE_ZERO=FULL \
+          -DUA_ENABLE_DATATYPES_ALL=ON \
+          -DUA_ENABLE_ENCRYPTION=MBEDTLS \
+          -DUA_ENABLE_PUBSUB=ON \
+          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
+          -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
+          ..
+
+    make ${MAKEOPTS}
+}
+
 ######################
 # Build Amalgamation #
 ######################
