@@ -1088,6 +1088,7 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
     UA_Server *server = dm->sc.server;
     for(size_t i = 0; i < server->config.serverUrlsSize; i++) {
         UA_String hostname = UA_STRING_NULL;
+        char hoststr[256]; /* check with UA_MAXHOSTNAME_LENGTH */
         UA_String path = UA_STRING_NULL;
         UA_UInt16 port = 0;
 
@@ -1095,8 +1096,15 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
             UA_parseEndpointUrl(&server->config.serverUrls[i],
                                 &hostname, &port, &path);
 
-        if(retval != UA_STATUSCODE_GOOD || hostname.length == 0)
+        if(retval != UA_STATUSCODE_GOOD)
             continue;
+
+        if(hostname.length == 0) {
+            gethostname(hoststr, sizeof(hoststr)-1);
+            hoststr[sizeof(hoststr)-1] = '\0';
+            hostname.data = (unsigned char *) hoststr;
+            hostname.length = strlen(hoststr);
+        }
 
         UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
                                   hostname, port, true);
