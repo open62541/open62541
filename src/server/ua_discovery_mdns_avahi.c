@@ -400,7 +400,6 @@ static UA_StatusCode
 addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName,
                              const UA_String *discoveryUrl) {
     UA_String hostname = UA_STRING_NULL;
-    char hoststr[256]; /* check with UA_MAXHOSTNAME_LENGTH */
     UA_UInt16 port = 4840;
     UA_String path = UA_STRING_NULL;
     UA_StatusCode retval =
@@ -412,10 +411,14 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
     }
 
     if(hostname.length == 0) {
-        gethostname(hoststr, sizeof(hoststr)-1);
-        hoststr[sizeof(hoststr)-1] = '\0';
-        hostname.data = (unsigned char *) hoststr;
-        hostname.length = strlen(hoststr);
+        /* get host name used by avahi */
+        const char *hoststr = avahi_client_get_host_name(mdnsPrivateData.client);
+        if(!hoststr) {
+            UA_LOG_WARNING(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                           "Cannot get hostname from avahi");
+            return UA_STATUSCODE_BADINTERNALERROR;
+        }
+        hostname = UA_String_fromChars(hoststr);
     }
     retval = UA_Discovery_addRecord(dm, serverName, hostname, port, path, UA_DISCOVERY_TCP, true,
                                     dm->sc.server->config.mdnsConfig.serverCapabilities,
@@ -476,8 +479,18 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
             UA_parseEndpointUrl(&server->config.serverUrls[i],
                                 &hostname, &port, &path);
 
-        if(retval != UA_STATUSCODE_GOOD || hostname.length == 0)
+        if(retval != UA_STATUSCODE_GOOD)
             continue;
+        if(hostname.length == 0) {
+            /* get host name used by avahi */
+            const char *hoststr = avahi_client_get_host_name(mdnsPrivateData.client);
+            if(!hoststr) {
+                UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                               "Cannot get hostname from avahi");
+                continue;
+            }
+            hostname = UA_String_fromChars(hoststr);
+        }
 
         UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
                                   hostname, port, true);
