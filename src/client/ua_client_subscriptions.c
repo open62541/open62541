@@ -92,7 +92,7 @@ cleanup:
     UA_free(cc);
 }
 
-UA_Client_Subscription *
+static UA_Client_Subscription *
 createClientSubscription(void *subscriptionContext,
                          UA_Client_DataItemsNotificationCallback dataChangeCallback,
                          UA_Client_StatusChangeNotificationCallback statusChangeCallback,
@@ -1205,7 +1205,8 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
  
     /* if we have a data change callback in the subscription use that */
     if(sub->dataChangeCallback) {
-        UA_DataItemsChangeNotification *items = UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
+        UA_DataItemsChangeNotification *items = (UA_DataItemsChangeNotification *)
+                             UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
         if(items) {
             for(j = 0; j < numItems; ++j, min++) {
                 /* Find the MonitoredItem */
