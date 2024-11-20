@@ -313,7 +313,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #endif
 
         /* Add the Ethernet connection manager */
-#if defined(UA_ARCHITECTURE_POSIX)
+#if defined(UA_ARCHITECTURE_POSIX) && (defined(__linux__))
         UA_ConnectionManager *ethCM =
             UA_ConnectionManager_new_POSIX_Ethernet(UA_STRING("eth connection manager"));
         if(ethCM)
