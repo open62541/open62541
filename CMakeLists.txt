@@ -545,7 +545,7 @@ endif()
 
 if(MINGW)
     # GCC stack protector support
-    list(APPEND open62541_LIBRARIES ssp)
+    list(APPEND open62541_LIBRARIES ws2_32 ssp)
 endif()
 
 #####################
@@ -877,6 +877,7 @@ endif()
 
 if (NOT "${UA_ARCHITECTURE}" STREQUAL "none")
     list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/arch/posix/ua_architecture.h)
+    list(PREPEND lib_headers ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h)
 endif()
 
 if(UA_ENABLE_PARSING)
@@ -964,7 +965,6 @@ set(architecture_sources)
 
 if(NOT "${UA_ARCHITECTURE}" STREQUAL "none")
     list(APPEND architecture_headers
-         ${PROJECT_SOURCE_DIR}/arch/win32/ua_architecture.h
          ${PROJECT_SOURCE_DIR}/arch/common/ua_timer.h
          ${PROJECT_SOURCE_DIR}/arch/eventloop_common.h
          ${PROJECT_SOURCE_DIR}/arch/eventloop_posix.h)
