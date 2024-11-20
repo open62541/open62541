@@ -1260,16 +1260,14 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             return;
         }
 
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel created");
-
         /* Set the new channel as the new context for the connection */
         *connectionContext = (void*)channel;
-        return;
-    }
 
-    /* The connection has fully opened */
-    if(channel->state < UA_SECURECHANNELSTATE_CONNECTED)
+        /* Set the channel state to CONNECTED until the HEL message is received */
         channel->state = UA_SECURECHANNELSTATE_CONNECTED;
+
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel created");
+    }
 
     /* Received a message on a normal connection */
 #ifdef UA_DEBUG_DUMP_PKGS
