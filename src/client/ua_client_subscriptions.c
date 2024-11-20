@@ -110,13 +110,24 @@ createClientSubscription(void *subscriptionContext,
 
 UA_CreateSubscriptionResponse
 UA_Client_Subscriptions_create(UA_Client *client,
-                               const UA_CreateSubscriptionRequest request,
-                               void *subscriptionContext,
-                               UA_Client_StatusChangeNotificationCallback statusChangeCallback,
-                               UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    return UA_Client_Subscriptions_createEx(client, request, subscriptionContext,
+                                            NULL, statusChangeCallback, deleteCallback);
+}
+
+UA_CreateSubscriptionResponse
+UA_Client_Subscriptions_createEx(UA_Client *client,
+                                 const UA_CreateSubscriptionRequest request,
+                                 void *subscriptionContext,
+                                 UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                                 UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+                                 UA_Client_DeleteSubscriptionCallback deleteCallback) {
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = createClientSubscription(
-        subscriptionContext, NULL, statusChangeCallback, deleteCallback);
+        subscriptionContext, dataChangeCallback, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -148,12 +159,26 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
                                      UA_ClientAsyncServiceCallback createCallback,
                                      void *userdata,
                                      UA_UInt32 *requestId) {
+    return UA_Client_Subscriptions_create_asyncEx(client, request, subscriptionContext,
+                                                  NULL, statusChangeCallback, deleteCallback,
+                                                  createCallback, userdata, requestId);
+}
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_create_asyncEx(UA_Client *client,
+                                       const UA_CreateSubscriptionRequest request,
+                                       void *subscriptionContext,
+                                       UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                                       UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+                                       UA_Client_DeleteSubscriptionCallback deleteCallback,
+                                       UA_ClientAsyncServiceCallback createCallback,
+                                       void *userdata, UA_UInt32 *requestId) {
     CustomCallback *cc = (CustomCallback *)UA_calloc(1, sizeof(CustomCallback));
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Client_Subscription *sub = createClientSubscription(
-        subscriptionContext, NULL, statusChangeCallback, deleteCallback);
+        subscriptionContext, dataChangeCallback, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_free(cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;

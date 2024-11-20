@@ -48,7 +48,7 @@ typedef struct {
 } UA_DataItemsChangeNotification;
 
 typedef void (*UA_Client_DataItemsNotificationCallback)
-    (UA_Client *client, UA_UInt32 subId, void *subContext, UA_UInt32 numItems,
+    (UA_Client *client, UA_UInt32 subId, void *subContext, size_t numItems,
      UA_DataItemsChangeNotification *monitoredItems);
 
 /* Provides default values for a new subscription.
@@ -80,10 +80,28 @@ UA_Client_Subscriptions_create(UA_Client *client,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback);
 
+UA_CreateSubscriptionResponse
+UA_Client_Subscriptions_createEx(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_DataItemsNotificationCallback dataChangeCallback,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback);
+
 UA_StatusCode UA_EXPORT UA_THREADSAFE
 UA_Client_Subscriptions_create_async(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
+    UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+    UA_Client_DeleteSubscriptionCallback deleteCallback,
+    UA_ClientAsyncServiceCallback callback,
+    void *userdata, UA_UInt32 *requestId);
+
+UA_StatusCode UA_EXPORT UA_THREADSAFE
+UA_Client_Subscriptions_create_asyncEx(UA_Client *client,
+    const UA_CreateSubscriptionRequest request,
+    void *subscriptionContext,
+    UA_Client_DataItemsNotificationCallback dataChangeCallback,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
     UA_ClientAsyncServiceCallback callback,
