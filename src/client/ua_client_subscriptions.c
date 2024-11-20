@@ -92,6 +92,22 @@ cleanup:
     UA_free(cc);
 }
 
+UA_Client_Subscription *
+createClientSubscription(void *subscriptionContext,
+                         UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                         UA_Client_StatusChangeNotificationCallback statusChangeCallback,
+                         UA_Client_DeleteSubscriptionCallback deleteCallback) {
+    UA_Client_Subscription *sub =
+        (UA_Client_Subscription *)UA_malloc(sizeof(UA_Client_Subscription));
+    if(sub) {
+        sub->context = subscriptionContext;
+        sub->dataChangeCallback = dataChangeCallback;
+        sub->statusChangeCallback = statusChangeCallback;
+        sub->deleteCallback = deleteCallback;
+    }
+    return sub;
+}
+
 UA_CreateSubscriptionResponse
 UA_Client_Subscriptions_create(UA_Client *client,
                                const UA_CreateSubscriptionRequest request,
@@ -99,16 +115,13 @@ UA_Client_Subscriptions_create(UA_Client *client,
                                UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                UA_Client_DeleteSubscriptionCallback deleteCallback) {
     UA_CreateSubscriptionResponse response;
-    UA_Client_Subscription *sub = (UA_Client_Subscription *)
-        UA_malloc(sizeof(UA_Client_Subscription));
+    UA_Client_Subscription *sub = createClientSubscription(
+        subscriptionContext, NULL, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
         return response;
     }
-    sub->context = subscriptionContext;
-    sub->statusChangeCallback = statusChangeCallback;
-    sub->deleteCallback = deleteCallback;
 
     /* Send the request as a synchronous service call */
     __UA_Client_Service(client,
@@ -139,15 +152,12 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
     if(!cc)
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    UA_Client_Subscription *sub = (UA_Client_Subscription *)
-        UA_malloc(sizeof(UA_Client_Subscription));
+    UA_Client_Subscription *sub = createClientSubscription(
+        subscriptionContext, NULL, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_free(cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
     }
-    sub->context = subscriptionContext;
-    sub->statusChangeCallback = statusChangeCallback;
-    sub->deleteCallback = deleteCallback;
 
     cc->userCallback = createCallback;
     cc->userData = userdata;
@@ -334,7 +344,7 @@ __Client_Subscription_deleteInternal(UA_Client *client,
 static void
 __Client_Subscription_processDelete(UA_Client *client,
                                     const UA_DeleteSubscriptionsRequest *request,
-                                    const UA_DeleteSubscriptionsResponse *response)  {
+                                    const UA_DeleteSubscriptionsResponse *response) {
     if(response->responseHeader.serviceResult != UA_STATUSCODE_GOOD)
         return;
 
@@ -555,7 +565,7 @@ ua_MonitoredItems_create(UA_Client *client, MonitoredItems_CreateData *data,
     return;
 
     /* Adding failed */
- cleanup:
+cleanup:
     for(size_t i = 0; i < request->itemsToCreateSize; i++) {
         void *subC = sub ? sub->context : NULL;
         UA_UNLOCK(&client->clientMutex);
@@ -763,7 +773,7 @@ UA_Client_MonitoredItems_createDataChange(UA_Client *client, UA_UInt32 subscript
         result.statusCode = UA_STATUSCODE_BADINTERNALERROR;
 
     if(result.statusCode == UA_STATUSCODE_GOOD)
-       UA_MonitoredItemCreateResult_copy(&response.results[0] , &result);
+       UA_MonitoredItemCreateResult_copy(&response.results[0], &result);
     UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
@@ -822,7 +832,7 @@ UA_Client_MonitoredItems_createEvent(UA_Client *client, UA_UInt32 subscriptionId
         result.statusCode = retval;
         return result;
     }
-    UA_MonitoredItemCreateResult_copy(response.results , &result);
+    UA_MonitoredItemCreateResult_copy(response.results, &result);
     UA_CreateMonitoredItemsResponse_clear(&response);
     return result;
 }
@@ -1152,38 +1162,74 @@ __nextSequenceNumber(UA_UInt32 sequenceNumber) {
     return nextSequenceNumber;
 }
 
-static void
-processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
-                              UA_DataChangeNotification *dataChangeNotification) {
-    UA_LOCK_ASSERT(&client->clientMutex);
+static UA_Client_MonitoredItem *
+findMonitoredItem(UA_Client *client, UA_Client_Subscription *sub,
+                  UA_UInt32 isEventMonitoredItem, UA_UInt32 clientHandle) {
+    UA_Client_MonitoredItem *mon, dummy;
+    dummy.clientHandle = clientHandle;
+    mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
 
-    for(size_t j = 0; j < dataChangeNotification->monitoredItemsSize; ++j) {
-        UA_MonitoredItemNotification *min = &dataChangeNotification->monitoredItems[j];
+    if(!mon) {
+        UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                       "Could not process a notification with clienthandle %" PRIu32
+                       " on subscription %" PRIu32,
+                       clientHandle, sub->subscriptionId);
+        return NULL;
+    }
 
-        /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = min->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
-
-        if(!mon) {
-            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                           "Could not process a notification with clienthandle %" PRIu32
-                           " on subscription %" PRIu32, min->clientHandle, sub->subscriptionId);
-            continue;
-        }
-
-        if(mon->isEventMonitoredItem) {
+    if(mon->isEventMonitoredItem != isEventMonitoredItem) {
+        if (mon->isEventMonitoredItem) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "MonitoredItem is configured for Events. But received a "
                            "DataChangeNotification.");
-            continue;
         }
+        else {
+            UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                           "MonitoredItem is configured for DataChanges. But received a "
+                           "EventNotification.");
+        }
+        return NULL;
+    }
+    return mon;
+}
 
-        if(mon->handler.dataChangeCallback) {
-            void *subC = sub->context;
+static void
+processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
+                              UA_DataChangeNotification *dataChangeNotification) {
+    void *subC = sub->context;
+    UA_UInt32 subId = sub->subscriptionId;
+    size_t j, numItems = dataChangeNotification->monitoredItemsSize;
+    UA_MonitoredItemNotification *min = dataChangeNotification->monitoredItems;
+
+    UA_LOCK_ASSERT(&client->clientMutex);
+ 
+    /* if we have a data change callback in the subscription use that */
+    if(sub->dataChangeCallback) {
+        UA_DataItemsChangeNotification *items = UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
+        if(items) {
+            for(j = 0; j < numItems; ++j, min++) {
+                /* Find the MonitoredItem */
+                UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, min->clientHandle);
+                if (mon) {
+                    items[j].monitoredItemId = mon->monitoredItemId;
+                    items[j].context = mon->context;
+                }
+                items[j].value = &min->value;
+            }
+            UA_UNLOCK(&client->clientMutex);
+            sub->dataChangeCallback(client, subId, subC, numItems, items);
+            UA_LOCK(&client->clientMutex);
+            UA_free(items);
+        }
+        return;
+    }
+
+    /* call the individual data change callbacks for each monitored item */
+    for(j = 0; j < numItems; ++j, min++) {
+        /* Find the MonitoredItem */
+        UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, min->clientHandle);
+        if(mon && mon->handler.dataChangeCallback) {
             void *monC = mon->context;
-            UA_UInt32 subId = sub->subscriptionId;
             UA_UInt32 monId = mon->monitoredItemId;
             UA_UNLOCK(&client->clientMutex);
             mon->handler.dataChangeCallback(client, subId, subC, monId, monC, &min->value);
@@ -1195,41 +1241,23 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 static void
 processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
                          UA_EventNotificationList *eventNotificationList) {
+    UA_EventFieldList *efl = eventNotificationList->events;
+
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    for(size_t j = 0; j < eventNotificationList->eventsSize; ++j) {
-        UA_EventFieldList *eventFieldList = &eventNotificationList->events[j];
-
+    for(size_t j = 0; j < eventNotificationList->eventsSize; ++j, efl++) {
         /* Find the MonitoredItem */
-        UA_Client_MonitoredItem *mon;
-        UA_Client_MonitoredItem dummy;
-        dummy.clientHandle = eventFieldList->clientHandle;
-        mon = ZIP_FIND(MonitorItemsTree, &sub->monitoredItems, &dummy);
-
-        if(!mon) {
-            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "Could not process a notification with clienthandle %" PRIu32
-                         " on subscription %" PRIu32, eventFieldList->clientHandle,
-                         sub->subscriptionId);
-            continue;
+        UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 1, efl->clientHandle);
+        if (mon && mon->handler.eventCallback) {
+            void *subC = sub->context;
+            void *monC = mon->context;
+            UA_UInt32 subId = sub->subscriptionId;
+            UA_UInt32 monId = mon->monitoredItemId;
+            UA_UNLOCK(&client->clientMutex);
+            mon->handler.eventCallback(client, subId, subC, monId, monC,
+                                       efl->eventFieldsSize, efl->eventFields);
+            UA_LOCK(&client->clientMutex);
         }
-
-        if(!mon->isEventMonitoredItem) {
-            UA_LOG_DEBUG(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                         "MonitoredItem is configured for DataChanges. But received a "
-                         "EventNotification.");
-            continue;
-        }
-
-        void *subC = sub->context;
-        void *monC = mon->context;
-        UA_UInt32 subId = sub->subscriptionId;
-        UA_UInt32 monId = mon->monitoredItemId;
-        UA_UNLOCK(&client->clientMutex);
-        mon->handler.eventCallback(client, subId, subC, monId, monC,
-                                   eventFieldList->eventFieldsSize,
-                                   eventFieldList->eventFields);
-        UA_LOCK(&client->clientMutex);
     }
 }
 
@@ -1376,7 +1404,7 @@ __Client_Subscriptions_processPublishResponse(UA_Client *client, UA_PublishReque
      * the sequence number of the next NotificationMessage that is to be sent =>
      * More than one consecutive keep-alive message or a NotificationMessage
      * following a keep-alive message will share the same sequence number. */
-    if (msg->notificationDataSize)
+    if(msg->notificationDataSize)
         sub->sequenceNumber = msg->sequenceNumber;
 
     /* Process the notification messages */

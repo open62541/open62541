@@ -40,6 +40,17 @@ typedef void (*UA_Client_StatusChangeNotificationCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext,
      UA_StatusChangeNotification *notification);
 
+/* The data value and the variant inside is owned by the library and should not be changed or freed! */
+typedef struct {
+    UA_UInt32 monitoredItemId;
+    void *context;
+    UA_DataValue *value;
+} UA_DataItemsChangeNotification;
+
+typedef void (*UA_Client_DataItemsNotificationCallback)
+    (UA_Client *client, UA_UInt32 subId, void *subContext, UA_UInt32 numItems,
+     UA_DataItemsChangeNotification *monitoredItems);
+
 /* Provides default values for a new subscription.
  *
  * RequestedPublishingInterval:  500.0 [ms]
