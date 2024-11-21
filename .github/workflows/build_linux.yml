@@ -21,19 +21,15 @@ jobs:
             cmd_action: unit_tests_32
 
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
-            cmd_deps: ""
             cmd_action: unit_tests_nosub
 
           - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
-            cmd_deps: ""
             cmd_action: unit_tests_diag
 
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
-            cmd_deps: ""
             cmd_action: unit_tests_mt
 
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
-            cmd_deps: ""
             cmd_action: unit_tests_alarms
 
           - name: "Debug Build & Unit Tests (clang-11)"
@@ -170,11 +166,9 @@ jobs:
             cmd_action: build_release
 
           - name: "Amalgamation Build"
-            cmd_deps: ""
             cmd_action: build_amalgamation
 
           - name: "Amalgamation Build with Multithreading"
-            cmd_deps: ""
             cmd_action: build_amalgamation_mt
 
           - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
@@ -209,7 +203,6 @@ jobs:
             cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
 
           - name: "Build All Companion Specifications"
-            cmd_deps: ""
             cmd_action: build_all_companion_specs
 
     name: ${{matrix.os}}-${{matrix.build.name}}
