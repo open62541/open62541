@@ -23,10 +23,11 @@
 #cmakedefine UA_ARCHITECTURE_WIN32
 #cmakedefine UA_ARCHITECTURE_POSIX
 #cmakedefine UA_ARCHITECTURE_ZEPHYR
+#cmakedefine UA_ARCHITECTURE_LWIP
 
 /* Select default architecture if none is selected */
 #if !defined(UA_ARCHITECTURE_WIN32) && !defined(UA_ARCHITECTURE_POSIX) &&      \
-    !defined(UA_ARCHITECTURE_ZEPHYR)
+    !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
 # ifdef _WIN32
 #  define UA_ARCHITECTURE_WIN32
 # else

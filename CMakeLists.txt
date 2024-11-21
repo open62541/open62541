@@ -68,7 +68,7 @@ MESSAGE(STATUS "open62541 Version: ${OPEN62541_VERSION}")
 # Architecture #
 ################
 
-set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr")
+set(UA_ARCHITECTURES "none" "posix" "win32" "zephyr" "lwip")
 set(UA_ARCHITECTURE "" CACHE STRING "Architecture to build open62541 for")
 SET_PROPERTY(CACHE UA_ARCHITECTURE PROPERTY STRINGS "" ${UA_ARCHITECTURES})
 
@@ -87,6 +87,8 @@ elseif("${UA_ARCHITECTURE}" STREQUAL "win32")
     set(UA_ARCHITECTURE_WIN32 1)
 elseif("${UA_ARCHITECTURE}" STREQUAL "zephyr")
     set(UA_ARCHITECTURE_ZEPHYR 1)
+elseif("${UA_ARCHITECTURE}" STREQUAL "lwip")
+    set(UA_ARCHITECTURE_LWIP 1)
 endif()
 
 #################
@@ -530,6 +532,11 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS)
         # Add bestcrypt for windows systems
         list(APPEND open62541_LIBRARIES bcrypt)
     endif()
+endif()
+
+if(UA_ARCHITECTURE_LWIP)
+    find_package(LWIP REQUIRED)
+    list(APPEND open62541_LIBRARIES ${LWIP_LIBRARIES})
 endif()
 
 if(UA_ENABLE_TPM2_SECURITY)
@@ -1005,6 +1012,17 @@ if(UA_ARCHITECTURE_ZEPHYR)
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.h
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr.c
          ${PROJECT_SOURCE_DIR}/arch/zephyr/eventloop_zephyr_tcp.c)
+endif()
+
+if(UA_ARCHITECTURE_LWIP)
+    list(APPEND plugin_sources
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.h
+            ${PROJECT_SOURCE_DIR}/arch/common/timer.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/clock_lwip.c
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
+            ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c)
 endif()
 
 if(UA_ENABLE_MQTT)
