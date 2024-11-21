@@ -12,51 +12,65 @@ jobs:
           - name: "Debug Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq mosquitto
             cmd_action: unit_tests
+
           - name: "Debug Build & Unit Tests (gcc, 32bit)"
             cmd_deps: |
               sudo dpkg --add-architecture i386
               sudo apt-get update
               sudo apt-get install -y -qq gcc-multilib libsubunit-dev:i386 check:i386 libxml2-dev:i386
             cmd_action: unit_tests_32
+
           - name: "Debug Build & Unit Tests without Subscriptions (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_nosub
+
           - name: "Debug Build & Unit Tests with Diagnostics (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_diag
+
           - name: "Debug Build & Unit Tests with multithreading (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_mt
+
           - name: "Debug Build & Unit Tests with Alarms&Conditions (gcc)"
             cmd_deps: ""
             cmd_action: unit_tests_alarms
+
           - name: "Debug Build & Unit Tests (clang-11)"
             runs_on: "ubuntu-20.04"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 mosquitto
             cmd_action: CC=clang-11 CXX=clang++-11 unit_tests
+
           - name: "Debug Build & Unit Tests (clang-15)"
             runs_on: "ubuntu-22.04"
             cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-15 CXX=clang++-15 unit_tests
+
           - name: "Debug Build & Unit Tests (clang-18)"
             runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 mosquitto && sudo sysctl -w vm.mmap_rnd_bits=28
             cmd_action: CC=clang-18 CXX=clang++-18 unit_tests
+
           - name: "Debug Build & Unit Tests (tcc)"
             cmd_deps: sudo apt-get install -y -qq tcc mosquitto
             cmd_action: CC=tcc unit_tests
+
           - name: "Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption MBEDTLS
+
           - name: "PubSub Encryption (MbedTLS) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: unit_tests_encryption_mbedtls_pubsub
+
           - name: "PubSub SKS Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev
             cmd_action: unit_tests_pubsub_sks
+
           - name: "Encryption (OpenSSL) Build & Unit Tests (gcc)"
             cmd_deps: sudo apt-get install -y -qq openssl
             cmd_action: unit_tests_encryption OPENSSL
+
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
                 sudo apt-get install -y -qq curl
@@ -66,6 +80,7 @@ jobs:
                 ./configure
                 sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
+
           - name: "TPM Tool Build ubuntu-20.04"
             runs_on: "ubuntu-20.04"
             cmd_deps: |
@@ -93,6 +108,7 @@ jobs:
                 sudo pip3 install pyasn1_modules
                 pip3 install .
             cmd_action: build_tpm_tool
+
           - name: "TPM Tool Build ubuntu-22.04"
             runs_on: "ubuntu-22.04"
             cmd_deps: |
@@ -120,6 +136,7 @@ jobs:
               sudo pip3 install pyasn1_modules
               pip3 install .
             cmd_action: build_tpm_tool
+
           - name: "TPM Tool Build ubuntu-24.04"
             runs_on: "ubuntu-24.04"
             cmd_deps: |
@@ -147,39 +164,50 @@ jobs:
               sudo pip3 install pyasn1_modules
               pip3 install .
             cmd_action: build_tpm_tool
+
           - name: "Release Build"
             cmd_deps: sudo apt-get install -y -qq libmbedtls-dev
             cmd_action: build_release
+
           - name: "Amalgamation Build"
             cmd_deps: ""
             cmd_action: build_amalgamation
+
           - name: "Amalgamation Build with Multithreading"
             cmd_deps: ""
             cmd_action: build_amalgamation_mt
+
           - name: "Valgrind Build & Unit Tests with MbedTLS (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: unit_tests_valgrind MBEDTLS
+
           - name: "Valgrind Build & Unit Tests with OpenSSL (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl mosquitto
             cmd_action: unit_tests_valgrind OPENSSL
+
           - name: "Valgrind Examples with MbedTLS (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind libmbedtls-dev mosquitto
             cmd_action: examples_valgrind MBEDTLS
+
           - name: "Valgrind Examples with OpenSSL (gcc)"
             cmd_deps: sudo apt-get install -y -qq valgrind openssl libmbedtls-dev mosquitto
             cmd_action: examples_valgrind OPENSSL
+
           - name: "Clang Static Analyzer (clang11)"
             runs_on: "ubuntu-20.04"
             cmd_deps: sudo apt-get install -y -qq clang-11 clang-tools-11 libmbedtls-dev mosquitto
             cmd_action: CC=clang-11 CXX=clang++-11 build_clang_analyzer 11
+
           - name: "Clang Static Analyzer (clang15)"
             runs_on: "ubuntu-22.04"
             cmd_deps: sudo apt-get install -y -qq clang-15 clang-tools-15 libmbedtls-dev mosquitto
             cmd_action: CC=clang-15 CXX=clang++-15 build_clang_analyzer 15
+
           - name: "Clang Static Analyzer (clang18)"
             runs_on: "ubuntu-24.04"
             cmd_deps: sudo apt-get install -y -qq clang-18 clang-tools-18 libmbedtls-dev mosquitto
             cmd_action: CC=clang-18 CXX=clang++-18 build_clang_analyzer 18
+
           - name: "Build All Companion Specifications"
             cmd_deps: ""
             cmd_action: build_all_companion_specs
