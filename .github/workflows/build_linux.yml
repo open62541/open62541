@@ -69,40 +69,40 @@ jobs:
 
           - name: "Encryption (LibreSSL) Build & Unit Tests (gcc)"
             cmd_deps: |
-                sudo apt-get install -y -qq curl
-                curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
-                tar -xvz -f libressl.tar.gz
-                cd libressl-3.9.1
-                ./configure
-                sudo make install
+              sudo apt-get install -y -qq curl
+              curl https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-3.9.1.tar.gz --output libressl.tar.gz
+              tar -xvz -f libressl.tar.gz
+              cd libressl-3.9.1
+              ./configure
+              sudo make install
             cmd_action: unit_tests_encryption LIBRESSL
 
           - name: "TPM Tool Build ubuntu-20.04"
             runs_on: "ubuntu-20.04"
             cmd_deps: |
-                sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
-                cd ${HOME}
-                git clone https://github.com/tpm2-software/tpm2-tss.git
-                cd ${HOME}/tpm2-tss
-                git checkout 3.2.3
-                ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
-                make -j$(nproc)
-                sudo make install
-                sudo ldconfig
-                sudo udevadm control --reload-rules && sudo udevadm trigger
-                sudo apt-get install -y -qq tpm2-tools opensc
-                cd ${HOME}
-                git clone https://github.com/tpm2-software/tpm2-pkcs11.git
-                cd ${HOME}/tpm2-pkcs11
-                git checkout 1.7.0
-                ./bootstrap && ./configure
-                make -j$(nproc)
-                sudo make install
-                sudo ldconfig
-                sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
-                cd ${HOME}/tpm2-pkcs11/tools/
-                sudo pip3 install pyasn1_modules
-                pip3 install .
+              sudo apt-get install -y -qq acl autoconf autoconf-archive automake build-essential cmake doxygen gcc git iproute2 libcurl4-openssl-dev libjson-c-dev libcmocka0 libcmocka-dev libgcrypt20-dev libglib2.0-dev libini-config-dev libmbedtls-dev libssl-dev libsqlite3-dev libtool libyaml-dev pkg-config procps python3-pip sqlite3 udev uthash-dev
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-tss.git
+              cd ${HOME}/tpm2-tss
+              git checkout 3.2.3
+              ./bootstrap && ./configure --with-udevrulesdir=/etc/udev/rules.d --with-udevrulesprefix=70-
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo udevadm control --reload-rules && sudo udevadm trigger
+              sudo apt-get install -y -qq tpm2-tools opensc
+              cd ${HOME}
+              git clone https://github.com/tpm2-software/tpm2-pkcs11.git
+              cd ${HOME}/tpm2-pkcs11
+              git checkout 1.7.0
+              ./bootstrap && ./configure
+              make -j$(nproc)
+              sudo make install
+              sudo ldconfig
+              sudo cp ${HOME}/tpm2-pkcs11/src/pkcs11.h /usr/include
+              cd ${HOME}/tpm2-pkcs11/tools/
+              sudo pip3 install pyasn1_modules
+              pip3 install .
             cmd_action: build_tpm_tool
 
           - name: "TPM Tool Build ubuntu-22.04"
