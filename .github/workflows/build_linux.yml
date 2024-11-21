@@ -205,8 +205,8 @@ jobs:
           - name: "Build All Companion Specifications"
             cmd_action: build_all_companion_specs
 
-    name: ${{matrix.os}}-${{matrix.build.name}}
-    runs-on: ${{matrix.os}}
+    name: ${{ matrix.os }}-${{ matrix.build.name }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -217,8 +217,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y -qq python3-sphinx graphviz check
           ${{ matrix.build.cmd_deps }}
-      - name: ${{matrix.build.name}}
+      - name: ${{ matrix.build.name }}
         if: ${{ matrix.build.runs_on == '' || matrix.build.runs_on == matrix.os }}
-        run: source tools/ci/ci.sh && ${{matrix.build.cmd_action}}
+        run: source tools/ci/ci.sh && ${{ matrix.build.cmd_action }}
         env:
           ETHERNET_INTERFACE: eth0
