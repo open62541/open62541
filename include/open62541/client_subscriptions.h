@@ -51,6 +51,19 @@ typedef void (*UA_Client_DataItemsNotificationCallback)
     (UA_Client *client, UA_UInt32 subId, void *subContext, size_t numItems,
      UA_DataItemsChangeNotification *monitoredItems);
 
+/* The data value and the variant inside is owned by the library and should not be changed or freed! */
+typedef struct {
+	UA_UInt32 monitoredItemId;
+	void *context;
+	size_t eventFieldsSize;
+	UA_Variant *eventFields;
+} UA_ItemEventsNotification;
+
+typedef void(*UA_Client_EventsNotificationCallback)
+	(UA_Client *client, UA_UInt32 subId, void *subContext, size_t numItems,
+	 UA_ItemEventsNotification *eventItems);
+
+
 /* Provides default values for a new subscription.
  *
  * RequestedPublishingInterval:  500.0 [ms]
@@ -85,6 +98,7 @@ UA_Client_Subscriptions_createEx(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_DataItemsNotificationCallback dataChangeCallback,
+    UA_Client_EventsNotificationCallback eventsCallback,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback);
 
@@ -102,6 +116,7 @@ UA_Client_Subscriptions_create_asyncEx(UA_Client *client,
     const UA_CreateSubscriptionRequest request,
     void *subscriptionContext,
     UA_Client_DataItemsNotificationCallback dataChangeCallback,
+    UA_Client_EventsNotificationCallback eventsCallback,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback,
     UA_ClientAsyncServiceCallback callback,

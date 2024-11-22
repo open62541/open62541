@@ -95,6 +95,7 @@ cleanup:
 static UA_Client_Subscription *
 createClientSubscription(void *subscriptionContext,
                          UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                         UA_Client_EventsNotificationCallback eventsCallback,
                          UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                          UA_Client_DeleteSubscriptionCallback deleteCallback) {
     UA_Client_Subscription *sub =
@@ -102,6 +103,7 @@ createClientSubscription(void *subscriptionContext,
     if(sub) {
         sub->context = subscriptionContext;
         sub->dataChangeCallback = dataChangeCallback;
+        sub->eventsCallback = eventsCallback;
         sub->statusChangeCallback = statusChangeCallback;
         sub->deleteCallback = deleteCallback;
     }
@@ -115,7 +117,7 @@ UA_Client_Subscriptions_create(UA_Client *client,
     UA_Client_StatusChangeNotificationCallback statusChangeCallback,
     UA_Client_DeleteSubscriptionCallback deleteCallback) {
     return UA_Client_Subscriptions_createEx(client, request, subscriptionContext,
-                                            NULL, statusChangeCallback, deleteCallback);
+                                            NULL, NULL, statusChangeCallback, deleteCallback);
 }
 
 UA_CreateSubscriptionResponse
@@ -123,11 +125,12 @@ UA_Client_Subscriptions_createEx(UA_Client *client,
                                  const UA_CreateSubscriptionRequest request,
                                  void *subscriptionContext,
                                  UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                                 UA_Client_EventsNotificationCallback eventsCallback,
                                  UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                  UA_Client_DeleteSubscriptionCallback deleteCallback) {
     UA_CreateSubscriptionResponse response;
     UA_Client_Subscription *sub = createClientSubscription(
-        subscriptionContext, dataChangeCallback, statusChangeCallback, deleteCallback);
+        subscriptionContext, dataChangeCallback, eventsCallback, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_CreateSubscriptionResponse_init(&response);
         response.responseHeader.serviceResult = UA_STATUSCODE_BADOUTOFMEMORY;
@@ -138,7 +141,7 @@ UA_Client_Subscriptions_createEx(UA_Client *client,
     __UA_Client_Service(client,
                         &request, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONREQUEST],
                         &response, &UA_TYPES[UA_TYPES_CREATESUBSCRIPTIONRESPONSE]);
-    if (response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
+    if(response.responseHeader.serviceResult != UA_STATUSCODE_GOOD) {
         UA_free (sub);
         return response;
     }
@@ -160,7 +163,7 @@ UA_Client_Subscriptions_create_async(UA_Client *client,
                                      void *userdata,
                                      UA_UInt32 *requestId) {
     return UA_Client_Subscriptions_create_asyncEx(client, request, subscriptionContext,
-                                                  NULL, statusChangeCallback, deleteCallback,
+                                                  NULL, NULL, statusChangeCallback, deleteCallback,
                                                   createCallback, userdata, requestId);
 }
 
@@ -169,6 +172,7 @@ UA_Client_Subscriptions_create_asyncEx(UA_Client *client,
                                        const UA_CreateSubscriptionRequest request,
                                        void *subscriptionContext,
                                        UA_Client_DataItemsNotificationCallback dataChangeCallback,
+                                       UA_Client_EventsNotificationCallback eventsCallback,
                                        UA_Client_StatusChangeNotificationCallback statusChangeCallback,
                                        UA_Client_DeleteSubscriptionCallback deleteCallback,
                                        UA_ClientAsyncServiceCallback createCallback,
@@ -178,7 +182,7 @@ UA_Client_Subscriptions_create_asyncEx(UA_Client *client,
         return UA_STATUSCODE_BADOUTOFMEMORY;
 
     UA_Client_Subscription *sub = createClientSubscription(
-        subscriptionContext, dataChangeCallback, statusChangeCallback, deleteCallback);
+        subscriptionContext, dataChangeCallback, eventsCallback, statusChangeCallback, deleteCallback);
     if(!sub) {
         UA_free(cc);
         return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -1229,12 +1233,9 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
     UA_LOCK_ASSERT(&client->clientMutex);
 
     /* if we have a data change callback in the subscription use that */
-    if(sub->dataChangeCallback) {
-        UA_DataItemsChangeNotification *items = NULL;
-
-        if(numItems) {
-            items = (UA_DataItemsChangeNotification *)UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
-        }
+    if(sub->dataChangeCallback && numItems) {
+        UA_DataItemsChangeNotification *items = (UA_DataItemsChangeNotification *)
+                                                UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
         if(items) {
             for(j = 0; j < numItems; ++j, min++) {
                 /* Find the MonitoredItem */
@@ -1245,11 +1246,11 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
                 }
                 items[j].value = &min->value;
             }
+            UA_UNLOCK(&client->clientMutex);
+            sub->dataChangeCallback(client, subId, subC, numItems, items);
+            UA_LOCK(&client->clientMutex);
+            UA_free(items);
         }
-        UA_UNLOCK(&client->clientMutex);
-        sub->dataChangeCallback(client, subId, subC, numItems, items);
-        UA_LOCK(&client->clientMutex);
-        UA_free(items);
         return;
     }
 
@@ -1276,6 +1277,29 @@ processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
     UA_EventFieldList *efl = eventNotificationList->events;
 
     UA_LOCK_ASSERT(&client->clientMutex);
+
+    /* if we have an event callback in the subscription use that */
+    if(sub->eventsCallback && numEvents) {
+        UA_ItemEventsNotification *events = (UA_ItemEventsNotification *)
+                                            UA_calloc(numEvents, sizeof(UA_ItemEventsNotification));
+        if (events) {
+            for(j = 0; j < numEvents; ++j, efl++) {
+                /* Find the MonitoredItem */
+                UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 0, efl->clientHandle);
+                if (mon) {
+                    events[j].monitoredItemId = mon->monitoredItemId;
+                    events[j].context = mon->context;
+                }
+                events[j].eventFieldsSize = efl->eventFieldsSize;
+                events[j].eventFields = efl->eventFields;
+            }
+            UA_UNLOCK(&client->clientMutex);
+            sub->eventsCallback(client, subId, subC, numEvents, events);
+            UA_LOCK(&client->clientMutex);
+            UA_free(events);
+        }
+        return;
+    }
 
     for(j = 0; j < numEvents; ++j, efl++) {
         /* Find the MonitoredItem */
