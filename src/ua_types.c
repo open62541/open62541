@@ -2140,6 +2140,319 @@ UA_Array_delete(void *p, size_t size, const UA_DataType *type) {
     UA_free((void*)((uintptr_t)p & ~(uintptr_t)UA_EMPTY_ARRAY_SENTINEL));
 }
 
+/**********************/
+/* Meta Type Handling */
+/**********************/
+
+void
+UA_MetaTypeMember_init(UA_MetaTypeMember *m) {
+    memset(m, 0, sizeof(UA_MetaTypeValueDescription));
+}
+
+void
+UA_MetaTypeMember_clear(UA_MetaTypeMember *p) {
+    if(!p)
+        return;
+
+    if(p->value && !p->arraySize) {
+        const UA_Boolean isBuiltin = (p->type->typeKind <= UA_DATATYPEKIND_DIAGNOSTICINFO);
+        const UA_Boolean isPointerFree = p->type->pointerFree;
+        if(isBuiltin && !isPointerFree) {
+            UA_delete(p->value, p->type);
+        } else {
+            UA_free(p->value);
+            p->value = NULL;
+        }
+    }
+
+    p->type = NULL;
+    p->padding = 0;
+
+    /* This is currently necessary because during decoding,
+     * this value is owned by another entity, but only if it is an array */
+    if(p->value) {
+        UA_MetaTypeValueDescription_clear(p->members);
+        UA_free(p->members);
+        return;
+    }
+
+    if(!p->members)
+        return;
+
+    if(p->arraySize) {
+        for(size_t i = 0; i < p->arraySize; i++) {
+            UA_MetaTypeValueDescription_clear(&p->members[i]);
+        }
+    } else {
+        UA_MetaTypeValueDescription_clear(p->members);
+    }
+    UA_free(p->members);
+}
+
+UA_StatusCode
+UA_MetaTypeMember_setScalar(UA_MetaTypeMember *m, const void * UA_RESTRICT p, const UA_DataType *type) {
+    if(!UA_NodeId_equal(&type->typeId, &m->type->typeId))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    void *n = UA_malloc(type->memSize);
+    if(UA_UNLIKELY(!n))
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    UA_StatusCode retval = UA_copy(p, n, type);
+    if(UA_UNLIKELY(retval != UA_STATUSCODE_GOOD)) {
+        UA_free(n);
+        return retval;
+    }
+    m->value = n;
+    m->type = type;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_MetaTypeMember_setArray(UA_MetaTypeMember *m, const void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type) {
+    if(!UA_NodeId_equal(&type->typeId, &m->type->typeId))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    UA_StatusCode retval = UA_Array_copy(array, arraySize, &m->value, type);
+    if(retval != UA_STATUSCODE_GOOD)
+        return retval;
+    m->arraySize = arraySize;
+    m->type = type;
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_MetaTypeMember_setMetaTypeValue(UA_MetaTypeMember *m, const UA_MetaTypeValueDescription *p) {
+    if(!UA_NodeId_equal(&p->type->typeId, &m->type->typeId))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!m->members)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    for(size_t i = 0; i < m->members->memberSize; i++) {
+        UA_MetaTypeMember_setScalar(&m->members->members[i], p->members[i].value, p->members[i].type);
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_MetaTypeMember_setMetaTypeValueArray(UA_MetaTypeMember *m, const UA_MetaTypeValueDescription *array, size_t arraySize) {
+    if(!UA_NodeId_equal(&array->type->typeId, &m->type->typeId))
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!m->members)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!m->isArray)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    m->arraySize = arraySize;
+    UA_MetaTypeValueDescription_clear(m->members);
+    UA_free(m->members);
+    m->members = (UA_MetaTypeValueDescription*)UA_calloc(arraySize, sizeof(UA_MetaTypeValueDescription));
+
+    for(size_t i = 0; i < arraySize; i++) {
+        UA_MetaTypeValueDescription_init(&m->members[i], array->type);
+        for(size_t j = 0; j < m->members[i].memberSize; j++) {
+            UA_MetaTypeMember_setScalar(&m->members[i].members[j], array[i].members[j].value, array[i].members[j].type);
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+UA_StatusCode
+UA_MetaTypeValueDescription_init(UA_MetaTypeValueDescription *p, const UA_DataType *type) {
+    if(!p || !type)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    memset(p, 0, sizeof(UA_MetaTypeValueDescription));
+    p->type = type;
+    p->members = (UA_MetaTypeMember *)UA_calloc(type->membersSize, sizeof(UA_MetaTypeMember));
+    if(!p->members)
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    p->memberSize = type->membersSize;
+
+    for(size_t i = 0; i < type->membersSize; i++) {
+        UA_DataTypeMember member = type->members[i];
+        p->members[i].name = member.memberName;
+        p->members[i].type = member.memberType;
+        p->members[i].padding = member.padding;
+        p->members[i].isArray = member.isArray;
+        p->members[i].value = NULL;
+        p->members[i].members = NULL;
+        if(member.memberType->membersSize > 0) {
+            p->members[i].members = (UA_MetaTypeValueDescription*)UA_calloc(1, sizeof(UA_MetaTypeValueDescription));
+            UA_MetaTypeValueDescription_init(p->members[i].members, member.memberType);
+        }
+    }
+
+    return UA_STATUSCODE_GOOD;
+}
+
+void
+UA_MetaTypeValueDescription_clear(UA_MetaTypeValueDescription *p) {
+    if(!p)
+        return;
+
+    for(size_t i = 0; i < p->memberSize; i++) {
+        UA_MetaTypeMember_clear(&p->members[i]);
+    }
+
+    UA_free(p->members);
+    p->members = NULL;
+    p->memberSize = 0;
+    p->type = NULL;
+}
+
+static size_t
+encodeToVariant(const UA_MetaTypeValueDescription *src, UA_Variant *dst, size_t padding) {
+    size_t offset = padding;
+    for(size_t i = 0; i < src->memberSize; i++) {
+        UA_MetaTypeMember member = src->members[i];
+        offset += member.padding;
+        if(member.members) {
+            if(member.isArray) {
+                /* TODO: Currently, the structure cannot contain other structures. */
+                void *value = UA_calloc(member.arraySize, member.type->memSize);
+                size_t pos = 0;
+                for(size_t j = 0; j < member.arraySize; j++) {
+                    UA_MetaTypeValueDescription mem = member.members[j];
+                    for(size_t k = 0; k < mem.memberSize; k++) {
+                        pos += mem.members[k].padding;
+                        memcpy((unsigned char*)value + pos, mem.members[k].value, mem.members[k].type->memSize);
+                        pos += mem.members[k].type->memSize;
+                    }
+                }
+
+                memcpy((unsigned char*)dst->data + offset, &member.arraySize, sizeof(size_t));
+                offset += sizeof(size_t);
+                memcpy((unsigned char*)dst->data + offset, &value, sizeof(uintptr_t));
+                offset += sizeof(uintptr_t);
+            } else {
+                offset += encodeToVariant(member.members, dst, offset);
+            }
+            continue;
+        }
+        if(!member.value)
+            continue;
+
+        if(member.isArray) {
+            memcpy((unsigned char*)dst->data + offset, &member.arraySize, sizeof(size_t));
+            offset += sizeof(size_t);
+            memcpy((unsigned char*)dst->data + offset, &member.value, sizeof(uintptr_t));
+            offset += sizeof(uintptr_t);
+        } else {
+            if(UA_NodeId_equal(&member.type->typeId, &UA_TYPES[UA_TYPES_STRING].typeId)) {
+                void *value = UA_calloc(1, member.type->memSize);
+                UA_copy(member.value, value, member.type);
+                memcpy((unsigned char*)dst->data + offset, value, member.type->memSize);
+                offset += member.type->memSize;
+                UA_free(value);
+            } else {
+                memcpy((unsigned char*)dst->data + offset, member.value, member.type->memSize);
+                offset += member.type->memSize;
+            }
+        }
+    }
+
+    return offset-padding;
+}
+
+UA_StatusCode
+UA_MetaTypeValueDescription_encodeToVariant(const UA_MetaTypeValueDescription *src, UA_Variant *dst) {
+    if(!src || !dst)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!dst->data) {
+        dst->type = src->type;
+        if(dst->arrayLength) {
+            dst->data = UA_calloc(dst->arrayLength, src->type->memSize);
+        }else {
+            dst->data = UA_calloc(1, src->type->memSize);
+        }
+    }
+
+    if(dst->arrayLength) {
+        size_t padding = 0;
+        for(size_t i = 0; i < dst->arrayLength; i++) {
+            padding += encodeToVariant(&src[i], dst, padding);
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+
+    encodeToVariant(src, dst, 0);
+
+    return UA_STATUSCODE_GOOD;
+}
+
+static size_t
+decodeToVariant(UA_MetaTypeValueDescription *dst, const UA_Variant *src, size_t padding) {
+    size_t offset = padding;
+    for(size_t i = 0; i < dst->memberSize; i++) {
+        UA_MetaTypeMember *member = &dst->members[i];
+        offset += member->padding;
+
+        if(member->members) {
+            if(member->isArray) {
+                memcpy(&member->arraySize, (unsigned char*)src->data + offset, sizeof(size_t));
+                offset += sizeof(size_t);
+                member->value = (uintptr_t**)((unsigned char*)src->data + offset);
+                offset += sizeof(uintptr_t);
+            } else {
+                offset += decodeToVariant(member->members, src, offset);
+            }
+            continue;
+        }
+
+        if(member->isArray) {
+            memcpy(&member->arraySize, (unsigned char*)src->data + offset, sizeof(size_t));
+            offset += sizeof(size_t);
+            member->value = (uintptr_t**)((unsigned char*)src->data + offset);
+            offset += sizeof(uintptr_t);
+        } else {
+            if(UA_NodeId_equal(&member->type->typeId, &UA_TYPES[UA_TYPES_STRING].typeId)) {
+                member->value = UA_calloc(1, member->type->memSize);
+                if(!member->value)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                UA_copy((unsigned char*)src->data + offset, member->value, member->type);
+                offset += member->type->memSize;
+            } else {
+                member->value = UA_calloc(1, member->type->memSize);
+                if(!member->value)
+                    return UA_STATUSCODE_BADOUTOFMEMORY;
+                memcpy(member->value, (unsigned char*)src->data + offset, member->type->memSize);
+                offset += member->type->memSize;
+            }
+        }
+    }
+
+    return offset-padding;
+}
+
+UA_StatusCode
+UA_MetaTypeValueDescription_decodeFromVariant(UA_MetaTypeValueDescription *dst, const UA_Variant *src) {
+    if(!src || !src->data || !dst)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(!dst->members || !dst->type)
+        return UA_STATUSCODE_BADINTERNALERROR;
+
+    if(src->arrayLength) {
+        size_t padding = 0;
+        for(size_t i = 0; i < src->arrayLength; i++) {
+            padding += decodeToVariant(&dst[i], src, padding);
+        }
+        return UA_STATUSCODE_GOOD;
+    }
+
+    decodeToVariant(dst, src, 0);
+
+    return UA_STATUSCODE_GOOD;
+}
+
 #ifdef UA_ENABLE_TYPEDESCRIPTION
 UA_Boolean
 UA_DataType_getStructMember(const UA_DataType *type, const char *memberName,

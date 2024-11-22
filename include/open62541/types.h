@@ -1597,6 +1597,61 @@ void UA_EXPORT
 UA_Array_delete(void *p, size_t size, const UA_DataType *type);
 
 /**
+ * .. _meta-types:
+ *
+ * Meta Type Handling
+ * ---------------------
+ *
+ * Allows for the reading and writing of data types that are not inherently supported
+ * as predefined structures. */
+
+typedef struct {
+    const char *name;
+    const UA_DataType *type;
+    size_t padding;
+    size_t isArray;
+    void *value;
+    size_t arraySize;
+    struct UA_MetaTypeValueDescriptionStruct *members;
+} UA_MetaTypeMember;
+
+typedef struct UA_MetaTypeValueDescriptionStruct  {
+    UA_MetaTypeMember *members;
+    size_t memberSize;
+    const UA_DataType *type;
+} UA_MetaTypeValueDescription;
+
+void UA_EXPORT
+UA_MetaTypeMember_init(UA_MetaTypeMember *m);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeMember_setScalar(UA_MetaTypeMember *m, const void * UA_RESTRICT p, const UA_DataType *type);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeMember_setArray(UA_MetaTypeMember *m, const void * UA_RESTRICT array, size_t arraySize, const UA_DataType *type);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeMember_setMetaTypeValue(UA_MetaTypeMember *m, const UA_MetaTypeValueDescription *p);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeMember_setMetaTypeValueArray(UA_MetaTypeMember *m, const UA_MetaTypeValueDescription *array, size_t arraySize);
+
+void UA_EXPORT
+UA_MetaTypeMember_clear(UA_MetaTypeMember *p);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeValueDescription_init(UA_MetaTypeValueDescription *p, const UA_DataType *type);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeValueDescription_encodeToVariant(const UA_MetaTypeValueDescription *src, UA_Variant *dst);
+
+UA_StatusCode UA_EXPORT
+UA_MetaTypeValueDescription_decodeFromVariant(UA_MetaTypeValueDescription *dst, const UA_Variant *src);
+
+void
+UA_MetaTypeValueDescription_clear(UA_MetaTypeValueDescription *p);
+
+/**
  * .. _generated-types:
  *
  * Generated Data Type Definitions
