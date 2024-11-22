@@ -1227,11 +1227,14 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
     UA_MonitoredItemNotification *min = dataChangeNotification->monitoredItems;
 
     UA_LOCK_ASSERT(&client->clientMutex);
- 
+
     /* if we have a data change callback in the subscription use that */
     if(sub->dataChangeCallback) {
-        UA_DataItemsChangeNotification *items = (UA_DataItemsChangeNotification *)
-                             UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
+        UA_DataItemsChangeNotification *items = NULL;
+
+        if(numItems) {
+            items = (UA_DataItemsChangeNotification *)UA_calloc(numItems, sizeof(UA_DataItemsChangeNotification));
+        }
         if(items) {
             for(j = 0; j < numItems; ++j, min++) {
                 /* Find the MonitoredItem */
@@ -1242,11 +1245,11 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
                 }
                 items[j].value = &min->value;
             }
-            UA_UNLOCK(&client->clientMutex);
-            sub->dataChangeCallback(client, subId, subC, numItems, items);
-            UA_LOCK(&client->clientMutex);
-            UA_free(items);
         }
+        UA_UNLOCK(&client->clientMutex);
+        sub->dataChangeCallback(client, subId, subC, numItems, items);
+        UA_LOCK(&client->clientMutex);
+        UA_free(items);
         return;
     }
 
@@ -1267,17 +1270,18 @@ processDataChangeNotification(UA_Client *client, UA_Client_Subscription *sub,
 static void
 processEventNotification(UA_Client *client, UA_Client_Subscription *sub,
                          UA_EventNotificationList *eventNotificationList) {
+    void *subC = sub->context;
+    UA_UInt32 subId = sub->subscriptionId;
+    size_t j, numEvents = eventNotificationList->eventsSize;
     UA_EventFieldList *efl = eventNotificationList->events;
 
     UA_LOCK_ASSERT(&client->clientMutex);
 
-    for(size_t j = 0; j < eventNotificationList->eventsSize; ++j, efl++) {
+    for(j = 0; j < numEvents; ++j, efl++) {
         /* Find the MonitoredItem */
         UA_Client_MonitoredItem *mon = findMonitoredItem(client, sub, 1, efl->clientHandle);
-        if (mon && mon->handler.eventCallback) {
-            void *subC = sub->context;
+        if(mon && mon->handler.eventCallback) {
             void *monC = mon->context;
-            UA_UInt32 subId = sub->subscriptionId;
             UA_UInt32 monId = mon->monitoredItemId;
             UA_UNLOCK(&client->clientMutex);
             mon->handler.eventCallback(client, subId, subC, monId, monC,
