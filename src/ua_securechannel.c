@@ -201,6 +201,10 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Delete remaining chunks */
     UA_SecureChannel_deleteBuffered(channel);
 
+    /* Clean up namespace mapping */
+    UA_NamespaceMapping_delete(channel->namespaceMapping);
+    channel->namespaceMapping = NULL;
+
     /* Reset the SecureChannel for reuse (in the client) */
     channel->securityMode = UA_MESSAGESECURITYMODE_INVALID;
     channel->shutdownReason = UA_SHUTDOWNREASON_CLOSE;
