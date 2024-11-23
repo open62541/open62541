@@ -295,8 +295,15 @@ mbedtlsFindNextIssuer(CertInfo *ci, mbedtls_x509_crt *stack,
                mbedtls_pk_can_do(&i->pk, cert->MBEDTLS_PRIVATE(sig_pk)))
                 return i;
         }
-        /* Switch from the stack that came with the cert to the ctx->skIssue list */
-        stack = (stack != &ci->certificateIssuerList) ? &ci->certificateIssuerList : NULL;
+
+        /* Switch from the stack that came with the cert to the issuer list and
+         * then to the trust list. */
+        if(stack == &ci->certificateTrustList)
+            stack = NULL;
+        else if(stack == &ci->certificateIssuerList)
+            stack = &ci->certificateTrustList;
+        else
+            stack = &ci->certificateIssuerList;
     } while(stack);
     return NULL;
 }
