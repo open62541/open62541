@@ -19,6 +19,9 @@
 #include <mbedtls/version.h>
 #include <string.h>
 
+#define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
+#define UA_MBEDTLS_MAX_DN_LENGTH 256
+
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
 
@@ -225,16 +228,10 @@ reloadCertificates(CertInfo *ci) {
         }
     }
 
-    if(internalErrorFlag) {
-        retval = UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return retval;
+    return (internalErrorFlag) ? UA_STATUSCODE_BADINTERNALERROR : retval;
 }
 
 #endif
-
-#define UA_MBEDTLS_MAX_CHAIN_LENGTH 10
-#define UA_MBEDTLS_MAX_DN_LENGTH 256
 
 /* We need to access some private fields below */
 #ifndef MBEDTLS_PRIVATE
