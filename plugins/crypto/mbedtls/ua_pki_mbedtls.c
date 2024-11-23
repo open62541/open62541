@@ -317,6 +317,13 @@ mbedtlsCheckRevoked(CertInfo *ci, mbedtls_x509_crt *cert) {
         return UA_STATUSCODE_BADINTERNALERROR;
     UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
 
+    if(ci->certificateRevocationList.raw.len == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Zero revocation lists have been loaded. "
+                       "This seems intentional - omitting the check.");
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Loop over the crl and match the Issuer Name */
     UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
     for(mbedtls_x509_crl *crl = &ci->certificateRevocationList; crl; crl = crl->next) {
