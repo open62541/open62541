@@ -503,6 +503,13 @@ openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
     const X509_NAME *in = X509_get_issuer_name(cert);
     int size = sk_X509_CRL_num(ctx->skCrls);
 
+    if(size == 0) {
+        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Zero revocation lists have been loaded. "
+                       "This seems intentional - omitting the check.");
+        return UA_STATUSCODE_GOOD;
+    }
+
     /* Loop over the crl and match the Issuer Name */
     UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
     for(int i = 0; i < size; i++) {
