@@ -268,6 +268,13 @@ mbedtlsSameName(UA_String name, const mbedtls_x509_name *name2) {
     return UA_String_equal(&name, &nameString);
 }
 
+static UA_Boolean
+mbedtlsSameBuf(mbedtls_x509_buf *a, mbedtls_x509_buf *b) {
+    if(a->len != b->len)
+        return false;
+    return (memcmp(a->p, b->p, a->len) == 0);
+}
+
 /* Return the first matching issuer candidate AFTER prev.
  * This can return the cert itself if self-signed. */
 static mbedtls_x509_crt *
@@ -385,8 +392,7 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
          * This signals that the chain is complete (but can be still
          * untrusted). */
-        if(issuer == cert || (cert->tbs.len == issuer->tbs.len &&
-                              memcmp(cert->tbs.p, issuer->tbs.p, cert->tbs.len) == 0)) {
+        if(issuer == cert || mbedtlsSameBuf(&cert->tbs, &issuer->tbs)) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
             continue;
         }
@@ -408,8 +414,7 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
      * certificate "on the way down". Can we trust this certificate? */
     if(ret == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED) {
         for(mbedtls_x509_crt *t = &ci->certificateTrustList; t; t = t->next) {
-            if(cert->tbs.len == t->tbs.len &&
-               memcmp(cert->tbs.p, t->tbs.p, cert->tbs.len) == 0)
+            if(mbedtlsSameBuf(&cert->tbs, &t->tbs))
                 return UA_STATUSCODE_GOOD;
         }
     }
