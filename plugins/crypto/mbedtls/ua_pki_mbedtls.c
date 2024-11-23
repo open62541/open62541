@@ -308,21 +308,27 @@ mbedtlsFindNextIssuer(CertInfo *ci, mbedtls_x509_crt *stack,
     return NULL;
 }
 
-static UA_Boolean
+static UA_StatusCode
 mbedtlsCheckRevoked(CertInfo *ci, mbedtls_x509_crt *cert) {
+    /* Parse the Issuer Name */
     char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
     int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
     if(nameLen < 0)
-        return true;
+        return UA_STATUSCODE_BADINTERNALERROR;
     UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
+
+    /* Loop over the crl and match the Issuer Name */
+    UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
     for(mbedtls_x509_crl *crl = &ci->certificateRevocationList; crl; crl = crl->next) {
         /* Is the CRL for certificates from the cert issuer?
          * Is the serial number of the certificate contained in the CRL? */
-        if(mbedtlsSameName(issuerName, &crl->issuer) &&
-           mbedtls_x509_crt_is_revoked(cert, crl) != 0)
-            return true;
+        if(mbedtlsSameName(issuerName, &crl->issuer)) {
+            if(mbedtls_x509_crt_is_revoked(cert, crl) != 0)
+                return UA_STATUSCODE_BADCERTIFICATEREVOKED;
+            res = UA_STATUSCODE_GOOD; /* There was at least one crl that did not revoke (so far) */
+        }
     }
-    return false;
+    return res;
 }
 
 /* Verify that the public key of the issuer was used to sign the certificate */
@@ -361,11 +367,6 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
         return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
             UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
 
-    /* Verification Step: Revocation Check */
-    if(mbedtlsCheckRevoked(ci, cert))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
-            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
-
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
     mbedtls_x509_crt *issuer = NULL;
@@ -395,15 +396,28 @@ mbedtlsVerifyChain(CertInfo *ci, mbedtls_x509_crt *stack, mbedtls_x509_crt **old
          * chain. We check whether the certificate is trusted below. This is the
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
          * This signals that the chain is complete (but can be still
-         * untrusted). */
+         * untrusted).
+         *
+         * Break here as we have reached the end of the chain. Omit the
+         * Revocation Check for self-signed certificates. */
         if(issuer == cert || mbedtlsSameBuf(&cert->tbs, &issuer->tbs)) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-            continue;
+            break;
         }
 
-        /* Detect (endless) loops of issuers. The last one can be skipped by the
-         * check for self-signed just before. */
-        for(int i = 0; i < depth - 1; i++) {
+        /* Verification Step: Revocation Check */
+        ret = mbedtlsCheckRevoked(ci, cert);
+        if(depth > 0) {
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+        }
+        if(ret != UA_STATUSCODE_GOOD)
+            continue;
+
+        /* Detect (endless) loops of issuers */
+        for(int i = 0; i < depth; i++) {
             if(old_issuers[i] == issuer)
                 return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
         }
