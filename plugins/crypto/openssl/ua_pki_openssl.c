@@ -497,11 +497,14 @@ openSSLCheckCA(X509 *cert) {
     return true;
 }
 
-static UA_Boolean
+static UA_StatusCode
 openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
     const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
     const X509_NAME *in = X509_get_issuer_name(cert);
     int size = sk_X509_CRL_num(ctx->skCrls);
+
+    /* Loop over the crl and match the Issuer Name */
+    UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
     for(int i = 0; i < size; i++) {
         /* The crl contains a list of serial numbers from the same issuer */
         X509_CRL *crl = sk_X509_CRL_value(ctx->skCrls, i);
@@ -512,10 +515,11 @@ openSSLCheckRevoked(CertContext *ctx, X509 *cert) {
         for(int j = 0; j < rsize; j++) {
             X509_REVOKED *r = sk_X509_REVOKED_value(rs, j);
             if(ASN1_INTEGER_cmp(sn, X509_REVOKED_get0_serialNumber(r)) == 0)
-                return true;
+                return UA_STATUSCODE_BADCERTIFICATEREVOKED;
         }
+        res = UA_STATUSCODE_GOOD; /* There was at least one crl that did not revoke (so far) */
     }
-    return false;
+    return res;
 }
 
 #define UA_OPENSSL_MAX_CHAIN_LENGTH 10
@@ -533,11 +537,6 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
     if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
         return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
             UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
-
-    /* Verification Step: Revocation Check */
-    if(openSSLCheckRevoked(ctx, cert))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
-            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
@@ -570,11 +569,25 @@ openSSL_verifyChain(CertContext *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
          * chain. We check whether the certificate is trusted below. This is the
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
          * This signals that the chain is complete (but can be still
-         * untrusted). */
+         * untrusted).
+         *
+         * Break here as we have reached the end of the chain. Omit the
+         * Revocation Check for self-signed certificates. */
         if(cert == issuer || X509_cmp(cert, issuer) == 0) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-            continue;
+            break;
         }
+
+        /* Verification Step: Revocation Check */
+        ret = openSSLCheckRevoked(ctx, cert);
+        if(depth > 0) {
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+        }
+        if(ret != UA_STATUSCODE_GOOD)
+            continue;
 
         /* Detect (endless) loops of issuers. The last one can be skipped by the
          * check for self-signed just before. */
