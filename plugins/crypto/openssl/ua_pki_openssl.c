@@ -465,8 +465,14 @@ openSSLFindNextIssuer(CertContext *ctx, STACK_OF(X509) *stack, X509 *x509, X509 
             if(X509_check_issued(candidate, x509) == 0)
                 return candidate;
         }
-        /* Switch to search in the ctx->skIssue list */
-        stack = (stack != ctx->skIssue) ? ctx->skIssue : NULL;
+        /* Switch from the stack that came with the cert to the issuer list and
+         * then to the trust list. */
+        if(stack == ctx->skTrusted)
+            stack = NULL;
+        else if(stack == ctx->skIssue)
+            stack = ctx->skTrusted;
+        else
+            stack = ctx->skIssue;
     } while(stack);
     return NULL;
 }
