@@ -462,6 +462,7 @@ static X509 *
 openSSLFindNextIssuer(CertContext *ctx, STACK_OF(X509) *stack, X509 *x509, X509 *prev) {
     /* First check issuers from the stack - provided in the same bytestring as
      * the certificate. This can also return x509 itself. */
+    X509_NAME *in = X509_get_issuer_name(x509);
     do {
         int size = sk_X509_num(stack);
         for(int i = 0; i < size; i++) {
@@ -474,7 +475,7 @@ openSSLFindNextIssuer(CertContext *ctx, STACK_OF(X509) *stack, X509 *x509, X509 
             /* This checks subject/issuer name and the key usage of the issuer.
              * It does not verify the validity period and if the issuer key was
              * used for the signature. We check that afterwards. */
-            if(X509_check_issued(candidate, x509) == 0)
+            if(X509_NAME_cmp(in, X509_get_subject_name(candidate)) == 0)
                 return candidate;
         }
         /* Switch from the stack that came with the cert to the issuer list and
