@@ -1004,9 +1004,7 @@ set(plugin_sources ${PROJECT_SOURCE_DIR}/plugins/ua_log_stdout.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_accesscontrol_default.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_ziptree.c
                    ${PROJECT_SOURCE_DIR}/plugins/ua_nodestore_hashmap.c
-                   ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c
-                   ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
-                   ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
+                   ${PROJECT_SOURCE_DIR}/plugins/ua_config_default.c)
 
 # For file based server configuration
 if(UA_ENABLE_JSON_ENCODING)
@@ -1082,6 +1080,11 @@ list(APPEND plugin_sources
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_openssl_create_certificate.c
      ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/ua_pki_openssl.c)
 endif()
+
+# ua_securitypolicy_none.c requires UA_*_LoadCertificate() if encryption is enabled
+list(APPEND plugin_sources
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_pki_none.c
+    ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_none.c)
 
 if(UA_ENABLE_DISCOVERY)
     list(APPEND lib_headers ${PROJECT_SOURCE_DIR}/src/server/ua_discovery.h)
