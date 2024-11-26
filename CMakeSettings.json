@@ -1,0 +1,117 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x86-RelWithDebInfo",
+      "generator": "Ninja",
+      "configurationType": "RelWithDebInfo",
+      "inheritEnvironments": [ "msvc_x86_x64" ],
+      "buildRoot": "${projectDir}\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "variables": [
+        {
+          "name": "UA_ENABLE_ENCRYPTION",
+          "value": "MBEDTLS",
+          "type": "STRING"
+        },
+        {
+          "name": "MBEDTLS_INCLUDE_DIRS",
+          "value": "D:/UaComAutomation2/deps/Mbed TLS/include",
+          "type": "PATH"
+        },
+        {
+          "name": "MBEDTLS_LIBRARY",
+          "value": "D:/UaComAutomation2/deps/Mbed TLS/lib/mbedtls.lib",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "MBEDX509_LIBRARY",
+          "value": "D:/UaComAutomation2/deps/Mbed TLS/lib/mbedx509.lib",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "MBEDCRYPTO_LIBRARY",
+          "value": "D:/UaComAutomation2/deps/Mbed TLS/lib/mbedcrypto.lib",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "CMAKE_INSTALL_PREFIX",
+          "value": "D:\\UaComAutomation2\\deps\\open62541",
+          "type": "PATH"
+        },
+        {
+          "name": "UA_ENABLE_DISCOVERY",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_ENABLE_DIAGNOSTICS",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_ENABLE_HISTORIZING",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_ENABLE_PUBSUB",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_ENABLE_PUBSUB_INFORMATIONMODEL",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_ENABLE_NODESETLOADER",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "LIBXML2_INCLUDE_DIR",
+          "value": "D:/UaComAutomation2/deps/libxml2/x86-Release/include/libxml2",
+          "type": "PATH"
+        },
+        {
+          "name": "LIBXML2_LIBRARY",
+          "value": "D:/UaComAutomation2/deps/libxml2/x86-Release/lib/libxml2.lib",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "LIBXML2_XMLLINT_EXECUTABLE",
+          "value": "D:/UaComAutomation2/deps/libxml2/x86-Release/bin/xmllint.exe",
+          "type": "FILEPATH"
+        },
+        {
+          "name": "UA_ENABLE_JSON_ENCODING",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "UA_LOGLEVEL",
+          "value": "0",
+          "type": "STRING"
+        },
+        {
+          "name": "UA_NAMESPACE_ZERO",
+          "value": "FULL",
+          "type": "STRING"
+        },
+        {
+          "name": "CMAKE_BUILD_TYPE",
+          "value": "RelWithDebInfo",
+          "type": "STRING"
+        },
+        {
+          "name": "UA_BUILD_EXAMPLES",
+          "value": "True",
+          "type": "BOOL"
+        }
+      ]
+    }
+  ]
+}
