@@ -420,15 +420,16 @@ UA_KeyValueMap_remove(UA_KeyValueMap *map,
         m[i] = m[s-1];
         UA_KeyValuePair_init(&m[s-1]);
     }
-    
+
     /* Ignore the result. In case resize fails, keep the longer original array
-     * around. Resize never fails when reducing the size to zero. Reduce the
-     * size integer in any case. */
+     * around. Resize never fails when reducing the size to zero. */
     UA_StatusCode res =
         UA_Array_resize((void**)&map->map, &map->mapSize, map->mapSize - 1,
                           &UA_TYPES[UA_TYPES_KEYVALUEPAIR]);
-    (void)res;
-    map->mapSize--;
+    /* Adjust map->mapSize only when UA_Array_resize() failed. On success, the
+     * value has already been decremented by UA_Array_resize(). */
+    if(res != UA_STATUSCODE_GOOD)
+        map->mapSize--;
     return UA_STATUSCODE_GOOD;
 }
 
