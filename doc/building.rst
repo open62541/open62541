@@ -108,9 +108,9 @@ Building with CMake/MinGW on Windows
 To build with MinGW, just replace the compiler selection in the call to CMake.
 
 - Download and install
-  - MinGW http://sourceforge.net/projects/mingw
-  - Python 3.x: https://python.org/downloads
-  - CMake: http://www.cmake.org/cmake/resources/software.html
+    - MinGW http://sourceforge.net/projects/mingw
+    - Python 3.x: https://python.org/downloads
+    - CMake: http://www.cmake.org/cmake/resources/software.html
 
 - Download the open62541 sources (using git or as a zipfile from github)
 - Open a command shell (cmd) and run
