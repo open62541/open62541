@@ -40,6 +40,12 @@ Building with CMake on Ubuntu or Debian
    make doc # html documentation
    make doc_pdf # pdf documentation (requires LaTeX)
 
+Note: parallel compilation can be enable by using 
+
+.. code-block:: bash
+
+    make -j$(nproc)
+
 You can install open62541 using the well known `make install` command. This
 allows you to use pre-built libraries and headers for your own project. In order
 to use open62541 as a shared library (.dll or .so) make sure to activate the
@@ -95,6 +101,28 @@ Note: the solution generated with cmake can also be compiled in parallel with th
 .. code-block:: bash
 
     msbuild open62541.sln /v:n -t:rebuild -m
+
+Building with CMake/MinGW on Windows
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To build with MinGW, just replace the compiler selection in the call to CMake.
+
+- Download and install
+  - MinGW http://sourceforge.net/projects/mingw
+  - Python 3.x: https://python.org/downloads
+  - CMake: http://www.cmake.org/cmake/resources/software.html
+
+- Download the open62541 sources (using git or as a zipfile from github)
+- Open a command shell (cmd) and run
+
+.. code-block:: bat
+
+   cd <path-to>\open62541
+   mkdir build
+   cd build
+   <path-to>\cmake.exe .. -G "MinGW Makefiles"
+   :: You can use use cmake-gui for a graphical user-interface to select features
+   make
 
 Building on OS X
 ^^^^^^^^^^^^^^^^
