@@ -77,8 +77,8 @@ Building with Visual Studio on Windows
 Here we explain the build process for Visual Studio 2022 Community.
 
 - Download and install
-  - Python 3.x: https://python.org/downloads
-  - Visual Studio 2022: https://visualstudio.microsoft.com
+    - Python 3.x: https://python.org/downloads
+    - Visual Studio 2022: https://visualstudio.microsoft.com
     - When installing Visual Studio select the workload "Desktop development with C++"
 
 - Open Visual Studio and from the Get started window select "Clone a repository"
@@ -94,7 +94,7 @@ Note: the solution generated with cmake can be compiled in parallel with the com
 
 .. code-block:: bash
 
-msbuild open62541.sln /v:n -t:rebuild -m
+    msbuild open62541.sln /v:n -t:rebuild -m
 
 Building on OS X
 ^^^^^^^^^^^^^^^^
