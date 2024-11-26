@@ -567,6 +567,31 @@ START_TEST(idOrderString) {
     ck_assert(UA_NodeId_order(&id_str_d, &id_str_c) == UA_ORDER_MORE);
 } END_TEST
 
+START_TEST(kvmContain) {
+    UA_KeyValueMap *kvm = UA_KeyValueMap_new();
+
+    UA_UInt16 value_1 = 1;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_1,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_UInt16 value_2 = 2;
+    UA_KeyValueMap_setScalar(kvm, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_2,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_clear(kvm);
+
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-1")));
+    ck_assert(!UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
+
+    UA_KeyValueMap_delete(kvm);
+} END_TEST
+
 START_TEST(kvmRemove) {
     UA_KeyValueMap *kvm = UA_KeyValueMap_new();
 
@@ -581,6 +606,39 @@ START_TEST(kvmRemove) {
     ck_assert(UA_KeyValueMap_contains(kvm, UA_QUALIFIEDNAME(0, "value-2")));
 
     UA_KeyValueMap_delete(kvm);
+} END_TEST
+
+START_TEST(kvmMerge) {
+    UA_KeyValueMap *kvm_1 = UA_KeyValueMap_new();
+    UA_UInt16 value_11 = 11;
+    UA_KeyValueMap_setScalar(kvm_1, UA_QUALIFIEDNAME(0, "value-1"), (void *)&value_11,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 value_12 = 12;
+    UA_KeyValueMap_setScalar(kvm_1, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_12,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValueMap *kvm_2 = UA_KeyValueMap_new();
+    UA_UInt16 value_22 = 22;
+    UA_KeyValueMap_setScalar(kvm_2, UA_QUALIFIEDNAME(0, "value-2"), (void *)&value_22,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+    UA_UInt16 value_23 = 23;
+    UA_KeyValueMap_setScalar(kvm_2, UA_QUALIFIEDNAME(0, "value-3"), (void *)&value_23,
+                             &UA_TYPES[UA_TYPES_UINT16]);
+
+    UA_KeyValueMap_merge(kvm_1, kvm_2);
+
+    const UA_Variant *value_1 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-1"));
+    const UA_Variant *value_2 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-2"));
+    const UA_Variant *value_3 = UA_KeyValueMap_get(kvm_1, UA_QUALIFIEDNAME(0, "value-3"));
+    ck_assert(UA_Variant_hasScalarType(value_1, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(UA_Variant_hasScalarType(value_2, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(UA_Variant_hasScalarType(value_3, &UA_TYPES[UA_TYPES_UINT16]));
+    ck_assert(*((UA_UInt16 *) value_1->data) == 11);
+    ck_assert(*((UA_UInt16 *) value_2->data) == 22);
+    ck_assert(*((UA_UInt16 *) value_3->data) == 23);
+
+    UA_KeyValueMap_delete(kvm_1);
+    UA_KeyValueMap_delete(kvm_2);
 } END_TEST
 
 static Suite* testSuite_Utils(void) {
@@ -615,7 +673,9 @@ static Suite* testSuite_Utils(void) {
     suite_add_tcase(s, tc2);
 
     TCase *tc3 = tcase_create("test keyvaluemap");
+    tcase_add_test(tc3, kvmContain);
     tcase_add_test(tc3, kvmRemove);
+    tcase_add_test(tc3, kvmMerge);
     suite_add_tcase(s, tc3);
 
     return s;
