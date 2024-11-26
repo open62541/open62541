@@ -79,7 +79,7 @@ Here we explain the build process for Visual Studio 2022 Community.
 - Download and install
     - Python 3.x: https://python.org/downloads
     - Visual Studio 2022: https://visualstudio.microsoft.com
-    - When installing Visual Studio select the workload "Desktop development with C++"
+        - When installing Visual Studio select the workload "Desktop development with C++"
 
 - Open Visual Studio and from the Get started window select "Clone a repository"
     - Repository location: https://github.com/open62541/open62541.git
@@ -90,7 +90,7 @@ Here we explain the build process for Visual Studio 2022 Community.
 - Build / Build All
 - Build / Install open62541
 
-Note: the solution generated with cmake can be compiled in parallel with the command
+Note: the solution generated with cmake can also be compiled in parallel with the command
 
 .. code-block:: bash
 
