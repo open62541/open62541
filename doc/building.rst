@@ -78,7 +78,7 @@ CMake project definition looks as follows:
     #   target_link_libraries(main open62541::open62541)
 
 Building with Visual Studio on Windows
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Here we explain the build process for Visual Studio 2022 Community.
 
@@ -103,7 +103,7 @@ Note: the solution generated with cmake can also be compiled in parallel with th
     msbuild open62541.sln /v:n -t:rebuild -m
 
 Building with CMake/MinGW on Windows
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 To build with MinGW, just replace the compiler selection in the call to CMake.
 
