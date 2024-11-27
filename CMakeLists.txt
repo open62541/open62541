@@ -139,8 +139,43 @@ mark_as_advanced(UA_ENABLE_PARSING)
 option(UA_ENABLE_INLINABLE_EXPORT "Export 'static inline' methods as regular API" OFF)
 mark_as_advanced(UA_ENABLE_INLINABLE_EXPORT)
 
-option(UA_ENABLE_DISCOVERY_MULTICAST "Enable Discovery Service with multicast support (LDS-ME)" OFF)
+# mDNS provider
+set(UA_MDNS_PLUGINS "MDNSD" "AVAHI")
+set(UA_ENABLE_DISCOVERY_MULTICAST "OFF" CACHE STRING "mDNS discovery support")
 mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST)
+SET_PROPERTY(CACHE UA_ENABLE_DISCOVERY_MULTICAST PROPERTY STRINGS "OFF" ${UA_MDNS_PLUGINS})
+option(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD "Enable mDNS discovery support (uses mdnsd)" OFF)
+mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+option(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI "Enable mDNS discovery support (uses Avahi)" OFF)
+mark_as_advanced(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+
+list (FIND UA_MDNS_PLUGINS ${UA_ENABLE_DISCOVERY_MULTICAST} _tmp)
+if(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "OFF" OR ${_tmp} GREATER -1)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
+    if(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "MDNSD")
+        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
+    elseif(UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "AVAHI")
+        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI ON)
+    endif()
+# Only for backward compatability
+elseif(UA_ENABLE_DISCOVERY_MULTICAST OR UA_ENABLE_DISCOVERY_MULTICAST STREQUAL "ON")
+    message(DEPRECATION "Set UA_ENABLE_DISCOVERY_MULTICAST to the desired mDNS library." )
+    if(NOT UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON)
+    endif()
+else()
+    message(DEPRECATION "Set UA_ENABLE_DISCOVERY_MULTICAST to the desired mDNS library." )
+    if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
+        set(UA_ENABLE_DISCOVERY_MULTICAST "MDNSD")
+        set(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI OFF)
+    endif()
+    if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+        set(UA_ENABLE_DISCOVERY_MULTICAST "AVAHI")
+        set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF)
+    endif()
+endif()
+
 
 # security provider
 set(UA_ENCRYPTION_PLUGINS "MBEDTLS" "OPENSSL" "LIBRESSL")
@@ -231,7 +266,8 @@ endif()
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ OR UA_BUILD_FUZZING_CORPUS)
     # Force enable options not passed in the build script, to also fuzzy-test this code
     set(UA_ENABLE_DISCOVERY ON CACHE STRING "" FORCE)
-    set(UA_ENABLE_DISCOVERY_MULTICAST ON CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST MDNSD CACHE STRING "" FORCE)
+    set(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD ON CACHE STRING "" FORCE)
     set(UA_ENABLE_ENCRYPTION ON CACHE STRING "OFF" FORCE)
     set(UA_ENABLE_ENCRYPTION_MBEDTLS ON CACHE STRING "" FORCE)
     set(UA_ENABLE_HISTORIZING ON CACHE STRING "" FORCE)
@@ -252,7 +288,7 @@ endif()
 
 if(UA_ENABLE_DISCOVERY_MULTICAST AND NOT UA_ENABLE_DISCOVERY)
     MESSAGE(WARNING "UA_ENABLE_DISCOVERY_MULTICAST is enabled, but not UA_ENABLE_DISCOVERY. UA_ENABLE_DISCOVERY_MULTICAST will be set to OFF")
-    SET(UA_ENABLE_DISCOVERY_MULTICAST OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
+    SET(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD OFF CACHE BOOL "Enable Discovery Service with multicast support (LDS-ME)" FORCE)
 endif()
 
 # Advanced options
@@ -498,6 +534,13 @@ if(MINGW)
     list(APPEND open62541_LIBRARIES ws2_32 ssp)
 endif()
 
+if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    find_package(PkgConfig REQUIRED)
+    pkg_search_module(AVAHI REQUIRED avahi-client avahi-common)
+    include_directories(${AVAHI_INCLUDE_DIRS})
+    list(APPEND open62541_LIBRARIES "${AVAHI_LIBRARIES}")
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -691,7 +734,7 @@ file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
 # Generate the config.h
 configure_file(include/open62541/config.h.in ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h)
 
-if(UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
   include(GenerateExportHeader)
     set(MDNSD_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported" FORCE)
     
@@ -869,20 +912,24 @@ if(UA_DEBUG_DUMP_PKGS)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/plugins/ua_debug_dump_pkgs.c)
 endif()
 
-if(UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     # prepend in list, otherwise it complains that winsock2.h has to be included before windows.h
     list(APPEND lib_headers
-         ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
+        ${PROJECT_BINARY_DIR}/src_generated/mdnsd_config.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.h
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.h)
     list(APPEND lib_sources
-         ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
-         ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
+        ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/1035.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/xht.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/sdtxt.c
+        ${PROJECT_SOURCE_DIR}/deps/mdnsd/libmdnsd/mdnsd.c)
+elseif(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    list(APPEND lib_sources
+      ${PROJECT_SOURCE_DIR}/src/server/ua_discovery_mdns_avahi.c
+    )
 endif()
 
 if(UA_BUILD_FUZZING OR UA_BUILD_OSS_FUZZ)
@@ -1301,7 +1348,7 @@ add_library(open62541::open62541 ALIAS open62541)
 target_compile_definitions(open62541-object PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541-plugins PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
 target_compile_definitions(open62541 PRIVATE -DUA_DYNAMIC_LINKING_EXPORT)
-if(UA_ENABLE_DISCOVERY_MULTICAST)
+if(UA_ENABLE_DISCOVERY_MULTICAST_MDNSD)
     target_compile_definitions(open62541-object PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
     target_compile_definitions(open62541 PRIVATE -DMDNSD_DYNAMIC_LINKING_EXPORT)
 endif()
@@ -1323,6 +1370,9 @@ SET_TARGET_PROPERTIES(open62541 PROPERTIES
 # DLL requires linking to dependencies
 target_link_libraries(open62541 PUBLIC ${open62541_PUBLIC_LIBRARIES})
 target_link_libraries(open62541 PRIVATE ${open62541_LIBRARIES})
+if(UA_ENABLE_DISCOVERY_MULTICAST_AVAHI)
+    target_link_libraries(open62541 PUBLIC ${AVAHI_LIBRARIES})
+endif()
 
 ##########################
 # Build Selected Targets #
