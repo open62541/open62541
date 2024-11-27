@@ -294,7 +294,12 @@ Detailed SDK Features
    Enable Discovery Service (LDS)
 
 **UA_ENABLE_DISCOVERY_MULTICAST**
-   Enable Discovery Service with multicast support (LDS-ME)
+   Enable Discovery Service with multicast support (LDS-ME) and specify the
+   multicast backend. The possible options are:
+
+   - ``OFF`` No multicast support. (default)
+   - ``MDNSD`` Multicast support using libmdnsd
+   - ``AVAHI`` Multicast support using Avahi
 
 **UA_ENABLE_DISCOVERY_SEMAPHORE**
    Enable Discovery Semaphore support
