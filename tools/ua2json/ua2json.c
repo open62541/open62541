@@ -10,7 +10,6 @@
 #include <open62541/types_generated_handling.h>
 
 #include <stdio.h>
-#include <unistd.h>
 
 /* Internal headers */
 #include "ua_pubsub_networkmessage.h"
@@ -250,7 +249,7 @@ int main(int argc, char **argv) {
             buf.data = r;
         }
 
-        ssize_t c = read(fileno(in), &buf.data[pos], length - pos);
+        int c = read(fileno(in), &buf.data[pos], length - pos);
         if(c == 0)
             break;
         if(c < 0) {
