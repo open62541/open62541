@@ -30,11 +30,6 @@ static void setup(void) {
     UA_ServerConfig *config = UA_Server_getConfig(server);
     ck_assert(config != 0);
 
-    /* Silence the log, because this test might produce an enormous amount of noise */
-    logger = UA_Log_Stdout_withLevel(UA_LOGLEVEL_ERROR);
-    config->logging->clear(config->logging);
-    *config->logging = logger;
-
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 

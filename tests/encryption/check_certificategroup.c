@@ -81,8 +81,9 @@ static void setup2(void) {
     ck_assert(server != NULL);
     UA_ServerConfig *config = UA_Server_getConfig(server);
 
-    char storePathDir[4096];
-    getcwd(storePathDir, 4096);
+    char storePathDir[32];
+    strcpy(storePathDir, "open62541-pki-XXXXXX");
+    mkdtemp(storePathDir);
 
     const UA_String storePath = UA_STRING(storePathDir);
 
@@ -303,7 +304,7 @@ START_TEST(get_rejectedlist) {
 
     /* Secure client connect */
     retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
-    ck_assert_uint_eq(retval, UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE);
+    ck_assert_uint_eq(retval, UA_STATUSCODE_BADSECURITYCHECKSFAILED);
 
     UA_ByteString *rejectedList = NULL;
     size_t rejectedListSize = 0;

@@ -360,7 +360,8 @@ START_TEST(CreateReaderGroup) {
     memset(&transportSettingsData, 0,
            sizeof(UA_BrokerDataSetReaderTransportDataType));
 
-    UA_ReaderGroup *rg = UA_ReaderGroup_findRGbyId(server, readerGroupIdent);
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
     ck_assert(rg != 0);
     UA_ExtensionObject *ts = &rg->config.transportSettings;
 

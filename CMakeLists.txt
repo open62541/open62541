@@ -44,7 +44,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 # overwritten with more detailed information if git is available.
 set(OPEN62541_VER_MAJOR 1)
 set(OPEN62541_VER_MINOR 4)
-set(OPEN62541_VER_PATCH 7)
+set(OPEN62541_VER_PATCH 8)
 set(OPEN62541_VER_LABEL "-undefined") # like "-rc1" or "-g4538abcd" or "-g4538abcd-dirty"
 set(OPEN62541_VER_COMMIT "unknown-commit")
 
@@ -496,6 +496,11 @@ if(UA_ENABLE_TPM2_SECURITY)
     list(APPEND open62541_LIBRARIES ${TPM2_LIB})
 endif()
 
+if(MINGW)
+    # GCC stack protector support
+    list(APPEND open62541_LIBRARIES ws2_32 ssp)
+endif()
+
 #####################
 # Compiler Settings #
 #####################
@@ -738,13 +743,13 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/open62541/config.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/eventloop.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/nodestore.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/plugin/historydatabase.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel.h
                      ${PROJECT_SOURCE_DIR}/include/open62541/client_subscriptions.h
-                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h)
+                     ${PROJECT_SOURCE_DIR}/include/open62541/client_highlevel_async.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server_pubsub.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/server.h
+                     ${PROJECT_SOURCE_DIR}/include/open62541/pubsub.h)
 
 # Main Library
 
@@ -979,13 +984,16 @@ endif()
 # Use guards in the files to ensure that UA_ENABLE_ENCRYPTON_MBEDTLS and UA_ENABLE_ENCRYPTION_OPENSSL are honored.
 
 if((UNIX AND UA_ENABLE_ENCRYPTION) OR UA_ENABLE_AMALGAMATION)
-    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c
+    list(APPEND plugin_sources ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_filestore_common.h
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_filestore_common.c
+                               ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_certificategroup_filestore.c
                                ${PROJECT_SOURCE_DIR}/plugins/crypto/ua_securitypolicy_filestore.c)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
+    list(INSERT plugin_sources 0
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h)
     list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic128rsa15.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/mbedtls/securitypolicy_basic256.c
@@ -999,8 +1007,9 @@ if(UA_ENABLE_ENCRYPTION_MBEDTLS OR UA_ENABLE_AMALGAMATION)
 endif()
 
 if(UA_ENABLE_ENCRYPTION_OPENSSL OR UA_ENABLE_ENCRYPTION_LIBRESSL OR UA_ENABLE_AMALGAMATION)
+    list(INSERT plugin_sources 0
+         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h)
     list(APPEND plugin_sources
-         ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.h
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_common.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic128rsa15.c
          ${PROJECT_SOURCE_DIR}/plugins/crypto/openssl/securitypolicy_basic256.c
@@ -1045,20 +1054,22 @@ endif()
 set(UA_FILE_NODESETS) # List of nodeset-xml files to be considered in the generated information model
 set(UA_NODESET_DIR ${PROJECT_SOURCE_DIR}/deps/ua-nodeset CACHE STRING "The path to the node-set directory (e.g. from https://github.com/OPCFoundation/UA-Nodeset)")
 
+unset(UA_FILE_NS0_PRIVATE)
+if(UA_FILE_NS0)
+    set(UA_FILE_NS0_PRIVATE "${UA_FILE_NS0}")
+endif()
+
 if(UA_NAMESPACE_ZERO STREQUAL "FULL")
     # Use the "full" schema files also for datatypes and statuscodes
     set(UA_SCHEMA_DIR ${UA_NODESET_DIR}/Schema CACHE INTERNAL "")
 
-    # Set the full Nodeset for NS0.
-    # Use a new variable UA_FILE_NS0_INTERNAL so we don't pollute the options.
-    if(UA_FILE_NS0)
-        set(UA_FILE_NS0_INTERNAL ${UA_FILE_NS0})
-    else()
-        set(UA_FILE_NS0_INTERNAL ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml CACHE INTERNAL "")
+    # Set the full Nodeset for NS0
+    if(NOT UA_FILE_NS0_PRIVATE)
+        set(UA_FILE_NS0_PRIVATE ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.xml)
     endif()
 
     # Check that the submodule was checked out or manually downloaded into the folder
-    if(NOT EXISTS "${UA_FILE_NS0_INTERNAL}")
+    if(NOT EXISTS "${UA_FILE_NS0_PRIVATE}")
         message(STATUS "Submodule update")
         execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
                         WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
@@ -1071,12 +1082,9 @@ else()
     # Directory with the schema files for installation
     set(UA_SCHEMA_DIR ${PROJECT_SOURCE_DIR}/tools/schema CACHE INTERNAL "")
 
-    # Set the reduced Nodeset for NS0.
-    # Use a new variable UA_FILE_NS0_INTERNAL so we don't pollute the options.
-    if(UA_FILE_NS0)
-        set(UA_FILE_NS0_INTERNAL ${UA_FILE_NS0})
-    else()
-        set(UA_FILE_NS0_INTERNAL ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
+    # Set the reduced Nodeset for NS0
+    if(NOT UA_FILE_NS0_PRIVATE)
+        set(UA_FILE_NS0_PRIVATE ${UA_SCHEMA_DIR}/Opc.Ua.NodeSet2.Reduced.xml CACHE INTERNAL "")
     endif()
 
     # Set feature-specific datatypes definitions and nodesets
@@ -1135,7 +1143,7 @@ else()
     endif()
 endif()
 
-list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0_INTERNAL}")
+list(INSERT UA_FILE_NODESETS 0 "${UA_FILE_NS0_PRIVATE}")
 set(UA_FILE_NODEIDS ${UA_SCHEMA_DIR}/NodeIds.csv)
 set(UA_FILE_STATUSCODES ${UA_SCHEMA_DIR}/StatusCode.csv)
 set(UA_FILE_TYPES_BSD ${UA_SCHEMA_DIR}/Opc.Ua.Types.bsd)
@@ -1161,7 +1169,6 @@ ua_generate_datatypes(INTERNAL NAME "transport" TARGET_SUFFIX "transport" NAMESP
 # statuscode explanation
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.h
                           ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes.c
-                   PRE_BUILD
                    COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
                            ${UA_FILE_STATUSCODES} ${PROJECT_BINARY_DIR}/src_generated/open62541/statuscodes
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_statuscode_descriptions.py
@@ -1181,7 +1188,6 @@ add_custom_target(open62541-generator-statuscode DEPENDS
 if(UA_ENABLE_AMALGAMATION)
     # single-file release
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.h
-                       PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.h
                                ${exported_headers} ${NODESETLOADER_PUBLIC_HEADERS} ${plugin_headers}
@@ -1189,7 +1195,6 @@ if(UA_ENABLE_AMALGAMATION)
                                ${exported_headers} ${plugin_headers})
 
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
-                       PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py
                                ${OPEN62541_VERSION} ${CMAKE_CURRENT_BINARY_DIR}/open62541.c
                                ${lib_headers} ${NODESETLOADER_PRIVATE_HEADERS} ${lib_sources} ${plugin_sources}
@@ -1216,7 +1221,7 @@ if(UA_ENABLE_NODESET_INJECTOR)
     message(STATUS "Nodesetinjector feature enabled")
     cmake_minimum_required(VERSION 3.20)
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.h
-                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c PRE_BUILD
+                       ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector.c
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/nodeset_injector/generate_nodesetinjector.py
                        ${PROJECT_BINARY_DIR}/src_generated/open62541/nodesetinjector)
     add_custom_target(open62541-generator-nodesetinjector DEPENDS
