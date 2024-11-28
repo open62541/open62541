@@ -772,6 +772,14 @@ UA_EventLoop_new_Zephyr(const UA_Logger *logger);
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_Zephyr_TCP(const UA_String eventSourceName);
 
+#elif defined(UA_ARCHITECTURE_LWIP)
+
+UA_EXPORT UA_EventLoop *
+UA_EventLoop_new_LWIP(const UA_Logger *logger);
+
+UA_EXPORT UA_ConnectionManager *
+UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName);
+
 #endif
 
 _UA_END_DECLS

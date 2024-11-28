@@ -284,6 +284,8 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
     if(conf->eventLoop == NULL) {
 #if defined(UA_ARCHITECTURE_ZEPHYR)
         conf->eventLoop = UA_EventLoop_new_Zephyr(conf->logging);
+#elif defined(UA_ARCHITECTURE_LWIP)
+        conf->eventLoop = UA_EventLoop_new_LWIP(conf->logging);
 #else
         conf->eventLoop = UA_EventLoop_new_POSIX(conf->logging);
 #endif
@@ -296,6 +298,9 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
 #if defined(UA_ARCHITECTURE_ZEPHYR)
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_Zephyr_TCP(UA_STRING("tcp connection manager"));
+#elif defined(UA_ARCHITECTURE_LWIP)
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcp connection manager"));
 #else
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
@@ -304,7 +309,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)tcpCM);
 
         /* Add the UDP connection manager */
-#if !defined(UA_ARCHITECTURE_ZEPHYR)
+#if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));
         if(udpCM)
@@ -319,7 +324,7 @@ setDefaultConfig(UA_ServerConfig *conf, UA_UInt16 portNumber) {
             conf->eventLoop->registerEventSource(conf->eventLoop, (UA_EventSource *)ethCM);
 #endif
 
-#if !defined(UA_ARCHITECTURE_ZEPHYR)
+#if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
         /* Add the interrupt manager */
         UA_InterruptManager *im = UA_InterruptManager_new_POSIX(UA_STRING("interrupt manager"));
         if(im) {
@@ -1633,6 +1638,8 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
     if(config->eventLoop == NULL) {
 #if defined(UA_ARCHITECTURE_ZEPHYR)
         config->eventLoop = UA_EventLoop_new_Zephyr(config->logging);
+#elif defined(UA_ARCHITECTURE_LWIP)
+        config->eventLoop = UA_EventLoop_new_LWIP(config->logging);
 #else
         config->eventLoop = UA_EventLoop_new_POSIX(config->logging);
 #endif
@@ -1642,13 +1649,16 @@ UA_ClientConfig_setDefault(UA_ClientConfig *config) {
 #if defined(UA_ARCHITECTURE_ZEPHYR)
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_Zephyr_TCP(UA_STRING("tcp connection manager"));
+#elif defined(UA_ARCHITECTURE_LWIP)
+        UA_ConnectionManager *tcpCM =
+            UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcp connection manager"));
 #else
         UA_ConnectionManager *tcpCM =
             UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcp connection manager"));
 #endif
         config->eventLoop->registerEventSource(config->eventLoop, (UA_EventSource *)tcpCM);
 
-#if !defined(UA_ARCHITECTURE_ZEPHYR)
+#if !defined(UA_ARCHITECTURE_ZEPHYR) && !defined(UA_ARCHITECTURE_LWIP)
         /* Add the UDP connection manager */
         UA_ConnectionManager *udpCM =
             UA_ConnectionManager_new_POSIX_UDP(UA_STRING("udp connection manager"));

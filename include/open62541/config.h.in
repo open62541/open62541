@@ -438,7 +438,7 @@ UA_LOCK_ASSERT(UA_Lock *lock) {
     UA_assert(lock->count > 0);
 }
 
-#elif defined(UA_ARCHITECTURE_POSIX)
+#elif defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_LWIP)
 
 #include <pthread.h>
 

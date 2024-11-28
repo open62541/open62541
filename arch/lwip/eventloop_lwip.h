@@ -19,7 +19,7 @@
 #include <lwip/errno.h>
 
 #include "../../deps/mp_printf.h"
-#include "../common/ua_timer.h"
+#include "../common/timer.h"
 
 #include "settings_lwip.h"
 
@@ -163,8 +163,6 @@ lwip_gethostname(char *name, size_t len) {
 #define MSG_DONTWAIT 0
 #endif
 
-_UA_BEGIN_DECLS
-
 /* LWIP events are based on sockets / file descriptors. The EventSources can
  * register their fd in the EventLoop so that they are considered by the
  * EventLoop dropping into "poll" to wait for events. */
@@ -207,9 +205,9 @@ ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
 typedef struct {
     UA_ConnectionManager cm;
 
-    /* Reused receive buffer. The size is configured via
-     * the recv-bufsize parameter.*/
+    /* Statically allocated buffers */
     UA_ByteString rxBuffer;
+    UA_ByteString txBuffer;
 
     /* Sorted tree of the FDs */
     size_t fdsSize;
@@ -222,24 +220,42 @@ typedef struct {
     /* Timer */
     UA_Timer timer;
 
-    /* Linked List of Delayed Callbacks */
-    UA_DelayedCallback *delayedCallbacks;
+    /* Singly-linked FIFO queue (lock-free multi-producer single-consumer) of
+     * delayed callbacks. Insertion happens by chasing the tail-pointer. We
+     * "check out" the current queue and reset by switching the tail to the
+     * alternative head-pointer.
+     *
+     * This could be a simple singly-linked list. But we want to do in-order
+     * processing so we can wait until the worker jobs already in the queue get
+     * finished before.
+     *
+     * The currently unused head gets marked with the 0x01 sentinel. */
+    UA_DelayedCallback *delayedHead1;
+    UA_DelayedCallback *delayedHead2;
+    UA_DelayedCallback **delayedTail;
 
     /* Flag determining whether the eventloop is currently within the
      * "run" method */
-    UA_Boolean executing;
+    volatile UA_Boolean executing;
+
+#if defined(UA_ARCHITECTURE_LWIP) && !defined(__APPLE__) && !defined(__MACH__)
+    /* Clocks for the eventloop's time domain */
+    UA_Int32 clockSource;
+    UA_Int32 clockSourceMonotonic;
+#endif
 
     UA_RegisteredFD **fds;
     size_t fdsSize;
+
+    /* Self-pipe to cancel blocking wait */
+    UA_FD selfpipe[2]; /* 0: read, 1: write */
 
 #if UA_MULTITHREADING >= 100
     UA_Lock elMutex;
 #endif
 } UA_EventLoopLWIP;
 
-/*
- * The following functions differ between epoll and normal select
- */
+/* The following functions differ between epoll and normal select */
 
 /* Register to start receiving events */
 UA_StatusCode
@@ -256,10 +272,10 @@ UA_EventLoopLWIP_deregisterFD(UA_EventLoopLWIP *el, UA_RegisteredFD *rfd);
 UA_StatusCode
 UA_EventLoopLWIP_pollFDs(UA_EventLoopLWIP *el, UA_DateTime listenTimeout);
 
-/* Helper functions between EventSources */
+/* Helper functions across EventSources */
 
 UA_StatusCode
-UA_EventLoopLWIP_allocateRXBuffer(UA_LWIPConnectionManager *pcm);
+UA_EventLoopLWIP_allocateStaticBuffers(UA_LWIPConnectionManager *pcm);
 
 UA_StatusCode
 UA_EventLoopLWIP_allocNetworkBuffer(UA_ConnectionManager *cm,
@@ -271,10 +287,6 @@ void
 UA_EventLoopLWIP_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf);
-
-/*
- * Helper functions to be used across protocols
- */
 
 /* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
  * connections inherit this state. */
@@ -288,6 +300,19 @@ UA_EventLoopLWIP_setNoSigPipe(UA_FD sockfd);
 /* Enables sharing of the same listening address on different sockets */
 UA_StatusCode
 UA_EventLoopLWIP_setReusable(UA_FD sockfd);
+
+/* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
+ * https://stackoverflow.com/a/3333565 */
+int
+UA_EventLoopLWIP_pipe(UA_FD fds[2]);
+
+/* Cancel the current _run by sending to the self-pipe */
+void
+UA_EventLoopLWIP_cancel(UA_EventLoopLWIP *el);
+
+void
+UA_EventLoopLWIP_addDelayedCallback(UA_EventLoop *public_el,
+                                     UA_DelayedCallback *dc);
 
 _UA_END_DECLS
 

@@ -1016,13 +1016,15 @@ endif()
 
 if(UA_ARCHITECTURE_LWIP)
     list(APPEND plugin_sources
+            ${PROJECT_SOURCE_DIR}/arch/lwip/default_netif.c
             ${PROJECT_SOURCE_DIR}/arch/common/timer.h
             ${PROJECT_SOURCE_DIR}/arch/common/timer.c
             ${PROJECT_SOURCE_DIR}/arch/lwip/clock_lwip.c
             ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.h
             ${PROJECT_SOURCE_DIR}/arch/common/eventloop_common.c
             ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.h
-            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c)
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip.c
+            ${PROJECT_SOURCE_DIR}/arch/lwip/eventloop_lwip_tcp.c)
 endif()
 
 if(UA_ENABLE_MQTT)
@@ -1356,6 +1358,9 @@ endfunction()
 
 include_directories_private("${PROJECT_SOURCE_DIR}/deps")
 
+if(UA_ARCHITECTURE_LWIP)
+    include_directories_private(${LWIP_INCLUDE_DIRS})
+endif()
 if(UA_ENABLE_ENCRYPTION_MBEDTLS)
     include_directories_private(${MBEDTLS_INCLUDE_DIRS})
 endif()
