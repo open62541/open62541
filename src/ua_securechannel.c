@@ -580,11 +580,24 @@ unpackPayloadOPN(UA_SecureChannel *channel, UA_Chunk *chunk, void *application) 
              &UA_TRANSPORT[UA_TRANSPORT_ASYMMETRICALGORITHMSECURITYHEADER], NULL);
     UA_CHECK_STATUS(res, return res);
 
+    /* Set up the parameters for the verification */
+    UA_KeyValuePair params[1];
+    size_t paramsSize = 1;
+
+    /* Cannot be a CA certificate */
+    UA_Boolean isCaCertificate = false;
+    params[0].key = UA_QUALIFIEDNAME(0, "is-ca-certificate");
+    UA_Variant_setScalar(&params[0].value, &isCaCertificate, &UA_TYPES[UA_TYPES_BOOLEAN]);
+
+    UA_KeyValueMap paramsMap;
+    paramsMap.map = params;
+    paramsMap.mapSize = paramsSize;
+
     if(asymHeader.senderCertificate.length > 0) {
         if(channel->certificateVerification)
             res = channel->certificateVerification->
-                verifyCertificate(channel->certificateVerification,
-                                  &asymHeader.senderCertificate);
+                verifyCertificateTrust(channel->certificateVerification,
+                                       &asymHeader.senderCertificate, &paramsMap);
         else
             res = UA_STATUSCODE_BADINTERNALERROR;
         UA_CHECK_STATUS(res, goto error);

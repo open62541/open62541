@@ -623,7 +623,9 @@ FileCertStore_getCertificateCrls(UA_CertificateGroup *certGroup, const UA_ByteSt
 }
 
 static UA_StatusCode
-FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certificate) {
+FileCertStore_verifyCertificateIntegrity(UA_CertificateGroup *certGroup,
+                                         const UA_ByteString *certificate,
+                                         const UA_KeyValueMap *params) {
     /* Check parameter */
     if(certGroup == NULL || certificate == NULL)
         return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -635,7 +637,43 @@ FileCertStore_verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteStr
         return retval;
     }
 
-    retval = context->store->verifyCertificate(context->store, certificate);
+    return context->store->verifyCertificateIntegrity(context->store, certificate, params);
+}
+
+static UA_StatusCode
+FileCertStore_verifyCertificateValidity(UA_CertificateGroup *certGroup,
+                                        const UA_ByteString *certificate,
+                                        const UA_KeyValueMap *params) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    /* It will only re-read the Cert store on the file system if there have been changes to files. */
+    UA_StatusCode retval = reloadTrustStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    return context->store->verifyCertificateValidity(context->store, certificate, params);
+}
+
+static UA_StatusCode
+FileCertStore_verifyCertificateTrust(UA_CertificateGroup *certGroup,
+                                     const UA_ByteString *certificate,
+                                     const UA_KeyValueMap *params) {
+    /* Check parameter */
+    if(certGroup == NULL || certificate == NULL)
+        return UA_STATUSCODE_BADINVALIDARGUMENT;
+
+    FileCertStore *context = (FileCertStore *)certGroup->context;
+    /* It will only re-read the Cert store on the file system if there have been changes to files. */
+    UA_StatusCode retval = reloadTrustStore(certGroup);
+    if(retval != UA_STATUSCODE_GOOD) {
+        return retval;
+    }
+
+    retval = context->store->verifyCertificateTrust(context->store, certificate, params);
     if(retval == UA_STATUSCODE_BADCERTIFICATEUNTRUSTED ||
        retval == UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED ||
        retval == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN ||
@@ -706,7 +744,9 @@ UA_CertificateGroup_Filestore(UA_CertificateGroup *certGroup,
     certGroup->removeFromTrustList = FileCertStore_removeFromTrustList;
     certGroup->getRejectedList = FileCertStore_getRejectedList;
     certGroup->getCertificateCrls = FileCertStore_getCertificateCrls;
-    certGroup->verifyCertificate = FileCertStore_verifyCertificate;
+    certGroup->verifyCertificateIntegrity = FileCertStore_verifyCertificateIntegrity;
+    certGroup->verifyCertificateValidity = FileCertStore_verifyCertificateValidity;
+    certGroup->verifyCertificateTrust = FileCertStore_verifyCertificateTrust;
     certGroup->clear = FileCertStore_clear;
 
     /* Set PKI Store context data */
