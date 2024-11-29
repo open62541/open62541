@@ -490,11 +490,9 @@ processMSG(UA_Server *server, UA_SecureChannel *channel,
 
 /* Takes decoded messages starting at the nodeid of the content type. */
 static UA_StatusCode
-processSecureChannelMessage(void *application, UA_SecureChannel *channel,
+processSecureChannelMessage(UA_Server *server, UA_SecureChannel *channel,
                             UA_MessageType messagetype, UA_UInt32 requestId,
                             UA_ByteString *message) {
-    UA_Server *server = (UA_Server*)application;
-
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     switch(messagetype) {
     case UA_MESSAGETYPE_HEL:
@@ -572,9 +570,12 @@ purgeFirstChannelWithoutSession(UA_BinaryProtocolManager *bpm) {
 static UA_StatusCode
 configServerSecureChannel(void *application, UA_SecureChannel *channel,
                           const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+    if(channel->securityPolicy)
+        return UA_STATUSCODE_GOOD;
+
     /* Iterate over available endpoints and choose the correct one */
+    UA_Server *server = (UA_Server *)application;
     UA_SecurityPolicy *securityPolicy = NULL;
-    UA_Server *const server = (UA_Server *const) application;
     for(size_t i = 0; i < server->config.securityPoliciesSize; ++i) {
         UA_SecurityPolicy *policy = &server->config.securityPolicies[i];
         if(!UA_String_equal(&asymHeader->securityPolicyUri, &policy->policyUri))
@@ -644,6 +645,7 @@ createServerSecureChannel(UA_BinaryProtocolManager *bpm, UA_ConnectionManager *c
     channel->config = connConfig;
     channel->certificateVerification = &config->secureChannelPKI;
     channel->processOPNHeader = configServerSecureChannel;
+    channel->processOPNHeaderApplication = server;
     channel->connectionManager = cm;
     channel->connectionId = connectionId;
 
@@ -795,16 +797,14 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
             return;
         }
 
-        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel created");
-
         /* Set the new channel as the new context for the connection */
         *connectionContext = (void*)channel;
-        return;
-    }
 
-    /* The connection has fully opened */
-    if(channel->state < UA_SECURECHANNELSTATE_CONNECTED)
+        /* Set the channel state to CONNECTED until the HEL message is received */
         channel->state = UA_SECURECHANNELSTATE_CONNECTED;
+
+        UA_LOG_INFO_CHANNEL(bpm->logging, channel, "SecureChannel created");
+    }
 
     /* Received a message on a normal connection */
 #ifdef UA_DEBUG_DUMP_PKGS
@@ -816,9 +816,25 @@ serverNetworkCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_EventLoop *el = bpm->sc.server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    retval = UA_SecureChannel_processBuffer(channel, bpm->sc.server,
-                                            processSecureChannelMessage,
-                                            &msg, nowMonotonic);
+
+    /* Process all complete messages */
+    retval = UA_SecureChannel_loadBuffer(channel, msg);
+    while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        retval = UA_SecureChannel_getCompleteMessage(channel, &messageType, &requestId,
+                                                     &payload, &copied, nowMonotonic);
+        if(retval != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        retval = processSecureChannelMessage(bpm->sc.server, channel,
+                                             messageType, requestId, &payload);
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    retval |= UA_SecureChannel_persistBuffer(channel);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, channel,
                                "Processing the message failed with error %s",
@@ -1256,13 +1272,28 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         return;
     }
 
-    /* The connection is fully opened and we have a SecureChannel.
-     * Process the received buffer */
     UA_EventLoop *el = bpm->sc.server->config.eventLoop;
     UA_DateTime nowMonotonic = el->dateTime_nowMonotonic(el);
-    retval = UA_SecureChannel_processBuffer(context->channel, bpm->sc.server,
-                                            processSecureChannelMessage,
-                                            &msg, nowMonotonic);
+
+    /* The connection is fully opened and we have a SecureChannel.
+     * Process the received buffer */
+    retval = UA_SecureChannel_loadBuffer(context->channel, msg);
+    while(UA_LIKELY(retval == UA_STATUSCODE_GOOD)) {
+        UA_MessageType messageType;
+        UA_UInt32 requestId = 0;
+        UA_ByteString payload = UA_BYTESTRING_NULL;
+        UA_Boolean copied = false;
+        retval = UA_SecureChannel_getCompleteMessage(context->channel, &messageType,
+                                                     &requestId, &payload, &copied, nowMonotonic);
+        if(retval != UA_STATUSCODE_GOOD || payload.length == 0)
+            break;
+        retval = processSecureChannelMessage(bpm->sc.server, context->channel,
+                                             messageType, requestId, &payload);
+        if(copied)
+            UA_ByteString_clear(&payload);
+    }
+    retval |= UA_SecureChannel_persistBuffer(context->channel);
+
     if(retval != UA_STATUSCODE_GOOD) {
         UA_LOG_WARNING_CHANNEL(bpm->logging, context->channel,
                                "Processing the message failed with error %s",
@@ -1275,7 +1306,6 @@ serverReverseConnectCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
         error.reason = UA_STRING_NULL;
         UA_SecureChannel_sendError(context->channel, &error);
         UA_SecureChannel_shutdown(context->channel, UA_SHUTDOWNREASON_ABORT);
-
         setReverseConnectState(bpm->sc.server, context, UA_SECURECHANNELSTATE_CLOSING);
         return;
     }
