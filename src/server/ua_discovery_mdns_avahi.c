@@ -61,7 +61,6 @@ avahiPrivate mdnsPrivateData;
 
 static UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               const char *fqdnMdnsRecord,
                                                UA_String serverName,
                                                struct serverOnNetwork **addedEntry);
 
@@ -73,12 +72,11 @@ UA_Discovery_multicastConflict(char *name, UA_DiscoveryManager *dm) {
                  "Multicast DNS name conflict detected: '%s'", name);
 }
 
-
 static struct serverOnNetwork *
-mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record,
-                       UA_String serverName, UA_Boolean createNew) {
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)record,
-                                           strlen(record)) % SERVER_ON_NETWORK_HASH_SIZE;
+mdns_record_add_or_get(UA_DiscoveryManager *dm, UA_String serverName,
+                       UA_Boolean createNew) {
+    UA_UInt32 hashIdx = UA_ByteString_hash(0, serverName.data,
+                                           serverName.length) % SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
 
     while(hash_entry) {
@@ -97,21 +95,19 @@ mdns_record_add_or_get(UA_DiscoveryManager *dm, const char *record,
 
     struct serverOnNetwork *listEntry;
     UA_StatusCode res =
-        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, record, serverName, &listEntry);
+        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
     if(res != UA_STATUSCODE_GOOD)
         return NULL;
 
     return listEntry;
 }
 
-
 static UA_StatusCode
 UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               const char *fqdnMdnsRecord,
                                                UA_String serverName,
                                                struct serverOnNetwork **addedEntry) {
     struct serverOnNetwork *entry =
-            mdns_record_add_or_get(dm, fqdnMdnsRecord, serverName, false);
+            mdns_record_add_or_get(dm, serverName, false);
     if(entry) {
         if(addedEntry != NULL)
             *addedEntry = entry;
@@ -119,8 +115,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     }
 
     UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                "Multicast DNS: Add entry to ServersOnNetwork: %s (%S)",
-                 fqdnMdnsRecord, serverName);
+                 "Multicast DNS: Add entry to ServersOnNetwork: (%S)", serverName);
 
     struct serverOnNetwork *listEntry = (serverOnNetwork*)
             UA_malloc(sizeof(struct serverOnNetwork));
@@ -146,8 +141,8 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     listEntry->lastSeen = el->dateTime_nowMonotonic(el);
 
     /* add to hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)fqdnMdnsRecord,
-                                           strlen(fqdnMdnsRecord)) % SERVER_ON_NETWORK_HASH_SIZE;
+    UA_UInt32 hashIdx = UA_ByteString_hash(0, serverName.data, serverName.length) %
+                        SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *newHashEntry = (struct serverOnNetwork_hash_entry*)
             UA_malloc(sizeof(struct serverOnNetwork_hash_entry));
     if(!newHashEntry) {
@@ -230,26 +225,18 @@ entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
 
 static UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
-                                                    const char *fqdnMdnsRecord,
                                                     UA_String serverName) {
     UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                 "Multicast DNS: Remove entry from ServersOnNetwork: %s (%S)",
-                 fqdnMdnsRecord, serverName);
+                 "Multicast DNS: Remove entry from ServersOnNetwork: %S",serverName);
 
     struct serverOnNetwork *entry =
-            mdns_record_add_or_get(dm, fqdnMdnsRecord, serverName, false);
+            mdns_record_add_or_get(dm, serverName, false);
     if(!entry)
         return UA_STATUSCODE_BADNOTFOUND;
 
-    UA_String recordStr;
-    // Cast away const because otherwise the pointer cannot be assigned.
-    // Be careful what you do with recordStr!
-    recordStr.data = (UA_Byte*)(uintptr_t)fqdnMdnsRecord;
-    recordStr.length = strlen(fqdnMdnsRecord);
-
     /* remove from hash */
-    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)recordStr.data,
-                                           recordStr.length) % SERVER_ON_NETWORK_HASH_SIZE;
+    UA_UInt32 hashIdx = UA_ByteString_hash(0, (const UA_Byte*)serverName.data,
+                                           serverName.length) % SERVER_ON_NETWORK_HASH_SIZE;
     struct serverOnNetwork_hash_entry *hash_entry = mdnsPrivateData.serverOnNetworkHash[hashIdx];
     struct serverOnNetwork_hash_entry *prevEntry = hash_entry;
     while(hash_entry) {
@@ -266,7 +253,7 @@ UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
     UA_free(hash_entry);
 
     if(dm->serverOnNetworkCallback &&
-        !UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &recordStr))
+        !UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName))
         dm->serverOnNetworkCallback(&entry->serverOnNetwork, false,
                                     entry->txtSet,
                                     dm->serverOnNetworkCallbackData);
@@ -478,7 +465,7 @@ resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interfac
             }
             struct serverOnNetwork *listEntry;
             UA_StatusCode res = UA_DiscoveryManager_addEntryToServersOnNetwork(
-                dm, name, serverName, &listEntry);
+                dm, serverName, &listEntry);
             if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADALREADYEXISTS) {
                 UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                              "Failed to add server to ServersOnNetwork: %s",
@@ -591,7 +578,7 @@ browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol pr
                         "Service '%s' of type '%s' in domain '%s' removed", name, type,
                         domain);
             UA_String nameStr = UA_STRING_ALLOC(name);
-            UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, name, UA_STRING_NULL);
+            UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, nameStr);
             UA_String_clear(&nameStr);
             break;
         case AVAHI_BROWSER_ALL_FOR_NOW:
@@ -905,20 +892,19 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                 "Multicast DNS: add record for domain: %s", serviceDomain);
 
+    UA_String serverName = UA_String_fromChars(serviceDomain);
     if(isSelf && mdnsPrivateData.selfMdnsRecord.length == 0) {
-        mdnsPrivateData.selfMdnsRecord = UA_STRING_ALLOC(serviceDomain);
+        mdnsPrivateData.selfMdnsRecord = serverName;
         if(!mdnsPrivateData.selfMdnsRecord.data)
             return UA_STATUSCODE_BADOUTOFMEMORY;
     }
 
-    UA_String serverName = UA_String_fromChars(serviceDomain);
 
     struct serverOnNetwork *listEntry;
     /* The servername is servername + hostname. It is the same which we get
      * through mDNS and therefore we need to match servername */
     UA_StatusCode retval =
-        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serviceDomain,
-                                                       serverName, &listEntry);
+        UA_DiscoveryManager_addEntryToServersOnNetwork(dm, serverName, &listEntry);
     if(retval != UA_STATUSCODE_GOOD &&
        retval != UA_STATUSCODE_BADALREADYEXISTS)
         return retval;
@@ -967,7 +953,7 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     /* Handle 'path' */
     if(handle_path(&txt, path) != UA_STATUSCODE_GOOD) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                     "Failed to add TXT record for %s", serviceDomain);
+                     "Failed to add TXT record for %S", serverName);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
     /* Handle 'caps' */
@@ -1050,7 +1036,7 @@ UA_Discovery_removeRecord(UA_DiscoveryManager *dm, const UA_String servername,
 
     UA_String serverName = UA_String_fromChars(serviceDomain);
     UA_StatusCode retval =
-        UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serviceDomain, serverName);
+        UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, serverName);
     return retval;
 }
 
