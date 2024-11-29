@@ -44,6 +44,7 @@ typedef struct serverOnNetwork_hash_entry {
 typedef struct avahiPrivate {
     AvahiClient *client;
     AvahiSimplePoll *simple_poll;
+    AvahiServiceBrowser *browser;
     UA_Server *server;
     /* hash mapping domain name to serverOnNetwork list entry */
     struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
@@ -443,6 +444,166 @@ void client_callback(AvahiClient *c, AvahiClientState state, void *userdata) {
                 UA_LOGCATEGORY_DISCOVERY, "Avahi client state changed to %d", state);
 }
 
+/* Called whenever a service has been resolved successfully or timed out */
+static void
+resolve_callback(AvahiServiceResolver *r, AVAHI_GCC_UNUSED AvahiIfIndex interface,
+                 AVAHI_GCC_UNUSED AvahiProtocol protocol, AvahiResolverEvent event,
+                 const char *name, const char *type, const char *domain,
+                 const char *host_name, const AvahiAddress *address, uint16_t port,
+                 AvahiStringList *txt, AvahiLookupResultFlags flags,
+                 AVAHI_GCC_UNUSED void *userdata) {
+
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
+
+    switch(event) {
+        case AVAHI_RESOLVER_FAILURE:
+            UA_LOG_ERROR(
+                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                "Failed to resolve service '%s' of type '%s' in domain '%s': %s", name,
+                type, domain,
+                avahi_strerror(avahi_client_errno(avahi_service_resolver_get_client(r))));
+            break;
+
+        case AVAHI_RESOLVER_FOUND: {
+            char a[AVAHI_ADDRESS_STR_MAX];
+            int discoveryLength = 0;
+            char *path = NULL;
+            UA_String serverName = UA_String_fromChars(name);
+            avahi_address_snprint(a, sizeof(a), address);
+
+            /* Ignore own name */
+            if(UA_String_equal(&mdnsPrivateData.selfMdnsRecord, &serverName)) {
+                UA_String_clear(&serverName);
+                return;
+            }
+            struct serverOnNetwork *listEntry;
+            UA_StatusCode res = UA_DiscoveryManager_addEntryToServersOnNetwork(
+                dm, name, serverName, &listEntry);
+            if(res != UA_STATUSCODE_GOOD && res != UA_STATUSCODE_BADALREADYEXISTS) {
+                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                             "Failed to add server to ServersOnNetwork: %s",
+                             UA_StatusCode_name(res));
+                UA_String_clear(&serverName);
+                return;
+            } else if(res == UA_STATUSCODE_BADALREADYEXISTS) {
+                UA_LOG_DEBUG(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                             "Server already in ServersOnNetwork: %s", name);
+                UA_String_clear(&serverName);
+                return;
+            }
+
+            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Service '%s' of type '%s' in domain '%s':", name, type, domain);
+
+            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "  %s:%u (%s)", host_name, port, a);
+            /* Add discoveryUrl opc.tcp://[servername]:[port][path] */
+            discoveryLength = strlen("opc.tcp://") + strlen(host_name) + 5 + 1;
+            int listSize = avahi_string_list_length(txt);
+            for(int i = 0; i < listSize; i++) {
+                char *value = NULL;
+                char *key = NULL;
+                if(avahi_string_list_get_pair(txt, &key, &value, NULL) < 0)
+                    continue;
+                /* Add path if the is more then just a single slash */
+                if(strcmp(key, "path") == 0) {
+                    /* Add path to discovery URL */
+                    discoveryLength += strlen(value);
+                    path = (char *)UA_malloc(strlen(value) + 1);
+                    if(!path) {
+                        UA_LOG_ERROR(dm->sc.server->config.logging,
+                                     UA_LOGCATEGORY_DISCOVERY,
+                                     "Failed to allocate memory for path");
+                        UA_String_clear(&serverName);
+                        return;
+                    }
+                    if(strlen(value) > 1) {
+                        sprintf(path, "%s", value);
+                    } else { /* Ignore empty path */
+                        path[0] = '\0';
+                    }
+                }
+
+                UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                            "  %s = %s", key, value);
+                avahi_free(key);
+                avahi_free(value);
+                txt = avahi_string_list_get_next(txt);
+            }
+
+            listEntry->lastSeen = dm->sc.server->config.eventLoop->dateTime_nowMonotonic(
+                dm->sc.server->config.eventLoop);
+            listEntry->serverOnNetwork.discoveryUrl.length = discoveryLength;
+            listEntry->serverOnNetwork.discoveryUrl.data =
+                (UA_Byte *)UA_malloc(discoveryLength);
+            if(!listEntry->serverOnNetwork.discoveryUrl.data) {
+                UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                             "Failed to allocate memory for discoveryUrl");
+                UA_free(path);
+                UA_String_clear(&serverName);
+                return;
+            }
+            sprintf((char *)listEntry->serverOnNetwork.discoveryUrl.data,
+                    "opc.tcp://%s:%u%s", host_name, port, path);
+            UA_free(path);
+            UA_String_clear(&serverName);
+            break;
+        }
+        default:
+            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Invalid avahi resolver event %d", event);
+            break;
+
+    }
+    avahi_service_resolver_free(r);
+}
+
+static void
+browse_callback(AvahiServiceBrowser *b, AvahiIfIndex interface, AvahiProtocol protocol,
+                AvahiBrowserEvent event, const char *name, const char *type,
+                const char *domain, AVAHI_GCC_UNUSED AvahiLookupResultFlags flags,
+                void *userdata) {
+    UA_DiscoveryManager *dm = (UA_DiscoveryManager *)userdata;
+    switch(event) {
+        case AVAHI_BROWSER_FAILURE:
+            UA_LOG_ERROR(
+                dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                "Browser failure: %s",
+                avahi_strerror(avahi_client_errno(avahi_service_browser_get_client(b))));
+            avahi_simple_poll_quit(mdnsPrivateData.simple_poll);
+            return;
+        case AVAHI_BROWSER_NEW:
+            /* We ignore the returned resolver object. In the callback
+               function we free it. If the server is terminated before
+               the callback function is called the server will free
+               the resolver for us. */
+            if(!(avahi_service_resolver_new(
+                   mdnsPrivateData.client, interface, protocol, name, type, domain, AVAHI_PROTO_INET,
+                   AVAHI_LOOKUP_USE_MULTICAST, resolve_callback, dm))) {
+                UA_LOG_INFO(
+                    dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                    "Failed to resolve service '%s' of type '%s' in domain '%s': %s",
+                    name, type, domain, avahi_strerror(avahi_client_errno(mdnsPrivateData.client)));
+            }
+            break;
+        case AVAHI_BROWSER_REMOVE:
+            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Service '%s' of type '%s' in domain '%s' removed", name, type,
+                        domain);
+            UA_String nameStr = UA_STRING_ALLOC(name);
+            UA_DiscoveryManager_removeEntryFromServersOnNetwork(dm, name, UA_STRING_NULL);
+            UA_String_clear(&nameStr);
+            break;
+        case AVAHI_BROWSER_ALL_FOR_NOW:
+        case AVAHI_BROWSER_CACHE_EXHAUSTED:
+            UA_LOG_INFO(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                        "Browser %s",
+                        event == AVAHI_BROWSER_CACHE_EXHAUSTED ? "CACHE_EXHAUSTED"
+                                                               : "ALL_FOR_NOW");
+            break;
+    }
+}
+
 void
 UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
     int error;
@@ -465,6 +626,9 @@ UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm) {
     for(size_t i = 0; i < dm->sc.server->config.serverUrlsSize; i++)
         addMdnsRecordForNetworkLayer(dm, appName, &dm->sc.server->config.serverUrls[i]);
 
+    mdnsPrivateData.browser = avahi_service_browser_new(mdnsPrivateData.client, AVAHI_IF_UNSPEC, AVAHI_PROTO_INET,
+                              "_opcua-tcp._tcp", NULL, AVAHI_LOOKUP_USE_MULTICAST,
+                              browse_callback, dm);
 }
 
 void
@@ -496,6 +660,8 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
                                   hostname, port, true);
     }
     /* clean up avahi resources */
+    if(mdnsPrivateData.browser)
+        avahi_service_browser_free(mdnsPrivateData.browser);
     if(mdnsPrivateData.client)
         avahi_client_free(mdnsPrivateData.client);
     if(mdnsPrivateData.simple_poll)
@@ -582,10 +748,13 @@ UA_Server_setServerOnNetworkCallback(UA_Server *server,
     UA_UNLOCK(&server->serviceMutex);
 }
 
-
 void
 UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
-
+    int ret = avahi_simple_poll_iterate(mdnsPrivateData.simple_poll, 0);
+    if(ret < 0) {
+        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_DISCOVERY,
+                     "Error in avahi_simple_poll_iterate: %s", avahi_strerror(ret));
+    }
 }
 
 /* Create a service domain with the format [servername]-[hostname]._opcua-tcp._tcp.local. */
