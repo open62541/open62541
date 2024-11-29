@@ -53,8 +53,6 @@ struct MemoryCertStore {
     STACK_OF(X509) *trustedCertificates;
     STACK_OF(X509) *issuerCertificates;
     STACK_OF(X509_CRL) *crls;
-
-    UA_CertificateGroup *cg;
 };
 
 static UA_Boolean
@@ -503,13 +501,13 @@ openSSLCheckCA(X509 *cert) {
 }
 
 static UA_StatusCode
-openSSLCheckRevoked(MemoryCertStore *ctx, X509 *cert) {
+openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
     const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
     const X509_NAME *in = X509_get_issuer_name(cert);
     int size = sk_X509_CRL_num(ctx->crls);
 
     if(size == 0) {
-        UA_LOG_WARNING(ctx->cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Zero revocation lists have been loaded. "
                        "This seems intentional - omitting the check.");
         return UA_STATUSCODE_GOOD;
@@ -537,8 +535,8 @@ openSSLCheckRevoked(MemoryCertStore *ctx, X509 *cert) {
 #define UA_OPENSSL_MAX_CHAIN_LENGTH 10
 
 static UA_StatusCode
-openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
-                    X509 *cert, int depth) {
+openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509) *stack,
+                    X509 **old_issuers, X509 *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
@@ -591,7 +589,7 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
         }
 
         /* Verification Step: Revocation Check */
-        ret = openSSLCheckRevoked(ctx, cert);
+        ret = openSSLCheckRevoked(cg, ctx, cert);
         if(depth > 0) {
             if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
                 ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
@@ -611,7 +609,7 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
 
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
-        ret = openSSL_verifyChain(ctx, stack, old_issuers, issuer, depth + 1);
+        ret = openSSL_verifyChain(cg, ctx, stack, old_issuers, issuer, depth + 1);
     }
 
     /* Is the certificate in the trust list? If yes, then we are done. */
@@ -669,7 +667,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
     X509 *old_issuers[UA_OPENSSL_MAX_CHAIN_LENGTH];
-    ret = openSSL_verifyChain(context, stack, old_issuers, leaf, 0);
+    ret = openSSL_verifyChain(certGroup, context, stack, old_issuers, leaf, 0);
     sk_X509_pop_free(stack, X509_free);
     return ret;
 }
@@ -727,7 +725,6 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
-    context->cg = certGroup;
     certGroup->context = context;
     /* Default values */
     context->maxTrustListSize = 65535;

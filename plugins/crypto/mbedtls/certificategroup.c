@@ -56,8 +56,6 @@ typedef struct {
     mbedtls_x509_crt issuerCertificates;
     mbedtls_x509_crl trustedCrls;
     mbedtls_x509_crl issuerCrls;
-
-    UA_CertificateGroup *cg;
 } MemoryCertStore;
 
 static UA_Boolean mbedtlsCheckCA(mbedtls_x509_crt *cert);
@@ -415,7 +413,7 @@ mbedtlsFindNextIssuer(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
 }
 
 static UA_StatusCode
-mbedtlsCheckRevoked(MemoryCertStore *ctx, mbedtls_x509_crt *cert) {
+mbedtlsCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *cert) {
     /* Parse the Issuer Name */
     char inbuf[UA_MBEDTLS_MAX_DN_LENGTH];
     int nameLen = mbedtls_x509_dn_gets(inbuf, UA_MBEDTLS_MAX_DN_LENGTH, &cert->issuer);
@@ -424,7 +422,7 @@ mbedtlsCheckRevoked(MemoryCertStore *ctx, mbedtls_x509_crt *cert) {
     UA_String issuerName = {(size_t)nameLen, (UA_Byte*)inbuf};
 
     if(ctx->trustedCrls.raw.len == 0 && ctx->issuerCrls.raw.len == 0) {
-        UA_LOG_WARNING(ctx->cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+        UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                        "Zero revocation lists have been loaded. "
                        "This seems intentional - omitting the check.");
         return UA_STATUSCODE_GOOD;
@@ -478,9 +476,8 @@ mbedtlsCheckSignature(const mbedtls_x509_crt *cert, mbedtls_x509_crt *issuer) {
 }
 
 static UA_StatusCode
-mbedtlsVerifyChain(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
-                   mbedtls_x509_crt **old_issuers,
-                   mbedtls_x509_crt *cert, int depth) {
+mbedtlsVerifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, mbedtls_x509_crt *stack,
+                   mbedtls_x509_crt **old_issuers, mbedtls_x509_crt *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_MBEDTLS_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
@@ -530,7 +527,7 @@ mbedtlsVerifyChain(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
         }
 
         /* Verification Step: Revocation Check */
-        ret = mbedtlsCheckRevoked(ctx, cert);
+        ret = mbedtlsCheckRevoked(cg, ctx, cert);
         if(depth > 0) {
             if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
                 ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
@@ -549,7 +546,7 @@ mbedtlsVerifyChain(MemoryCertStore *ctx, mbedtls_x509_crt *stack,
 
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
-        ret = mbedtlsVerifyChain(ctx, stack, old_issuers, issuer, depth + 1);
+        ret = mbedtlsVerifyChain(cg, ctx, stack, old_issuers, issuer, depth + 1);
     }
 
     /* The chain is complete, but we haven't yet identified a trusted
@@ -609,7 +606,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
     mbedtls_x509_crt *old_issuers[UA_MBEDTLS_MAX_CHAIN_LENGTH];
-    UA_StatusCode ret = mbedtlsVerifyChain(context, &cert, old_issuers, &cert, 0);
+    UA_StatusCode ret = mbedtlsVerifyChain(certGroup, context, &cert, old_issuers, &cert, 0);
     mbedtls_x509_crt_free(&cert);
     return ret;
 }
@@ -667,7 +664,6 @@ UA_CertificateGroup_Memorystore(UA_CertificateGroup *certGroup,
         retval = UA_STATUSCODE_BADOUTOFMEMORY;
         goto cleanup;
     }
-    context->cg = certGroup;
     certGroup->context = context;
     /* Default values */
     context->maxTrustListSize = 65535;
