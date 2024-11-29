@@ -55,6 +55,9 @@ START_TEST(SecureChannel_timeout_max) {
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+    /* To generate the namespace mapping table */
+    UA_Client_run_iterate(client, 1);
+
     UA_ClientConfig *cconfig = UA_Client_getConfig(client);
     UA_fakeSleep(cconfig->secureChannelLifeTime);
 
@@ -74,6 +77,14 @@ START_TEST(SecureChannel_renew) {
     UA_Client *client = UA_Client_newForUnitTest();
     UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+    /* To generate the namespace mapping table */
+    size_t max_stop_iteration_count = 100000;
+    size_t iteration = 0;
+    while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+        UA_Client_run_iterate(client, 0);
+        iteration++;
+    }
 
     pauseServer();
 

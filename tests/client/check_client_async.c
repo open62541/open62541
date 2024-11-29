@@ -76,6 +76,14 @@ START_TEST(Client_highlevel_async_readValue) {
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
+        /* To generate the namespace mapping table */
+        size_t max_stop_iteration_count = 100000;
+        size_t iteration = 0;
+        while(!client->haveNamespaces && iteration < max_stop_iteration_count) {
+            UA_Client_run_iterate(client, 0);
+            iteration++;
+        }
+
         UA_UInt16 asyncCounter = 0;
         UA_UInt32 reqId = 0;
         retval = UA_Client_readValueAttribute_async(client,
@@ -178,6 +186,9 @@ START_TEST(Client_read_async_timed) {
 
         UA_StatusCode retval = UA_Client_connect(client, "opc.tcp://localhost:4840");
         ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
+
+        /* To generate the namespace mapping table */
+        UA_Client_run_iterate(client, 1);
 
         UA_UInt16 asyncCounter = 0;
 
