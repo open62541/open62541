@@ -64,7 +64,6 @@ struct UA_DiscoveryManager {
     UA_Boolean mdnsMainSrvAdded;
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void *serverOnNetworkCallbackData;
-    UA_UInt64 mdnsCallbackId;
 #  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     UA_ConnectionManager *cm;
 #  endif
@@ -93,9 +92,6 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
 
 void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
 void UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm);
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-void UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm);
-#endif
 
 void
 UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm);
@@ -121,6 +117,9 @@ UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
 
 UA_StatusCode
 UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
+
+void
+UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 

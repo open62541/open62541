@@ -268,15 +268,6 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
         UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
                                   hostname, port, true);
     }
-
-    /* Stop the cyclic polling callback */
-    if(dm->mdnsCallbackId != 0) {
-        UA_EventLoop *el = server->config.eventLoop;
-        if(el) {
-            el->removeTimer(el, dm->mdnsCallbackId);
-            dm->mdnsCallbackId = 0;
-        }
-    }
 }
 
 void
@@ -369,6 +360,11 @@ UA_Discovery_multicastConflict(char *name, int type, void *arg) {
     UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                  "Multicast DNS name conflict detected: "
                  "'%s' for type %d", name, type);
+}
+
+void
+UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
+
 }
 
 /* Create a service domain with the format [servername]-[hostname]._opcua-tcp._tcp.local. */
