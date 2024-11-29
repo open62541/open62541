@@ -32,10 +32,7 @@
 #define EVENT_SIZE (sizeof(struct inotify_event))
 #define BUF_LEN (1024 * ( EVENT_SIZE + 16 ))
 
-struct FileCertStore;
-typedef struct FileCertStore FileCertStore;
-
-struct FileCertStore {
+typedef struct {
     /* Memory cert store as a base */
     UA_CertificateGroup *store;
 
@@ -49,7 +46,7 @@ struct FileCertStore {
     UA_String ownCertFolder;
     UA_String ownKeyFolder;
     UA_String rootFolder;
-};
+} FileCertStore;
 
 static int
 mkpath(char *dir, mode_t mode) {
