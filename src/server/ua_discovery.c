@@ -129,9 +129,13 @@ UA_DiscoveryManager_cleanupTimedOut(UA_Server *server, void *data) {
             dm->registeredServersSize--;
         }
     }
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
-    /* Send out multicast */
-    UA_DiscoveryManager_sendMulticastMessages(dm);
+}
+
+static void
+UA_DiscoveryManager_cyclicTimer(UA_Server *server, void *data) {
+    UA_DiscoveryManager_cleanupTimedOut(server, data);
+#ifdef UA_ENABLE_DISCOVERY_MULTICAST
+    UA_DiscoveryManager_mdnsCyclicTimer(server, data);
 #endif
 }
 
@@ -150,7 +154,7 @@ UA_DiscoveryManager_start(struct UA_ServerComponent *sc,
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
     UA_StatusCode res =
-        addRepeatedCallback(server, UA_DiscoveryManager_cleanupTimedOut,
+        addRepeatedCallback(server, UA_DiscoveryManager_cyclicTimer,
                             dm, 1000.0, &dm->discoveryCallbackId);
     if(res != UA_STATUSCODE_GOOD)
         return res;
