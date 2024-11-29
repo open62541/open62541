@@ -889,7 +889,7 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
     freeaddrinfo(infoptr);
 }
 
-void
+static void
 UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
     UA_ConnectionManager *cm = mdnsPrivateData.cm;
     if(!mdnsPrivateData.cm || mdnsPrivateData.mdnsSendConnection == 0)
@@ -917,6 +917,10 @@ UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
         cm->sendWithConnection(cm, mdnsPrivateData.mdnsSendConnection,
                                &UA_KEYVALUEMAP_NULL, &sendBuf);
     }
+}
+
+void UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data) {
+    UA_DiscoveryManager_sendMulticastMessages((UA_DiscoveryManager*)data);
 }
 
 static void
@@ -1097,15 +1101,6 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
 
         UA_Discovery_removeRecord(dm, server->config.mdnsConfig.mdnsServerName,
                                   hostname, port, true);
-    }
-
-    /* Stop the cyclic polling callback */
-    if(dm->mdnsCallbackId != 0) {
-        UA_EventLoop *el = server->config.eventLoop;
-        if(el) {
-            el->removeTimer(el, dm->mdnsCallbackId);
-            dm->mdnsCallbackId = 0;
-        }
     }
 
     /* Close the socket */
