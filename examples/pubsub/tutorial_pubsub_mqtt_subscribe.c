@@ -7,9 +7,7 @@
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
 #include <open62541/plugin/log_stdout.h>
-#if defined(UA_ENABLE_PUBSUB_ENCRYPTION)
 #include <open62541/plugin/securitypolicy_default.h>
-#endif
 
 #include <stdio.h>
 
