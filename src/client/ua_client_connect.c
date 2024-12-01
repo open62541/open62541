@@ -235,6 +235,9 @@ encryptUserIdentityToken(UA_Client *client, UA_SecurityPolicy *utsp,
     UA_IssuedIdentityToken *iit = NULL;
     UA_UserNameIdentityToken *unit = NULL;
     UA_ByteString *tokenData;
+#ifndef UA_ENABLE_TYPES_DECODING
+    UA_ExtensionObject_decode(userIdentityToken);
+#endif    
     const UA_DataType *tokenType = userIdentityToken->content.decoded.type;
     if(tokenType == &UA_TYPES[UA_TYPES_ISSUEDIDENTITYTOKEN]) {
         iit = (UA_IssuedIdentityToken*)userIdentityToken->content.decoded.data;
@@ -757,6 +760,9 @@ activateSessionAsync(UA_Client *client) {
     UA_AnonymousIdentityToken anonToken;
     retval = UA_ExtensionObject_copy(&client->config.userIdentityToken,
                                      &request.userIdentityToken);
+    #ifndef UA_ENABLE_TYPES_DECODING
+        UA_ExtensionObject_decode(&request.userIdentityToken);
+    #endif    
     if(request.userIdentityToken.encoding != UA_EXTENSIONOBJECT_ENCODED_NOBODY) {
         UA_String *policyId = (UA_String*)request.userIdentityToken.content.decoded.data;
         UA_String_clear(policyId);
