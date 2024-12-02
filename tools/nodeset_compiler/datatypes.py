@@ -798,6 +798,8 @@ class QualifiedName(Value):
             self.parseXML(xmlelement)
 
     def parseXML(self, xmlvalue):
+        global namespaceMapping
+
         # Expect <QualifiedName> or <AliasName>
         #           <NamespaceIndex>Int16<NamespaceIndex>
         #           <Name>SomeString<Name>
@@ -815,9 +817,15 @@ class QualifiedName(Value):
         # Is a namespace index passed?
         if len(xmlvalue.getElementsByTagName("NamespaceIndex")) != 0:
             self.ns = int(xmlvalue.getElementsByTagName("NamespaceIndex")[0].firstChild.data)
-        if len(xmlvalue.getElementsByTagName("Name")) != 0:
-            self.name = xmlvalue.getElementsByTagName("Name")[0].firstChild.data
+            if len(namespaceMapping.values()) > 0:
+                self.ns = namespaceMapping[self.ns]
 
+        nameElements = xmlvalue.getElementsByTagName("Name")
+        if len(nameElements) != 0:
+            if nameElements[0].firstChild is None or nameElements[0].firstChild.data is None:
+                self.name = ""
+            else:
+                self.name = nameElements[0].firstChild.data
 
     def __str__(self):
         return "ns=" + str(self.ns) + ";" + str(self.name)
