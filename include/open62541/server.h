@@ -288,10 +288,12 @@ struct UA_ServerConfig {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     UA_Boolean mdnsEnabled;
     UA_MdnsDiscoveryConfiguration mdnsConfig;
+#  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
     UA_String mdnsInterfaceIP;
-#  if !defined(UA_HAS_GETIFADDR)
+#   if !defined(UA_HAS_GETIFADDR)
     size_t mdnsIpAddressListSize;
     UA_UInt32 *mdnsIpAddressList;
+#   endif
 #  endif
 # endif
 #endif
