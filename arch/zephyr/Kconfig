@@ -175,11 +175,6 @@ config OPEN62541_DEBUG_DUMP_PKGS
     default n
     help
         Dump every package received by the server as hexdump format
-config OPEN62541_ENABLE_HARDENING
-    bool "Enable hardening"
-    default y
-    help
-        Enable Hardening measures (e.g. Stack-Protectors and Fortify)
 config OPEN62541_DEBUG_FILE_LINE_INFO
     bool "Enable debug file line info"
     default n

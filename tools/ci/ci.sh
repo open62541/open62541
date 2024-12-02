@@ -66,7 +66,6 @@ function build_tpm_tool {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_ENCRYPTION_TPM2=ON \
           -DUA_ENABLE_PUBSUB=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -269,7 +268,6 @@ function unit_tests_encryption_mbedtls_pubsub {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}
@@ -286,7 +284,6 @@ function unit_tests_pubsub_sks {
           -DUA_ENABLE_ENCRYPTION=MBEDTLS \
           -DUA_ENABLE_PUBSUB=ON \
           -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
           -DUA_ENABLE_UNIT_TESTS_MEMCHECK=ON \
           -DUA_FORCE_WERROR=ON \
@@ -373,7 +370,6 @@ function examples_valgrind {
           -DUA_NAMESPACE_ZERO=FULL \
           -DUA_ENABLE_NODESETLOADER=ON \
           -DUA_ENABLE_PUBSUB_SKS=ON \
-          -DUA_ENABLE_PUBSUB_ENCRYPTION=ON \
           -DUA_FORCE_WERROR=ON \
           ..
     make ${MAKEOPTS}

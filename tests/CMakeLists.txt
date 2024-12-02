@@ -1,5 +1,10 @@
 if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /W1") # Reduce warnings level
+    add_compile_options(
+        $<$<CONFIG:>:/MD>
+        $<$<CONFIG:Debug>:/MDd>
+        $<$<CONFIG:Release>:/MD>
+    )    
 else()
     add_compile_options(-Wno-unused-variable -Wno-unused-function)
     add_compile_options(-Wno-gnu-zero-variadic-macro-arguments) # silence warning for the check library

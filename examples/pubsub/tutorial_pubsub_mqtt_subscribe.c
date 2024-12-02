@@ -4,9 +4,9 @@
  * Copyright (c) 2022 Fraunhofer IOSB (Author: Noel Graf)
  */
 
-#include <open62541/plugin/log_stdout.h>
 #include <open62541/server.h>
 #include <open62541/server_pubsub.h>
+#include <open62541/plugin/log_stdout.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include <stdio.h>
@@ -111,8 +111,8 @@ addReaderGroup(UA_Server *server) {
         readerGroupConfig.encodingMimeType = UA_PUBSUB_ENCODING_JSON;
 
     /* configure the mqtt publish topic */
-    UA_BrokerWriterGroupTransportDataType brokerTransportSettings;
-    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+    UA_BrokerDataSetReaderTransportDataType brokerTransportSettings;
+    memset(&brokerTransportSettings, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
     /* Assign the Topic at which MQTT publish should happen */
     /*ToDo: Pass the topic as argument from the reader group */
     brokerTransportSettings.queueName = UA_STRING(SUBSCRIBER_TOPIC);

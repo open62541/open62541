@@ -55,6 +55,9 @@ struct MemoryCertStore {
     STACK_OF(X509_CRL) *crls;
 };
 
+static UA_Boolean
+openSSLCheckCA(X509 *cert);
+
 static UA_StatusCode
 MemoryCertStore_removeFromTrustList(UA_CertificateGroup *certGroup, const UA_TrustListDataType *trustList) {
     /* Check parameter */
@@ -155,7 +158,7 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
 
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
-    if(!X509_check_ca(cert)) {
+    if(!openSSLCheckCA(cert)) {
         UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
                    "The certificate is not a CA certificate and therefore does not have a CRL.");
         X509_free(cert);
@@ -449,6 +452,7 @@ static X509 *
 openSSLFindNextIssuer(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 *x509, X509 *prev) {
     /* First check issuers from the stack - provided in the same bytestring as
      * the certificate. This can also return x509 itself. */
+    X509_NAME *in = X509_get_issuer_name(x509);
     do {
         int size = sk_X509_num(stack);
         for(int i = 0; i < size; i++) {
@@ -461,20 +465,56 @@ openSSLFindNextIssuer(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 *x509, X
             /* This checks subject/issuer name and the key usage of the issuer.
              * It does not verify the validity period and if the issuer key was
              * used for the signature. We check that afterwards. */
-            if(X509_check_issued(candidate, x509) == 0)
+            if(X509_NAME_cmp(in, X509_get_subject_name(candidate)) == 0)
                 return candidate;
         }
-        /* Switch to search in the ctx->skIssue list */
-        stack = (stack != ctx->issuerCertificates) ? ctx->issuerCertificates : NULL;
+        /* Switch from the stack that came with the cert to the issuer list and
+         * then to the trust list. */
+        if(stack == ctx->trustedCertificates)
+            stack = NULL;
+        else if(stack == ctx->issuerCertificates)
+            stack = ctx->trustedCertificates;
+        else
+            stack = ctx->issuerCertificates;
     } while(stack);
     return NULL;
 }
 
+/* Is the certificate a CA? */
 static UA_Boolean
-openSSLCheckRevoked(MemoryCertStore *ctx, X509 *cert) {
+openSSLCheckCA(X509 *cert) {
+    uint32_t flags = X509_get_extension_flags(cert);
+    /* The basic constraints must be set with the CA flag true */
+    if(!(flags & EXFLAG_CA))
+        return false;
+
+    /* The Key Usage extension must be set */
+    if(!(flags & EXFLAG_KUSAGE))
+        return false;
+
+    /* The Key Usage must include cert signing and CRL issuing */
+    uint32_t usage = X509_get_key_usage(cert);
+    if(!(usage & KU_KEY_CERT_SIGN) || !(usage & KU_CRL_SIGN))
+        return false;
+
+    return true;
+}
+
+static UA_StatusCode
+openSSLCheckRevoked(UA_CertificateGroup *cg, MemoryCertStore *ctx, X509 *cert) {
     const ASN1_INTEGER *sn = X509_get0_serialNumber(cert);
     const X509_NAME *in = X509_get_issuer_name(cert);
     int size = sk_X509_CRL_num(ctx->crls);
+
+    if(size == 0) {
+        UA_LOG_WARNING(cg->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "Zero revocation lists have been loaded. "
+                       "This seems intentional - omitting the check.");
+        return UA_STATUSCODE_GOOD;
+    }
+
+    /* Loop over the crl and match the Issuer Name */
+    UA_StatusCode res = UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN;
     for(int i = 0; i < size; i++) {
         /* The crl contains a list of serial numbers from the same issuer */
         X509_CRL *crl = sk_X509_CRL_value(ctx->crls, i);
@@ -485,17 +525,18 @@ openSSLCheckRevoked(MemoryCertStore *ctx, X509 *cert) {
         for(int j = 0; j < rsize; j++) {
             X509_REVOKED *r = sk_X509_REVOKED_value(rs, j);
             if(ASN1_INTEGER_cmp(sn, X509_REVOKED_get0_serialNumber(r)) == 0)
-                return true;
+                return UA_STATUSCODE_BADCERTIFICATEREVOKED;
         }
+        res = UA_STATUSCODE_GOOD; /* There was at least one crl that did not revoke (so far) */
     }
-    return false;
+    return res;
 }
 
 #define UA_OPENSSL_MAX_CHAIN_LENGTH 10
 
 static UA_StatusCode
-openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issuers,
-                    X509 *cert, int depth) {
+openSSL_verifyChain(UA_CertificateGroup *cg, MemoryCertStore *ctx, STACK_OF(X509) *stack,
+                    X509 **old_issuers, X509 *cert, int depth) {
     /* Maxiumum chain length */
     if(depth == UA_OPENSSL_MAX_CHAIN_LENGTH)
         return UA_STATUSCODE_BADCERTIFICATECHAININCOMPLETE;
@@ -506,11 +547,6 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
     if(X509_cmp_current_time(notBefore) != -1 || X509_cmp_current_time(notAfter) != 1)
         return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATETIMEINVALID :
             UA_STATUSCODE_BADCERTIFICATEISSUERTIMEINVALID;
-
-    /* Verification Step: Revocation Check */
-    if(openSSLCheckRevoked(ctx, cert))
-        return (depth == 0) ? UA_STATUSCODE_BADCERTIFICATEREVOKED :
-            UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
 
     /* Return the most specific error code. BADCERTIFICATECHAININCOMPLETE is
      * returned only if all possible chains are incomplete. */
@@ -525,7 +561,7 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
 
         /* Verification Step: Certificate Usage
          * Can the issuer act as CA? Omit for self-signed leaf certificates. */
-        if((depth > 0 || issuer != cert) && !X509_check_ca(issuer)) {
+        if((depth > 0 || issuer != cert) && !openSSLCheckCA(issuer)) {
             ret = UA_STATUSCODE_BADCERTIFICATEISSUERUSENOTALLOWED;
             continue;
         }
@@ -543,11 +579,25 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
          * chain. We check whether the certificate is trusted below. This is the
          * only place where we return UA_STATUSCODE_BADCERTIFICATEUNTRUSTED.
          * This signals that the chain is complete (but can be still
-         * untrusted). */
+         * untrusted).
+         *
+         * Break here as we have reached the end of the chain. Omit the
+         * Revocation Check for self-signed certificates. */
         if(cert == issuer || X509_cmp(cert, issuer) == 0) {
             ret = UA_STATUSCODE_BADCERTIFICATEUNTRUSTED;
-            continue;
+            break;
         }
+
+        /* Verification Step: Revocation Check */
+        ret = openSSLCheckRevoked(cg, ctx, cert);
+        if(depth > 0) {
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOKED)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOKED;
+            if(ret == UA_STATUSCODE_BADCERTIFICATEREVOCATIONUNKNOWN)
+                ret = UA_STATUSCODE_BADCERTIFICATEISSUERREVOCATIONUNKNOWN;
+        }
+        if(ret != UA_STATUSCODE_GOOD)
+            continue;
 
         /* Detect (endless) loops of issuers. The last one can be skipped by the
          * check for self-signed just before. */
@@ -559,7 +609,7 @@ openSSL_verifyChain(MemoryCertStore *ctx, STACK_OF(X509) *stack, X509 **old_issu
 
         /* We have found the issuer certificate used for the signature. Recurse
          * to the next certificate in the chain (verify the current issuer). */
-        ret = openSSL_verifyChain(ctx, stack, old_issuers, issuer, depth + 1);
+        ret = openSSL_verifyChain(cg, ctx, stack, old_issuers, issuer, depth + 1);
     }
 
     /* Is the certificate in the trust list? If yes, then we are done. */
@@ -582,20 +632,19 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
+    UA_StatusCode ret = UA_STATUSCODE_GOOD;
     MemoryCertStore *context = (MemoryCertStore *)certGroup->context;
     if(context->reloadRequired) {
-        UA_StatusCode retval = reloadCertificates(certGroup);
-        if(retval != UA_STATUSCODE_GOOD) {
-            return retval;
-        }
+        ret = reloadCertificates(certGroup);
+        if(ret != UA_STATUSCODE_GOOD)
+            return ret;
         context->reloadRequired = false;
     }
 
     /* Verification Step: Certificate Structure */
     STACK_OF(X509) *stack = openSSLLoadCertificateStack(*certificate);
     if(!stack || sk_X509_num(stack) < 1) {
-        if(stack)
-            sk_X509_pop_free(stack, X509_free);
+        sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEINVALID;
     }
 
@@ -604,7 +653,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
      * Refer the test case CTT/Security/Security Certificate Validation/029.js
      * for more details. */
     X509 *leaf = sk_X509_value(stack, 0);
-    if(X509_check_ca(leaf)) {
+    if(openSSLCheckCA(leaf)) {
         sk_X509_pop_free(stack, X509_free);
         return UA_STATUSCODE_BADCERTIFICATEUSENOTALLOWED;
     }
@@ -618,7 +667,7 @@ verifyCertificate(UA_CertificateGroup *certGroup, const UA_ByteString *certifica
     /* Verification Step: Build Certificate Chain
      * We perform the checks for each certificate inside. */
     X509 *old_issuers[UA_OPENSSL_MAX_CHAIN_LENGTH];
-    UA_StatusCode ret = openSSL_verifyChain(context, stack, old_issuers, leaf, 0);
+    ret = openSSL_verifyChain(certGroup, context, stack, old_issuers, leaf, 0);
     sk_X509_pop_free(stack, X509_free);
     return ret;
 }
@@ -1033,7 +1082,8 @@ UA_CertificateUtils_checkCA(const UA_ByteString *certificate) {
     if(!certificateX509)
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
 
-    UA_StatusCode retval = X509_check_ca(certificateX509) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
+    UA_StatusCode retval = openSSLCheckCA(certificateX509) ?
+        UA_STATUSCODE_GOOD : UA_STATUSCODE_BADNOMATCH;
     X509_free(certificateX509);
     return retval;
 }
