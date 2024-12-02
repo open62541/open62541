@@ -107,55 +107,7 @@ UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
     return UA_STATUSCODE_GOOD;
 }
 
-#ifdef _WIN32
-
-/* see http://stackoverflow.com/a/10838854/869402 */
-static IP_ADAPTER_ADDRESSES *
-getInterfaces(UA_DiscoveryManager *dm) {
-    IP_ADAPTER_ADDRESSES* adapter_addresses = NULL;
-
-    /* Start with a 16 KB buffer and resize if needed - multiple attempts in
-     * case interfaces change while we are in the middle of querying them. */
-    DWORD adapter_addresses_buffer_size = 16 * 1024;
-    for(size_t attempts = 0; attempts != 3; ++attempts) {
-        /* todo: malloc may fail: return a statuscode */
-        adapter_addresses = (IP_ADAPTER_ADDRESSES*)UA_malloc(adapter_addresses_buffer_size);
-        if(!adapter_addresses) {
-            UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
-                         "GetAdaptersAddresses out of memory");
-            adapter_addresses = NULL;
-            break;
-        }
-        DWORD error = GetAdaptersAddresses(AF_UNSPEC,
-                                           GAA_FLAG_SKIP_ANYCAST |
-                                           GAA_FLAG_SKIP_DNS_SERVER |
-                                           GAA_FLAG_SKIP_FRIENDLY_NAME,
-                                           NULL, adapter_addresses,
-                                           &adapter_addresses_buffer_size);
-
-        if(ERROR_SUCCESS == error) {
-            break;
-        } else if (ERROR_BUFFER_OVERFLOW == error) {
-            /* Try again with the new size */
-            UA_free(adapter_addresses);
-            adapter_addresses = NULL;
-            continue;
-        }
-
-        /* Unexpected error */
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "GetAdaptersAddresses returned an unexpected error. "
-                     "Not setting mDNS A records.");
-        UA_free(adapter_addresses);
-        adapter_addresses = NULL;
-        break;
-    }
-    return adapter_addresses;
-}
-
-#endif /* _WIN32 */
-
-UA_StatusCode
+static UA_StatusCode
 UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
                                                     const char *fqdnMdnsRecord,
                                                     UA_String serverName) {
@@ -221,127 +173,6 @@ mdns_append_path_to_url(UA_String *url, const char *path) {
     url->length = newUrlLen;
     url->data = (UA_Byte *) newUrl;
 }
-
-/* set record in the given interface */
-static void
-mdns_set_address_record_if(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                           const char *localDomain, char *addr, UA_UInt16 addr_len) {
-
-}
-
-/* Loop over network interfaces and run set_address_record on each */
-#ifdef _WIN32
-
-void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                             const char *localDomain) {
-    IP_ADAPTER_ADDRESSES* adapter_addresses = getInterfaces(dm);
-    if(!adapter_addresses)
-        return;
-
-    /* Iterate through all of the adapters */
-    IP_ADAPTER_ADDRESSES* adapter = adapter_addresses;
-    for(; adapter != NULL; adapter = adapter->Next) {
-        /* Skip loopback adapters */
-        if(IF_TYPE_SOFTWARE_LOOPBACK == adapter->IfType)
-            continue;
-
-        /* Parse all IPv4 and IPv6 addresses */
-        IP_ADAPTER_UNICAST_ADDRESS* address = adapter->FirstUnicastAddress;
-        for(; NULL != address; address = address->Next) {
-            int family = address->Address.lpSockaddr->sa_family;
-            if(AF_INET == family) {
-                SOCKADDR_IN* ipv4 = (SOCKADDR_IN*)(address->Address.lpSockaddr); /* IPv4 */
-                mdns_set_address_record_if(dm, fullServiceDomain,
-                                           localDomain, (char *)&ipv4->sin_addr, 4);
-            } else if(AF_INET6 == family) {
-                /* IPv6 */
-#if 0
-                SOCKADDR_IN6* ipv6 = (SOCKADDR_IN6*)(address->Address.lpSockaddr);
-
-                char str_buffer[INET6_ADDRSTRLEN] = {0};
-                inet_ntop(AF_INET6, &(ipv6->sin6_addr), str_buffer, INET6_ADDRSTRLEN);
-
-                std::string ipv6_str(str_buffer);
-
-                /* Detect and skip non-external addresses */
-                UA_Boolean is_link_local(false);
-                UA_Boolean is_special_use(false);
-
-                if(0 == ipv6_str.find("fe")) {
-                    char c = ipv6_str[2];
-                    if(c == '8' || c == '9' || c == 'a' || c == 'b')
-                        is_link_local = true;
-                } else if (0 == ipv6_str.find("2001:0:")) {
-                    is_special_use = true;
-                }
-
-                if(!(is_link_local || is_special_use))
-                    ipAddrs.mIpv6.push_back(ipv6_str);
-#endif
-            }
-        }
-    }
-
-    /* Cleanup */
-    UA_free(adapter_addresses);
-    adapter_addresses = NULL;
-}
-
-#elif defined(UA_HAS_GETIFADDR)
-
-void
-mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                        const char *localDomain) {
-    struct ifaddrs *ifaddr;
-    struct ifaddrs *ifa;
-    if(getifaddrs(&ifaddr) == -1) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "getifaddrs returned an unexpected error. Not setting mDNS A records.");
-        return;
-    }
-
-    /* Walk through linked list, maintaining head pointer so we can free list later */
-    int n;
-    for(ifa = ifaddr, n = 0; ifa != NULL; ifa = ifa->ifa_next, n++) {
-        if(!ifa->ifa_addr)
-            continue;
-
-        if((strcmp("lo", ifa->ifa_name) == 0) ||
-           !(ifa->ifa_flags & (IFF_RUNNING))||
-           !(ifa->ifa_flags & (IFF_MULTICAST)))
-            continue;
-
-        /* IPv4 */
-        if(ifa->ifa_addr->sa_family == AF_INET) {
-            struct sockaddr_in* sa = (struct sockaddr_in*) ifa->ifa_addr;
-            mdns_set_address_record_if(dm, fullServiceDomain,
-                                       localDomain, (char*)&sa->sin_addr.s_addr, 4);
-        }
-
-        /* IPv6 not implemented yet */
-    }
-
-    /* Clean up */
-    freeifaddrs(ifaddr);
-}
-#else /* _WIN32 */
-
-void
-mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                        const char *localDomain) {
-    if(dm->sc.server->config.mdnsIpAddressListSize == 0) {
-        UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_SERVER,
-                     "If UA_HAS_GETIFADDR is false, config.mdnsIpAddressList must be set");
-        return;
-    }
-
-    for(size_t i=0; i< dm->sc.server->config.mdnsIpAddressListSize; i++) {
-        mdns_set_address_record_if(dm, fullServiceDomain, localDomain,
-                                   (char*)&dm->sc.server->config.mdnsIpAddressList[i], 4);
-    }
-}
-
-#endif /* _WIN32 */
 
 typedef enum {
     UA_DISCOVERY_TCP,    /* OPC UA TCP mapping */
@@ -444,6 +275,30 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
         if(el) {
             el->removeTimer(el, dm->mdnsCallbackId);
             dm->mdnsCallbackId = 0;
+        }
+    }
+}
+
+void
+UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm) {
+    /* Clean up the serverOnNetwork list */
+    serverOnNetwork *son, *son_tmp;
+    LIST_FOREACH_SAFE(son, &dm->serverOnNetwork, pointers, son_tmp) {
+        LIST_REMOVE(son, pointers);
+        UA_ServerOnNetwork_clear(&son->serverOnNetwork);
+        if(son->pathTmp)
+            UA_free(son->pathTmp);
+        UA_free(son);
+    }
+
+    UA_String_clear(&dm->selfFqdnMdnsRecord);
+
+    for(size_t i = 0; i < SERVER_ON_NETWORK_HASH_SIZE; i++) {
+        serverOnNetwork_hash_entry* currHash = dm->serverOnNetworkHash[i];
+        while(currHash) {
+            serverOnNetwork_hash_entry* nextHash = currHash->next;
+            UA_free(currHash);
+            currHash = nextHash;
         }
     }
 }
@@ -665,10 +520,6 @@ UA_Discovery_addRecord(UA_DiscoveryManager *dm, const UA_String servername,
     localDomain[maxHostnameLen+1] = '\0';
 
 
-    /* A/AAAA record for all ip addresses.
-     * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
-     * [hostname]. A [ip]. */
-    mdns_set_address_record(dm, fullServiceDomain, localDomain);
 
     /* TXT record: [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,... */
     UA_STACKARRAY(char, pathChars, path.length + 1);
