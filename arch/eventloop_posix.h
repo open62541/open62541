@@ -23,7 +23,10 @@
 
 #include "common/ua_timer.h"
 #include "../deps/mp_printf.h"
-#include "../deps/open62541_queue.h"
+
+#if !defined(__QNX__)
+# include "../deps/open62541_queue.h"
+#endif
 
 /* epoll_pwait returns bogus data with the tc compiler */
 #if defined(__linux__) && !defined(__TINYC__)
