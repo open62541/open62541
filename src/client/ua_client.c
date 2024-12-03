@@ -506,17 +506,19 @@ processMSGResponse(UA_Client *client, UA_UInt32 requestId,
         UA_clear(response, ac->responseType);
         UA_free(ac);
     } else {
+        /* Return a special status code after processing a synchronous message.
+         * This makes the client return control immediately. */
         ac->syncResponse = NULL; /* Indicate that response was received */
+        if(retval == UA_STATUSCODE_GOOD)
+            retval = UA_STATUSCODE_GOODCOMPLETESASYNCHRONOUSLY;
     }
     return retval;
 }
 
 UA_StatusCode
-processServiceResponse(void *application, UA_SecureChannel *channel,
+processServiceResponse(UA_Client *client, UA_SecureChannel *channel,
                        UA_MessageType messageType, UA_UInt32 requestId,
                        UA_ByteString *message) {
-    UA_Client *client = (UA_Client*)application;
-
     if(!UA_SecureChannel_isConnected(channel)) {
         if(messageType == UA_MESSAGETYPE_MSG) {
             UA_LOG_DEBUG_CHANNEL(client->config.logging, channel, "Discard MSG message "

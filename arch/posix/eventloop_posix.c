@@ -287,7 +287,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
 
     /* Close the epoll/IOCP socket once all EventSources have shut down */
 #ifdef UA_HAVE_EPOLL
-    close(el->epollfd);
+    UA_close(el->epollfd);
 #endif
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,

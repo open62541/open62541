@@ -334,7 +334,7 @@ getConnectionInfoFromParams(const UA_KeyValueMap *params,
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_DGRAM;
-    int error = getaddrinfo(hostname, portStr, &hints, info);
+    int error = UA_getaddrinfo(hostname, portStr, &hints, info);
     if(error != 0) {
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
@@ -541,19 +541,18 @@ setupSendMultiCast(UA_FD fd, struct addrinfo *info, const UA_KeyValueMap *params
 
     int result = -1;
     if(info->ai_family == AF_INET && multiCastType == MULTICASTTYPE_IPV4) {
-        result = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
 #ifdef _WIN32
+        result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             (const char *)&req.ipv4.imr_interface,
                             sizeof(struct in_addr));
 #else
+        result = UA_setsockopt(fd, IPPROTO_IP, IP_MULTICAST_IF,
                             &req.ipv4, sizeof(req.ipv4));
 #endif
 #if UA_IPV6
     } else if(info->ai_family == AF_INET6 && multiCastType == MULTICASTTYPE_IPV6) {
-        result = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
-#ifdef _WIN32
+        result = UA_setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_IF,
                             (const char *)
-#endif
                             &req.ipv6.ipv6mr_interface, sizeof(req.ipv6.ipv6mr_interface));
 #endif
     }
@@ -670,11 +669,11 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
     struct sockaddr_storage source;
 #ifndef _WIN32
     socklen_t sourceSize = (socklen_t)sizeof(struct sockaddr_storage);
-    ssize_t ret = recvfrom(conn->rfd.fd, (char*)response.data, response.length,
+    ssize_t ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, response.length,
                            MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #else
     int sourceSize = (int)sizeof(struct sockaddr_storage);
-    int ret = recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
+    int ret = UA_recvfrom(conn->rfd.fd, (char*)response.data, (int)response.length,
                        MSG_DONTWAIT, (struct sockaddr*)&source, &sourceSize);
 #endif
 
@@ -701,12 +700,12 @@ UDP_connectionSocketCallback(UA_POSIXConnectionManager *pcm, UDP_FD *conn,
     UA_UInt16 sourcePort;
     switch(source.ss_family) {
         case AF_INET:
-            inet_ntop(AF_INET, &((struct sockaddr_in *)&source)->sin_addr,
+            UA_inet_ntop(AF_INET, &((struct sockaddr_in *)&source)->sin_addr,
                     sourceAddr, 64);
             sourcePort = htons(((struct sockaddr_in *)&source)->sin_port);
             break;
         case AF_INET6:
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&source)->sin6_addr),
+            UA_inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)&source)->sin6_addr),
                     sourceAddr, 64);
             sourcePort = htons(((struct sockaddr_in6 *)&source)->sin6_port);
             break;
@@ -761,7 +760,7 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
     }
 
     /* Create the listen socket */
-    UA_FD listenSocket = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_FD listenSocket = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -807,10 +806,10 @@ UDP_registerListenSocket(UA_POSIXConnectionManager *pcm, UA_UInt16 port,
             ret = bind(listenSocket, (struct sockaddr*)&sin6, sizeof(sin6));
         }
     } else {
-        ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+        ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
     }
 #else
-    int ret = bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
+    int ret = UA_bind(listenSocket, info->ai_addr, (socklen_t)info->ai_addrlen);
 #endif
 
     /* Get the port being used if dynamic porting was used */
@@ -932,7 +931,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     char portstr[6];
     mp_snprintf(portstr, 6, "%d", port);
 
-    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
 #ifdef _WIN32
         UA_LOG_SOCKET_ERRNO_GAI_WRAP(
@@ -958,7 +957,7 @@ UDP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
             break;
         ai = ai->ai_next;
     }
-    freeaddrinfo(res);
+    UA_freeaddrinfo(res);
     return rv;
 }
 
@@ -976,7 +975,7 @@ UDP_shutdown(UA_ConnectionManager *cm, UA_RegisteredFD *rfd) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(rfd->fd, UA_SHUT_RDWR);
+    UA_shutdown(rfd->fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "UDP %u\t| Shutdown called", (unsigned)rfd->fd);
@@ -1093,7 +1092,7 @@ registerSocketAndDestinationForSend(const UA_KeyValueMap *params,
                                     const char *hostname, struct addrinfo *info,
                                     int error, UDP_FD *ufd, UA_FD *sock,
                                     const UA_Logger *logger, UA_Boolean validate) {
-    UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_FD newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     *sock = newSock;
     if(newSock == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -1140,7 +1139,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
                                             portStr, &info, el->eventLoop.logger);
     if(error < 0 || info == NULL) {
         if(info != NULL) {
-            freeaddrinfo(info);
+            UA_freeaddrinfo(info);
         }
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Opening a connection failed");
@@ -1164,7 +1163,7 @@ UDP_openSendConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *par
         registerSocketAndDestinationForSend(params, hostname, info,
                                             error, conn, &newSock,
                                             el->eventLoop.logger, validate);
-    freeaddrinfo(info);
+    UA_freeaddrinfo(info);
     if(validate && res == UA_STATUSCODE_GOOD) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "UDP\t| Connection parameters to \"%s\" on port %s have been validated",

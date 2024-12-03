@@ -16,6 +16,7 @@
 #include <stdlib.h>
 
 static UA_Server *server = NULL;
+UA_Logger logger;
 
 /* global variables for test configuration */
 static UA_Boolean UseFastPath = UA_FALSE;
@@ -25,6 +26,10 @@ static void setup(void) {
     UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "setup");
     server = UA_Server_newForUnitTest();
     ck_assert(server != NULL);
+
+    UA_ServerConfig *config = UA_Server_getConfig(server);
+    ck_assert(config != 0);
+
     ck_assert_int_eq(UA_STATUSCODE_GOOD, UA_Server_run_startup(server));
 }
 
@@ -295,7 +300,7 @@ ValidatePublishSubscribe(
             tmpValue = TestValue + (UA_Int32)i;
             if(UseFastPath) {
                 ck_assert(fastPathSubscriberValues[i] != 0);
-                if(tmpValue != *(UA_Int32 *)fastPathSubscriberValues[i]->value.data) {
+                if(tmpValue != *((UA_Int32 *)fastPathSubscriberValues[i]->value.data)) {
                     done = false;
                     break;
                 }

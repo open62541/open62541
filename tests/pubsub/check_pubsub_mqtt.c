@@ -58,9 +58,7 @@ static void setup(void) {
     connectionConfig.publisherId.id.uint16 = 2234;
 
     /* configure options, set mqtt client id */
-    const int connectionOptionsCount = 1;
-
-    UA_KeyValuePair connectionOptions[connectionOptionsCount];
+    UA_KeyValuePair connectionOptions[1];
 
     size_t connectionOptionIndex = 0;
     connectionOptions[connectionOptionIndex].key = UA_QUALIFIEDNAME(0, CONNECTIONOPTION_NAME);
@@ -224,8 +222,8 @@ START_TEST(SinglePublishSubscribeDateTime){
         readerGroupConfig.name = UA_STRING("ReaderGroup1");
 
         /* configure the mqtt publish topic */
-        UA_BrokerWriterGroupTransportDataType brokerTransportSettingsSubscriber;
-        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerWriterGroupTransportDataType));
+        UA_BrokerDataSetReaderTransportDataType brokerTransportSettingsSubscriber;
+        memset(&brokerTransportSettingsSubscriber, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
 
         brokerTransportSettingsSubscriber.queueName = UA_STRING(SUBSCRIBE_TOPIC);
         brokerTransportSettingsSubscriber.resourceUri = UA_STRING_NULL;
@@ -326,10 +324,63 @@ START_TEST(SinglePublishSubscribeDateTime){
 
     } END_TEST
 
+START_TEST(CreateReaderGroup) {
+    UA_StatusCode retval = UA_STATUSCODE_GOOD;
+
+    // add reader group
+    UA_ReaderGroupConfig readerGroupConfig;
+    memset(&readerGroupConfig, 0, sizeof(UA_ReaderGroupConfig));
+    readerGroupConfig.name = UA_STRING("ReaderGroup1");
+
+    /* configure the mqtt publish topic */
+    UA_BrokerDataSetReaderTransportDataType transportSettingsData;
+    memset(&transportSettingsData, 0, sizeof(UA_BrokerDataSetReaderTransportDataType));
+
+    transportSettingsData.queueName = UA_STRING(SUBSCRIBE_TOPIC);
+    transportSettingsData.resourceUri = UA_STRING_NULL;
+    transportSettingsData.authenticationProfileUri = UA_STRING_NULL;
+
+    transportSettingsData.requestedDeliveryGuarantee =
+        UA_BROKERTRANSPORTQUALITYOFSERVICE_BESTEFFORT;
+
+    UA_ExtensionObject transportSettings;
+    memset(&transportSettings, 0, sizeof(UA_ExtensionObject));
+    transportSettings.encoding = UA_EXTENSIONOBJECT_DECODED;
+    transportSettings.content.decoded.type =
+        &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE];
+    transportSettings.content.decoded.data = &transportSettingsData;
+
+    readerGroupConfig.transportSettings = transportSettings;
+
+    retval = UA_Server_addReaderGroup(server, connectionIdent, &readerGroupConfig,
+                                      &readerGroupIdent);
+    ck_assert_int_eq(retval, UA_STATUSCODE_GOOD);
+
+    // Check if reader group was created correctly (Issue #6808)
+    memset(&transportSettingsData, 0,
+           sizeof(UA_BrokerDataSetReaderTransportDataType));
+
+    UA_PubSubManager *psm = getPSM(server);
+    UA_ReaderGroup *rg = UA_ReaderGroup_find(psm, readerGroupIdent);
+    ck_assert(rg != 0);
+    UA_ExtensionObject *ts = &rg->config.transportSettings;
+
+    ck_assert((ts->encoding == UA_EXTENSIONOBJECT_DECODED ||
+               ts->encoding == UA_EXTENSIONOBJECT_DECODED_NODELETE) &&
+                  ts->content.decoded.type ==
+                      &UA_TYPES[UA_TYPES_BROKERDATASETREADERTRANSPORTDATATYPE]);
+    UA_String *topic =
+        &((UA_BrokerDataSetReaderTransportDataType *)ts->content.decoded.data)->queueName;
+    ck_assert(topic->data != 0 && topic->length != 0 &&
+              strncmp(SUBSCRIBE_TOPIC, (const char *)topic->data,
+                      strlen(SUBSCRIBE_TOPIC)) == 0);
+} END_TEST
+
 int main(void) {
     TCase *tc_pubsub_subscribe_mqtt = tcase_create("PubSub subscribe mqtt");
     tcase_add_checked_fixture(tc_pubsub_subscribe_mqtt, setup, teardown);
     tcase_add_test(tc_pubsub_subscribe_mqtt, SinglePublishSubscribeDateTime);
+    tcase_add_test(tc_pubsub_subscribe_mqtt, CreateReaderGroup);
 
     Suite *s = suite_create("PubSub subscribe via mqtt");
     suite_add_tcase(s, tc_pubsub_subscribe_mqtt);
