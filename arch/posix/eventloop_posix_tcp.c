@@ -564,16 +564,10 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
 
     int retcode = getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-#ifdef _WIN32
-        UA_LOG_SOCKET_ERRNO_WRAP(
-        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, errno_str));
-#else
-        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, gai_strerror(retcode));
-#endif
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
+                      hostname, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -810,16 +804,10 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     hints.ai_socktype = SOCK_STREAM;
     int error = getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-#ifdef _WIN32
-        UA_LOG_SOCKET_ERRNO_WRAP(
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed (%s)",
-                       hostname, errno_str));
-#else
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed (%s)",
-                       hostname, gai_strerror(error));
-#endif
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup of %s failed (%s)",
+                      hostname, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
