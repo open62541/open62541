@@ -1699,6 +1699,9 @@ UA_DataSetMessage_calcSizeBinary(UA_DataSetMessage* p,
 
                     /* For arrays add encoded array length (4 bytes for each dimension) */
                     size += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
+                    if(offsetBuffer) {
+                        nmo->offset += fmd->arrayDimensionsSize * sizeof(UA_UInt32);
+                    }
 
                     /* We need to know how many elements there are */
                     size_t elemCnt = 1;

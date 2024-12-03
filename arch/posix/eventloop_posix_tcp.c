@@ -127,10 +127,10 @@ getSockError(TCP_FD *conn) {
     int error = 0;
 #ifndef _WIN32
     socklen_t errlen = sizeof(int);
-    int err = getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+    int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
 #else
     int errlen = (int)sizeof(int);
-    int err = getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
+    int err = UA_getsockopt((SOCKET)conn->rfd.fd, SOL_SOCKET, SO_ERROR,
                          (char*)&error, &errlen);
 #endif
     return (err == 0) ? error : err;
@@ -249,7 +249,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Try to accept a new connection */
     struct sockaddr_storage remote;
     socklen_t remote_size = sizeof(remote);
-    UA_FD newsockfd = accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
+    UA_FD newsockfd = UA_accept(conn->rfd.fd, (struct sockaddr*)&remote, &remote_size);
     if(newsockfd == UA_INVALID_FD) {
         /* Temporary error -- retry */
         if(UA_IS_TEMPORARY_ACCEPT_ERROR(UA_ERRNO))
@@ -376,7 +376,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Create the server socket */
-    UA_FD listenSocket = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+    UA_FD listenSocket = UA_socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
     if(listenSocket == UA_INVALID_FD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -431,14 +431,14 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Bind socket to address */
-    int ret = bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
+    int ret = UA_bind(listenSocket, ai->ai_addr, (socklen_t)ai->ai_addrlen);
 
     /* Get the port being used if dynamic porting was used */
     if(port == 0) {
         struct sockaddr_in sin;
         memset(&sin, 0, sizeof(sin));
         socklen_t len = sizeof(sin);
-        getsockname(listenSocket, (struct sockaddr *)&sin, &len);
+        UA_getsockname(listenSocket, (struct sockaddr *)&sin, &len);
         port = ntohs(sin.sin_port);
     }
 
@@ -449,7 +449,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
                     "TCP %u\t| Creating listen socket for \"%s\" on port %u",
                     (unsigned)listenSocket, hostname, port);
     } else {
-        gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
+        UA_gethostname(hoststr, UA_MAXHOSTNAME_LENGTH);
         hostname = hoststr;
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| Creating listen socket for \"%s\" "
@@ -474,7 +474,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
     }
 
     /* Start listening */
-    if(listen(listenSocket, UA_MAXBACKLOG) < 0) {
+    if(UA_listen(listenSocket, UA_MAXBACKLOG) < 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                           "TCP %u\t| Error listening on the socket (%s)",
@@ -562,18 +562,12 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    int retcode = getaddrinfo(hostname, portstr, &hints, &res);
+    int retcode = UA_getaddrinfo(hostname, portstr, &hints, &res);
     if(retcode != 0) {
-#ifdef _WIN32
-        UA_LOG_SOCKET_ERRNO_WRAP(
-        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, errno_str));
-#else
-        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
-                       hostname, port, gai_strerror(retcode));
-#endif
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup for \"%s\" on port %u failed (%s)",
+                      hostname, port, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -586,7 +580,7 @@ TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
                                                  connectionCallback, validate, reuseaddr);
         ai = ai->ai_next;
     }
-    freeaddrinfo(res);
+    UA_freeaddrinfo(res);
 
     return total_result;
 }
@@ -606,7 +600,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",
@@ -808,25 +802,19 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    int error = getaddrinfo(hostname, portStr, &hints, &info);
+    int error = UA_getaddrinfo(hostname, portStr, &hints, &info);
     if(error != 0) {
-#ifdef _WIN32
-        UA_LOG_SOCKET_ERRNO_WRAP(
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed (%s)",
-                       hostname, errno_str));
-#else
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Lookup of %s failed (%s)",
-                       hostname, gai_strerror(error));
-#endif
+       UA_LOG_SOCKET_ERRNO_GAI_WRAP(
+       UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                      "TCP\t| Lookup of %s failed (%s)",
+                      hostname, errno_str));
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
     /* Create a socket */
-    UA_FD newSock = socket(info->ai_family, info->ai_socktype, info->ai_protocol);
+    UA_FD newSock = UA_socket(info->ai_family, info->ai_socktype, info->ai_protocol);
     if(newSock == UA_INVALID_FD) {
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not create socket to connect to %s (%s)",
@@ -843,21 +831,21 @@ TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *p
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Could not set socket options: %s", errno_str));
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_close(newSock);
         return res;
     }
 
     /* Only validate, don't actually open the connection */
     if(validate) {
-        freeaddrinfo(info);
+        UA_freeaddrinfo(info);
         UA_close(newSock);
         return UA_STATUSCODE_GOOD;
     }
 
     /* Non-blocking connect */
     error = UA_connect(newSock, info->ai_addr, info->ai_addrlen);
-    freeaddrinfo(info);
+    UA_freeaddrinfo(info);
     if(error != 0 &&
        UA_ERRNO != UA_INPROGRESS &&
        UA_ERRNO != UA_WOULDBLOCK) {
