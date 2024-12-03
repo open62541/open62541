@@ -68,7 +68,7 @@ UA_PubSubKeyStorage_delete(UA_Server *server, UA_PubSubKeyStorage *keyStorage) {
     UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     /* Remove callback */
-    if(!keyStorage->callBackId) {
+    if(!keyStorage->callBackId != 0) {
         removeCallback(server, keyStorage->callBackId);
         keyStorage->callBackId = 0;
     }
