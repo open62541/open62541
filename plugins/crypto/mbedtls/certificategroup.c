@@ -18,6 +18,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
 #include <mbedtls/sha256.h>
+#include <mbedtls/psa_util.h>
 
 #include "securitypolicy_common.h"
 
