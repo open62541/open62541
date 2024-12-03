@@ -456,7 +456,7 @@ ETH_openListenConnection(UA_EventLoopPOSIX *el, ETH_FD *conn,
         memset(&mreq, 0, sizeof(struct packet_mreq));
         mreq.mr_ifindex = ifindex;
         mreq.mr_type = PACKET_MR_PROMISC;
-        int ret = setsockopt(conn->rfd.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
+        int ret = UA_setsockopt(conn->rfd.fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP,
                              &mreq, sizeof(mreq));
         if(ret < 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
@@ -568,12 +568,12 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         UA_KeyValueMap_getScalar(params, ethConnectionParams[ETH_PARAMINDEX_PRIORITY].name,
                                  &UA_TYPES[UA_TYPES_INT32]);
     if(soPriority) {
-        int prioRes = setsockopt(conn->rfd.fd, SOL_SOCKET, SO_PRIORITY,
+        int prioRes = UA_setsockopt(conn->rfd.fd, SOL_SOCKET, SO_PRIORITY,
                                  soPriority, sizeof(int));
         if(prioRes != 0) {
             UA_LOG_SOCKET_ERRNO_WRAP(
                UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                            "setsockopt SO_PRIORITY failed with error %s", errno_str));
+                            "UA_setsockopt SO_PRIORITY failed with error %s", errno_str));
             return UA_STATUSCODE_BADINTERNALERROR;
         }
     }
@@ -599,7 +599,7 @@ ETH_openSendConnection(UA_EventLoopPOSIX *el, ETH_FD *conn, const UA_KeyValueMap
         so_txtime_val.flags = SOF_TXTIME_REPORT_ERRORS;
         if(txtime_flags)
             so_txtime_val.flags = *txtime_flags;
-        if(setsockopt(conn->rfd.fd, SOL_SOCKET, SO_TXTIME,
+        if(UA_setsockopt(conn->rfd.fd, SOL_SOCKET, SO_TXTIME,
                       &so_txtime_val, sizeof(so_txtime_val)) == 0) {
             conn->txtimeEnabled = true;
         } else {
@@ -688,9 +688,9 @@ ETH_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
     ETH_FD *conn = NULL;
     UA_FD sockfd;
     if(listen && *listen)
-        sockfd = socket(PF_PACKET, SOCK_RAW, htons(etherType));
+        sockfd = UA_socket(PF_PACKET, SOCK_RAW, htons(etherType));
     else
-        sockfd = socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
+        sockfd = UA_socket(PF_PACKET, SOCK_RAW, 0); /* Don't receive */
     if(sockfd == -1) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "ETH\t| Could not create a raw Ethernet socket (are you root?)");
@@ -780,7 +780,7 @@ ETH_shutdown(UA_POSIXConnectionManager *pcm, ETH_FD *conn) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "ETH %u\t| Shutdown called", (unsigned)conn->rfd.fd);
