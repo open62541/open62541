@@ -81,6 +81,7 @@ usage(void) {
             " <service> -> read   <AttributeOperand>: Read an attribute\n"
             " <service> -> browse <AttributeOperand>: Browse the references of a node\n"
             " <service> -> write  <AttributeOperand> <value>: Write an attribute\n"
+            " <service> -> explore <RelativePath> [--depth <int>]: Print the structure of the information model below the indicated node\n"
             //" <service> -> call <method-id> <object-id> <arguments>: Call the method \n"
             " Options:\n"
             " --username: Username for the session creation\n"
@@ -184,7 +185,7 @@ getEndpoints(int argc, char **argv, int argpos) {
 }
 
 static void
-read(int argc, char **argv, int argpos) {
+readService(int argc, char **argv, int argpos) {
     /* Validate the arguments */
     if(argpos != argc - 1) {
         fprintf(stderr, "The read service takes an AttributeOperand "
@@ -251,7 +252,7 @@ read(int argc, char **argv, int argpos) {
 }
 
 static void
-write(int argc, char **argv, int argpos) {
+writeService(int argc, char **argv, int argpos) {
     /* Validate the arguments */
     if(argpos + 1 >= argc) {
         fprintf(stderr, "The Write Service takes an AttributeOperand "
@@ -409,7 +410,7 @@ write(int argc, char **argv, int argpos) {
 }
 
 static void
-browse(int argc, char **argv, int argpos) {
+browseService(int argc, char **argv, int argpos) {
     /* Validate the arguments */
     if(argpos != argc - 1) {
         fprintf(stderr, "The browse service takes an AttributeOperand "
@@ -475,6 +476,151 @@ browse(int argc, char **argv, int argpos) {
 
     printType(&br, &UA_TYPES[UA_TYPES_BROWSERESULT]);
     UA_BrowseResult_clear(&br);
+    UA_AttributeOperand_clear(&ao);
+}
+
+static char *nodeClassNames[] = {
+    "Unspecified  ",
+    "Object       ",
+    "Variable     ",
+    "Method       ",
+    "ObjectType   ",
+    "VariableType ",
+    "ReferenceType",
+    "DataType     ",
+    "View         "
+};
+
+static void
+exploreRecursive(char *pathString, size_t pos, const UA_NodeId current,
+                 UA_NodeClass nc, size_t depth) {
+    size_t targetlevel = 0;
+    while(nc) {
+        ++targetlevel;
+        nc = (UA_NodeClass)((size_t)nc >> 1);
+    }
+    printf("%s %.*s\n", nodeClassNames[targetlevel], (int)pos, pathString);
+
+    if(depth == 0)
+        return;
+
+    /* Read the attribute */
+    UA_BrowseDescription bd;
+    UA_BrowseDescription_init(&bd);
+    bd.browseDirection = UA_BROWSEDIRECTION_FORWARD;
+    bd.includeSubtypes = true;
+    bd.nodeId = current;
+    bd.referenceTypeId = UA_NS0ID(HIERARCHICALREFERENCES);
+    bd.resultMask = UA_BROWSERESULTMASK_BROWSENAME | UA_BROWSERESULTMASK_NODECLASS;
+
+    UA_BrowseResult br = UA_Client_browse(client, NULL, 0, &bd);
+
+    for(size_t i = 0; i < br.referencesSize; i++) {
+        UA_ReferenceDescription *rd = &br.references[i];
+        if(!UA_ExpandedNodeId_isLocal(&rd->nodeId))
+            continue;
+        char browseName[80];
+        int len = snprintf(browseName, 80, "%d:%.*s",
+                           (unsigned)rd->browseName.namespaceIndex,
+                           (int)rd->browseName.name.length,
+                           (char*)rd->browseName.name.data);
+        if(len < 0)
+            continue;
+        if(len > 80)
+            len = 80;
+        memcpy(pathString + pos, "/", 1);
+        memcpy(pathString + pos + 1, browseName, len);
+        exploreRecursive(pathString, pos + 1 + (size_t)len, rd->nodeId.nodeId, rd->nodeClass, depth-1);
+    }
+
+    UA_BrowseResult_clear(&br);
+}
+
+static void
+explore(int argc, char **argv, int argpos) {
+    /* Parse the arguments */
+    char *pathArg = NULL;
+    size_t depth = 20;
+
+    for(; argpos < argc; argpos++) {
+        /* AttributeOperand */
+        if(strncmp(argv[argpos], "--", 2) != 0) {
+            if(pathArg != NULL)
+                usage();
+            pathArg = argv[argpos];
+            continue;
+        }
+
+        /* Maximum depth */
+        if(strcmp(argv[argpos], "--depth") == 0) {
+            argpos++;
+            if(argpos == argc)
+                usage();
+            depth = (size_t)atoi(argv[argpos]);
+            continue;
+        }
+
+        /* Unknown */
+        usage();
+    }
+
+    /* Connect */
+    connectClient();
+
+    /* Parse the AttributeOperand */
+    UA_AttributeOperand ao;
+    UA_StatusCode res = UA_AttributeOperand_parse(&ao, UA_STRING(pathArg));
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
+
+    /* Resolve the RelativePath */
+    if(ao.browsePath.elementsSize > 0) {
+        UA_BrowsePath bp;
+        UA_BrowsePath_init(&bp);
+        bp.relativePath = ao.browsePath;
+        bp.startingNode = ao.nodeId;
+
+        UA_BrowsePathResult bpr =
+            UA_Client_translateBrowsePathToNodeIds(client, &bp);
+        if(bpr.statusCode != UA_STATUSCODE_GOOD)
+            abortWithStatus(bpr.statusCode);
+
+        /* Validate the response */
+        if(bpr.targetsSize != 1) {
+            fprintf(stderr, "The RelativePath did resolve to %u different NodeIds\n",
+                    (unsigned)bpr.targetsSize);
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(bpr.targets[0].remainingPathIndex != UA_UINT32_MAX) {
+            fprintf(stderr, "The RelativePath was not fully resolved\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        if(!UA_ExpandedNodeId_isLocal(&bpr.targets[0].targetId)) {
+            fprintf(stderr, "The RelativePath resolves to an ExpandedNodeId "
+                    "on a different server\n");
+            abortWithStatus(UA_STATUSCODE_BADINTERNALERROR);
+        }
+
+        UA_NodeId_clear(&ao.nodeId);
+        ao.nodeId = bpr.targets[0].targetId.nodeId;
+        UA_ExpandedNodeId_init(&bpr.targets[0].targetId);
+        UA_BrowsePathResult_clear(&bpr);
+    }
+
+    /* Read the NodeClass of the root node */
+    UA_NodeClass nc = UA_NODECLASS_UNSPECIFIED;
+    res = UA_Client_readNodeClassAttribute(client, ao.nodeId, &nc);
+    if(res != UA_STATUSCODE_GOOD)
+        abortWithStatus(res);
+
+    char relativepath[512];
+    size_t pos = strlen(pathArg);
+    memcpy(relativepath, pathArg, pos);
+
+    exploreRecursive(relativepath, pos, ao.nodeId, nc, depth);
+
     UA_AttributeOperand_clear(&ao);
 }
 
@@ -565,6 +711,7 @@ main(int argc, char **argv) {
     UA_ClientConfig_setDefault(&cc);
 
     /* TODO: Trustlist end revocation list */
+#ifdef UA_ENABLE_ENCRYPTION
     if(certificate.length > 0) {
         UA_StatusCode res =
             UA_ClientConfig_setDefaultEncryption(&cc, certificate, privateKey,
@@ -572,6 +719,7 @@ main(int argc, char **argv) {
         if(res != UA_STATUSCODE_GOOD)
             exit(EXIT_FAILURE);
     }
+#endif
 
     /* Accept all certificates without a trustlist */
     cc.certificateVerification.clear(&cc.certificateVerification);
@@ -592,11 +740,13 @@ main(int argc, char **argv) {
     if(strcmp(service, "getendpoints") == 0) {
         getEndpoints(argc, argv, argpos);
     } else if(strcmp(service, "read") == 0) {
-        read(argc, argv, argpos);
+        readService(argc, argv, argpos);
     } else if(strcmp(service, "browse") == 0) {
-        browse(argc, argv, argpos);
+        browseService(argc, argv, argpos);
     } else if(strcmp(service, "write") == 0) {
-        write(argc, argv, argpos);
+        writeService(argc, argv, argpos);
+    } else if(strcmp(service, "explore") == 0) {
+        explore(argc, argv, argpos);
     } else {
         usage(); /* Unknown service */
     }
