@@ -340,6 +340,8 @@ START_TEST(AddDataSetFieldWithValidConfiguration){
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        fieldConfig.field.variable.description = UA_LOCALIZEDTEXT("en", "this is field 1");
+        fieldConfig.field.variable.dataSetFieldId = UA_GUID("10000000-2000-3000-4000-500000000000");
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds, NULL);
@@ -359,6 +361,7 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
         fieldConfig.dataSetFieldType = UA_PUBSUB_DATASETFIELD_VARIABLE;
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        fieldConfig.field.variable.description = UA_LOCALIZEDTEXT("en", "description");
         UA_NodeId localDataSetField;
         UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(psm, publishedDataSet1);
         ck_assert_ptr_ne(pds1, NULL);
@@ -366,12 +369,15 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
 
         // Add "field 1"
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 1);
 
         // Add "field 2"
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 2");
+        const UA_Guid field2Id = UA_PubSubManager_generateUniqueGuid(psm);
+        fieldConfig.field.variable.dataSetFieldId = field2Id;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 2);
@@ -386,12 +392,14 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
 
         // Add "field 2" again
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 2");
+        fieldConfig.field.variable.dataSetFieldId = field2Id;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 2);
 
         // Add "field 3"
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 3");
+        fieldConfig.field.variable.dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds1->fieldSize, 3);
@@ -401,6 +409,7 @@ START_TEST(AddRemoveAddDataSetFieldWithValidConfiguration){
 
         // Add "field 1"
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
+        fieldConfig.field.variable.dataSetFieldId = UA_PubSubManager_generateUniqueGuid(psm);
         retVal = UA_Server_addDataSetField(server, publishedDataSet2, &fieldConfig, &localDataSetField).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(pds2->fieldSize, 1);
@@ -437,6 +446,7 @@ START_TEST(AddDataSetFieldWithInvalidPDSId){
     } END_TEST
 
 START_TEST(GetDataSetFieldConfigurationAndCompareValues){
+        UA_PubSubManager *psm = getPSM(server);
         setupPublishedDataSetTestEnvironment();
         setupDataSetFieldTestEnvironment();
         UA_StatusCode retVal;
@@ -446,6 +456,8 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         fieldConfig.field.variable.fieldNameAlias = UA_STRING("field 1");
         fieldConfig.field.variable.publishParameters.publishedVariable = UA_NODEID_NUMERIC(0, UA_NS0ID_SERVER_SERVERSTATUS_STATE);
         fieldConfig.field.variable.publishParameters.attributeId = UA_ATTRIBUTEID_VALUE;
+        fieldConfig.field.variable.description = UA_LOCALIZEDTEXT("en", "this is field 1");
+        fieldConfig.field.variable.dataSetFieldId = UA_GUID("10000000-2000-3000-4000-500000000000");
         UA_NodeId dataSetFieldId;
         retVal = UA_Server_addDataSetField(server, publishedDataSet1, &fieldConfig, &dataSetFieldId).result;
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
@@ -454,6 +466,14 @@ START_TEST(GetDataSetFieldConfigurationAndCompareValues){
         ck_assert_int_eq(retVal, UA_STATUSCODE_GOOD);
         ck_assert_uint_eq(fieldConfig.dataSetFieldType, fieldConfigCopy.dataSetFieldType);
         ck_assert_int_eq(UA_String_equal(&fieldConfig.field.variable.fieldNameAlias, &fieldConfigCopy.field.variable.fieldNameAlias), UA_TRUE);
+        ck_assert_int_eq(UA_LocalizedText_equal(&fieldConfig.field.variable.description, &fieldConfigCopy.field.variable.description), UA_TRUE);
+        ck_assert_int_eq(UA_Guid_equal(&fieldConfig.field.variable.dataSetFieldId, &fieldConfigCopy.field.variable.dataSetFieldId), UA_TRUE);
+
+        UA_PublishedDataSet *pds1 = UA_PublishedDataSet_find(psm, publishedDataSet1);
+        ck_assert_ptr_ne(pds1, NULL);
+        // Make sure that the DataSetFieldId in the MetaData was not generated, but the one from configuration was used
+        ck_assert(UA_Guid_equal(&pds1->fields.tqh_first->fieldMetaData.dataSetFieldId, &fieldConfig.field.variable.dataSetFieldId));
+
         UA_DataSetFieldConfig_clear(&fieldConfigCopy);
     } END_TEST
 
