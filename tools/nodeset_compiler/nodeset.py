@@ -295,15 +295,6 @@ class NodeSet:
             self.nodes[node.id] = node
             newnodes[node.id] = node
 
-        # Parse Datatypes in order to find out what the XML keyed values actually
-        # represent.
-        # Ex. <rpm>123</rpm> is not encodable
-        #     only after parsing the datatypes, it is known that
-        #     rpm is encoded as a double
-        for n in newnodes.values():
-            if isinstance(n, DataTypeNode):
-                n.buildEncoding(self, namespaceMapping=self.namespaceMapping)
-
     def getBinaryEncodingIdForNode(self, nodeId):
         """
         The node should have a 'HasEncoding' forward reference which points to the encoding ids.
@@ -317,11 +308,6 @@ class NodeSet:
                 if refNode.symbolicName.value == "DefaultBinary":
                     return ref.target
         raise Exception("No DefaultBinary encoding defined for node " + str(nodeId))
-
-    def allocateVariables(self):
-        for n in self.nodes.values():
-            if isinstance(n, VariableNode):
-                n.allocateValue(self)
 
     def getBaseDataType(self, node):
         if node is None:
