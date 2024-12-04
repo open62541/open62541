@@ -376,7 +376,7 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
 
     memset(output_buf, 0, 16000);
     switch(keyFormat) {
-    case UA_CERTIFICATEFORMAT_DER: {
+    case UA_CERTIFICATEFORMAT_PEM: {
         if((ret = mbedtls_pk_write_key_pem(key, output_buf, 16000)) != 0) {
             return ret;
         }
@@ -384,7 +384,7 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
         len = strlen((char *) output_buf);
         break;
     }
-    case UA_CERTIFICATEFORMAT_PEM: {
+    case UA_CERTIFICATEFORMAT_DER: {
         if((ret = mbedtls_pk_write_key_der(key, output_buf, 16000)) < 0) {
             return ret;
         }
