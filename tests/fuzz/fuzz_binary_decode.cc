@@ -67,7 +67,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     UA_delete(dstCopy, &UA_TYPES[typeIndex]);
     
     // now also test encoding
-    size_t encSize = UA_calcSizeBinary(dst, &UA_TYPES[typeIndex]);
+    size_t encSize = UA_calcSizeBinary(dst, &UA_TYPES[typeIndex], NULL);
     UA_ByteString encoded;
     ret = UA_ByteString_allocBuffer(&encoded, encSize);
     if(ret != UA_STATUSCODE_GOOD) {
@@ -75,7 +75,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    ret = UA_encodeBinary(dst, &UA_TYPES[typeIndex], &encoded);
+    ret = UA_encodeBinary(dst, &UA_TYPES[typeIndex], &encoded, NULL);
     UA_assert(ret == UA_STATUSCODE_GOOD);
 
     UA_ByteString_clear(&encoded);
