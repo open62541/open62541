@@ -349,6 +349,10 @@ typedef struct {
         UA_DataValue ** staticValueSource;
     } rtValueSource;
     UA_UInt32 maxStringLength;
+    UA_LocalizedText description;
+    /* If dataSetFieldId is not set, the GUID will be generated on adding the
+    *  field*/
+    UA_Guid dataSetFieldId;
 } UA_DataSetVariableConfig;
 
 typedef enum {
