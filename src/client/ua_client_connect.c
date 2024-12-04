@@ -41,13 +41,11 @@ findUserTokenPolicy(UA_Client *client, UA_EndpointDescription *endpoint);
  * We fall back if connecting to an EndpointUrl fails. */
 static UA_String
 getEndpointUrl(UA_Client *client) {
-    if(client->endpoint.endpointUrl.length > 0) {
+    if(client->endpoint.endpointUrl.length > 0)
         return client->endpoint.endpointUrl;
-    } else if(client->discoveryUrl.length > 0) {
+    if(client->discoveryUrl.length > 0)
         return client->discoveryUrl;
-    } else {
-        return client->config.endpointUrl;
-    }
+    return client->config.endpointUrl;
 }
 
 /* If an EndpointUrl doesn't work (TCP connection fails), fall back to the
