@@ -806,16 +806,15 @@ ENCODE_JSON(ExpandedNodeId) {
     if(ctx->useReversible) {
         /* Reversible Case */
 
+        ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
         if(src->namespaceUri.data) {
             /* If the NamespaceUri is specified it is encoded as a JSON string
              * in this field */
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->namespaceUri, String);
         } else if(src->nodeId.namespaceIndex > 0) {
             /* If the NamespaceUri is not specified, the NamespaceIndex is
              * encoded. Encoded as a JSON number for the reversible encoding.
              * Omitted if the NamespaceIndex equals 0. */
-            ret |= writeJsonKey(ctx, UA_JSONKEY_NAMESPACE);
             ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
         }
 

@@ -841,7 +841,8 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
        !UA_String_equal(&client->config.applicationUri,
                         &endpoint->server.applicationUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: application uri not match", i);
+                    "Rejecting Endpoint %u: The server's ApplicationUri %S does not match "
+                    "the client configuration", i, endpoint->server.applicationUri);
         return false;
     }
 
@@ -850,14 +851,15 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
     if(endpoint->transportProfileUri.length != 0 &&
        !UA_String_equal(&endpoint->transportProfileUri, &binaryTransport)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: transport profile does not match", i);
+                    "Rejecting Endpoint %u: TransportProfileUri %S not supported",
+                    i, endpoint->transportProfileUri);
         return false;
     }
 
     /* Valid SecurityMode? */
     if(endpoint->securityMode < 1 || endpoint->securityMode > 3) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: invalid security mode", i);
+                    "Rejecting Endpoint %u: Invalid SecurityMode", i);
         return false;
     }
 
@@ -865,7 +867,7 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
     if(client->config.securityMode > 0 &&
        client->config.securityMode != endpoint->securityMode) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: security mode does not match", i);
+                    "Rejecting Endpoint %u: SecurityMode does not match the configuration", i);
         return false;
     }
 
@@ -873,14 +875,16 @@ matchEndpoint(UA_Client *client, const UA_EndpointDescription *endpoint, unsigne
     if(client->config.securityPolicyUri.length > 0 &&
        !UA_String_equal(&client->config.securityPolicyUri, &endpoint->securityPolicyUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: security policy does not match the configuration", i);
+                    "Rejecting Endpoint %u: SecurityPolicy %S does not match the configuration",
+                    i, endpoint->securityPolicyUri);
         return false;
     }
 
     /* SecurityPolicy available? */
     if(!getSecurityPolicy(client, endpoint->securityPolicyUri)) {
         UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                    "Rejecting endpoint %u: security policy not available", i);
+                    "Rejecting Endpoint %u: SecurityPolicy %S not supported",
+                    i, endpoint->securityPolicyUri);
         return false;
     }
 
@@ -1007,7 +1011,7 @@ responseGetEndpoints(UA_Client *client, void *userdata,
          * UserTokenPolicy that matches the configuration. */
         if(!client->config.noSession && !findUserTokenPolicy(client, endpoint)) {
             UA_LOG_INFO(client->config.logging, UA_LOGCATEGORY_CLIENT,
-                        "Rejecting endpoint %lu: No matching UserTokenPolicy",
+                        "Rejecting Endpoint %lu: No matching UserTokenPolicy",
                         (long unsigned)i);
             continue;
         }
@@ -1486,8 +1490,10 @@ verifyClientApplicationURI(const UA_Client *client) {
         }
 
         UA_StatusCode retval =
-            UA_CertificateUtils_verifyApplicationURI(client->allowAllCertificateUris, &sp->localCertificate,
-                                                     &client->config.clientDescription.applicationUri);
+            UA_CertificateUtils_verifyApplicationURI(client->allowAllCertificateUris,
+                                                     &sp->localCertificate,
+                                                     &client->config.clientDescription.applicationUri,
+                                                     client->config.logging);
         if(retval != UA_STATUSCODE_GOOD) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "The configured ApplicationURI does not match the URI "

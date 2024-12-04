@@ -9,7 +9,6 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/plugin/log_stdout.h>
 
 #ifdef UA_ENABLE_ENCRYPTION_MBEDTLS
 
@@ -19,6 +18,7 @@
 #include <mbedtls/entropy.h>
 #include <mbedtls/version.h>
 #include <mbedtls/sha256.h>
+#include <mbedtls/psa_util.h>
 
 #include "securitypolicy_common.h"
 
@@ -153,7 +153,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     mbedtls_x509_crt_init(&cert);
     UA_StatusCode retval = UA_mbedTLS_LoadCertificate(certificate, &cert);
     if(retval != UA_STATUSCODE_GOOD) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
             "An error occurred while parsing the certificate.");
         return retval;
     }
@@ -161,7 +161,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
     if(!mbedtlsCheckCA(&cert)) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                "The certificate is not a CA certificate and therefore does not have a CRL.");
         mbedtls_x509_crt_free(&cert);
         return UA_STATUSCODE_GOOD;
@@ -173,7 +173,7 @@ mbedtlsFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
         mbedtls_x509_crl_init(&crl);
         retval = UA_mbedTLS_LoadCrl(&crlList[i], &crl);
         if(retval != UA_STATUSCODE_GOOD) {
-            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
+            UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
                 "An error occurred while parsing the crl.");
             mbedtls_x509_crt_free(&cert);
             return retval;
@@ -697,49 +697,11 @@ cleanup:
     return retval;
 }
 
-/* Find binary substring. Taken and adjusted from
- * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
-
-static const unsigned char *
-bstrchr(const unsigned char *s, const unsigned char ch, size_t l) {
-    /* find first occurrence of c in char s[] for length l*/
-    for(; l > 0; ++s, --l) {
-        if(*s == ch)
-            return s;
-    }
-    return NULL;
-}
-
-static const unsigned char *
-UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l2) {
-    /* find first occurrence of s2[] in s1[] for length l1*/
-    const unsigned char *ss1 = s1;
-    const unsigned char *ss2 = s2;
-    /* handle special case */
-    if(l1 == 0)
-        return (NULL);
-    if(l2 == 0)
-        return s1;
-
-    /* match prefix */
-    for (; (s1 = bstrchr(s1, *s2, (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1)) != NULL &&
-           (uintptr_t)ss1-(uintptr_t)s1+(uintptr_t)l1 != 0; ++s1) {
-
-        /* match rest of prefix */
-        const unsigned char *sc1, *sc2;
-        for (sc1 = s1, sc2 = s2; ;)
-            if (++sc2 >= ss2+l2)
-                return s1;
-            else if (*++sc1 != *sc2)
-                break;
-           }
-    return NULL;
-}
-
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI) {
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     /* Parse the certificate */
     mbedtls_x509_crt remoteCertificate;
     mbedtls_x509_crt_init(&remoteCertificate);
@@ -748,21 +710,39 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
-    /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
-     * of the Alternative Subject Name. Instead test whether the URI-string is
-     * present in the v3_ext field in general.
-     *
-     * TODO: Improve parsing of the Alternative Subject Name */
-    if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
-                  applicationURI->data, applicationURI->length) == NULL)
-        retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
-
-    if(retval != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                       "The certificate's application URI could not be verified. StatusCode %s",
-                       UA_StatusCode_name(retval));
-        retval = UA_STATUSCODE_GOOD;
+    mbedtls_x509_subject_alternative_name san;
+    mbedtls_x509_sequence *cur = &remoteCertificate.subject_alt_names;
+    retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    while(cur) {
+        int res = mbedtls_x509_parse_subject_alt_name(&cur->buf, &san);
+        if(res == 0) {
+            if(san.type == MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER) {
+                UA_String uri = {san.san.unstructured_name.len,
+                                 san.san.unstructured_name.p};
+                if(!UA_String_equal(&uri, applicationURI)) {
+                    if(ruleHandling != UA_RULEHANDLING_ACCEPT) {
+                        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                                       "The certificate's Subject Alternative Name URI (%S) "
+                                       "does not match the ApplicationURI (%S)",
+                                       uri, *applicationURI);
+                    }
+                    break;
+                }
+                retval = UA_STATUSCODE_GOOD;
+            }
+            mbedtls_x509_free_subject_alt_name(&san);
+        }
+        cur = cur->next;
     }
+
+    if(!cur && ruleHandling != UA_RULEHANDLING_ACCEPT) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate has no Subject Alternative Name URI defined");
+    }
+
+    if(ruleHandling != UA_RULEHANDLING_ABORT)
+        retval = UA_STATUSCODE_GOOD;
+
     mbedtls_x509_crt_free(&remoteCertificate);
     return retval;
 }
