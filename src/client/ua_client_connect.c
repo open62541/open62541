@@ -523,8 +523,7 @@ processOPNResponse(UA_Client *client, const UA_ByteString *message) {
 
     /* Check whether the nonce was reused */
     if(client->channel.securityMode != UA_MESSAGESECURITYMODE_NONE &&
-       UA_ByteString_equal(&client->channel.remoteNonce,
-                           &response.serverNonce)) {
+       UA_ByteString_equal(&client->channel.remoteNonce, &response.serverNonce)) {
         UA_LOG_ERROR_CHANNEL(client->config.logging, &client->channel,
                              "The server reused the last nonce");
         client->connectStatus = UA_STATUSCODE_BADSECURITYCHECKSFAILED;
@@ -1458,11 +1457,19 @@ verifyClientSecureChannelHeader(void *application, UA_SecureChannel *channel,
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
     }
 
-    /* If encryption is used, check that the server certificate for the
-     * endpoint is used for the SecureChannel */
+    /* Get the remote certificate.
+     * Omit the remainder if an entire certificate chain was sent. */
     UA_ByteString serverCert = getLeafCertificate(asymHeader->senderCertificate);
-    if(client->endpoint.serverCertificate.length > 0 &&
-       !UA_String_equal(&client->endpoint.serverCertificate, &serverCert)) {
+
+    /* If encryption is enabled, then a server certificate is defined.
+     * Otherwise the creation of the SecureChannel would have failed. */
+    UA_assert(channel->securityMode == UA_MESSAGESECURITYMODE_NONE ||
+              serverCert.length > 0);
+
+    /* If a server certificate is sent in the asymHeader, check that the same
+     * certificate was defined for the endpoint */
+    if(serverCert.length > 0 &&
+       !UA_String_equal(&serverCert, &client->endpoint.serverCertificate)) {
         UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
                      "The server certificate is different from the EndpointDescription");
         return UA_STATUSCODE_BADSECURITYCHECKSFAILED;
