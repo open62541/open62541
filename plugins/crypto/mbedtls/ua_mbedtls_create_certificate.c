@@ -390,7 +390,7 @@ static int write_private_key(mbedtls_pk_context *key, UA_CertificateFormat keyFo
             return ret;
         }
 
-        len = strlen((char *) output_buf);
+        len = strlen((char *)output_buf);
         break;
     }
     }
