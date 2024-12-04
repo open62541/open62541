@@ -523,6 +523,17 @@ mbedtls_createSigningRequest(mbedtls_pk_context *localPrivateKey,
         mbedtls_x509write_csr_set_key(&request, localPrivateKey);
     }
 
+    /* The private key associated with the request will be used for signing the
+     * created CSR. Enforce using RSASSA-PKCS1-v1_5 scheme. The hash_id
+     * argument is ignored when padding is set to MBEDTLS_RSA_PKCS_V15, so just
+     * set it to MBEDTLS_MD_NONE. */
+    mbedtls_rsa_context *rsaContext = mbedtls_pk_rsa(
+#if MBEDTLS_VERSION_NUMBER < 0x03000000
+        *request.key);
+#else
+        *request.private_key);
+#endif
+    mbedtls_rsa_set_padding(rsaContext, MBEDTLS_RSA_PKCS_V15, MBEDTLS_MD_NONE);
 
     unsigned char requestBuf[CSR_BUFFER_SIZE];
     memset(requestBuf, 0, sizeof(requestBuf));
