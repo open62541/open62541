@@ -58,6 +58,13 @@ UA_SecurityPolicy_EccNistP256(UA_SecurityPolicy *policy,
                             const UA_ByteString localPrivateKey,
                             const UA_Logger *logger);
 
+UA_EXPORT UA_StatusCode
+UA_SecurityPolicy_EccNistP384(UA_SecurityPolicy *policy,
+                            const UA_ApplicationType applicationType,
+                            const UA_ByteString localCertificate,
+                            const UA_ByteString localPrivateKey,
+                            const UA_Logger *logger);
+
 #ifdef __linux__ /* Linux only so far */
 UA_EXPORT UA_StatusCode
 UA_SecurityPolicy_Filestore(UA_SecurityPolicy *policy,
