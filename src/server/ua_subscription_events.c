@@ -182,33 +182,46 @@ UA_MonitoredItem_addEvent(UA_Server *server, UA_MonitoredItem *mon,
     UA_EventFilter *eventFilter = (UA_EventFilter*)
         mon->parameters.filter.content.decoded.data;
 
-    /* Allocate memory for the notification */
-    UA_Notification *notification = UA_Notification_new();
-    if(!notification)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
 
-    /* The MonitoredItem must be attached to a Subscription. This code path is
-     * not taken for local MonitoredItems (once they are enabled for Events). */
-    UA_assert(mon->subscription);
-    UA_Subscription *sub = mon->subscription;
-    UA_Session *session = sub->session;
-
+    UA_EventFieldList efl;
+    UA_EventFieldList_init(&efl);
     UA_EventFilterResult res; /* FilterResult contains only statuscodes. Ignored
                                * outside the initial setup/validation. */
     UA_EventFilterResult_init(&res);
-    UA_StatusCode retval = filterEvent(server, session, event, eventFilter,
-                                       &notification->data.event, &res);
+    UA_StatusCode retval = filterEvent(
+        server,
+        mon->subscription ? mon->subscription->session : &server->adminSession,
+        event, eventFilter,
+        &efl,
+        &res
+    );
+
     UA_EventFilterResult_clear(&res);
-    if(retval != UA_STATUSCODE_GOOD) {
-        UA_Notification_delete(notification);
-        if(retval == UA_STATUSCODE_BADNOMATCH)
-            return UA_STATUSCODE_GOOD;
-        return retval;
+    if (retval != UA_STATUSCODE_GOOD) return retval;
+
+    if (!mon->subscription)
+    {
+        UA_LocalMonitoredItem *local = (UA_LocalMonitoredItem*) mon;
+        local->callback.eventCallback (
+            server,
+            mon->monitoredItemId,
+            local->context,
+            efl.eventFieldsSize,
+            efl.eventFields
+        );
+        UA_EventFieldList_clear(&efl);
+        return UA_STATUSCODE_GOOD;
     }
 
+    UA_Notification *notification = UA_Notification_new();
+    if(!notification)
+    {
+        UA_EventFieldList_clear(&efl);
+        return UA_STATUSCODE_BADOUTOFMEMORY;
+    }
+    notification->data.event = efl;
     notification->data.event.clientHandle = mon->parameters.clientHandle;
     notification->mon = mon;
-
     UA_Notification_enqueueAndTrigger(server, notification);
     return UA_STATUSCODE_GOOD;
 }
@@ -282,18 +295,6 @@ triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
         UA_LOG_DEBUG(server->config.logging, UA_LOGCATEGORY_SERVER,
             "Events: An event is triggered on node %.*s",
             (int)nodeIdStr.length, nodeIdStr.data));
-
-#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-    UA_Boolean isCallerAC = false;
-    if(isConditionOrBranch(server, &eventNodeId, &origin, &isCallerAC)) {
-        if(!isCallerAC) {
-          UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER,
-                                 "Condition Events: Please use A&C API to trigger Condition Events 0x%08X",
-                                  UA_STATUSCODE_BADINVALIDARGUMENT);
-          return UA_STATUSCODE_BADINVALIDARGUMENT;
-        }
-    }
-#endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 
     /* Check that the origin node exists */
     const UA_Node *originNode = UA_NODESTORE_GET(server, &origin);
