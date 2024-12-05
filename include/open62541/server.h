@@ -1260,6 +1260,19 @@ UA_Server_readObjectProperty(UA_Server *server, const UA_NodeId objectId,
                              const UA_QualifiedName propertyName,
                              UA_Variant *value);
 
+/*
+ * Get the nodeId of a node from an origin node and a browse name
+ *
+ * @param server The server object
+ * @param origin The origin node
+ * @param browseName the browseName of the node
+ * @param outNodeId Contains the resulting nodeId
+ * @return The StatusCode for the operation
+ */
+UA_StatusCode
+UA_Server_getNodeIdWithBrowseName (UA_Server *server, const UA_NodeId *origin,
+                                   UA_QualifiedName browseName, UA_NodeId *outNodeId);
+
 /**
  * .. _addnodes:
  *
@@ -1597,202 +1610,69 @@ UA_Server_triggerEvent(UA_Server *server, const UA_NodeId eventNodeId,
  * ---------------------------------- */
 
 #ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
-typedef enum UA_TwoStateVariableCallbackType {
-  UA_ENTERING_ENABLEDSTATE,
-  UA_ENTERING_ACKEDSTATE,
-  UA_ENTERING_CONFIRMEDSTATE,
-  UA_ENTERING_ACTIVESTATE
-} UA_TwoStateVariableCallbackType;
 
-/* Callback prototype to set user specific callbacks */
-typedef UA_StatusCode
-(*UA_TwoStateVariableChangeCallback)(UA_Server *server, const UA_NodeId *condition);
+typedef struct UA_ConditionEventInfo {
+    UA_LocalizedText message;
+    UA_UInt16 severity;
+    UA_Boolean hasSeverity;
+    UA_StatusCode quality;
+    UA_Boolean hasQuality;
+} UA_ConditionEventInfo;
 
-/* Create condition instance. The function checks first whether the passed
- * conditionType is a subType of ConditionType. Then checks whether the
- * condition source has HasEventSource reference to its parent. If not, a
- * HasEventSource reference will be created between condition source and server
- * object. To expose the condition in address space, a hierarchical
- * ReferenceType should be passed to create the reference to condition source.
- * Otherwise, UA_NODEID_NULL should be passed to make the condition not exposed.
- *
- * @param server The server object
- * @param conditionId The NodeId of the requested Condition Object. When passing
- *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
- *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
- * @param conditionType The NodeId of the node representation of the ConditionType
- * @param conditionName The name of the condition to be created
- * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
- * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
- *                                 between Condition and its source
- * @param outConditionId The NodeId of the created Condition
- * @return The StatusCode of the UA_Server_createCondition method */
-UA_StatusCode UA_EXPORT
-UA_Server_createCondition(UA_Server *server,
-                          const UA_NodeId conditionId,
-                          const UA_NodeId conditionType,
-                          const UA_QualifiedName conditionName,
-                          const UA_NodeId conditionSource,
-                          const UA_NodeId hierarchialReferenceType,
-                          UA_NodeId *outConditionId);
+typedef struct UA_CreateConditionProperties
+{
+    UA_NodeId sourceNode;
+    UA_LocalizedText displayName;
+    UA_LocalizedText description;
+    UA_NodeId parentNodeId;
+    UA_NodeId hierarchialReferenceType;
+    UA_QualifiedName browseName;
+    UA_Boolean canBranch;
+} UA_CreateConditionProperties;
 
-/* The method pair UA_Server_addCondition_begin and _finish splits the
- * UA_Server_createCondtion in two parts similiar to the
- * UA_Server_addNode_begin / _finish pair. This is useful if the node shall be
- * modified before finish the instantiation. For example to add children with
- * specific NodeIds.
- * For details refer to the UA_Server_addNode_begin / _finish methods.
- *
- * Additionally to UA_Server_addNode_begin UA_Server_addCondition_begin checks
- * if the passed condition type is a subtype of the OPC UA ConditionType.
- *
- * @param server The server object
- * @param conditionId The NodeId of the requested Condition Object. When passing
- *        UA_NODEID_NUMERIC(X,0) an unused nodeid in namespace X will be used.
- *        E.g. passing UA_NODEID_NULL will result in a NodeId in namespace 0.
- * @param conditionType The NodeId of the node representation of the ConditionType
- * @param conditionName The name of the condition to be added
- * @param outConditionId The NodeId of the added Condition
- * @return The StatusCode of the UA_Server_addCondition_begin method */
-UA_StatusCode UA_EXPORT
-UA_Server_addCondition_begin(UA_Server *server,
-                             const UA_NodeId conditionId,
-                             const UA_NodeId conditionType,
-                             const UA_QualifiedName conditionName,
-                             UA_NodeId *outConditionId);
-
-/* Second call of the UA_Server_addCondition_begin and _finish pair.
- * Additionally to UA_Server_addNode_finish UA_Server_addCondition_finish:
- *  - checks whether the condition source has HasEventSource reference to its
- *    parent. If not, a HasEventSource reference will be created between
- *    condition source and server object
- *  - exposes the condition in the address space if hierarchialReferenceType is
- *    not UA_NODEID_NULL by adding a reference of this type from the condition
- *    source to the condition instance
- *  - initializes the standard condition fields and callbacks
- *
- * @param server The server object
- * @param conditionId The NodeId of the unfinished Condition Object
- * @param conditionSource The NodeId of the Condition Source (Parent of the Condition)
- * @param hierarchialReferenceType The NodeId of Hierarchical ReferenceType
- *                                 between Condition and its source
- * @return The StatusCode of the UA_Server_addCondition_finish method */
+typedef UA_StatusCode (*UA_ConditionTypeSetupFn)(
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    const void *userdata
+);
 
 UA_StatusCode UA_EXPORT
-UA_Server_addCondition_finish(UA_Server *server,
-                              const UA_NodeId conditionId,
-                              const UA_NodeId conditionSource,
-                              const UA_NodeId hierarchialReferenceType);
+__UA_Server_createCondition(
+    UA_Server *server,
+    const UA_NodeId conditionId,
+    const UA_NodeId conditionType,
+    const UA_CreateConditionProperties *conditionProperties,
+    UA_ConditionTypeSetupFn setupFn,
+    const void *setupData,
+    UA_NodeId *outConditionId
+);
 
-/* Set the value of condition field.
+UA_StatusCode UA_EXPORT
+__UA_Server_addCondition_begin(
+    UA_Server *server,
+    const UA_NodeId conditionId,
+    const UA_NodeId conditionType,
+    const UA_CreateConditionProperties *properties,
+    UA_NodeId *outNodeId
+);
+
+UA_StatusCode UA_EXPORT
+__UA_Server_addCondition_finish(
+    UA_Server *server,
+    const UA_NodeId *conditionId,
+    const UA_NodeId *conditionType,
+    const UA_CreateConditionProperties *conditionProperties,
+    UA_ConditionTypeSetupFn setupNodesFn,
+    const void *setupNodesUserData
+);
+
+/* Delete a condition from the address space and the internal structures.
  *
  * @param server The server object
  * @param condition The NodeId of the node representation of the Condition Instance
- * @param value Variant Value to be written to the Field
- * @param fieldName Name of the Field in which the value should be written
- * @return The StatusCode of the UA_Server_setConditionField method*/
-UA_StatusCode UA_EXPORT UA_THREADSAFE
-UA_Server_setConditionField(UA_Server *server,
-                            const UA_NodeId condition,
-                            const UA_Variant *value,
-                            const UA_QualifiedName fieldName);
-
-/* Set the value of property of condition field.
- *
- * @param server The server object
- * @param condition The NodeId of the node representation of the Condition
- *        Instance
- * @param value Variant Value to be written to the Field
- * @param variableFieldName Name of the Field which has a property
- * @param variablePropertyName Name of the Field Property in which the value
- *        should be written
- * @return The StatusCode of the UA_Server_setConditionVariableFieldProperty*/
-UA_StatusCode UA_EXPORT
-UA_Server_setConditionVariableFieldProperty(UA_Server *server,
-                                            const UA_NodeId condition,
-                                            const UA_Variant *value,
-                                            const UA_QualifiedName variableFieldName,
-                                            const UA_QualifiedName variablePropertyName);
-
-/* Triggers an event only for an enabled condition. The condition list is
- * updated then with the last generated EventId.
- *
- * @param server The server object
- * @param condition The NodeId of the node representation of the Condition Instance
- * @param conditionSource The NodeId of the node representation of the Condition Source
- * @param outEventId last generated EventId
- * @return The StatusCode of the UA_Server_triggerConditionEvent method */
-UA_StatusCode UA_EXPORT
-UA_Server_triggerConditionEvent(UA_Server *server,
-                                const UA_NodeId condition,
-                                const UA_NodeId conditionSource,
-                                UA_ByteString *outEventId);
-
-/* Add an optional condition field using its name. (TODO Adding optional methods
- * is not implemented yet)
- *
- * @param server The server object
- * @param condition The NodeId of the node representation of the Condition Instance
- * @param conditionType The NodeId of the node representation of the Condition Type
- * from which the optional field comes
- * @param fieldName Name of the optional field
- * @param outOptionalVariable The NodeId of the created field (Variable Node)
- * @return The StatusCode of the UA_Server_addConditionOptionalField method */
-UA_StatusCode UA_EXPORT
-UA_Server_addConditionOptionalField(UA_Server *server,
-                                    const UA_NodeId condition,
-                                    const UA_NodeId conditionType,
-                                    const UA_QualifiedName fieldName,
-                                    UA_NodeId *outOptionalVariable);
-
-/* Function used to set a user specific callback to TwoStateVariable Fields of a
- * condition. The callbacks will be called before triggering the events when
- * transition to true State of EnabledState/Id, AckedState/Id, ConfirmedState/Id
- * and ActiveState/Id occurs.
- *
- * @param server The server object
- * @param condition The NodeId of the node representation of the Condition Instance
- * @param conditionSource The NodeId of the node representation of the Condition Source
- * @param removeBranch (Not Implemented yet)
- * @param callback User specific callback function
- * @param callbackType Callback function type, indicates where it should be called
- * @return The StatusCode of the UA_Server_setConditionTwoStateVariableCallback method */
-UA_StatusCode UA_EXPORT
-UA_Server_setConditionTwoStateVariableCallback(UA_Server *server,
-                                               const UA_NodeId condition,
-                                               const UA_NodeId conditionSource,
-                                               UA_Boolean removeBranch,
-                                               UA_TwoStateVariableChangeCallback callback,
-                                               UA_TwoStateVariableCallbackType callbackType);
-
-/* Delete a condition from the address space and the internal lists.
- *
- * @param server The server object
- * @param condition The NodeId of the node representation of the Condition Instance
- * @param conditionSource The NodeId of the node representation of the Condition Source
  * @return ``UA_STATUSCODE_GOOD`` on success */
 UA_StatusCode UA_EXPORT
-UA_Server_deleteCondition(UA_Server *server,
-                          const UA_NodeId condition,
-                          const UA_NodeId conditionSource);
-
-/* Set the LimitState of the LimitAlarmType
- *
- * @param server The server object
- * @param conditionId NodeId of the node representation of the Condition Instance
- * @param limitValue The value from the trigger node */
-UA_StatusCode UA_EXPORT
-UA_Server_setLimitState(UA_Server *server, const UA_NodeId conditionId,
-                        UA_Double limitValue);
-
-/* Parse the certifcate and set Expiration date
- *
- * @param server The server object
- * @param conditionId NodeId of the node representation of the Condition Instance
- * @param cert The certificate for parsing */
-UA_StatusCode UA_EXPORT
-UA_Server_setExpirationDate(UA_Server *server, const UA_NodeId conditionId,
-                            UA_ByteString  cert);
+UA_Server_deleteCondition(UA_Server *server, UA_NodeId condition);
 
 #endif /* UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS */
 

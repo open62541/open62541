@@ -409,6 +409,10 @@ UA_Server_init(UA_Server *server) {
 #endif /* UA_ENABLE_PUBSUB_MONITORING */
 #endif /* UA_ENABLE_PUBSUB */
 
+#ifdef UA_ENABLE_SUBSCRIPTIONS_ALARMS_CONDITIONS
+    initNs0ConditionAndAlarms(server);
+#endif
+
     UA_UNLOCK(&server->serviceMutex);
     return server;
 
