@@ -47,38 +47,6 @@ typedef struct {
 } asyncRegisterRequest;
 #define UA_MAXREGISTERREQUESTS 4
 
-#ifdef UA_ENABLE_DISCOVERY_MULTICAST
-
-#include "mdnsd/libmdnsd/mdnsd.h"
-#define UA_MAXMDNSRECVSOCKETS 8
-
-/**
- * TXT record:
- * [servername]-[hostname]._opcua-tcp._tcp.local. TXT path=/ caps=NA,DA,...
- *
- * A/AAAA record for all ip addresses:
- * [servername]-[hostname]._opcua-tcp._tcp.local. A [ip].
- * [hostname]. A [ip].
- */
-
-typedef struct serverOnNetwork {
-    LIST_ENTRY(serverOnNetwork) pointers;
-    UA_ServerOnNetwork serverOnNetwork;
-    UA_DateTime created;
-    UA_DateTime lastSeen;
-    UA_Boolean txtSet;
-    UA_Boolean srvSet;
-    char* pathTmp;
-} serverOnNetwork;
-
-#define SERVER_ON_NETWORK_HASH_SIZE 1000
-typedef struct serverOnNetwork_hash_entry {
-    serverOnNetwork *entry;
-    struct serverOnNetwork_hash_entry* next;
-} serverOnNetwork_hash_entry;
-
-#endif
-
 struct UA_DiscoveryManager {
     UA_ServerComponent sc;
 
@@ -93,29 +61,12 @@ struct UA_DiscoveryManager {
     void* registerServerCallbackData;
 
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
-    mdns_daemon_t *mdnsDaemon;
-    UA_ConnectionManager *cm;
-    uintptr_t mdnsSendConnection;
-    uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
-    size_t mdnsRecvConnectionsSize;
     UA_Boolean mdnsMainSrvAdded;
-
-    /* Full Domain Name of server itself. Used to detect if received mDNS
-     * message was from itself */
-    UA_String selfFqdnMdnsRecord;
-
-    LIST_HEAD(, serverOnNetwork) serverOnNetwork;
-
-    UA_UInt32 serverOnNetworkRecordIdCounter;
-    UA_DateTime serverOnNetworkRecordIdLastReset;
-
-    /* hash mapping domain name to serverOnNetwork list entry */
-    struct serverOnNetwork_hash_entry* serverOnNetworkHash[SERVER_ON_NETWORK_HASH_SIZE];
-
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void *serverOnNetworkCallbackData;
-
-    UA_UInt64 mdnsCallbackId;
+#  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+    UA_ConnectionManager *cm;
+#  endif
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 };
 
@@ -141,32 +92,34 @@ UA_Discovery_updateMdnsForDiscoveryUrl(UA_DiscoveryManager *dm, const UA_String 
 
 void UA_DiscoveryManager_startMulticast(UA_DiscoveryManager *dm);
 void UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm);
-void UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm);
+
+void
+UA_DiscoveryManager_clearMdns(UA_DiscoveryManager *dm);
+
+UA_UInt32
+UA_DiscoveryManager_getMdnsConnectionCount(void);
+
+UA_UInt32
+UA_DiscoveryManager_getServerOnNetworkRecordIdCounter(UA_DiscoveryManager *dm);
 
 UA_StatusCode
-UA_DiscoveryManager_addEntryToServersOnNetwork(UA_DiscoveryManager *dm,
-                                               const char *fqdnMdnsRecord,
-                                               UA_String serverName,
-                                               struct serverOnNetwork **addedEntry);
+UA_DiscoveryManager_resetServerOnNetworkRecordCounter(UA_DiscoveryManager *dm);
+
+UA_DateTime
+UA_DiscoveryManager_getServerOnNetworkCounterResetTime(UA_DiscoveryManager *dm);
+
+UA_ServerOnNetwork*
+UA_DiscoveryManager_getServerOnNetworkList(UA_DiscoveryManager *dm);
+
+UA_ServerOnNetwork*
+UA_DiscoveryManager_getNextServerOnNetworkRecord(UA_DiscoveryManager *dm,
+                                  UA_ServerOnNetwork *current);
 
 UA_StatusCode
-UA_DiscoveryManager_removeEntryFromServersOnNetwork(UA_DiscoveryManager *dm,
-                                                    const char *fqdnMdnsRecord,
-                                                    UA_String serverName);
+UA_DiscoveryManager_clearServerOnNetwork(UA_DiscoveryManager *dm);
 
-void mdns_record_received(const struct resource *r, void *data);
-
-void mdns_create_txt(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                     const char *path, const UA_String *capabilites,
-                     const size_t capabilitiesSize,
-                     void (*conflict)(char *host, int type, void *arg));
-
-void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDomain,
-                             const char *localDomain);
-
-mdns_record_t *
-mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
-                 const char *host, const char *rdname);
+void
+UA_DiscoveryManager_mdnsCyclicTimer(UA_Server *server, void *data);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
