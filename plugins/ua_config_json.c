@@ -647,6 +647,7 @@ PARSE_JSON(SecurityPolciesField) {
     UA_String basic256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256");
     UA_String basic256Sha256uri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
     UA_String aes128sha256rsaoaepuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes128_Sha256_RsaOaep");
+    UA_String aes256sha256rsapssuri = UA_STRING("http://opcfoundation.org/UA/SecurityPolicy#Aes256_Sha256_RsaPss");
 
     cj5_token tok = ctx->tokens[++ctx->index];
     for(size_t j = tok.size; j > 0; j--) {
@@ -740,6 +741,13 @@ PARSE_JSON(SecurityPolciesField) {
             if(retval != UA_STATUSCODE_GOOD) {
                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
                                "Could not add SecurityPolicy#Aes128Sha256RsaOaep with error code %s",
+                               UA_StatusCode_name(retval));
+            }
+        } else if(UA_String_equal(&policy, &aes256sha256rsapssuri)) {
+             retval = UA_ServerConfig_addSecurityPolicyAes256Sha256RsaPss(config, &certificate, &privateKey);
+             if(retval != UA_STATUSCODE_GOOD) {
+                 UA_LOG_WARNING(config->logging, UA_LOGCATEGORY_USERLAND,
+                                "Could not add SecurityPolicy#Aes256Sha256RsaPss with error code %s",
                                UA_StatusCode_name(retval));
             }
         } else {
