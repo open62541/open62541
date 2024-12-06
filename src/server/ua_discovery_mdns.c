@@ -56,7 +56,6 @@ typedef struct serverOnNetwork_hash_entry {
 
 typedef struct mdnsPrivate {
     mdns_daemon_t *mdnsDaemon;
-    UA_ConnectionManager *cm;
     uintptr_t mdnsSendConnection;
     uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
     size_t mdnsRecvConnectionsSize;
@@ -891,8 +890,8 @@ MulticastDiscoveryCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 static void
 UA_DiscoveryManager_sendMulticastMessages(UA_DiscoveryManager *dm) {
-    UA_ConnectionManager *cm = mdnsPrivateData.cm;
-    if(!mdnsPrivateData.cm || mdnsPrivateData.mdnsSendConnection == 0)
+    UA_ConnectionManager *cm = dm->cm;
+    if(!dm->cm || mdnsPrivateData.mdnsSendConnection == 0)
         return;
 
     struct sockaddr ip;
@@ -981,7 +980,7 @@ addMdnsRecordForNetworkLayer(UA_DiscoveryManager *dm, const UA_String serverName
 static void
 discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     /* Find the connection manager */
-    if(!mdnsPrivateData.cm) {
+    if(!dm->cm) {
         UA_String udpString = UA_STRING("udp");
         for(UA_EventSource *es = dm->sc.server->config.eventLoop->eventSources;
             es != NULL; es = es->next) {
@@ -990,13 +989,13 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
                 continue;
             UA_ConnectionManager *cm = (UA_ConnectionManager*)es;
             if(UA_String_equal(&udpString, &cm->protocol)) {
-                mdnsPrivateData.cm = cm;
+                dm->cm = cm;
                 break;
             }
         }
     }
 
-    if(!mdnsPrivateData.cm) {
+    if(!dm->cm) {
         UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
                      "No UDP communication supported");
         return;
@@ -1034,7 +1033,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
 
     if(mdnsPrivateData.mdnsRecvConnectionsSize == 0) {
-        res = mdnsPrivateData.cm->openConnection(mdnsPrivateData.cm, &kvm, dm->sc.server, dm,
+        res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
                                      MulticastDiscoveryRecvCallback);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
@@ -1044,7 +1043,7 @@ discovery_createMulticastSocket(UA_DiscoveryManager *dm) {
     /* Open the send connection */
     listen = false;
     if(mdnsPrivateData.mdnsSendConnection == 0) {
-        res = mdnsPrivateData.cm->openConnection(mdnsPrivateData.cm, &kvm, dm->sc.server, dm,
+        res = dm->cm->openConnection(dm->cm, &kvm, dm->sc.server, dm,
                                      MulticastDiscoverySendCallback);
         if(res != UA_STATUSCODE_GOOD)
             UA_LOG_ERROR(dm->sc.server->config.logging, UA_LOGCATEGORY_DISCOVERY,
@@ -1112,12 +1111,12 @@ UA_DiscoveryManager_stopMulticast(UA_DiscoveryManager *dm) {
     }
 
     /* Close the socket */
-    if(mdnsPrivateData.cm) {
+    if(dm->cm) {
         if(mdnsPrivateData.mdnsSendConnection)
-            mdnsPrivateData.cm->closeConnection(mdnsPrivateData.cm, mdnsPrivateData.mdnsSendConnection);
+            dm->cm->closeConnection(dm->cm, mdnsPrivateData.mdnsSendConnection);
         for(size_t i = 0; i < UA_MAXMDNSRECVSOCKETS; i++)
             if(mdnsPrivateData.mdnsRecvConnections[i] != 0)
-                mdnsPrivateData.cm->closeConnection(mdnsPrivateData.cm, mdnsPrivateData.mdnsRecvConnections[i]);
+                dm->cm->closeConnection(dm->cm, mdnsPrivateData.mdnsRecvConnections[i]);
     }
 }
 

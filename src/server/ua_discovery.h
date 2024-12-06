@@ -64,6 +64,9 @@ struct UA_DiscoveryManager {
     UA_Boolean mdnsMainSrvAdded;
     UA_Server_serverOnNetworkCallback serverOnNetworkCallback;
     void *serverOnNetworkCallbackData;
+#  ifdef UA_ENABLE_DISCOVERY_MULTICAST_MDNSD
+    UA_ConnectionManager *cm;
+#  endif
 # endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 };
 
