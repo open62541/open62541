@@ -196,7 +196,7 @@ UA_NetworkMessage_encodeJson_internal(const UA_NetworkMessage* src, CtxJson *ctx
 UA_StatusCode
 UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
                                      UA_Byte **bufPos, const UA_Byte **bufEnd,
-                                     UA_String *namespaces, size_t namespaceSize,
+                                     UA_NamespaceMapping *namespaceMapping,
                                      UA_String *serverUris, size_t serverUriSize,
                                      UA_Boolean useReversible) {
     /* Set up the context */
@@ -205,8 +205,7 @@ UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
     ctx.pos = *bufPos;
     ctx.end = *bufEnd;
     ctx.depth = 0;
-    ctx.namespaces = namespaces;
-    ctx.namespacesSize = namespaceSize;
+    ctx.namespaceMapping = namespaceMapping;
     ctx.serverUris = serverUris;
     ctx.serverUrisSize = serverUriSize;
     ctx.useReversible = useReversible;
@@ -242,8 +241,7 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
     ctx.calcOnly = false;
     if(options) {
         ctx.useReversible = options->useReversible;
-        ctx.namespacesSize = options->namespacesSize;
-        ctx.namespaces = options->namespaces;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.serverUris = options->serverUris;
         ctx.prettyPrint = options->prettyPrint;
@@ -265,7 +263,7 @@ UA_NetworkMessage_encodeJson(const UA_NetworkMessage *src,
 
 size_t
 UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
-                                       UA_String *namespaces, size_t namespaceSize,
+                                       UA_NamespaceMapping *namespaceMapping,
                                        UA_String *serverUris, size_t serverUriSize,
                                        UA_Boolean useReversible) {
     /* Set up the context */
@@ -274,8 +272,7 @@ UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
     ctx.pos = 0;
     ctx.end = (const UA_Byte*)(uintptr_t)SIZE_MAX;
     ctx.depth = 0;
-    ctx.namespaces = namespaces;
-    ctx.namespacesSize = namespaceSize;
+    ctx.namespaceMapping = namespaceMapping;
     ctx.serverUris = serverUris;
     ctx.serverUrisSize = serverUriSize;
     ctx.useReversible = useReversible;
@@ -297,8 +294,7 @@ UA_NetworkMessage_calcSizeJson(const UA_NetworkMessage *src,
     ctx.calcOnly = true;
     if(options) {
         ctx.useReversible = options->useReversible;
-        ctx.namespacesSize = options->namespacesSize;
-        ctx.namespaces = options->namespaces;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.serverUris = options->serverUris;
         ctx.prettyPrint = options->prettyPrint;
