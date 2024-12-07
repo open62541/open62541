@@ -1381,8 +1381,10 @@ UA_decodeBinary(const UA_ByteString *inBuf,
 #ifdef UA_ENABLE_JSON_ENCODING
 
 typedef struct {
-    const UA_String *namespaces;
-    size_t namespacesSize;
+    /* Mapping of namespace indices in NodeIds and of NamespaceUris in
+     * ExpandedNodeIds. */
+    UA_NamespaceMapping *namespaceMapping;
+
     const UA_String *serverUris;
     size_t serverUrisSize;
     UA_Boolean useReversible;
