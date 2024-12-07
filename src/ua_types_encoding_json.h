@@ -62,8 +62,7 @@ typedef struct {
     size_t index;
     UA_Byte depth;
 
-    size_t namespacesSize;
-    const UA_String *namespaces;
+    UA_NamespaceMapping *namespaceMapping;
 
     size_t serverUrisSize;
     const UA_String *serverUris;

@@ -1934,12 +1934,12 @@ decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type)
         return ret;
 
     /* Replace with the index if the URI is found. Otherwise keep the string. */
-    for(size_t i = 0; i < ctx->namespacesSize; i++) {
-        if(UA_String_equal(&en->namespaceUri, &ctx->namespaces[i])) {
+    if(ctx->namespaceMapping) {
+        UA_StatusCode mapRes =
+            UA_NamespaceMapping_uri2Index(ctx->namespaceMapping, en->namespaceUri,
+                                          &en->nodeId.namespaceIndex);
+        if(mapRes == UA_STATUSCODE_GOOD)
             UA_String_clear(&en->namespaceUri);
-            en->nodeId.namespaceIndex = (UA_UInt16)i;
-            break;
-        }
     }
 
     return UA_STATUSCODE_GOOD;
@@ -2884,8 +2884,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     ctx.tokens = tokens;
 
     if(options) {
-        ctx.namespaces = options->namespaces;
-        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.customTypes = options->customTypes;
