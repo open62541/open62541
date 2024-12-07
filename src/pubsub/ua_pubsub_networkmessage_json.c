@@ -558,8 +558,7 @@ UA_NetworkMessage_decodeJson(const UA_ByteString *src,
     memset(&ctx, 0, sizeof(ParseCtx));
     ctx.tokens = tokens;
     if(options) {
-        ctx.namespacesSize = options->namespacesSize;
-        ctx.namespaces = options->namespaces;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.serverUris = options->serverUris;
         ctx.customTypes = options->customTypes;
