@@ -138,13 +138,13 @@ UA_NetworkMessage_decodeFooters(Ctx *ctx, UA_NetworkMessage *dst);
 UA_StatusCode
 UA_NetworkMessage_encodeJsonInternal(const UA_NetworkMessage *src,
                                      UA_Byte **bufPos, const UA_Byte **bufEnd,
-                                     UA_String *namespaces, size_t namespaceSize,
+                                     UA_NamespaceMapping *namespaceMapping,
                                      UA_String *serverUris, size_t serverUriSize,
                                      UA_Boolean useReversible);
 
 size_t
 UA_NetworkMessage_calcSizeJsonInternal(const UA_NetworkMessage *src,
-                                       UA_String *namespaces, size_t namespaceSize,
+                                       UA_NamespaceMapping *namespaceMapping,
                                        UA_String *serverUris, size_t serverUriSize,
                                        UA_Boolean useReversible);
 
