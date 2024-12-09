@@ -50,6 +50,7 @@ typedef struct {
 #ifdef UA_ENABLE_DISCOVERY_MULTICAST
 
 #include "mdnsd/libmdnsd/mdnsd.h"
+#define UA_MAXMDNSSENDSOCKETS 8
 #define UA_MAXMDNSRECVSOCKETS 8
 
 /**
@@ -95,7 +96,8 @@ struct UA_DiscoveryManager {
 # ifdef UA_ENABLE_DISCOVERY_MULTICAST
     mdns_daemon_t *mdnsDaemon;
     UA_ConnectionManager *cm;
-    uintptr_t mdnsSendConnection;
+    uintptr_t mdnsSendConnections[UA_MAXMDNSSENDSOCKETS];
+    size_t mdnsSendConnectionsSize;
     uintptr_t mdnsRecvConnections[UA_MAXMDNSRECVSOCKETS];
     size_t mdnsRecvConnectionsSize;
     UA_Boolean mdnsMainSrvAdded;
@@ -167,6 +169,10 @@ void mdns_set_address_record(UA_DiscoveryManager *dm, const char *fullServiceDom
 mdns_record_t *
 mdns_find_record(mdns_daemon_t *mdnsDaemon, unsigned short type,
                  const char *host, const char *rdname);
+
+void
+discovery_createMultiConnections(UA_Server *server, UA_DiscoveryManager *dm,
+                                 UA_KeyValuePair params[], UA_KeyValueMap kvm);
 
 #endif /* UA_ENABLE_DISCOVERY_MULTICAST */
 
