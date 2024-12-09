@@ -40,7 +40,8 @@ void UA_CertificateGroup_AcceptAll(UA_CertificateGroup *certGroup) {
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI){
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     return UA_STATUSCODE_GOOD;
 }
 

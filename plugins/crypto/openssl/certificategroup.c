@@ -9,7 +9,6 @@
 
 #include <open62541/util.h>
 #include <open62541/plugin/certificategroup_default.h>
-#include <open62541/plugin/log_stdout.h>
 
 #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_LIBRESSL)
 #include <openssl/x509.h>
@@ -159,8 +158,8 @@ openSSLFindCrls(UA_CertificateGroup *certGroup, const UA_ByteString *certificate
     /* Check if the certificate is a CA certificate.
      * Only a CA certificate can have a CRL. */
     if(!openSSLCheckCA(cert)) {
-        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SERVER,
-                   "The certificate is not a CA certificate and therefore does not have a CRL.");
+        UA_LOG_WARNING(certGroup->logging, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate is not a CA certificate and therefore does not have a CRL.");
         X509_free(cert);
         return UA_STATUSCODE_GOOD;
     }
@@ -761,7 +760,8 @@ cleanup:
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
-                                         const UA_String *applicationURI) {
+                                         const UA_String *applicationURI,
+                                         UA_Logger *logger) {
     const unsigned char * pData;
     X509 *                certificateX509;
     UA_String             subjectURI = UA_STRING_NULL;
@@ -810,12 +810,15 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 
-    if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
-        UA_LOG_WARNING(UA_Log_Stdout, UA_LOGCATEGORY_SERVER,
-                       "The certificate's application URI could not be verified. StatusCode %s",
-                       UA_StatusCode_name(ret));
-        ret = UA_STATUSCODE_GOOD;
+    if(ret != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate's Subject Alternative Name URI (%S) "
+                       "does not match the ApplicationURI (%S)",
+                       subjectURI, *applicationURI);
     }
+
+    if(ruleHandling != UA_RULEHANDLING_ABORT)
+        ret = UA_STATUSCODE_GOOD;
 
     X509_free (certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);

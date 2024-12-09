@@ -428,11 +428,6 @@ main(int argc, char **argv) {
     if(enableTime)
         config.verifyRequestTimestamp = UA_RULEHANDLING_DEFAULT;
 
-    /* Override with a custom access control policy */
-    UA_String_clear(&config.applicationDescription.applicationUri);
-    config.applicationDescription.applicationUri =
-        UA_String_fromChars("urn:open62541.server.application");
-
     config.shutdownDelay = 5000.0; /* 5s */
 
     /* Add supported pubsub security policies by this sks instance */

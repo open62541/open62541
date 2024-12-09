@@ -46,8 +46,6 @@ int main(int argc, char* argv[]) {
     UA_Client *client = UA_Client_new();
     UA_ClientConfig *config = UA_Client_getConfig(client);
     config->securityMode = UA_MESSAGESECURITYMODE_SIGNANDENCRYPT;
-    UA_String_clear(&config->clientDescription.applicationUri);
-    config->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
     UA_ClientConfig_setDefaultEncryption(config, certificate, privateKey,
                                          trustList, trustListSize,
                                          revocationList, revocationListSize);
