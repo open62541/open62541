@@ -204,9 +204,9 @@ START_TEST(GetMaximalConnectionConfigurationAndCompareValues){
     UA_NetworkAddressUrlDataType networkAddressUrlDataCopy =
         *((UA_NetworkAddressUrlDataType *)connectionConfig.address.data);
     ck_assert(UA_calcSizeBinary(&networkAddressUrlDataCopy,
-                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]) ==
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE], NULL) ==
               UA_calcSizeBinary(&networkAddressUrlData,
-                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE]));
+                                &UA_TYPES[UA_TYPES_NETWORKADDRESSURLDATATYPE], NULL));
     for(size_t i = 0; i < connectionConfig.connectionProperties.mapSize; i++){
         ck_assert(UA_String_equal(&connectionConfig.connectionProperties.map[i].key.name,
                                   &connectionConf.connectionProperties.map[i].key.name) == UA_TRUE);

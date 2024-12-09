@@ -113,10 +113,10 @@ UA_SecureChannel_sendError(UA_SecureChannel *channel, UA_TcpErrorMessage *error)
     const UA_Byte *bufEnd = &msg.data[msg.length];
     retval |= UA_encodeBinaryInternal(&header,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     retval |= UA_encodeBinaryInternal(error,
                                       &UA_TRANSPORT[UA_TRANSPORT_TCPERRORMESSAGE],
-                                      &bufPos, &bufEnd, NULL, NULL);
+                                      &bufPos, &bufEnd, NULL, NULL, NULL);
     (void)retval; /* Encoding of these cannot fail */
     msg.length = header.messageSize;
     cm->sendWithConnection(cm, channel->connectionId, &UA_KEYVALUEMAP_NULL, &msg);
@@ -201,6 +201,10 @@ UA_SecureChannel_clear(UA_SecureChannel *channel) {
     /* Delete remaining chunks */
     UA_SecureChannel_deleteBuffered(channel);
 
+    /* Clean up namespace mapping */
+    UA_NamespaceMapping_delete(channel->namespaceMapping);
+    channel->namespaceMapping = NULL;
+
     /* Reset the SecureChannel for reuse (in the client) */
     channel->securityMode = UA_MESSAGESECURITYMODE_INVALID;
     channel->shutdownReason = UA_SHUTDOWNREASON_CLOSE;
@@ -273,8 +277,12 @@ UA_SecureChannel_sendAsymmetricOPNMessage(UA_SecureChannel *channel,
     size_t securityHeaderLength, pre_sig_length, total_length, encryptedLength;
 
     /* Encode the message type and content */
+    UA_EncodeBinaryOptions encOpts;
+    memset(&encOpts, 0, sizeof(UA_EncodeBinaryOptions));
+    encOpts.namespaceMapping = channel->namespaceMapping;
     res |= UA_NodeId_encodeBinary(&contentType->binaryEncodingId, &buf_pos, buf_end);
-    res |= UA_encodeBinaryInternal(content, contentType, &buf_pos, &buf_end, NULL, NULL);
+    res |= UA_encodeBinaryInternal(content, contentType, &buf_pos, &buf_end,
+                                   &encOpts, NULL, NULL);
     UA_CHECK_STATUS(res, goto error);
 
     /* Compute the header length */
@@ -355,13 +363,13 @@ encodeHeadersSym(UA_MessageContext *mc, size_t totalLength) {
 
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_encodeBinaryInternal(&header, &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                   &header_pos, &mc->buf_end, NULL, NULL);
+                                   &header_pos, &mc->buf_end, NULL, NULL, NULL);
     res |= UA_UInt32_encodeBinary(&channel->securityToken.channelId,
                                   &header_pos, mc->buf_end);
     res |= UA_UInt32_encodeBinary(&channel->securityToken.tokenId,
                                   &header_pos, mc->buf_end);
     res |= UA_encodeBinaryInternal(&seqHeader, &UA_TRANSPORT[UA_TRANSPORT_SEQUENCEHEADER],
-                                   &header_pos, &mc->buf_end, NULL, NULL);
+                                   &header_pos, &mc->buf_end, NULL, NULL, NULL);
     return res;
 }
 
@@ -504,9 +512,12 @@ UA_MessageContext_begin(UA_MessageContext *mc, UA_SecureChannel *channel,
 UA_StatusCode
 UA_MessageContext_encode(UA_MessageContext *mc, const void *content,
                          const UA_DataType *contentType) {
+    UA_EncodeBinaryOptions encOpts;
+    memset(&encOpts, 0, sizeof(UA_EncodeBinaryOptions));
+    encOpts.namespaceMapping = mc->channel->namespaceMapping;
     UA_StatusCode res =
         UA_encodeBinaryInternal(content, contentType, &mc->buf_pos, &mc->buf_end,
-                                sendSymmetricEncodingCallback, mc);
+                                &encOpts, sendSymmetricEncodingCallback, mc);
     if(res != UA_STATUSCODE_GOOD && mc->messageBuffer.length > 0)
         UA_MessageContext_abort(mc);
     return res;

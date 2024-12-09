@@ -351,7 +351,7 @@ START_TEST(rw_trustlist) {
 
     fd = *(UA_Int32*)fileHandler.data;
     UA_ByteString encTrustList = UA_BYTESTRING_NULL;
-    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList);
+    retval = UA_encodeBinary(&trustList, &UA_TYPES[UA_TYPES_TRUSTLISTDATATYPE], &encTrustList, NULL);
     ck_assert_uint_eq(retval, UA_STATUSCODE_GOOD);
 
     UA_ByteString chunk1 = {.length = 1000, .data = encTrustList.data};

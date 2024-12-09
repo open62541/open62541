@@ -771,12 +771,15 @@ ENCODE_JSON(NodeId) {
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
             /* Check if Namespace given and in range */
-            if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
-                UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
-                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+            UA_String nsUri = UA_STRING_NULL;
+            UA_UInt16 ns = src->namespaceIndex;
+            if(ctx->namespaceMapping)
+                UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
+            if(nsUri.length > 0) {
+                ret |= ENCODE_DIRECT_JSON(&nsUri, String);
             } else {
                 /* If not found, print the identifier */
-                ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
+                ret |= ENCODE_DIRECT_JSON(&ns, UInt16);
             }
         }
     }
@@ -841,11 +844,14 @@ ENCODE_JSON(ExpandedNodeId) {
                 ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
             } else {
                 /* Check if Namespace given and in range */
-                if(src->nodeId.namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
-                    UA_String namespaceEntry = ctx->namespaces[src->nodeId.namespaceIndex];
-                    ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+                UA_String nsUri = UA_STRING_NULL;
+                UA_UInt16 ns = src->nodeId.namespaceIndex;
+                if(ctx->namespaceMapping)
+                    UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
+                if(nsUri.length > 0) {
+                    ret |= ENCODE_DIRECT_JSON(&nsUri, String);
                 } else {
-                    ret |= ENCODE_DIRECT_JSON(&src->nodeId.namespaceIndex, UInt16);
+                    ret |= ENCODE_DIRECT_JSON(&ns, UInt16);
                 }
             }
         }
@@ -901,13 +907,15 @@ ENCODE_JSON(QualifiedName) {
         if(src->namespaceIndex == 1) {
             ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
         } else {
-             /* Check if Namespace given and in range */
-            if(src->namespaceIndex < ctx->namespacesSize && ctx->namespaces != NULL) {
-                UA_String namespaceEntry = ctx->namespaces[src->namespaceIndex];
-                ret |= ENCODE_DIRECT_JSON(&namespaceEntry, String);
+            /* Check if Namespace given and in range */
+            UA_String nsUri = UA_STRING_NULL;
+            UA_UInt16 ns = src->namespaceIndex;
+            if(ctx->namespaceMapping)
+                UA_NamespaceMapping_index2Uri(ctx->namespaceMapping, ns, &nsUri);
+            if(nsUri.length > 0) {
+                ret |= ENCODE_DIRECT_JSON(&nsUri, String);
             } else {
-                /* If not encode as number */
-                ret |= ENCODE_DIRECT_JSON(&src->namespaceIndex, UInt16);
+                ret |= ENCODE_DIRECT_JSON(&ns, UInt16); /* If not encode as number */
             }
         }
     }
@@ -1307,8 +1315,7 @@ UA_encodeJson(const void *src, const UA_DataType *type, UA_ByteString *outBuf,
     ctx.calcOnly = false;
     ctx.useReversible = true; /* default */
     if(options) {
-        ctx.namespaces = options->namespaces;
-        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.useReversible = options->useReversible;
@@ -1360,8 +1367,7 @@ UA_calcSizeJson(const void *src, const UA_DataType *type,
     ctx.depth = 0;
     ctx.useReversible = true; /* default */
     if(options) {
-        ctx.namespaces = options->namespaces;
-        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.useReversible = options->useReversible;
@@ -1928,12 +1934,12 @@ decodeExpandedNodeIdNamespace(ParseCtx *ctx, void *dst, const UA_DataType *type)
         return ret;
 
     /* Replace with the index if the URI is found. Otherwise keep the string. */
-    for(size_t i = 0; i < ctx->namespacesSize; i++) {
-        if(UA_String_equal(&en->namespaceUri, &ctx->namespaces[i])) {
+    if(ctx->namespaceMapping) {
+        UA_StatusCode mapRes =
+            UA_NamespaceMapping_uri2Index(ctx->namespaceMapping, en->namespaceUri,
+                                          &en->nodeId.namespaceIndex);
+        if(mapRes == UA_STATUSCODE_GOOD)
             UA_String_clear(&en->namespaceUri);
-            en->nodeId.namespaceIndex = (UA_UInt16)i;
-            break;
-        }
     }
 
     return UA_STATUSCODE_GOOD;
@@ -2878,8 +2884,7 @@ UA_decodeJson(const UA_ByteString *src, void *dst, const UA_DataType *type,
     ctx.tokens = tokens;
 
     if(options) {
-        ctx.namespaces = options->namespaces;
-        ctx.namespacesSize = options->namespacesSize;
+        ctx.namespaceMapping = options->namespaceMapping;
         ctx.serverUris = options->serverUris;
         ctx.serverUrisSize = options->serverUrisSize;
         ctx.customTypes = options->customTypes;
