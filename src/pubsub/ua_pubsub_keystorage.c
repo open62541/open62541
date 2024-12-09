@@ -213,7 +213,7 @@ UA_PubSubKeyStorage_addKeyRolloverCallback(UA_Server *server,
         return UA_STATUSCODE_GOOD;
     }
     
-    UA_LOCK_ASSERT(&psm->sc.server->serviceMutex, 1);
+    UA_LOCK_ASSERT(&server->serviceMutex, 1);
 
     UA_DateTime dateTimeToNextKey = UA_DateTime_nowMonotonic() +
         (UA_DateTime)(UA_DATETIME_MSEC * timeToNextMs);
