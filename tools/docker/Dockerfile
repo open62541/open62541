@@ -15,8 +15,6 @@ WORKDIR /opt/open62541/build
 RUN cmake -DBUILD_SHARED_LIBS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -DUA_BUILD_EXAMPLES=ON \
-      # Hardening needs to be disabled, otherwise the docker build takes too long and travis fails
-      -DUA_ENABLE_HARDENING=OFF \
       -DUA_ENABLE_ENCRYPTION=MBEDTLS \
       -DUA_ENABLE_SUBSCRIPTIONS=ON \
       -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=ON \

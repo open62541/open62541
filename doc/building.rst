@@ -24,7 +24,9 @@ Building with CMake on Ubuntu or Debian
    sudo apt-get install python3-sphinx graphviz  # for documentation generation
    sudo apt-get install python3-sphinx-rtd-theme # documentation style
 
+   git clone https://github.com/open62541/open62541.git
    cd open62541
+   git submodule update --init --recursive
    mkdir build
    cd build
    cmake ..
@@ -37,6 +39,12 @@ Building with CMake on Ubuntu or Debian
    # build documentation
    make doc # html documentation
    make doc_pdf # pdf documentation (requires LaTeX)
+
+Note: parallel compilation can be enable by using 
+
+.. code-block:: bash
+
+    make -j$(nproc)
 
 You can install open62541 using the well known `make install` command. This
 allows you to use pre-built libraries and headers for your own project. In order
@@ -69,17 +77,40 @@ CMake project definition looks as follows:
     #   find_package(open62541 REQUIRED)
     #   target_link_libraries(main open62541::open62541)
 
-Building with CMake on Windows
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Building with Visual Studio on Windows
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Here we explain the build process for Visual Studio (2013 or newer). To build
-with MinGW, just replace the compiler selection in the call to CMake.
+Here we explain the build process for Visual Studio 2022 Community.
 
 - Download and install
+    - Python 3.x: https://python.org/downloads
+    - Visual Studio 2022: https://visualstudio.microsoft.com
+        - When installing Visual Studio select the workload "Desktop development with C++"
 
-  - Python 3.x: https://python.org/downloads
-  - CMake: http://www.cmake.org/cmake/resources/software.html
-  - Microsoft Visual Studio: https://www.visualstudio.com/products/visual-studio-community-vs
+- Open Visual Studio and from the Get started window select "Clone a repository"
+    - Repository location: https://github.com/open62541/open62541.git
+    - Select a local path where to download the project and press Clone
+- Switch to Folder View from the Solution Explorer
+- Project / CMake Settings for open62541
+        - Customize CMake variables as wanted and save
+- Build / Build All
+- Build / Install open62541
+
+Note: the solution generated with cmake can also be compiled in parallel with the command
+
+.. code-block:: bash
+
+    msbuild open62541.sln /v:n -t:rebuild -m
+
+Building with CMake/MinGW on Windows
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To build with MinGW, just replace the compiler selection in the call to CMake.
+
+- Download and install
+    - MinGW http://sourceforge.net/projects/mingw
+    - Python 3.x: https://python.org/downloads
+    - CMake: http://www.cmake.org/cmake/resources/software.html
 
 - Download the open62541 sources (using git or as a zipfile from github)
 - Open a command shell (cmd) and run
@@ -89,10 +120,9 @@ with MinGW, just replace the compiler selection in the call to CMake.
    cd <path-to>\open62541
    mkdir build
    cd build
-   <path-to>\cmake.exe .. -G "Visual Studio 14 2015"
+   <path-to>\cmake.exe .. -G "MinGW Makefiles"
    :: You can use use cmake-gui for a graphical user-interface to select features
-
-- Then open :file:`build\open62541.sln` in Visual Studio 2015 and build as usual
+   make
 
 Building on OS X
 ^^^^^^^^^^^^^^^^
@@ -181,7 +211,7 @@ Main Build Options
   - ``MinSizeRel`` -Os optimization without debug symbols
 
 **BUILD_SHARED_LIBS**
-   Build a shared library (dll/so) or (an archive of) object files for linking
+   Build a shared library (.dll/.so) or (an archive of) object files for linking
    into a static binary. Shared libraries are recommended for a system-wide
    install. Note that this option modifies the :file:`ua_config.h` file that is
    also included in :file:`open62541.h` for the single-file distribution.

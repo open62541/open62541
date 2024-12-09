@@ -22,14 +22,12 @@ list(APPEND GENERATED_RST "")
 # Generated type definitions
 add_custom_command(OUTPUT ${DOC_SRC_DIR}/types_generated.rst
                    COMMAND ${CMAKE_COMMAND} -E copy ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst ${DOC_SRC_DIR}
-                   PRE_BUILD
                    DEPENDS ${PROJECT_BINARY_DIR}/src_generated/open62541/types_generated.rst)
 list(APPEND GENERATED_RST ${DOC_SRC_DIR}/types_generated.rst)
 
 macro(generate_rst in out)
     add_custom_command(OUTPUT ${out}
                        DEPENDS ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in}
-                       PRE_BUILD
                        COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/c2rst.py ${in} ${out})
     list(APPEND GENERATED_RST "${out}")
 endmacro()

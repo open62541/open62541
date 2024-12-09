@@ -49,7 +49,7 @@ decode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
     }
 
     /* Encode Binary. Internally allocates the buffer upon success */
-    retval = UA_encodeBinary(data, type, out);
+    retval = UA_encodeBinary(data, type, out, NULL);
 
     /* Clean up */
     UA_delete(data, type);
