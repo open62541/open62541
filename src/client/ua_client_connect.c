@@ -25,6 +25,7 @@
  *     UA_Client and reconnect.
  * - Call GetEndpoints and select an Endpoint
  * - Open a SecureChannel and Session for that Endpoint
+ * - Read the namespaces array of the server (and create the namespaces mapping)
  */
 
 #define UA_MINMESSAGESIZE 8192
@@ -431,7 +432,7 @@ sendHELMessage(UA_Client *client) {
     const UA_Byte *bufEnd = &message.data[message.length];
     client->connectStatus =
         UA_encodeBinaryInternal(&hello, &UA_TRANSPORT[UA_TRANSPORT_TCPHELLOMESSAGE],
-                                &bufPos, &bufEnd, NULL, NULL);
+                                &bufPos, &bufEnd, NULL, NULL, NULL);
 
     /* Encode the message header at offset 0 */
     UA_TcpMessageHeader messageHeader;
@@ -440,7 +441,7 @@ sendHELMessage(UA_Client *client) {
     bufPos = message.data;
     retval = UA_encodeBinaryInternal(&messageHeader,
                                      &UA_TRANSPORT[UA_TRANSPORT_TCPMESSAGEHEADER],
-                                     &bufPos, &bufEnd, NULL, NULL);
+                                     &bufPos, &bufEnd, NULL, NULL, NULL);
     if(retval != UA_STATUSCODE_GOOD) {
         cm->freeNetworkBuffer(cm, client->channel.connectionId, &message);
         return retval;
@@ -653,6 +654,121 @@ UA_Client_renewSecureChannel(UA_Client *client) {
 }
 
 static void
+responseReadNamespacesArray(UA_Client *client, void *userdata, UA_UInt32 requestId,
+                            void *response) {
+    client->namespacesHandshake = false;
+    client->haveNamespaces = true;
+
+    UA_ReadResponse *resp = (UA_ReadResponse *)response;
+
+    /* Add received namespaces to the local array. */
+    if(!resp->results || !resp->results[0].value.data) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "No result in the read namespace array response");
+        return;
+    }
+    UA_String *ns = (UA_String *)resp->results[0].value.data;
+    size_t nsSize = resp->results[0].value.arrayLength;
+    UA_String_copy(&ns[1], &client->namespaces[1]);
+    for(size_t i = 2; i < nsSize; ++i) {
+        UA_UInt16 nsIndex = 0;
+        UA_Client_addNamespace(client, ns[i], &nsIndex);
+    }
+
+    /* Set up the mapping. */
+    UA_NamespaceMapping *nsMapping = (UA_NamespaceMapping*)UA_calloc(1, sizeof(UA_NamespaceMapping));
+    if(!nsMapping) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Namespace mapping creation failed. Out of Memory.");
+        return;
+    }
+    UA_StatusCode retval = UA_Array_copy(client->namespaces, client->namespacesSize, (void**)&nsMapping->namespaceUris, &UA_TYPES[UA_TYPES_STRING]);
+    if(retval != UA_STATUSCODE_GOOD) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Failed to copy the namespaces with StatusCode %s.",
+                     UA_StatusCode_name(retval));
+        return;
+    }
+    nsMapping->namespaceUrisSize = client->namespacesSize;
+
+    nsMapping->remote2local = (UA_UInt16*)UA_calloc( nsSize, sizeof(UA_UInt16));
+    if(!nsMapping->remote2local) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Namespace mapping creation failed. Out of Memory.");
+        return;
+    }
+    nsMapping->remote2localSize = nsSize;
+    nsMapping->remote2local[0] = 0;
+    nsMapping->remote2local[1] = 1;
+
+    for(size_t i = 2; i < nsSize; ++i) {
+        UA_UInt16 nsIndex = 0;
+        UA_Client_getNamespaceIndex(client, ns[i], &nsIndex);
+        nsMapping->remote2local[i] = nsIndex;
+    }
+
+    nsMapping->local2remote = (UA_UInt16*)UA_calloc( nsSize, sizeof(UA_UInt16));
+    if(!nsMapping->local2remote) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Namespace mapping creation failed. Out of Memory.");
+        return;
+    }
+    nsMapping->local2remoteSize = nsSize;
+    nsMapping->local2remote[0] = 0;
+    nsMapping->local2remote[1] = 1;
+
+    for(size_t i = 2; i < nsMapping->remote2localSize; ++i) {
+        UA_UInt16 localIndex = nsMapping->remote2local[i];
+        nsMapping->local2remote[localIndex] = (UA_UInt16)i;
+    }
+
+    client->channel.namespaceMapping = nsMapping;
+}
+
+/* We read the namespaces right after the session has opened. The user might
+ * already requests other services in parallel. That leaves a short time where
+ * requests can be made before the namespace mapping is configured. */
+static void
+readNamespacesArrayAsync(UA_Client *client) {
+    UA_LOCK_ASSERT(&client->clientMutex);
+
+    /* Check the connection status */
+    if(client->sessionState != UA_SESSIONSTATE_CREATED &&
+       client->sessionState != UA_SESSIONSTATE_ACTIVATED) {
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Cannot read the namespaces array, session neither created nor "
+                     "activated. Actual state: '%u'", client->sessionState);
+        return;
+    }
+
+    /* Set up the read request */
+    UA_ReadRequest rr;
+    UA_ReadRequest_init(&rr);
+
+    UA_ReadValueId nodesToRead;
+    UA_ReadValueId_init(&nodesToRead);
+    nodesToRead.nodeId = UA_NS0ID(SERVER_NAMESPACEARRAY);
+    nodesToRead.attributeId = UA_ATTRIBUTEID_VALUE;
+
+    rr.nodesToRead = &nodesToRead;
+    rr.nodesToReadSize = 1;
+
+    /* Send the async read request */
+    UA_StatusCode res =
+        __Client_AsyncService(client, &rr, &UA_TYPES[UA_TYPES_READREQUEST],
+                              (UA_ClientAsyncServiceCallback)responseReadNamespacesArray,
+                              &UA_TYPES[UA_TYPES_READRESPONSE],
+                              NULL, NULL);
+
+    if(res == UA_STATUSCODE_GOOD)
+        client->namespacesHandshake = true;
+    else
+        UA_LOG_ERROR(client->config.logging, UA_LOGCATEGORY_CLIENT,
+                     "Could not read the namespace array with error code %s",
+                     UA_StatusCode_name(res));
+}
+
+static void
 responseActivateSession(UA_Client *client, void *userdata,
                         UA_UInt32 requestId, void *response) {
     UA_LOCK(&client->clientMutex);
@@ -702,6 +818,10 @@ responseActivateSession(UA_Client *client, void *userdata,
 
     client->sessionState = UA_SESSIONSTATE_ACTIVATED;
     notifyClientState(client);
+
+    /* Read the namespaces array if we don't already have it */
+    if(!client->haveNamespaces)
+        readNamespacesArrayAsync(client);
 
     /* Immediately check if publish requests are outstanding - for example when
      * an existing Session has been reattached / activated. */
