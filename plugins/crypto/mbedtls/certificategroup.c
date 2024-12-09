@@ -696,6 +696,8 @@ cleanup:
     return retval;
 }
 
+#if !defined(mbedtls_x509_subject_alternative_name)
+
 /* Find binary substring. Taken and adjusted from
  * http://tungchingkai.blogspot.com/2011/07/binary-strstr.html */
 
@@ -735,6 +737,8 @@ UA_Bstrstr(const unsigned char *s1, size_t l1, const unsigned char *s2, size_t l
     return NULL;
 }
 
+#endif
+
 UA_StatusCode
 UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
                                          const UA_ByteString *certificate,
@@ -748,21 +752,56 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
+#if defined(mbedtls_x509_subject_alternative_name)
+    /* Get the Subject Alternative Name and compate */
+    mbedtls_x509_subject_alternative_name san;
+    mbedtls_x509_sequence *cur = &remoteCertificate.subject_alt_names;
+    retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
+    for(; cur; cur = cur->next) {
+        int res = mbedtls_x509_parse_subject_alt_name(&cur->buf, &san);
+        if(res != 0)
+            continue;
+        if(san.type != MBEDTLS_X509_SAN_UNIFORM_RESOURCE_IDENTIFIER) {
+            mbedtls_x509_free_subject_alt_name(&san);
+            continue;
+        }
+
+        UA_String uri = {san.san.unstructured_name.len, san.san.unstructured_name.p};
+        UA_Boolean found = UA_String_equal(&uri, applicationURI);
+        if(found) {
+            retval = UA_STATUSCODE_GOOD;
+        } else if(ruleHandling != UA_RULEHANDLING_ACCEPT) {
+            UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                           "The certificate's Subject Alternative Name URI (%S) "
+                           "does not match the ApplicationURI (%S)",
+                           uri, *applicationURI);
+        }
+        mbedtls_x509_free_subject_alt_name(&san);
+        break;
+    }
+
+    if(!cur && ruleHandling != UA_RULEHANDLING_ACCEPT) {
+        UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
+                       "The certificate has no Subject Alternative Name URI defined");
+    }
+#else
     /* Poor man's ApplicationUri verification. mbedTLS does not parse all fields
      * of the Alternative Subject Name. Instead test whether the URI-string is
-     * present in the v3_ext field in general.
-     *
-     * TODO: Improve parsing of the Alternative Subject Name */
+     * present in the v3_ext field in general. */
     if(UA_Bstrstr(remoteCertificate.v3_ext.p, remoteCertificate.v3_ext.len,
                   applicationURI->data, applicationURI->length) == NULL)
         retval = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
 
-    if(retval != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
+    if(retval != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
                        "The certificate's application URI could not be verified. StatusCode %s",
                        UA_StatusCode_name(retval));
-        retval = UA_STATUSCODE_GOOD;
     }
+#endif
+
+    if(ruleHandling != UA_RULEHANDLING_ABORT)
+        retval = UA_STATUSCODE_GOOD;
+
     mbedtls_x509_crt_free(&remoteCertificate);
     return retval;
 }
