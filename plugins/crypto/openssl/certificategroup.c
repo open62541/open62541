@@ -810,12 +810,15 @@ UA_CertificateUtils_verifyApplicationURI(UA_RuleHandling ruleHandling,
         ret = UA_STATUSCODE_BADCERTIFICATEURIINVALID;
     }
 
-    if(ret != UA_STATUSCODE_GOOD && ruleHandling == UA_RULEHANDLING_DEFAULT) {
+    if(ret != UA_STATUSCODE_GOOD && ruleHandling != UA_RULEHANDLING_ACCEPT) {
         UA_LOG_WARNING(logger, UA_LOGCATEGORY_SECURITYPOLICY,
-                       "The certificate's application URI could not be verified. StatusCode %s",
-                       UA_StatusCode_name(ret));
-        ret = UA_STATUSCODE_GOOD;
+                       "The certificate's Subject Alternative Name URI (%S) "
+                       "does not match the ApplicationURI (%S)",
+                       subjectURI, *applicationURI);
     }
+
+    if(ruleHandling != UA_RULEHANDLING_ABORT)
+        ret = UA_STATUSCODE_GOOD;
 
     X509_free (certificateX509);
     sk_GENERAL_NAME_pop_free(pNames, GENERAL_NAME_free);
