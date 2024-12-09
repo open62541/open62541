@@ -51,14 +51,15 @@ logCategoryNames[UA_LOGCATEGORIES] =
 
 static void
 cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
-    const char *msg, va_list args) {
-    if(logLevel > level)
-        return;
+       const char *msg, va_list args) {
 
     /* Set to fatal if the level is outside the range */
-    int logLevelSlot = ((int)level / 100) - 1;
-    if(logLevelSlot < 0 || logLevelSlot > 5)
-        logLevelSlot = 5;
+    int l = ((int)level / 100) - 1;
+    if(l < 0 || l > 5)
+        l = 5;
+
+    if((int)logLevel - 1 > l)
+        return;
 
     /* Log */
 #define LOGBUFSIZE 512
@@ -66,7 +67,7 @@ cliLog(void *context, UA_LogLevel level, UA_LogCategory category,
     UA_String out = {LOGBUFSIZE, logbuf};
     UA_String_vprintf(&out, msg, args);
     fprintf(stderr, "%s/%s" ANSI_COLOR_RESET "\t",
-           logLevelNames[logLevelSlot], logCategoryNames[category]);
+           logLevelNames[l], logCategoryNames[category]);
     fprintf(stderr, "%s\n", logbuf);
     fflush(stderr);
 }
