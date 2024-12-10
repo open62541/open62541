@@ -122,6 +122,7 @@ typedef SSIZE_T ssize_t;
 /* POSIX Definitions */
 /*********************/
 
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
