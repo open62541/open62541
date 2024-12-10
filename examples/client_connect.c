@@ -153,13 +153,6 @@ int main(int argc, char *argv[]) {
     UA_ClientConfig_setDefault(cc);
 #endif
 
-    /* The application URI must be the same as the one in the certificate.
-     * The script for creating a self-created certificate generates a certificate
-     * with the Uri specified below.*/
-    UA_ApplicationDescription_clear(&cc->clientDescription);
-    cc->clientDescription.applicationUri = UA_STRING_ALLOC("urn:open62541.server.application");
-    cc->clientDescription.applicationType = UA_APPLICATIONTYPE_CLIENT;
-
     /* Connect to the server */
     UA_StatusCode retval = UA_STATUSCODE_GOOD;
     if(username) {

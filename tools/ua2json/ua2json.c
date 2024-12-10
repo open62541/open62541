@@ -10,12 +10,6 @@
 #include <open62541/pubsub.h>
 
 #include <stdio.h>
-#if defined(_MSC_VER)
-# include <BaseTsd.h>
-typedef SSIZE_T ssize_t;
-#else
-#include <unistd.h>
-#endif
 
 static UA_StatusCode
 encode(const UA_ByteString *buf, UA_ByteString *out, const UA_DataType *type) {
