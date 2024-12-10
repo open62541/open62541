@@ -13,10 +13,25 @@
 #include <check.h>
 
 static UA_EventLoop *el;
+static UA_ConnectionManager *cm;
 static unsigned connCount;
 static char *testMsg = "open62541";
 static uintptr_t clientId;
 static UA_Boolean received;
+
+static void setupEL(void) {
+#if defined(UA_ARCHITECTURE_POSIX)
+    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
+    cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
+    el->registerEventSource(el, &cm->eventSource);
+#elif defined(UA_ARCHITECTURE_LWIP)
+    el = UA_EventLoop_new_LWIP(UA_Log_Stdout);
+    cm = UA_ConnectionManager_new_LWIP_TCP(UA_STRING("tcpCM"));
+    el->registerEventSource(el, &cm->eventSource);
+#else
+#error Add other EventLoop implementations here
+#endif
+}
 
 static void
 connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
@@ -53,9 +68,7 @@ connectionCallback(UA_ConnectionManager *cm, uintptr_t connectionId,
 }
 
 START_TEST(listenTCP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 4840;
@@ -99,9 +112,7 @@ START_TEST(listenTCP) {
 } END_TEST
 
 START_TEST(connectTCP) {
-    UA_ConnectionManager *cm = UA_ConnectionManager_new_POSIX_TCP(UA_STRING("tcpCM"));
-    el = UA_EventLoop_new_POSIX(UA_Log_Stdout);
-    el->registerEventSource(el, &cm->eventSource);
+    setupEL();
     el->start(el);
 
     UA_UInt16 port = 4840;
