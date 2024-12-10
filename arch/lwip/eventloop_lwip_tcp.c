@@ -1104,6 +1104,7 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 }
 
 static const char *tcpName = "tcp";
+static bool init_already = false;
 
 UA_ConnectionManager *
 UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName) {
@@ -1112,17 +1113,24 @@ UA_ConnectionManager_new_LWIP_TCP(const UA_String eventSourceName) {
     if(!cm)
         return NULL;
 
-    tcpip_init(NULL, NULL);
-    ip4_addr_t ipaddr, netmask, gw;
+#ifndef LWIP_TCPIP_CORE_LOCKING
+#error Core locking needs to be enabled
+#endif
 
-    LWIP_PORT_INIT_IPADDR(ipaddr);
-    LWIP_PORT_INIT_NETMASK(netmask);
-    LWIP_PORT_INIT_GW(gw);
+    /* The initialization can only be done once for the runtime of the process */
+    if(!init_already) {
+        tcpip_init(NULL, NULL);
+        ip4_addr_t ipaddr, netmask, gw;
+        LWIP_PORT_INIT_IPADDR(ipaddr);
+        LWIP_PORT_INIT_NETMASK(netmask);
+        LWIP_PORT_INIT_GW(gw);
 
-    LOCK_TCPIP_CORE();
-    init_default_netif(&ipaddr, &netmask, &gw);
-    netif_set_up(netif_default);
-    UNLOCK_TCPIP_CORE();
+        LOCK_TCPIP_CORE();
+        init_default_netif(&ipaddr, &netmask, &gw);
+        netif_set_up(netif_default);
+        UNLOCK_TCPIP_CORE();
+    }
+    init_already = true;
 
     cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
     UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
