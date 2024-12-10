@@ -1,6 +1,7 @@
 name: Build Release Artifacts
 
 on:
+  push:
   release:
     types: [published]
 
@@ -16,3 +17,4 @@ jobs:
       - run: gh release upload ${{ github.ref_name }} build/open62541.{c,h}
         env:
           GH_TOKEN: ${{ github.token }}
+        if: github.event_name == 'release'
