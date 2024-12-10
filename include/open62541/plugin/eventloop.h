@@ -556,6 +556,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName);
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
 
+#if defined(__linux__) /* Linux only so far */
 /**
  * Ethernet Connection Manager
  * ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -604,6 +605,7 @@ UA_ConnectionManager_new_POSIX_UDP(const UA_String eventSourceName);
  * No additional parameters for sending over an Ethernet connection defined. */
 UA_EXPORT UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_Ethernet(const UA_String eventSourceName);
+#endif
 
 /**
  * MQTT Connection Manager
