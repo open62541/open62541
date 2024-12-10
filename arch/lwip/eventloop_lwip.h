@@ -16,6 +16,7 @@
 #include <lwip/tcpip.h>
 #include <lwip/sockets.h>
 #include <lwip/inet.h>
+#include <lwip/netdb.h>
 #include <lwip/errno.h>
 
 #include "../../deps/mp_printf.h"
