@@ -461,10 +461,19 @@ FileCertStore_createInotifyEvent(UA_CertificateGroup *certGroup) {
     if(context->inotifyFd == -1)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    char rootFolder[PATH_MAX] = {0};
-    mp_snprintf(rootFolder, PATH_MAX, "%.*s",
+    char folder[PATH_MAX] = {0};
+    mp_snprintf(folder, PATH_MAX, "%.*s",
                 (int)context->rootFolder.length, (char*)context->rootFolder.data);
-    int wd = inotify_add_watch(context->inotifyFd, rootFolder, IN_ALL_EVENTS);
+    int wd = inotify_add_watch(context->inotifyFd, folder, IN_ALL_EVENTS);
+    if(wd == -1) {
+        close(context->inotifyFd);
+        context->inotifyFd = -1;
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
+    mp_snprintf(folder, PATH_MAX, "%.*s",
+                (int)context->trustedCertFolder.length, (char*)context->trustedCertFolder.data);
+    wd = inotify_add_watch(context->inotifyFd, folder, IN_ALL_EVENTS);
     if(wd == -1) {
         close(context->inotifyFd);
         context->inotifyFd = -1;
