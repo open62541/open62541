@@ -1618,7 +1618,7 @@ verifyClientApplicationURI(const UA_Client *client) {
             UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_CLIENT,
                            "The configured ApplicationURI does not match the URI "
                            "specified in the certificate for the SecurityPolicy %S",
-                           sp->policyUri.length);
+                           sp->policyUri);
         }
     }
 #endif
