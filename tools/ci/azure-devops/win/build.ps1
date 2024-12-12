@@ -35,14 +35,15 @@ if ($env:CC_SHORTNAME -eq "mingw") {
 $cmake_cnf="$vcpkg_toolchain", "$vcpkg_triplet", "-G`"$env:GENERATOR`""
 
 Write-Host -ForegroundColor Green "`n###################################################################"
-Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with unit tests #####`n"
+Write-Host -ForegroundColor Green "`n##### Testing $env:CC_NAME with tools, unit tests and examples #####`n"
 New-Item -ItemType directory -Path "build"
 cd build
 & cmake $cmake_cnf `
         -DBUILD_SHARED_LIBS:BOOL=OFF `
         -DCMAKE_BUILD_TYPE=Debug `
-        -DUA_BUILD_EXAMPLES=OFF `
+        -DUA_BUILD_EXAMPLES=ON `
         -DUA_BUILD_UNIT_TESTS=ON `
+        -DUA_BUILD_TOOLS=ON `
         -DUA_ENABLE_ALLOW_REUSEADDR=ON `
         -DUA_ENABLE_DA=ON `
         -DUA_ENABLE_DISCOVERY=ON `
@@ -60,24 +61,6 @@ if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
 & cmake --build . --target test-verbose -j 1
 if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
     Write-Host -ForegroundColor Red "`n`n*** Test failed. Exiting ... ***"
-    exit $LASTEXITCODE
-}
-cd ..
-Remove-Item -Path build -Recurse -Force
-
-Write-Host -ForegroundColor Green "`n###################################################################"
-Write-Host -ForegroundColor Green "`n##### Building $env:CC_NAME examples #####`n"
-New-Item -ItemType directory -Path "build"
-cd build
-& cmake $cmake_cnf `
-        -DBUILD_SHARED_LIBS:BOOL=OFF `
-        -DCMAKE_BUILD_TYPE=Debug `
-        -DUA_BUILD_EXAMPLES:BOOL=ON `
-        -DUA_FORCE_WERROR=ON `
-        ..
-& cmake --build .
-if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {
-    Write-Host -ForegroundColor Red "`n`n*** Make install failed. Exiting ... ***"
     exit $LASTEXITCODE
 }
 cd ..
